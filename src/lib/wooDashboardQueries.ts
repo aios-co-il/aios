@@ -115,6 +115,7 @@ export type WooReportAttributionData = {
 const WOO_PAGE_SIZE = 1000;
 const WOO_MAX_PAGES = 50; // safety cap — 50k orders per range
 
+/** Load orders for the selected date column and range. */
 async function fetchWooOrdersForColumnInRange(
   siteIds: string[],
   column: "date_created" | "date_paid" | "date_completed",

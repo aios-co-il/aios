@@ -95,6 +95,7 @@ async function resolveReportTenantIds(
   );
 }
 
+/** Read the Ahrefs report rows for the selected client. */
 function ahrefsReportsForClient<Columns extends string = "*">(
   clientId: string,
   tenantIds: string[],
@@ -110,6 +111,7 @@ function ahrefsReportsForClient<Columns extends string = "*">(
   return q;
 }
 
+/** Read the configured client identifier without coercing other values. */
 function settingsClientId(t: CategoryTable, settings: JsonObject) {
   return (
     readString(settings, "clientId") ||
@@ -118,10 +120,12 @@ function settingsClientId(t: CategoryTable, settings: JsonObject) {
   );
 }
 
+/** Read the supported Ahrefs project identifier. */
 function projectIdOf(value: Json | undefined): string | number | null {
   return typeof value === "string" || typeof value === "number" ? value : null;
 }
 
+/** Build the keyword record data used by category sync. */
 function keywordRecordData(
   keyword: Json,
   report: { domain: string },

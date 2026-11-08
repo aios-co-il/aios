@@ -9,6 +9,7 @@ const nonEmptyTextSchema = z.string().min(1);
 
 const messageSchema = z.object({ message: z.unknown() });
 
+/** Narrow object-shaped JSON before dynamic field access. */
 export function isJsonObject(value: Json | undefined): value is JsonObject {
   return plainObjectSchema.safeParse(value).success;
 }

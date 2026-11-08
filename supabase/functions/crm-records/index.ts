@@ -5,6 +5,7 @@ import { asJsonObject, jsonField, thrownMessage } from "../_shared/crm-json.ts";
 
 type RecordSlice = Pick<Tables<"crm_records">, "id" | "data">;
 
+/** Reject empty or non-string identifiers at the request boundary. */
 function nonEmptyString(value: Json | undefined): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }

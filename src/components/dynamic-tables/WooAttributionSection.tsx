@@ -69,6 +69,7 @@ export function WooAttributionSection({
   );
 }
 
+/** Resolve the display label for a supported attribution value. */
 export function wooAttributionLabel(
   order: { attribution?: WooOrderAttribution | null } | null | undefined,
 ): string {

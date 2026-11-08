@@ -13,6 +13,7 @@ const messageSchema = z.object({ message: z.unknown() });
 
 const codeSchema = z.object({ code: z.unknown() });
 
+/** Parse a scalar or return undefined when its runtime shape differs. */
 function parsedOrUndefined<T>(
   schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   value: unknown,
@@ -21,6 +22,7 @@ function parsedOrUndefined<T>(
   return parsed.success ? parsed.data : undefined;
 }
 
+/** Narrow object-shaped JSON containers before reading dynamic keys. */
 export function isJsonObject(value: unknown): value is JsonObject {
   return plainObjectSchema.safeParse(value).success;
 }
@@ -53,26 +55,32 @@ export function parseEach<S extends z.ZodTypeAny>(
 export const listOf = <S extends z.ZodTypeAny>(schema: S) =>
   z.unknown().transform((value) => parseEach(schema, value));
 
+/** Return array input or an empty list. */
 export function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
+/** Read a JSON array column without coercing other values. */
 export function asJsonArray(value: Json | null | undefined): Json[] {
   return Array.isArray(value) ? value : [];
 }
 
+/** Keep object entries from a dynamic JSON list. */
 export function jsonObjects(value: unknown): JsonObject[] {
   return asArray(value).filter(isJsonObject);
 }
 
+/** Read a dynamic JSON object field. */
 export function readField(obj: unknown, key: string): Json | undefined {
   return isJsonObject(obj) ? obj[key] : undefined;
 }
 
+/** Read only string values from a dynamic JSON field. */
 export function readString(obj: unknown, key: string): string | undefined {
   return parsedOrUndefined(z.string(), readField(obj, key));
 }
 
+/** Read only numeric values from a dynamic JSON field. */
 export function readNumber(obj: unknown, key: string): number | undefined {
   return parsedOrUndefined(numberSchema, readField(obj, key));
 }
@@ -83,6 +91,7 @@ export function readText(obj: unknown, key: string): string | undefined {
   return value === undefined ? undefined : String(value);
 }
 
+/** Read supported string or numeric date inputs. */
 export function readDateInput(
   obj: unknown,
   key: string,
@@ -94,10 +103,12 @@ export function readDateInput(
 export const parseJsonFloat = (value: Json | undefined): number =>
   parseFloat(String(value));
 
+/** Parse a legacy numeric JSON field. */
 export function readFloat(obj: unknown, key: string): number {
   return parseJsonFloat(readField(obj, key));
 }
 
+/** Extract a string message from a thrown value. */
 export function errorMessage(error: unknown): string | undefined {
   return parsedOrUndefined(z.string(), thrownMessage(error));
 }

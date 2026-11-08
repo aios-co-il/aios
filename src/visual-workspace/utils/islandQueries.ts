@@ -103,6 +103,7 @@ const ITEM_QUERIES: Partial<Record<IslandId, ItemsQuery>> = {
     ),
 };
 
+/** Load the agents used by a visual-workspace island. */
 function fetchAgentRows(tenantId: string, limit: number) {
   return supabase
     .from("ai_agents")
@@ -111,6 +112,7 @@ function fetchAgentRows(tenantId: string, limit: number) {
     .limit(limit);
 }
 
+/** Load the records displayed by the selected island. */
 export async function fetchIslandItems(
   islandId: IslandId,
   tenantId: string,
@@ -119,6 +121,7 @@ export async function fetchIslandItems(
   return query ? query(tenantId) : [];
 }
 
+/** Load the agents attached to the selected island. */
 export async function fetchIslandAgents(
   tenantId: string,
 ): Promise<IslandAgent[]> {

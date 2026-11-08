@@ -58,12 +58,14 @@ interface PublicSeoViewProps {
   forceIrrelevant?: string[];
 }
 
+/** Normalize a keyword into the key used for report matching. */
 function keywordKey(kw: Json): string {
   return String(readField(kw, "keyword") || "")
     .toLowerCase()
     .trim();
 }
 
+/** Normalize supported keyword text for matching and display. */
 function normalizeKeyword(keyword: Json) {
   const kw = asJsonObject(keyword);
   return {
@@ -189,6 +191,7 @@ export function PublicSeoView({
     [gscMultiPeriod],
   );
 
+  /** Attach the available report metrics to a keyword row. */
   function enrich(kw: Json) {
     const n = normalizeKeyword(kw);
     const lower = String(n.keyword).toLowerCase().trim();

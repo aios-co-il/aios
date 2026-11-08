@@ -71,6 +71,7 @@ interface SeoReportTabsProps {
   clientId: string;
 }
 
+/** Read the Analytics record fields consumed by SEO report tabs. */
 function toGaRecord(row: unknown): { id: string; data: JsonObject } {
   return {
     id: readString(row, "id") ?? "",
@@ -744,6 +745,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   );
 }
 
+/** Render gsc table selector from its typed view data. */
 function GscTableSelector({
   tables,
   selectedId,

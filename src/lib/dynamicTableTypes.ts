@@ -34,6 +34,7 @@ export type LangFilterValue = "all" | "he" | "en";
 
 const langFilterSchema = z.enum(["all", "he", "en"]).catch("all");
 
+/** Narrow the supported language filter value. */
 export function toLangFilter(value: unknown): LangFilterValue {
   return langFilterSchema.parse(value);
 }
@@ -100,6 +101,7 @@ const makeApiSettingsSchema = z
   })
   .catch({});
 
+/** Validate the Make API settings consumed by the table editor. */
 export function readMakeApiSettings(
   value: Json | null | undefined,
 ): MakeApiSettings {

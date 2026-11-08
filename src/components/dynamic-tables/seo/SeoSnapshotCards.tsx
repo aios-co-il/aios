@@ -71,6 +71,7 @@ function ChangeIndicator({
   );
 }
 
+/** Count ranked keyword values at or below the threshold. */
 function countAtOrBelow(
   kws: SnapshotKeyword[] | undefined,
   maxPos: number,

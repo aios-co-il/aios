@@ -400,6 +400,7 @@ function AlertCard({
   );
 }
 
+/** Read the account restriction reason used by alerts. */
 function getAccountBlockReason(status: string, disableReason?: Json): string {
   switch (status) {
     case "disabled":
@@ -436,10 +437,12 @@ function getCampaignBlockReason(effectiveStatus: string): string {
   }
 }
 
+/** Read a supported report date for alert ordering. */
 function recordDate(record: AlertRecord): string | undefined {
   return readString(record.data, "date") || readString(record.data, "Date");
 }
 
+/** Choose the newest supported report record. */
 function getLatestRecord(records: AlertRecord[]): AlertRecord | null {
   if (records.length === 0) return null;
 
@@ -450,6 +453,7 @@ function getLatestRecord(records: AlertRecord[]): AlertRecord | null {
   }, records[0]);
 }
 
+/** Group report records by their campaign identity. */
 function groupRecordsByCampaign(
   records: AlertRecord[],
 ): Record<string, AlertRecord[]> {
@@ -471,6 +475,7 @@ function groupRecordsByCampaign(
   return groups;
 }
 
+/** Resolve the campaign label displayed by an alert. */
 function getCampaignName(records: AlertRecord[]): string {
   if (records.length === 0) return "";
   const firstRecord = records[0];
@@ -482,6 +487,7 @@ function getCampaignName(records: AlertRecord[]): string {
   );
 }
 
+/** Calculate alert metrics from the selected report records. */
 function calculateMetrics(
   records: AlertRecord[],
   startDate: Date,

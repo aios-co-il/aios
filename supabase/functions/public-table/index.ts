@@ -330,6 +330,7 @@ function writeSeoShareCacheLocal(cacheKey: string, body: string) {
   }
 }
 
+/** Read the cached SEO response for a shared link. */
 async function readSeoShareCache(
   supabase: PublicClient,
   cacheKey: string,
@@ -341,6 +342,7 @@ async function readSeoShareCache(
   return db;
 }
 
+/** Persist the shared SEO response in its cache entry. */
 async function writeSeoShareCache(
   supabase: PublicClient,
   cacheKey: string,

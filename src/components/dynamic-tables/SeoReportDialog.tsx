@@ -70,6 +70,7 @@ import {
 import { cn } from "@/lib/utils";
 import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
 
+/** Read a supported Analytics property selector option. */
 function gaPropertyOption(p: Json): { id: string; name: string } {
   const id = String(
     typeof p === "string"
@@ -86,6 +87,7 @@ function gaPropertyOption(p: Json): { id: string; name: string } {
   return { id, name };
 }
 
+/** Format numeric report values with locale separators and retain other display text. */
 function localeText(value: Json | undefined): string | undefined {
   if (value == null) {
     return undefined;

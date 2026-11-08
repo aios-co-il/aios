@@ -37,6 +37,7 @@ export interface SharedTableInfo {
   id: string;
   name: string;
   agency_name?: string | null;
+  category?: string | null;
   integration_type: string | null;
   integration_settings: CrmTableIntegrationSettings | null;
   client_id?: string | null;
@@ -77,6 +78,7 @@ const sharedTableInfoSchema = z
     id: z.string(),
     name: z.string().catch(""),
     agency_name: optionalText,
+    category: optionalText,
     integration_type: z.string().nullable().catch(null),
     integration_settings: integrationSettingsSchema,
     client_id: optionalText,

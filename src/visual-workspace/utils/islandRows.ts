@@ -13,6 +13,7 @@ const AGENT_ROLES: readonly AgentRole[] = [
   "system",
 ];
 
+/** Narrow a stored role to a supported workspace agent role. */
 export function toAgentRole(role: unknown): AgentRole {
   return AGENT_ROLES.find((known) => known === role) ?? "ceo";
 }

@@ -118,6 +118,7 @@ function PositionChange({ value }: { value: number | null }) {
   );
 }
 
+/** Render keyword row from its typed view data. */
 function KeywordRow({
   kw,
   show3Month,
@@ -319,6 +320,7 @@ function KeywordRow({
   );
 }
 
+/** Render keyword table from its typed view data. */
 function KeywordTable({
   keywords,
   title,
@@ -463,6 +465,7 @@ function KeywordTable({
   );
 }
 
+/** Render keyword clusters panel from its typed view data. */
 function KeywordClustersPanel({
   clusters,
   show3Month,

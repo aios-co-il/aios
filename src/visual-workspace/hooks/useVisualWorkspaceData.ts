@@ -21,13 +21,7 @@ function deriveStatus(alerts: number, errors = 0): IslandStatus {
 
 type QueryResult = { error: { message: string } | null };
 
-/** Each tile falls back to empty, so a failed query only shows in the console. */
-function warnQueryError(error: unknown) {
-  if (error) {
-    console.warn("[visual-workspace] query failed:", error);
-  }
-}
-
+/** Load the tenant-scoped visual workspace tiles. */
 export function useVisualWorkspaceData() {
   const { tenantId } = useCurrentTenant();
 
@@ -38,6 +32,14 @@ export function useVisualWorkspaceData() {
   });
 }
 
+/** Each tile falls back to empty, so a failed query only shows in the console. */
+function warnQueryError(error: unknown) {
+  if (error) {
+    console.warn("[visual-workspace] query failed:", error);
+  }
+}
+
+/** Query metrics and record optional tile failures. */
 async function loadWorkspaceData(tid: string) {
   const monthStart = startOfMonth();
   const weekAgo = sevenDaysAgo();

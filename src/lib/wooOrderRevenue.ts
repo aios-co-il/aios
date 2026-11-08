@@ -40,6 +40,7 @@ export function isWooOrderInRevenueRange(
   );
 }
 
+/** Keep the orders eligible for revenue calculations. */
 export function filterWooOrdersForRevenue<T extends WooOrderRevenueRow>(
   orders: T[],
   range: { start: string; end: string } | null,

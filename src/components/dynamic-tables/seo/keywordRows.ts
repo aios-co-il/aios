@@ -32,6 +32,7 @@ export function positionDelta(
     : null;
 }
 
+/** Sort keywords by numeric rank with unranked rows last. */
 export function compareByPosition(a: SeoKeywordRow, b: SeoKeywordRow): number {
   return Number(a.position ?? 999) - Number(b.position ?? 999);
 }
@@ -55,6 +56,7 @@ const MERGE_FIELDS: (keyof SeoKeywordRow)[] = [
 
 const isBlankField = (value: unknown) => value == null || value === "";
 
+/** Fill a missing metric from a duplicate keyword variant. */
 function fillBlankField<K extends keyof SeoKeywordRow>(
   target: SeoKeywordRow,
   source: SeoKeywordRow,
@@ -65,6 +67,7 @@ function fillBlankField<K extends keyof SeoKeywordRow>(
   }
 }
 
+/** Prefer rank, then traffic and volume when merging variants. */
 function compareVariants(a: SeoKeywordRow, b: SeoKeywordRow): number {
   const ap = a.position ?? Number.POSITIVE_INFINITY;
   const bp = b.position ?? Number.POSITIVE_INFINITY;

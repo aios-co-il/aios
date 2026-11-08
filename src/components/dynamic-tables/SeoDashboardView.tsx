@@ -406,6 +406,7 @@ export function SeoDashboardView({
       : null;
 
   // Normalize keyword fields from various source formats
+  /** Normalize supported keyword text for matching and display. */
   function normalizeKeyword(keyword: Json) {
     const kw = asJsonObject(keyword);
     return {
@@ -425,6 +426,7 @@ export function SeoDashboardView({
   }
 
   // Build lookup map for prev month positions
+  /** Index previous-month keyword positions for comparison. */
   function buildPrevMonthMap(
     report: { report_data?: unknown } | null,
   ): Map<string, Json> {
@@ -496,6 +498,7 @@ export function SeoDashboardView({
     gscThreeMonthMap.size > 0 ||
     gscYearlyMap.size > 0;
 
+  /** Attach comparison metrics to a keyword row. */
   function enrichKeyword(kw: Json, effComparison: ComparisonMaps) {
     const normalized = normalizeKeyword(kw);
     const kwLower = String(normalized.keyword).toLowerCase().trim();

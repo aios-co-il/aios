@@ -30,7 +30,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         },
         then(
           resolve: (value: {
-            data: never[];
+            data: Array<never>;
             count: number;
             error: null;
           }) => unknown,

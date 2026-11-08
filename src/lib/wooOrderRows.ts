@@ -39,6 +39,7 @@ const wooOrderAttributionSchema = z
   .nullable()
   .catch(null);
 
+/** Read the supported attribution fields from an order row. */
 export function toWooOrderAttribution(
   value: Json | undefined,
 ): WooOrderAttribution | null {
@@ -68,6 +69,7 @@ export function toWooOrderRow(value: unknown): WooOrderRow | null {
   return parsed.success ? parsed.data : null;
 }
 
+/** Validate stored WooCommerce rows before dashboard calculations. */
 export function toWooOrderRows(rows: readonly unknown[] | null): WooOrderRow[] {
   return parseEach(wooOrderRowSchema, rows);
 }

@@ -27,6 +27,7 @@ interface CampaignerScope {
   clientIds: Set<string>;
 }
 
+/** Check the caller scope used by SEO table access. */
 async function userHasSeoScope(
   admin: DbClient,
   userId: string,
@@ -64,6 +65,7 @@ async function userHasSeoScope(
   return tags.includes("SEO");
 }
 
+/** Resolve the clients visible through the caller SEO scope. */
 async function getSeoClientIds(
   admin: DbClient,
   userId: string,
@@ -80,6 +82,7 @@ async function getSeoClientIds(
 // + the clients they're on (client_team). crm_tables has no INSERT/UPDATE RLS
 // policies for campaigners, so the service-role fallbacks below authorize
 // against this scope explicitly instead of widening RLS.
+/** Resolve the campaigner client and agency scope. */
 async function getCampaignerScope(
   admin: DbClient,
   userId: string,
@@ -117,6 +120,7 @@ async function getCampaignerScope(
   };
 }
 
+/** Check whether a client belongs to the resolved campaigner scope. */
 async function isClientInCampaignerScope(
   admin: DbClient,
   clientId: string,
@@ -141,6 +145,7 @@ function applyClientIdFilter<Q extends { or(filters: string): Q }>(
   );
 }
 
+/** Apply the requested client filter to a table summary. */
 function tableMatchesClientFilter(
   table: CrmTableRow,
   clientIdFilter: string,
@@ -153,6 +158,7 @@ function tableMatchesClientFilter(
   );
 }
 
+/** Synchronize the client card after a table association changes. */
 async function syncClientCardAfterTableChange(
   tableRow: CrmTableRow | null | undefined,
 ) {

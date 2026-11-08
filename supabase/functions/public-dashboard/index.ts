@@ -40,6 +40,7 @@ type MonthlyShareSlice = Pick<
   "share_token" | "month" | "is_active" | "snapshot"
 >;
 
+/** Map provider period fields into a shared Search Console row. */
 function mapGscPeriodRow(row: Json) {
   const keys = jsonField(row, "keys");
   const ctr = jsonField(row, "ctr");
@@ -198,7 +199,8 @@ Deno.serve(async (req) => {
         : tableRecords;
 
       const filteredRecords = readRecords.filter((r) => {
-        const rawDate = jsonField(r.data,"date") || jsonField(r.data,"date_start");
+        const rawDate =
+          jsonField(r.data, "date") || jsonField(r.data, "date_start");
         // Keep aggregated / summary rows (no date) — needed for GA channel rolls etc.
         if (!rawDate) {
           return true;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { jsonValueSchema, listOf } from "@/lib/jsonReaders";
+import { listOf } from "@/lib/jsonReaders";
 
 const optionalString = z.string().optional().catch(undefined);
 const optionalNumber = z.number().optional().catch(undefined);
@@ -9,7 +9,7 @@ const ahrefsSnapshotResponseSchema = z
     error: optionalString,
     tracked_count: optionalNumber,
     keywords_count: optionalNumber,
-    projectId: jsonValueSchema.optional(),
+    projectId: z.union([z.string(), z.number()]).optional().catch(undefined),
   })
   .catch({});
 

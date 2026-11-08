@@ -1274,6 +1274,7 @@ export default function SharedTable() {
   );
 }
 
+/** Render ahrefs shared report tabs from its typed view data. */
 function AhrefsSharedReportTabs({
   hasGsc,
   hasGa,

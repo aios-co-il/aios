@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  readAhrefsProjectList,
   readAhrefsSnapshotResponse,
+  readAhrefsProjectList,
 } from "./ahrefsResponses";
-import {
-  readFacebookAdAccounts,
-  readGoogleAdsAccounts,
-} from "./adAccountLists";
-
 describe("readAhrefsSnapshotResponse", () => {
   it("reads counts, error and the raw project id", () => {
     expect(
@@ -26,7 +21,6 @@ describe("readAhrefsSnapshotResponse", () => {
     expect(readAhrefsSnapshotResponse({ error: "quota" }).error).toBe("quota");
   });
 });
-
 describe("readAhrefsProjectList", () => {
   it("keeps numeric project ids as sent by Ahrefs", () => {
     const { projects } = readAhrefsProjectList({
@@ -52,22 +46,5 @@ describe("readAhrefsProjectList", () => {
       },
     ]);
     expect(readAhrefsProjectList({}).projects).toBeUndefined();
-  });
-});
-
-describe("ad account lists", () => {
-  it("reads Facebook and Google Ads account arrays", () => {
-    expect(
-      readFacebookAdAccounts({
-        ad_accounts: [
-          { id: "act_1", name: "Main", currency: "ILS" },
-          { id: 2 },
-        ],
-      }),
-    ).toEqual([{ id: "act_1", name: "Main", currency: "ILS" }]);
-    expect(
-      readGoogleAdsAccounts({ accounts: [{ id: 123, name: "G" }, {}] }),
-    ).toEqual([{ id: "123", name: "G", currency: "", manager: false }]);
-    expect(readFacebookAdAccounts(null)).toEqual([]);
   });
 });

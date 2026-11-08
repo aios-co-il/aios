@@ -99,6 +99,7 @@ export function BusinessCore({ data, width, height }: Props) {
   );
 }
 
+/** Render core stat from its typed view data. */
 function CoreStat({
   icon: Icon,
   label,
