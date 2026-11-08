@@ -17,17 +17,20 @@ import { join } from "node:path";
  */
 const WORKFLOWS = ["render-worker.yml", "render-worker-preview.yml"];
 
-const workflow = (name) =>
+const workflow = (name: string) =>
   readFileSync(
     new URL(`../../.github/workflows/${name}`, import.meta.url),
     "utf8",
   );
 
-const indentOf = (line) => line.match(/^ */)[0].length;
+const indentOf = (line: string) => /^ */.exec(line)?.[0].length ?? 0;
 
 /** The job's steps in order, each with its name, `if:` and the script it runs. */
-function steps(text) {
+function steps(text: string): Array<Step> {
   const body = text.split(/^ {4}steps:\n/m)[1];
+  if (body === undefined) {
+    throw new Error("the workflow has no steps");
+  }
   return body
     .split(/^ {6}- /m)
     .slice(1)
@@ -43,13 +46,13 @@ function steps(text) {
 }
 
 /** A step's `run:` script, de-indented the way YAML reads a block scalar. */
-function script(chunk) {
+function script(chunk: string) {
   const lines = chunk.split("\n");
   const at = lines.findIndex((line) => /^\s*run: /.test(line));
   if (at < 0) return "";
   const inline = lines[at].replace(/^\s*run: /, "");
   if (inline !== "|") return inline;
-  const body = [];
+  const body: Array<string> = [];
   for (const line of lines.slice(at + 1)) {
     if (line.trim() && indentOf(line) <= indentOf(lines[at])) break;
     body.push(line);
@@ -60,9 +63,10 @@ function script(chunk) {
   return body.map((line) => line.slice(pad)).join("\n");
 }
 
-const usesToken = (step) => step.text.includes("secrets.BASE_ACCESS_TOKEN");
+const usesToken = (step: Step) =>
+  step.text.includes("secrets.BASE_ACCESS_TOKEN");
 /** Checks out or runs the branch's code, or a dependency's. */
-const runsBranchCode = (step) =>
+const runsBranchCode = (step: Step) =>
   /actions\/checkout/.test(step.text) ||
   /working-directory:/.test(step.text) ||
   /\b(npm|npx|node|pnpm)\b/.test(step.run);
@@ -87,7 +91,11 @@ test.each(WORKFLOWS)(
 );
 
 /** Runs a step's script with bash; curl is a fake that records its arguments and answers reply. */
-function runWithFakeCurl(step, reply, env = {}) {
+function runWithFakeCurl(
+  step: Step,
+  reply: string,
+  env: Record<string, string> = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "drain-step-"));
   const bin = join(dir, "bin");
   mkdirSync(bin);
@@ -108,7 +116,7 @@ function runWithFakeCurl(step, reply, env = {}) {
       ...env,
     },
   });
-  let args = [];
+  let args: Array<string> = [];
   try {
     args = readFileSync(join(dir, "args"), "utf8").split("\n");
   } catch {
@@ -148,7 +156,7 @@ test("the Staging drain installs nothing while no run is waiting", () => {
     /^or=\(status\.eq\.queued,and\(status\.eq\.running,started_at\.lt\.(\S+Z)\)\)$/,
   )?.[1];
   expect(stale).toBeTruthy();
-  const minutesAgo = (Date.now() - Date.parse(stale)) / 60_000;
+  const minutesAgo = (Date.now() - Date.parse(stale ?? "")) / 60_000;
   expect(minutesAgo).toBeGreaterThan(44);
   expect(minutesAgo).toBeLessThan(46.5);
 });
@@ -165,6 +173,9 @@ test("a preview is looked up only under the Production project", () => {
   const resolve = steps(workflow("render-worker-preview.yml")).find(
     (step) => step.id === "preview",
   );
+  if (!resolve) {
+    throw new Error("the preview drain has no preview step");
+  }
   // Every request fails at once, so a lookup across all the token's projects crashes here.
   const offline = "http://127.0.0.1:9";
   const unset = runWithFakeCurl(resolve, "", {
@@ -200,3 +211,12 @@ test("the preview drain runs on its own only for video changes", () => {
   // Any other PR can still run it by hand.
   expect(text).toMatch(/^ {2}workflow_dispatch:/m);
 });
+
+/** One step of a workflow job, as steps() reads it. */
+interface Step {
+  text: string;
+  name: string | undefined;
+  id: string | undefined;
+  if: string;
+  run: string;
+}

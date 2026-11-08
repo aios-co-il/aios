@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAgentRunSteps } from "./agentReadQueries";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -96,19 +97,7 @@ export function RunsTab({ agent }: { agent: any }) {
     refetchInterval: 5000,
   });
 
-  const { data: steps = [] } = useQuery({
-    queryKey: ["agent-run-steps", selectedRunId],
-    enabled: !!selectedRunId,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("agent_action_log")
-        .select("*")
-        .filter("run_id", "eq", selectedRunId)
-        .order("step_index", { ascending: true });
-      return data ?? [];
-    },
-    refetchInterval: 3000,
-  });
+  const { data: steps = [] } = useAgentRunSteps(selectedRunId);
 
   return (
     // Content-height layout: stacks (list above detail) until the container is

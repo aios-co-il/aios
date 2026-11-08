@@ -5,17 +5,20 @@
  * or user_roles), or are shared with the whole organisation
  * (connection_visibility 'org', which every member already sees in Chat).
  * Only client threads of these lines are read (get_client_thread_activity).
- * Carmen's Manus line and Meta business numbers store rows under their own
- * provider and are not read until David decides to monitor them (AIO-252
- * phase 2). Nothing is ever sent through these lines.
+ * The tenant's own Carmen line (its active Manus integrations) is read too,
+ * for groups only (AIO-515): a tenant whose groups run on Carmen's line, such
+ * as DMM, would otherwise have nothing to review. Meta business numbers are
+ * not read. Nothing is ever sent through these lines.
  */
 import type { DbClient } from "../../../_shared/supabase-clients.ts";
 import { throwIf } from "../../../_shared/manager-round/db-error.ts";
-import { MONITORED_PROVIDER } from "./activity.ts";
+import { CARMEN_PROVIDER, MONITORED_PROVIDER } from "./activity.ts";
 
 export type MonitoredLines = {
   /** chat_messages.connection_user_id of each monitored line. */
   ids: string[];
+  /** chat_messages.connection_user_id of the tenant's Carmen (Manus) lines, read for groups only. */
+  carmenIds: Array<string>;
   /** Active Green lines left unread: no user, or a private line of someone who is not a member. */
   skipped: number;
 };
@@ -25,17 +28,24 @@ export async function monitoredLines(
   db: DbClient,
   tenantId: string,
 ): Promise<MonitoredLines> {
-  const [lines, roles, members] = await Promise.all([
+  const [lines, carmen, roles, members] = await Promise.all([
     db
       .from("tenant_integrations")
       .select("user_id, connection_visibility")
       .eq("tenant_id", tenantId)
       .eq("integration_type", MONITORED_PROVIDER)
       .eq("is_active", true),
+    db
+      .from("tenant_integrations")
+      .select("user_id")
+      .eq("tenant_id", tenantId)
+      .eq("integration_type", CARMEN_PROVIDER)
+      .eq("is_active", true),
     db.from("user_roles").select("user_id").eq("tenant_id", tenantId),
     db.from("tenant_users").select("user_id").eq("tenant_id", tenantId),
   ]);
   throwIf(lines.error, "tenant_integrations");
+  throwIf(carmen.error, "tenant_integrations");
   throwIf(roles.error, "user_roles");
   throwIf(members.error, "tenant_users");
   const team = [...(roles.data ?? []), ...(members.data ?? [])];
@@ -47,7 +57,15 @@ export async function monitoredLines(
       ? [line.user_id]
       : [],
   );
-  return { ids: [...new Set(ids)], skipped: all.length - ids.length };
+  // Carmen's Manus rows carry the line owner's id as connection_user_id.
+  const carmenIds = (carmen.data ?? []).flatMap((line) =>
+    line.user_id ? [line.user_id] : [],
+  );
+  return {
+    ids: [...new Set(ids)],
+    carmenIds: [...new Set(carmenIds)],
+    skipped: all.length - ids.length,
+  };
 }
 
 /** The tenant's URL slug, for links into its Chat page. */

@@ -1,58 +1,27 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  isClientCallUpdate,
-  resolveClientUpdateType,
-} from "./clientUpdateType.ts";
-
-const CALL_NOTE = "דיברתי עם הלקוח בטלפון על התקציב";
-
-describe("resolveClientUpdateType", () => {
-  test("a person's weekly update that documents a call becomes a call", () => {
-    expect(resolveClientUpdateType("weekly_update", CALL_NOTE)).toBe("call");
-    expect(resolveClientUpdateType("weekly_update", CALL_NOTE, "human")).toBe(
-      "call",
-    );
-    expect(
-      resolveClientUpdateType("weekly_update", "לא הצלחתי לדבר עם הלקוח"),
-    ).toBe("weekly_update");
-  });
-
-  test("entries no person typed are never reclassified as calls", () => {
-    for (const source of [
-      "carmen",
-      "carmen_confirmed",
-      "system_send",
-      "group_digest",
-      "automation",
-    ]) {
-      expect(
-        resolveClientUpdateType("weekly_update", CALL_NOTE, source),
-        source,
-      ).toBe("weekly_update");
-    }
-  });
-});
+import { isClientCallUpdate } from "./clientUpdateType.ts";
 
 describe("isClientCallUpdate", () => {
-  test("contact counting mirrors get_latest_client_call_updates", () => {
-    expect(isClientCallUpdate("call", "x")).toBe(true);
-    expect(isClientCallUpdate("call", "x", "human")).toBe(true);
-    expect(isClientCallUpdate("weekly_update", CALL_NOTE, null)).toBe(true);
-    expect(
-      isClientCallUpdate("weekly_update", CALL_NOTE, "carmen_confirmed"),
-    ).toBe(true);
-    expect(
-      isClientCallUpdate("meeting", "פגישה", "carmen_confirmed", true),
-    ).toBe(true);
-    // Plain meetings keep today's rule.
-    expect(isClientCallUpdate("meeting", "פגישה", "human")).toBe(false);
-    // Automatic sources never count, even with the flag or call text.
-    expect(isClientCallUpdate("call", "x", "carmen")).toBe(false);
-    expect(isClientCallUpdate("weekly_update", CALL_NOTE, "system_send")).toBe(
-      false,
-    );
-    expect(isClientCallUpdate("call", "x", "group_digest", true)).toBe(false);
-    expect(isClientCallUpdate("call", "x", "automation")).toBe(false);
+  test("a call, or a row the database stamped as contact, counts", () => {
+    expect(isClientCallUpdate("call")).toBe(true);
+    expect(isClientCallUpdate("call", "human")).toBe(true);
+    expect(isClientCallUpdate("call", "carmen_confirmed")).toBe(true);
+    // A weekly or general update whose text reports a held call (AIO-516).
+    expect(isClientCallUpdate("weekly_update", null, true)).toBe(true);
+    expect(isClientCallUpdate("general", "human", true)).toBe(true);
+  });
+
+  test("other types without the stamp do not count", () => {
+    expect(isClientCallUpdate("weekly_update", "human")).toBe(false);
+    expect(isClientCallUpdate("general", "human", null)).toBe(false);
+    expect(isClientCallUpdate("red_flag", "human")).toBe(false);
+  });
+
+  test("automatic sources never count, even with the flag", () => {
+    expect(isClientCallUpdate("call", "carmen")).toBe(false);
+    expect(isClientCallUpdate("call", "group_digest", true)).toBe(false);
+    expect(isClientCallUpdate("general", "system_send", true)).toBe(false);
+    expect(isClientCallUpdate("call", "automation")).toBe(false);
   });
 });

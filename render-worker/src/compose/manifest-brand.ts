@@ -2,11 +2,16 @@
 import { brandColor, brandFont } from "./brand.ts";
 import { MAX_CTA_CHARS, ctaLines } from "./end-card.ts";
 import { extension } from "./manifest-media.ts";
+import type { FilmBrand } from "./types.ts";
+import type { StagedFile } from "./manifest-types.ts";
 
 /** The brand for the end card, its logo staged in `files`; null when nothing of it is set. */
-export function brandOf(brand, files): ManifestBrand | null {
+export function brandOf(
+  brand: Partial<FilmBrand> | null | undefined,
+  files: Array<StagedFile>,
+): ManifestBrand | null {
   if (!brand) return null;
-  let logo = null;
+  let logo: string | null = null;
   if (brand.logoPath) {
     logo = `logo.${extension(brand.logoPath)}`;
     files.push({ from: brand.logoPath, to: logo });
@@ -31,11 +36,11 @@ export function brandOf(brand, files): ManifestBrand | null {
 }
 
 /** The brand as the Remotion manifest takes it (WorkshopBrand in the Remotion manifest.ts). */
-interface ManifestBrand {
-  primaryColor: string;
-  secondaryColor: string;
+export interface ManifestBrand {
+  primaryColor: string | null;
+  secondaryColor: string | null;
   logo: string | null;
-  fontFamily: string;
+  fontFamily: string | null;
   ctaText: string | null;
   ctaUrl: string | null;
   ctaLines?: Array<string>;

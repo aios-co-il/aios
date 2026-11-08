@@ -4,6 +4,10 @@ import {
   openRouterSpeechBody,
   synthesizeOpenRouterSpeech,
 } from "../src/providers/openrouterTts.ts";
+import type { RpcArgs } from "./fakes.ts";
+import { runOf } from "./fakes.ts";
+import { fakeFetch, headerOf, jsonBodyOf } from "./fakes.ts";
+import type { RunOutput, VideoRun } from "../src/jobs/types.ts";
 
 const TENANT = "t1";
 const ITEM = "item1";
@@ -16,11 +20,11 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function fakeDb(run) {
-  const calls = [];
+function fakeDb(run: VideoRun) {
+  const calls: Array<Array<unknown>> = [];
   return {
     calls,
-    async select(table) {
+    async select(table: string) {
       if (table === "marketing_work_items")
         return [{ id: ITEM, tenant_id: TENANT, client_id: "c1" }];
       if (table === "marketing_video_scenes")
@@ -30,30 +34,44 @@ function fakeDb(run) {
         ];
       return [];
     },
-    async upload(_bucket, path, bytes, contentType) {
+    async upload(
+      _bucket: string,
+      path: string,
+      bytes: Uint8Array,
+      contentType: string,
+    ) {
       calls.push(["upload", path, bytes.length, contentType]);
     },
-    async update(_table, _filter, patch) {
-      calls.push(["update", patch.output.audio_meta.provider]);
+    async update(
+      _table: string,
+      _filter: string,
+      patch: { output: RunOutput },
+    ) {
+      calls.push(["update", patch.output.audio_meta?.provider]);
       run.output = patch.output;
     },
-    async rpc(name, args) {
+    async rpc(name: string, args: RpcArgs) {
       calls.push(["rpc", name, args.p_meta?.provider]);
     },
     async insert() {},
+    // Only the music job's sizing reads a stored narration; these runs stop before it.
+    async download() {
+      return new Uint8Array();
+    },
   };
 }
 
-const voiceRun = () => ({
-  id: "run1",
-  tenant_id: TENANT,
-  item_id: ITEM,
-  scene_id: null,
-  input: { continuous: true, voice_id: VOICE },
-  output: {},
-});
+const voiceRun = () =>
+  runOf({
+    id: "run1",
+    tenant_id: TENANT,
+    item_id: ITEM,
+    scene_id: null,
+    input: { continuous: true, voice_id: VOICE },
+    output: {},
+  });
 
-const audio = (headers = {}) =>
+const audio = (headers: Record<string, string> = {}) =>
   new Response(new Uint8Array([1, 2, 3]), {
     status: 200,
     headers: { "content-type": "audio/mpeg", ...headers },
@@ -69,23 +87,28 @@ test("the request asks Eleven v4 for an mp3 in the chosen ElevenLabs voice", () 
 });
 
 test("a rejected ElevenLabs key narrates through OpenRouter at the price it reports", async () => {
-  const urls = [];
-  vi.stubGlobal("fetch", async (url, init) => {
-    urls.push(String(url));
-    if (String(url).includes("api.elevenlabs.io"))
-      return new Response(
-        JSON.stringify({ detail: { status: "invalid_api_key" } }),
-        { status: 401 },
-      );
-    if (String(url).endsWith("/audio/speech")) {
-      expect(init.headers.Authorization).toBe("Bearer sk-or");
-      expect(JSON.parse(init.body).voice).toBe(VOICE);
-      return audio({ "x-generation-id": "gen-1" });
-    }
-    if (String(url).includes("/generation?id=gen-1"))
-      return new Response(JSON.stringify({ data: { total_cost: 0.0017 } }));
-    throw new Error(`unexpected ${url}`);
-  });
+  const urls: Array<string> = [];
+  vi.stubGlobal(
+    "fetch",
+    fakeFetch(async (url, init) => {
+      urls.push(String(url));
+      if (String(url).includes("api.elevenlabs.io")) {
+        return new Response(
+          JSON.stringify({ detail: { status: "invalid_api_key" } }),
+          { status: 401 },
+        );
+      }
+      if (String(url).endsWith("/audio/speech")) {
+        expect(headerOf(init, "Authorization")).toBe("Bearer sk-or");
+        expect(jsonBodyOf<{ voice: string }>(init).voice).toBe(VOICE);
+        return audio({ "x-generation-id": "gen-1" });
+      }
+      if (String(url).includes("/generation?id=gen-1")) {
+        return new Response(JSON.stringify({ data: { total_cost: 0.0017 } }));
+      }
+      throw new Error(`unexpected ${url}`);
+    }),
+  );
   const run = voiceRun();
   const db = fakeDb(run);
   const result = await generateVoice({
@@ -105,7 +128,7 @@ test("a rejected ElevenLabs key narrates through OpenRouter at the price it repo
     "rpc",
   ]);
   expect(db.calls[0][3]).toBe("audio/mpeg");
-  expect(run.output.audio_meta.cost_reported).toBe(true);
+  expect(run.output?.audio_meta?.cost_reported).toBe(true);
   // A retry of the same run reuses the stored audio and pays nothing.
   urls.length = 0;
   await generateVoice({
@@ -119,12 +142,17 @@ test("a rejected ElevenLabs key narrates through OpenRouter at the price it repo
 });
 
 test("without an ElevenLabs key OpenRouter narrates before Gemini and estimates a missing price", async () => {
-  const urls = [];
-  vi.stubGlobal("fetch", async (url) => {
-    urls.push(String(url));
-    if (String(url).endsWith("/audio/speech")) return audio();
-    throw new Error(`unexpected ${url}`);
-  });
+  const urls: Array<string> = [];
+  vi.stubGlobal(
+    "fetch",
+    fakeFetch(async (url) => {
+      urls.push(String(url));
+      if (String(url).endsWith("/audio/speech")) {
+        return audio();
+      }
+      throw new Error(`unexpected ${url}`);
+    }),
+  );
   const run = voiceRun();
   const result = await generateVoice({
     db: fakeDb(run),
@@ -137,27 +165,32 @@ test("without an ElevenLabs key OpenRouter narrates before Gemini and estimates 
   expect(result.provider).toBe("openrouter");
   // "שלום לכולם תודה שבאתם" is 21 characters at $0.00008.
   expect(result.costUsd).toBe(0.0017);
-  expect(run.output.audio_meta.cost_reported).toBe(false);
+  expect(run.output?.audio_meta?.cost_reported).toBe(false);
   expect(urls).toStrictEqual(["https://openrouter.ai/api/v1/audio/speech"]);
 });
 
 test("the paid narration and the save of its file run inside the worker's submit guard", async () => {
   let inside = false;
-  const seen = [];
-  vi.stubGlobal("fetch", async (url) => {
-    seen.push(["speech", inside]);
-    if (String(url).endsWith("/audio/speech")) return audio();
-    throw new Error(`unexpected ${url}`);
-  });
+  const seen: Array<[string, boolean]> = [];
+  vi.stubGlobal(
+    "fetch",
+    fakeFetch(async (url) => {
+      seen.push(["speech", inside]);
+      if (String(url).endsWith("/audio/speech")) {
+        return audio();
+      }
+      throw new Error(`unexpected ${url}`);
+    }),
+  );
   const run = voiceRun();
   const db = fakeDb(run);
   const upload = db.upload;
-  db.upload = async (...args) => {
+  db.upload = async (...args: Parameters<typeof upload>) => {
     seen.push(["upload", inside]);
     return upload(...args);
   };
   const update = db.update;
-  db.update = async (...args) => {
+  db.update = async (...args: Parameters<typeof update>) => {
     seen.push(["save", inside]);
     return update(...args);
   };
@@ -185,9 +218,9 @@ test("the paid narration and the save of its file run inside the worker's submit
 });
 
 test("a voice OpenRouter cannot use is retried once with a premade voice", async () => {
-  const voices = [];
-  const fetchImpl = async (_url, init) => {
-    const voice = JSON.parse(init.body).voice;
+  const voices: Array<string> = [];
+  const fetchImpl = fakeFetch(async (_url, init) => {
+    const voice = jsonBodyOf<{ voice: string }>(init).voice;
     voices.push(voice);
     return voice === "sarah"
       ? audio()
@@ -197,7 +230,7 @@ test("a voice OpenRouter cannot use is retried once with a premade voice", async
             status: 400,
           },
         );
-  };
+  });
   const speech = await synthesizeOpenRouterSpeech({
     apiKey: "k",
     voiceId: "myClonedVoice1234567",
@@ -231,13 +264,17 @@ test("an OpenRouter refusal with no Gemini key fails before anything is stored",
 });
 
 test("empty audio after OpenRouter charged is final and never reaches Gemini", async () => {
-  const urls = [];
-  vi.stubGlobal("fetch", async (url) => {
-    urls.push(String(url));
-    if (String(url).endsWith("/audio/speech"))
-      return new Response(new Uint8Array([]), { status: 200 });
-    throw new Error(`unexpected ${url}`);
-  });
+  const urls: Array<string> = [];
+  vi.stubGlobal(
+    "fetch",
+    fakeFetch(async (url) => {
+      urls.push(String(url));
+      if (String(url).endsWith("/audio/speech")) {
+        return new Response(new Uint8Array([]), { status: 200 });
+      }
+      throw new Error(`unexpected ${url}`);
+    }),
+  );
   const run = voiceRun();
   const db = fakeDb(run);
   const error = await generateVoice({
@@ -255,8 +292,12 @@ test("empty audio after OpenRouter charged is final and never reaches Gemini", a
 });
 
 test("audio that cannot be read after a 200 is final", async () => {
-  const broken = new Response(new Uint8Array([1]), { status: 200 });
-  broken.arrayBuffer = () => Promise.reject(new Error("socket hang up"));
+  /** A 200 whose body breaks off while it is read. */
+  class BrokenResponse extends Response {
+    arrayBuffer = (): Promise<ArrayBuffer> =>
+      Promise.reject(new Error("socket hang up"));
+  }
+  const broken = new BrokenResponse(new Uint8Array([1]), { status: 200 });
   const error = await synthesizeOpenRouterSpeech({
     apiKey: "k",
     voiceId: null,
@@ -275,13 +316,13 @@ test("music without a working ElevenLabs key fails once, so the film is assemble
         status: 401,
       }),
   );
-  const run = {
+  const run = runOf({
     id: "run2",
     tenant_id: TENANT,
     item_id: ITEM,
     input: { prompt: "upbeat", music_length_ms: 20000 },
     output: {},
-  };
+  });
   const error = await generateMusic({
     db: fakeDb(run),
     run,

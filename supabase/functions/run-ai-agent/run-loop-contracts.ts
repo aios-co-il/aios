@@ -7,6 +7,7 @@ import { jsonSchema, type JsonRecord } from "./run-request.ts";
 const chatToolCallSchema = z
   .object({
     id: z.string().optional(),
+    extra_content: z.record(z.unknown()).optional(),
     function: z
       .object({ name: z.string(), arguments: z.unknown() })
       .passthrough(),
@@ -19,7 +20,7 @@ const chatToolCallSchema = z
  */
 const chatCompletionMessageSchema = z
   .object({
-    role: z.unknown(),
+    role: z.string().optional().catch(undefined),
     content: z.unknown(),
     tool_calls: z.array(chatToolCallSchema).nullish(),
   })
@@ -39,9 +40,12 @@ export interface ChatCompletionRequest {
   temperature?: number;
   max_tokens?: number;
   tools?: Array<{ type: "function"; function: ToolDef }>;
+  stream?: boolean;
+  stream_options?: { include_usage: boolean };
   tool_choice?: { type: "function"; function: { name: string } };
 }
 
+/** Validate an assistant completion before returning it to the provider. */
 export function readChatCompletionMessage(
   value: unknown,
 ): ChatCompletionMessage | null {
@@ -115,6 +119,7 @@ const toolResultSchema = z
 
 export type ToolResultView = z.infer<typeof toolResultSchema>;
 
+/** Read named fields consumed by the run loop without trusting arbitrary tool output. */
 export function readToolResult(value: unknown): ToolResultView {
   return toolResultSchema.parse(value);
 }
@@ -141,10 +146,12 @@ export function readManusTask(value: unknown) {
 
 const errorStackSchema = z.object({ stack: z.unknown() }).catch({});
 
+/** Read stack diagnostics from thrown object values. */
 export function readErrorStack(error: unknown): unknown {
   return errorStackSchema.parse(error).stack;
 }
 
+/** Check the runtime assistant completion shape. */
 export function isChatCompletionMessage(
   value: unknown,
 ): value is ChatCompletionMessage {

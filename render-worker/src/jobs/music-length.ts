@@ -15,6 +15,9 @@ import {
 } from "../compose/manifest-scene-frames.ts";
 import { narrationLine } from "../narration.ts";
 import { endCardS, readFilm } from "./music-film.ts";
+import type { FilmNow } from "./music-film.ts";
+import type { VideoRun } from "./types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 /** ElevenLabs music lengths. */
 export const MUSIC_MIN_MS = 3_000;
@@ -36,7 +39,7 @@ const POLL_MS = 5_000;
  */
 export const MUSIC_USD_PER_MINUTE = 0.5;
 
-const clampMs = (ms) =>
+const clampMs = (ms: number) =>
   Math.min(MUSIC_MAX_MS, Math.max(MUSIC_MIN_MS, Math.round(ms)));
 
 /**
@@ -44,7 +47,7 @@ const clampMs = (ms) =>
  * any spend) buys at MUSIC_USD_PER_MINUTE, and never less than the planned length the run was
  * queued with (what it asked for before the bed was sized).
  */
-export function quotedMusicMs(run) {
+export function quotedMusicMs(run: Pick<VideoRun, "input"> | null | undefined) {
   const planned = clampMs(Number(run?.input?.music_length_ms) || 0);
   const usd = Number(run?.input?.estimate?.usd);
   const quoted =
@@ -53,7 +56,7 @@ export function quotedMusicMs(run) {
 }
 
 /** What a bed of `ms` costs, the run's recorded charge. */
-export const musicCostUsd = (ms) =>
+export const musicCostUsd = (ms: unknown) =>
   Math.round(
     (Math.max(0, Number(ms) || 0) / 60_000) * MUSIC_USD_PER_MINUTE * 10_000,
   ) / 10_000;
@@ -63,7 +66,14 @@ export const musicCostUsd = (ms) =>
  * take's word timings fit the scenes as the edit does), "planned" (no continuous take: the
  * storyboard with each scene's own voice) or "headroom" (a take is due but not readable yet).
  */
-export function filmSeconds({ scenes, narration, voices, expectsNarration }) {
+export function filmSeconds({
+  scenes,
+  narration,
+  voices,
+  expectsNarration,
+}: Pick<FilmNow, "scenes" | "narration" | "expectsNarration"> & {
+  voices?: FilmNow["voices"] | null;
+}) {
   const fps = WORKSHOP_FPS;
   const minFrames = scenes.map((scene) =>
     sceneMinFrames(
@@ -75,7 +85,8 @@ export function filmSeconds({ scenes, narration, voices, expectsNarration }) {
     ),
   );
   if (!minFrames.length) return { seconds: 0, basis: "planned" };
-  const total = (frames) => frames.reduce((sum, n) => sum + n, 0) / fps;
+  const total = (frames: Array<number>) =>
+    frames.reduce((sum, n) => sum + n, 0) / fps;
   if (narration)
     return {
       seconds: total(
@@ -106,10 +117,20 @@ export async function musicLengthMs({
   run,
   waitMs = NARRATION_WAIT_MS,
   pollMs = POLL_MS,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = (ms: number): Promise<unknown> =>
+    new Promise((resolve) => setTimeout(resolve, ms)),
   now = Date.now,
   probeNarration,
   log = console.log,
+}: {
+  db: Pick<SupabaseRest, "select" | "download">;
+  run: Pick<VideoRun, "id" | "item_id" | "tenant_id">;
+  waitMs?: number;
+  pollMs?: number;
+  sleep?: (ms: number) => Promise<unknown>;
+  now?: () => number;
+  probeNarration?: (path: unknown) => Promise<number>;
+  log?: (line: string) => void;
 }) {
   const started = now();
   let film = await readFilm(db, run, probeNarration);

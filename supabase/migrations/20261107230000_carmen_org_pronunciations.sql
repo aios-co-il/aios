@@ -1,0 +1,78 @@
+-- MarketingCaptain's org names in Carmen's pronunciation dictionary (AIO-414).
+--
+-- The list David approved: agencies, clients and team members as Carmen should say them.
+-- A term the org already corrected in a call keeps that correction (ON CONFLICT DO NOTHING).
+-- Only that tenant gets rows; where it does not exist (Staging, previews) nothing is inserted.
+
+INSERT INTO public.carmen_pronunciations (tenant_id, term, spoken, updated_by)
+SELECT t.id, v.term, v.spoken, NULL
+FROM public.tenants t
+CROSS JOIN (VALUES
+  ('AIOS', 'אֵיי-אַיי-אוֹ-אֶס'),
+  ('Bull', 'בּוּל'),
+  ('DMM-LTD', 'דִּי-אֶם-אֶם בְּעֵ"מ'),
+  ('DMM-MC', 'דִּי-אֶם-אֶם אֶם-סִי'),
+  ('MarketingCaptain', 'מַרְקֶטִינְג קֶפְּטֶן'),
+  ('Marketing-Captain', 'מַרְקֶטִינְג קֶפְּטֶן'),
+  ('marlog-leads', 'מַרְלוֹג לִידְס'),
+  ('promo', 'פְּרוֹמוֹ'),
+  ('24 קאראט', 'עֶשְׂרִים וְאַרְבַּע קָרָט'),
+  ('4/4 ארבע על ארבע', 'אַרְבַּע עַל אַרְבַּע'),
+  ('ABS אדריכלים', 'אֵיי-בִּי-אֶס אַדְרִיכָלִים'),
+  ('Amit Abraham', 'עֲמִית אַבְרָהָם'),
+  ('ANTAL', 'אַנְטָל'),
+  ('Archi.Salt', 'אַרְכִי סוֹלְט'),
+  ('Belle Rose', 'בֶּל רוֹז'),
+  ('BEVERTECH', 'בֶּבֶרְטֶק'),
+  ('BISI', 'בִּיסִי'),
+  ('Blogabout', 'בְּלוֹג אַבָּאוּט'),
+  ('Calanit Maron', 'כַּלָּנִית מָרוֹן'),
+  ('Cest moi', 'סֶה מוּאָה'),
+  ('David Castelnuovo', 'דָּוִד קַסְטֶלְנוּאוֹבוֹ'),
+  ('dentiq', 'דֶּנְטִיק'),
+  ('Detailit', 'דִּיטֵיילִיט'),
+  ('dl-cpa', 'דִּי-אֶל סִי-פִּי-אֵיי'),
+  ('Easy Sale', 'אִיזִי סֵייל'),
+  ('Exsitu', 'אֶקְסִיטוּ'),
+  ('GB גיורגיה', 'גִּ''י-בִּי גֵ''אוֹרְגִּ''יָה'),
+  ('GENESIS TOURS', 'גֶ''נֶסִיס טוּרְס'),
+  ('INSTALL IT', 'אִינְסְטוֹל אִיט'),
+  ('JUGGLEIT', 'גָ''אגֶל אִיט'),
+  ('KERNELIOS', 'קֶרְנֶלְיוֹס'),
+  ('M Media', 'אֶם מֶדְיָה'),
+  ('M&M', 'אֶם אֶנְד אֶם'),
+  ('Nor', 'נוֹר'),
+  ('ns panel', 'אֶן-אֶס פָּאנֶל'),
+  ('Orel', 'אוֹרֵאל'),
+  ('periodontics', 'פֶּרְיוֹדוֹנְטִיקְס'),
+  ('PUSH EXPRESS', 'פּוּשׁ אֶקְסְפְּרֶס'),
+  ('Qton', 'קְיוּטוֹן'),
+  ('ROYAL CLEAN', 'רוֹיָאל קְלִין'),
+  ('Smart air', 'סְמַארְט אֵייר'),
+  ('STONEAGE', 'סְטוֹן אֵייג'''),
+  ('studiodil', 'סְטוּדְיוֹ דִּיל'),
+  ('SwapTix', 'סְווֹפְּטִיקְס'),
+  ('tamir azulay', 'תָּמִיר אַזוּלַאי'),
+  ('tavnicol', 'תַּבְנִיקוֹל'),
+  ('Thinka', 'תִּ''ינְקָה'),
+  ('THO VOICES OF THE HEART', 'ווֹיְסֶס אוֹף דֶה הַארְט'),
+  ('TIFA ARTS', 'טִיפָה אַרְטְס'),
+  ('Toneline', 'טוֹנְלַיין'),
+  ('y-tech', 'וַואי-טֶק'),
+  ('YTS', 'וַואי-טִי-אֶס'),
+  ('ZIV', 'זִיו'),
+  ('STUDIO 72', 'סְטוּדְיוֹ שִׁבְעִים וּשְׁתַּיִם'),
+  ('YCUBE', 'וַואי-קְיוּבּ'),
+  ('DECOR GLASS', 'דֶּקוֹר גְּלָאס'),
+  ('LINO', 'לִינוֹ'),
+  ('SMART GLASS', 'סְמַארְט גְּלָאס'),
+  ('Inspires', 'אִינְסְפַּיירְס'),
+  ('יבגני וינברג', 'יֶבְגֶּנִי וַיינְבֶּרְג'),
+  ('L&rose', 'אֶל אֶנְד רוֹז'),
+  ('סטודיו fly', 'סְטוּדְיוֹ פְלַיי'),
+  ('פרימיום umcs', 'פְּרֶמְיוּם יוּ-אֶם-סִי-אֶס'),
+  ('שו2י', 'שׁוּ-טוּ-אִי'),
+  ('Rey', 'רֵיי')
+) AS v(term, spoken)
+WHERE t.id = '2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019'
+ON CONFLICT (tenant_id, term_key) DO NOTHING;

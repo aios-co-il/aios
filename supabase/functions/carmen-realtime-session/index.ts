@@ -2,24 +2,24 @@
 // live voice conversation. The browser then talks WebRTC directly to OpenAI;
 // the real OPENAI_API_KEY never reaches the frontend.
 //
-// POST body: { voice?: string, tenant_id?: string } — without a voice, Carmen's configured
-// voice (chooseRealtimeVoice); without a tenant, the caller's active tenant. Her persona,
-// tone and mood come from the same agent settings as the text chat.
-// Response: { client_secret: string, model: string }
+// POST body: { voice?: string, tenant_id?: string, provider?: "openai" | "elevenlabs",
+// list_voices?: boolean } — without a voice, Carmen's configured voice; without a tenant,
+// the caller's active tenant. Her persona, tone and mood come from the same agent settings
+// as the text chat.
+// Response (OpenAI, the default for clients that send no provider): { client_secret, model }.
+// Response (ElevenLabs, the Android app, AIO-505): ElevenLabsSession, or { voices } with
+// list_voices for the app's voice picker.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { getCaller, getUserOpenAIKey } from "../_shared/userKey.ts";
 import { orgVoiceKeyAllowed } from "../_shared/carmen/voice-access.ts";
-import { serviceClient } from "../_shared/supabase-clients.ts";
-import { loadVoiceAgent } from "./agent-profile.ts";
 import { chooseRealtimeVoice } from "./voice-choice.ts";
-import { buildVoiceInstructions } from "./voice-instructions.ts";
+import { elevenLabsReply } from "./elevenlabs-reply.ts";
+import { SAVE_PRONUNCIATION_TOOL } from "./pronunciations.ts";
 import {
-  loadPronunciations,
-  pronunciationInstructions,
-  SAVE_PRONUNCIATION_TOOL,
-} from "./pronunciations.ts";
-import { loadOrgBrief } from "./org-brief.ts";
-import { orgBriefInstructions } from "./org-brief-text.ts";
+  loadCallerAddress,
+  loadSessionContext,
+  sessionInstructions,
+} from "./session-context.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,12 +91,25 @@ Deno.serve(async (req) => {
     );
     if (!claims?.claims) return json(401, { error: "Unauthorized" });
 
-    // Bring-your-own-key: a personal key grants access and gets billed;
-    // owners, and everyone outside Production, may fall back to the org key.
     const caller = await getCaller(authHeader);
     if (!caller) return json(401, { error: "Unauthorized" });
-    const userKey = await getUserOpenAIKey(caller.id);
+    const { voice, tenant_id, provider, list_voices } = await req
+      .json()
+      .catch(() => ({}) as Record<string, unknown>);
     const isOwner = orgVoiceKeyAllowed(caller.email, Deno.env.get("APP_ENV"));
+
+    if (provider === "elevenlabs") {
+      const reply = await elevenLabsReply(caller.id, isOwner, {
+        voice,
+        tenant_id,
+        list_voices,
+      });
+      return json(reply.status, reply.body);
+    }
+
+    // Bring-your-own-key: a personal key grants access and gets billed;
+    // owners, and everyone outside Production, may fall back to the org key.
+    const userKey = await getUserOpenAIKey(caller.id);
     if (!userKey && !isOwner) {
       return json(403, {
         error: "personal_key_required",
@@ -110,31 +123,11 @@ Deno.serve(async (req) => {
         error: "No OpenAI key available (env or llm integration)",
       });
 
-    // Personalization: greet the caller by name (best-effort)
-    let callerName: string | null = null;
-    try {
-      const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-      const pr = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/rest/v1/profiles?id=eq.${caller.id}&select=full_name`,
-        { headers: { apikey: service, Authorization: `Bearer ${service}` } },
-      );
-      if (pr.ok) callerName = (await pr.json())?.[0]?.full_name ?? null;
-    } catch {
-      /* name is a nicety */
-    }
-
-    const { voice, tenant_id } = await req
-      .json()
-      .catch(() => ({}) as Record<string, unknown>);
-    const db = serviceClient();
-    const agent = await loadVoiceAgent(db, caller.id, tenant_id);
-    const [pronunciations, orgBrief] = agent
-      ? await Promise.all([
-          loadPronunciations(db, agent.tenantId),
-          loadOrgBrief(db, agent.tenantId),
-        ])
-      : [[], null];
-    const selectedVoice = chooseRealtimeVoice(voice, agent?.voice ?? null);
+    const context = await loadSessionContext(caller.id, tenant_id);
+    const selectedVoice = chooseRealtimeVoice(
+      voice,
+      context.agent?.voice ?? null,
+    );
 
     const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -147,13 +140,10 @@ Deno.serve(async (req) => {
         session: {
           type: "realtime",
           model: REALTIME_MODEL,
-          instructions: [
-            buildVoiceInstructions(agent?.profile ?? null, callerName),
-            orgBrief ? orgBriefInstructions(orgBrief) : "",
-            pronunciationInstructions(pronunciations),
-          ]
-            .filter(Boolean)
-            .join("\n"),
+          instructions: sessionInstructions(
+            context,
+            await loadCallerAddress(caller.id),
+          ),
           audio: {
             input: {
               transcription: {

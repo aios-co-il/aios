@@ -1,9 +1,14 @@
+import {
+  normalizeCarmenChatId,
+  isGroupChatId,
+} from "../_shared/carmen-session-identity.ts";
 import type { SpawnSubagentParams } from "../_shared/subagent.ts";
 import { isObject } from "./json-config.ts";
 
 /** Originating WhatsApp chat, forwarded to reminders and subagents. */
 export type WaNotifyTarget = NonNullable<SpawnSubagentParams["notify"]>;
 
+/** Nullable strings accepted in stored notification targets. */
 function nullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
@@ -58,12 +63,14 @@ export function readWaChatScope(value: unknown): WaChatScope | null {
   if (!isObject(value)) return null;
   const chatId = "chat_id" in value ? value.chat_id : undefined;
   const isGroup = "is_group" in value ? value.is_group : undefined;
+  const normalized =
+    typeof chatId === "string" || typeof chatId === "number"
+      ? normalizeCarmenChatId(String(chatId))
+      : null;
+  const group = normalized ? isGroupChatId(normalized) : false;
+  const valid = normalized && (group || /^\d{8,}(?:@|$)/.test(normalized));
   return {
-    chat_id:
-      (typeof chatId === "string" && chatId !== "") ||
-      (typeof chatId === "number" && Number.isFinite(chatId) && chatId !== 0)
-        ? String(chatId)
-        : null,
+    chat_id: valid ? normalized : null,
     is_group: typeof isGroup === "boolean" ? isGroup : null,
   };
 }

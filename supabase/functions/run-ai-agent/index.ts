@@ -20,6 +20,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
 import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
 import {
+  canStreamCompletion,
+  messagesForProvider,
+  readStreamedCompletion,
+} from "./stream-completion.ts";
+import {
   brainDenied,
   internalBrainDenied,
 } from "../_shared/carmen/brain-guard.ts";
@@ -58,6 +63,10 @@ import {
   appendCarmenPulseRules,
   carmenPulseRulesVersion,
 } from "./pulse-refresh/rules-block.ts";
+import {
+  agencyDataRulesVersion,
+  appendAgencyDataRules,
+} from "./agency-data/rules-block.ts";
 import {
   executeRefreshCampaignPulse,
   REFRESH_CAMPAIGN_PULSE_TOOL,
@@ -153,7 +162,7 @@ import {
   workshopTurnSetup,
   workshopTurnTools,
 } from "./workshop-turn-setup.ts";
-import { addressByNameLine, callerProfileName } from "./address-by-name.ts";
+import { callerAddressLine } from "../_shared/carmen/user-address.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
@@ -855,6 +864,9 @@ const LLM_FALLBACK_ORDER = [
   "anthropic/claude-sonnet-4-6",
 ];
 
+// The chat's fast lane: quick models that stream, first one the tenant has a key for.
+const FAST_LANE_MODELS = LLM_FALLBACK_ORDER.slice(0, 2);
+
 function providerOf(fullId: string): LLMProvider {
   const l = (fullId || "").toLowerCase();
   if (l.startsWith("google/") || l.includes("gemini")) return "google";
@@ -874,16 +886,19 @@ async function buildLLMChain(
   };
   add(primaryFullId);
   for (const m of LLM_FALLBACK_ORDER) add(m);
-  const chain: LLMTarget[] = [];
-  for (const full of ordered) {
-    try {
-      const t = await resolveLLMTarget(supabase, tenantId, full); // throws if that provider's key is missing
-      chain.push({ ...t, label: full, provider: providerOf(full) });
-    } catch {
-      /* provider key not configured → skip it in the chain */
-    }
-  }
-  return chain;
+  // All models at once (each resolve is a key lookup); the order is kept, and a model whose
+  // provider key is missing is skipped (resolveLLMTarget throws for it).
+  const resolved = await Promise.all(
+    ordered.map(async (full) => {
+      try {
+        const t = await resolveLLMTarget(supabase, tenantId, full);
+        return { ...t, label: full, provider: providerOf(full) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return resolved.filter((t): t is LLMTarget => t !== null);
 }
 
 // OpenAI's Chat Completions API hard-caps the tools array at 128 functions per
@@ -1318,7 +1333,8 @@ const ALL_TOOLS = [
   },
   {
     name: "list_leads",
-    description: "רשימת לידים",
+    description:
+      "רשימת הלידים של הסוכנות עצמה (לקוחות פוטנציאליים של הסוכנות). לא הלידים של לקוחות הסוכנות: אלה מגיעים מהדוחות (get_latest_campaign_pulse, get_facebook_campaign_data).",
     parameters: {
       type: "object",
       properties: {
@@ -1571,7 +1587,7 @@ const ALL_TOOLS = [
   {
     name: "add_client_update",
     description:
-      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. פגישה או שיחה (call) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק general, red_flag או weekly_update.",
     parameters: {
       type: "object",
       properties: {
@@ -1581,7 +1597,7 @@ const ALL_TOOLS = [
           type: "string",
           enum: [...CARMEN_CLIENT_UPDATE_TYPES],
           description:
-            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+            "סוג העדכון: call=פגישה / שיחה שהתקיימה, weekly_update=עדכון שבועי, general=עדכון כללי (ברירת מחדל), red_flag=דגל אדום (תלונה, סיכון או בעיה)",
         },
       },
       required: ["client_id", "content"],
@@ -10391,7 +10407,7 @@ async function executeTool(
         count: data.length,
         mode: browseMode ? "browse" : "keyword_search",
         scope: scopeNote,
-        chat_id: chatScope?.chat_id || null,
+        chat_id: waScope?.chat_id || null,
         note:
           data.length === 0
             ? browseMode
@@ -14005,6 +14021,17 @@ import { requireAuth } from "../_shared/security.ts";
 import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 import { runTenantDenied } from "./run-tenant-access.ts";
+import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
+import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
+import { fastLaneInstructions } from "./fast-lane/instructions.ts";
+import {
+  answerFast,
+  chatTurns,
+  type ChatTurn,
+  type FastTarget,
+} from "./fast-lane/answer.ts";
+import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
+import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
@@ -14034,7 +14061,7 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills: requestedTaskSkills,
+      task_skills: requestedTaskSkills = [],
       task_mode,
       conversation_history,
       conversation_id,
@@ -14206,7 +14233,7 @@ async function handleRunAgent(
       const roleList = (roles || []).map((r) => r.role);
       // Priority order
       for (const r of CALLER_ROLE_PRIORITY) {
-        if (roleList.includes(r)) {
+        if (roleList.some((role) => role === r)) {
           callerRole = r;
           break;
         }
@@ -14314,6 +14341,61 @@ async function handleRunAgent(
         emit({ type: "conversation_id", id: serverConversationId });
     }
 
+    // A quick model answers small talk and what the org brief already covers before the full
+    // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
+    const fastLaneChannel: FastLaneChannel | null =
+      emit && appChatTurn && serverConversationId && callerUserId
+        ? "app_chat"
+        : // A team member (matched by the service-only caller phone) writing to Carmen 1:1.
+          surface === "whatsapp" &&
+            wa_notify &&
+            !isGroupChat(wa_notify) &&
+            callerCampaignerId
+          ? "whatsapp_staff"
+          : null;
+    if (
+      fastLaneFits({
+        message: String(command_text),
+        channel: fastLaneChannel,
+        isCarmen: isCarmenAgent,
+        pinned: Boolean(
+          brainEngine ||
+          modelOverride ||
+          pinSkillsOnly ||
+          inWorkshopRequest ||
+          task_mode ||
+          automationRun ||
+          bodyJson.carmen_automation ||
+          findingDraftReply.shortCode ||
+          findingDraftReply.approveCode ||
+          (Array.isArray(task_skills) && task_skills.length > 0),
+        ),
+      })
+    ) {
+      const fastReply = await tryFastLane(supabase, emit, {
+        tenantId: resolvedTenantId,
+        userId: callerUserId,
+        callerName,
+        agentId: agent_id,
+        agentName: agent.name || "כרמן",
+        conversationId: serverConversationId,
+        history:
+          fastLaneChannel === "app_chat"
+            ? serverConversationHistory
+            : chatTurns(conversation_history),
+        message: String(command_text),
+        surface,
+        caller: {
+          userId: callerUserId,
+          role: callerRole,
+          managedAgencyIds: callerManagedAgencyIds,
+        },
+      });
+      if (fastReply) {
+        return fastReply;
+      }
+    }
+
     // ─── 2.7. Code-level instruction capture (cross-channel learning) ───
     // Don't depend on the model deciding to call save_memory. Whenever the user
     // says a learning trigger, persist the FULL surrounding sentence to ai_memory
@@ -14323,9 +14405,7 @@ async function handleRunAgent(
     let instructionCaptured: string | null = null;
     try {
       const cmdRaw = String(command_text || "").trim();
-      const TRIGGER_RE =
-        /(תזכרי|זכרי|תזכור|שמרי|תרשמי|מעכשיו|מהיום והלאה|תמיד|לעולם|אל\s*תעני|אל\s*תעשי|אל\s*תכתבי|אל\s*תשכחי|שימי\s*לב|תכניסי\s*לזיכרון|הוסיפי\s*לזיכרון|גם\s*בזיכרון|תזכרי\s*גם|remember|from\s*now\s*on|always|never|note\s*that|learn\s*this)/i;
-      const m = cmdRaw.match(TRIGGER_RE);
+      const m = cmdRaw.match(INSTRUCTION_TRIGGER_RE);
       const looksLikeInstruction =
         !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
       // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction,
@@ -14604,7 +14684,7 @@ async function handleRunAgent(
       metadata: agentMetadata,
     };
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(promptAgent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(promptAgent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
     if (shouldUseV2Prompt(promptAgent)) {
       // Build V2 prompt using the new modular builder
@@ -15045,7 +15125,7 @@ async function handleRunAgent(
         .toISOString()
         .split("T")[0];
       const todayISO = now.toISOString().split("T")[0];
-      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצה לרענן עכשיו תגידי".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
+      systemPrompt += `\n\n=== תאריך ושעה נוכחיים ===\nהיום: ${currentDate}, שעה: ${currentTime}\nתאריך ISO של היום: ${todayISO}\nתאריך ISO של מחר: ${tomorrowDate}\nחשוב: כשמבקשים "למחר" השתמש ב-${tomorrowDate}, כש"היום" השתמש ב-${todayISO}.\n\n=== כללי אזור זמן ותזכורות (חובה) ===\n• אזור הזמן של המשתמש הוא Asia/Jerusalem (IST = UTC+2 / IDT = UTC+3). כל שעה שהמשתמש אומר היא בשעון ישראל.\n• כש-create_agent_task דורש scheduled_at — חובה להמיר משעון ישראל ל-UTC ב-ISO עם Z. דוגמה: "מוצ"ש 21:30" → 2026-06-20T18:30:00Z (קיץ, UTC+3). אסור לשמור שעת ישראל בתור UTC.\n• בתשובה למשתמש תמיד הציגי את הזמן בשעון ישראל (לדוגמה "מחר בשעה 21:30") — לא ב-UTC.\n• אם המשתמש שואל "מה תזמנת?" / "באיזו שעה התזכורת?" / "תבדקי אם הגדרת" / "את בטוחה?" — חובה לקרוא ל-list_my_agent_tasks לפני שאת עונה. אסור לנחש או לענות מהזיכרון.\n• הכלי create_agent_task מחזיר scheduled_at_israel — השתמשי בערך הזה כשאת מאשרת למשתמש את הזמן.\n• תזכורות אישיות / "תזכירי לי" / משימה מתוזמנת לכרמן → create_agent_task בלבד. אסור find_dev_task_duplicates / create_dev_task אלא אם המשתמש ביקש במפורש להעביר לפיתוח ("תעבירי ל-Cursor", "משימת פיתוח").\n\n=== זיכרון פעולות חוזרות (חובה) ===\n• לפני סקירת קמפיינים / סקירת לידים / כל פעולה כבדה חוזרת — חובה לקרוא קודם ל-recall_recent_action(action_type, max_age_hours=8). בדיקת דופק לא צריכה את זה: היא נשמרת ממילא, ורענון שלה הוא refresh_campaign_pulse.\n• אם נמצאה ריצה מהיום (found=true) ולא נאמר במפורש "רענני" / "עכשיו" / "בזמן אמת" / "תרוצי שוב" — אסור להריץ מחדש. ענו על בסיס הסיכום הקיים, ציינו את הזמן בשעון ישראל ("בדקתי בשעה HH:mm"), והוסיפו "אם רוצים לרענן עכשיו, אפשר לבקש".\n• רק אם המשתמש ביקש במפורש לרענן או שלא נמצא episode — להריץ את הפעולה.\n• בסיום של פעולה כבדה שבאמת רצה — חובה לקרוא ל-record_action_episode(action_type, summary) עם סיכום תמציתי. בלי זה הפעם הבאה לא תזכרי.\n• action_type סטנדרטי: 'pulse_check', 'campaign_analysis', 'lead_review', 'health_check'.`;
       systemPrompt += `\n\n=== הקשר ארגוני ===\n${tenantContext}`;
 
       // Inject memory context — instructions get top priority and a strict directive
@@ -15203,11 +15283,9 @@ async function handleRunAgent(
       }
       if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
     }
-    // Hebrew verbs carry gender: Carmen addresses the caller by the gender their name shows.
-    systemPrompt +=
-      addressByNameLine(
-        callerName ?? (await callerProfileName(supabase, callerUserId)),
-      ) ?? "";
+    // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
+    // The profile name wins over user_name, which some screens set to a department label.
+    systemPrompt += await callerAddressLine(supabase, callerUserId, callerName);
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -15766,6 +15844,12 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         console.error("[AGENT] pinned skin tools failed (non-fatal):", e);
       }
     }
+    // Leads belong to the agency; a client's leads come from its reports (AIO-510). After
+    // every skin, before the pulse block, which stays the prompt's last rule.
+    systemPrompt = appendAgencyDataRules(systemPrompt, {
+      isCarmen,
+      pinSkillsOnly,
+    });
     // Versioned pulse rules (AIO-237) come after the V1/V2 prompt and every
     // skin's text, so a tenant pulse skin that says not to refresh cannot
     // override them. On WhatsApp and scheduled tasks the block also keeps the
@@ -15969,6 +16053,10 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         wa_notify,
         surface,
         undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
         wa_chat_scope,
       );
       const execView = readToolResult(execResult);
@@ -16045,6 +16133,10 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         wa_notify,
         surface,
         undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
         wa_chat_scope,
       );
       const pulseDigest = readToolResult(pulseResult).whatsapp_digest;
@@ -16104,7 +16196,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         ? conversation_history
         : [];
     for (const entry of history) {
-      const h = jsonObject(entry);
+      const h = readJsonRecord(entry);
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
       }
@@ -16235,11 +16327,20 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
       let res!: Response;
       while (true) {
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
-        const payload: ChatCompletionRequest = { model: llm.model, messages };
+        const payload: ChatCompletionRequest = {
+          model: llm.model,
+          messages: messagesForProvider(messages, llm.provider),
+        };
         const temp = safeTemp ?? llm.temperature;
         if (temp !== undefined) payload.temperature = temp;
         if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
         if (cappedTools.length > 0) payload.tools = cappedTools;
+        // A chat that shows the reply live gets the text as the model writes it (AIO-509).
+        const streamThisRound = !!emit && canStreamCompletion(llm);
+        if (streamThisRound) {
+          payload.stream = true;
+          payload.stream_options = { include_usage: true };
+        }
         if (
           round === 0 &&
           isStoredPulseRequest &&
@@ -16332,7 +16433,23 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         throw new Error(`AI error: ${res.status} ${err}`);
       }
 
-      const data: Json = await res.json();
+      let streamedText = "";
+      const data =
+        res.headers.get("content-type")?.includes("text/event-stream") &&
+        res.body
+          ? await readStreamedCompletion(res.body, (delta) => {
+              // Same separation as emitText: a new text after earlier ones starts apart.
+              const lead =
+                !streamedText && emittedTexts.length > 0 ? "\n\n" : "";
+              streamedText += delta;
+              emit?.({ type: "token", content: lead + delta });
+            }).then(({ message, usage }) => ({
+              usage,
+              choices: [{ message }],
+            }))
+          : await res.json();
+      // Text already streamed counts as sent, so emitText does not send it again.
+      if (streamedText.trim()) emittedTexts.push(streamedText.trim());
       const usage = readChatUsage(data);
       if (usage) {
         usageTokensIn += usage.input;
@@ -16488,11 +16605,12 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
               findingDraftReply,
               wa_chat_scope,
             );
-            if (result?.pending_approval && result?.approval_id) {
+            const approvalResult = readToolResult(result);
+            if (approvalResult.pending_approval && approvalResult.approval_id) {
               await bindApprovalToConversation(
                 supabase,
                 resolvedTenantId,
-                String(result.approval_id),
+                String(approvalResult.approval_id),
                 callerUserId || asUuidOrNull(resolvedUserId),
                 approvalConversation,
               );
@@ -16528,10 +16646,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
           if (uiAction && typeof uiAction === "object")
             emit({ type: "ui_action", tool: toolName, action: uiAction });
           // Workshop tools tell the board what appeared and which skin is doing the work.
-          const workshopEvent =
-            result && typeof result === "object"
-              ? (result as any).workshop
-              : undefined;
+          const workshopEvent = resultView.workshop;
           if (workshopEvent && typeof workshopEvent === "object")
             emit({ type: "workshop", tool: toolName, ...workshopEvent });
           const skinSlug =
@@ -16556,17 +16671,19 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
           toolName === REFRESH_PULSE_TOOL_NAME &&
           pulseRefreshRoute.digestShortcut
         ) {
-          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
+          pulseDigestShortcut = buildPulseRefreshDigestReply(
+            isObject(result) ? result : null,
+          );
         }
         // A workshop question or budget request is sent to the user exactly as the server
         // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
         if (
           isWorkshopTool(toolName) &&
-          typeof result?.say_to_user === "string" &&
-          result.say_to_user.trim()
+          typeof resultView.say_to_user === "string" &&
+          resultView.say_to_user.trim()
         ) {
-          const say = result.say_to_user.trim();
-          if (result.needs_budget === true) budgetSay = say;
+          const say = resultView.say_to_user.trim();
+          if (resultView.needs_budget === true) budgetSay = say;
           else if (!sayToUser.includes(say)) sayToUser.push(say);
         }
       }
@@ -16599,26 +16716,14 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
     const executionTime = Date.now() - startTime;
 
     if (serverConversationId && callerUserId) {
-      const persistedMessages = [
-        ...serverConversationHistory,
-        { role: "user", content: String(command_text) },
-        { role: "assistant", content: String(finalOutput || "") },
-      ].slice(-60);
-      const { error: conversationSaveError } = await supabase
-        .from("ai_conversations")
-        .update({
-          messages: persistedMessages,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", serverConversationId)
-        .eq("user_id", callerUserId)
-        .eq("tenant_id", resolvedTenantId);
-      if (conversationSaveError) {
-        console.error(
-          "[AGENT] conversation persistence failed:",
-          conversationSaveError.message,
-        );
-      }
+      await saveConversationTurn(supabase, {
+        tenantId: resolvedTenantId,
+        userId: callerUserId,
+        conversationId: serverConversationId,
+        history: serverConversationHistory,
+        message: String(command_text),
+        answer: String(finalOutput || ""),
+      });
     }
 
     // 6. Log to automation_logs
@@ -16732,6 +16837,159 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
   }
 }
 
+/** A chat turn the fast lane may answer, with what it needs to save the reply. */
+type FastLaneRequest = {
+  tenantId: string;
+  userId: string | null;
+  callerName: string | null;
+  agentId: string;
+  agentName: string;
+  /** The AIOS chat's conversation; WhatsApp keeps its own history. */
+  conversationId: string | null;
+  history: Array<ChatTurn>;
+  message: string;
+  surface: Surface;
+  caller: FastLaneCaller;
+};
+
+/**
+ * Lets a quick model answer the turn (fast-lane/). Returns the run's response when it answered,
+ * or null when it handed the turn over, failed or has no model, so the full brain runs.
+ */
+async function tryFastLane(
+  supabase: AgentDatabaseClient,
+  emit: Emit,
+  turn: FastLaneRequest,
+): Promise<Response | null> {
+  const startedAt = Date.now();
+  const [target, brief, addressLine] = await Promise.all([
+    fastLaneTarget(supabase, turn.tenantId),
+    fastLaneBriefScope(supabase, turn.caller).then((scope) =>
+      loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
+    ),
+    callerAddressLine(supabase, turn.userId, turn.callerName),
+  ]);
+  if (!target) {
+    return null;
+  }
+  const answer = await answerFast({
+    target,
+    instructions: fastLaneInstructions({
+      agentName: turn.agentName,
+      addressLine,
+      brief,
+      now: new Date(),
+    }),
+    history: turn.history,
+    message: turn.message,
+    onText: (content) => emit?.({ type: "token", content }),
+  });
+  const durationMs = Date.now() - startedAt;
+  if (answer.kind === "escalate") {
+    console.log(
+      `[AGENT] fast lane handed over (${answer.reason}) after ${durationMs}ms`,
+    );
+    // Words it already showed stay; the full answer starts on its own paragraph.
+    if (answer.shown) {
+      emit?.({ type: "token", content: "\n\n" });
+    }
+    return null;
+  }
+  console.log(
+    `[AGENT] fast lane answered in ${durationMs}ms (${target.label})`,
+  );
+  if (turn.conversationId && turn.userId) {
+    await saveConversationTurn(supabase, {
+      ...turn,
+      userId: turn.userId,
+      conversationId: turn.conversationId,
+      answer: answer.text,
+    });
+  }
+  const tokensIn = answer.usage?.prompt_tokens ?? 0;
+  const tokensOut = answer.usage?.completion_tokens ?? 0;
+  const { error } = await supabase.from("agent_action_log").insert({
+    tenant_id: turn.tenantId,
+    agent_id: turn.agentId,
+    action_type: "agent_turn",
+    status: "success",
+    action_details: {
+      surface: turn.surface,
+      fast_lane: true,
+      command_preview: turn.message.slice(0, 240),
+      tools_used: [],
+      tool_count: 0,
+      output_preview: answer.text.slice(0, 600),
+    },
+    user_id: turn.userId,
+    tool_calls: 0,
+    model: target.label,
+    duration_ms: durationMs,
+    tokens_in: tokensIn || null,
+    tokens_out: tokensOut || null,
+    cost_usd: estimateLLMCostUSD(target.label, tokensIn, tokensOut),
+  });
+  if (error) {
+    console.error("[AGENT] action_log insert failed:", error.message);
+  }
+  return new Response(
+    JSON.stringify({
+      success: true,
+      output: answer.text,
+      agent_name: turn.agentName,
+      model: target.label,
+      execution_time_ms: durationMs,
+      tools_used: [],
+      tool_log: [],
+      conversation_id: turn.conversationId,
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
+/** The first fast model the tenant has a key for that can stream, or null. */
+async function fastLaneTarget(
+  supabase: AgentDatabaseClient,
+  tenantId: string,
+): Promise<(FastTarget & { label: string }) | null> {
+  for (const label of FAST_LANE_MODELS) {
+    try {
+      return { ...(await resolveLLMTarget(supabase, tenantId, label)), label };
+    } catch {
+      /* no key for this provider: try the next */
+    }
+  }
+  return null;
+}
+
+/** Saves the user's message and the answer to the conversation (last 60 messages). */
+async function saveConversationTurn(
+  supabase: AgentDatabaseClient,
+  turn: {
+    tenantId: string;
+    userId: string;
+    conversationId: string;
+    history: Array<ChatTurn>;
+    message: string;
+    answer: string;
+  },
+): Promise<void> {
+  const messages = [
+    ...turn.history,
+    { role: "user", content: turn.message },
+    { role: "assistant", content: turn.answer },
+  ].slice(-60);
+  const { error } = await supabase
+    .from("ai_conversations")
+    .update({ messages, updated_at: new Date().toISOString() })
+    .eq("id", turn.conversationId)
+    .eq("user_id", turn.userId)
+    .eq("tenant_id", turn.tenantId);
+  if (error) {
+    console.error("[AGENT] conversation persistence failed:", error.message);
+  }
+}
+
 // ===========================
 // DIRECT TOOL MODE (carmen-tools-mcp)
 // ===========================
@@ -16745,7 +17003,7 @@ async function handleDirectTool(bodyJson: RunAgentRequest): Promise<Response> {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  const req: DirectToolRequest = bodyJson.direct_tool || {};
+  const req: DirectToolRequest = bodyJson.direct_tool || { args: {} };
   const supabase = createClient<Database>(
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
@@ -17089,7 +17347,16 @@ Deno.serve(async (req) => {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (obj: unknown) => {
-        recorder.observe(obj);
+        if (obj && typeof obj === "object") {
+          recorder.observe({
+            type:
+              "type" in obj && typeof obj.type === "string"
+                ? obj.type
+                : undefined,
+            id: "id" in obj ? obj.id : undefined,
+            content: "content" in obj ? obj.content : undefined,
+          });
+        }
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {

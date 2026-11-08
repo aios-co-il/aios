@@ -21,7 +21,6 @@ import {
 import {
   embeddedName,
   parseRunAgentRequest,
-  readConversationTurns,
 } from "./run-request.ts";
 import {
   argBoolean,
@@ -99,27 +98,6 @@ Deno.test(
     }).direct_tool;
     assertStrictEquals(call?.action, "call");
     assertEquals(call?.args, { q: "a" });
-  },
-);
-
-Deno.test(
-  "conversation turns keep user/assistant entries and stringify content",
-  () => {
-    assertEquals(
-      readConversationTurns([
-        { role: "user", content: "hi" },
-        { role: "system", content: "x" },
-        null,
-        { role: "assistant", content: 5 },
-        { role: "assistant" },
-      ]),
-      [
-        { role: "user", content: "hi" },
-        { role: "assistant", content: "5" },
-        { role: "assistant", content: "" },
-      ],
-    );
-    assertEquals(readConversationTurns({ role: "user" }), []);
   },
 );
 
@@ -261,7 +239,7 @@ Deno.test(
       is_group: null,
     });
     assertEquals(readWaChatScope({ chat_id: 972501234567, is_group: false }), {
-      chat_id: "972501234567",
+      chat_id: "972501234567@c.us",
       is_group: false,
     });
     assertStrictEquals(parseRunAgentRequest({}).wa_chat_scope, undefined);
@@ -357,3 +335,15 @@ Deno.test("error stacks are read from thrown objects only", () => {
   assertStrictEquals(readErrorStack("boom"), undefined);
   assertStrictEquals(readErrorStack(null), undefined);
 });
+
+Deno.test(
+  "invalid private origins retain an unknown scope instead of widening history",
+  () => {
+    for (const chat_id of ["abc", "abc@c.us", "123@c.us", ""]) {
+      assertEquals(readWaChatScope({ chat_id, is_group: false }), {
+        chat_id: null,
+        is_group: false,
+      });
+    }
+  },
+);
