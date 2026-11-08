@@ -109,11 +109,17 @@ test("configured Meta pages accept nullable optional fields and reject malformed
 Deno.test(
   "automation steps read LLM fields and still reject null entries",
   () => {
-    assertEquals(automationStepArg({ type: "agent", config: { a: 1 } }), {
-      type: "agent",
-      config: { a: 1 },
-    });
-    assertStrictEquals(automationStepArg("step").type, undefined);
+    assertEquals(
+      automationStepArg({
+        type: "agent",
+        config: { message_template: "hello" },
+      }),
+      {
+        type: "agent",
+        config: { message_template: "hello" },
+      },
+    );
+    assertThrows(() => automationStepArg("step"));
     assertThrows(() => automationStepArg(null), TypeError);
     assertThrows(() => automationStepArg(undefined), TypeError);
   },
