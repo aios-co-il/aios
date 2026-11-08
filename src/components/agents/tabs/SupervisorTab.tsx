@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { requireTenantId } from "@/lib/requireTenantId";
 
+/** Render supervisor tab from its typed view data. */
 export function SupervisorTab({
   agent,
 }: {

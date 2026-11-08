@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { mcpPresetFunctionUrl } from "@/lib/mcpPresetUrl";
 
+/** Render mcp connections tab from its typed view data. */
 export function McpConnectionsTab({
   agent,
 }: {

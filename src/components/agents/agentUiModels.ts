@@ -102,7 +102,7 @@ export function readEvalResults(value: unknown) {
 }
 /** Parallel dispatch accepts titled subtasks, never arbitrary JSON entries. */
 export function readParallelSubtasks(value: unknown) {
-  return z.array(subtask).catch([]).parse(value);
+  return z.array(subtask).parse(value ?? []);
 }
 /** Skill IDs are strings in the stored task configuration. */
 export function readTaskSkills(value: unknown) {

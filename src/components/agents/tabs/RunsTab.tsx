@@ -65,6 +65,7 @@ const STEP_ICON: Record<string, LucideIcon> = {
   final: CheckCircle2,
 };
 
+/** Render runs tab from its typed view data. */
 export function RunsTab({ agent }: { agent: Pick<Tables<"ai_agents">, "id"> }) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const qc = useQueryClient();

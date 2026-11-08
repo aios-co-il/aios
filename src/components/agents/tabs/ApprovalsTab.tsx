@@ -45,6 +45,7 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge className={m.cls}>{m.label}</Badge>;
 }
 
+/** Render approval card from its typed view data. */
 function ApprovalCard({
   item,
   canDecide,
@@ -132,6 +133,7 @@ function ApprovalCard({
   );
 }
 
+/** Render approvals tab from its typed view data. */
 export function ApprovalsTab({
   agent,
 }: {

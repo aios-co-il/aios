@@ -35,6 +35,7 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { requireTenantId } from "@/lib/requireTenantId";
 import { parseEvalDataset } from "./parseEvalDataset";
 
+/** Render evals tab from its typed view data. */
 export function EvalsTab({
   agent,
 }: {

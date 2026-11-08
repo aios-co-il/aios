@@ -14,6 +14,7 @@ import { AGENT_TOOLS_CATALOG as ALL_TOOLS } from "@/lib/agentToolsCatalog";
 import { isCarmenName } from "../../../../supabase/functions/_shared/carmen/brain-access.ts";
 import { CARMEN_PULSE_TOOL_NAMES } from "../../../../supabase/functions/_shared/carmen/pulse-tools.ts";
 
+/** Render tools tab from its typed view data. */
 export function ToolsTab({
   agent,
 }: {

@@ -49,7 +49,8 @@ describe("agent panel contracts", () => {
     ).toBe(false);
   });
   it("accepts only executable subtasks and labeled heartbeat actions", () => {
-    expect(readParallelSubtasks([{ title: {} }])).toEqual([]);
+    expect(() => readParallelSubtasks([{ title: {} }])).toThrow();
+    expect(readParallelSubtasks(null)).toEqual([]);
     expect(
       readHeartbeatActions([
         { type: "reminder_sent", task_title: "task" },

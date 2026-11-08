@@ -73,6 +73,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   recurring: "חוזר",
 };
 
+/** Render tasks tab from its typed view data. */
 export function TasksTab({
   agent,
   hideFullViewLink,

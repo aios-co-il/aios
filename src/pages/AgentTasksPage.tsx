@@ -287,6 +287,7 @@ const STATUS_CONFIG: Record<
 };
 
 // ─── TaskResultDisplay ─────────────────────────────────────────────────────────
+/** Render task result display from its typed view data. */
 function TaskResultDisplay({ result }: { result: unknown }) {
   const { buildPath } = useTenantPath();
   const toolLog = readTaskResult(result).tool_log ?? [];
@@ -476,6 +477,7 @@ function SkillPicker({
 }
 
 // ─── TaskCard ──────────────────────────────────────────────────────────────────
+/** Render task card from its typed view data. */
 function TaskCard({
   task,
   avatarFor,
@@ -842,10 +844,16 @@ export default function AgentTasksPage() {
 
   const runTask = useMutation({
     mutationFn: async (task: AgentTaskRow) => {
-      await supabase
+      const subtasks = task.parallel_execution
+        ? readParallelSubtasks(task.parallel_subtasks)
+        : [];
+      const { error: startError } = await supabase
         .from("agent_tasks")
         .update({ status: "running", started_at: new Date().toISOString() })
         .eq("id", task.id);
+      if (startError) {
+        throw startError;
+      }
 
       const taskSkills = (task.task_skills || []) as string[];
       const skillNames = taskSkills
@@ -862,7 +870,6 @@ export default function AgentTasksPage() {
       ]
         .filter(Boolean)
         .join("\n");
-      const subtasks = readParallelSubtasks(task.parallel_subtasks);
       if (task.parallel_execution && subtasks.length > 0) {
         const results = await Promise.all(
           subtasks.map(async (sub) => {
