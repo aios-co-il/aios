@@ -8,13 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   CallerKind,
   CallerPolicy,
 } from "../../../../../supabase/functions/_shared/carmen/caller-policy/policy.ts";
+import { Field, Toggle, TopicsField } from "./PolicyFields";
 import { useSaveCallerPolicy } from "./useCallerPolicies";
 
 const KIND_TEXT: Record<CallerKind, { title: string; description: string }> = {
@@ -98,67 +97,5 @@ export function CallerPolicyCard({
         </Button>
       </CardContent>
     </Card>
-  );
-}
-
-/** A labelled form field. */
-function Field({
-  id,
-  label,
-  children,
-}: {
-  id: string;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-/** A list of topics edited as one per line. */
-function TopicsField({
-  id,
-  label,
-  topics,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  topics: Array<string>;
-  onChange: (topics: Array<string>) => void;
-}) {
-  return (
-    <Field id={id} label={label}>
-      <Textarea
-        id={id}
-        rows={Math.max(3, topics.length + 1)}
-        value={topics.join("\n")}
-        onChange={(e) => onChange(e.target.value.split("\n"))}
-      />
-    </Field>
-  );
-}
-
-/** A labelled on/off switch. */
-function Toggle({
-  id,
-  label,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <Label htmlFor={id}>{label}</Label>
-      <Switch id={id} checked={checked} onCheckedChange={onChange} />
-    </div>
   );
 }
