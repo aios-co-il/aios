@@ -3,6 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import { EditClientDialog } from "./EditClientDialog";
+import {
+  client,
+  db,
+  resetHarness,
+  setPersona,
+  toast,
+  waitForFinanceAccess,
+  writesTo,
+} from "./__tests__/editClientDialogHarness";
 
 describe("EditClientDialog finance fields", () => {
   it("lets a team manager without a grant save the client with no financial write and no error", async () => {
@@ -90,13 +99,6 @@ describe("EditClientDialog finance fields", () => {
   });
 });
 
-type Write = {
-  table: string;
-  op: string;
-  payload?: unknown;
-  options?: unknown;
-};
-
 describe("EditClientDialog ad-account links", () => {
   it("writes only the link field that was edited", async () => {
     setPersona({ isOwner: true }, { read: false, write: false });
@@ -139,65 +141,9 @@ describe("EditClientDialog ad-account links", () => {
   });
 });
 
-const db = vi.hoisted(() => ({
-  access: { read: false, write: false },
-  accessError: null as null | { message: string },
-  financialRow: null as null | { retainer: number; monthly_budget: number },
-  writes: [] as Write[],
-  rpcCalls: [] as { name: string; args: unknown }[],
-  adLinks: null as null | {
-    google_ads_url: string | null;
-    meta_ads_url: string | null;
-  },
-}));
+beforeEach(resetHarness);
 
-const role = vi.hoisted(() => ({
-  isOwner: false,
-  isSuperAdmin: false,
-  isCampaigner: false,
-  isTeamManager: false,
-  isAgencyOwner: false,
-  userId: "user-1",
-}));
-
-const toast = vi.hoisted(() => ({
-  success: vi.fn(),
-  error: vi.fn(),
-  info: vi.fn(),
-}));
-
-const client = {
-  id: "client-1",
-  name: "לקוח בדיקה",
-  agency_id: "agency-1",
-  status: "active",
-  retainer: null,
-  monthly_budget: null,
-};
-
-beforeEach(() => {
-  db.access = { read: false, write: false };
-  db.accessError = null;
-  db.financialRow = null;
-  db.writes = [];
-  db.rpcCalls = [];
-  db.adLinks = null;
-});
-
-function setPersona(
-  flags: Partial<typeof role>,
-  access: { read: boolean; write: boolean },
-) {
-  Object.assign(role, {
-    isOwner: false,
-    isSuperAdmin: false,
-    isTeamManager: false,
-    isAgencyOwner: false,
-    ...flags,
-  });
-  db.access = access;
-}
-
+/** Renders the dialog for the test client. */
 function renderDialog() {
   const onOpenChange = vi.fn();
   const { wrapper } = createTestQueryHarness();
@@ -208,73 +154,17 @@ function renderDialog() {
   return { onOpenChange };
 }
 
-async function waitForFinanceAccess() {
-  await waitFor(() => expect(db.rpcCalls).toHaveLength(2));
-}
+vi.mock("@/integrations/supabase/client", async () =>
+  (await import("./__tests__/editClientDialogHarness")).supabaseModule(),
+);
 
-function writesTo(table: string) {
-  return db.writes.filter((write) => write.table === table);
-}
-
-vi.mock("@/integrations/supabase/client", () => {
-  /** What the database returns for one finished query. */
-  const resultFor = (table: string, op: string, single: boolean) => {
-    if (table === "clients" && op === "update") {
-      return { data: [{ id: "client-1" }], error: null };
-    }
-    if (table === "clients" && op === "select" && single) {
-      return { data: db.adLinks, error: null };
-    }
-    if (table === "client_tenant_financial_data" && op === "select") {
-      return { data: db.financialRow, error: null };
-    }
-    return { data: single || op !== "select" ? null : [], error: null };
-  };
-
-  /** A chainable PostgREST stand-in that records writes and resolves when awaited. */
-  const from = (table: string) => {
-    let op = "select";
-    let single = false;
-    const builder: Record<string, unknown> = {};
-    const chain = () => builder;
-    for (const name of ["select", "eq", "in", "not", "is", "or", "order"]) {
-      builder[name] = chain;
-    }
-    for (const kind of ["insert", "update", "upsert", "delete"]) {
-      builder[kind] = (payload?: unknown, options?: unknown) => {
-        op = kind;
-        db.writes.push({ table, op: kind, payload, options });
-        return builder;
-      };
-    }
-    builder.maybeSingle = () => {
-      single = true;
-      return builder;
-    };
-    builder.then = (
-      resolve: (value: unknown) => unknown,
-      reject: (reason: unknown) => unknown,
-    ) => Promise.resolve(resultFor(table, op, single)).then(resolve, reject);
-    return builder;
-  };
-
-  const rpc = async (name: string, args: unknown) => {
-    db.rpcCalls.push({ name, args });
-    if (db.accessError) {
-      return { data: null, error: db.accessError };
-    }
-    const allowed =
-      name === "has_finance_write_permission"
-        ? db.access.write
-        : db.access.read;
-    return { data: allowed, error: null };
-  };
-
-  return { supabase: { from, rpc } };
+vi.mock("sonner", async () => ({
+  toast: (await import("./__tests__/editClientDialogHarness")).toast,
+}));
+vi.mock("@/hooks/useUserRole", async () => {
+  const { role } = await import("./__tests__/editClientDialogHarness");
+  return { useUserRole: () => role };
 });
-
-vi.mock("sonner", () => ({ toast }));
-vi.mock("@/hooks/useUserRole", () => ({ useUserRole: () => role }));
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: "tenant-1" }),
 }));
