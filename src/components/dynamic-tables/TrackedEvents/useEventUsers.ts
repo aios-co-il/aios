@@ -29,12 +29,13 @@ export function useEventUsers(input: {
   const ready =
     source !== null &&
     tracked.length > 0 &&
-    (dateFilter !== "custom" || (!!startDate && !!endDate));
+    (dateFilter !== "custom" || (!!customFrom && !!customTo));
   return useQuery({
     queryKey: [
       "ga-event-users",
       source,
       tracked.map((step) => step.event).join(","),
+      dateFilter,
       startDate,
       endDate,
     ],
@@ -44,11 +45,18 @@ export function useEventUsers(input: {
             "ga-event-users",
             {
               body: {
+                // A share link sends its filter so the server picks the same
+                // dates as the link's other reports.
                 ...("dashboardId" in source
-                  ? { dashboard_id: source.dashboardId }
-                  : { share_token: source.shareToken }),
-                start_date: startDate ?? undefined,
-                end_date: endDate ?? undefined,
+                  ? {
+                      dashboard_id: source.dashboardId,
+                      start_date: startDate ?? undefined,
+                      end_date: endDate ?? undefined,
+                    }
+                  : {
+                      share_token: source.shareToken,
+                      date_filter: dateFilter,
+                    }),
               },
             },
           );

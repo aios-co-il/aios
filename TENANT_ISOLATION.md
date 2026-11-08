@@ -80,6 +80,13 @@ USING (
 - tenants - רשימת ארגונים
 - profiles - פרופילים (קישור ל-auth.users)
 
+### 6. טננטים משותפים
+
+סוכנות יכולה לעבוד על לקוח ששייך לטננט אחר. למשל, טבלאות אינטגרציה (GA, Facebook, Ahrefs) נוצרו תחת MarketingCaptain ומקושרות ללקוח של DMM. סוכנות יכולה גם לשתף ישויות עם טננט אחר דרך טבלאות `*_shared_tenants`: `wordpress_sites_shared_tenants`, `social_pages_shared_tenants` ו-`automation_shared_tenants`, ש-`create-org-for-client` ממלאת. הטבלה `crm_tables_shared_tenants` לא קיימת ב-Production.
+
+- **הכלל:** ישות של סוכנות משותפת, כמו דשבורד, טבלת אינטגרציה, אתר או עמוד, שייכת גם לטננט המשותף. דשבורד מציג את הטבלאות של הלקוח שלו גם כשהן תחת טננט אחר.
+- **ביישום:** הגישה לדשבורד היא ההרשאה, כלומר share token פעיל או קריאה דרך RLS. אחריה קוראים את ישויות הלקוח לפי `client_id` של הדשבורד שאושר, בלי סינון לפי ה-`tenant_id` של הדשבורד. כל קריאה שבאה אחר כך, כמו חיבור או טוקן, מסוננת לפי ה-`tenant_id` של הישות שנמצאה. אף פעם לא משתמשים ב-`tenant_id` שהגיע בגוף הבקשה. כך עובדים `public-dashboard` ו-`ga-event-users`.
+
 ## כללי אבטחה
 
 ### ✅ דברים שחייבים להתקיים:
@@ -94,7 +101,7 @@ USING (
    });
    ```
 
-2. **כל query SELECT חייב לסנן לפי tenant_id** (למעט super admins)
+2. **כל query SELECT חייב לסנן לפי tenant_id** (למעט super admins, וישויות של טננט משותף, ראו סעיף 6)
 
    ```typescript
    const { data } = await supabase

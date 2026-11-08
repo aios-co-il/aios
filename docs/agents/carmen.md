@@ -40,6 +40,7 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
 
+- **Carmen's own engine:** `ai_agents.engine`, Gemini 3.5 Flash by default (AIO-510); `buildLLMChain` fails over to GPT-5.4 Mini and Claude Sonnet. Gemini 3 needs each tool call's `extra_content` (its thought signature) sent back on the next round: `readStreamedCompletion` keeps it and `messagesForProvider` strips it for any other provider (`run-ai-agent/stream-completion.ts`).
 - **Chat / extraction:** OpenAI `gpt-4o-mini` (via `OPENAI_API_KEY` secret), endpoint `api.openai.com/v1/chat/completions`.
 - **Embeddings:** OpenAI `text-embedding-3-small`, **1536 dims** — must match the `summary_embedding` vector columns on `carmen_memory_pointers` / `agent_memory`.
 - **Image gen:** OpenAI Images `gpt-image-2.5-sunburst` (`gpt-image-1` was shut down on 2026-10-23) (`/v1/images/generations`, returns base64 PNG).
@@ -183,6 +184,10 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 - **Lost connections (AIO-342):** a connected integration that turns `needs_reauth` opens one `integration_disconnect_events` row, a reconnect closes it, and a connection that was already disconnected gets none (`20261105113000_integration_disconnect_events.sql`). Each pulse run adds the org's own open events to its `connection_lost` alerts (`_shared/pulse/connection-disconnects.ts`), under the same switches, recipients and Shabbat rule, once per event and phone (`dedupeWindowHours`): a phone added to the recipients later gets a still-open disconnect once, at its next run. An agency-shared org that uses the connection is named, never alerted. Two overlapping pulse runs of one org can both send it, as with every instant alert: there is no per-org run lease yet (AIO-158).
 - **Cross-org dedupe:** for a client of an agency on one of this org's own `agency_tenant_access` grants (this org on either side), a phone the org on the other side of that grant already alerted with the same rule and finding inside the rule's throttle window is dropped from this org's send (`_shared/pulse/cross-tenant-recipients.ts`, keyed by phone in `pulse_instant_alert_log.recipient_phone`). Two orgs that each hold a grant from a third org do not dedupe each other. A failed lookup alerts everyone. Check this first when one org reports a missed pulse alert.
 - **One message per recipient per run (AIO-290):** code alone decides whether an alert is sent (eligibility, dedupe and throttle, Shabbat, recipients), and code alone writes it; no model is called. `deliverInstantPulseAlerts` then queues one message per recipient phone with every alert planned for it (`buildPulseRunMessage`, `_shared/pulse/run-message.ts`, holds the layout and `PULSE_RUN_SECTION_MAX_LINES`); alerts held for Shabbat join the first run's message after it. Each alert is logged once its phone's message was queued, with that message's text and `evidence.delivery = "digest"`. Dedupe and throttle are per alert and phone (`phonesStillDue`, `_shared/pulse/instant-alert-dedupe.ts`, reads `recipient_phone`), so a phone whose message was not queued gets the alert in the next run's message while the phones it reached stay throttled.
+
+## Agency data rules (AIO-510)
+
+- AIOS runs agencies with many clients: `leads` holds the agency's own leads, and a client's leads and results come from its reports (`get_latest_campaign_pulse`, `get_facebook_campaign_data`). `run-ai-agent/agency-data/rules-block.ts` appends that block to every Carmen prompt after the pulse rules; bump `AGENCY_DATA_RULES_VERSION` on any change. The `[Carmen]` log line names the version a run got.
 
 ## Pulse refresh (AIO-237)
 

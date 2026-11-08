@@ -51,10 +51,15 @@ export async function freshGaToken(
   settings.expires_at = new Date(
     Date.now() + Number(data.expires_in ?? 3600) * 1000,
   ).toISOString();
-  const { error } = await db
+  // Saved only while the connection still holds the token read above, so a
+  // reconnect that lands during the refresh keeps its own settings.
+  const update = db
     .from("tenant_integrations")
     .update({ api_key: data.access_token, settings: settings as Json })
     .eq("id", integration.id);
+  const { error } = await (integration.api_key === null
+    ? update.is("api_key", null)
+    : update.eq("api_key", integration.api_key));
   if (error) {
     console.error("[ga-event-users] token not saved:", error.message);
   }
