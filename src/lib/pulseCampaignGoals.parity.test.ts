@@ -20,7 +20,8 @@ function reportVerdicts(): Map<string, Verdict> {
         .campaigns) {
         verdicts.set(campaign.campaign_id, {
           goal: campaign.goal,
-          results: campaign.conversions,
+          // The traffic table shows no result column (AIO-496).
+          results: campaign.goal === "traffic" ? null : campaign.conversions,
         });
       }
       continue;
@@ -64,7 +65,7 @@ function pulseVerdicts(): Map<string, Verdict> {
 describe("the pulse judges each campaign as the report shows it", () => {
   it("gives every Meta and Google campaign the report's goal and result count", () => {
     const report = reportVerdicts();
-    expect(report.size).toBe(21);
+    expect(report.size).toBe(22);
     expect(Object.fromEntries(pulseVerdicts())).toEqual(
       Object.fromEntries(report),
     );

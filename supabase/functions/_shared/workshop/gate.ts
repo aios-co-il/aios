@@ -72,6 +72,8 @@ export interface WorkshopDeps {
   /** The project open on the board; a new project needs the user to ask for one (start-project.ts). */
   openItemId?: string | null;
   newToken?: () => string;
+  /** Waits between polls (narration-review.ts waits for the take); tests pass one that returns at once. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /**
