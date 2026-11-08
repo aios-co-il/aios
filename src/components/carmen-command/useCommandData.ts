@@ -1,3 +1,9 @@
+import { requireTenantId } from "@/lib/requireTenantId";
+import {
+  readOpenAiBillingStatus,
+  type OpenAiBillingStatus,
+} from "./billingStatus";
+export type { OpenAiBillingStatus } from "./billingStatus";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { z } from "zod";
@@ -10,12 +16,15 @@ const daysAgo = (n: number) =>
   new Date(Date.now() - n * 86400000).toISOString();
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-const safeRows = async <T>(p: PromiseLike<{ data: T[] | null }>) => {
-  try {
-    return (await p).data ?? [];
-  } catch {
-    return [];
+/** Query failures must remain visible to React Query instead of becoming empty metrics. */
+const safeRows = async <T>(
+  query: PromiseLike<{ data: Array<T> | null; error?: unknown }>,
+) => {
+  const result = await query;
+  if (result.error) {
+    throw result.error;
   }
+  return result.data ?? [];
 };
 
 const probeStatusSchema = z.enum(["ok", "warn", "down"]);
@@ -62,40 +71,55 @@ export function useCoreOverview(tenantId: string | null) {
         supabase
           .from("ai_agents")
           .select("id, name, mood, voice, engine")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .limit(1)
           .maybeSingle(),
         supabase
-          .rpc("get_carmen_memory_counts", { p_tenant_id: tenantId! })
+          .rpc("get_carmen_memory_counts", {
+            p_tenant_id: requireTenantId(tenantId),
+          })
           .maybeSingle(),
         supabase
           .from("carmen_whatsapp_sessions")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("status", "active"),
         supabase
           .from("tenant_integrations")
           .select("id, is_active")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("integration_type", "llm")
           .maybeSingle(),
         supabase
           .from("ai_agents")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId!),
+          .eq("tenant_id", requireTenantId(tenantId)),
         supabase
           .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("direction", "inbound")
           .gte("created_at", todayStart),
         supabase
           .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("direction", "outbound")
           .gte("created_at", todayStart),
       ]);
+      for (const result of [
+        agentRes,
+        memRes,
+        sessRes,
+        llmRes,
+        agentsCount,
+        inToday,
+        outToday,
+      ]) {
+        if (result.error) {
+          throw result.error;
+        }
+      }
       return {
         inboundToday: inToday.count ?? 0,
         outboundToday: outToday.count ?? 0,
@@ -129,7 +153,7 @@ export function useIntelFeed(tenantId: string | null) {
           supabase
             .from("campaign_alerts")
             .select("id, alert_type, severity, campaign_name, created_at")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .is("resolved_at", null)
             .order("created_at", { ascending: false })
             .limit(10),
@@ -138,7 +162,7 @@ export function useIntelFeed(tenantId: string | null) {
           supabase
             .from("integration_alerts_log")
             .select("id, provider, alert_type, reason, fired_at")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("fired_at", daysAgo(7))
             .order("fired_at", { ascending: false })
             .limit(10),
@@ -147,7 +171,7 @@ export function useIntelFeed(tenantId: string | null) {
           supabase
             .from("agent_tasks")
             .select("id, title, created_at")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .eq("task_mode", "anomaly_alert")
             .gte("created_at", daysAgo(1))
             .order("created_at", { ascending: false })
@@ -157,7 +181,7 @@ export function useIntelFeed(tenantId: string | null) {
           supabase
             .from("tasks")
             .select("id, title, due_date")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .neq("status", "done")
             .lt("due_date", todayStr())
             .order("due_date", { ascending: true })
@@ -262,13 +286,13 @@ export function useHealth(tenantId: string | null) {
         supabase
           .from("tenant_integrations")
           .select("is_active, settings")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("integration_type", "manus_wa")
           .maybeSingle(),
         supabase
           .from("heartbeat_logs")
           .select("triggered_at, summary")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .neq("run_kind", MANAGER_ROUND_RUN_KIND)
           .order("triggered_at", { ascending: false })
           .limit(1)
@@ -278,7 +302,7 @@ export function useHealth(tenantId: string | null) {
           .select(
             "provider, consecutive_failures, is_circuit_open, last_success_at",
           )
-          .eq("tenant_id", tenantId!),
+          .eq("tenant_id", requireTenantId(tenantId)),
         supabase
           .from("service_health_checks")
           .select("service, status, latency_ms, detail, checked_at, tenant_id")
@@ -472,42 +496,6 @@ export interface OpenAiBillingDay {
   num_model_requests?: number;
 }
 
-export interface OpenAiBillingStatus {
-  ok: boolean;
-  admin_available: boolean;
-  error?: string;
-  period?: string;
-  currency?: string;
-  current_month_usage_cost?: number | null;
-  current_month_usage_tokens?: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    num_model_requests: number;
-  } | null;
-  line_items?: Array<{ name: string; value: number }>;
-  daily_costs?: Array<{
-    date: string;
-    cost: number;
-    line_items?: Record<string, number>;
-  }>;
-  daily_usage?: Array<{
-    date: string;
-    total_tokens: number;
-    num_model_requests: number;
-  }>;
-  remaining_credit_available?: boolean;
-  remaining_credit_reason?: string;
-  limits?: { available: boolean; reason?: string; raw?: unknown };
-  apis_used?: Record<string, string | null>;
-  unavailable_fields?: Record<string, string | null>;
-  errors?: {
-    costs?: string | null;
-    usage?: string | null;
-    spend_limits?: string | null;
-  };
-}
-
 const BILLING_FN = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-billing-status`;
 
 export function useOpenAiBilling(tenantId: string | null) {
@@ -527,17 +515,22 @@ export function useOpenAiBilling(tenantId: string | null) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ tenant_id: tenantId, include_tokens: true }),
+        body: JSON.stringify({
+          tenant_id: requireTenantId(tenantId),
+          include_tokens: true,
+        }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json: unknown = await res.json();
       if (!res.ok) {
         return {
           ok: false,
           admin_available: false,
-          error: json.error || `HTTP ${res.status}`,
+          error:
+            z.object({ error: z.string() }).safeParse(json).data?.error ||
+            `HTTP ${res.status}`,
         };
       }
-      return json as OpenAiBillingStatus;
+      return readOpenAiBillingStatus(json);
     },
   });
 }
@@ -558,7 +551,7 @@ export function useUsage(tenantId: string | null) {
           supabase
             .from("agent_action_log")
             .select("created_at, tokens_in, tokens_out, cost_usd")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("created_at", since)
             .limit(5000),
         ),
@@ -566,7 +559,7 @@ export function useUsage(tenantId: string | null) {
           supabase
             .from("marketing_runs")
             .select("created_at, tokens_in, tokens_out, cost_usd")
-            .eq("tenant_id", tenantId!)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("created_at", since)
             .limit(5000),
         ),
@@ -663,7 +656,7 @@ export function useCcTasks(tenantId: string | null) {
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, status, due_date, due_time, priority")
-        .eq("tenant_id", tenantId!)
+        .eq("tenant_id", requireTenantId(tenantId))
         .neq("status", "done")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
@@ -711,13 +704,13 @@ export function useTimeline(tenantId: string | null) {
         supabase
           .from("tasks")
           .select("id, title, due_time, status")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("due_date", today)
           .order("due_time", { ascending: true, nullsFirst: false }),
         supabase
           .from("agent_tasks")
           .select("id, title, scheduled_at, status")
-          .eq("tenant_id", tenantId!)
+          .eq("tenant_id", requireTenantId(tenantId))
           .gte("scheduled_at", `${today}T00:00:00Z`)
           .lt("scheduled_at", `${today}T23:59:59Z`)
           .order("scheduled_at", { ascending: true }),

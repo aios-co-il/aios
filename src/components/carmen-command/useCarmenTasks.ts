@@ -53,13 +53,22 @@ async function selectWithFallback<T>(attempts: SelectAttempt<T>[]) {
   throw lastError;
 }
 
+/** Failed optional system-job reads are logged; ordinary task queries propagate errors. */
 async function dataOrEmpty<T>(
   query: PromiseLike<{ data: T[] | null; error: unknown }>,
+  optional = false,
 ): Promise<T[]> {
   try {
-    const r = await query;
-    return r.error ? [] : (r.data ?? []);
-  } catch {
+    const result = await query;
+    if (result.error) {
+      throw result.error;
+    }
+    return result.data ?? [];
+  } catch (error) {
+    if (!optional) {
+      throw error;
+    }
+    console.warn("[carmen-tasks] optional system jobs unavailable", error);
     return [];
   }
 }
@@ -80,45 +89,45 @@ export function useCarmenTasks(tenantId: string | null) {
               supabase
                 .from("agent_tasks")
                 .select(`${AGENT_TASK_V2_COLUMNS}, ai_agents(name)`)
-                .eq("tenant_id", tenantId!)
+                .eq("tenant_id", requireTenantId(tenantId))
                 .order("created_at", { ascending: false })
                 .limit(300),
             () =>
               supabase
                 .from("agent_tasks")
                 .select(`${AGENT_TASK_COLUMNS}, ai_agents(name)`)
-                .eq("tenant_id", tenantId!)
+                .eq("tenant_id", requireTenantId(tenantId))
                 .order("created_at", { ascending: false })
                 .limit(300),
-          ]).catch(() => []),
+          ]),
           selectWithFallback<GoalSourceRow>([
             () =>
               supabase
                 .from("goals")
                 .select(GOAL_ENGINE_COLUMNS)
-                .eq("tenant_id", tenantId!)
+                .eq("tenant_id", requireTenantId(tenantId))
                 .order("updated_at", { ascending: false })
                 .limit(200),
             () =>
               supabase
                 .from("goals")
                 .select(GOAL_COLUMNS)
-                .eq("tenant_id", tenantId!)
+                .eq("tenant_id", requireTenantId(tenantId))
                 .order("updated_at", { ascending: false })
                 .limit(200),
-          ]).catch(() => []),
+          ]),
           dataOrEmpty(
             supabase
               .from("dev_tasks")
               .select(
                 "id, title, problem, status, priority, assigned_agent, pr_url, cursor_session_url, created_at, updated_at",
               )
-              .eq("tenant_id", tenantId!)
+              .eq("tenant_id", requireTenantId(tenantId))
               .order("updated_at", { ascending: false })
               .limit(100),
           ),
           // Super-admin only; everyone else simply doesn't see system jobs.
-          dataOrEmpty(supabase.rpc("list_system_cron_jobs")),
+          dataOrEmpty(supabase.rpc("list_system_cron_jobs"), true),
           // A failed read shows every automation as on, the stored default.
           loadAutomationSettings(requireTenantId(tenantId)).catch(
             (e: unknown) => {
@@ -171,7 +180,7 @@ export function useTenantAgents(tenantId: string | null) {
       const { data, error } = await supabase
         .from("ai_agents")
         .select("id, name, engine")
-        .eq("tenant_id", tenantId!)
+        .eq("tenant_id", requireTenantId(tenantId))
         .order("created_at");
       if (error) throw error;
       return (data ?? []) as CarmenAgentOption[];

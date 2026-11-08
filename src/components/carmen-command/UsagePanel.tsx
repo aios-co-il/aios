@@ -45,6 +45,7 @@ type ChartTooltipProps<T> = {
   payload?: { payload: T }[];
 };
 
+/** Render usage tooltip from its typed view data. */
 function UsageTooltip({ active, payload }: ChartTooltipProps<UsageDay>) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
@@ -72,6 +73,7 @@ function UsageTooltip({ active, payload }: ChartTooltipProps<UsageDay>) {
   );
 }
 
+/** Render admin cost tooltip from its typed view data. */
 function AdminCostTooltip({
   active,
   payload,

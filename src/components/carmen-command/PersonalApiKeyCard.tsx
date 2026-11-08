@@ -84,11 +84,24 @@ export function PersonalApiKeyCard() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase.from("user_api_keys").delete().eq("user_id", user.id);
+      const { error } = await supabase
+        .from("user_api_keys")
+        .delete()
+        .eq("user_id", user.id);
+      if (error) {
+        throw error;
+      }
       qc.invalidateQueries({ queryKey: ["user-api-key"] });
       toast({
         title: "המפתח הוסר",
         description: "הגישה לכרמן דרך המפתח האישי בוטלה",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה",
+        description:
+          error instanceof Error ? error.message : "מחיקת המפתח נכשלה",
+        variant: "destructive",
       });
     } finally {
       setBusy(false);

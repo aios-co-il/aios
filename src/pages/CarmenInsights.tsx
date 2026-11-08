@@ -529,6 +529,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   );
 }
 
+/** Render stat card from its typed view data. */
 function StatCard({
   label,
   value,
@@ -558,6 +559,7 @@ function StatCard({
   );
 }
 
+/** Render insight column from its typed view data. */
 function InsightColumn({
   title,
   items,

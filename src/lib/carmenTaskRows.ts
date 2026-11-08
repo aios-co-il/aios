@@ -85,10 +85,12 @@ const fmt = (iso: string | null | undefined) => {
   });
 };
 
+/** Distinguish persisted recurring agent tasks from one-off tasks. */
 export function isRecurringAgentTask(t: AgentTaskSourceRow): boolean {
   return ["recurring", "daily", "weekly"].includes(String(t.schedule_type));
 }
 
+/** Build the display label for the stored agent-task schedule. */
 export function agentTaskScheduleLabel(t: AgentTaskSourceRow): string {
   const type = String(t.schedule_type || "once");
   if (type === "recurring") {
@@ -104,6 +106,7 @@ export function agentTaskScheduleLabel(t: AgentTaskSourceRow): string {
   return "ידנית";
 }
 
+/** Normalize the stored task state to a command-center status. */
 export function agentTaskStatus(t: AgentTaskSourceRow): TaskStatus {
   const s = String(t.status || "pending");
   if (s === "running") return "running";
@@ -117,6 +120,7 @@ export function agentTaskStatus(t: AgentTaskSourceRow): TaskStatus {
   return "waiting";
 }
 
+/** Map a persisted agent task into the command-center task model. */
 export function mapAgentTask(t: AgentTaskSourceRow): CarmenTaskRow {
   const recurring = isRecurringAgentTask(t);
   const agentName = t.ai_agents?.name ?? null;
@@ -141,6 +145,7 @@ export function mapAgentTask(t: AgentTaskSourceRow): CarmenTaskRow {
   };
 }
 
+/** Normalize the stored goal state to a command-center status. */
 export function goalStatus(g: GoalSourceRow): TaskStatus {
   const s = String(g.status || "active");
   if (s === "completed") return "done";
@@ -158,6 +163,7 @@ export function goalStatus(g: GoalSourceRow): TaskStatus {
   return "waiting";
 }
 
+/** Map a persisted goal into the command-center task model. */
 export function mapGoal(g: GoalSourceRow): CarmenTaskRow {
   const autonomous = Boolean(g.autonomous_mode);
   return {
@@ -185,6 +191,7 @@ export function mapGoal(g: GoalSourceRow): CarmenTaskRow {
   };
 }
 
+/** Normalize the development-task state to a command-center status. */
 export function devTaskStatus(d: DevTaskSourceRow): TaskStatus {
   const s = String(d.status || "draft");
   if (s === "done") return "done";
@@ -196,6 +203,7 @@ export function devTaskStatus(d: DevTaskSourceRow): TaskStatus {
   return "waiting";
 }
 
+/** Map a development task into the command-center task model. */
 export function mapDevTask(d: DevTaskSourceRow): CarmenTaskRow {
   return {
     key: `dev_tasks:${d.id}`,
@@ -215,6 +223,7 @@ export function mapDevTask(d: DevTaskSourceRow): CarmenTaskRow {
   };
 }
 
+/** Map a cron record into the command-center task model. */
 export function mapCronJob(
   j: CronJobSourceRow,
   meta: { label: string; description: string },
