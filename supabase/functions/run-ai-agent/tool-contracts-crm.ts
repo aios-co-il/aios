@@ -84,7 +84,9 @@ export type PulseManualOverride = {
   corrected_at: string;
 };
 
-export type SyncedCampaignClient = ReturnType<typeof clientPerformanceEntry> | ReturnType<typeof staleClientEntry>;
+export type SyncedCampaignClient =
+  | ReturnType<typeof clientPerformanceEntry>
+  | ReturnType<typeof staleClientEntry>;
 
 export type CampaignStatusSummary = {
   campaign_id: Json;

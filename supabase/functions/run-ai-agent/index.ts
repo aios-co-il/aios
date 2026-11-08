@@ -7057,7 +7057,11 @@ async function executeTool(
       return data;
     }
     case "add_client_update": {
-      await assertCallerCanAccessClient(supabase, requireArgString(args, "client_id"), callerScope);
+      await assertCallerCanAccessClient(
+        supabase,
+        requireArgString(args, "client_id"),
+        callerScope,
+      );
       // Tenant check, attribution and dedupe happen in record_client_card_entry.
       return await addClientUpdateFromCarmen(supabase, {
         tenantId,
@@ -7341,11 +7345,14 @@ async function executeTool(
       }
 
       // Campaign-level rows only, as the reports count them, paged past 1000 rows.
-      const records = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
-        tableIds,
-        sinceYmd: sinceDateStr,
-        tenantIds: accessibleTenantIds,
-      });
+      const records = await fetchCampaignLevelRecords(
+        { from: () => supabase.from("crm_records") },
+        {
+          tableIds,
+          sinceYmd: sinceDateStr,
+          tenantIds: accessibleTenantIds,
+        },
+      );
       const goalTables = await readCampaignGoalTables(supabase, tableIds);
       const rows = storedCampaignRows(records, [...goalTables.values()]);
       return {
@@ -7616,14 +7623,20 @@ async function executeTool(
         const cr = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.campaign_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget&access_token=${token}`,
         );
-        const campaignResponse = await readMetaResponse(cr).catch((error) => { console.warn("Campaign metadata lookup failed", error); return null; });
+        const campaignResponse = await readMetaResponse(cr).catch((error) => {
+          console.warn("Campaign metadata lookup failed", error);
+          return null;
+        });
         campaign = campaignResponse?.ok ? campaignResponse.value : null;
       }
       if (ad.adset_id) {
         const ar = await fetch(
           `https://graph.facebook.com/${FB_GRAPH_VERSION}/${ad.adset_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id&access_token=${token}`,
         );
-        const adsetResponse = await readMetaResponse(ar).catch((error) => { console.warn("Ad set metadata lookup failed", error); return null; });
+        const adsetResponse = await readMetaResponse(ar).catch((error) => {
+          console.warn("Ad set metadata lookup failed", error);
+          return null;
+        });
         adset = adsetResponse?.ok ? adsetResponse.value : null;
       }
       return {
@@ -8260,21 +8273,23 @@ async function executeTool(
           serviceKey: SUPABASE_SERVICE_ROLE_KEY,
         },
         async (pulseArgs) =>
-          readPulsePayload(await executeTool(
-            "get_latest_campaign_pulse",
-            readJsonRecord(pulseArgs),
-            supabase,
-            tenantId,
-            userId,
-            callerCampaignerId,
-            agentId,
-            callerRole,
-            callerManagedAgencyIds,
-            callerPhone,
-            waNotify,
-            surface,
-            conversationId,
-          )),
+          readPulsePayload(
+            await executeTool(
+              "get_latest_campaign_pulse",
+              readJsonRecord(pulseArgs),
+              supabase,
+              tenantId,
+              userId,
+              callerCampaignerId,
+              agentId,
+              callerRole,
+              callerManagedAgencyIds,
+              callerPhone,
+              waNotify,
+              surface,
+              conversationId,
+            ),
+          ),
       );
     }
     case "analyze_campaign_performance": {
@@ -8419,11 +8434,14 @@ async function executeTool(
         // rows repeat the campaign's spend and results), paged past 1000 rows.
         let records: Array<CampaignGoalRecord>;
         try {
-          records = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
-            tableIds,
-            sinceYmd: d30Str,
-            tenantIds: accessibleTenantIds,
-          });
+          records = await fetchCampaignLevelRecords(
+            { from: () => supabase.from("crm_records") },
+            {
+              tableIds,
+              sinceYmd: d30Str,
+              tenantIds: accessibleTenantIds,
+            },
+          );
         } catch (err) {
           console.warn(
             `[analyze_campaign_performance] ${client.id}: ${errorMessage(err)}`,
@@ -8533,7 +8551,14 @@ async function executeTool(
       await setClientMoodStatus(supabase, {
         tenantId,
         clientId: requireArgString(args, "client_id"),
-        moodStatus: requireInsertValue(argEnum(args, "mood_status", Constants.public.Enums.client_mood_status), "mood_status"),
+        moodStatus: requireInsertValue(
+          argEnum(
+            args,
+            "mood_status",
+            Constants.public.Enums.client_mood_status,
+          ),
+          "mood_status",
+        ),
       });
 
       // 2. Create communication_log entry
@@ -8561,7 +8586,14 @@ async function executeTool(
         tenantId,
         clientId: requireArgString(args, "client_id"),
         note: requireArgString(args, "note"),
-        moodStatus: requireInsertValue(argEnum(args, "mood_status", Constants.public.Enums.client_mood_status), "mood_status"),
+        moodStatus: requireInsertValue(
+          argEnum(
+            args,
+            "mood_status",
+            Constants.public.Enums.client_mood_status,
+          ),
+          "mood_status",
+        ),
         requesterUserId: humanRequesterUserId,
         tool: "update_client_health",
       });
@@ -9089,7 +9121,9 @@ async function executeTool(
       let droppedKeys: string[] = [];
       let payloadPatch: JsonRecord | null = null;
       if (isObject(args.payload_patch)) {
-        const safe = stripServerOnlyPayloadKeys(readJsonRecord(args.payload_patch));
+        const safe = stripServerOnlyPayloadKeys(
+          readJsonRecord(args.payload_patch),
+        );
         droppedKeys = safe.dropped;
         payloadPatch = readJsonRecord(safe.patch);
       }
@@ -11678,11 +11712,14 @@ async function executeTool(
       if (tableIds.length > 0) {
         // Campaign-level rows of the last 7 days, paged: one unfiltered request
         // stopped at 1000 rows of any level/date and missed real spend.
-        const recs = await fetchCampaignLevelRecords({from: () => supabase.from("crm_records")}, {
-          tableIds,
-          sinceYmd: d7Str,
-          tenantIds: accessibleTenantIds,
-        });
+        const recs = await fetchCampaignLevelRecords(
+          { from: () => supabase.from("crm_records") },
+          {
+            tableIds,
+            sinceYmd: d7Str,
+            tenantIds: accessibleTenantIds,
+          },
+        );
         for (const r of recs) {
           const cid = tableIdToClient.get(r.table_id);
           if (!cid) continue;
@@ -11820,8 +11857,15 @@ async function executeTool(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
         )
         .in("tenant_id", accessibleTenantIds);
-      if (args.type)
-        q = q.{q = q.in("integration_type", integrationTypesFor(requireArgString(args, "type")));} if (args.only_active) q = q.eq("is_active", true);
+      if (args.type) {
+        q = q.in(
+          "integration_type",
+          integrationTypesFor(requireArgString(args, "type")),
+        );
+      }
+      if (args.only_active) {
+        q = q.eq("is_active", true);
+      }
       const { data, error } = await q.order("integration_type");
       if (error) throw error;
       return {
@@ -12302,16 +12346,18 @@ async function executeTool(
         waChatId: waNotify?.chat_id,
         phone: callerPhone,
       });
-      const approvals = pick.pickable.slice(0, argNumber(args, "limit") || 10).map((r) => ({
-        code: approvalDisplayCode(r, pick.pickable),
-        id: r.id,
-        title: r.title,
-        description: r.description,
-        tool_name: r.tool_name,
-        created_at: r.created_at,
-        requested_by: r.requested_by,
-        mine: r.requested_by === actorUserId,
-      }));
+      const approvals = pick.pickable
+        .slice(0, argNumber(args, "limit") || 10)
+        .map((r) => ({
+          code: approvalDisplayCode(r, pick.pickable),
+          id: r.id,
+          title: r.title,
+          description: r.description,
+          tool_name: r.tool_name,
+          created_at: r.created_at,
+          requested_by: r.requested_by,
+          mine: r.requested_by === actorUserId,
+        }));
       const bound = pick.kind === "match" ? pick.row : null;
       return {
         count: approvals.length,

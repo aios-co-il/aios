@@ -55,7 +55,10 @@ Deno.test("marketing work item list rows check status and payload", () => {
   const row = { ...listRow, ...nulls("pipeline_id", "current_stage_id") };
   const full = { ...row, updated_at: "2026-10-01", clients: null };
   assertEquals<unknown>(marketingWorkItemListRows([full]), [full]);
-  assertEquals<unknown>(marketingWorkItemListRows([{ ...full, status: "x" }]), []);
+  assertEquals<unknown>(
+    marketingWorkItemListRows([{ ...full, status: "x" }]),
+    [],
+  );
   assertEquals<unknown>(
     marketingWorkItemListRows([{ ...full, clients: { name: 5 } }]),
     [],
