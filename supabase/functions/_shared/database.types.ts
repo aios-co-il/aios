@@ -3710,6 +3710,50 @@ export type Database = {
           },
         ];
       };
+      carmen_caller_policies: {
+        Row: {
+          allowed_topics: string[];
+          caller_kind: string;
+          forbidden_topics: string[];
+          instructions: string;
+          may_book_meeting: boolean;
+          may_take_message: boolean;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          allowed_topics?: string[];
+          caller_kind: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          allowed_topics?: string[];
+          caller_kind?: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_caller_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_chat_thread_reviews: {
         Row: {
           cost_usd: number | null;
