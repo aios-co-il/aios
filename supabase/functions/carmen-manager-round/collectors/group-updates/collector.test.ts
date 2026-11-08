@@ -9,10 +9,11 @@ import { collectGroupUpdates, groupUpdatesCollector } from "./collector.ts";
 import type { CardEntry } from "./card-entries.ts";
 import type { LiveDraft } from "./live-drafts.ts";
 import type { GroupHistory } from "./messages.ts";
-import type { GroupUpdateSources } from "./sources.ts";
+import type { GroupLines, GroupUpdateSources } from "./sources.ts";
 
 const now = new Date("2026-11-01T17:37:00Z");
-const LINES = ["owner-line"];
+const LINES = { green: ["owner-line"], carmen: ["carmen-line"] };
+const READ_LINES = ["owner-line", "carmen-line"];
 const floor = "2026-10-30T17:37:00Z";
 const busy = history([
   message("m1", "2026-11-01T08:00:00Z", "מאשר את התקציב של 4000 שח"),
@@ -50,7 +51,7 @@ function sources(
   entries: CardEntry[] = [],
   drafts: LiveDraft[] = [],
 ) {
-  const asked: { since: Date; lines: string[] }[] = [];
+  const asked: Array<{ since: Date; lines: GroupLines }> = [];
   const fake: GroupUpdateSources = {
     lines: () => Promise.resolve(LINES),
     histories: (since, lines) => {
@@ -90,7 +91,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
     assertEquals(result.watermark, {
       floor: "2026-10-31T17:37:00.000Z",
       groups: {},
-      read_lines: LINES,
+      read_lines: READ_LINES,
     });
   });
 
@@ -109,7 +110,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
       assertEquals(result.watermark, {
         floor,
         groups: { [GROUP]: { at: "2026-11-01T09:30:00Z", id: "m4" } },
-        read_lines: LINES,
+        read_lines: READ_LINES,
       });
       assertEquals(result.coverage, { complete: true, clientIds: null });
       assertEquals(result.llm, { calls: 1, costUsd: 0.001 });
@@ -131,7 +132,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
       assertEquals(result.watermark, {
         floor,
         groups: { [GROUP]: { at: "2026-11-01T09:30:00Z", id: "m4" } },
-        read_lines: LINES,
+        read_lines: READ_LINES,
       });
     },
   );
@@ -145,7 +146,7 @@ Deno.test("groupUpdatesCollector", async (t) => {
     const result = await collectGroupUpdates(ctx({ floor, groups: {} }), fake);
     assertEquals(
       [result.candidates, result.watermark],
-      [[], { floor, groups: {}, read_lines: LINES }],
+      [[], { floor, groups: {}, read_lines: READ_LINES }],
     );
   });
 

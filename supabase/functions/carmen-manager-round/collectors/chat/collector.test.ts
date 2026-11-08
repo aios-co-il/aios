@@ -212,4 +212,21 @@ Deno.test("chat collector", async (t) => {
       assertEquals([one.candidates, one.coverage.clientIds], [[], ["c1"]]);
     },
   );
+
+  await t.step(
+    "a tenant whose groups run on Carmen's line alone is read (AIO-515)",
+    async () => {
+      const sources = fakeChatSources([], {
+        lines: [],
+        carmenLines: ["carmen-line"],
+      });
+      const result = await collect(sources.fake);
+      assertEquals(result.note, undefined);
+      assertEquals(result.watermark, { read_lines: ["carmen-line"] });
+      assertEquals(
+        sources.queries.map((q) => [q.connectionIds, q.carmenConnectionIds]),
+        [[[], ["carmen-line"]]],
+      );
+    },
+  );
 });

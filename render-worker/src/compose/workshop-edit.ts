@@ -1,12 +1,14 @@
 /** Edit decisions for the Workshop film: transitions, scene lengths and the music mix. */
 
 import { SCENE_TRANSITIONS } from "./film-look.ts";
+import type { Span } from "./types.ts";
+import type { CutCue, EffectCue } from "./manifest-types.ts";
 
 export const WORKSHOP_TRANSITIONS = ["crossfade", "slide", "zoom", "wipe"];
 const ALL_TRANSITIONS = new Set(SCENE_TRANSITIONS);
 const MAX_TRANSITION_FRAMES = 15;
 /** A whip and a glitch are short and sharp; a ripple takes its time to spread. */
-const FRAMES_OF = { whip: 9, glitch: 8, ripple: 20 };
+const FRAMES_OF: Record<string, number> = { whip: 9, glitch: 8, ripple: 20 };
 
 export const MIX = {
   music: 0.2,
@@ -26,7 +28,7 @@ export const WHOOSH_LEAD = 0.4;
  * `whoosh`. Each cue lasts its effect's length and never runs past the film.
  */
 export function effectCues(
-  scenes,
+  scenes: Array<{ startFrame: number; transitionFrames?: number | null }>,
   {
     fps,
     totalFrames,
@@ -36,10 +38,19 @@ export function effectCues(
     impactFrames = 0,
     endCardStart = null,
     cutSounds = null,
+  }: {
+    fps: number;
+    totalFrames: number;
+    whoosh?: string | null;
+    impact?: string | null;
+    whooshFrames?: number;
+    impactFrames?: number;
+    endCardStart?: number | null;
+    cutSounds?: Array<CutCue | undefined> | null;
   },
-) {
-  const cues = [];
-  const add = (file, start, length) => {
+): Array<EffectCue> {
+  const cues: Array<EffectCue> = [];
+  const add = (file: string | null, start: number, length: number) => {
     const startFrame = Math.max(0, Math.round(start));
     const frameCount = Math.min(Math.max(1, length), totalFrames - startFrame);
     if (file && frameCount > 0) cues.push({ file, startFrame, frameCount });
@@ -58,20 +69,30 @@ export function effectCues(
       length,
     );
   }
-  if (impact && Number.isInteger(endCardStart))
+  if (
+    impact &&
+    typeof endCardStart === "number" &&
+    Number.isInteger(endCardStart)
+  )
     add(impact, endCardStart - Math.round(fps * 0.2), impactLength);
   return cues.sort((a, b) => a.startFrame - b.startFrame);
 }
 
 /** The transition into scene `index`; the first scene opens from black. */
-export function sceneTransition(index, requested) {
+export function sceneTransition(index: number, requested?: unknown) {
   if (index === 0) return "cut";
-  if (ALL_TRANSITIONS.has(requested)) return requested;
+  if (typeof requested === "string" && ALL_TRANSITIONS.has(requested)) {
+    return requested;
+  }
   return WORKSHOP_TRANSITIONS[(index - 1) % WORKSHOP_TRANSITIONS.length];
 }
 
 /** Overlap frames between two scenes: at most a third of either scene. */
-export function transitionFrames(previous, current, type) {
+export function transitionFrames(
+  previous: number,
+  current: number,
+  type: string,
+) {
   if (type === "cut" || !previous) return 0;
   return Math.max(
     0,
@@ -87,7 +108,7 @@ export function transitionFrames(previous, current, type) {
  * Stretches scene lengths in proportion so the pictures last at least `minTotal` frames.
  * Speech is never cut: the last scene absorbs rounding.
  */
-export function fitScenes(frameCounts, minTotal) {
+export function fitScenes(frameCounts: Array<number>, minTotal: number) {
   const total = frameCounts.reduce((sum, n) => sum + n, 0);
   if (!frameCounts.length || !(minTotal > total)) return [...frameCounts];
   const scaled = frameCounts.map((n) => Math.floor((n * minTotal) / total));
@@ -97,11 +118,11 @@ export function fitScenes(frameCounts, minTotal) {
 }
 
 /** Speaking spans [start, end) in frames, joined when the pause is shorter than `gap`. */
-export function speechSpans(spans, gap = 18) {
+export function speechSpans(spans: Array<Span>, gap = 18) {
   const sorted = spans
     .filter(([start, end]) => end > start)
     .sort((a, b) => a[0] - b[0]);
-  const merged = [];
+  const merged: Array<Span> = [];
   for (const [start, end] of sorted) {
     const last = merged[merged.length - 1];
     if (last && start - last[1] <= gap) last[1] = Math.max(last[1], end);
@@ -116,8 +137,8 @@ export function speechSpans(spans, gap = 18) {
  * Pauses shorter than the ramps (plus `hold`) keep the bed down.
  */
 export function musicEnvelope(
-  spans,
-  totalFrames,
+  spans: Array<Span>,
+  totalFrames: number,
   {
     base = MIX.music,
     ducked = MIX.musicDucked,
@@ -126,7 +147,7 @@ export function musicEnvelope(
     hold = 0,
   } = {},
 ) {
-  const points = [[0, base]];
+  const points: Array<Span> = [[0, base]];
   for (const [start, end] of speechSpans(spans, attack + release + hold)) {
     const s = Math.max(0, start);
     const e = Math.min(totalFrames, end);
@@ -140,8 +161,8 @@ export function musicEnvelope(
     points.push([e + release, base]);
   }
   points.push([totalFrames, base]);
-  const frames = [];
-  const volumes = [];
+  const frames: Array<number> = [];
+  const volumes: Array<number> = [];
   for (const [frame, volume] of points) {
     if (frame > totalFrames) continue;
     const at = frames.length - 1;
@@ -157,5 +178,5 @@ export function musicEnvelope(
 }
 
 /** True when any speaking span overlaps [start, end). */
-export const speaks = (spans, start, end) =>
+export const speaks = (spans: Array<Span>, start: number, end: number) =>
   spans.some(([s, e]) => s < end && e > start);

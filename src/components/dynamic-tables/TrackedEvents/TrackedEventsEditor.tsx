@@ -11,6 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { completeRatio, type EditorRow, editorRows } from "./editorRows";
+import { type RatioDraft, RatioPicker } from "./RatioPicker";
+import type { TrackedRatio } from "./siteKpis";
 import type { TrackedEvent } from "./trackedEvents";
 
 type Props = {
@@ -20,7 +23,12 @@ type Props = {
   current: Array<TrackedEvent>;
   /** Every GA event of the period, most frequent first. */
   available: Array<{ event: string; count: number }>;
-  onSave: (events: Array<TrackedEvent>) => Promise<void>;
+  /** The conversion pair the dashboard shows now, if any. */
+  currentRatio: TrackedRatio | null;
+  onSave: (
+    events: Array<TrackedEvent>,
+    ratio: TrackedRatio | null,
+  ) => Promise<void>;
   saving: boolean;
 };
 
@@ -34,10 +42,15 @@ export function TrackedEventsEditor({
   onOpenChange,
   current,
   available,
+  currentRatio,
   onSave,
   saving,
 }: Props) {
   const [rows, setRows] = useState(() => editorRows(current, available));
+  const [ratio, setRatio] = useState<RatioDraft>(currentRatio ?? {});
+  const chosen = rows
+    .filter((row) => row.on)
+    .map((row) => ({ event: row.event, label: row.label.trim() || row.event }));
   const update = (index: number, change: Partial<EditorRow>) =>
     setRows((all) =>
       all.map((row, i) => (i === index ? { ...row, ...change } : row)),
@@ -54,14 +67,7 @@ export function TrackedEventsEditor({
     });
   const save = async () => {
     try {
-      await onSave(
-        rows
-          .filter((row) => row.on)
-          .map((row) => ({
-            event: row.event,
-            label: row.label.trim() || row.event,
-          })),
-      );
+      await onSave(chosen, completeRatio(ratio, chosen));
       toast.success("האירועים נשמרו");
       onOpenChange(false);
     } catch (error) {
@@ -131,6 +137,7 @@ export function TrackedEventsEditor({
             </p>
           )}
         </div>
+        <RatioPicker events={chosen} value={ratio} onChange={setRatio} />
         <DialogFooter>
           <Button onClick={save} disabled={saving}>
             שמירה
@@ -139,24 +146,4 @@ export function TrackedEventsEditor({
       </DialogContent>
     </Dialog>
   );
-}
-
-type EditorRow = { event: string; label: string; count: number; on: boolean };
-
-/** Followed events first, in order, then the period's other events. */
-function editorRows(
-  current: Array<TrackedEvent>,
-  available: Array<{ event: string; count: number }>,
-): Array<EditorRow> {
-  const counts = new Map(available.map((item) => [item.event, item.count]));
-  const followed = current.map((item) => ({
-    ...item,
-    count: counts.get(item.event) ?? 0,
-    on: true,
-  }));
-  const chosen = new Set(current.map((item) => item.event));
-  const others = available
-    .filter((item) => !chosen.has(item.event))
-    .map((item) => ({ ...item, label: "", on: false }));
-  return [...followed, ...others];
 }

@@ -17,6 +17,8 @@ import {
   speechSpans,
   transitionFrames,
 } from "../src/compose/workshop-edit.ts";
+import { runOf } from "./fakes.ts";
+import type { WorkItemPayload } from "../src/jobs/types.ts";
 
 test("word timings come from character alignments and word lists", () => {
   expect(
@@ -40,7 +42,7 @@ test("word timings come from character alignments and word lists", () => {
 });
 
 test("captions break after five words, a pause or a sentence end", () => {
-  const at = (text, startFrame) => ({
+  const at = (text: string, startFrame: number) => ({
     text,
     startFrame,
     endFrame: startFrame + 6,
@@ -142,32 +144,35 @@ test("brandFromPayload reads the brand kit fields and drops unsafe values", () =
     ctaUrl: "www.example.co.il",
   });
   expect(
-    brandFromPayload({ brand_book: { logoUrl: "t/logo.png" } }).logoUrl,
+    brandFromPayload({ brand_book: { logoUrl: "t/logo.png" } })?.logoUrl,
   ).toBe("t/logo.png");
   expect(brandFromPayload({})).toBe(null);
   expect(brandFromPayload(null)).toBe(null);
 });
 
 test("loadFilmBrand reads the payload of the run's item in the run's tenant", async () => {
-  const queries = [];
+  const queries: Array<[string, string]> = [];
   const db = {
-    async select(table, query) {
+    async select(table: string, query: string) {
       queries.push([table, query]);
       return [{ payload: { cta_text: "קנו" } }];
     },
   };
-  const brand = await loadFilmBrand(db, { item_id: "i 1", tenant_id: "t1" });
-  expect(brand.ctaText).toBe("קנו");
+  const brand = await loadFilmBrand(
+    db,
+    runOf({ item_id: "i 1", tenant_id: "t1" }),
+  );
+  expect(brand?.ctaText).toBe("קנו");
   expect(queries).toStrictEqual([
     ["marketing_work_items", "id=eq.i%201&tenant_id=eq.t1&select=payload"],
   ]);
 });
 
 test("loadFilmSettings reads the caption style and the brand's name", async () => {
-  const settingsFor = (payload) =>
+  const settingsFor = (payload: WorkItemPayload) =>
     loadFilmSettings(
       { select: async () => [{ payload }] },
-      { item_id: "i1", tenant_id: "t1" },
+      runOf({ item_id: "i1", tenant_id: "t1" }),
     );
   const motion = await settingsFor({ brand_book: { name: "כרמן" } });
   expect(motion.captionStyle).toBe("motion");

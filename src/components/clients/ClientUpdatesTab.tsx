@@ -43,7 +43,6 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { resolveUpdateAuthorName } from "@/lib/updateAuthor";
 import { useTenantMemberNames } from "@/hooks/useTenantMemberNames";
-import { resolveClientUpdateType } from "@/lib/clientUpdateType";
 import {
   canModifyClientUpdate,
   matchesClientUpdateSourceFilter,
@@ -298,13 +297,12 @@ export function ClientUpdatesTab({
       updateType: string;
     }) => {
       if (!tenantId || !user?.id) throw new Error("Missing tenant or user");
-      const resolvedUpdateType = resolveClientUpdateType(updateType, content);
       const { error } = await supabase.from("client_updates").insert({
         client_id: clientId,
         tenant_id: tenantId,
         user_id: user.id,
         content,
-        update_type: resolvedUpdateType,
+        update_type: updateType,
       } as any);
       if (error) throw error;
     },
@@ -404,7 +402,7 @@ export function ClientUpdatesTab({
           moodFilter === "all" &&
           matchesClientUpdateSourceFilter(update.source, sourceFilter) &&
           (updateTypeFilter === "all" ||
-            (update.update_type ?? "other") === updateTypeFilter),
+            (update.update_type ?? "general") === updateTypeFilter),
       )
       .map((update) => ({
         kind: "update" as const,
