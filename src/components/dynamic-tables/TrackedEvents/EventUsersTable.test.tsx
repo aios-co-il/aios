@@ -76,4 +76,16 @@ describe("EventUsersTable", () => {
     );
     expect(screen.getByText(/לא הצלחנו לטעון/)).toBeTruthy();
   });
+
+  it("asks for dates while the custom range is incomplete", () => {
+    render(
+      <EventUsersTable
+        result={undefined}
+        loading={false}
+        failed={false}
+        formatNumber={formatNumber}
+      />,
+    );
+    expect(screen.getByText(/בחרו טווח תאריכים/)).toBeTruthy();
+  });
 });

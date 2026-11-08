@@ -8,6 +8,7 @@ import {
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import { sharedDashboardDateRange } from "../_shared/share-links/shared-dashboard-range.ts";
 import {
   EVENT_REPORT_TYPES,
   fetchEventTotals,
@@ -19,109 +20,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-function getDateRange(
-  filter: string,
-  integrationType?: string | null,
-): { startDate: string | null; endDate: string | null } {
-  const now = new Date();
-  // Compute everything in UTC so the range matches WooCommerce admin reports
-  // and the woocommerce_orders.date_created column (stored as UTC timestamptz).
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth();
-  const d = now.getUTCDate();
-  const today = new Date(Date.UTC(y, m, d));
-  const yesterday = new Date(Date.UTC(y, m, d - 1));
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
-  const todayStr = today.toISOString().split("T")[0];
-  let startDate: string | null = null;
-  let endDate: string | null = null;
-
-  switch (filter) {
-    case "today":
-      startDate = todayStr;
-      endDate = todayStr;
-      break;
-    case "yesterday":
-      startDate = yesterdayStr;
-      endDate = yesterdayStr;
-      break;
-    case "this_week": {
-      // Week starts Sunday (UTC calendar day) — matches SharedDashboard / DashboardView.
-      const dow = today.getUTCDay();
-      startDate = new Date(Date.UTC(y, m, d - dow)).toISOString().split("T")[0];
-      endDate = todayStr;
-      break;
-    }
-    case "last_week": {
-      const dow = today.getUTCDay();
-      startDate = new Date(Date.UTC(y, m, d - dow - 7))
-        .toISOString()
-        .split("T")[0];
-      endDate = new Date(Date.UTC(y, m, d - dow - 1))
-        .toISOString()
-        .split("T")[0];
-      break;
-    }
-    case "last_7_days": {
-      // Rolling 7 full days ending yesterday — matches ads/analytics + combined dashboard.
-      startDate = new Date(Date.UTC(y, m, d - 7)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    }
-    case "this_month":
-      startDate = new Date(Date.UTC(y, m, 1)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_month": {
-      const startOfLastMonth = new Date(Date.UTC(y, m - 1, 1));
-      const endOfLastMonth = new Date(Date.UTC(y, m, 0));
-      startDate = startOfLastMonth.toISOString().split("T")[0];
-      endDate = endOfLastMonth.toISOString().split("T")[0];
-      break;
-    }
-    case "last_14_days":
-      startDate = new Date(Date.UTC(y, m, d - 14)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_30_days":
-      startDate = new Date(Date.UTC(y, m, d - 30)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_60_days":
-      startDate = new Date(Date.UTC(y, m, d - 60)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_70_days":
-      startDate = new Date(Date.UTC(y, m, d - 70)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_90_days":
-      startDate = new Date(Date.UTC(y, m, d - 90)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_120_days":
-      startDate = new Date(Date.UTC(y, m, d - 120)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_180_days":
-      startDate = new Date(Date.UTC(y, m, d - 180)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "last_365_days":
-      startDate = new Date(Date.UTC(y, m, d - 365)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-    case "all":
-      return { startDate: null, endDate: null };
-    default: // unknown preset — 30 full days ending yesterday
-      startDate = new Date(Date.UTC(y, m, d - 30)).toISOString().split("T")[0];
-      endDate = yesterdayStr;
-      break;
-  }
-
-  return { startDate, endDate };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -212,10 +110,7 @@ Deno.serve(async (req) => {
         table.integration_type === "ahrefs";
       const maxPages = isAnalytics ? 4 : isSeoHeavy ? 3 : 3; // 3–4k rows max per table
       const tableRecords: any[] = [];
-      const { startDate, endDate } = getDateRange(
-        dateFilter,
-        table.integration_type,
-      );
+      const { startDate, endDate } = sharedDashboardDateRange(dateFilter);
 
       for (let page = 0; page < maxPages; page++) {
         const from = page * pageSize;
