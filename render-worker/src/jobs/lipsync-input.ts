@@ -15,7 +15,7 @@ import type { MediaAsset, RunItem, VideoRun } from "./types.ts";
 
 /** What the provider is sent: inline bytes, or short-lived signed links of tenant-folder copies. */
 export async function providerInput(
-  db: SupabaseRest,
+  db: Pick<SupabaseRest, "download" | "upload" | "sign">,
   run: VideoRun,
   item: RunItem,
   provider: LipsyncProvider,

@@ -10,7 +10,9 @@ import type {
 /** Media lengths and audio tracks the edit needs; an unreadable file keeps the defaults. */
 export async function measured(
   timeline: Timeline,
-  probeFile: (file: string) => Promise<ProbeResult>,
+  probeFile: (
+    file: string,
+  ) => Promise<Pick<ProbeResult, "duration" | "hasAudio">>,
 ): Promise<Timeline> {
   const read = async (file: string) => {
     try {

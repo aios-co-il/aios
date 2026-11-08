@@ -1,6 +1,5 @@
 // The rows the jobs read and write through PostgREST. Rows are untrusted JSON: each type names
 // only the columns and keys its callers read, and the callers test the values they rely on.
-import type { SpeechAlignment } from "../providers/responses.ts";
 
 /**
  * A marketing_runs row as claim_video_run returns it. Tenant members write `input`, so the
@@ -34,7 +33,9 @@ export interface RunInput {
   prompt?: string;
   scene_ids?: Array<string>;
   voice_id?: string;
-  estimate?: { usd?: number };
+  estimate?: { usd?: number; credits?: number };
+  /** Anything else a tenant member wrote; no job reads it. */
+  [key: string]: unknown;
 }
 
 /** A run's output: what each job recorded (paths, providers, errors), merged on finish. */
@@ -129,7 +130,8 @@ export interface FilmPayload {
   production?: {
     status?: string;
     render_run_id?: unknown;
-    estimate?: { sound_effects?: { usd?: unknown } };
+    /** The approved quote's line items (clips, music, sound_effects). */
+    estimate?: { sound_effects?: { usd?: unknown }; [item: string]: unknown };
   } | null;
 }
 
@@ -167,7 +169,8 @@ export interface RowMeta {
   title_emphasis?: unknown;
   scene_overlay?: unknown;
   // Asset meta.
-  alignment?: SpeechAlignment | null;
+  /** Word timings: an ElevenLabs character alignment or a word list (captions.ts). */
+  alignment?: unknown;
   asset_id?: string | null;
   aspect?: string | null;
   cost_usd?: unknown;

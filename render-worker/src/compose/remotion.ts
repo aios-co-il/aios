@@ -95,7 +95,9 @@ export async function assembleWithRemotion(
     prepare = prepareSound,
     timeoutMs = RENDER_TIMEOUT_MS(),
   }: {
-    probeFile?: (file: string) => Promise<ProbeResult>;
+    probeFile?: (
+      file: string,
+    ) => Promise<Pick<ProbeResult, "duration" | "hasAudio">>;
     prepare?: (timeline: Timeline, dir: string) => Promise<Timeline>;
     timeoutMs?: number;
   } = {},

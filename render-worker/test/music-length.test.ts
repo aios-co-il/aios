@@ -17,6 +17,7 @@ import {
   scenes,
   take,
 } from "./music-fixtures.ts";
+import { sceneOf, timelineOf } from "./fakes.ts";
 
 test("the bed covers the film the edit cuts from the narration, its end card and a tail", async () => {
   const sized = await musicLengthMs({
@@ -25,18 +26,22 @@ test("the bed covers the film the edit cuts from the narration, its end card and
     log: () => {},
   });
   // The same scenes the Remotion edit makes from these word timings.
-  const { manifest } = buildWorkshopManifest({
-    narrationPath: "/tmp/n.mp3",
-    narrationAlignment: ALIGNMENT,
-    scenes: LINES.map((line, index) => ({
-      id: `s${index + 1}`,
-      clipPath: "/tmp/c.mp4",
-      stillPath: "/tmp/s.png",
-      clipProvider: "mock",
-      durationS: 3.5,
-      narrationText: line,
-    })),
-  });
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      narrationPath: "/tmp/n.mp3",
+      narrationAlignment: ALIGNMENT,
+      scenes: LINES.map((line, index) =>
+        sceneOf({
+          id: `s${index + 1}`,
+          clipPath: "/tmp/c.mp4",
+          stillPath: "/tmp/s.png",
+          clipProvider: "mock",
+          durationS: 3.5,
+          narrationText: line,
+        }),
+      ),
+    }),
+  );
   const scenesS = manifest.totalFrames / manifest.fps;
   expect(scenesS).toBeGreaterThan(14);
   const cardS = endCardSeconds(ctaLines(CTA));
@@ -129,7 +134,7 @@ test("a talking film is timed by each scene's own voice of its current line only
     voice_asset_id: `v${index + 1}`,
     meta: index === 0 ? { lipsync: true, dialogue: "אני כרמן" } : {},
   }));
-  const voice = (id, text, to) => ({
+  const voice = (id: string, text: string, to: number) => ({
     id,
     type: "voiceover",
     meta: { text, alignment: take([[0, to]]) },

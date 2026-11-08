@@ -21,12 +21,8 @@ interface BedLength {
   basis: string;
 }
 
-/** Sizes the bed to the film that will be rendered (music-length.ts musicLengthMs). */
-type SizeMusic = (options: {
-  db: SupabaseRest;
-  run: VideoRun;
-  log: (line: string) => void;
-}) => Promise<BedLength & { filmS: number }>;
+/** Sizes the bed to the film that will be rendered; tests answer for it. */
+type SizeMusic = typeof musicLengthMs;
 
 /** One music bed for the whole film. */
 export async function generateMusic({
@@ -37,7 +33,10 @@ export async function generateMusic({
   log = console.log,
   submitting,
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "update" | "insert"
+  >;
   run: VideoRun;
   apiKey?: string | null;
   sizeMusic?: SizeMusic;
@@ -130,7 +129,10 @@ async function bedLength({
   sizeMusic,
   log,
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "update" | "insert"
+  >;
   run: VideoRun;
   path: string;
   sizeMusic: SizeMusic;

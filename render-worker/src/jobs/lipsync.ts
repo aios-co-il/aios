@@ -33,7 +33,10 @@ export async function generateLipsync({
   // Wraps the paid submit and the save of its job id (src/inflight.ts).
   submitting = (submit) => submit(),
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
   run: VideoRun;
   keys?: ProviderKeys;
   providerFor?: (name: string, keys: ProviderKeys) => LipsyncProvider;

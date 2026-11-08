@@ -36,7 +36,7 @@ export async function submitLipsync({
   aspect,
   log,
 }: {
-  db: SupabaseRest;
+  db: Pick<SupabaseRest, "select" | "download" | "upload" | "sign" | "update">;
   run: VideoRun;
   item: RunItem;
   names: Array<string>;

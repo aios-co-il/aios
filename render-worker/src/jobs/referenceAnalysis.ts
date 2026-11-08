@@ -27,7 +27,7 @@ export async function analyzeReference({
   keys,
   log = console.log,
 }: {
-  db: SupabaseRest;
+  db: Pick<SupabaseRest, "select" | "download" | "upload">;
   run: VideoRun;
   keys: {
     openaiKey: string;

@@ -21,7 +21,7 @@ export async function generateVoice({
   log = console.log,
   submitting,
 }: {
-  db: SupabaseRest;
+  db: Pick<SupabaseRest, "select" | "upload" | "update" | "rpc">;
   run: VideoRun;
   apiKey?: string | null;
   googleKey?: string | null;

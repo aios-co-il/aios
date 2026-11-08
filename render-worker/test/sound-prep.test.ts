@@ -7,6 +7,8 @@ import { prepareSound } from "../src/compose/sound-prep.ts";
 import { levelGain } from "../src/compose/sound-level.ts";
 import { measureLoudness, parseLoudness } from "../src/loudness.ts";
 import { hasFfmpeg, media } from "./media.ts";
+import { defined, timelineOf } from "./fakes.ts";
+import type { Gain, Loudness } from "../src/compose/sound-level.ts";
 
 test.skipIf(!hasFfmpeg)(
   "a loud transition sound and a quiet decaying impact each hit at its own level after levelling",
@@ -30,9 +32,12 @@ test.skipIf(!hasFfmpeg)(
         await measureLoudness(quiet),
       ];
       // Like the showcase's ElevenLabs pair: far apart, the impact mostly decaying tail.
-      expect(before[0].integrated - before[1].integrated).toBeGreaterThan(10);
+      expect(
+        defined(before[0].integrated, "loudness") -
+          defined(before[1].integrated, "loudness"),
+      ).toBeGreaterThan(10);
       const prepared = await prepareSound(
-        {
+        timelineOf({
           scenes: [],
           effects: {
             cuts: [
@@ -41,22 +46,23 @@ test.skipIf(!hasFfmpeg)(
             ],
             impactPath: quiet,
           },
-        },
+        }),
         join(dir, "sound"),
         { log: () => {} },
       );
       // A cut of a later round, its sound shifted, is levelled like the first.
-      const targets = [
-        [prepared.effects.cuts[0].path, EFFECT_LUFS],
-        [prepared.effects.cuts[1].path, EFFECT_LUFS],
-        [prepared.effects.impactPath, IMPACT_LUFS],
+      const effects = defined(prepared.effects, "effects");
+      const targets: Array<[string, number]> = [
+        [effects.cuts[0].path, EFFECT_LUFS],
+        [effects.cuts[1].path, EFFECT_LUFS],
+        [defined(effects.impactPath, "impact"), IMPACT_LUFS],
       ];
-      expect(prepared.effects.cuts[1].path).not.toBe(
-        prepared.effects.cuts[0].path,
-      );
+      expect(effects.cuts[1].path).not.toBe(effects.cuts[0].path);
       for (const [file, target] of targets) {
         const after = await measureLoudness(file);
-        expect(Math.abs(after.maxMomentary - target)).toBeLessThan(1);
+        expect(
+          Math.abs(defined(after.maxMomentary, "hit") - target),
+        ).toBeLessThan(1);
         expect(after.truePeak).toBeLessThan(0);
       }
     } finally {
@@ -106,14 +112,14 @@ test("levelGain reaches the target and keeps peaks under the ceiling", () => {
     gainDb: 8,
     limit: true,
   });
-  expect(levelGain({ measured: -40, target: -17, peak: -2 }).gainDb).toBe(7);
+  expect(levelGain({ measured: -40, target: -17, peak: -2 })?.gainDb).toBe(7);
   expect(levelGain({ measured: null, target: -17 })).toBe(null);
 });
 
 test("prepareSound levels the bed and every effect's hit, and measures the voice", async () => {
   // A temporary folder: CI cannot write to the file system root.
   const out = await mkdtemp(join(tmpdir(), "sound-prep-"));
-  const readings = {
+  const readings: Record<string, Partial<Loudness>> = {
     "/m.mp3": {
       integrated: -20,
       truePeak: -8,
@@ -125,8 +131,8 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     "/i.mp3": { integrated: -24.7, truePeak: -6.3, maxMomentary: -18.3 },
     "/n.mp3": { integrated: -19.1, truePeak: -1.6, maxMomentary: -13.2 },
   };
-  const written = [];
-  const shifted = [];
+  const written: Array<[string, string, Gain]> = [];
+  const shifted: Array<[string, string, number]> = [];
   // The shifted whoosh comes out a little softer; it is levelled to the same hit.
   readings[join(out, "sfx-cut-2-pitched.wav")] = {
     integrated: -11,
@@ -134,7 +140,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     maxMomentary: -10.4,
   };
   const prepared = await prepareSound(
-    {
+    timelineOf({
       musicPath: "/m.mp3",
       narrationPath: "/n.mp3",
       effects: {
@@ -149,7 +155,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
         impactPath: "/i.mp3",
       },
       scenes: [],
-    },
+    }),
     out,
     {
       measure: async (file) => readings[file],
@@ -188,11 +194,11 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
   expect(-18.3 + gains["/i.mp3"]).toBeCloseTo(IMPACT_LUFS, 5);
   // A file that cannot be measured or written keeps its own level.
   const kept = await prepareSound(
-    {
+    timelineOf({
       musicPath: "/m.mp3",
       effects: { cuts: [{ path: "/w.mp3", pitch: 0 }], impactPath: null },
       scenes: [],
-    },
+    }),
     out,
     {
       measure: async (file) => {
@@ -206,7 +212,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     },
   );
   expect(kept.musicPath).toBe("/m.mp3");
-  expect(kept.effects.cuts).toStrictEqual([{ path: "/w.mp3" }]);
+  expect(kept.effects?.cuts).toStrictEqual([{ path: "/w.mp3" }]);
   expect(kept.voiceLufs).toBe(null);
   await rm(out, { recursive: true, force: true });
 });
@@ -214,7 +220,7 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
 test("an ordinary film's bed keeps its own level and is only measured for its loop", async () => {
   // A temporary folder: CI cannot write to the file system root.
   const out = await mkdtemp(join(tmpdir(), "sound-prep-"));
-  const written = [];
+  const written: Array<[string, string, Gain]> = [];
   const options = {
     measure: async () => ({
       integrated: -12,
@@ -222,11 +228,12 @@ test("an ordinary film's bed keeps its own level and is only measured for its lo
       maxMomentary: -10,
       bodyEndS: 30,
     }),
-    normalize: async (file, to, gain) => written.push([file, to, gain]),
+    normalize: async (file: string, to: string, gain: Gain) =>
+      written.push([file, to, gain]),
     log: () => {},
   };
   const plain = await prepareSound(
-    { musicPath: "/m.mp3", narrationPath: "/n.mp3", scenes: [] },
+    timelineOf({ musicPath: "/m.mp3", narrationPath: "/n.mp3", scenes: [] }),
     out,
     options,
   );
@@ -238,7 +245,7 @@ test("an ordinary film's bed keeps its own level and is only measured for its lo
   expect(written).toStrictEqual([]);
   // A trailer brief without effects still gets its bed levelled for the trailer mix.
   const trailer = await prepareSound(
-    { musicPath: "/m.mp3", soundDesign: true, scenes: [] },
+    timelineOf({ musicPath: "/m.mp3", soundDesign: true, scenes: [] }),
     out,
     options,
   );

@@ -3,14 +3,14 @@
 
 /** The brand kit on the work item (brand.ts brandFromPayload), with the logo staged on disk. */
 export interface FilmBrand {
-  primaryColor: string | null;
-  secondaryColor: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
   logoUrl?: string | null;
   /** The logo file on local disk, once render.ts has downloaded it. */
   logoPath?: string | null;
-  fontFamily: string | null;
-  ctaText: string | null;
-  ctaUrl: string | null;
+  fontFamily?: string | null;
+  ctaText?: string | null;
+  ctaUrl?: string | null;
   /** false: the user chose an ending without a closing card. */
   endCard?: boolean;
 }
@@ -22,10 +22,12 @@ export interface SourceScene {
   overlayText?: string | null;
   voiceoverText?: string | null;
   durationS?: number | null;
-  clipPath: string | null;
+  /** A scene without a clip is left out of the timeline. */
+  clipPath?: string | null;
   clipProvider?: string | null;
   stillPath?: string | null;
-  skinSwitch?: boolean | null;
+  /** The scene's own say on a skin switch: only a boolean counts (buildTimeline). */
+  skinSwitch?: unknown;
   skinRef?: string | null;
   pictureKey?: string | null;
   titleStyle?: string | null;

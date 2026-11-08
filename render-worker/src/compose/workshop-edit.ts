@@ -79,12 +79,9 @@ export function effectCues(
 }
 
 /** The transition into scene `index`; the first scene opens from black. */
-export function sceneTransition(
-  index: number,
-  requested: string | null | undefined,
-) {
+export function sceneTransition(index: number, requested?: unknown) {
   if (index === 0) return "cut";
-  if (requested && ALL_TRANSITIONS.has(requested)) {
+  if (typeof requested === "string" && ALL_TRANSITIONS.has(requested)) {
     return requested;
   }
   return WORKSHOP_TRANSITIONS[(index - 1) % WORKSHOP_TRANSITIONS.length];

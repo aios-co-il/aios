@@ -5,6 +5,8 @@ import {
 } from "../src/jobs/pronunciations.ts";
 import { generateVoice } from "../src/jobs/sound.ts";
 import { vocalizeForSpeech } from "../src/jobs/vocalize.ts";
+import { runOf } from "./fakes.ts";
+import type { RunOutput } from "../src/jobs/types.ts";
 
 const SAID = { מכירות: "מְכִירוֹת", כרמן: "קַרְמֶן" };
 
@@ -100,14 +102,14 @@ describe("the voice run with pronunciations", () => {
       return Response.json({ audio_base64: "AQID", alignment: null });
     });
     const rpcs: Array<[string, Record<string, unknown>]> = [];
-    const run = {
+    const run = runOf({
       id: "run1",
       tenant_id: "t1",
       item_id: "item1",
       scene_id: null,
       input: { continuous: true, voice_id: "v1" },
       output: {},
-    };
+    });
     const db = {
       async select(table: string) {
         if (table === "marketing_work_items") {
@@ -119,7 +121,7 @@ describe("the voice run with pronunciations", () => {
         return [{ id: "s1", voiceover_text: "מדיה מכירות", meta: {} }];
       },
       async upload() {},
-      async update(_t: string, _f: string, patch: { output: object }) {
+      async update(_t: string, _f: string, patch: { output: RunOutput }) {
         run.output = patch.output;
       },
       async rpc(name: string, args: { p_meta: Record<string, unknown> }) {
@@ -146,14 +148,14 @@ describe("the voice run with pronunciations", () => {
       sent.push(JSON.parse(init.body).text);
       return Response.json({ audio_base64: "AQID", alignment: null });
     });
-    const run = {
+    const run = runOf({
       id: "run1",
       tenant_id: "t1",
       item_id: "item1",
       scene_id: null,
       input: { continuous: true, voice_id: "v1" },
       output: {},
-    };
+    });
     const db = {
       async select(table: string) {
         if (table === "carmen_pronunciations") throw new Error("down");

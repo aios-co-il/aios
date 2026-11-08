@@ -12,5 +12,19 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src", "test"],
+  // These tests import the Remotion package's own sources (workers/creative-video/remotion),
+  // which resolve as a bundler project with React and its own dependencies, not as worker code.
+  "exclude": [
+    "test/remotion-accent-colours.test.ts",
+    "test/remotion-end-card-backdrop.test.ts",
+    "test/remotion-fonts.test.ts",
+    "test/remotion-scene-overlays.test.ts",
+    "test/remotion-scene-text.test.ts",
+    "test/remotion-title-emphasis.test.ts",
+    "test/remotion-title-styles.test.ts",
+    "test/remotion-title-timing.test.ts",
+    "test/remotion-transitions.test.ts",
+    "test/workshop-title-card-wipe.test.ts"
+  ]
 }

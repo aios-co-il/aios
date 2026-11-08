@@ -16,6 +16,9 @@ import {
   generateSoundEffect,
   soundEffectBody,
 } from "../src/providers/elevenlabsSound.ts";
+import { defined, fakeFetch, headerOf, jsonBodyOf, runOf } from "./fakes.ts";
+import type { FetchCall, RunPatch } from "./fakes.ts";
+import type { RunOutput } from "../src/jobs/types.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 const ITEM = "22222222-2222-2222-2222-222222222222";
@@ -27,24 +30,24 @@ test("a sound effect is asked of ElevenLabs as the public API documents it", asy
     prompt_influence: 0.5,
     model_id: "eleven_text_to_sound_v2",
   });
-  const seen = [];
+  const seen: Array<FetchCall> = [];
   const bytes = await generateSoundEffect({
     apiKey: "xi-test",
     text: "low hit",
     durationS: 2.5,
     promptInfluence: 0.6,
-    fetchImpl: async (url, init) => {
+    fetchImpl: fakeFetch(async (url, init) => {
       seen.push({ url, init });
       return new Response(new Uint8Array([0xff, 0xfb, 1, 2]), { status: 200 });
-    },
+    }),
   });
   expect(bytes.length).toBe(4);
   expect(seen[0].url).toBe(
     "https://api.elevenlabs.io/v1/sound-generation?output_format=mp3_44100_128",
   );
   expect(seen[0].init.method).toBe("POST");
-  expect(seen[0].init.headers["xi-api-key"]).toBe("xi-test");
-  expect(JSON.parse(seen[0].init.body)).toStrictEqual({
+  expect(headerOf(seen[0].init, "xi-api-key")).toBe("xi-test");
+  expect(jsonBodyOf(seen[0].init)).toStrictEqual({
     text: "low hit",
     duration_seconds: 2.5,
     prompt_influence: 0.6,
@@ -63,46 +66,60 @@ test("a sound effect is asked of ElevenLabs as the public API documents it", asy
   ).rejects.toThrow(/sound effect 401/);
 });
 
-function effectsDb({ assets = [], failUpload = false } = {}) {
-  const calls = { uploads: [], updates: [], inserts: [] };
+function effectsDb({
+  assets = [],
+  failUpload = false,
+}: { assets?: Array<StoredEffect>; failUpload?: boolean } = {}) {
+  const calls: {
+    uploads: Array<{ bucket: string; path: string; size: number }>;
+    updates: Array<{ table: string; filter: string; patch: RunPatch }>;
+    inserts: Array<{ table: string; row: StoredEffect & { type: string } }>;
+  } = { uploads: [], updates: [], inserts: [] };
   return {
     calls,
-    async select(table) {
+    async select(table: string) {
       return table === "marketing_assets" ? assets : [];
     },
-    async upload(bucket, path, bytes) {
+    async upload(bucket: string, path: string, bytes: Uint8Array) {
       if (failUpload) throw new Error("storage down");
       calls.uploads.push({ bucket, path, size: bytes.length });
     },
-    async update(table, filter, patch) {
+    async update(table: string, filter: string, patch: RunPatch) {
       calls.updates.push({ table, filter, patch });
     },
-    async insert(table, row) {
+    async insert(table: string, row: StoredEffect & { type: string }) {
       calls.inserts.push({ table, row });
     },
   };
 }
 
-const run = (output = {}) => ({
-  id: "run-1",
-  tenant_id: TENANT,
-  item_id: ITEM,
-  stage_id: "stage-1",
-  output,
-});
+const run = (output: RunOutput | null = {}) =>
+  runOf({
+    id: "run-1",
+    tenant_id: TENANT,
+    item_id: ITEM,
+    stage_id: "stage-1",
+    output,
+  });
 const item = { folder: `${TENANT}/general/${ITEM}` };
 /** A stored effect of the film, as marketing_assets returns it. */
-const asset = (effect, version = SOUND_EFFECTS_VERSION) => ({
+const asset = (effect: string, version = SOUND_EFFECTS_VERSION) => ({
   url: `t/${effect}-v${version}.mp3`,
   meta: { effect, version },
 });
 const ALL = SOUND_EFFECT_NAMES;
+/** The effect of the set asked as `text`. */
+const effectNamed = (text: string) =>
+  defined(
+    ALL.find((name) => SOUND_EFFECTS[name].text === text),
+    `effect asked as ${text}`,
+  );
 /** What workshop_produce_video quotes for the set (video-cost.ts SOUND_EFFECTS_USD). */
 const QUOTE = 0.09;
 
 test("the film's set is made once, each sound stored, recorded on the run and priced", async () => {
   const db = effectsDb();
-  const asked = [];
+  const asked: Array<Parameters<typeof generateSoundEffect>[0]> = [];
   const current = run();
   const result = await filmSoundEffects({
     db,
@@ -135,14 +152,16 @@ test("the film's set is made once, each sound stored, recorded on the run and pr
     new Set(["creative-video"]),
   );
   // Each stored path and its price are on the run before the next sound is paid for.
-  expect(db.calls.updates[0].patch.output.sound_effects).toStrictEqual({
+  expect(db.calls.updates[0].patch.output?.sound_effects).toStrictEqual({
     air: result.paths.air,
   });
-  expect(db.calls.updates[0].patch.output.sound_effects_cost_usd).toStrictEqual(
-    { air: soundEffectsCostUsd(["air"]) },
-  );
-  expect(current.output.sound_effects).toStrictEqual(result.paths);
-  expect(Object.keys(current.output.sound_effects_cost_usd)).toStrictEqual(ALL);
+  expect(
+    db.calls.updates[0].patch.output?.sound_effects_cost_usd,
+  ).toStrictEqual({ air: soundEffectsCostUsd(["air"]) });
+  expect(current.output?.sound_effects).toStrictEqual(result.paths);
+  expect(
+    Object.keys(current.output?.sound_effects_cost_usd ?? {}),
+  ).toStrictEqual(ALL);
   // Each sound is the film's asset, named after it, so later renders find it.
   expect(db.calls.inserts.map((i) => i.row.type)).toStrictEqual(
     Array(7).fill("sound_effect"),
@@ -170,9 +189,9 @@ test("the film's set is made once, each sound stored, recorded on the run and pr
 });
 
 test("a later render reuses each stored sound and makes only the missing ones, once", async () => {
-  let paid = [];
-  const generate = async ({ text }) => {
-    paid.push(ALL.find((name) => SOUND_EFFECTS[name].text === text));
+  let paid: Array<string> = [];
+  const generate = async ({ text }: { text: string }) => {
+    paid.push(effectNamed(text));
     return new Uint8Array([1]);
   };
   const reused = await filmSoundEffects({
@@ -326,7 +345,7 @@ test("without a working key the film has no effects and says why once", async ()
   expect(calls).toBe(1);
   expect(refused.error).toMatch(/מפתח ה-ElevenLabs לא תקין/);
   expect(refused.costUsd).toBe(0);
-  expect(current.output.sound_effects_error).toBe(refused.error);
+  expect(current.output?.sound_effects_error).toBe(refused.error);
 
   const lost = await filmSoundEffects({
     db: effectsDb({ failUpload: true }),
@@ -388,7 +407,7 @@ test("a retry of the run still reports what its first attempt paid for the effec
   });
   const all = soundEffectsCostUsd(ALL);
   expect(made.costUsd).toBe(all);
-  const persisted = first.calls.updates.at(-1).patch.output;
+  const persisted = defined(first.calls.updates.at(-1)?.patch.output, "output");
   expect(persisted.sound_effects_cost_usd).toStrictEqual(
     Object.fromEntries(ALL.map((name) => [name, soundEffectsCostUsd([name])])),
   );
@@ -445,9 +464,9 @@ test("a retry of the run still reports what its first attempt paid for the effec
 });
 
 test("a production never pays past its quote for the effects", async () => {
-  const paid = [];
-  const generate = async ({ text }) => {
-    paid.push(ALL.find((name) => SOUND_EFFECTS[name].text === text));
+  const paid: Array<string> = [];
+  const generate = async ({ text }: { text: string }) => {
+    paid.push(effectNamed(text));
     return new Uint8Array([1]);
   };
   // A production quoted before the set ($0.05 for one whoosh and impact) makes what it covers.
@@ -519,3 +538,9 @@ test("a production never pays past its quote for the effects", async () => {
   expect(paid).toStrictEqual([]);
   expect(tiny).toStrictEqual({ paths: {}, costUsd: 0, error: OVER_QUOTE });
 });
+
+/** A sound effect's marketing_assets row: its file and the meta that names it. */
+interface StoredEffect {
+  url: string;
+  meta: Record<string, unknown>;
+}

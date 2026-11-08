@@ -19,6 +19,16 @@ import { audioMime, lipsyncCandidates } from "../src/providers/lipsync.ts";
 import { elevenLabsLipsyncBody } from "../src/providers/lipsync-elevenlabs.ts";
 import { higgsfieldLipsyncBody } from "../src/providers/lipsync-higgsfield.ts";
 import { klingLipsyncProvider } from "../src/providers/lipsync-kling.ts";
+import { dbCalls, fakeFetch, headerOf, jsonBodyOf, runOf } from "./fakes.ts";
+import type { FetchCall } from "./fakes.ts";
+import type { SceneRow } from "../src/jobs/types.ts";
+import type {
+  LipsyncProvider,
+  MediaInput,
+  VideoProvider,
+} from "../src/providers/types.ts";
+import type { RpcArgs, RunPatch } from "./fakes.ts";
+import { buildTimeline } from "../src/compose/timeline.ts";
 
 const LINE = "שלום, אני כרמן";
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
@@ -56,8 +66,8 @@ test("ElevenLabs lip sync sends Creatify Aurora the still and the voice line inl
 test("Kling lip sync posts audio2video with the clip and audio urls, and reads the task back", async () => {
   process.env.KLING_ACCESS_KEY = "ak";
   process.env.KLING_SECRET_KEY = "sk";
-  const calls = [];
-  const fetchImpl = async (url, init = {}) => {
+  const calls: Array<FetchCall> = [];
+  const fetchImpl = fakeFetch(async (url, init) => {
     calls.push({ url, init });
     const body =
       init.method === "POST"
@@ -70,7 +80,7 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
             },
           };
     return new Response(JSON.stringify(body), { status: 200 });
-  };
+  });
   try {
     const provider = klingLipsyncProvider({ fetchImpl });
     expect(provider.needs).toBe("video");
@@ -80,7 +90,7 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
     });
     expect(jobId).toBe("k-1");
     expect(calls[0].url).toMatch(/\/v1\/videos\/lip-sync$/);
-    expect(JSON.parse(calls[0].init.body)).toStrictEqual({
+    expect(jsonBodyOf(calls[0].init)).toStrictEqual({
       input: {
         video_url: "https://p.supabase.co/v.mp4",
         mode: "audio2video",
@@ -88,7 +98,7 @@ test("Kling lip sync posts audio2video with the clip and audio urls, and reads t
         audio_url: "https://p.supabase.co/a.mp3",
       },
     });
-    expect(calls[0].init.headers.Authorization).toMatch(/^Bearer /);
+    expect(headerOf(calls[0].init, "Authorization")).toMatch(/^Bearer /);
     expect(await provider.poll("k-1")).toStrictEqual({
       status: "succeeded",
       url: "https://cdn/x.mp4",
@@ -105,10 +115,10 @@ test("Kling lip sync signs with the tenant's own Kling keys before the worker's"
   process.env.KLING_SECRET_KEY = "env-sk";
   const realFetch = globalThis.fetch;
   let auth = "";
-  globalThis.fetch = async (_url, init) => {
-    auth = init.headers.Authorization;
+  globalThis.fetch = fakeFetch(async (_url, init) => {
+    auth = headerOf(init, "Authorization") ?? "";
     return new Response(JSON.stringify({ code: 0, data: { task_id: "k-1" } }));
-  };
+  });
   try {
     const provider = getLipsyncProvider("kling", {
       klingAccessKey: "tenant-ak",
@@ -173,14 +183,14 @@ test("lip-sync providers follow the keys; a saved job only resumes its own provi
   ).toStrictEqual(["elevenlabs", "kling", "higgsfield"]);
   expect(
     lipsyncProviderNames(
-      { input: {} },
+      runOf({ input: {} }),
       { higgsfieldKeySecret: "a:b" },
       { LIPSYNC_PROVIDER: "kling" },
     ),
   ).toStrictEqual(["kling", "higgsfield"]);
   expect(
     lipsyncProviderNames(
-      { provider: "higgsfield", provider_job_id: "h-1" },
+      runOf({ provider: "higgsfield", provider_job_id: "h-1" }),
       { elevenLabsKey: "xi" },
       {},
     ),
@@ -194,23 +204,22 @@ function fakeDb({
   stillUrl = "t1/c1/i1/s1/still-v1.png",
   clipUrl = "t1/c1/i1/s1/clip-v1.mp4",
   scene = {},
+}: {
+  voiceUrl?: string;
+  voiceText?: string;
+  stillUrl?: string;
+  clipUrl?: string;
+  scene?: Partial<SceneRow>;
 } = {}) {
-  const calls = {
-    uploads: [],
-    rpcs: [],
-    updates: [],
-    order: [],
-    buckets: [],
-    signs: [],
-  };
+  const calls = dbCalls();
   return {
     calls,
-    download: async (bucket, path) => {
+    download: async (bucket: string, path: string) => {
       calls.order.push(`download:${path}`);
       calls.buckets.push(`${bucket}:${path}`);
       return path.includes("voice") ? MP3 : PNG;
     },
-    select: async (table, query) => {
+    select: async (table: string, query: string) => {
       if (!query.includes("tenant_id=eq.t1")) return [];
       if (table === "marketing_work_items")
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
@@ -248,14 +257,14 @@ function fakeDb({
       }
       return [];
     },
-    upload: async (bucket, path, bytes) =>
+    upload: async (bucket: string, path: string, bytes: Uint8Array) =>
       calls.uploads.push({ bucket, path, size: bytes.length }),
-    sign: async (bucket, path) => {
+    sign: async (bucket: string, path: string) => {
       calls.signs.push(`${bucket}:${path}`);
       return `https://p.supabase.co/sign/${path}`;
     },
-    rpc: async (name, args) => calls.rpcs.push({ name, args }),
-    update: async (table, query, patch) => {
+    rpc: async (name: string, args: RpcArgs) => calls.rpcs.push({ name, args }),
+    update: async (table: string, query: string, patch: RunPatch) => {
       calls.order.push("update");
       calls.updates.push({ table, query, patch });
     },
@@ -263,40 +272,41 @@ function fakeDb({
 }
 
 function fakeProvider(name = "elevenlabs") {
-  const seen = { submits: [], polls: 0 };
-  return {
-    seen,
-    provider: {
-      name,
-      model: "creatify-aurora",
-      needs: "image",
-      estimate: ({ durationS }) => ({ credits: 0, usd: durationS * 0.1 }),
-      submit: async (input) => {
-        seen.submits.push(input);
-        return { jobId: "job-1" };
-      },
-      poll: async () => {
-        seen.polls += 1;
-        return { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 1]) };
-      },
+  const seen: { submits: Array<MediaInput>; polls: number } = {
+    submits: [],
+    polls: 0,
+  };
+  const provider: LipsyncProvider = {
+    name,
+    model: "creatify-aurora",
+    needs: "image",
+    estimate: ({ durationS }) => ({ credits: 0, usd: (durationS ?? 0) * 0.1 }),
+    submit: async (input) => {
+      seen.submits.push(input);
+      return { jobId: "job-1" };
+    },
+    poll: async () => {
+      seen.polls += 1;
+      return { status: "succeeded", bytes: new Uint8Array([0, 0, 0, 1]) };
     },
   };
+  return { seen, provider };
 }
 
-const RUN = {
+const RUN = runOf({
   id: "r1",
   tenant_id: "t1",
   item_id: "i1",
   scene_id: "s1",
   kind: "lipsync",
   input: {},
-};
+});
 
 test("a lip-sync run stores the provider job before polling and attaches a talking clip", async () => {
   const db = fakeDb();
   const { provider, seen } = fakeProvider();
-  const order = [];
-  const wrapped = {
+  const order: Array<string> = [];
+  const wrapped: LipsyncProvider = {
     ...provider,
     poll: async (id) => {
       order.push(
@@ -314,21 +324,21 @@ test("a lip-sync run stores the provider job before polling and attaches a talki
     log: () => {},
   });
   expect(seen.submits.length).toBe(1);
-  expect([...seen.submits[0].audioBytes]).toStrictEqual([...MP3]);
-  expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
+  expect([...(seen.submits[0].audioBytes ?? [])]).toStrictEqual([...MP3]);
+  expect([...(seen.submits[0].imageBytes ?? [])]).toStrictEqual([...PNG]);
   expect(order[0]).toBe("poll-after-save");
   expect(db.calls.updates[0].patch.provider_job_id).toStrictEqual("job-1");
   expect(db.calls.updates[0].patch.provider).toBe("elevenlabs");
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_kind).toBe("clip");
-  expect(attach.args.p_url).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
-  expect(attach.args.p_meta.lipsync).toBe(true);
-  expect(attach.args.p_meta.provider).toBe("elevenlabs");
-  expect(attach.args.p_meta.dialogue).toBe(LINE);
-  expect(attach.args.p_meta.voice_asset_id).toBe("voice-1");
-  expect(db.calls.uploads.at(-1).path).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
+  expect(attach?.args.p_kind).toBe("clip");
+  expect(attach?.args.p_url).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
+  expect(attach?.args.p_meta?.lipsync).toBe(true);
+  expect(attach?.args.p_meta?.provider).toBe("elevenlabs");
+  expect(attach?.args.p_meta?.dialogue).toBe(LINE);
+  expect(attach?.args.p_meta?.voice_asset_id).toBe("voice-1");
+  expect(db.calls.uploads.at(-1)?.path).toBe("t1/c1/i1/s1/lipsync-v1.mp4");
   expect(result.provider).toBe("elevenlabs");
   expect(result.output.lipsync).toBe(true);
 });
@@ -337,9 +347,9 @@ test("the lip-sync submit and the save of its job id run inside the worker's sub
   const db = fakeDb();
   const { provider } = fakeProvider();
   let inside = false;
-  const seen = [];
+  const seen: Array<[string, boolean]> = [];
   const update = db.update;
-  db.update = async (table, query, patch) => {
+  db.update = async (table: string, query: string, patch: RunPatch) => {
     seen.push(["save", inside]);
     return update(table, query, patch);
   };
@@ -376,12 +386,12 @@ test("a retried lip-sync run with a provider job resumes it and does not pay aga
   const { provider, seen } = fakeProvider("kling");
   await generateLipsync({
     db,
-    run: {
+    run: runOf({
       ...RUN,
       provider: "kling",
       provider_job_id: "job-9",
       output: { lipsync_source: { kind: "clip", asset_id: "clip-1" } },
-    },
+    }),
     keys: { elevenLabsKey: "xi" },
     providerFor: () => provider,
     env: {},
@@ -393,8 +403,8 @@ test("a retried lip-sync run with a provider job resumes it and does not pay aga
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_meta.provider_job_id).toBe("job-9");
-  expect(attach.args.p_meta.source_kind).toBe("clip");
+  expect(attach?.args.p_meta?.provider_job_id).toBe("job-9");
+  expect(attach?.args.p_meta?.source_kind).toBe("clip");
 });
 
 test("a voice path outside the run's tenant folder is refused before any provider call", async () => {
@@ -437,7 +447,7 @@ test("the user's own picture is read from its private bucket with the worker's k
     expect(db.calls.buckets).toContain(
       "entity-attachments:t1/workshop/i1/designer.png",
     );
-    expect([...seen.submits[0].imageBytes]).toStrictEqual([...PNG]);
+    expect([...(seen.submits[0].imageBytes ?? [])]).toStrictEqual([...PNG]);
   } finally {
     globalThis.fetch = realFetch;
     if (project === undefined) delete process.env.SUPABASE_URL;
@@ -455,7 +465,7 @@ test("Kling lip-syncs the user's own video through a signed link of its private 
         "https://p.supabase.co/storage/v1/object/public/entity-attachments/t1/workshop/i1/intro.mp4",
     });
     const kling = fakeProvider("kling");
-    const provider = {
+    const provider: LipsyncProvider = {
       ...kling.provider,
       needs: "video",
       needsPublicMedia: true,
@@ -504,7 +514,7 @@ test("a scene from another tenant is not found", async () => {
   await expect(
     generateLipsync({
       db,
-      run: { ...RUN, tenant_id: "t2" },
+      run: runOf({ ...RUN, tenant_id: "t2" }),
       keys: { elevenLabsKey: "xi" },
       providerFor: () => provider,
       env: {},
@@ -540,8 +550,8 @@ test("a voice of another line is not lip-synced", async () => {
 
 test("on an engine that speaks, a talking scene is one clip with the line in the prompt", async () => {
   const db = fakeDb();
-  const submits = [];
-  const provider = {
+  const submits: Array<MediaInput> = [];
+  const provider: VideoProvider = {
     name: "elevenlabs",
     model: "veo-3.1-fast-generate-001",
     nativeSpeech: true,
@@ -554,29 +564,29 @@ test("on an engine that speaks, a talking scene is one clip with the line in the
   };
   await generateClip({
     db,
-    run: {
+    run: runOf({
       ...RUN,
       kind: "clip",
       input: { motion_prompt: "Camera holds", duration_s: 4 },
-    },
+    }),
     provider,
     log: () => {},
   });
   expect(submits[0].generateAudio).toBe(true);
   expect(submits[0].talking).toBe(true);
-  expect(submits[0].prompt.includes(LINE)).toBeTruthy();
+  expect(submits[0].prompt?.includes(LINE)).toBeTruthy();
   expect(
-    submits[0].prompt.startsWith("Camera holds Carmen looks at the camera"),
+    submits[0].prompt?.startsWith("Camera holds Carmen looks at the camera"),
   ).toBeTruthy();
   expect(
-    submits[0].prompt.endsWith("No text, no letters, no logos."),
+    submits[0].prompt?.endsWith("No text, no letters, no logos."),
   ).toBeTruthy();
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_meta.lipsync).toBe(true);
-  expect(attach.args.p_meta.native_speech).toBe(true);
-  expect(attach.args.p_meta.dialogue).toBe(LINE);
+  expect(attach?.args.p_meta?.lipsync).toBe(true);
+  expect(attach?.args.p_meta?.native_speech).toBe(true);
+  expect(attach?.args.p_meta?.dialogue).toBe(LINE);
   expect(
     talkingPrompt("", { line: "x" }).startsWith("Subtle natural motion"),
   ).toBe(true);
@@ -596,8 +606,8 @@ test("a talking scene's motion never asks the engine for text", () => {
 
 test("a silent engine leaves the clip silent for the lip-sync pass", async () => {
   const db = fakeDb();
-  const submits = [];
-  const provider = {
+  const submits: Array<MediaInput> = [];
+  const provider: VideoProvider = {
     name: "kling",
     model: "kling-v3",
     estimate: () => ({ usd: 0.85, credits: 5100 }),
@@ -609,16 +619,16 @@ test("a silent engine leaves the clip silent for the lip-sync pass", async () =>
   };
   await generateClip({
     db,
-    run: { ...RUN, kind: "clip", input: {} },
+    run: runOf({ ...RUN, kind: "clip", input: {} }),
     provider,
     log: () => {},
   });
   expect(submits[0].generateAudio).toBe(false);
-  expect(!submits[0].prompt.includes(LINE)).toBeTruthy();
+  expect(!submits[0].prompt?.includes(LINE)).toBeTruthy();
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_meta.lipsync).toBe(undefined);
+  expect(attach?.args.p_meta?.lipsync).toBe(undefined);
 });
 
 test("a film with a talking scene plays its clip audio and narrates the other scenes one by one", async () => {
@@ -678,7 +688,7 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
     },
   ];
   const db = {
-    select: async (table, query) => {
+    select: async (table: string, query: string) => {
       if (table === "marketing_video_scenes") return scenes;
       if (table === "marketing_assets" && query.startsWith("id=in."))
         return assets;
@@ -694,12 +704,18 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
   expect(narrated.lipsync).toBe(false);
   expect(talking.voicePath).toBe(null);
   expect(talking.lipsync).toBe(true);
-  const { manifest, files } = buildWorkshopManifest({
-    aspect: "9:16",
-    scenes: sources.scenes.map((scene) => ({
+  const timeline = buildTimeline(
+    sources.scenes.map((scene) => ({
       ...scene,
       clipPath: `/tmp/${scene.id}.mp4`,
       voicePath: scene.voicePath && `/tmp/${scene.id}.mp3`,
+    })),
+    { aspect: "9:16" },
+  );
+  const { manifest, files } = buildWorkshopManifest({
+    ...timeline,
+    scenes: timeline.scenes.map((scene) => ({
+      ...scene,
       // remotion.ts probes the files; the talking clip runs 5.5 s.
       clipDurationS: scene.id === "b" ? 5.5 : 3,
       clipHasAudio: true,
@@ -722,13 +738,17 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
   expect(
     lipsyncCandidates({ elevenLabsKey: "e", openRouterKey: "o" }, {}).at(-1),
   ).toBe("openrouter");
-  let sent = null;
+  const sent: Array<{
+    generate_audio?: boolean;
+    model?: string;
+    prompt?: string;
+  }> = [];
   const provider = openRouterLipsyncProvider({
     apiKey: "or-key",
-    fetchImpl: async (_url, init) => {
-      sent = JSON.parse(init.body);
-      return { ok: true, json: async () => ({ id: "job-1" }) };
-    },
+    fetchImpl: fakeFetch(async (_url, init) => {
+      sent.push(jsonBodyOf(init));
+      return Response.json({ id: "job-1" });
+    }),
   });
   const { jobId } = await provider.submit({
     imageUrl: "https://x.supabase.co/s.png",
@@ -737,16 +757,16 @@ test("OpenRouter is the last lip-sync option and says the line itself with audio
     aspect: "9:16",
   });
   expect(jobId).toBe("job-1");
-  expect(sent.generate_audio).toBe(true);
-  expect(sent.model).toBe(provider.model);
-  expect(sent.prompt).toMatch(/שלום/);
+  expect(sent[0].generate_audio).toBe(true);
+  expect(sent[0].model).toBe(provider.model);
+  expect(sent[0].prompt).toMatch(/שלום/);
 });
 
 /** fakeDb whose scene clip is an older lip sync over the animated clip "motion-1". */
 function relippedDb() {
   const db = fakeDb();
   const select = db.select;
-  db.select = async (table, query) => {
+  db.select = async (table: string, query: string) => {
     if (table === "marketing_assets" && query.includes("type=eq.video_clip")) {
       if (query.includes("id=eq.clip-1"))
         return [
@@ -789,9 +809,9 @@ test("a lip sync of the still keeps the scene's animated clip for the film", asy
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_meta.source_kind).toBe("still");
+  expect(attach?.args.p_meta?.source_kind).toBe("still");
   // The silent clip with the skin's movement plays after the line (workshop-manifest.ts).
-  expect(attach.args.p_meta.motion_clip_asset_id).toBe("clip-1");
+  expect(attach?.args.p_meta?.motion_clip_asset_id).toBe("clip-1");
 });
 
 test("a new line keeps the movement: the earlier animated clip is reused, never the old lip sync", async () => {
@@ -809,11 +829,11 @@ test("a new line keeps the movement: the earlier animated clip is reused, never 
   const attached = still.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attached.args.p_meta.motion_clip_asset_id).toBe("motion-1");
+  expect(attached?.args.p_meta?.motion_clip_asset_id).toBe("motion-1");
   // Clip-based (Kling): the mouth is re-timed on the animated clip, not on the old lip sync.
   const clip = relippedDb();
   const kling = fakeProvider("kling");
-  const klingProvider = {
+  const klingProvider: LipsyncProvider = {
     ...kling.provider,
     needs: "video",
     needsPublicMedia: true,
@@ -832,27 +852,22 @@ test("a new line keeps the movement: the earlier animated clip is reused, never 
   const relipped = clip.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(relipped.args.p_meta.source_asset_id).toBe("motion-1");
-  expect(relipped.args.p_meta.motion_clip_asset_id).toBeUndefined();
+  expect(relipped?.args.p_meta?.source_asset_id).toBe("motion-1");
+  expect(relipped?.args.p_meta?.motion_clip_asset_id).toBeUndefined();
 });
 
 /** OpenRouter's video API: a POST starts job "hg-1", which is done and charged `cost`. */
-function fakeOpenRouterFetch(cost, posted = []) {
-  return async (url, init = {}) => {
+function fakeOpenRouterFetch(cost: number, posted: Array<PostedVideo> = []) {
+  return fakeFetch(async (url, init) => {
     if (init.method === "POST") {
-      posted.push(JSON.parse(init.body));
-      return { ok: true, json: async () => ({ id: "hg-1" }) };
+      posted.push(jsonBodyOf(init));
+      return Response.json({ id: "hg-1" });
     }
-    if (url.endsWith("/content?index=0"))
-      return {
-        ok: true,
-        arrayBuffer: async () => new Uint8Array([0, 0, 0, 1]).buffer,
-      };
-    return {
-      ok: true,
-      json: async () => ({ status: "completed", usage: { cost } }),
-    };
-  };
+    if (url.endsWith("/content?index=0")) {
+      return new Response(new Uint8Array([0, 0, 0, 1]));
+    }
+    return Response.json({ status: "completed", usage: { cost } });
+  });
 }
 
 test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voice line", async () => {
@@ -899,7 +914,7 @@ test("HeyGen Avatar IV on OpenRouter lip-syncs the portrait to the supplied voic
   ).toBe("9:16");
   expect(() => heygenLipsyncBody({ imageUrl: "a" })).toThrow(/voice line/);
 
-  const posted = [];
+  const posted: Array<PostedVideo> = [];
   const provider = heygenLipsyncProvider({
     apiKey: "or-key",
     fetchImpl: fakeOpenRouterFetch(0.2, posted),
@@ -943,7 +958,7 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
       motion_prompt: "She leans toward the camera and raises one eyebrow.",
     },
   });
-  const sent = [];
+  const sent: Array<PostedVideo> = [];
   const result = await generateLipsync({
     db,
     run: RUN,
@@ -952,13 +967,11 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
       name === "elevenlabs"
         ? elevenLabsLipsyncProvider({
             apiKey: keys.elevenLabsKey,
-            fetchImpl: async () => ({
-              ok: false,
-              status: 402,
-              json: async () => ({
-                detail: { code: "paid_plan_required" },
-              }),
-            }),
+            fetchImpl: async () =>
+              Response.json(
+                { detail: { code: "paid_plan_required" } },
+                { status: 402 },
+              ),
           })
         : heygenLipsyncProvider({
             apiKey: keys.openRouterKey,
@@ -970,15 +983,15 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
   expect(result.provider).toBe("heygen");
   expect(sent.length).toBe(1);
   const [image, audio] = sent[0].input_references;
-  expect(image.image_url.url).toMatch(
+  expect(image.image_url?.url).toMatch(
     /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-still-r1\.png$/,
   );
   // The voice copy is named by its real type, so a provider that reads the extension takes it.
-  expect(audio.audio_url.url).toMatch(
+  expect(audio.audio_url?.url).toMatch(
     /^https:\/\/p\.supabase\.co\/sign\/t1\/c1\/i1\/s1\/lipsync-audio-r1\.mp3$/,
   );
   expect(sent[0].prompt).toBe(LINE);
-  expect(sent[0].provider.options.heygen.motion_prompt).toBe(
+  expect(sent[0].provider?.options.heygen.motion_prompt).toBe(
     "She leans toward the camera and raises one eyebrow.",
   );
   // The run records what OpenRouter charged, not the estimate.
@@ -986,13 +999,13 @@ test("HeyGen comes before the Veo fallback, and a refused plan moves the line on
   const attach = db.calls.rpcs.find(
     (call) => call.name === "attach_video_scene_asset",
   );
-  expect(attach.args.p_meta.provider).toBe("heygen");
-  expect(attach.args.p_meta.generation_cost.usd).toBe(0.21);
+  expect(attach?.args.p_meta?.provider).toBe("heygen");
+  expect(attach?.args.p_meta?.generation_cost?.usd).toBe(0.21);
 });
 
 test("a HeyGen lip sync keeps the voice line's word timings for the captions; a Veo clip does not", async () => {
   const alignment = { characters: ["ש"], character_start_times_seconds: [0] };
-  const sourcesWith = async (provider) => {
+  const sourcesWith = async (provider: string) => {
     const scene = {
       id: "b",
       position: 1,
@@ -1025,7 +1038,7 @@ test("a HeyGen lip sync keeps the voice line's word timings for the captions; a 
       },
     ];
     const db = {
-      select: async (table, query) =>
+      select: async (table: string, query: string) =>
         table === "marketing_video_scenes"
           ? [scene]
           : table === "marketing_assets" && query.startsWith("id=in.")
@@ -1040,3 +1053,14 @@ test("a HeyGen lip sync keeps the voice line's word timings for the captions; a 
   expect(heygen.spokenAlignment).toStrictEqual(alignment);
   expect(veo.spokenAlignment).toBe(null);
 });
+
+/** The video request a fake OpenRouter receives: the fields the tests read. */
+interface PostedVideo {
+  model?: string;
+  prompt?: string;
+  input_references: Array<{
+    image_url?: { url: string };
+    audio_url?: { url: string };
+  }>;
+  provider?: { options: { heygen: { motion_prompt: string } } };
+}

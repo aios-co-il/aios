@@ -349,7 +349,10 @@ export async function renderFilm({
   makeEffects = filmSoundEffects,
   log = console.log,
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "insert" | "update"
+  >;
   run: VideoRun;
   resolveElevenLabsKey?: () => Promise<string | null | undefined>;
   makeEffects?: typeof filmSoundEffects;
@@ -556,7 +559,7 @@ export async function renderFilm({
         scene_count: timeline.scenes.length,
         ...(effects
           ? {
-              sound_effects: effects.paths ?? {},
+              sound_effects: { ...effects.paths },
               // The production report tells the user once that effects are missing: in the
               // production's render, any of the set it could not make (also when version 1's
               // whoosh or impact stands in); in a free render, a kind the film has nothing of.

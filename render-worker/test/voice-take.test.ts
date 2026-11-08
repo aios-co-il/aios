@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { narrationLines } from "../src/jobs/voice-take.ts";
+import { runOf } from "./fakes.ts";
 
 /** A database that answers the scene read with these rows and records the query. */
 function fakeDb(rows: Array<Record<string, unknown>>) {
@@ -22,7 +23,10 @@ const rows = [
 describe("narrationLines", () => {
   test("joins the run's scenes in order and leaves out a talking scene", async () => {
     const db = fakeDb(rows);
-    const spoken = await narrationLines(db, { item_id: "i1", tenant_id: "t1" });
+    const spoken = await narrationLines(
+      db,
+      runOf({ item_id: "i1", tenant_id: "t1" }),
+    );
     expect(spoken.lines).toStrictEqual({
       "s-1": "קמפיין הוא מהלך אחד.",
       "s-3": "כרמן מנהלת את הכול.",

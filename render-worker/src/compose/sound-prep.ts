@@ -38,7 +38,7 @@ export async function prepareSound(
     vary = pitchAudio,
     log = console.log,
   }: {
-    measure?: (file: string) => Promise<Loudness>;
+    measure?: (file: string) => Promise<Partial<Loudness>>;
     normalize?: (file: string, out: string, gain: Gain) => Promise<unknown>;
     vary?: (file: string, out: string, semitones: number) => Promise<unknown>;
     log?: (line: string) => void;

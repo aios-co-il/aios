@@ -4,7 +4,6 @@
  * whole film. Both edits use these: the Remotion manifest (workshop-manifest.ts) and the ffmpeg
  * concat (assemble.ts).
  */
-import type { Timeline } from "./types.ts";
 import { MIX } from "./workshop-edit.ts";
 
 /**
@@ -43,8 +42,7 @@ export const TRAILER = {
  * (video.sound_design), or the film has its effects.
  */
 export const isTrailer = (
-  timeline:
-    Partial<Pick<Timeline, "soundDesign" | "effects">> | null | undefined,
+  timeline: { soundDesign?: unknown; effects?: unknown } | null | undefined,
 ) => timeline?.soundDesign === true || Boolean(timeline?.effects);
 
 const dbGain = (db: number) => Math.round(10 ** (db / 20) * 1000) / 1000;

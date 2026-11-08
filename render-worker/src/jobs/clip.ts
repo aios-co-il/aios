@@ -107,7 +107,10 @@ export async function generateClip({
   // the run in between (src/inflight.ts).
   submitting = (submit) => submit(),
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
   run: VideoRun;
   provider?: VideoProvider;
   fallbackFrom?: string | null;
@@ -243,7 +246,10 @@ async function finishClip({
   talking = null,
   log,
 }: {
-  db: SupabaseRest;
+  db: Pick<
+    SupabaseRest,
+    "select" | "download" | "upload" | "sign" | "update" | "rpc"
+  >;
   run: VideoRun;
   provider: VideoProvider;
   jobId: string;
