@@ -4,6 +4,7 @@ import {
   openRouterClipBody,
   openRouterClipSeconds,
 } from "../src/providers/openrouter.ts";
+import { fakeFetch, headerOf, jsonBodyOf } from "./fakes.ts";
 
 test("OpenRouter clips send the still as the first frame, 3 to 15 s", () => {
   expect(openRouterClipSeconds(2)).toBe(3);
@@ -21,15 +22,15 @@ test("OpenRouter clips send the still as the first frame, 3 to 15 s", () => {
 });
 
 test("OpenRouter submits, polls and downloads with the tenant key", async () => {
-  const calls = [];
-  const fetchImpl = async (url, init = {}) => {
-    calls.push({ url, auth: init.headers?.Authorization });
+  const calls: Array<{ url: string; auth: string | null }> = [];
+  const fetchImpl = fakeFetch(async (url, init) => {
+    calls.push({ url, auth: headerOf(init, "Authorization") });
     if (url.endsWith("/videos"))
       return new Response(JSON.stringify({ id: "job1", status: "pending" }));
     if (url.endsWith("/videos/job1"))
       return new Response(JSON.stringify({ status: "completed" }));
     return new Response(new Uint8Array([1, 2, 3]));
-  };
+  });
   const provider = getVideoProvider("openrouter", { openRouterKey: "sk-or" });
   expect(provider.name).toBe("openrouter");
   // getVideoProvider builds with the real fetch; rebuild with the fake one.
@@ -40,12 +41,13 @@ test("OpenRouter submits, polls and downloads with the tenant key", async () => 
   ).toStrictEqual({ jobId: "job1" });
   const result = await p.poll("job1");
   expect(result.status).toBe("succeeded");
-  expect([...result.bytes]).toStrictEqual([1, 2, 3]);
+  expect([...(result.bytes ?? [])]).toStrictEqual([1, 2, 3]);
   expect(calls.every((c) => c.auth === "Bearer sk-or")).toBeTruthy();
   expect(calls[2].url).toMatch(/\/videos\/job1\/content\?index=0$/);
 });
 
-const json = (status, body) => new Response(JSON.stringify(body), { status });
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status });
 
 test("lengths and aspects follow the model family", async () => {
   const { openRouterAspect } = await import("../src/providers/openrouter.ts");
@@ -72,11 +74,11 @@ test("lengths and aspects follow the model family", async () => {
 
 test("a talking scene goes to the talking model with audio and the Hebrew line", async () => {
   const { openRouterProvider } = await import("../src/providers/openrouter.ts");
-  const sent = [];
-  const fetchImpl = async (url, init = {}) => {
-    sent.push(JSON.parse(init.body));
+  const sent: Array<Record<string, unknown>> = [];
+  const fetchImpl = fakeFetch(async (_url, init) => {
+    sent.push(jsonBodyOf(init));
     return json(202, { id: "talk1", status: "pending" });
-  };
+  });
   const p = openRouterProvider({ apiKey: "sk-or", fetchImpl });
   expect(p.nativeSpeech).toBe(true);
   expect(p.talkingModel).toBe("google/veo-3.1");
@@ -121,7 +123,13 @@ test("poll maps failed, cancelled and expired to failed and the rest to pending"
   ];
   const p = openRouterProvider({
     apiKey: "k",
-    fetchImpl: async () => answers.shift(),
+    fetchImpl: async () => {
+      const answer = answers.shift();
+      if (!answer) {
+        throw new Error("the test has no answer left");
+      }
+      return answer;
+    },
   });
   expect(await p.poll("j")).toStrictEqual({ status: "pending" });
   expect(await p.poll("j")).toStrictEqual({

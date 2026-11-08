@@ -5,6 +5,7 @@
  * and, in david_only / team mode, sends the morning brief and the due alerts
  * from Carmen's own line. See ./collectors/types.ts for the collector contract.
  */
+import { projectServiceRoleKeys } from "../_shared/auth/edge-caller-auth.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { createRoundDeps } from "./deps.ts";
 import { isServiceCaller, parseRoundRequest } from "./request.ts";
@@ -15,7 +16,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return json(405, { error: "method_not_allowed" });
   }
-  if (!isServiceCaller(req, serviceKey)) {
+  if (
+    !isServiceCaller(
+      req,
+      projectServiceRoleKeys((name) => Deno.env.get(name)),
+    )
+  ) {
     return json(401, { error: "unauthorized" });
   }
   const body = await readBody(req);

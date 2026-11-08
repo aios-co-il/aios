@@ -8,7 +8,7 @@ import { run } from "../ffmpeg.ts";
  * Writes `file` `semitones` higher (or lower, negative) as 48 kHz stereo WAV, its length kept:
  * resampled to the new pitch, then stretched back to its own length.
  */
-export const pitchAudio = (file, out, semitones) => {
+export const pitchAudio = (file: string, out: string, semitones: number) => {
   const ratio = 2 ** (Number(semitones) / 12);
   return run("ffmpeg", [
     "-hide_banner",

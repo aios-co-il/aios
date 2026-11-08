@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   Coins,
   Contact,
+  PhoneCall,
   HeartPulse,
   Library,
   KeyRound,
@@ -49,6 +50,7 @@ import { McpConnectionsTab } from "@/components/agents/tabs/McpConnectionsTab";
 import { EvalsTab } from "@/components/agents/tabs/EvalsTab";
 import { AgentAccessTab } from "@/components/agents/tabs/AgentAccessTab";
 import { CarmenConversationAccessTab } from "@/components/agents/tabs/CarmenConversationAccessTab";
+import { CallerPoliciesTab } from "@/components/agents/tabs/caller-policies/CallerPoliciesTab";
 import { CarmenPermissionsTab } from "@/components/agents/tabs/CarmenPermissionsTab";
 import { BrainConnectionsTab } from "@/components/agents/tabs/brain-connections/BrainConnectionsTab";
 import { AgentLearningTab } from "@/components/agents/tabs/AgentLearningTab";
@@ -103,6 +105,7 @@ export type SettingsSection =
   | "whatsapp"
   | "automations"
   | "phones"
+  | "callers"
   | "permissions"
   | "agents"
   | "approvals"
@@ -161,6 +164,12 @@ export const SETTINGS_SECTIONS: {
     label: "מספרי טלפון מאושרים",
     hint: "מי מותר לדבר עם כרמן",
     icon: Contact,
+  },
+  {
+    value: "callers",
+    label: "שיחות עם לקוחות ופונים",
+    hint: "מה כרמן אומרת למי שאינו בצוות",
+    icon: PhoneCall,
   },
   {
     value: "permissions",
@@ -614,6 +623,8 @@ export function CarmenPanel({
         return <CarmenAutomationsList tenantId={tenantId} />;
       case "phones":
         return <CarmenConversationAccessTab agent={agent} />;
+      case "callers":
+        return <CallerPoliciesTab tenantId={tenantId} />;
       case "permissions":
         return <CarmenPermissionsTab />;
       case "agents":

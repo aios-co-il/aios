@@ -58,8 +58,10 @@ describe("check-campaign-goal-source", () => {
       'const sales = table.integration_settings?.campaign_type === "ecommerce";',
       'if (objective === "OUTCOME_SALES") {',
     ].join("\n");
-    expect(findViolations("src/pages/DynamicTableView.tsx", source)).toEqual([
-      "src/pages/DynamicTableView.tsx:2: a campaign objective compared to a goal objective",
+    expect(
+      findViolations("supabase/functions/make-api/index.ts", source),
+    ).toEqual([
+      "supabase/functions/make-api/index.ts:2: a campaign objective compared to a goal objective",
     ]);
   });
 

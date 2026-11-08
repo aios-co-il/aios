@@ -18,12 +18,12 @@ export const TITLE_STYLES = [
 export const TITLE_SIZES = ["small", "medium", "large", "huge"];
 
 /** A known title style, or null. */
-export const titleStyleOf = (value) =>
-  TITLE_STYLES.includes(value) ? value : null;
+export const titleStyleOf = (value: unknown) =>
+  typeof value === "string" && TITLE_STYLES.includes(value) ? value : null;
 
 /** A known title size, or null. */
-export const titleSizeOf = (value) =>
-  TITLE_SIZES.includes(value) ? value : null;
+export const titleSizeOf = (value: unknown) =>
+  typeof value === "string" && TITLE_SIZES.includes(value) ? value : null;
 
 /**
  * How a title's key words (numbers, prices, dates) are emphasised once in (Remotion
@@ -41,8 +41,8 @@ export const TITLE_EMPHASES = [
 ];
 
 /** A known title emphasis, or null. */
-export const titleEmphasisOf = (value) =>
-  TITLE_EMPHASES.includes(value) ? value : null;
+export const titleEmphasisOf = (value: unknown) =>
+  typeof value === "string" && TITLE_EMPHASES.includes(value) ? value : null;
 
 /** The keys of the film fonts (Remotion workshop-fonts.ts). */
 export const FILM_FONTS = [
@@ -55,5 +55,5 @@ export const FILM_FONTS = [
 ];
 
 /** A known film font, or null. */
-export const filmFontOf = (value) =>
-  FILM_FONTS.includes(value) ? value : null;
+export const filmFontOf = (value: unknown) =>
+  typeof value === "string" && FILM_FONTS.includes(value) ? value : null;

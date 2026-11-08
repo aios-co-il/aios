@@ -16,6 +16,7 @@ import {
   type SceneStillRecord,
   type VideoSceneRecord,
 } from "./videoScenes";
+import { CREATIVE_VIDEO_BUCKET } from "@functions/_shared/workshop/narration-guide.ts";
 import { referenceVideoPath, type ReferenceRun } from "./videoReference";
 import { getProduction, type VideoProduction } from "./videoProduction";
 
@@ -195,8 +196,6 @@ export async function approveSceneStill(
     .eq("id", sceneId);
   if (error) throw error;
 }
-
-const CREATIVE_VIDEO_BUCKET = "creative-video";
 
 /** Uploads a reference video, records it as an asset and queues its analysis for the worker. */
 export async function queueReferenceAnalysis({

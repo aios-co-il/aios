@@ -13,9 +13,10 @@ import {
 import { wordsFromAlignment } from "./captions.ts";
 import { prepareSound } from "./sound-prep.ts";
 import { bedVolume, effectsVolume, musicBedFilters } from "./ffmpeg-bed.ts";
+import type { FilmBrand, Span, Timeline, TimelineScene } from "./types.ts";
 import { WHOOSH_LEAD } from "./workshop-edit.ts";
 
-const ffmpeg = (args) =>
+const ffmpeg = (args: Array<string>) =>
   new Promise<void>((resolve, reject) => {
     const child = spawn("ffmpeg", args, {
       stdio: ["ignore", "ignore", "pipe"],
@@ -35,8 +36,8 @@ const FONT = () =>
   "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
 
 /** Breaks overlay text into lines of about maxChars at spaces (drawtext does not wrap). */
-export function wrapOverlay(text, maxChars = 22) {
-  const lines = [];
+export function wrapOverlay(text: unknown, maxChars = 22) {
+  const lines: Array<string> = [];
   for (const paragraph of String(text ?? "").split(/\r?\n/)) {
     let line = "";
     for (const word of paragraph.split(/\s+/).filter(Boolean)) {
@@ -55,7 +56,7 @@ export function wrapOverlay(text, maxChars = 22) {
  * aligns multi-line text to the left, which looks wrong for Hebrew). Each line is read
  * from a file so nothing needs escaping; fribidi in ffmpeg orders the Hebrew.
  */
-export function overlayFilters(lineFiles, fontFile = FONT()) {
+export function overlayFilters(lineFiles: Array<string>, fontFile = FONT()) {
   const count = lineFiles.length;
   return lineFiles.map((file, index) =>
     [
@@ -73,7 +74,12 @@ export function overlayFilters(lineFiles, fontFile = FONT()) {
 }
 
 /** One scene: the clip, fitted to the frame, with its title, and the voiceover (or silence). */
-async function segment(timeline, scene, index, dir) {
+async function segment(
+  timeline: Timeline,
+  scene: TimelineScene,
+  index: number,
+  dir: string,
+) {
   const output = join(dir, `seg-${index}.mp4`);
   const duration = scene.durationS.toFixed(3);
   const fitted = join(dir, `fit-${index}.mp4`);
@@ -83,7 +89,7 @@ async function segment(timeline, scene, index, dir) {
     `tpad=stop_mode=clone:stop_duration=${duration}`,
   ];
   const lines = wrapOverlay(scene.overlayText).split("\n").filter(Boolean);
-  const lineFiles = [];
+  const lineFiles: Array<string> = [];
   for (const [line, text] of lines.entries()) {
     const file = join(dir, `title-${index}-${line}.txt`);
     await writeFile(file, text);
@@ -163,11 +169,15 @@ async function segment(timeline, scene, index, dir) {
  */
 const RLM = "‏";
 
-async function endCardSegment(timeline, index, dir) {
-  const brand = timeline.brand;
+async function endCardSegment(
+  timeline: Timeline,
+  brand: Partial<FilmBrand>,
+  index: number,
+  dir: string,
+) {
   const { width, height } = timeline;
   const lines = ctaLines(brand.ctaText);
-  const lineFiles = [];
+  const lineFiles: Array<string> = [];
   for (const [line, text] of lines.entries()) {
     const file = join(dir, `cta-${line}.txt`);
     // A right-to-left mark first: a line that opens with a number ("1000 הנרשמים") still
@@ -175,7 +185,7 @@ async function endCardSegment(timeline, index, dir) {
     await writeFile(file, `${RLM}${text}`);
     lineFiles.push(file);
   }
-  let urlFile = null;
+  let urlFile: string | null = null;
   if (brand.ctaUrl) {
     urlFile = join(dir, "cta-url.txt");
     await writeFile(urlFile, String(brand.ctaUrl).slice(0, 120));
@@ -246,10 +256,20 @@ const TAIL_S = 0.5;
  * sound (one per cut in order); without it every cut plays the whoosh.
  */
 export function fallbackEffectCues(
-  lengths,
-  { whoosh = false, impact = false, endCardS = null, cutSounds = null } = {},
+  lengths: Array<number>,
+  {
+    whoosh = false,
+    impact = false,
+    endCardS = null,
+    cutSounds = null,
+  }: {
+    whoosh?: boolean;
+    impact?: boolean;
+    endCardS?: number | null;
+    cutSounds?: Array<string | undefined> | null;
+  } = {},
 ) {
-  const cues = [];
+  const cues: Array<{ name: string; atS: number }> = [];
   if (impact) cues.push({ name: "impact", atS: 0 });
   let at = 0;
   for (const [index, length] of lengths.entries()) {
@@ -258,7 +278,12 @@ export function fallbackEffectCues(
     if (name) cues.push({ name, atS: Math.max(0, at - WHOOSH_LEAD) });
     at += length;
   }
-  if (impact && Number.isFinite(endCardS) && endCardS > 0)
+  if (
+    impact &&
+    typeof endCardS === "number" &&
+    Number.isFinite(endCardS) &&
+    endCardS > 0
+  )
     cues.push({ name: "impact", atS: Math.max(0, endCardS - 0.2) });
   return cues.map((cue) => ({
     ...cue,
@@ -279,8 +304,8 @@ export function effectsGraph(
   index: Record<string, number>,
   { volume = 1 }: { volume?: number | string } = {},
 ) {
-  const filters = [];
-  const parts = [];
+  const filters: Array<string> = [];
+  const parts: Array<string> = [];
   for (const [name, input] of Object.entries(index)) {
     const mine = cues.filter((cue) => cue.name === name);
     if (!mine.length) continue;
@@ -311,11 +336,11 @@ export function effectsGraph(
  * tail) or its lip-synced clip, and a narration longer than the scenes holds the last one. Also
  * returns when someone speaks ([start, end] seconds), for the trailer mix's music bed.
  */
-async function sceneLengths(timeline) {
-  const seconds = async (file) =>
+async function sceneLengths(timeline: Timeline) {
+  const seconds = async (file: string | null) =>
     file ? (await probe(file).catch(() => null))?.duration || 0 : 0;
-  const lengths = [];
-  const spoken = [];
+  const lengths: Array<number> = [];
+  const spoken: Array<number> = [];
   for (const scene of timeline.scenes) {
     const voiceS = await seconds(scene.voicePath);
     const clipS = scene.lipsync ? await seconds(scene.clipPath) : 0;
@@ -327,8 +352,8 @@ async function sceneLengths(timeline) {
   if (narrationS && narrationS + TAIL_S > total)
     lengths[lengths.length - 1] += narrationS + TAIL_S - total;
   const words = wordsFromAlignment(timeline.narrationAlignment);
-  const spans = words.length
-    ? words.map((word) => [word.start, word.end])
+  const spans: Array<Span> = words.length
+    ? words.map((word): Span => [word.start, word.end])
     : narrationS
       ? [[0, narrationS]]
       : [];
@@ -342,9 +367,11 @@ async function sceneLengths(timeline) {
 
 /** Concatenates the segments and lays the music bed under the voice. */
 export async function assembleFilm(
-  source,
-  outputPath,
-  { prepare = prepareSound } = {},
+  source: Timeline,
+  outputPath: string,
+  {
+    prepare = prepareSound,
+  }: { prepare?: (timeline: Timeline, dir: string) => Promise<Timeline> } = {},
 ) {
   if (!source.scenes.length) throw new Error("render: no approved clips");
   const dir = join(outputPath, "..", "segments");
@@ -352,7 +379,7 @@ export async function assembleFilm(
   // Music and effects levelled first (sound-prep.ts), like the Remotion edit.
   const timeline = await prepare(source, join(dir, "sound"));
   const { lengths, spans } = await sceneLengths(timeline);
-  const segments = [];
+  const segments: Array<string> = [];
   for (const [index, scene] of timeline.scenes.entries()) {
     segments.push(
       await segment(
@@ -365,9 +392,11 @@ export async function assembleFilm(
   }
   // The closing card (logo, call to action, website) after the last scene.
   const scenesS = lengths.reduce((sum, length) => sum + length, 0);
-  const endCard = hasEndCard(timeline.brand);
-  if (endCard)
-    segments.push(await endCardSegment(timeline, segments.length, dir));
+  const brand = timeline.brand;
+  const endCard = hasEndCard(brand);
+  if (endCard) {
+    segments.push(await endCardSegment(timeline, brand, segments.length, dir));
+  }
   const list = join(dir, "list.txt");
   await writeFile(
     list,
@@ -420,11 +449,11 @@ export async function assembleFilm(
     return outputPath;
   }
   const filmS =
-    scenesS + (endCard ? endCardSeconds(ctaLines(timeline.brand.ctaText)) : 0);
+    scenesS + (endCard ? endCardSeconds(ctaLines(brand.ctaText)) : 0);
   const duration = filmS.toFixed(3);
   const inputs = ["-i", picture];
-  const filters = [];
-  const beds = [];
+  const filters: Array<string> = [];
+  const beds: Array<string> = [];
   if (timeline.narrationPath) {
     inputs.push("-i", timeline.narrationPath);
     filters.push(
@@ -451,7 +480,7 @@ export async function assembleFilm(
   }
   if (cues.length) {
     const index: Record<string, number> = {};
-    const files: Record<string, string | undefined> = {
+    const files: Record<string, string | null | undefined> = {
       impact: timeline.effects?.impactPath,
       ...Object.fromEntries([...sounds].map(([path, name]) => [name, path])),
     };

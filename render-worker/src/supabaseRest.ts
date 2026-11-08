@@ -1,4 +1,5 @@
 // Minimal Supabase client over fetch (PostgREST + Storage) so the worker has no dependencies.
+import { objectOf } from "./providers/json.ts";
 
 /** A service-role client for one project: PostgREST reads and writes, and Storage files. */
 export function createSupabaseRest({
@@ -7,7 +8,7 @@ export function createSupabaseRest({
 }: {
   url: string;
   serviceRoleKey: string;
-}) {
+}): SupabaseRest {
   if (!url || !serviceRoleKey)
     throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   const base = url.replace(/\/$/, "");
@@ -29,7 +30,7 @@ export function createSupabaseRest({
     return response;
   };
 
-  const json = async (path: string, init?: RequestInit) => {
+  const json = async (path: string, init?: RequestInit): Promise<unknown> => {
     const response = await request(path, init);
     const text = await response.text();
     return text ? JSON.parse(text) : null;
@@ -90,7 +91,11 @@ export function createSupabaseRest({
           body: JSON.stringify({ expiresIn }),
         },
       );
-      const signed = data?.signedURL || data?.signedUrl;
+      const { signedURL, signedUrl } = objectOf<{
+        signedURL?: string;
+        signedUrl?: string;
+      }>(data);
+      const signed = signedURL || signedUrl;
       if (!signed) throw new Error("storage sign returned no url");
       if (signed.startsWith("http")) return signed;
       if (signed.startsWith("/object/")) return `${base}/storage/v1${signed}`;
@@ -109,5 +114,21 @@ const encodePath = (path: string) => {
   return segments.map(encodeURIComponent).join("/");
 };
 
-/** The worker's Supabase client. */
-export type SupabaseRest = ReturnType<typeof createSupabaseRest>;
+/**
+ * The worker's Supabase client. PostgREST answers are untrusted JSON, so reads return unknown and
+ * callers name the row shape they read (rowsOf in jobs/rows.ts).
+ */
+export interface SupabaseRest {
+  rpc(name: string, args?: object): Promise<unknown>;
+  select(table: string, query: string): Promise<unknown>;
+  update(table: string, query: string, patch: object): Promise<unknown>;
+  insert(table: string, row: object): Promise<unknown>;
+  download(bucket: string, path: string): Promise<Uint8Array>;
+  upload(
+    bucket: string,
+    path: string,
+    bytes: Uint8Array,
+    contentType: string,
+  ): Promise<unknown>;
+  sign(bucket: string, path: string, expiresIn?: number): Promise<string>;
+}

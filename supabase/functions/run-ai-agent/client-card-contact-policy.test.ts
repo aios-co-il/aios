@@ -71,7 +71,7 @@ Deno.test(
       });
       assertEquals(confirmed, {
         ok: true,
-        updateType: updateType.toLowerCase(),
+        updateType: "call",
         source: "carmen_confirmed",
         attributedUserId: CAMPAIGNER_USER,
         countsAsContact: true,
@@ -83,7 +83,7 @@ Deno.test(
 Deno.test("planCarmenClientUpdate: other types never claim contact", () => {
   assertEquals(planCarmenClientUpdate({}), {
     ok: true,
-    updateType: "note",
+    updateType: "general",
     source: "carmen",
     attributedUserId: null,
     countsAsContact: null,
@@ -103,11 +103,16 @@ Deno.test("planCarmenClientUpdate: other types never claim contact", () => {
     },
   );
 
+  // Older names map onto the four types (AIO-516).
   const complaint = planCarmenClientUpdate({ updateType: "complaint" });
   assert(complaint.ok);
   assertStrictEquals(complaint.source, "carmen");
+  assertStrictEquals(complaint.updateType, "red_flag");
+  const note = planCarmenClientUpdate({ updateType: "note" });
+  assert(note.ok);
+  assertStrictEquals(note.updateType, "general");
 
-  const bad = planCarmenClientUpdate({ updateType: "email" });
+  const bad = planCarmenClientUpdate({ updateType: "fax" });
   assert(!bad.ok);
   assertStrictEquals(bad.error, "invalid_update_type");
 });
