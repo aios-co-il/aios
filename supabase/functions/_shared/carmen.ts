@@ -56,22 +56,21 @@ import {
   filterPolicyGroupsToManus,
 } from "./carmen-access-policy.ts";
 import {
-  asJsonObject,
+  readCarmenConfig,
   isChatTurn,
   isPermanentError,
-  jsonString,
   mergeCarmenStepConfig,
   policyEntriesAreParsed,
   type CarmenAutomationConfig,
-  type JsonObject,
-} from "./carmen-json.ts";
+} from "./carmen-config.ts";
 import {
   buildCarmenMergedHistory,
   conversationMirrorMessages,
   lastAssistantReply,
   sessionHistoryEntries,
+  type SessionTurn,
 } from "./carmen-session-history.ts";
-import type { Json, Tables } from "./database.types.ts";
+import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
@@ -99,13 +98,18 @@ type CarmenGroupIdentityRow = Pick<
     >
   >;
 
-type CarmenTriggerStep = { automation_id: string; configuration: JsonObject };
+type CarmenTriggerStep = {
+  automation_id: string;
+  configuration: CarmenAutomationConfig;
+};
 
 type ActionStepSendBody = {
   tenantId: string;
   senderUserId: string | null;
   message: string;
-  integrationId?: Json;
+  integrationId?: string;
+  sendKind: "carmen" | "staff_alert";
+  sendRef?: string;
   groupId?: string;
   phoneNumber?: string;
 };
@@ -223,13 +227,13 @@ function normalize(msg: string): string {
     .replace(/[.!?,\s]+$/g, "");
 }
 
-function messageRequestsEnd(msg: string, configuredEndKeyword?: Json): boolean {
+function messageRequestsEnd(
+  msg: string,
+  configuredEndKeyword?: string | null,
+): boolean {
   const m = normalize(msg);
   if (!m) return false;
-  if (
-    configuredEndKeyword &&
-    m.includes(String(configuredEndKeyword).toLowerCase())
-  )
+  if (configuredEndKeyword && m.includes(configuredEndKeyword.toLowerCase()))
     return true;
   return END_KEYWORD_VARIANTS.some(
     (k) =>
@@ -255,7 +259,7 @@ const CARMEN_NAME_VARIANT_RE = /[כק]א?רמן/;
 
 // Resolve the configured trigger keyword(s). Supports a single `trigger_keyword`
 // (legacy) or a `trigger_keywords` array (multiple wake-words), defaulting to "כרמן".
-function resolveTriggerKeywords(cfg: JsonObject): string[] {
+function resolveTriggerKeywords(cfg: CarmenAutomationConfig): string[] {
   const list =
     Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
       ? cfg.trigger_keywords
@@ -725,7 +729,7 @@ export async function findDualCarmenClaims(
     const claimIds: string[] = [];
     const openCandidates: string[] = [];
     for (const r of data || []) {
-      const stepCfg = asJsonObject(r?.configuration);
+      const stepCfg = readCarmenConfig(r?.configuration);
       const g = stepCfg.carmen_allowed_group_ids;
       if (Array.isArray(g) && g.includes(groupChatId)) {
         if (!claimIds.includes(r.tenant_id)) claimIds.push(r.tenant_id);
@@ -801,7 +805,7 @@ export async function findCarmenSessionAutomation(
   if (!flowStepRows || flowStepRows.length === 0) return null;
   const flowSteps: CarmenTriggerStep[] = flowStepRows.map((s) => ({
     automation_id: s.automation_id,
-    configuration: asJsonObject(s.configuration),
+    configuration: readCarmenConfig(s.configuration),
   }));
 
   // Split into pinned-match vs unpinned. Foreign-pinned automations are normally
@@ -866,7 +870,7 @@ export async function findCarmenSessionAutomation(
     .replace(/^\s*🎤\s*/, "")
     .trim()
     .slice(0, 80);
-  const stepKeywordHit = (cfg: JsonObject): boolean => {
+  const stepKeywordHit = (cfg: CarmenAutomationConfig): boolean => {
     if (!msgPrefix) return false;
     const kws: string[] = (
       Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
@@ -1028,7 +1032,7 @@ export async function sendCarmenReplyViaActionStep(args: {
     return false;
   }
 
-  const cfg = asJsonObject(step.configuration);
+  const cfg = readCarmenConfig(step.configuration);
   const integrationId =
     (isMeta
       ? cfg.meta_whatsapp_integration_id
@@ -1125,7 +1129,7 @@ export async function runCarmenAI(
   agentId: string | null,
   tenantId: string,
   userMessage: string,
-  conversationHistory: Json[],
+  conversationHistory: SessionTurn[],
   senderPhone?: string | null,
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
@@ -1217,7 +1221,7 @@ export async function syncCarmenToAIConversation(
     | "sender_name"
     | "phone"
   >,
-  conversationHistory: Json[],
+  conversationHistory: SessionTurn[],
 ): Promise<string | null> {
   try {
     const userId = session.connection_user_id;
@@ -1519,7 +1523,10 @@ async function resolveCarmenGroupIdentity(
   allowedPhones: unknown,
   policyPhoneEntries: unknown[] = [],
 ): Promise<CarmenIdentityAccess> {
-  const digits = await resolveCarmenIdentityPhone(supabase, phoneNumber);
+  const digits = await resolveCarmenIdentityPhone(
+    { from: () => supabase.from("wa_lid_map") },
+    phoneNumber,
+  );
   const tail = phoneTail(digits);
   console.log("[carmen] group identity check", {
     tenantId,
@@ -1841,9 +1848,9 @@ export async function handleCarmenMessage(
       isManualOutgoing,
       isGroup,
       hasTrigger: messageHasTrigger(normalizedMsg, resolveTriggerKeywords(cfg)),
-      pinnedIntegrationId: jsonString(cfg.carmen_integration_id),
+      pinnedIntegrationId: cfg.carmen_integration_id ?? null,
       integrationId,
-      scopeMode: jsonString(cfg.carmen_scope_mode),
+      scopeMode: cfg.carmen_scope_mode ?? null,
     });
     if (!gate.allow) {
       return { handled: false, reason: `secondary_${gate.reason}` };
@@ -1856,7 +1863,7 @@ export async function handleCarmenMessage(
       ? Number(cfg.session_timeout_minutes)
       : CARMEN_SESSION_IDLE_MINUTES_DEFAULT;
 
-  let previewAgentId: string | null = jsonString(cfg.agent_id) || null;
+  let previewAgentId: string | null = (cfg.agent_id ?? null) || null;
   if (!previewAgentId) {
     const carmenAgentRow = await findCarmenAgent(supabase, tenantId);
     previewAgentId = carmenAgentRow?.id || null;
@@ -2323,7 +2330,7 @@ export async function handleCarmenMessage(
       }
     }
 
-    const updatedHistory = [
+    const updatedHistory: SessionTurn[] = [
       ...history,
       {
         role: "user",
@@ -2547,7 +2554,7 @@ export async function handleCarmenMessage(
     return { handled: false, reason: "no_keyword" };
 
   // Resolve agent
-  let agentId = jsonString(carmenAutomation.configuration?.agent_id) || null;
+  let agentId = (carmenAutomation.configuration?.agent_id ?? null) || null;
   let agentName = "כרמן";
   if (!agentId) {
     const carmenAgent = await findCarmenAgent(supabase, tenantId);
@@ -2685,7 +2692,7 @@ export async function handleCarmenMessage(
       return { handled: true, outcome: "deferred_to_other_carmen" };
     }
 
-    const history = [
+    const history: SessionTurn[] = [
       {
         role: "user",
         content: contentAfterKeyword,
@@ -2759,7 +2766,7 @@ export async function handleCarmenMessage(
         : `היי, ${agentName} כאן. מה תרצה לבדוק? (לסיום: "${endKeywordConfig}")`;
     }
 
-    const history = [
+    const history: SessionTurn[] = [
       {
         role: "assistant",
         content: opener,

@@ -9,7 +9,7 @@ import {
 const NOW = Date.parse("2026-01-01T12:00:00.000Z");
 
 Deno.test("sessionHistoryEntries reads only arrays", () => {
-  assertEquals(sessionHistoryEntries([{ role: "user" }]), [{ role: "user" }]);
+  assertEquals(sessionHistoryEntries([{ role: "user" }]), []);
   assertEquals(sessionHistoryEntries(null), []);
   assertEquals(sessionHistoryEntries(undefined), []);
   assertEquals(sessionHistoryEntries({ role: "user" }), []);
@@ -26,7 +26,6 @@ Deno.test("mirror messages keep role and content of every object entry", () => {
     [
       { role: "user", content: "hi" },
       { role: "system", content: "x" },
-      { role: "assistant", content: [{ type: "text" }] },
       { role: "assistant", content: "hello" },
     ],
   );
@@ -37,9 +36,7 @@ Deno.test("mirror messages skip non-object entries", () => {
     conversationMirrorMessages([null, "noise", 3, ["user", "hi"]]),
     [],
   );
-  const [entry] = conversationMirrorMessages([{ role: "assistant" }]);
-  assertStrictEquals(entry.role, "assistant");
-  assertStrictEquals(entry.content, undefined);
+  assertEquals(conversationMirrorMessages([{ role: "assistant" }]), []);
 });
 
 Deno.test("lastAssistantReply finds the newest reply and its age", () => {

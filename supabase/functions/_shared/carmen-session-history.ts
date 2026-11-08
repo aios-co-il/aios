@@ -1,20 +1,29 @@
-// Pure helpers over a Carmen session's conversation_history (a `Json` column).
-import { jsonField, jsonObjectOrNull, type JsonObject } from "./carmen-json.ts";
-import type { Json } from "./database.types.ts";
-
-export function sessionHistoryEntries(value: Json | undefined): Json[] {
-  return Array.isArray(value) ? value : [];
-}
-
-/** role + content of every object entry, for mirroring into ai_conversations. */
-export function conversationMirrorMessages(history: Json[]): JsonObject[] {
-  return history.flatMap((m) => {
-    const entry = jsonObjectOrNull(m);
-    return entry ? [{ role: entry.role, content: entry.content }] : [];
+import { z } from "npm:zod@3.25.76";
+const turnSchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: z.string(),
+  timestamp: z.union([z.string(), z.number()]).optional().catch(undefined),
+});
+export type SessionTurn = z.infer<typeof turnSchema>;
+/** Validate stored session messages, dropping malformed entries individually. */
+export function sessionHistoryEntries(value: unknown): SessionTurn[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw) => {
+    const parsed = turnSchema.safeParse(raw);
+    return parsed.success ? [parsed.data] : [];
   });
 }
+/** Mirror only validated role/content pairs into ai_conversations. */
+export function conversationMirrorMessages(
+  value: unknown,
+): Array<Pick<SessionTurn, "role" | "content">> {
+  return sessionHistoryEntries(value).map(({ role, content }) => ({
+    role,
+    content,
+  }));
+}
 
-function timestampMs(value: Json | undefined): number {
+function timestampMs(value: string | number | undefined): number {
   return typeof value === "string" || typeof value === "number"
     ? new Date(value).getTime()
     : 0;
@@ -25,17 +34,17 @@ function timestampMs(value: Json | undefined): number {
  * the timestamp is missing or unparseable); null when there is no reply text.
  */
 export function lastAssistantReply(
-  history: Json[],
+  history: unknown,
   now: number,
 ): { text: string; ageMs: number } | null {
-  const last = [...history]
+  const last = [...sessionHistoryEntries(history)]
     .reverse()
-    .find((m) => jsonField(m, "role") === "assistant");
-  const content = jsonField(last, "content");
+    .find((m) => m.role === "assistant");
+  const content = last?.content;
   if (!content) return null;
-  const lastTs = timestampMs(jsonField(last, "timestamp"));
+  const lastTs = timestampMs(last?.timestamp);
   return {
-    text: String(content).trim(),
+    text: content.trim(),
     ageMs: lastTs ? now - lastTs : Number.MAX_SAFE_INTEGER,
   };
 }
@@ -48,13 +57,14 @@ const BACKGROUND_CONTEXT_NOTE =
 // and prepends a short note so the model treats them as background, not as a new question.
 export function buildCarmenMergedHistory(
   recentContext: Array<{ role: string; content: string; timestamp?: string }>,
-  sessionHistory: Json[],
+  storedHistory: unknown,
   hardCap = 40,
-): Json[] {
+): SessionTurn[] {
+  const sessionHistory = sessionHistoryEntries(storedHistory);
   const sessionTimestamps = new Set(
     (sessionHistory || [])
       .map((m) => {
-        const ts = jsonField(m, "timestamp");
+        const ts = m.timestamp;
         return ts ? String(ts) : null;
       })
       .filter((ts): ts is string => Boolean(ts)),
@@ -62,7 +72,7 @@ export function buildCarmenMergedHistory(
   const oldestSessionTs =
     sessionHistory && sessionHistory.length
       ? sessionHistory
-          .map((m) => jsonField(m, "timestamp"))
+          .map((m) => m.timestamp)
           .filter((ts): ts is string => typeof ts === "string" && ts !== "")
           .sort()[0]
       : null;
@@ -74,14 +84,14 @@ export function buildCarmenMergedHistory(
     return true;
   });
 
-  const merged: Json[] = [];
+  const merged: SessionTurn[] = [];
   if (dedupedContext.length > 0) {
     merged.push({
       role: "user",
       content: BACKGROUND_CONTEXT_NOTE,
       timestamp: new Date(0).toISOString(),
     });
-    merged.push(...dedupedContext);
+    merged.push(...sessionHistoryEntries(dedupedContext));
   }
   merged.push(...(sessionHistory || []));
 
