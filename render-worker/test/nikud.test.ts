@@ -65,7 +65,7 @@ describe("word timings", () => {
   test("the pointed take's timings come back keyed to the plain script", () => {
     const spoken = "בֹּקֶר טוֹב";
     const mapped = spokenAlignment(timed(spoken.split("")), spoken, "בוקר טוב");
-    expect(mapped.characters.join("")).toBe("בוקר טוב");
+    expect(mapped?.characters.join("")).toBe("בוקר טוב");
     const words = wordsFromAlignment(mapped);
     expect(words.map((word) => word.text)).toStrictEqual(["בוקר", "טוב"]);
     expect(words[0].start).toBeCloseTo(0);
@@ -85,7 +85,7 @@ describe("word timings", () => {
       "שלום",
       "טוב",
     ]);
-    expect(mapped.characters.join("")).toBe("שלום טוב");
+    expect(mapped?.characters.join("")).toBe("שלום טוב");
   });
 
   test("timings that do not match the sent text still show the script's words", () => {
@@ -110,7 +110,7 @@ describe("word timings", () => {
       "שָׁלוֹם עוֹלָם",
       "שלום עולם",
     );
-    expect(mapped.characters.join("")).toBe("שלום");
-    expect(mapped.character_end_times_seconds.at(-1)).toBeCloseTo(0.7);
+    expect(mapped?.characters.join("")).toBe("שלום");
+    expect(mapped?.character_end_times_seconds.at(-1)).toBeCloseTo(0.7);
   });
 });

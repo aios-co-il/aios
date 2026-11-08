@@ -21,6 +21,11 @@ import {
 import { gatePulseAlert } from "./pulse/alert-gate.ts";
 import { resolvePulseCostRules } from "./pulse/cost-rules.ts";
 import {
+  noResultsStatus,
+  noResultsWindowStart,
+  resolveNoResultsDays,
+} from "./pulse/no-results-window.ts";
+import {
   measureBaselineGuard,
   noResultsIn3Days,
   targetStatusReasons,
@@ -256,6 +261,7 @@ function classifyStatus({
   target,
   deliveryStatus = "unknown",
   costRules = resolvePulseCostRules(null),
+  noResults,
 }) {
   if (deliveryStatus === "paused") {
     return {
@@ -301,13 +307,14 @@ function classifyStatus({
       alertEligible: false,
     };
   }
-  if (current7.spend > 0 && current7.outcomes === 0) {
-    return {
-      status: "critical",
-      tier: "exception",
-      reason: "קיימת הוצאה ללא תוצאות ב־7 הימים המלאים האחרונים",
-      alertEligible: true,
-    };
+  // The client's own window (clients.pulse_no_results_days, AIO-502).
+  const withoutResults = noResultsStatus(
+    noResults.days,
+    noResults.window,
+    current7,
+  );
+  if (withoutResults) {
+    return withoutResults;
   }
 
   const currentEfficiency =
@@ -390,13 +397,17 @@ function datesBetween(start, end) {
  * `alertRules` is the tenant's tenant_heartbeat_settings.pulse_alert_rules: the
  * snapshot and the dashboard pass the same value, so the cost thresholds for
  * campaigns without a target (manager.cost) are the same on both sides.
- * @param {{ records?: Array<{ table_id: string, data?: object | null }>, tables?: object[], nowYmd: string, alertRules?: unknown }} input
+ * `noResultsDaysByClient` is each client's clients.pulse_no_results_days: the
+ * full days a lead or sales campaign may spend with 0 results before it is an
+ * exception (missing: the default 7).
+ * @param {{ records?: Array<{ table_id: string, data?: object | null }>, tables?: object[], nowYmd: string, alertRules?: unknown, noResultsDaysByClient?: Record<string, unknown> }} input
  */
 export function buildPulseCampaignRows({
   records = [],
   tables = [],
   nowYmd,
   alertRules = null,
+  noResultsDaysByClient = {},
 }) {
   const windows = pulseTrendWindows(nowYmd);
   const usable = usableCampaignRecords(records, tables, windows);
@@ -414,6 +425,7 @@ export function buildPulseCampaignRows({
     rules: resolvePulseCostRules(alertRules),
     current3Dates: datesBetween(windows.current3.start, windows.current3.end),
     current7Dates: datesBetween(windows.current7.start, windows.current7.end),
+    noResultsDaysByClient,
   };
   const rows = [];
   for (const [campaignKey, items] of campaigns) {
@@ -651,6 +663,17 @@ function pulseCampaignRow(items, places, context) {
     aggregate(baselineRows, reportGoal).outcomes,
     (row) => getSpendFromData(row.data),
   );
+  const noResultsDays = resolveNoResultsDays(
+    context.noResultsDaysByClient[sample.table.client_id],
+  );
+  // Rows reach back 35 days, so a window of up to 30 full days is covered.
+  const noResultsWindow = aggregate(
+    inWindow(
+      noResultsWindowStart(windows.current7.end, noResultsDays),
+      windows.current7.end,
+    ),
+    reportGoal,
+  );
   const settings = sample.table.integration_settings || {};
   const deliveryStatus = campaignDeliveryStatus(items);
   const target = campaignTarget(places, goal);
@@ -665,6 +688,7 @@ function pulseCampaignRow(items, places, context) {
       target,
       deliveryStatus,
       costRules: rules,
+      noResults: { days: noResultsDays, window: noResultsWindow },
     }),
     {
       goal,
@@ -715,6 +739,7 @@ function pulseCampaignRow(items, places, context) {
     status_tier: status.tier,
     status_reason: status.reason,
     alert_eligible: status.alertEligible,
+    no_results_days: noResultsDays,
     ...campaignTargetFields(target, places),
     spend_3d: round(current3.spend),
     outcomes_3d: round(current3.outcomes),

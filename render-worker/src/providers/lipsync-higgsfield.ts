@@ -35,9 +35,10 @@ export function higgsfieldLipsyncBody({
     image_urls: [imageUrl],
     audio_urls: [audioUrl],
     duration: Math.min(30, Math.max(4, Math.ceil(Number(durationS) || 5))),
-    aspect_ratio: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"].includes(aspect)
-      ? aspect
-      : "9:16",
+    aspect_ratio:
+      aspect && ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"].includes(aspect)
+        ? aspect
+        : "9:16",
     resolution: "720p",
     generate_audio: true,
   };

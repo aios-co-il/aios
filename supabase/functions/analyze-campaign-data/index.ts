@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { serviceClient } from "../_shared/supabase-clients.ts";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { CALLER_TABLE_COLUMNS } from "./caller-table.ts";
 import {
   fetchCampaignLevelRecords,
-  type CrmRecordRow,
   type RecordsClient,
 } from "../_shared/ads-sync/campaign-records.ts";
-import { isRecord } from "../_shared/ads-sync/is-record.ts";
+import { loadTableData, type TableDataDeps } from "./table-data.ts";
 import { eventPeriodWindows } from "./event-windows.ts";
 import { analyzePeriods } from "./periods.ts";
 
@@ -40,78 +40,25 @@ serve(async (req) => {
       );
     }
 
-    const supabase = serviceClient();
-
     const windows = eventPeriodWindows(eventDates, daysBeforeEvent, new Date());
-
-    const { data: table, error: tableError } = await supabase
-      .from("crm_tables")
-      .select("id, integration_type, integration_settings, category")
-      .eq("id", tableId)
-      .maybeSingle();
-    if (tableError) {
-      console.error("Error fetching table:", tableError);
-      return new Response(JSON.stringify({ error: "Failed to fetch table" }), {
-        status: 500,
+    // The caller must be able to read the table, as in the app, before any
+    // service-role read of its rows (AIO-495).
+    const tableData = await loadTableData(
+      liveTableDataDeps(req),
+      tableId,
+      windows,
+    );
+    if (!tableData.ok) {
+      return new Response(JSON.stringify({ error: tableData.error }), {
+        status: tableData.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Campaign-level rows of the event windows, as the reports count them
-    // (ad set and ad rows repeat the campaign's spend and results), paged.
-    let records: Array<CrmRecordRow> = [];
-    try {
-      if (windows.length > 0) {
-        records = await fetchCampaignLevelRecords(asRecordsClient(supabase), {
-          tableIds: [tableId],
-          sinceYmd: windows.reduce(
-            (min, w) => (w.startDate < min ? w.startDate : min),
-            windows[0].startDate,
-          ),
-          untilYmd: windows.reduce(
-            (max, w) => (w.endDate > max ? w.endDate : max),
-            windows[0].endDate,
-          ),
-        });
-      }
-    } catch (recordsError) {
-      console.error("Error fetching records:", recordsError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch records" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    if (records.length === 0) {
-      const { data: anyRecord } = await supabase
-        .from("crm_records")
-        .select("id")
-        .eq("table_id", tableId)
-        .limit(1);
-      if (!anyRecord || anyRecord.length === 0) {
-        return new Response(
-          JSON.stringify({ error: "No records found for this table" }),
-          {
-            status: 404,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
-    }
+    const { table, records } = tableData;
 
     const { eventPeriods, campaignPeriodData } = analyzePeriods({
       records,
-      table: table
-        ? {
-            ...table,
-            integration_settings: isRecord(table.integration_settings)
-              ? table.integration_settings
-              : null,
-          }
-        : null,
+      table,
       windows,
       campaignFilter,
       byCampaign: analysisType === "raw_table",
@@ -298,6 +245,51 @@ ${eventPeriods.map((p) => `📅 ${p.eventDate}: ₪${p.metrics.totalSpend} הו�
     );
   }
 });
+
+/**
+ * The data step's reads: the table as the caller, the caller's row access
+ * and the rows themselves with the service client.
+ */
+function liveTableDataDeps(req: Request): TableDataDeps {
+  const callerDb = userClient(req.headers.get("Authorization") ?? "");
+  const serviceDb = serviceClient();
+  return {
+    loadCallerTable: (id) =>
+      callerDb
+        .from("crm_tables")
+        .select(CALLER_TABLE_COLUMNS)
+        .eq("id", id)
+        .maybeSingle(),
+    callerMayReadRows: async (tableId) => {
+      const { data: auth, error: authError } = await callerDb.auth.getUser();
+      if (authError || !auth.user) {
+        return false;
+      }
+      const { data, error } = await serviceDb.rpc("user_can_access_crm_table", {
+        _user_id: auth.user.id,
+        _table_id: tableId,
+      });
+      if (error) {
+        throw new Error(`user_can_access_crm_table: ${error.message}`);
+      }
+      return data === true;
+    },
+    readRecords: ({ tableId, tenantId, sinceYmd, untilYmd }) =>
+      fetchCampaignLevelRecords(asRecordsClient(serviceDb), {
+        tableIds: [tableId],
+        tenantIds: [tenantId],
+        sinceYmd,
+        untilYmd,
+      }),
+    probeRecords: (tableId, tenantId) =>
+      serviceDb
+        .from("crm_records")
+        .select("id")
+        .eq("table_id", tableId)
+        .eq("tenant_id", tenantId)
+        .limit(1),
+  };
+}
 
 /**
  * The service client as the paged reader sees it. Checking the generated

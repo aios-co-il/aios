@@ -129,6 +129,14 @@ const GOOGLE_LEADS = extra(
       cost: 25,
       conversions: 0,
     },
+    {
+      campaign_id: "g-display",
+      campaign_name: "באנרים",
+      campaign_channel_type: "DISPLAY",
+      bidding_strategy_type: "MANUAL_CPM",
+      cost: 30,
+      conversions: 0,
+    },
   ],
 );
 

@@ -5,10 +5,9 @@
 import { asUuidOrNull } from "../_shared/uuid.mjs";
 import {
   CARMEN_CLIENT_UPDATE_TYPES,
-  CONTACT_UPDATE_TYPES,
-  isCarmenClientUpdateType,
-  type CarmenClientUpdateType,
+  clientUpdateTypeOf,
   type ClientCardSource,
+  type ClientUpdateType,
 } from "../_shared/client-card/sources.ts";
 import type { Surface } from "./surface.ts";
 
@@ -32,12 +31,12 @@ export function resolveHumanRequesterUserId(input: {
 }
 
 export const HUMAN_REQUESTER_REQUIRED_HE =
-  "שיחה או פגישה נרשמות בכרטיס הלקוח רק כשאיש צוות מבקש ממך לתעד אותן, והן נרשמות על שמו. בריצה הזאת אין איש צוות שמאשר שהקשר התקיים, ולכן לא נרשם דבר. אפשר לרשום הערה (note), או לבקש מהקמפיינר לתעד את השיחה.";
+  "שיחה או פגישה נרשמות בכרטיס הלקוח רק כשאיש צוות מבקש ממך לתעד אותן, והן נרשמות על שמו. בריצה הזאת אין איש צוות שמאשר שהקשר התקיים, ולכן לא נרשם דבר. אפשר לרשום עדכון כללי (general), או לבקש מהקמפיינר לתעד את השיחה.";
 
 export type CarmenClientUpdatePlan =
   | {
       ok: true;
-      updateType: CarmenClientUpdateType;
+      updateType: ClientUpdateType;
       source: ClientCardSource;
       attributedUserId: string | null;
       countsAsContact: boolean | null;
@@ -56,11 +55,10 @@ export function planCarmenClientUpdate(input: {
   humanRequesterUserId?: string | null;
 }): CarmenClientUpdatePlan {
   const raw =
-    typeof input.updateType === "string"
-      ? input.updateType.trim().toLowerCase()
-      : "";
-  const updateType = raw || "note";
-  if (!isCarmenClientUpdateType(updateType)) {
+    typeof input.updateType === "string" ? input.updateType.trim() : "";
+  // Older names (meeting, note, complaint) still work: they map onto the four.
+  const updateType = raw ? clientUpdateTypeOf(raw) : "general";
+  if (!updateType) {
     return {
       ok: false,
       error: "invalid_update_type",
@@ -68,7 +66,7 @@ export function planCarmenClientUpdate(input: {
     };
   }
   const requester = asUuidOrNull(input.humanRequesterUserId);
-  const isContact = CONTACT_UPDATE_TYPES.includes(updateType);
+  const isContact = updateType === "call";
   if (isContact && !requester) {
     return {
       ok: false,

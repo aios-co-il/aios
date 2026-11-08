@@ -3,7 +3,10 @@ import {
   googleCampaignNames,
   namesCampaignsByDestination,
 } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
+import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { parseTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/trackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -45,6 +48,7 @@ import {
   Facebook,
   FileSpreadsheet,
   Globe,
+  MousePointerClick,
   TrendingUp,
   BarChart3,
   RefreshCw,
@@ -165,7 +169,7 @@ const normalizePlatformKey = (s: string) =>
 
 const matchesPlatformFilter = (
   integrationType: string,
-  filter: PlatformFilter,
+  filter: DashboardPlatformFilter,
 ): boolean => {
   if (filter === "all") return true;
   if (filter === "facebook") return isFacebookPlatform(integrationType);
@@ -236,7 +240,8 @@ export default function SharedDashboard({
   const shareToken = shareTokenOverride ?? params.shareToken;
   const queryClient = useQueryClient();
   const [dateFilter, setDateFilter] = useState(initialDateFilter);
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
+  const [platformFilter, setPlatformFilter] =
+    useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -508,7 +513,7 @@ export default function SharedDashboard({
     tables.forEach((t) => {
       if (t?.integration_type) set.add(t.integration_type);
     });
-    const platforms: PlatformFilter[] = [];
+    const platforms: DashboardPlatformFilter[] = [];
     if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
       platforms.push("facebook");
     if (set.has("google_ads")) platforms.push("google_ads");
@@ -530,6 +535,10 @@ export default function SharedDashboard({
       setPlatformFilter("google_ads");
     }
   }, [platformFilter, hasContinentsTab]);
+
+  // A dashboard that follows site events gets their tab; no picker on a share link.
+  const hasTrackedEvents =
+    parseTrackedEvents(data?.dashboard?.settings).length > 0;
 
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
@@ -571,6 +580,13 @@ export default function SharedDashboard({
         iconNode: getIntegrationIcon("google_analytics"),
       });
     }
+    if (hasTrackedEvents) {
+      items.push({
+        value: "site_events",
+        label: "אירועים באתר",
+        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
+      });
+    }
     if (availablePlatforms.includes("woocommerce")) {
       items.push({
         value: "woocommerce",
@@ -586,7 +602,7 @@ export default function SharedDashboard({
       });
     }
     return items;
-  }, [availablePlatforms, hasContinentsTab]);
+  }, [availablePlatforms, hasContinentsTab, hasTrackedEvents]);
 
   const seoTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [
@@ -1127,22 +1143,34 @@ export default function SharedDashboard({
       </div>
 
       {/* Platform Tabs */}
-      {availablePlatforms.length > 0 && (
+      {platformTabItems.length > 1 && (
         <Tabs
           value={platformFilter}
-          onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+          onValueChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
         >
           <ResponsiveTabsList
             items={platformTabItems}
             value={platformFilter}
-            onValueChange={(v) => setPlatformFilter(v as PlatformFilter)}
+            onValueChange={(v) =>
+              setPlatformFilter(v as DashboardPlatformFilter)
+            }
             mobileLabel="בחר פלטפורמה"
           />
         </Tabs>
       )}
 
       {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
-      {platformFilter === "continents" ? (
+      {platformFilter === "site_events" ? (
+        <DashboardTrackedEvents
+          records={records}
+          settings={data?.dashboard?.settings}
+          adsSpend={globalAdsMetrics.spend}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          source={shareToken ? { shareToken } : null}
+          dateFilter={dateFilter}
+        />
+      ) : platformFilter === "continents" ? (
         <CampaignContinentsTab
           campaigns={googleAdsSummary.campaigns}
           formatCurrency={formatCurrency}

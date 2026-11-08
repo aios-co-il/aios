@@ -1,6 +1,7 @@
 import {
   classifyGoogleCampaignRow,
   type GoogleCampaignGoal,
+  type GoogleReportGoal,
 } from "./google-classify.ts";
 import {
   googleGoalPresence,
@@ -28,6 +29,9 @@ export type GoogleAdsRowData = {
   conversions?: number | string;
   conversions_value?: number | string;
   conversion_goal?: GoogleCampaignGoal;
+  /** Google's campaign type and bid strategy; exposure bidding makes traffic (AIO-496). */
+  campaign_channel_type?: string;
+  bidding_strategy_type?: string;
 };
 
 export type GoogleReportRecord = {
@@ -48,12 +52,12 @@ export type GoogleReportTable = {
 };
 
 export type GoogleCampaignGoalLookup = GoogleGoalPresence & {
-  goalOf: (data?: GoogleAdsRowData | null) => GoogleCampaignGoal;
+  goalOf: (data?: GoogleAdsRowData | null) => GoogleReportGoal;
 };
 
 /** A Google campaign's goal and the strongest signal behind it. */
 export type GoogleCampaignGoalVerdict = {
-  goal: GoogleCampaignGoal;
+  goal: GoogleReportGoal;
   /** platform_goal, explicit_mapping or table_report_type. */
   source: string;
 };
@@ -89,7 +93,7 @@ export function googleCampaignGoalOf(
 export function googleCampaignGoalsForRecords(
   records: Array<GoogleReportRecord>,
   tables: Array<GoogleReportTable>,
-): Map<string, GoogleCampaignGoal> {
+): Map<string, GoogleReportGoal> {
   const allTables = [...tables];
   const googleTables = tables.filter(
     (table) => table.integration_type === "google_ads",
@@ -113,14 +117,16 @@ export function googleCampaignGoalsForRecords(
 }
 
 /**
- * Goal per Google Ads campaign of records whose table is known; engagement shows
- * as leads (conversions). The strongest signal across a campaign's rows wins.
+ * Goal per Google Ads campaign of records whose table is known; engagement
+ * (a name or override hint) shows as leads (conversions), and a campaign set
+ * to pay for exposure as traffic. The strongest signal across a campaign's
+ * rows wins.
  */
 export function googleReportCampaignGoals(
   records: Array<{ table_id: string; data?: GoogleAdsRowData | null }>,
   tables: Array<GoogleReportTable>,
-): Map<string, GoogleCampaignGoal> {
-  const result = new Map<string, GoogleCampaignGoal>();
+): Map<string, GoogleReportGoal> {
+  const result = new Map<string, GoogleReportGoal>();
   for (const [key, verdict] of googleReportCampaignVerdicts(records, tables)) {
     result.set(key, verdict.goal);
   }
@@ -146,12 +152,17 @@ export function googleReportCampaignVerdicts(
   }
   const result = new Map<string, GoogleCampaignGoalVerdict>();
   for (const [key, { goal, source }] of resolveCampaignGoalVotes(votes)) {
-    result.set(key, {
-      goal: goal === "ecommerce" ? "ecommerce" : "leads",
-      source,
-    });
+    result.set(key, { goal: reportGoalOf(goal), source });
   }
   return result;
+}
+
+/** The report goal of a resolved vote: engagement folds into leads, as before AIO-496. */
+function reportGoalOf(goal: string): GoogleReportGoal {
+  if (goal === "ecommerce" || goal === "traffic") {
+    return goal;
+  }
+  return "leads";
 }
 
 /** The key a Google Ads campaign's goal is stored under: its id, else its name. */
