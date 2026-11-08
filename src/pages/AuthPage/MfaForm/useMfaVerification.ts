@@ -8,8 +8,7 @@ import { authSessionQueryOptions } from "../authSessionQuery";
 export interface MfaVerification {
   factorId: string;
   navigateToApp: NavigateToApp;
-  onVerificationStart: () => void;
-  onVerificationEnd: () => void;
+  onVerificationStart: () => () => void;
 }
 
 /** Own the TOTP draft and challenge/verification mutation lifecycle. */
@@ -17,32 +16,41 @@ export function useMfaVerification({
   factorId,
   navigateToApp,
   onVerificationStart,
-  onVerificationEnd,
 }: MfaVerification) {
   const [mfaCode, setMfaCode] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const active = useRef(true);
+  const releaseVerification = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     active.current = true;
 
     return () => {
       active.current = false;
+      releaseVerification.current?.();
     };
   }, []);
 
   const mutation = useMutation({
     mutationFn: verifyCode,
-    onMutate: onVerificationStart,
+    onMutate: claimVerification,
     onSuccess: finishVerification,
     onError: showError,
-    onSettled: onVerificationEnd,
+    onSettled: (_data, _error, _code, release) => release?.(),
     retry: false,
     gcTime: 0,
   });
 
   return { loading: mutation.isPending, mfaCode, setMfaCode, handleMFAVerify };
+
+  /** Retain the release for unmounts as well as the mutation's settlement. */
+  function claimVerification() {
+    const release = onVerificationStart();
+    releaseVerification.current = release;
+
+    return release;
+  }
 
   /** Create a fresh challenge for every explicit verification attempt. */
   async function verifyCode(code: string) {
@@ -85,6 +93,10 @@ export function useMfaVerification({
 
   /** Preserve the entered code when verification fails. */
   function showError(error: unknown) {
+    if (!active.current) {
+      return;
+    }
+
     toast({
       title: "שגיאה",
       description:

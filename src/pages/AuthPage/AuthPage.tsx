@@ -61,7 +61,6 @@ export default function AuthPage() {
           navigateToApp={navigateToApp}
           backToSignIn={backToSignIn}
           onVerificationStart={mfa.onVerificationStart}
-          onVerificationEnd={mfa.onVerificationEnd}
         />
       ) : resetMode ? (
         <PasswordResetForm

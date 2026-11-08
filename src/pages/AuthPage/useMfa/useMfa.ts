@@ -9,12 +9,12 @@ export function useMfa(navigateToApp: NavigateToApp) {
   const [factorId, setFactorId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const verifying = useRef(false);
+  const verifying = useRef<symbol | null>(null);
   const version = useRef(0);
 
   const backToSignIn = useCallback(() => {
     version.current++;
-    verifying.current = false;
+    verifying.current = null;
     setFactorId(null);
   }, []);
 
@@ -65,16 +65,18 @@ export function useMfa(navigateToApp: NavigateToApp) {
     completeSignIn,
     backToSignIn,
     onVerificationStart,
-    onVerificationEnd,
   };
 
-  /** Ignore SDK navigation while explicit verification owns completion. */
+  /** Each verification releases only its own ownership, even after sign-out. */
   function onVerificationStart() {
-    verifying.current = true;
-  }
+    const owner = Symbol("verification");
+    verifying.current = owner;
 
-  /** Release verification ownership after either success or failure. */
-  function onVerificationEnd() {
-    verifying.current = false;
+    /** Old settlements and unmount cleanup cannot release a newer attempt. */
+    return function release() {
+      if (verifying.current === owner) {
+        verifying.current = null;
+      }
+    };
   }
 }
