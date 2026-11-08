@@ -68,4 +68,32 @@ describe("NarrationRecorder", () => {
     expect(openChat).toHaveBeenCalled();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
+
+  test("a failed send's error is gone when the recorder is opened again", async () => {
+    upload.mockResolvedValue({ error: new Error("network") });
+    const user = userEvent.setup();
+    render(
+      withTestQuery(
+        <NarrationRecorder
+          tenantId="tenant-1"
+          clientId={null}
+          itemId="item-1"
+          scenes={scenes}
+          openChat={vi.fn()}
+        />,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: /הקלטה בקול שלי/ }));
+    await user.click(screen.getByRole("button", { name: /התחלת הקלטה/ }));
+    await act(async () => media.grant());
+    await user.click(await screen.findByRole("button", { name: /עצירה/ }));
+    await user.click(screen.getByRole("button", { name: /שליחה לכרמן/ }));
+    expect(await screen.findByText(/ההקלטה לא נשלחה/)).toBeTruthy();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await user.click(screen.getByRole("button", { name: /הקלטה בקול שלי/ }));
+
+    expect(screen.queryByText(/ההקלטה לא נשלחה/)).toBeNull();
+  });
 });

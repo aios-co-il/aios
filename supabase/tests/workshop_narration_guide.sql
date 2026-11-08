@@ -1,4 +1,4 @@
--- The narration in the user's own voice (20261108090000_workshop_narration_guide): synthetic rows
+-- The narration in the user's own voice (20261108120000_workshop_narration_guide): synthetic rows
 -- inside one transaction that is rolled back, signed in as a tenant member (authenticated role).
 -- queue_narration_guide queues one continuous voice run that carries the recording
 -- (input.guide_audio) and the chosen voice over the film's whole narration; it refuses a recording

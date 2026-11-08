@@ -66,6 +66,11 @@ export function NarrationRecorder({
         open={open}
         onOpenChange={(next) => {
           if (next || !send.isPending) {
+            // A failed send stays on the mutation, which outlives the panel: clear it so a reopened
+            // recorder does not show the old error.
+            if (!next) {
+              send.reset();
+            }
             setOpen(next);
           }
         }}
