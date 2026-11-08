@@ -17,10 +17,11 @@
 export const ROUND_PITCH = [0, -3, 3, -5, 5];
 
 /** Repeatable numbers in [0, 1) drawn from `seed` (FNV-1a of the text, then mulberry32). */
-function seeded(seed) {
+function seeded(seed: unknown) {
   let state = 2166136261;
   for (const char of String(seed ?? "")) {
-    state ^= char.codePointAt(0);
+    // A string's characters always have a code point.
+    state ^= char.codePointAt(0) ?? 0;
     state = Math.imul(state, 16777619);
   }
   return () => {
@@ -36,10 +37,10 @@ function seeded(seed) {
  * rounds of every sound in a shuffled order, a round never opening with the sound the last one
  * closed on. One sound plays at every cut; no sounds or no cuts give an empty list.
  */
-export function cutSoundOrder(sounds, cuts, seed = "") {
+export function cutSoundOrder(sounds: number, cuts: number, seed = "") {
   if (!(sounds > 0) || !(cuts > 0)) return [];
   const next = seeded(seed);
-  const order = [];
+  const order: Array<number> = [];
   while (order.length < cuts) {
     const round = Array.from({ length: sounds }, (_, index) => index);
     for (let i = sounds - 1; i > 0; i--) {
@@ -59,7 +60,7 @@ export function cutSoundOrder(sounds, cuts, seed = "") {
  * The sound of each of `cuts` cuts: which of the film's `sounds` transition sounds (cutSoundOrder)
  * and the semitones its round shifts it by (ROUND_PITCH).
  */
-export function cutSoundPlan(sounds, cuts, seed = "") {
+export function cutSoundPlan(sounds: number, cuts: number, seed = "") {
   return cutSoundOrder(sounds, cuts, seed).map((sound, cut) => ({
     sound,
     pitch: ROUND_PITCH[Math.floor(cut / sounds) % ROUND_PITCH.length],

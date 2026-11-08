@@ -14,7 +14,10 @@ export const APPROVE_NARRATION = "הקריינות מאושרת";
 export const NARRATION_CHOICE = `[[בחירה: ${NARRATION_LABEL} | ${APPROVE_NARRATION} | ${CHANGE_SCRIPT}]]`;
 const LISTEN =
   "האזינו לה: אם מילה נשמעת לא נכון, כתבו איזו מילה ואיך אומרים אותה, ואשמור את ההגייה לכל הסרטים הבאים בסדנה.";
-export const NARRATION_QUESTION = `הקריינות מוכנה בלוח (עמוד "קריינות"). ${LISTEN}\n${NARRATION_CHOICE}`;
+/** The board's "הקלטה בקול שלי" (narration-guide.ts): for what is hard to explain in words. */
+const RECORD_YOURSELF =
+  'קשה להסביר מה לא נשמע נכון? הקליטו את הקריינות בקול שלכם בכפתור "הקלטה בקול שלי" בעמוד, ואחליף לקול הנבחר.';
+export const NARRATION_QUESTION = `הקריינות מוכנה בלוח (עמוד "קריינות"). ${LISTEN} ${RECORD_YOURSELF}\n${NARRATION_CHOICE}`;
 /**
  * The take was still recording when produce_video stopped waiting for it (narration-review.ts).
  * No approval tap: a tap now would approve a take the user has not heard. Their reply once it is

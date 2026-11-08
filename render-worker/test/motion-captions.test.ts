@@ -16,13 +16,13 @@ import {
 } from "../src/compose/skin-switch.ts";
 
 /** Words said one after another, `gap` frames apart, each 6 frames long. */
-const said = (text, { from = 0, gap = 8 } = {}) =>
+const said = (text: string, { from = 0, gap = 8 } = {}) =>
   text.split(" ").map((word, i) => ({
     text: word,
     startFrame: from + i * gap,
     endFrame: from + i * gap + 6,
   }));
-const phrases = (captions) =>
+const phrases = (captions: Array<{ words: Array<{ text: string }> }>) =>
   captions.map((c) => c.words.map((w) => w.text).join(" "));
 
 test("the caption style is motion unless the film asks for karaoke", () => {

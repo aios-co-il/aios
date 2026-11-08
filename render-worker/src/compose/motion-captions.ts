@@ -13,10 +13,12 @@ import {
   wordsOf,
 } from "./motion-words.ts";
 
+import type { FramedWord } from "./types.ts";
+
 export { displayWord, isLtrWord, keyScore, wordsOf } from "./motion-words.ts";
 
 /** The film's caption style: karaoke only when asked for (payload.video.caption_style). */
-export const captionStyleOf = (value) =>
+export const captionStyleOf = (value: unknown) =>
   value === "karaoke" ? "karaoke" : "motion";
 
 const MAX_WORDS = 4;
@@ -26,8 +28,13 @@ const PAUSE_S = 0.35;
 const HOLD_S = 0.35;
 
 /** Characters per caption line before a phrase takes two lines, by frame shape. */
-const LINE_CHARS = { "9:16": 15, "4:5": 18, "1:1": 17, "16:9": 30 };
-export const lineCharsFor = (aspect) =>
+const LINE_CHARS: Record<string, number> = {
+  "9:16": 15,
+  "4:5": 18,
+  "1:1": 17,
+  "16:9": 30,
+};
+export const lineCharsFor = (aspect: string) =>
   LINE_CHARS[aspect] ?? LINE_CHARS["9:16"];
 
 /** A key word is drawn this much larger (workshop-layout.ts KEY_SCALE). */
@@ -38,19 +45,21 @@ const KEY_WIDTH = 1.3;
  * one-word clause), as few phrases as fit, balanced, and not ending on a word that leans on the
  * next ("מנהלת השיווק | של העסק שלך"). Returns the phrase sizes.
  */
-export function phraseSizes(words) {
+export function phraseSizes(words: Array<string>) {
   const n = words.length;
   if (n <= MAX_WORDS) return n ? [n] : [];
   const leans = words.map(leansOnNext);
   const fewest = Math.ceil(n / MAX_WORDS);
-  let best = null;
+  let best: { total: number; sizes: Array<number> } | null = null;
   for (const k of [fewest, fewest + 1]) {
     const mean = n / k;
     // cost[i][g]: the best split of the first i words into g phrases.
-    const cost = Array.from({ length: n + 1 }, () =>
+    const cost = Array.from({ length: n + 1 }, (): Array<number> =>
       Array(k + 1).fill(Infinity),
     );
-    const from = Array.from({ length: n + 1 }, () => Array(k + 1).fill(0));
+    const from = Array.from({ length: n + 1 }, (): Array<number> =>
+      Array(k + 1).fill(0),
+    );
     cost[0][0] = 0;
     for (let g = 1; g <= k; g++)
       for (let i = 2; i <= n; i++)
@@ -67,7 +76,7 @@ export function phraseSizes(words) {
     // One more phrase than needed only when it avoids a leaning end.
     const total = cost[n][k] + (k - fewest);
     if (total < (best?.total ?? Infinity)) {
-      const sizes = [];
+      const sizes: Array<number> = [];
       for (let i = n, g = k; g > 0; g--) {
         sizes.unshift(from[i][g]);
         i -= from[i][g];
@@ -79,7 +88,7 @@ export function phraseSizes(words) {
 }
 
 /** Splits a phrase into one or two lines, balanced by width: which line each word is on. */
-export function phraseLines(widths, maxLineChars) {
+export function phraseLines(widths: Array<number>, maxLineChars: number) {
   const gaps = widths.length - 1;
   const total = widths.reduce((sum, w) => sum + w, 0) + gaps;
   if (widths.length < 2 || total <= maxLineChars) return widths.map(() => 0);
@@ -101,11 +110,15 @@ export function phraseLines(widths, maxLineChars) {
  * comma or a dash a soft one. A word with nothing to show (a dash) only breaks softly. A single
  * word next to a soft break joins its neighbour when the phrase stays short.
  */
-function clausesOf(sorted, { cuts, fps }) {
-  const clauses = [];
-  let current = [];
+function clausesOf(
+  sorted: Array<FramedWord>,
+  { cuts, fps }: { cuts: Array<number>; fps: number },
+) {
+  const clauses: Array<{ words: Array<ShownWord>; after: "hard" | "soft" }> =
+    [];
+  let current: Array<ShownWord> = [];
   let pendingSoft = false;
-  let previous = null;
+  let previous: FramedWord | null = null;
   for (const word of sorted) {
     const shown = displayWord(word.text);
     if (!shown) {
@@ -114,8 +127,9 @@ function clausesOf(sorted, { cuts, fps }) {
     }
     if (previous && current.length) {
       const said = previous.text.trim();
+      const before = previous;
       const hard =
-        cuts.some((f) => previous.startFrame < f && f <= word.startFrame) ||
+        cuts.some((f) => before.startFrame < f && f <= word.startFrame) ||
         /[.!?…]["'”)]*$/.test(said) ||
         word.startFrame - previous.endFrame > PAUSE_S * fps;
       const soft = pendingSoft || /[,;:—–]["'”)]*$/.test(said);
@@ -147,8 +161,8 @@ function clausesOf(sorted, { cuts, fps }) {
 }
 
 /** A clause of words in phrases (phraseSizes). */
-function splitClause(words) {
-  const groups = [];
+function splitClause(words: Array<ShownWord>) {
+  const groups: Array<Array<ShownWord>> = [];
   let at = 0;
   for (const size of phraseSizes(words.map((word) => word.shown))) {
     groups.push(words.slice(at, at + size));
@@ -167,7 +181,7 @@ function splitClause(words) {
  * `scenes` ([{ startFrame, title }]) gives each word its scene's title for keyScore.
  */
 export function motionCaptions(
-  words,
+  words: Array<FramedWord>,
   {
     fps,
     endFrame = Infinity,
@@ -175,6 +189,13 @@ export function motionCaptions(
     scenes = [],
     brand = "",
     maxLineChars = LINE_CHARS["9:16"],
+  }: {
+    fps: number;
+    endFrame?: number;
+    breaks?: Array<number>;
+    scenes?: Array<{ startFrame: number; title: unknown }>;
+    brand?: string;
+    maxLineChars?: number;
   },
 ) {
   const titles = [...scenes]
@@ -184,7 +205,7 @@ export function motionCaptions(
       words: wordsOf(scene.title),
     }));
   const brandWords = wordsOf(brand);
-  const titleAt = (frame) =>
+  const titleAt = (frame: number) =>
     titles.filter((scene) => scene.startFrame <= frame).at(-1)?.words ?? [];
   const sorted = [...words]
     .filter((w) => w.startFrame < endFrame)
@@ -227,4 +248,9 @@ export function motionCaptions(
       })),
     };
   });
+}
+
+/** A framed word with the form it is shown in (displayWord). */
+interface ShownWord extends FramedWord {
+  shown: string;
 }

@@ -4,6 +4,7 @@ import {
   assetPath,
   generateOnce,
 } from "../src/jobs/audio-store.ts";
+import { runOf } from "./fakes.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
 
@@ -26,7 +27,7 @@ function fakeDb(failUpload = false) {
 
 describe("assetPath", () => {
   test("names one file per run under the tenant's item folder", () => {
-    const run = { tenant_id: TENANT, scene_id: null, id: "run-1" };
+    const run = runOf({ tenant_id: TENANT, scene_id: null, id: "run-1" });
     expect(assetPath(run, `${TENANT}/item-1`, "voice", "narration")).toBe(
       `${TENANT}/item-1/narration/voice-run-1.mp3`,
     );
@@ -37,7 +38,7 @@ describe("generateOnce", () => {
   test("pays once, stores the audio and records its path on the run", async () => {
     const db = fakeDb();
     let paid = 0;
-    const run = { id: "run-1", output: {} };
+    const run = runOf({ id: "run-1", output: {} });
     const meta = await generateOnce({
       db,
       run,
@@ -56,10 +57,10 @@ describe("generateOnce", () => {
   });
 
   test("reuses audio an earlier attempt stored, without paying again", async () => {
-    const run = {
+    const run = runOf({
       id: "run-1",
       output: { audio_path: "p.mp3", audio_meta: { characters: 5 } },
-    };
+    });
     expect(alreadyGenerated(run, "p.mp3")).toBe(true);
     const meta = await generateOnce({
       db: fakeDb(),
@@ -76,7 +77,7 @@ describe("generateOnce", () => {
     await expect(
       generateOnce({
         db: fakeDb(true),
-        run: { id: "run-1", output: {} },
+        run: runOf({ id: "run-1", output: {} }),
         path: "p.mp3",
         generate: async () => ({ bytes: new Uint8Array([1]) }),
       }),

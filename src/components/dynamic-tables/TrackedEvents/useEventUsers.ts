@@ -2,6 +2,7 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getJerusalemDashboardDateRange } from "@/lib/calendarTimeZone";
 import type { EventUsersResult } from "../../../../supabase/functions/ga-event-users/reports.ts";
+import type { TrackedRatio } from "./siteKpis";
 import type { TrackedEvent } from "./trackedEvents";
 
 /** Which dashboard to read: by id when signed in, or through its share link. */
@@ -18,8 +19,10 @@ export function useEventUsers(input: {
   dateFilter: string;
   customFrom?: string;
   customTo?: string;
+  /** The conversion pair, part of the key since the answer carries its funnel. */
+  ratio?: TrackedRatio | null;
 }) {
-  const { source, tracked, dateFilter, customFrom, customTo } = input;
+  const { source, tracked, dateFilter, customFrom, customTo, ratio } = input;
   const { startDate, endDate } = getJerusalemDashboardDateRange(
     dateFilter,
     new Date(),
@@ -35,6 +38,7 @@ export function useEventUsers(input: {
       "ga-event-users",
       source,
       tracked.map((step) => step.event).join(","),
+      ratio ? `${ratio.from}>${ratio.to}` : null,
       dateFilter,
       startDate,
       endDate,

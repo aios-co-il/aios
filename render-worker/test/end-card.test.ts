@@ -15,6 +15,7 @@ import {
 import { buildTimeline } from "../src/compose/timeline.ts";
 import { buildWorkshopManifest } from "../src/compose/workshop-manifest.ts";
 import { probe } from "../src/ffmpeg.ts";
+import { sceneOf, timelineOf } from "./fakes.ts";
 
 const WAITLIST =
   "הירשמו לרשימת ההמתנה — 1000 הנרשמים הראשונים יקבלו את חבילת הבסיס בחינם לכל החיים!";
@@ -50,22 +51,24 @@ test("a whole-sentence call to action wraps into three even lines, in reading or
 
 test("the brand keeps the whole sentence and the Remotion card gets its lines", () => {
   const brand = brandFromPayload({ cta_text: WAITLIST });
-  expect(brand.ctaText).toBe(WAITLIST);
-  const { manifest } = buildWorkshopManifest({
-    aspect: "9:16",
-    brand,
-    scenes: [
-      {
-        id: "a",
-        clipPath: "/tmp/a.mp4",
-        stillPath: "/tmp/a.png",
-        clipProvider: "mock",
-        durationS: 2,
-      },
-    ],
-  });
-  expect(manifest.brand.ctaText).toBe(WAITLIST);
-  expect(manifest.brand.ctaLines).toStrictEqual(ctaLines(WAITLIST));
+  expect(brand?.ctaText).toBe(WAITLIST);
+  const { manifest } = buildWorkshopManifest(
+    timelineOf({
+      aspect: "9:16",
+      brand,
+      scenes: [
+        sceneOf({
+          id: "a",
+          clipPath: "/tmp/a.mp4",
+          stillPath: "/tmp/a.png",
+          clipProvider: "mock",
+          durationS: 2,
+        }),
+      ],
+    }),
+  );
+  expect(manifest.brand?.ctaText).toBe(WAITLIST);
+  expect(manifest.brand?.ctaLines).toStrictEqual(ctaLines(WAITLIST));
   // Three lines stay on screen 2 s longer than one, so the sentence can be read.
   expect(manifest.endCard).toStrictEqual({ startFrame: 60, frameCount: 135 });
   expect(hasEndCard({ ctaText: WAITLIST })).toBe(true);

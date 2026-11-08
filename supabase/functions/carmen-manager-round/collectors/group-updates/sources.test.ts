@@ -37,7 +37,10 @@ Deno.test("groupUpdateSources", async (t) => {
   await t.step(
     "reads the chat collector's lines: a campaigner's own line included",
     async () => {
-      const { ctx } = context(false, ({ path }) => {
+      const { ctx } = context(false, ({ path, query }) => {
+        if (query.get("integration_type") === "eq.manus_wa") {
+          return [{ user_id: "carmen-owner" }];
+        }
         switch (path) {
           case "tenant_integrations":
             return [
@@ -51,7 +54,10 @@ Deno.test("groupUpdateSources", async (t) => {
             return [];
         }
       });
-      assertEquals(await groupUpdateSources(ctx).lines(), ["u-camp", "office"]);
+      assertEquals(await groupUpdateSources(ctx).lines(), {
+        green: ["u-camp", "office"],
+        carmen: ["carmen-owner"],
+      });
     },
   );
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import ChatViewComponent from "@/components/chat/ChatView";
 import {
   User,
@@ -502,9 +503,12 @@ export function ClientsChatView({
     value: any,
   ) => {
     try {
+      // A computed key widens to a string index; the field names come from
+      // this view's own editors.
+      const patch = { [field]: value } as TablesUpdate<"clients">;
       const { error, data } = await supabase
         .from("clients")
-        .update({ [field]: value })
+        .update(patch)
         .eq("id", clientId)
         .select();
       if (error) throw error;
