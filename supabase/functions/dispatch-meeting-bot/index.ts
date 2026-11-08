@@ -8,6 +8,7 @@ import {
   recallApiKey,
 } from "../_shared/recall.ts";
 import { notifyRecallCreditEmpty } from "../_shared/recall-credit-alert.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   detectMeetingPlatform,
   isSupportedMeetingUrl,
@@ -106,7 +107,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const admin = serviceClient();
     const campaignerIds = Array.isArray(requestedCampaignerIds)
       ? [
           ...new Set(

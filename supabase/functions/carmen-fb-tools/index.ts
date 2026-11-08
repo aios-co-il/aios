@@ -3,7 +3,16 @@
 // via agent_approval_queue; this function performs the actual API call once approved.
 // Callers (AIO-239, ./gate.ts): the service role (approval execute, scheduler,
 // shutdown runner) with the tenant in the body, or a user JWT scoped to the user's own tenant.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import type { Database, Json } from "../_shared/database.types.ts";
+import {
+  jsonObject,
+  type JsonObject,
+  thrownMessage,
+} from "../_shared/json-narrow.ts";
 import { fbTokenSource } from "../_shared/ad-tools/fb-gate.ts";
 import {
   META_SETTING_KEYS,
@@ -28,7 +37,7 @@ const corsHeaders = {
 const FB_VERSION = "v21.0";
 
 async function getFbToken(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -53,7 +62,7 @@ async function getFbToken(
 
 /** Prefer client-owning tenant token (shared/partner orgs), then caller tenant. */
 async function resolveFbToken(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
   client_id?: string | null,
 ): Promise<string | null> {
@@ -72,7 +81,7 @@ async function resolveFbToken(
 }
 
 async function getClientAdAccount(
-  supabase: any,
+  supabase: SupabaseClient<Database>,
   tenant_id: string,
   client_id: string,
 ): Promise<string | null> {
@@ -92,31 +101,27 @@ async function getClientAdAccount(
     .in("integration_type", META_TABLE_TYPES)
     .order("last_sync_at", { ascending: false, nullsFirst: false });
   for (const t of tables || []) {
-    const s = t?.integration_settings || {};
+    const s = jsonObject(t?.integration_settings);
     const acc = META_SETTING_KEYS.map((k) => s[k]).find(Boolean);
     if (acc) return String(acc).replace(/^act_/, "");
   }
   return null;
 }
 
-function err(message: string, status = 400, extra: any = {}) {
+function err(message: string, status = 400, extra: JsonObject = {}) {
   return new Response(JSON.stringify({ error: message, ...extra }), {
     status,
     headers: corsHeaders,
   });
 }
-function ok(payload: any) {
+function ok(payload: JsonObject) {
   return new Response(JSON.stringify({ success: true, ...payload }), {
     status: 200,
     headers: corsHeaders,
   });
 }
 
-async function fbPost(
-  path: string,
-  params: Record<string, any>,
-  token: string,
-) {
+async function fbPost(path: string, params: JsonObject, token: string) {
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v == null) continue;
@@ -142,7 +147,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       serviceRoleKey,
     );
@@ -174,7 +179,7 @@ Deno.serve(async (req) => {
     const token = await resolveFbToken(supabase, src.tenantId, src.clientId);
     if (!token) return err("fb_not_connected", 400);
 
-    let result: any = {};
+    let result: JsonObject = {};
 
     switch (action) {
       case "create_campaign": {
@@ -193,7 +198,12 @@ Deno.serve(async (req) => {
           client_id,
         );
         if (!adAccount) return err("client_no_ad_account");
-        const params: any = { name, objective, status, special_ad_categories };
+        const params: JsonObject = {
+          name,
+          objective,
+          status,
+          special_ad_categories,
+        };
         if (daily_budget != null)
           params.daily_budget = Math.round(Number(daily_budget) * 100);
         const r = await fbPost(
@@ -228,7 +238,7 @@ Deno.serve(async (req) => {
         const camp = await fbGet(campaign_id, "account_id,name", token);
         if (camp?.error)
           return err("fb_api_error", 400, { fb_error: camp.error });
-        const params: any = {
+        const params: JsonObject = {
           name,
           campaign_id,
           billing_event,
@@ -288,7 +298,7 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenant_id)
           .maybeSingle();
         if (!media) return err("media_not_found");
-        if (!media.ad_ready && !/^image|^video/.test(media.mime_type))
+        if (!/^image|^video/.test(media.mime_type))
           return err("media_not_ad_ready");
 
         // Get signed URL to download from our bucket then upload to FB.
@@ -300,7 +310,7 @@ Deno.serve(async (req) => {
         const blob = await fileRes.blob();
 
         const isVideo = String(media.mime_type).startsWith("video/");
-        let imageHash: string | undefined;
+        let imageHash: Json | undefined;
         let videoId: string | undefined;
         if (isVideo) {
           const fd = new FormData();
@@ -329,11 +339,13 @@ Deno.serve(async (req) => {
           const j = await r.json();
           if (j?.error)
             return err("fb_image_upload_failed", 400, { fb_error: j.error });
-          const hashes = j?.images ? (Object.values(j.images)[0] as any) : null;
+          const hashes = j?.images
+            ? jsonObject(Object.values<Json>(j.images)[0])
+            : null;
           imageHash = hashes?.hash;
         }
 
-        const link_data: any = {
+        const link_data: JsonObject = {
           message,
           link: link || `https://fb.me/${page_id}`,
           call_to_action: {
@@ -344,7 +356,7 @@ Deno.serve(async (req) => {
           },
         };
         if (imageHash) link_data.image_hash = imageHash;
-        const video_data: any = videoId
+        const video_data: JsonObject | null = videoId
           ? {
               video_id: videoId,
               message,
@@ -357,7 +369,7 @@ Deno.serve(async (req) => {
             }
           : null;
 
-        const params: any = {
+        const params: JsonObject = {
           name:
             name || `Carmen creative ${new Date().toISOString().slice(0, 10)}`,
           object_story_spec: video_data
@@ -375,13 +387,13 @@ Deno.serve(async (req) => {
           .from("marketing_media_library")
           .update({
             usage_count:
-              (
+              ((
                 await supabase
                   .from("marketing_media_library")
                   .select("usage_count")
                   .eq("id", media_id)
                   .single()
-              ).data?.usage_count + 1 || 1,
+              ).data?.usage_count ?? 0) + 1 || 1,
           })
           .eq("id", media_id);
 
@@ -436,7 +448,7 @@ Deno.serve(async (req) => {
       case "update_budget": {
         const { entity_id, daily_budget, lifetime_budget } = body;
         if (!entity_id) return err("entity_id required");
-        const params: Record<string, any> = {};
+        const params: Record<string, number> = {};
         if (daily_budget != null)
           params.daily_budget = Math.round(Number(daily_budget) * 100);
         if (lifetime_budget != null)
@@ -469,11 +481,11 @@ Deno.serve(async (req) => {
         } = body;
         if (!source_ad_id) return err("source_ad_id required");
 
-        let variants: any[];
+        let variants: ReturnType<typeof normalizeAdCopyVariants>;
         try {
           variants = normalizeAdCopyVariants(body);
-        } catch (e: any) {
-          return err(String(e?.message || e), 400);
+        } catch (e) {
+          return err(String(thrownMessage(e) || e), 400);
         }
 
         const ad = await fbGet(
@@ -503,14 +515,14 @@ Deno.serve(async (req) => {
 
         const accountId = String(ad.account_id).replace(/^act_/, "");
         const sourceSummary = summarizeSourceAd(ad, creative);
-        const created: any[] = [];
-        const errors: any[] = [];
+        const created: JsonObject[] = [];
+        const errors: JsonObject[] = [];
 
         for (let i = 0; i < variants.length; i++) {
           const variant = variants[i];
           const adName = variant.name || `${ad.name || "Ad"} · v${i + 1}`;
           try {
-            const creativeParams: Record<string, any> = {
+            const creativeParams: JsonObject = {
               name: `${creative.name || ad.name || "Creative"} · v${i + 1}`,
             };
             if (creative.object_story_spec) {
@@ -570,17 +582,17 @@ Deno.serve(async (req) => {
               headline: variant.headline,
               status: adStatus === "ACTIVE" ? "ACTIVE" : "PAUSED",
             });
-          } catch (e: any) {
+          } catch (e) {
             errors.push({
               index: i,
               stage: "exception",
               variant: adName,
-              error: String(e?.message || e),
+              error: String(thrownMessage(e) || e),
             });
           }
         }
 
-        let budget_update: any = null;
+        let budget_update: JsonObject | null = null;
         if (daily_budget != null && Number.isFinite(Number(daily_budget))) {
           const level = String(budget_level || "campaign").toLowerCase();
           const entityId =
@@ -658,8 +670,8 @@ Deno.serve(async (req) => {
       );
 
     return ok({ action, ...result });
-  } catch (e: any) {
+  } catch (e) {
     console.error("[carmen-fb-tools]", e);
-    return err(String(e?.message || e), 500);
+    return err(String(thrownMessage(e) || e), 500);
   }
 });
