@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { parseTrackedRatio, purchaseRevenue, ratioFigures } from "./siteKpis";
 import { TrackedEventsEditor } from "./TrackedEventsEditor";
 import { TrackedEventsTab } from "./TrackedEventsTab";
 import {
@@ -50,6 +51,11 @@ export function DashboardTrackedEvents({
     [records, tracked, adsSpend],
   );
   const available = useMemo(() => availableEventNames(records), [records]);
+  const revenue = useMemo(() => purchaseRevenue(records), [records]);
+  const pair = useMemo(
+    () => parseTrackedRatio(settings, tracked),
+    [settings, tracked],
+  );
   const users = useEventUsers({
     source,
     tracked,
@@ -57,10 +63,20 @@ export function DashboardTrackedEvents({
     customFrom,
     customTo,
   });
+  const ratio = pair
+    ? ratioFigures(
+        pair,
+        tracked,
+        Object.fromEntries(summary.events.map((e) => [e.event, e.count])),
+        users.data?.total.users,
+      )
+    : null;
   return (
     <>
       <TrackedEventsTab
         summary={summary}
+        revenue={revenue}
+        ratio={ratio}
         eventUsers={{
           result: users.data,
           loading: users.isLoading,
@@ -76,7 +92,10 @@ export function DashboardTrackedEvents({
           onOpenChange={setEditing}
           current={tracked}
           available={available}
-          onSave={(events) => save.mutateAsync(events)}
+          currentRatio={pair}
+          onSave={(events, nextRatio) =>
+            save.mutateAsync({ events, ratio: nextRatio })
+          }
           saving={save.isPending}
         />
       )}
