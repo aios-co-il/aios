@@ -106,11 +106,23 @@ const runAgentRequestSchema = z
   })
   .passthrough();
 
-export type RunAgentRequest = z.infer<typeof runAgentRequestSchema>;
+export type RunAgentRequest = z.infer<typeof runAgentRequestSchema> & {
+  wa_chat_scope?: ReturnType<typeof readWaChatScope>;
+};
 
 export function parseRunAgentRequest(value: unknown): RunAgentRequest {
   const parsed = runAgentRequestSchema.safeParse(value);
-  return parsed.success ? { ...parsed.data, wa_chat_scope: readWaChatScope(value && typeof value === "object" && "wa_notify" in value ? value.wa_notify : undefined) ?? undefined } : {};
+  return parsed.success
+    ? {
+        ...parsed.data,
+        wa_chat_scope:
+          readWaChatScope(
+            value && typeof value === "object" && "wa_notify" in value
+              ? value.wa_notify
+              : undefined,
+          ) ?? undefined,
+      }
+    : {};
 }
 
 const embeddedNameSchema = z.object({ name: z.string() });

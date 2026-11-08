@@ -133,17 +133,19 @@ export async function readStreamedCompletion(
 }
 
 /** A chat message as the loop keeps it; only assistant tool calls are looked at here. */
-type LoopMessage = { tool_calls?: Array<ToolCall> } & Record<string, unknown>;
+type LoopMessage = {
+  tool_calls?: Array<{ extra_content?: unknown }> | null;
+} & Record<string, unknown>;
 
 /**
  * The conversation as this provider should receive it. Gemini gets its tool-call extras
  * back unchanged; any other provider gets the calls without them, so a turn that fails
  * over from Gemini mid-conversation does not send a field the next provider rejects.
  */
-export function messagesForProvider(
-  messages: Array<LoopMessage>,
+export function messagesForProvider<Message extends LoopMessage>(
+  messages: Array<Message>,
   provider: string | undefined,
-): Array<LoopMessage> {
+): Array<Message> {
   if (provider === "google") {
     return messages;
   }
@@ -159,7 +161,9 @@ export function messagesForProvider(
 }
 
 /** The tool call without its provider extras. */
-function withoutExtras(call: ToolCall): ToolCall {
+function withoutExtras<Call extends { extra_content?: unknown }>(
+  call: Call,
+): Call {
   const plain = { ...call };
   delete plain.extra_content;
   return plain;

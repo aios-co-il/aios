@@ -10241,7 +10241,7 @@ async function executeTool(
         count: data.length,
         mode: browseMode ? "browse" : "keyword_search",
         scope: scopeNote,
-        chat_id: chatScope?.chat_id || null,
+        chat_id: waScope?.chat_id || null,
         note:
           data.length === 0
             ? browseMode
@@ -13854,7 +13854,7 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills: requestedTaskSkills,
+      task_skills: requestedTaskSkills = [],
       task_mode,
       conversation_history,
       conversation_id,
@@ -14026,7 +14026,7 @@ async function handleRunAgent(
       const roleList = (roles || []).map((r) => r.role);
       // Priority order
       for (const r of CALLER_ROLE_PRIORITY) {
-        if (roleList.includes(r)) {
+        if (roleList.some((role) => role === r)) {
           callerRole = r;
           break;
         }
@@ -15846,6 +15846,10 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         wa_notify,
         surface,
         undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
         wa_chat_scope,
       );
       const execView = readToolResult(execResult);
@@ -15922,6 +15926,10 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         wa_notify,
         surface,
         undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
         wa_chat_scope,
       );
       const pulseDigest = readToolResult(pulseResult).whatsapp_digest;
@@ -15981,7 +15989,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
         ? conversation_history
         : [];
     for (const entry of history) {
-      const h = jsonObject(entry);
+      const h = readJsonRecord(entry);
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
       }
@@ -16390,11 +16398,12 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
               findingDraftReply,
               wa_chat_scope,
             );
-            if (result?.pending_approval && result?.approval_id) {
+            const approvalResult = readToolResult(result);
+            if (approvalResult.pending_approval && approvalResult.approval_id) {
               await bindApprovalToConversation(
                 supabase,
                 resolvedTenantId,
-                String(result.approval_id),
+                String(approvalResult.approval_id),
                 callerUserId || asUuidOrNull(resolvedUserId),
                 approvalConversation,
               );
@@ -16455,17 +16464,19 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
           toolName === REFRESH_PULSE_TOOL_NAME &&
           pulseRefreshRoute.digestShortcut
         ) {
-          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
+          pulseDigestShortcut = buildPulseRefreshDigestReply(
+            isObject(result) ? result : null,
+          );
         }
         // A workshop question or budget request is sent to the user exactly as the server
         // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
         if (
           isWorkshopTool(toolName) &&
-          typeof result?.say_to_user === "string" &&
-          result.say_to_user.trim()
+          typeof resultView.say_to_user === "string" &&
+          resultView.say_to_user.trim()
         ) {
-          const say = result.say_to_user.trim();
-          if (result.needs_budget === true) budgetSay = say;
+          const say = resultView.say_to_user.trim();
+          if (resultView.needs_budget === true) budgetSay = say;
           else if (!sayToUser.includes(say)) sayToUser.push(say);
         }
       }
@@ -16785,7 +16796,7 @@ async function handleDirectTool(bodyJson: RunAgentRequest): Promise<Response> {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  const req: DirectToolRequest = bodyJson.direct_tool || {};
+  const req: DirectToolRequest = bodyJson.direct_tool || { args: {} };
   const supabase = createClient<Database>(
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
@@ -17129,7 +17140,16 @@ Deno.serve(async (req) => {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (obj: unknown) => {
-        recorder.observe(obj);
+        if (obj && typeof obj === "object") {
+          recorder.observe({
+            type:
+              "type" in obj && typeof obj.type === "string"
+                ? obj.type
+                : undefined,
+            id: "id" in obj ? obj.id : undefined,
+            content: "content" in obj ? obj.content : undefined,
+          });
+        }
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
