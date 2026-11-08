@@ -28,6 +28,12 @@ export const SCHEDULED_LOOKBACK_DAYS = 7;
 /** A run re-fetches the lookback window once this many days have passed since the last one. */
 export const SCHEDULED_LOOKBACK_EVERY_DAYS = 3;
 
+/**
+ * The first run each Sunday (Jerusalem) re-fetches the lookback window too,
+ * so the week's late conversions are in before the weekly reports are read.
+ */
+const SCHEDULED_LOOKBACK_WEEKDAY = 0;
+
 export type ScheduledSyncPlan = {
   /** Days since the last successful scheduled run (or the lookback window), through today. */
   refresh: SyncWindow;
@@ -151,7 +157,8 @@ export function planScheduledSyncWindows(
   const lastLookback = markerDate(lookbackOn);
   const lookbackDue =
     !lastLookback ||
-    lastLookback <= shiftDateString(today, -SCHEDULED_LOOKBACK_EVERY_DAYS);
+    lastLookback <= shiftDateString(today, -SCHEDULED_LOOKBACK_EVERY_DAYS) ||
+    (weekday(today) === SCHEDULED_LOOKBACK_WEEKDAY && lastLookback < today);
   const lookbackStart = shiftDateString(today, -SCHEDULED_LOOKBACK_DAYS);
   if (lookbackDue && lookbackStart < refreshStart) refreshStart = lookbackStart;
   if (refreshStart < target) refreshStart = target;
@@ -199,4 +206,10 @@ export function replacedRecordsFilter(pruneStart: string): string {
     "data->>date.is.null",
     `data->>date.lt.${EARLIEST_REAL_REPORT_DATE}`,
   ].join(",");
+}
+
+/** Day of the week of a `yyyy-mm-dd` date, 0 for Sunday. */
+function weekday(dateString: string): number {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay();
 }
