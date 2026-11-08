@@ -30,7 +30,7 @@ import {
 } from "@/lib/reportQueryOptions";
 
 const Landing = lazy(() => import("./pages/Landing"));
-const Auth = lazy(() => import("./pages/Auth"));
+const AuthPage = lazy(() => import("./pages/AuthPage/AuthPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ChatInvite = lazy(() => import("./pages/ChatInvite"));
 const Privacy = lazy(() => import("./pages/Privacy"));
@@ -123,7 +123,7 @@ const App = () => (
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/" element={<Landing />} />
-                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth" element={<AuthPage />} />
                 <Route
                   path="/signup"
                   element={<Navigate to="/auth" replace />}
