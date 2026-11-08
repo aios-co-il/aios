@@ -415,6 +415,9 @@ export function EditClientDialog({
       meta_ads_url: "",
     },
   });
+  // Reading dirtyFields here subscribes the form to it, so the link fields'
+  // edited state is current where the loader and the save check it.
+  const { dirtyFields } = form.formState;
   const savedAdLinks = useClientAdLinks(client?.id);
   useEffect(() => {
     if (!savedAdLinks.loaded) {
@@ -560,15 +563,15 @@ export function EditClientDialog({
           services: values.services || [],
           meta_ads_account_id: values.meta_ads_account_id || null,
           google_ads_account_id: values.google_ads_account_id || null,
-          // Saved only once the stored links were read successfully, so an
-          // edit made before they arrive, or after a failed read, never blanks
-          // them.
-          ...(!savedAdLinks.loaded
-            ? {}
-            : {
-                google_ads_url: values.google_ads_url?.trim() || null,
-                meta_ads_url: values.meta_ads_url?.trim() || null,
-              }),
+          // Each link is written only when its field was edited, so an
+          // untouched field never overwrites the stored value (or another
+          // editor's change), whatever the lookup state.
+          ...(dirtyFields.google_ads_url
+            ? { google_ads_url: values.google_ads_url?.trim() || null }
+            : {}),
+          ...(dirtyFields.meta_ads_url
+            ? { meta_ads_url: values.meta_ads_url?.trim() || null }
+            : {}),
         })
         .eq("id", client.id)
         .select("id");
