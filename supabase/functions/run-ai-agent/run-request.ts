@@ -110,6 +110,7 @@ export type RunAgentRequest = z.infer<typeof runAgentRequestSchema> & {
   wa_chat_scope?: ReturnType<typeof readWaChatScope>;
 };
 
+/** Validate request fields and derive the originating WhatsApp chat scope. */
 export function parseRunAgentRequest(value: unknown): RunAgentRequest {
   const parsed = runAgentRequestSchema.safeParse(value);
   return parsed.success

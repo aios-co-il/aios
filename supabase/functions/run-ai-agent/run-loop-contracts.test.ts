@@ -1,3 +1,4 @@
+import { describe, it } from "jsr:@std/testing@1/bdd";
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   readWaChatScope,
@@ -15,10 +16,8 @@ import {
   toJson,
 } from "./run-loop-contracts.ts";
 import { embeddedName, parseRunAgentRequest } from "./run-request.ts";
-
-Deno.test(
-  "request body keeps typed fields and treats wrongly typed values as absent",
-  () => {
+describe("run-loop-contracts", () => {
+  it("request body keeps typed fields and treats wrongly typed values as absent", () => {
     const body = parseRunAgentRequest({
       agent_id: 42,
       command_text: "hello",
@@ -58,12 +57,9 @@ Deno.test(
     assertStrictEquals(body.carmen_automation, undefined);
     assertEquals(body.context_metadata, { source: "command_center_sidebar" });
     assertStrictEquals(body.direct_tool, undefined);
-  },
-);
+  });
 
-Deno.test(
-  "non-object bodies parse as empty and any truthy direct_tool is a direct call",
-  () => {
+  it("non-object bodies parse as empty and any truthy direct_tool is a direct call", () => {
     assertEquals(
       Object.values(parseRunAgentRequest(null)).filter((v) => v !== undefined),
       [],
@@ -80,21 +76,15 @@ Deno.test(
     }).direct_tool;
     assertStrictEquals(call?.action, "call");
     assertEquals(call?.args, { q: "a" });
-  },
-);
+  });
 
-Deno.test(
-  "embedded names are read only from objects with a string name",
-  () => {
+  it("embedded names are read only from objects with a string name", () => {
     assertStrictEquals(embeddedName({ name: "Acme" }), "Acme");
     assertStrictEquals(embeddedName(null), undefined);
     assertStrictEquals(embeddedName("column 'type' does not exist"), undefined);
-  },
-);
+  });
 
-Deno.test(
-  "chat completion messages keep provider fields and reject malformed tool calls",
-  () => {
+  it("chat completion messages keep provider fields and reject malformed tool calls", () => {
     const message = {
       role: "assistant",
       content: null,
@@ -130,12 +120,9 @@ Deno.test(
       { input: 0, output: 4 },
     );
     assertStrictEquals(readChatUsage({}), null);
-  },
-);
+  });
 
-Deno.test(
-  "tool arguments parse JSON objects and fall back to an empty object",
-  () => {
+  it("tool arguments parse JSON objects and fall back to an empty object", () => {
     assertEquals(parseToolArguments('{"query":"x","limit":3}'), {
       query: "x",
       limit: 3,
@@ -144,38 +131,32 @@ Deno.test(
     assertEquals(parseToolArguments(""), {});
     assertEquals(parseToolArguments("{bad"), {});
     assertEquals(parseToolArguments({ query: "x" }), {});
-  },
-);
-
-Deno.test("tool results expose the fields the run loop reads", () => {
-  assertEquals(readToolResult("done"), {});
-  assertEquals(readToolResult(null), {});
-  const view = readToolResult({
-    success: true,
-    whatsapp_digest: " d ",
-    ui_action: { button: "x" },
   });
-  assertStrictEquals(view.success, true);
-  assertStrictEquals(view.whatsapp_digest, " d ");
-  assertEquals(view.ui_action, { button: "x" });
-  assertStrictEquals(view.error, undefined);
-});
 
-Deno.test(
-  "tool results serialize for jsonb exactly as JSON.stringify would",
-  () => {
+  it("tool results expose the fields the run loop reads", () => {
+    assertEquals(readToolResult("done"), {});
+    assertEquals(readToolResult(null), {});
+    const view = readToolResult({
+      success: true,
+      whatsapp_digest: " d ",
+      ui_action: { button: "x" },
+    });
+    assertStrictEquals(view.success, true);
+    assertStrictEquals(view.whatsapp_digest, " d ");
+    assertEquals(view.ui_action, { button: "x" });
+    assertStrictEquals(view.error, undefined);
+  });
+
+  it("tool results serialize for jsonb exactly as JSON.stringify would", () => {
     assertStrictEquals(toJson(undefined), undefined);
     assertEquals(toJson({ a: 1, b: undefined, c: [1, undefined] }), {
       a: 1,
       c: [1, null],
     });
     assertStrictEquals(toJson(new Date(0)), "1970-01-01T00:00:00.000Z");
-  },
-);
+  });
 
-Deno.test(
-  "readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones",
-  () => {
+  it("readWaNotifyTarget keeps complete WhatsApp targets and drops malformed ones", () => {
     const target: WaNotifyTarget = {
       surface: "whatsapp",
       tenant_id: "t1",
@@ -194,12 +175,9 @@ Deno.test(
     );
     assertStrictEquals(readWaNotifyTarget({ ...target, chat_id: 5 }), null);
     assertStrictEquals(readWaNotifyTarget(["x"]), null);
-  },
-);
+  });
 
-Deno.test(
-  "a partial WhatsApp target keeps its chat scope while delivery is dropped",
-  () => {
+  it("a partial WhatsApp target keeps its chat scope while delivery is dropped", () => {
     const body = parseRunAgentRequest({
       wa_notify: { surface: "whatsapp", chat_id: "972501234567@c.us" },
     });
@@ -208,12 +186,9 @@ Deno.test(
       chat_id: "972501234567@c.us",
       is_group: null,
     });
-  },
-);
+  });
 
-Deno.test(
-  "readWaChatScope marks WhatsApp requests without a usable chat id as unknown",
-  () => {
+  it("readWaChatScope marks WhatsApp requests without a usable chat id as unknown", () => {
     assertStrictEquals(readWaChatScope(undefined), null);
     assertStrictEquals(readWaChatScope(null), null);
     assertEquals(readWaChatScope({ surface: "whatsapp" }), {
@@ -225,32 +200,29 @@ Deno.test(
       is_group: false,
     });
     assertStrictEquals(parseRunAgentRequest({}).wa_chat_scope, undefined);
-  },
-);
-Deno.test("Manus task responses expose their ids and links", () => {
-  assertEquals(readManusTask({ task_id: "t1", task_url: "u", x: 1 }), {
-    task_id: "t1",
-    task_url: "u",
   });
-  assertEquals(readManusTask("oops"), {});
-});
+  it("Manus task responses expose their ids and links", () => {
+    assertEquals(readManusTask({ task_id: "t1", task_url: "u", x: 1 }), {
+      task_id: "t1",
+      task_url: "u",
+    });
+    assertEquals(readManusTask("oops"), {});
+  });
 
-Deno.test("error stacks are read from thrown objects only", () => {
-  const error = new Error("boom");
-  assertStrictEquals(readErrorStack(error), error.stack);
-  assertStrictEquals(readErrorStack({ stack: "s" }), "s");
-  assertStrictEquals(readErrorStack("boom"), undefined);
-  assertStrictEquals(readErrorStack(null), undefined);
-});
+  it("error stacks are read from thrown objects only", () => {
+    const error = new Error("boom");
+    assertStrictEquals(readErrorStack(error), error.stack);
+    assertStrictEquals(readErrorStack({ stack: "s" }), "s");
+    assertStrictEquals(readErrorStack("boom"), undefined);
+    assertStrictEquals(readErrorStack(null), undefined);
+  });
 
-Deno.test(
-  "invalid private origins retain an unknown scope instead of widening history",
-  () => {
+  it("invalid private origins retain an unknown scope instead of widening history", () => {
     for (const chat_id of ["abc", "abc@c.us", "123@c.us", ""]) {
       assertEquals(readWaChatScope({ chat_id, is_group: false }), {
         chat_id: null,
         is_group: false,
       });
     }
-  },
-);
+  });
+});
