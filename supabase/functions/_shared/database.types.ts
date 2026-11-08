@@ -3710,6 +3710,50 @@ export type Database = {
           },
         ];
       };
+      carmen_caller_policies: {
+        Row: {
+          allowed_topics: string[];
+          caller_kind: string;
+          forbidden_topics: string[];
+          instructions: string;
+          may_book_meeting: boolean;
+          may_take_message: boolean;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          allowed_topics?: string[];
+          caller_kind: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          allowed_topics?: string[];
+          caller_kind?: string;
+          forbidden_topics?: string[];
+          instructions?: string;
+          may_book_meeting?: boolean;
+          may_take_message?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_caller_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_chat_thread_reviews: {
         Row: {
           cost_usd: number | null;
@@ -5537,6 +5581,7 @@ export type Database = {
           notes: string | null;
           overall_status: string | null;
           phone: string | null;
+          pulse_no_results_days: number;
           retainer: number | null;
           seo_keyword_relevance: Json;
           services: Json | null;
@@ -5583,6 +5628,7 @@ export type Database = {
           notes?: string | null;
           overall_status?: string | null;
           phone?: string | null;
+          pulse_no_results_days?: number;
           retainer?: number | null;
           seo_keyword_relevance?: Json;
           services?: Json | null;
@@ -5629,6 +5675,7 @@ export type Database = {
           notes?: string | null;
           overall_status?: string | null;
           phone?: string | null;
+          pulse_no_results_days?: number;
           retainer?: number | null;
           seo_keyword_relevance?: Json;
           services?: Json | null;
@@ -10710,6 +10757,7 @@ export type Database = {
           deleted_at: string | null;
           email: string;
           full_name: string | null;
+          gender: string | null;
           id: string;
           leads_default_view: string | null;
           notification_group_link: string | null;
@@ -10727,6 +10775,7 @@ export type Database = {
           deleted_at?: string | null;
           email: string;
           full_name?: string | null;
+          gender?: string | null;
           id: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;
@@ -10744,6 +10793,7 @@ export type Database = {
           deleted_at?: string | null;
           email?: string;
           full_name?: string | null;
+          gender?: string | null;
           id?: string;
           leads_default_view?: string | null;
           notification_group_link?: string | null;
@@ -18772,6 +18822,7 @@ export type Database = {
           workshop_edit: boolean;
         }[];
       };
+      workshop_narration_take: { Args: { p_item_id: string }; Returns: Json };
       workshop_pending_artifact: {
         Args: {
           p_item_id: string;

@@ -13,6 +13,8 @@ export type PulseAlertRules = {
   cpl_spike_enabled?: boolean;
   cpl_spike_pct?: number;
   disconnected_enabled?: boolean;
+  /** A switched-off report whose campaigns still spend (AIO-501). */
+  report_off_spending_enabled?: boolean;
   /**
    * Business hours a client's message in a linked group or a private chat may
    * wait for a staff reply before Carmen alerts the campaigner (the manager
@@ -54,6 +56,7 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
   cpl_spike_enabled: true,
   cpl_spike_pct: 50,
   disconnected_enabled: true,
+  report_off_spending_enabled: true,
   unanswered_reply_hours: DEFAULT_UNANSWERED_REPLY_HOURS,
 };
 
@@ -74,6 +77,7 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
       Number(input.cpl_spike_pct) || DEFAULT_PULSE_ALERT_RULES.cpl_spike_pct!,
     ),
     disconnected_enabled: input.disconnected_enabled !== false,
+    report_off_spending_enabled: input.report_off_spending_enabled !== false,
     unanswered_reply_hours: resolveUnansweredReplyHours(
       input.unanswered_reply_hours,
     ),

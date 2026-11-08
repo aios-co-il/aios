@@ -5,6 +5,7 @@
  */
 import { hasRepeatedSyncFailures } from "./ads-sync/freshness.ts";
 import { getSpendFromData } from "./campaign-goal/ads-metrics.ts";
+import { clientGoalModeOf } from "./campaign-goal/client-goal-mode.ts";
 import { adsRowOutcomes, goalResultCount } from "./campaign-goal/outcomes.ts";
 import {
   isEcommerceReportTable,
@@ -15,6 +16,11 @@ import {
   isLegacyClientCallFlag,
   pulseRowHasNoRecentClientCall,
 } from "./pulse/client-call.ts";
+import {
+  clientNoResultsHeld,
+  clientNoResultsHeldFlag,
+  type ClientNoResultsWindow,
+} from "./pulse/no-results-window.ts";
 
 export const CAMPAIGN_SERVICES = new Set(["ppc_meta", "ppc_google"]);
 export const CAMPAIGN_TABLE_TYPES = [
@@ -393,6 +399,8 @@ export type ClassifyPulseInput = {
   /** Open `campaign_stopped` alerts attributed to this client's active tables. */
   stoppedCampaignCount?: number;
   nowMs?: number;
+  /** The client's no-results days and the goal's results in them (AIO-502); missing means 7. */
+  noResultsWindow?: ClientNoResultsWindow;
 };
 
 function applyStoppedCampaigns(
@@ -449,8 +457,13 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   }
 
   let status: PulseStatus = "healthy";
+  const held = clientNoResultsHeld(input.noResultsWindow);
+  const heldDays = input.noResultsWindow?.days ?? 0;
   if (input.isEcommerce) {
-    if (input.spend7 > 0 && input.purchases7 === 0) {
+    if (input.spend7 > 0 && input.purchases7 === 0 && held) {
+      status = "warning";
+      flags.push(clientNoResultsHeldFlag("רכישות", heldDays));
+    } else if (input.spend7 > 0 && input.purchases7 === 0) {
       status = "critical";
       flags.push("הוצאה ללא רכישות");
     } else if (input.roas !== null && input.roas < 1) {
@@ -460,6 +473,9 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
       status = "warning";
       flags.push("ROAS נמוך");
     }
+  } else if (input.spend7 > 0 && input.leads7 === 0 && held) {
+    status = "warning";
+    flags.push(clientNoResultsHeldFlag("לידים", heldDays));
   } else if (input.spend7 > 0 && input.leads7 === 0) {
     status = "critical";
     flags.push("הוצאה ללא לידים");
@@ -539,19 +555,63 @@ export function isPulseDeliveryExcludedPhone(
 
 export { isEcommerceReportTable, reportTableGoal };
 
-/** A client's goal mode from its active report tables' own goals (reportTableGoal). */
+/**
+ * The active tables a goal's status reads: those whose report is set to the
+ * goal, and those that hold its campaigns (a plain Meta table can run sales
+ * campaigns, AIO-494).
+ */
+export function goalTables<T extends CampaignTableLike>(
+  tables: Array<T>,
+  goal: CampaignGoal,
+  goalRecords: Array<{ table_id: string }>,
+): Array<T> {
+  const holding = new Set(goalRecords.map((row) => row.table_id));
+  return tables.filter(
+    (table) =>
+      reportTableGoal(table) === goal ||
+      (table.id !== undefined && holding.has(table.id)),
+  );
+}
+
+/**
+ * How many recent rows a goal's status counts as data: its own campaigns'
+ * rows, plus the traffic (exposure) rows of the tables it reads. A table that
+ * spends only on exposure campaigns is synced, so it must not read as stale or
+ * missing (AIO-496); rows of the other goal still do not count.
+ */
+export function goalRecentRecordCount<
+  T extends { table_id: string; data?: Record<string, unknown> | null },
+>(input: {
+  records: Array<T>;
+  goal: CampaignGoal;
+  tables: Array<CampaignTableLike>;
+  goalOf: (record: T) => string | undefined;
+  sinceYmd: string;
+}): number {
+  const tableIds = new Set(input.tables.map((table) => table.id));
+  return input.records.filter((record) => {
+    const goal = input.goalOf(record);
+    return (
+      String(record.data?.date ?? "") >= input.sinceYmd &&
+      tableIds.has(record.table_id) &&
+      (goal === input.goal || goal === "traffic")
+    );
+  }).length;
+}
+
+/**
+ * A client's goal mode when no campaign rows were read: its active report
+ * tables' own goals (clientGoalModeOf's fallback).
+ */
 export function detectCampaignGoalMode(
-  tables: CampaignTableLike[],
+  tables: Array<CampaignTableLike>,
 ): CampaignGoalMode {
-  const goals = new Set<CampaignGoal>();
-  for (const table of tables) {
-    if (table.campaign_active === false) continue;
-    const goal = reportTableGoal(table);
-    if (goal) goals.add(goal);
-  }
-  if (goals.has("leads") && goals.has("ecommerce")) return "hybrid";
-  if (goals.has("ecommerce")) return "ecommerce";
-  return "leads";
+  return clientGoalModeOf({
+    records: [],
+    goalOf: () => undefined,
+    tables,
+    sinceYmd: "",
+  });
 }
 
 export type GoalMetricBundle = {
