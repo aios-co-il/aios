@@ -57,6 +57,7 @@ import {
 } from "./carmen-access-policy.ts";
 import {
   readCarmenConfig,
+  isValidCarmenScopeMode,
   isChatTurn,
   isPermanentError,
   mergeCarmenStepConfig,
@@ -1879,6 +1880,11 @@ export async function handleCarmenMessage(
     accessContext.groupChatIds,
     { isGroup },
   );
+
+  if (!isValidCarmenScopeMode(mergedScope.scopeMode)) {
+    console.warn("[carmen] invalid effective scope");
+    return { handled: false, reason: "invalid_scope_mode" };
+  }
 
   const groupScope = isGroup
     ? groupScopeGate(mergedScope, cfg, sourceChannel)

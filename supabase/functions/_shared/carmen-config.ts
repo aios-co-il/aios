@@ -1,4 +1,9 @@
 import { z } from "npm:zod@3.25.76";
+export const CARMEN_SCOPE_MODES = [
+  "all",
+  "specific_group",
+  "specific_phone",
+] as const;
 const aliasPhoneSchema = z.union([
   z.string(),
   z.number().finite().transform(String),
@@ -30,7 +35,7 @@ const configSchema = z
     carmen_connection_user_id: optionalText,
     carmen_integration_id: optionalText,
     carmen_scope_mode: z
-      .enum(["all", "specific_group", "specific_phone", "invalid"])
+      .enum([...CARMEN_SCOPE_MODES, "invalid"])
       .optional()
       .catch("invalid"),
     carmen_allowed_group_id: optionalText,
@@ -96,4 +101,11 @@ const permanentErrorSchema = z.object({ permanent: z.boolean() });
 export function isPermanentError(e: unknown): boolean {
   const parsed = permanentErrorSchema.safeParse(e);
   return parsed.success && parsed.data.permanent;
+}
+
+/** Validate the final scope after policy overrides, before routing or session creation. */
+export function isValidCarmenScopeMode(
+  value: unknown,
+): value is (typeof CARMEN_SCOPE_MODES)[number] {
+  return CARMEN_SCOPE_MODES.some((mode) => mode === value);
 }

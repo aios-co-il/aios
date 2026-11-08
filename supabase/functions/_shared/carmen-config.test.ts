@@ -1,5 +1,7 @@
+import { mergeCarmenScopeConfig } from "./carmen-access-policy.ts";
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  isValidCarmenScopeMode,
   readCarmenConfig,
   mergeCarmenStepConfig,
   isChatTurn,
@@ -53,5 +55,31 @@ Deno.test(
     assertEquals(config.carmen_allowed_phones, ["9725"]);
     assertEquals(config.carmen_allowed_group_ids, ["1@g.us"]);
     assertEquals(config.trigger_keywords, ["Carmen"]);
+  },
+);
+
+Deno.test(
+  "invalid effective scope is rejected after valid policy overrides",
+  () => {
+    const cfg = readCarmenConfig({ carmen_scope_mode: {} });
+    assertEquals(
+      isValidCarmenScopeMode(
+        mergeCarmenScopeConfig(cfg, null, [], { isGroup: false }).scopeMode,
+      ),
+      false,
+    );
+    assertEquals(
+      isValidCarmenScopeMode(
+        mergeCarmenScopeConfig(
+          cfg,
+          { private_phones: [{ phone: "0501234567" }] },
+          [],
+          {
+            isGroup: false,
+          },
+        ).scopeMode,
+      ),
+      true,
+    );
   },
 );
