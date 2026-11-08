@@ -3,7 +3,7 @@ import { useMcpConnections } from "./agentReadQueries";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { asJsonArray, jsonString } from "../agentUiHelpers";
+import { readMcpTools } from "../agentUiModels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -254,7 +254,7 @@ export function McpConnectionsTab({
               </Badge>
               <Badge variant="outline">
                 <Wrench className="h-3 w-3 me-1" />
-                {asJsonArray(c.available_tools).length}
+                {readMcpTools(c.available_tools).length}
               </Badge>
               {c.url?.includes(".supabase.co/functions/v1/") && (
                 <Button
@@ -278,17 +278,17 @@ export function McpConnectionsTab({
               </Button>
             </div>
             {c.state === "ready" &&
-              asJsonArray(c.available_tools).length > 0 && (
+              readMcpTools(c.available_tools).length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1 ps-8">
-                  {asJsonArray(c.available_tools)
+                  {readMcpTools(c.available_tools)
                     .slice(0, 12)
                     .map((t) => (
                       <Badge
-                        key={jsonString(t, "name")}
+                        key={t.name}
                         variant="secondary"
                         className="text-xs"
                       >
-                        {jsonString(t, "name")}
+                        {t.name}
                       </Badge>
                     ))}
                 </div>

@@ -1,4 +1,4 @@
-import { asJsonArray, asJsonObject, jsonPrimitive } from "./agentUiHelpers";
+import { readHeartbeatActions } from "./agentUiModels";
 import {
   skipToken,
   useMutation,
@@ -373,28 +373,29 @@ export function HeartbeatSettingsPanel() {
                 <p className="text-muted-foreground whitespace-pre-wrap break-words">
                   {log.summary}
                 </p>
-                {asJsonArray(log.actions_taken).length > 0 && (
+                {readHeartbeatActions(log.actions_taken).length > 0 && (
                   <div className="mt-1 pt-1 border-t">
-                    {asJsonArray(log.actions_taken).map((item, i) => {
-                      const action = asJsonObject(item);
-                      return (
-                        <div
-                          key={i}
-                          className="flex items-center gap-1 text-[11px]"
-                        >
-                          {action?.type === "reminder_sent" ? (
-                            <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
-                          ) : action?.type === "stale_task_released" ? (
-                            <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-                          ) : (
-                            <XCircle className="h-3 w-3 text-red-500 shrink-0" />
-                          )}
-                          <span className="min-w-0 truncate">
-                            {jsonPrimitive(action?.task_title || action?.type)}
-                          </span>
-                        </div>
-                      );
-                    })}
+                    {readHeartbeatActions(log.actions_taken).map(
+                      (action, i) => {
+                        return (
+                          <div
+                            key={i}
+                            className="flex items-center gap-1 text-[11px]"
+                          >
+                            {action?.type === "reminder_sent" ? (
+                              <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                            ) : action?.type === "stale_task_released" ? (
+                              <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-red-500 shrink-0" />
+                            )}
+                            <span className="min-w-0 truncate">
+                              {action.task_title || action.type}
+                            </span>
+                          </div>
+                        );
+                      },
+                    )}
                   </div>
                 )}
               </div>

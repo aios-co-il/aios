@@ -3,7 +3,7 @@ import { useAgentRunSteps } from "./agentReadQueries";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { asJsonObject, jsonString } from "../agentUiHelpers";
+import { readActionDetails } from "../agentUiModels";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -197,8 +197,10 @@ export function RunsTab({ agent }: { agent: Pick<Tables<"ai_agents">, "id"> }) {
                 </div>
               )}
               {steps.map((s) => {
-                const toolName = jsonString(s.action_details, "tool_name");
-                const toolInput = asJsonObject(s.action_details)?.tool_input;
+                const toolName = readActionDetails(s.action_details).tool_name;
+                const toolInput = readActionDetails(
+                  s.action_details,
+                ).tool_input;
                 const Icon = STEP_ICON[s.step_kind ?? ""] ?? Activity;
                 return (
                   <Card key={s.id} className="p-3">

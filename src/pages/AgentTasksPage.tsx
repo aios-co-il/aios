@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Json, Tables, TablesUpdate } from "@/integrations/supabase/types";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
+import { isOneOf, thrownMessage } from "@/components/agents/agentUiHelpers";
 import {
-  asJsonArray,
-  asJsonObject,
-  jsonPrimitive,
-  jsonString,
-  type JsonObject,
-} from "@/components/agents/agentUiHelpers";
+  readTaskResult,
+  readParallelSubtasks,
+  readTaskSkills,
+  type SocialPostResult,
+} from "@/components/agents/agentUiModels";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -287,16 +287,16 @@ const STATUS_CONFIG: Record<
 };
 
 // ─── TaskResultDisplay ─────────────────────────────────────────────────────────
-function TaskResultDisplay({ result }: { result: Json }) {
+function TaskResultDisplay({ result }: { result: unknown }) {
   const { buildPath } = useTenantPath();
-  const toolLog = asJsonArray(asJsonObject(result)?.tool_log);
-  const output = jsonString(result, "output") || "";
+  const toolLog = readTaskResult(result).tool_log ?? [];
+  const output = readTaskResult(result).output || "";
   const images: string[] = [];
-  const socialPosts: JsonObject[] = [];
+  const socialPosts: SocialPostResult[] = [];
   for (const entry of toolLog) {
-    const log = asJsonObject(entry);
-    const logResult = asJsonObject(log?.result);
-    const imageUrl = jsonString(logResult, "image_url");
+    const log = entry;
+    const logResult = log.result;
+    const imageUrl = logResult?.image_url;
     if (log?.tool === "generate_ad_image" && imageUrl) {
       images.push(imageUrl);
     }
@@ -357,13 +357,13 @@ function TaskResultDisplay({ result }: { result: Json }) {
                   צפה בפוסטים <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
-              {jsonPrimitive(post.title) && (
+              {post.title && (
                 <p className="text-sm font-semibold text-emerald-900 mb-1">
-                  {jsonPrimitive(post.title)}
+                  {post.title}
                 </p>
               )}
               <p className="text-xs text-emerald-800 whitespace-pre-wrap line-clamp-4">
-                {jsonPrimitive(post.content)}
+                {post.content}
               </p>
             </div>
           ))}
@@ -506,7 +506,7 @@ function TaskCard({
     .filter((s) => s !== undefined)
     .map((s) => `${s.icon} ${s.name}`);
   const taskMode = CARMEN_MODES.find((m) => m.id === task.task_mode);
-  const resultError = jsonPrimitive(asJsonObject(task.result)?.error);
+  const resultError = readTaskResult(task.result).error;
 
   return (
     <div
@@ -862,11 +862,10 @@ export default function AgentTasksPage() {
       ]
         .filter(Boolean)
         .join("\n");
-      const subtasks = asJsonArray(task.parallel_subtasks);
+      const subtasks = readParallelSubtasks(task.parallel_subtasks);
       if (task.parallel_execution && subtasks.length > 0) {
         const results = await Promise.all(
-          subtasks.map(async (entry) => {
-            const sub: JsonObject = asJsonObject(entry) ?? {};
+          subtasks.map(async (sub) => {
             const { data } = await supabase.functions.invoke("run-ai-agent", {
               body: {
                 agent_id: task.agent_id,
@@ -1222,7 +1221,9 @@ export default function AgentTasksPage() {
                             </h3>
                             {BUILT_IN_SKILLS.slice(0, 6).map((skill) => {
                               const count = tasks.filter((t) =>
-                                asJsonArray(t.task_skills).includes(skill.id),
+                                readTaskSkills(t.task_skills).includes(
+                                  skill.id,
+                                ),
                               ).length;
                               return (
                                 <div

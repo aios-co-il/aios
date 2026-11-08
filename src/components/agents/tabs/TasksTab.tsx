@@ -1,8 +1,9 @@
+import { readTaskResult } from "../agentUiModels";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
-import { asJsonObject, isOneOf, thrownMessage } from "../agentUiHelpers";
+import { isOneOf, thrownMessage } from "../agentUiHelpers";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { requireTenantId } from "@/lib/requireTenantId";
 import { Button } from "@/components/ui/button";
@@ -239,15 +240,15 @@ export function TasksTab({
               : null;
           const scheduledIl = ilFmt(t.scheduled_at);
           const lastRunIl = ilFmt(t.last_run);
-          const result = asJsonObject(t.result) ?? {};
+          const result = readTaskResult(t.result);
           const lastOutput =
             result.last_output || result.output || result.error || null;
           const toolLog = result.tool_log || result.tools || [];
           const sentWa =
             Array.isArray(toolLog) &&
             toolLog.some((x) => {
-              const entry = asJsonObject(x);
-              const n = String(entry?.name || entry?.tool || "");
+              const entry = x;
+              const n = entry.name || entry.tool || "";
               return n === "send_whatsapp_via_gateway" || n === "send_message";
             });
           const sendStatus = t.last_run

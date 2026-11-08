@@ -1,3 +1,8 @@
+import {
+  readExecutionResult,
+  readActionDetails,
+  readCredentialMetadata,
+} from "./agentUiModels";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +35,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
-import { jsonString, thrownMessage } from "./agentUiHelpers";
+import { thrownMessage } from "./agentUiHelpers";
 import {
   type ChatSupportResponse,
   parseChatSupportResponse,
@@ -390,9 +395,12 @@ export function GithubAgentPanel() {
                       </div>
                     )}
                     {approval.status === "executed" &&
-                      jsonString(approval.execution_result, "pr_url") && (
+                      readExecutionResult(approval.execution_result).pr_url && (
                         <a
-                          href={jsonString(approval.execution_result, "pr_url")}
+                          href={
+                            readExecutionResult(approval.execution_result)
+                              .pr_url
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -436,8 +444,8 @@ export function GithubAgentPanel() {
                   {log.action_type}
                 </Badge>
                 <span className="flex-1 text-muted-foreground truncate">
-                  {jsonString(log.action_details, "message") ||
-                    jsonString(log.action_details, "error") ||
+                  {readActionDetails(log.action_details).message ||
+                    readActionDetails(log.action_details).error ||
                     JSON.stringify(log.action_details).substring(0, 100)}
                 </span>
                 <span className="text-xs text-muted-foreground shrink-0">
@@ -470,7 +478,7 @@ export function GithubAgentPanel() {
                     Token מוגדר
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    ({jsonString(credential.metadata, "repo")})
+                    ({readCredentialMetadata(credential.metadata).repo})
                   </span>
                 </div>
               )}
