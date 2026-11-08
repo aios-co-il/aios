@@ -420,12 +420,14 @@ export function EditClientDialog({
     if (savedAdLinks.loading) {
       return;
     }
-    form.resetField("google_ads_url", {
-      defaultValue: savedAdLinks.links?.google_ads_url ?? "",
-    });
-    form.resetField("meta_ads_url", {
-      defaultValue: savedAdLinks.links?.meta_ads_url ?? "",
-    });
+    // A field the user is editing keeps its unsaved value.
+    for (const field of ["google_ads_url", "meta_ads_url"] as const) {
+      if (!form.getFieldState(field).isDirty) {
+        form.resetField(field, {
+          defaultValue: savedAdLinks.links?.[field] ?? "",
+        });
+      }
+    }
   }, [form, savedAdLinks.loading, savedAdLinks.links]);
 
   const { canViewFinance, canEditFinance } = useUserPermissions();
