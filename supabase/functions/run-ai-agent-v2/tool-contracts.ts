@@ -6,7 +6,8 @@ const actionSchema = z.object({
 });
 /** Persisted tool action envelope; arguments remain an opaque protocol payload. */
 export function readToolAction(value: unknown) {
-  return actionSchema.parse(value);
+  const parsed = actionSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 const oauthSchema = z.object({ bearer: z.string().optional() }).catch({});
 /** OAuth fields used by an MCP connection. */

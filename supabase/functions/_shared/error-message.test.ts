@@ -10,7 +10,7 @@ Deno.test(
   },
 );
 
-Deno.test("errorMessage is undefined without a message", () => {
+Deno.test("errorMessage retains thrown values without a message", () => {
   for (const value of [
     { code: "x" },
     { message: null },
@@ -18,6 +18,6 @@ Deno.test("errorMessage is undefined without a message", () => {
     ["boom"],
     null,
   ]) {
-    assertStrictEquals(errorMessage(value), undefined);
+    assertStrictEquals(errorMessage(value), String(value));
   }
 });

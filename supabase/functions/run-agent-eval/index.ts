@@ -93,6 +93,13 @@ Deno.serve(async (req) => {
     const dataset: Json[] = Array.isArray(evalRow.dataset)
       ? evalRow.dataset
       : [];
+    let cases: Array<ReturnType<typeof readEvalCase>>;
+    try {
+      cases = dataset.map(readEvalCase);
+    } catch (error) {
+      console.warn("[run-agent-eval] invalid dataset", errorMessage(error));
+      return jsonResponse({ error: "Invalid evaluation dataset" }, 400);
+    }
     const threshold = evalRow.pass_threshold ?? 70;
 
     const { data: evalRun } = await supabase
@@ -111,8 +118,7 @@ Deno.serve(async (req) => {
     let totalScore = 0;
     let passed = 0;
 
-    for (const tc of dataset) {
-      const { input, expected } = readEvalCase(tc);
+    for (const { input, expected } of cases) {
       try {
         const { data: invokeData } = await supabase.functions.invoke(
           "run-ai-agent-v2",

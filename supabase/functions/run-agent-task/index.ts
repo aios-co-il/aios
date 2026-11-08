@@ -453,7 +453,7 @@ Deno.serve(async (req) => {
           },
         );
       } catch (e) {
-        const errMsg = errorMessage(e) || String(e);
+        const errMsg = errorMessage(e);
         console.error("[run-agent-task] campaign_shutdown failed:", errMsg);
         if (runCount < 3) {
           await supabase

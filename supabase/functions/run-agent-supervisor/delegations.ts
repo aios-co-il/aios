@@ -1,10 +1,13 @@
 import { z } from "npm:zod@3.25.76";
 
 const delegationSchema = z
-  .object({ agent_id: z.unknown(), sub_goal: z.unknown() })
+  .object({
+    agent_id: z.string().optional().catch(undefined),
+    sub_goal: z.string().optional().catch(undefined),
+  })
   .catch({});
 
-/** One routing choice from the LLM; fields are unvalidated model output. */
+/** One routing choice from the LLM; fields are validated strings. */
 export type Delegation = z.infer<typeof delegationSchema>;
 
 const routingSchema = z

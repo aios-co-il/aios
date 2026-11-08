@@ -25,3 +25,18 @@ Deno.test("parseRoutingDelegations returns [] for other answers", () => {
     assertEquals(parseRoutingDelegations(content), []);
   }
 });
+
+Deno.test("invalid delegated goals cannot reach the child agent", () => {
+  const choices = parseRoutingDelegations(
+    JSON.stringify({
+      delegations: [
+        { agent_id: "a", sub_goal: { bad: true } },
+        { agent_id: "b", sub_goal: 5 },
+      ],
+    }),
+  );
+  assertEquals(
+    choices.map((choice) => choice.sub_goal ?? "parent goal"),
+    ["parent goal", "parent goal"],
+  );
+});

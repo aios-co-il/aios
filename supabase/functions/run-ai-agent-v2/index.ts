@@ -140,6 +140,13 @@ async function reconstructMessages(
   for (const row of log ?? []) {
     if (row.step_kind === "tool") {
       const actionDetails = readToolAction(row.action_details);
+      if (!actionDetails) {
+        console.warn(
+          "[run-ai-agent-v2] skipped malformed persisted tool action",
+          { run_id: run.id, step_index: row.step_index },
+        );
+        continue;
+      }
       const toolName = actionDetails.tool_name;
       const toolInput = actionDetails.tool_input ?? {};
       const callId = `call_${row.step_index}`;
