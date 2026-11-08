@@ -66,14 +66,20 @@ import { useMeetingScheduler } from "@/hooks/useMeetingScheduler";
 import { useAgencies } from "@/hooks/useEntityLists";
 import { CampaignerAssignmentPicker } from "@/components/clients/CampaignerAssignmentPicker";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
-/** An optional https link to an ads account, as saved on the client. */
-const directLink = z
-  .string()
-  .trim()
-  .refine((value) => value === "" || /^https:\/\/\S+$/.test(value), {
-    message: "קישור צריך להתחיל ב-https://",
-  })
-  .optional();
+import { type ClientAdLinks, isAdAccountLink } from "@/lib/adAccountUrl";
+import { useClientAdLinks } from "@/hooks/useClientAdLinks";
+/** An optional link to that platform's ads account, as saved on the client. */
+const directLink = (field: keyof ClientAdLinks) =>
+  z
+    .string()
+    .trim()
+    .refine((value) => value === "" || isAdAccountLink(field, value), {
+      message:
+        field === "google_ads_url"
+          ? "קישור צריך להיות לכתובת https://ads.google.com"
+          : "קישור צריך להיות לכתובת https של Facebook",
+    })
+    .optional();
 
 const formSchema = z.object({
   name: z.string().min(1, "שם הלקוח נדרש"),
@@ -95,8 +101,8 @@ const formSchema = z.object({
   services: z.array(z.string()).default([]),
   meta_ads_account_id: z.string().optional(),
   google_ads_account_id: z.string().optional(),
-  google_ads_url: directLink,
-  meta_ads_url: directLink,
+  google_ads_url: directLink("google_ads_url"),
+  meta_ads_url: directLink("meta_ads_url"),
 });
 
 interface EditClientDialogProps {
@@ -404,10 +410,23 @@ export function EditClientDialog({
       services: client.services || [],
       meta_ads_account_id: client.meta_ads_account_id || "",
       google_ads_account_id: client.google_ads_account_id || "",
-      google_ads_url: client.google_ads_url || "",
-      meta_ads_url: client.meta_ads_url || "",
+      // The clients list does not carry these; the lookup below fills them.
+      google_ads_url: "",
+      meta_ads_url: "",
     },
   });
+  const savedAdLinks = useClientAdLinks(client?.id);
+  useEffect(() => {
+    if (savedAdLinks.loading) {
+      return;
+    }
+    form.resetField("google_ads_url", {
+      defaultValue: savedAdLinks.links?.google_ads_url ?? "",
+    });
+    form.resetField("meta_ads_url", {
+      defaultValue: savedAdLinks.links?.meta_ads_url ?? "",
+    });
+  }, [form, savedAdLinks.loading, savedAdLinks.links]);
 
   const { canViewFinance, canEditFinance } = useUserPermissions();
   const showFinanceFields = canViewFinance();
@@ -539,8 +558,14 @@ export function EditClientDialog({
           services: values.services || [],
           meta_ads_account_id: values.meta_ads_account_id || null,
           google_ads_account_id: values.google_ads_account_id || null,
-          google_ads_url: values.google_ads_url?.trim() || null,
-          meta_ads_url: values.meta_ads_url?.trim() || null,
+          // Saved only once the stored links were loaded, so an edit made
+          // before they arrive never blanks them.
+          ...(savedAdLinks.loading
+            ? {}
+            : {
+                google_ads_url: values.google_ads_url?.trim() || null,
+                meta_ads_url: values.meta_ads_url?.trim() || null,
+              }),
         })
         .eq("id", client.id)
         .select("id");

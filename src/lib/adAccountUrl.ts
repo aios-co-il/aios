@@ -4,6 +4,38 @@ export type ClientAdLinks = {
   meta_ads_url?: string | null;
 };
 
+/** The hosts a saved link may point to, per platform, so a link opens that platform only. */
+const AD_LINK_HOSTS: Record<keyof ClientAdLinks, Array<string>> = {
+  google_ads_url: ["ads.google.com"],
+  meta_ads_url: [
+    "business.facebook.com",
+    "adsmanager.facebook.com",
+    "www.facebook.com",
+    "facebook.com",
+  ],
+};
+
+/** Whether a saved link is an https link to that platform's own site. */
+export function isAdAccountLink(
+  field: keyof ClientAdLinks,
+  value: string | null | undefined,
+): value is string {
+  if (!value) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      AD_LINK_HOSTS[field].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * External Ads Manager URL for a report table, matching the client-card
  * reports tab. A link saved on the client card wins: Google Ads opens an
@@ -27,7 +59,7 @@ export function getAdAccountUrl(
   const settings = table.integration_settings || {};
   const type = table.integration_type;
   if (type === "facebook_insights" || type === "facebook_ecommerce") {
-    if (clientLinks?.meta_ads_url) {
+    if (isAdAccountLink("meta_ads_url", clientLinks?.meta_ads_url)) {
       return clientLinks.meta_ads_url;
     }
     const id = String(settings.ad_account_id || "").replace(/^act_/, "");
@@ -35,7 +67,7 @@ export function getAdAccountUrl(
     return `https://business.facebook.com/adsmanager/manage/campaigns?act=${id}`;
   }
   if (type === "google_ads") {
-    if (clientLinks?.google_ads_url) {
+    if (isAdAccountLink("google_ads_url", clientLinks?.google_ads_url)) {
       return clientLinks.google_ads_url;
     }
     const id = String(

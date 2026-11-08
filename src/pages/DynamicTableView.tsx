@@ -407,7 +407,9 @@ export default function DynamicTableView({
     table?.integration_settings?.client_id ||
     null;
   const clientAdLinks = useClientAdLinks(isEmbed ? null : reportClientId);
-  const adAccountUrl = getAdAccountUrl(table, clientAdLinks);
+  const adAccountUrl = clientAdLinks.loading
+    ? null
+    : getAdAccountUrl(table, clientAdLinks.links);
   const { data: siblingTables = [] } = useQuery<Array<AdAccountTable>>({
     queryKey: ["client-ad-account-tables", tenantId, reportClientId],
     queryFn: async () => {
@@ -429,7 +431,9 @@ export default function DynamicTableView({
   });
   const adAccountLinks = adAccountUrl
     ? [{ url: adAccountUrl, label: "פתח חשבון מודעות" }]
-    : getAdAccountLinks(siblingTables, clientAdLinks);
+    : clientAdLinks.loading
+      ? []
+      : getAdAccountLinks(siblingTables, clientAdLinks.links);
 
   const isGoogleAdsEcommerceReport =
     table?.integration_type === "google_ads" && isEcommerceReportTable(table);

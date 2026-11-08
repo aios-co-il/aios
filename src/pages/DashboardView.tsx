@@ -347,8 +347,11 @@ export default function DashboardView() {
 
   const clientAdLinks = useClientAdLinks(dashboard?.client_id);
   const adAccountLinks = useMemo(
-    () => getAdAccountLinks(tables, clientAdLinks),
-    [tables, clientAdLinks],
+    () =>
+      clientAdLinks.loading
+        ? []
+        : getAdAccountLinks(tables, clientAdLinks.links),
+    [tables, clientAdLinks.loading, clientAdLinks.links],
   );
 
   const dashboardLastSyncAt = useMemo(() => {

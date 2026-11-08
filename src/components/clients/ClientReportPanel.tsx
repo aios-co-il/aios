@@ -767,7 +767,9 @@ export function ClientReportPanel({
           יצוא PDF
         </Button>
         {(() => {
-          const adUrl = getAdAccountUrl(table, clientAdLinks);
+          const adUrl = clientAdLinks.loading
+            ? null
+            : getAdAccountUrl(table, clientAdLinks.links);
           if (!adUrl) return null;
           return (
             <Button
