@@ -115,3 +115,70 @@ Deno.test(
     assertStrictEquals("conversion_goal" in records[0], false);
   },
 );
+
+Deno.test(
+  "phone calls counted as secondary are added to lead conversions",
+  async (t) => {
+    /** Enrich a campaign-level row of `campaign` with these category rows. */
+    async function enriched(
+      categoryRows: Array<GaqlRow>,
+      goalRows: Array<GaqlRow>,
+      entity_level: "campaign" | "adset" = "campaign",
+    ) {
+      const records: Array<ConversionEnrichedRecord> = [
+        {
+          ...record("search"),
+          entity_level,
+          conversions: 2,
+          cost: 120,
+          cost_per_conversion: 60,
+        },
+      ];
+      await enrichConversionCategories(records, {
+        ...WINDOW,
+        runGaqlSearch: fakeGaql(categoryRows, goalRows),
+      });
+      return records[0];
+    }
+
+    await t.step("a lead campaign adds its secondary calls", async () => {
+      // איימי בכור: form leads are primary, calls from ads are secondary.
+      const row = await enriched(
+        [
+          categoryRow("search", "SUBMIT_LEAD_FORM", "2"),
+          categoryRow("search", "PHONE_CALL_LEAD", "0", "3"),
+        ],
+        [goalRow("search", "SUBMIT_LEAD_FORM")],
+      );
+      assertEquals(row.conversions, 5);
+      assertEquals(row.secondary_call_leads, 3);
+      assertEquals(row.cost_per_conversion, 24);
+    });
+
+    await t.step("a primary call action is not counted twice", async () => {
+      const row = await enriched(
+        [categoryRow("search", "PHONE_CALL_LEAD", "2", "2")],
+        [goalRow("search", "PHONE_CALL_LEAD")],
+      );
+      assertEquals(row.conversions, 2);
+      assertEquals(row.secondary_call_leads, undefined);
+    });
+
+    await t.step("a sales campaign keeps its conversions", async () => {
+      const row = await enriched(
+        [categoryRow("search", "PHONE_CALL_LEAD", "0", "3")],
+        [goalRow("search", "PURCHASE")],
+      );
+      assertEquals(row.conversions, 2);
+    });
+
+    await t.step("ad group rows keep Google's conversions", async () => {
+      const row = await enriched(
+        [categoryRow("search", "PHONE_CALL_LEAD", "0", "3")],
+        [goalRow("search", "SUBMIT_LEAD_FORM")],
+        "adset",
+      );
+      assertEquals(row.conversions, 2);
+    });
+  },
+);

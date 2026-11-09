@@ -68,6 +68,8 @@ interface GoogleAdsRecord {
    * report can tell "not tracked" apart from "nobody added to cart".
    */
   add_to_cart?: number;
+  /** Phone-call leads Google counts as secondary, already added to conversions. */
+  secondary_call_leads?: number;
   /** Campaign type (PERFORMANCE_MAX, SEARCH, SHOPPING…) and bidding, for goal detection. */
   campaign_channel_type?: string;
   bidding_strategy_type?: string;
