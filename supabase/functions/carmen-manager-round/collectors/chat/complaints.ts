@@ -9,7 +9,8 @@
  * acknowledges or resolves it. A read that judged the streak's flagged lines
  * at DROP_CONFIDENCE and named none of them clears it: it is not raised, and
  * an open one (raised by the words or by an earlier read) is no longer
- * reported, so the round auto-clears it.
+ * reported, so the round auto-clears it. A streak with a serious complaint
+ * word (hasSeriousComplaintWords) is never cleared by a read.
  */
 import type { FindingCandidate } from "../types.ts";
 import { type ChatLink, threadLink } from "./candidates.ts";
@@ -19,7 +20,10 @@ import { readMarkers } from "./markers.ts";
 import { type ClientStreak, clientStreaks } from "./streaks.ts";
 import { complaintSummary, isLowConfidence, quoteOf } from "./summary.ts";
 import type { Thread, Turn } from "./threads.ts";
-import { hasComplaintWords } from "../../../_shared/client-signals/complaint-words.ts";
+import {
+  hasComplaintWords,
+  hasSeriousComplaintWords,
+} from "../../../_shared/client-signals/complaint-words.ts";
 import { verdictClearsComplaint, verdictComplaints } from "./verdict.ts";
 
 /** The line the model read as a complaint, with its summary of it. */
@@ -63,13 +67,17 @@ export function complaintCandidates(
 /**
  * True when the thread's read judged the streak's flagged lines (those with
  * complaint words, or every line of a complaint an earlier read raised) and
- * named none of them.
+ * named none of them. A serious complaint word is never a false alarm: the
+ * read is model output over client text, so only a person clears it (AIO-522).
  */
 function falseAlarm(
   verdicts: Verdicts,
   thread: Thread,
   streak: ClientStreak,
 ): boolean {
+  if (streak.turns.some((turn) => hasSeriousComplaintWords(turn.text))) {
+    return false;
+  }
   const worded = streak.turns.filter((turn) => hasComplaintWords(turn.text));
   const flagged = (worded.length ? worded : streak.turns).map((t) => t.id);
   return verdictClearsComplaint(
