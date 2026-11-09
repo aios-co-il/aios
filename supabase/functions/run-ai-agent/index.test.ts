@@ -21,7 +21,14 @@ Deno.test("run-ai-agent chat readers: source guards", async (t) => {
         caseBody("get_recent_inbound_messages"),
         /return getRecentInboundMessages\(chatRead, args\);/,
       );
-      const search = caseBody("search_conversation_history");
+      assertMatch(
+        caseBody("search_conversation_history"),
+        /return executeSearchConversationHistory\([\s\S]*toolContext,\s*chatRead,/,
+      );
+      const search = readFileSync(
+        new URL("./executors/search-conversation-history.ts", import.meta.url),
+        "utf8",
+      );
       assertMatch(search, /= await scopedChatRead\(\s*chatRead,\s*null,?\s*\)/);
       assertMatch(search, /if \(refusal\) \{\s*return refusal;/);
       assertMatch(search, /readScopedChatRows\(/);
@@ -45,10 +52,16 @@ Deno.test("run-ai-agent chat readers: source guards", async (t) => {
     "send_message looks up the client or lead inside the caller's tenants",
     () => {
       assertMatch(
-        caseBody("send_message"),
+        readFileSync(
+          new URL("./executors/send-message.ts", import.meta.url),
+          "utf8",
+        ),
         /await sendTargetFor\(\s*supabase,\s*args\.contact_type,\s*args\.contact_id,\s*accessibleTenantIds,?\s*\)/,
       );
-      assertStrictEquals(agent.split("sendTargetFor(").length, 2);
+      assertStrictEquals(
+        caseBody("send_message").split("executeSendMessage(").length,
+        2,
+      );
     },
   );
 });
