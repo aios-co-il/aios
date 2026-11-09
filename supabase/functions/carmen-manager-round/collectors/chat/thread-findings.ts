@@ -50,8 +50,8 @@ export async function threadFindings(
   const chatLink: ChatLink = (id) => (linkBase ? `${linkBase}${id}` : null);
   const waits = gateThreads(threads, live, ctx.settings, ctx.now);
   const due = new Set(waits.map((wait) => wait.thread.key));
-  // A wait whose request is open, or was closed, keeps that finding whatever
-  // a new verdict says, so its receipt is not worth a paid read.
+  // A wait whose request is open, or was closed, is not read again for a
+  // receipt; a confident verdict on its lines can still clear an open one.
   const raised = new Set(
     waits
       .filter(

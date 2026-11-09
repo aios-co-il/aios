@@ -13,6 +13,8 @@ export type ChatVerdict = {
   is_request: boolean;
   /** The client messages the model read as complaints. */
   complaint_ids: string[];
+  /** The client messages this read judged (the new lines it was shown). */
+  read_ids: Array<string>;
   urgency: "low" | "normal" | "high";
   summary_he: string;
   confidence: number;
@@ -21,6 +23,11 @@ export type ChatVerdict = {
 const MAX_SUMMARY = 200;
 /** Below this confidence a verdict adds nothing to the markers. */
 const MIN_CONFIDENCE = 0.6;
+/**
+ * From this confidence a verdict that read the flagged lines may also clear
+ * what the markers raised: no request, or no complaint (David, 2026-11-08).
+ */
+export const DROP_CONFIDENCE = 0.8;
 
 /**
  * A verdict from the model's JSON answer, or null when malformed. Its
@@ -44,19 +51,28 @@ export function parseModelVerdict(
       ? (lineIds[line - 1] ?? [])
       : [],
   );
-  return { ...fields, complaint_ids: [...new Set(ids)] };
+  return {
+    ...fields,
+    complaint_ids: [...new Set(ids)],
+    read_ids: lineIds.flatMap((id) => id ?? []),
+  };
 }
 
-/** A verdict as carmen_chat_thread_reviews keeps it, or null when malformed. */
+/**
+ * A verdict as carmen_chat_thread_reviews keeps it, or null when malformed.
+ * A review stored before read_ids existed is null too, so its thread is read
+ * again and its verdict can say which lines it judged.
+ */
 export function parseStoredVerdict(raw: Json): ChatVerdict | null {
   const fields = verdictFields(raw);
-  if (!fields || !isJsonObject(raw)) {
+  if (!fields || !isJsonObject(raw) || !Array.isArray(raw.read_ids)) {
     return null;
   }
   const ids = Array.isArray(raw.complaint_ids) ? raw.complaint_ids : [];
   return {
     ...fields,
     complaint_ids: ids.filter((id): id is string => typeof id === "string"),
+    read_ids: raw.read_ids.filter((id): id is string => typeof id === "string"),
   };
 }
 
@@ -76,10 +92,50 @@ export function verdictComplaints(verdict: ChatVerdict | null): string[] {
     : [];
 }
 
+/**
+ * True when a confident read judged every one of `turnIds` and found no
+ * request and nothing to answer: the wait's markers are cleared.
+ */
+export function verdictClearsWait(
+  verdict: ChatVerdict | null,
+  turnIds: Array<string>,
+): boolean {
+  return (
+    judgedAll(verdict, turnIds) && !verdict.is_request && !verdict.needs_reply
+  );
+}
+
+/**
+ * True when a confident read judged every one of `turnIds` and named none of
+ * them as a complaint: the complaint words were a false alarm.
+ */
+export function verdictClearsComplaint(
+  verdict: ChatVerdict | null,
+  turnIds: Array<string>,
+): boolean {
+  return (
+    judgedAll(verdict, turnIds) &&
+    !turnIds.some((id) => verdict.complaint_ids.includes(id))
+  );
+}
+
+/** A confident read that judged every one of `turnIds` (at least one). */
+function judgedAll(
+  verdict: ChatVerdict | null,
+  turnIds: Array<string>,
+): verdict is ChatVerdict {
+  return (
+    !!verdict &&
+    verdict.confidence >= DROP_CONFIDENCE &&
+    turnIds.length > 0 &&
+    turnIds.every((id) => verdict.read_ids.includes(id))
+  );
+}
+
 /** Every field but the complaint ids, or null when one is missing. */
 function verdictFields(
   value: Json | null,
-): Omit<ChatVerdict, "complaint_ids"> | null {
+): Omit<ChatVerdict, "complaint_ids" | "read_ids"> | null {
   if (!isJsonObject(value)) {
     return null;
   }
