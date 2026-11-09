@@ -244,3 +244,20 @@ Deno.test(
     }
   },
 );
+
+Deno.test("webhook proposals accept editor configuration", () => {
+  const step = {
+    type: "action",
+    action_type: "webhook",
+    config: {
+      url: "https://example.test/hook",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body_template: "",
+    },
+  };
+  assertEquals(automationStepArg(step), step);
+  assertThrows(() =>
+    automationStepArg({ config: { headers: { invalid: 7 } } }),
+  );
+});

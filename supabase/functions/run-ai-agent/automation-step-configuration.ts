@@ -140,6 +140,7 @@ export const automationStepConfigurationSchema = z
     message_template: z.string().nullish(),
     meta_whatsapp_integration_id: z.string().nullish(),
     method: z.string().nullish(),
+    headers: z.record(z.string(), z.string()).optional(),
     min_interval_hours: z.number().nullish(),
     output_format: z.string().nullish(),
     phone_field: z.string().nullish(),

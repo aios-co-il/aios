@@ -65,10 +65,14 @@ Deno.test(
 );
 
 Deno.test(
-  "replacement checks retain legacy bindings that the health reader discards",
+  "replacement and health checks retain legacy account bindings",
   () => {
     const settings = { ad_account_id: ["12345"] };
-    assertEquals(readMetaAdSettings(settings).ad_account_id, undefined);
+    assertEquals(readMetaAdSettings(settings).ad_account_id, "12345");
+    assertEquals(
+      readMetaAdSettings({ ad_account_id: [12345] }).ad_account_id,
+      12345,
+    );
     assertEquals(readMetaAdAccountBinding(settings), "act_12345");
     assertEquals(
       readMetaAdAccountBinding({ ad_account_id: 12345 }),

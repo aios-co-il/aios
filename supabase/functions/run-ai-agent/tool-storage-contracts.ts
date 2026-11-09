@@ -23,7 +23,11 @@ const automationStepSummarySchema = z
 const metaAdSettingsSchema = z
   .object({
     ad_account_id: z
-      .union([z.string(), z.number()])
+      .union([
+        z.string(),
+        z.number(),
+        z.tuple([z.union([z.string(), z.number()])]).transform(([id]) => id),
+      ])
       .optional()
       .catch(invalidStoredField),
   })
