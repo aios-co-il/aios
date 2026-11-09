@@ -44,7 +44,8 @@ const formMappingFields = z.object({
 export type MetaFormMapping = z.infer<typeof formMappingFields>;
 const formMappingSchema: z.ZodType<MetaFormMapping> =
   formMappingFields.passthrough();
-// Persisted pages round-trip even when their known Meta fields are invalid.
+// Generic JSON stays at this storage boundary so invalid pages round-trip unchanged.
+// configuredPages exposes only validated Meta fields to consumers.
 const storedPageValue: z.ZodType<Json> = z.lazy(() =>
   z.union([
     z.string(),
