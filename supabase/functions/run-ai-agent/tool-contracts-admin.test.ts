@@ -1,3 +1,7 @@
+import {
+  conferenceKindFromUrl,
+  extractConferenceUrl,
+} from "../_shared/calendar-conference.ts";
 import { readAdAccountId } from "./tool-contracts-admin.ts";
 import {
   assertEquals,
@@ -92,7 +96,7 @@ Deno.test(
 Deno.test(
   "delegate_parallel keeps only entries with a truthy title and prompt",
   () => {
-    const tasks: unknown[] = [
+    const tasks: Array<unknown> = [
       { title: "a", prompt: "b", task_skills: ["x"], extra: 1 },
       { title: "", prompt: "b" },
       { title: "a" },
@@ -165,5 +169,41 @@ Deno.test(
         config: { arbitrary: { bad: true } },
       }),
     );
+  },
+);
+
+Deno.test(
+  "parsed calendar events prefer video over an earlier phone entry",
+  () => {
+    const [event] = readGoogleCalendarEvents({
+      items: [
+        {
+          conferenceData: {
+            entryPoints: [
+              { entryPointType: "phone", uri: "tel:+123456789" },
+              {
+                entryPointType: "video",
+                uri: "https://meet.google.com/abc-defg-hij",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const url = extractConferenceUrl(event);
+    assertStrictEquals(url, "https://meet.google.com/abc-defg-hij");
+    assertStrictEquals(conferenceKindFromUrl(url), "meet");
+  },
+);
+
+Deno.test(
+  "automation validation errors identify the rejected field concisely",
+  () => {
+    const error = assertThrows(
+      () => automationStepArg({ config: { delay_value: "bad" } }),
+      Error,
+      "Invalid automation step: config.delay_value:",
+    );
+    assertStrictEquals(error.message.includes("\n"), false);
   },
 );

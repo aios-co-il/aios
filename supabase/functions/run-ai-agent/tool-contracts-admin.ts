@@ -1,3 +1,4 @@
+import { invalidToolInput } from "./tool-input-errors.ts";
 import { automationStepConfigurationSchema } from "./automation-step-configuration.ts";
 import { z } from "npm:zod@3.25.76";
 
@@ -12,6 +13,7 @@ const adAccountDisableReasonSchema = z
   .object({ disable_reason: z.number().optional().catch(undefined) })
   .catch({});
 
+/** Read the Meta disable reason, returning undefined for malformed fields. */
 export function adAccountDisableReason(account: unknown): number | undefined {
   return adAccountDisableReasonSchema.parse(account).disable_reason;
 }
@@ -23,6 +25,7 @@ const providerErrorSchema = z
   })
   .catch({ error: {} });
 
+/** Read a provider error message, returning undefined for malformed bodies. */
 export function providerErrorMessage(payload: unknown): string | undefined {
   return providerErrorSchema.parse(payload).error.message;
 }
@@ -47,6 +50,7 @@ const googleAdsCampaignRowSchema = z
 
 export type GoogleAdsCampaignRow = z.infer<typeof googleAdsCampaignRowSchema>;
 
+/** Validate campaign fields and use empty objects for malformed provider data. */
 export function readGoogleAdsCampaignRow(row: unknown): GoogleAdsCampaignRow {
   return googleAdsCampaignRowSchema.parse(row);
 }
@@ -74,7 +78,9 @@ const googleCalendarEventSchema = z
     location: optionalText,
     conferenceData: z
       .object({
-        entryPoints: z.array(z.object({ uri: optionalText })).optional(),
+        entryPoints: z
+          .array(z.object({ uri: optionalText, entryPointType: optionalText }))
+          .optional(),
       })
       .optional()
       .catch(undefined),
@@ -89,9 +95,10 @@ const googleCalendarEventsSchema = z
   })
   .catch({});
 
+/** Read calendar events, returning an empty list for malformed payloads. */
 export function readGoogleCalendarEvents(
   payload: unknown,
-): GoogleCalendarEventItem[] {
+): Array<GoogleCalendarEventItem> {
   return googleCalendarEventsSchema.parse(payload).items ?? [];
 }
 
@@ -106,7 +113,7 @@ export interface AdAccountHealthIssue {
     all_paused: boolean;
     token_ok: boolean;
   };
-  flags: string[];
+  flags: Array<string>;
 }
 
 /** LLM-supplied `delegate_parallel` entry; only entries with a truthy title and prompt are kept. */
@@ -121,7 +128,10 @@ const parallelTaskArgSchema = z
 
 export type ParallelTaskArg = z.infer<typeof parallelTaskArgSchema>;
 
-export function parallelTaskArgs(items: unknown[]): ParallelTaskArg[] {
+/** Keep only delegation entries with valid titles and prompts. */
+export function parallelTaskArgs(
+  items: Array<unknown>,
+): Array<ParallelTaskArg> {
   return items.flatMap((item) => {
     const parsed = parallelTaskArgSchema.safeParse(item);
     return parsed.success ? [parsed.data] : [];
@@ -144,7 +154,11 @@ export function automationStepArg(value: unknown): AutomationStepArg {
   if (value === null || value === undefined) {
     throw new TypeError(`Cannot read properties of ${value} (reading 'type')`);
   }
-  return automationStepArgSchema.parse(value);
+  const parsed = automationStepArgSchema.safeParse(value);
+  if (!parsed.success) {
+    throw invalidToolInput("automation step", parsed.error);
+  }
+  return parsed.data;
 }
 
 /** A Meta ad account identifier from stored integration settings. */

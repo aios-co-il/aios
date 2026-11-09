@@ -402,19 +402,20 @@ import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
 import {
   adAccountDisableReason,
-  readAdAccountId,
   automationStepArg,
   parallelTaskArgs,
   providerErrorMessage,
   readGoogleAdsCampaignRow,
   readGoogleCalendarEvents,
 } from "./tool-contracts-admin.ts";
+import type { MetaAdSettings } from "./tool-storage-contracts.ts";
+import {
+  readMetaAdSettings,
+  readMarketingWorkItemPayload,
+  readAutomationStepSummary,
+} from "./tool-storage-contracts.ts";
 import type { AdAccountHealthIssue } from "./tool-contracts-admin.ts";
-import type {
-  Json,
-  TablesInsert,
-  TablesUpdate,
-} from "../_shared/database.types.ts";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
   SearchClient,
@@ -8698,13 +8699,15 @@ async function executeTool(
       let items: MarketingWorkItemListRow[] = data || [];
       if (args.department) {
         items = items.filter(
-          (it) => (jsonObject(it.payload).department || "") === args.department,
+          (it) =>
+            (readMarketingWorkItemPayload(it.payload).department || "") ===
+            args.department,
         );
       }
       return {
         count: items.length,
         items: items.map((it) => {
-          const payload = jsonObject(it.payload);
+          const payload = readMarketingWorkItemPayload(it.payload);
           return {
             id: it.id,
             title: it.title,
@@ -8916,7 +8919,7 @@ async function executeTool(
                 ? "creative"
                 : args.to_stage_type === "copy"
                   ? "copy"
-                  : jsonObject(item.payload).department,
+                  : readMarketingWorkItemPayload(item.payload).department,
           },
           updated_at: new Date().toISOString(),
         })
@@ -9500,7 +9503,7 @@ async function executeTool(
       return {
         automation: auto,
         steps: stepRows.map((s) => {
-          const configuration = jsonObject(s.configuration);
+          const configuration = readAutomationStepSummary(s.configuration);
           return {
             id: s.id,
             step_type: s.step_type,
@@ -9600,7 +9603,13 @@ async function executeTool(
       >[] = triggerSteps || [];
       const currentByAutomation = new Map(
         triggerRows
-          .map((s) => [s.automation_id, jsonObject(s.configuration)] as const)
+          .map(
+            (s) =>
+              [
+                s.automation_id,
+                readAutomationStepSummary(s.configuration),
+              ] as const,
+          )
           .filter(([, configuration]) => configuration.facebook_form_id),
       );
 
@@ -11333,9 +11342,13 @@ async function executeTool(
         .in("client_id", clientIds)
         .eq("integration_type", "facebook_insights");
 
-      const fbTableByClient = new Map<string | null, Json>();
-      for (const t of fbTables || [])
-        fbTableByClient.set(t.client_id, t.integration_settings);
+      const fbTableByClient = new Map<string | null, MetaAdSettings>();
+      for (const t of fbTables || []) {
+        fbTableByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
+      }
 
       // 3. Fetch Facebook access token (tenant integration)
       let { data: integration } = await supabase
@@ -11412,10 +11425,13 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .eq("integration_type", "facebook_insights");
       const tableIdToClient = new Map<string, string | null>();
-      const settingsByClient = new Map<string | null, Json>();
+      const settingsByClient = new Map<string | null, MetaAdSettings>();
       for (const t of tableIdsForRecords.data || []) {
         tableIdToClient.set(t.id, t.client_id);
-        settingsByClient.set(t.client_id, t.integration_settings);
+        settingsByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
       }
       const tableIds = Array.from(tableIdToClient.keys());
       const spendByClient = new Map<
@@ -11454,7 +11470,7 @@ async function executeTool(
       for (const c of scopeClients || []) {
         const settings = settingsByClient.get(c.id);
         const adAccountId =
-          readAdAccountId(jsonObject(settings).ad_account_id) ||
+          settings?.ad_account_id ||
           (c.meta_ads_account_id
             ? String(c.meta_ads_account_id).replace(/^act_/, "")
             : null);
@@ -12684,7 +12700,7 @@ async function executeTool(
         (fbTables || [])
           .map((t) =>
             normalizeMetaAdAccountId(
-              jsonObject(t.integration_settings).ad_account_id,
+              readMetaAdSettings(t.integration_settings).ad_account_id,
             ),
           )
           .find((id: string | null) => !!id) || null;
@@ -12753,12 +12769,16 @@ async function executeTool(
         previous_ad_account_id: string | null;
       }> = [];
       for (const table of fbTables || []) {
-        const tableSettings = jsonObject(table.integration_settings);
+        const tableSettings = readMetaAdSettings(table.integration_settings);
         const prev = tableSettings.ad_account_id
           ? normalizeMetaAdAccountId(tableSettings.ad_account_id)
           : null;
         const nextSettings = {
-          ...tableSettings,
+          ...(table.integration_settings !== null &&
+          typeof table.integration_settings === "object" &&
+          !Array.isArray(table.integration_settings)
+            ? table.integration_settings
+            : {}),
           ad_account_id: normalizedAccountId,
           ...(account_name ? { ad_account_name: account_name } : {}),
         };
