@@ -61,6 +61,11 @@ describe("AuthPage installed SDK bootstrap races", () => {
         "user@example.test",
       );
       await interaction.type(screen.getByLabelText("סיסמה"), "password-123");
+
+      if (pending === "invitation") {
+        expect(releasePending).toBeTypeOf("function");
+      }
+
       await interaction.click(screen.getByRole("button", { name: "התחבר" }));
       expect(screen.getByRole("button", { name: "התחבר" })).toBeEnabled();
       await act(async () => {
