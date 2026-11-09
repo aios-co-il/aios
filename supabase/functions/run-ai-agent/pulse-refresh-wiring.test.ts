@@ -66,7 +66,11 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       // The tool runs with executeTool's caller and scope.
       assertMatch(
         runAiAgent,
-        /case REFRESH_PULSE_TOOL_NAME: \{\s*return await executeRefreshCampaignPulse\(\s*\{[^}]*actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
+        /case REFRESH_PULSE_TOOL_NAME:\s*return executeRefreshCampaignPulseTool\(/,
+      );
+      assertMatch(
+        read("./executors/refresh-campaign-pulse.ts"),
+        /actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
       );
       const priority = runAiAgent.slice(
         runAiAgent.indexOf("const PRIORITY_TOOLS = new Set(["),
