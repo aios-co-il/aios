@@ -1,4 +1,5 @@
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
+import { fetchUncountedCallsByCampaignDay } from "./call-leads.ts";
 import { googleCampaignConversionGoal } from "./conversion-goal.ts";
 import {
   type CampaignConversions,
@@ -17,8 +18,8 @@ export type ConversionEnrichedRecord = {
   conversions?: number;
   cost?: number;
   cost_per_conversion?: number;
-  /** Phone-call leads added to `conversions` that Google counts as secondary. */
-  secondary_call_leads?: number;
+  /** Phone calls added to `conversions` that Google left out of it. */
+  added_call_leads?: number;
 };
 
 export type ConversionEnrichmentContext = {
@@ -35,24 +36,20 @@ export type ConversionEnrichmentContext = {
  * check reads `conversion_goal` to tell an ecommerce campaign from a lead campaign
  * inside the same account. Add-to-cart is usually a SECONDARY action, so it lives
  * in `all_conversions`; purchases stay on `metrics.conversions` so the report keeps
- * matching the Google Ads UI. Phone calls are leads even when the account
- * counts them as a secondary action (David, 2026-11-09), so a lead campaign's
- * conversions add them.
+ * matching the Google Ads UI. Every phone call is a lead, so a lead campaign's
+ * conversions add the calls Google left out of them.
  */
 export async function enrichConversionCategories(
   records: ConversionEnrichedRecord[],
   context: ConversionEnrichmentContext,
 ): Promise<void> {
   try {
-    const {
-      addToCartByCampaignDay,
-      conversionsByCampaign,
-      secondaryCallsByCampaignDay,
-    } = await fetchCategoryConversions(
-      context.runGaqlSearch,
-      context.startIso,
-      context.endIso,
-    );
+    const { addToCartByCampaignDay, conversionsByCampaign } =
+      await fetchCategoryConversions(
+        context.runGaqlSearch,
+        context.startIso,
+        context.endIso,
+      );
     const biddableByCampaign = await fetchBiddableCategories(
       context.runGaqlSearch,
     );
@@ -64,9 +61,8 @@ export async function enrichConversionCategories(
     if (context.campaignType === "ecommerce") {
       stampAddToCart(records, addToCartByCampaignDay);
     }
-    addSecondaryCallLeads(records, secondaryCallsByCampaignDay);
     console.log(
-      `[sync-google-ads] conversion goals: ${goalCount} campaigns, add-to-cart segments: ${addToCartByCampaignDay.size}, secondary call segments: ${secondaryCallsByCampaignDay.size}`,
+      `[sync-google-ads] conversion goals: ${goalCount} campaigns, add-to-cart segments: ${addToCartByCampaignDay.size}`,
     );
   } catch (categoryErr) {
     // Non-fatal: the pulse falls back to the report type, add-to-cart shows as unavailable.
@@ -77,6 +73,7 @@ export async function enrichConversionCategories(
         : JSON.stringify(categoryErr).slice(0, 300),
     );
   }
+  await addUncountedCalls(records, context);
 }
 
 /** Set `conversion_goal` on every record whose campaign's goal is known; returns how many campaigns have one. */
@@ -128,19 +125,34 @@ function stampAddToCart(
 }
 
 /**
- * Add the phone-call leads Google counts only as secondary to campaign-level
- * records of campaigns that are not sales campaigns: a call is not a purchase.
- * The category read is per campaign, so ad group and ad rows keep Google's own
- * conversions.
+ * Add the calls Google left out of `conversions` to campaign-level records of
+ * campaigns that are not sales campaigns: a call is a lead, not a purchase. The
+ * call read is per campaign, so ad group and ad rows keep Google's own
+ * conversions. A failed read is logged and leaves conversions as Google has
+ * them.
  */
-function addSecondaryCallLeads(
+async function addUncountedCalls(
   records: Array<ConversionEnrichedRecord>,
-  secondaryCallsByCampaignDay: Map<string, number>,
+  context: ConversionEnrichmentContext,
 ) {
-  for (const rec of records) {
-    const calls = secondaryCallsByCampaignDay.get(
-      `${rec.campaign_id}|${rec.date}`,
+  let callsByCampaignDay: Map<string, number>;
+  try {
+    callsByCampaignDay = await fetchUncountedCallsByCampaignDay(
+      context.runGaqlSearch,
+      context.startIso,
+      context.endIso,
     );
+  } catch (callErr) {
+    console.warn(
+      "[sync-google-ads] call leads read failed (non-fatal):",
+      callErr instanceof Error
+        ? callErr.message
+        : JSON.stringify(callErr).slice(0, 300),
+    );
+    return;
+  }
+  for (const rec of records) {
+    const calls = callsByCampaignDay.get(`${rec.campaign_id}|${rec.date}`);
     if (
       !calls ||
       (rec.entity_level || "campaign") !== "campaign" ||
@@ -149,9 +161,12 @@ function addSecondaryCallLeads(
       continue;
     }
     rec.conversions = (rec.conversions || 0) + calls;
-    rec.secondary_call_leads = calls;
+    rec.added_call_leads = calls;
     if (rec.cost !== undefined) {
       rec.cost_per_conversion = rec.cost / rec.conversions;
     }
   }
+  console.log(
+    `[sync-google-ads] uncounted call segments: ${callsByCampaignDay.size}`,
+  );
 }

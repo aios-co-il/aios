@@ -3,9 +3,18 @@ import { conversionCategorySide } from "./conversion-goal.ts";
 /** The fields the enrichment queries select, as searchStream returns them. */
 export type GaqlRow = {
   campaign?: { id?: string };
-  segments?: { date?: string; conversionActionCategory?: string };
+  segments?: {
+    date?: string;
+    conversionActionCategory?: string;
+    conversionAction?: string;
+  };
   metrics?: { conversions?: string; allConversions?: string };
   campaignConversionGoal?: { category?: string; biddable?: boolean };
+  conversionAction?: {
+    resourceName?: string;
+    type?: string;
+    category?: string;
+  };
 };
 
 export type RunGaqlSearch = (
@@ -17,10 +26,7 @@ export type CampaignConversions = {
   leadConversions: number;
 };
 
-/**
- * Add-to-cart per campaign/day, primary purchase/lead conversions per campaign,
- * and per campaign/day the phone-call leads Google counts only as secondary.
- */
+/** Add-to-cart per campaign/day and primary purchase/lead conversions per campaign. */
 export async function fetchCategoryConversions(
   runGaqlSearch: RunGaqlSearch,
   startIso: string,
@@ -37,31 +43,17 @@ export async function fetchCategoryConversions(
     WHERE segments.date BETWEEN '${startIso}' AND '${endIso}'
   `);
   const addToCartByCampaignDay = new Map<string, number>();
-  const secondaryCallsByCampaignDay = new Map<string, number>();
   const conversionsByCampaign = new Map<string, CampaignConversions>();
   for (const row of batches.flatMap((batch) => batch.results || [])) {
     const campaignId = row.campaign?.id ?? "";
     const category = row.segments?.conversionActionCategory;
-    const dayKey = `${campaignId}|${row.segments?.date || ""}`;
     if (category === "ADD_TO_CART") {
+      const key = `${campaignId}|${row.segments?.date || ""}`;
       addToCartByCampaignDay.set(
-        dayKey,
-        (addToCartByCampaignDay.get(dayKey) || 0) +
+        key,
+        (addToCartByCampaignDay.get(key) || 0) +
           parseFloat(row.metrics?.allConversions || "0"),
       );
-    }
-    if (category === "PHONE_CALL_LEAD") {
-      // Calls a secondary action counts sit in all_conversions only; a primary
-      // call action is already in conversions, so this adds nothing for it.
-      const secondary =
-        parseFloat(row.metrics?.allConversions || "0") -
-        parseFloat(row.metrics?.conversions || "0");
-      if (secondary > 0) {
-        secondaryCallsByCampaignDay.set(
-          dayKey,
-          (secondaryCallsByCampaignDay.get(dayKey) || 0) + secondary,
-        );
-      }
     }
     const side = conversionCategorySide(category);
     if (!side) {
@@ -79,11 +71,7 @@ export async function fetchCategoryConversions(
     }
     conversionsByCampaign.set(campaignId, totals);
   }
-  return {
-    addToCartByCampaignDay,
-    conversionsByCampaign,
-    secondaryCallsByCampaignDay,
-  };
+  return { addToCartByCampaignDay, conversionsByCampaign };
 }
 
 /** Categories each campaign bids on; empty when the goal query fails, so conversions decide. */
