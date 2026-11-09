@@ -6,6 +6,7 @@ import {
   upsertPointer,
   shortText,
 } from "../_shared/carmen-memory.ts";
+import { resolveOpenAIKey } from "../_shared/ai.ts";
 import { analysisKey } from "./analysis-key.ts";
 
 const corsHeaders = {
@@ -14,7 +15,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const MODEL = "gpt-4o-mini";
 
 type Insight = {
@@ -139,7 +139,12 @@ async function analyze(
   history: any[],
   apiKey: string | null,
 ): Promise<Insight | null> {
-  if (!apiKey) return null;
+  if (!apiKey) {
+    console.error(
+      "[carmen-learn] no OpenAI key: project key and caller key both missing",
+    );
+    return null;
+  }
   const trimmed = history.slice(-40);
   const transcript = trimmed
     .map(
@@ -180,10 +185,14 @@ async function analyze(
   }
   const j = await r.json();
   const args = j?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-  if (!args) return null;
+  if (!args) {
+    console.error("[carmen-learn] AI returned no insights call");
+    return null;
+  }
   try {
     return JSON.parse(args) as Insight;
   } catch {
+    console.error("[carmen-learn] AI insights were not valid JSON");
     return null;
   }
 }
@@ -289,7 +298,9 @@ Deno.serve(async (req) => {
       await analysisKey(
         req.headers.get("Authorization") ?? "",
         session.user_id ?? null,
-        OPENAI_API_KEY ?? null,
+        // The project key, else the org's AI integration key: Production keeps it there, so
+        // reading only OPENAI_API_KEY failed every analysis (AIO-505).
+        await resolveOpenAIKey(),
       ),
     );
     if (!insight) {
