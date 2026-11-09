@@ -637,6 +637,8 @@ export function buildInsightRecord(
   ).toUpperCase();
   const _isLeadFormObjective =
     metaObjectiveGoal(_objectiveForLeads) === "leads";
+  const _isSalesObjective =
+    metaObjectiveGoal(_objectiveForLeads) === "ecommerce";
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -660,13 +662,11 @@ export function buildInsightRecord(
   );
   const _pixelLeadsValue = sumByTypes(["offsite_conversion.fb_pixel_lead"]);
   // Custom conversions count only when they are lead, registration or contact
-  // conversions; a purchase thank-you page is not a lead. A sales campaign's
-  // leads are Meta's own lead events only: its custom conversions fire on the
-  // purchase page and would count every sale as a lead.
-  const _customConversionLeadsValue =
-    metaObjectiveGoal(_objectiveForLeads) === "ecommerce"
-      ? 0
-      : customConversionLeads(allActions, leadCustomConversionIds);
+  // conversions; a purchase thank-you page is not a lead. A sales campaign
+  // skips them: they fire on its purchase page and would count every sale.
+  const _customConversionLeadsValue = _isSalesObjective
+    ? 0
+    : customConversionLeads(allActions, leadCustomConversionIds);
   // Standard intent events fired on landing pages (Complete Registration / etc.)
   const _standardIntentValue = sumByTypes(STANDARD_INTENT_LEAD_TYPES);
 
@@ -713,6 +713,13 @@ export function buildInsightRecord(
       // Prefer real form submissions; if the "Leads" campaign actually drives to a
       // website (pixel), use the pixel value instead of reporting 0.
       leads = _formLeadsValue > 0 ? _formLeadsValue : _websiteLeads;
+    } else if (_isSalesObjective) {
+      // A sales campaign's leads are people who left details (a form or the
+      // pixel Lead event) or wrote on Messenger/WhatsApp, beside its purchases
+      // (David, 2026-11-09). Registration and other intent events fire on the
+      // purchase page, so they are not leads here.
+      leads =
+        Math.max(_formLeadsValue, _pixelLeadsValue) + _messagingLeadsValue;
     } else {
       // Conversions / Sales / Traffic with pixel — website leads.
       leads = _websiteLeads > 0 ? _websiteLeads : _formLeadsValue;

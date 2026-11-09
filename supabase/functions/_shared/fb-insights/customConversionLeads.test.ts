@@ -22,7 +22,11 @@ const purchaseDay = [
 ];
 
 /** The leads the sync stores for a day of a campaign with this objective. */
-function storedLeads(objective: string, leadIds: Set<string> | null) {
+function storedLeads(
+  objective: string,
+  leadIds: Set<string> | null,
+  extraActions: Array<{ action_type: string; value: string }> = [],
+) {
   const record = buildInsightRecord(
     {
       date_start: "2026-11-08",
@@ -31,7 +35,7 @@ function storedLeads(objective: string, leadIds: Set<string> | null) {
       impressions: "1000",
       clicks: "50",
       spend: "40",
-      actions: purchaseDay,
+      actions: [...purchaseDay, ...extraActions],
     },
     { c1: { id: "c1", name: "קמפיין", objective } },
     {},
@@ -76,6 +80,23 @@ Deno.test("leads the sync stores from custom conversions", async (t) => {
   await t.step("a sales campaign does not count its purchases as leads", () => {
     // Was 9 a day: every thank-you conversion counted as a lead.
     assertEquals(storedLeads("OUTCOME_SALES", LEAD_IDS), 0);
+  });
+
+  await t.step("a sales campaign counts details left and messages", () => {
+    const leads = storedLeads("OUTCOME_SALES", LEAD_IDS, [
+      { action_type: "offsite_conversion.fb_pixel_lead", value: "1" },
+      { action_type: "leadgen_grouped", value: "2" },
+      {
+        action_type: "onsite_conversion.messaging_conversation_started_7d",
+        value: "4",
+      },
+      // Fires on the purchase page, so it is not a lead here.
+      {
+        action_type: "offsite_conversion.fb_pixel_complete_registration",
+        value: "3",
+      },
+    ]);
+    assertEquals(leads, 6);
   });
 
   await t.step("a traffic campaign counts only the lead conversion", () => {
