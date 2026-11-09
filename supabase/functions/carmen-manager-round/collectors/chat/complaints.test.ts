@@ -23,6 +23,7 @@ const angry: ChatVerdict = {
   needs_reply: false,
   is_request: false,
   complaint_ids: ["c1"],
+  read_ids: [],
   urgency: "high",
   summary_he: "הלקוח שוקל לעזוב",
   confidence: 0.9,

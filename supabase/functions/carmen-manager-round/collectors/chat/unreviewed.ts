@@ -31,21 +31,20 @@ export type ReadScope = {
   complaints: boolean;
   /**
    * The thread's current wait already has an unanswered_request, open or
-   * closed: no verdict changes it.
+   * closed: a receipt after it is not read.
    */
   waitRaised: boolean;
 };
 
 /**
  * True for a group open to the team with unread client lines that say more
- * than thanks, in a streak the complaint words did not already flag (when
- * complaints are read), or in the open wait when no request marker shows.
- * Otherwise the markers already say everything a verdict could add. An
- * unread receipt ('קיבלתי') is read too when the open wait it ends has a
- * line beyond acknowledgements, no request marker and no finding yet: the
- * request a verdict found there may have been met outside the thread. Once
- * the finding is raised no verdict can drop it while it is open, nor raise
- * it again once closed, so the receipt is not read.
+ * than thanks: in any streak when complaints are read, or in the open wait.
+ * Lines the markers already flagged are read too, since a confident verdict
+ * can clear them (verdictClearsWait, verdictClearsComplaint). An unread
+ * receipt ('קיבלתי') is read too when the open wait it ends has a line beyond
+ * acknowledgements, no request marker and no finding yet: the request a
+ * verdict found there may have been met outside the thread. Once the finding
+ * is raised the receipt is not read.
  */
 export function needsModel(
   thread: Thread,
@@ -76,9 +75,7 @@ export function needsModel(
         !onlyAcknowledgements(all)
       );
     }
-    return (
-      (scope.complaints && !markers.complaint) || (waiting && !markers.request)
-    );
+    return scope.complaints || waiting;
   });
 }
 

@@ -7,7 +7,12 @@ Deno.test("sessionInstructions", async (t) => {
     "carries the caller's address line for both voice providers",
     () => {
       const text = sessionInstructions(
-        { agent: null, pronunciations: [], orgBrief: null },
+        {
+          agent: null,
+          pronunciations: [],
+          orgBrief: null,
+          lastConversation: null,
+        },
         userAddressLine("דוד", "male"),
       );
       assertStringIncludes(text, "דוד");
@@ -21,10 +26,29 @@ Deno.test("sessionInstructions", async (t) => {
         agent: null,
         pronunciations: [{ term: "כרמן", spoken: "קַרְמֶן" }],
         orgBrief: null,
+        lastConversation: null,
       },
       userAddressLine(null, null),
     );
     assertStringIncludes(text, "קַרְמֶן");
     assertStringIncludes(text, "לשון רבים");
+  });
+
+  await t.step("recalls the last conversation", () => {
+    const text = sessionInstructions(
+      {
+        agent: null,
+        pronunciations: [],
+        orgBrief: null,
+        lastConversation: {
+          title: "פ.ד פסגות",
+          updatedAt: "2026-11-08T17:19:09Z",
+          turns: [{ role: "user", content: "מה העלות לליד במטא?" }],
+        },
+      },
+      "",
+    );
+    assertStringIncludes(text, "=== השיחה האחרונה ביניכם (פ.ד פסגות) ===");
+    assertStringIncludes(text, "- המשתמש: מה העלות לליד במטא?");
   });
 });

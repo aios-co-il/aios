@@ -1,8 +1,10 @@
 /**
  * unanswered_request findings from the reviewed waits: the wait is past the
- * SLA and reads as a request (markers, or a confident LLM verdict that can
- * only add), or its finding is already open (it stays reported while the
- * client waits, so a changed verdict never drops it). Direct-chat and
+ * SLA and reads as a request (markers, or a confident LLM verdict), or its
+ * finding is already open (it stays reported while the client waits). A read
+ * that judged every line of the wait with DROP_CONFIDENCE and found no
+ * request clears it either way: it is not raised, and an open one is no
+ * longer reported, so the round auto-clears it. Direct-chat and
  * private-group text is never put in a summary or in the evidence campaigners
  * can read.
  */
@@ -12,7 +14,8 @@ import { isLowConfidence, quoteOf, requestSummary } from "./summary.ts";
 import type { Thread } from "./threads.ts";
 import type { Verdicts } from "./classify.ts";
 import { readCoversWait } from "./unreviewed.ts";
-import { verdictSaysRequest } from "./verdict.ts";
+import { onlyAcknowledgements, onlyThanks } from "./markers.ts";
+import { verdictClearsWait, verdictSaysRequest } from "./verdict.ts";
 
 /** A link to the client's chat in AIOS, or null when there is none. */
 export type ChatLink = (clientId: string) => string | null;
@@ -21,9 +24,9 @@ export type ChatLink = (clientId: string) => string | null;
  * The reviews with the verdict that read their wait, when there is one: it
  * read the wait up to its last message, or up to a line followed only by
  * the client's thanks (or, while the wait's finding is open, by a receipt).
- * An open request stays reported whatever a later read says, so a read that
- * no longer sees a request (one that also read a receipt, say) never
- * describes it.
+ * An open request stays reported unless a read clears it: a read that no
+ * longer sees a request but does not clear the wait (one that also read a
+ * receipt, say) never describes it.
  */
 export function withVerdicts(
   reviews: ThreadReview[],
@@ -37,10 +40,15 @@ export function withVerdicts(
     ) {
       return review;
     }
-    if (review.open && !verdictSaysRequest(cached.verdict)) {
+    const { verdict } = cached;
+    if (
+      review.open &&
+      !verdictSaysRequest(verdict) &&
+      !clearsWait({ ...review, verdict })
+    ) {
       return review;
     }
-    return { ...review, verdict: cached.verdict };
+    return { ...review, verdict };
   });
 }
 
@@ -50,6 +58,9 @@ export function requestCandidates(
   chatLink: ChatLink,
 ): FindingCandidate[] {
   return reviews.flatMap((review) => {
+    if (clearsWait(review)) {
+      return [];
+    }
     const request =
       review.markers.request || verdictSaysRequest(review.verdict);
     if (!(review.slaBreached && request) && !review.open) {
@@ -87,6 +98,25 @@ export function requestCandidates(
       },
     ];
   });
+}
+
+/**
+ * True when the review's verdict clears its wait. An open request is never
+ * cleared by a read that saw the client's receipt ('קיבלתי'): once raised,
+ * a receipt is not proof the request was met (unreviewed.ts).
+ */
+function clearsWait(review: ThreadReview): boolean {
+  const { pending } = review.thread;
+  const receipt = pending.some(
+    (turn) => onlyAcknowledgements([turn.text]) && !onlyThanks([turn.text]),
+  );
+  return (
+    !(review.open && receipt) &&
+    verdictClearsWait(
+      review.verdict,
+      pending.map((turn) => turn.id),
+    )
+  );
 }
 
 /** The chat link for a thread whose text is not quoted (DMs and private groups). */

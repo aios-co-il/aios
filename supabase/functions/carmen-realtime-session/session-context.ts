@@ -11,6 +11,11 @@ import {
   type Pronunciation,
 } from "../_shared/carmen/pronunciations/dictionary.ts";
 import { pronunciationInstructions } from "./pronunciations.ts";
+import {
+  type LastConversation,
+  lastConversationInstructions,
+  loadLastConversation,
+} from "./last-conversation.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
 
 /** Carmen's settings, pronunciations and org brief for the session's tenant. */
@@ -18,6 +23,8 @@ export type SessionContext = {
   agent: VoiceAgent | null;
   pronunciations: Array<Pronunciation>;
   orgBrief: OrgBrief | null;
+  /** The caller's last conversation with Carmen, so a new call continues it. */
+  lastConversation: LastConversation | null;
 };
 
 /** Loads what both voice providers speak from; each part falls back on its own. */
@@ -28,16 +35,22 @@ export async function loadSessionContext(
   const db = serviceClient();
   const agent = await loadVoiceAgent(db, userId, requestedTenantId);
   if (!agent) {
-    return { agent, pronunciations: [], orgBrief: null };
+    return {
+      agent,
+      pronunciations: [],
+      orgBrief: null,
+      lastConversation: null,
+    };
   }
-  const [pronunciations, orgBrief] = await Promise.all([
+  const [pronunciations, orgBrief, lastConversation] = await Promise.all([
     loadPronunciations(db, agent.tenantId),
     loadOrgBrief(db, agent.tenantId),
+    loadLastConversation(db, userId, agent.tenantId),
   ]);
-  return { agent, pronunciations, orgBrief };
+  return { agent, pronunciations, orgBrief, lastConversation };
 }
 
-/** The session's instructions: persona and voice rules, org brief, pronunciations. */
+/** The session's instructions: persona and voice rules, org brief, last conversation, pronunciations. */
 export function sessionInstructions(
   context: SessionContext,
   addressLine: string,
@@ -45,6 +58,9 @@ export function sessionInstructions(
   return [
     buildVoiceInstructions(context.agent?.profile ?? null, addressLine),
     context.orgBrief ? orgBriefInstructions(context.orgBrief) : "",
+    context.lastConversation
+      ? lastConversationInstructions(context.lastConversation)
+      : "",
     pronunciationInstructions(context.pronunciations),
   ]
     .filter(Boolean)
