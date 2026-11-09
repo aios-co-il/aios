@@ -1,5 +1,4 @@
 import { z } from "npm:zod@3.25.76";
-import { isObject } from "./json-config.ts";
 
 export interface MetaAction {
   action_type?: string | null;
@@ -143,13 +142,15 @@ export async function readMetaResponse(
   const body: unknown = await response.json();
   const parsed = metaResponseSchema.safeParse(body);
   if (parsed.success) return { ok: true, value: parsed.data };
-  const metaError: unknown = isObject(body)
-    ? Reflect.get(body, "error")
-    : undefined;
+  const metaError = z
+    .object({
+      error: z.object({}).passthrough(),
+    })
+    .safeParse(body);
   return {
     ok: false,
-    error: isObject(metaError)
-      ? { ...metaError }
+    error: metaError.success
+      ? metaError.data.error
       : { message: "Invalid Meta response" },
   };
 }

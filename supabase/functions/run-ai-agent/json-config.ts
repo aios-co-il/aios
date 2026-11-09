@@ -8,7 +8,3 @@ export function jsonObject(value: Json | undefined): {
     ? value
     : {};
 }
-
-export function isObject(value: unknown): value is object {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}

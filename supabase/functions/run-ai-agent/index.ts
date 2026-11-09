@@ -378,7 +378,8 @@ import { clientPerformanceEntry } from "./client-performance.ts";
 import { staleClientEntry } from "./stale-client-entry.ts";
 import { readCampaignGoalTables } from "./goal-tables.ts";
 
-import { jsonObject, isObject } from "./json-config.ts";
+import { jsonObject } from "./json-config.ts";
+import { errorMessage, readErrorMessage } from "./error-message.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 import {
   readGraphAdAccountsPage,
@@ -425,12 +426,6 @@ import type {
   ConnectedClient,
   DisconnectedClient,
 } from "./helper-results.ts";
-
-/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
-function errorMessage(e: unknown): string {
-  if (isObject(e) && typeof e.message === "string") return e.message;
-  return String(e);
-}
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -609,13 +604,8 @@ async function openaiAdminGet(
     }
     if (!res.ok) {
       const msg = redactSecretsFromText(
-        (isObject(json) &&
-        "error" in json &&
-        isObject(json.error) &&
-        "message" in json.error
-          ? json.error.message
-          : undefined) ||
-          (isObject(json) && "message" in json ? json.message : undefined) ||
+        providerErrorMessage(json) ||
+          readErrorMessage(json) ||
           text ||
           `HTTP ${res.status}`,
       );
