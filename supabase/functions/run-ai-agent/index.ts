@@ -1,3 +1,39 @@
+import { executeListSocialPages } from "./executors/list-social-pages.ts";
+import { executeSyncSocialPages } from "./executors/sync-social-pages.ts";
+import { executePublishSocialPost } from "./executors/publish-social-post.ts";
+import { executeFetchSocialComments } from "./executors/fetch-social-comments.ts";
+import { executeListSocialComments } from "./executors/list-social-comments.ts";
+import { executeHideSocialComment } from "./executors/hide-social-comment.ts";
+import { executeCreateSocialPost } from "./executors/create-social-post.ts";
+import { executeListMarketingWorkItems } from "./executors/list-marketing-work-items.ts";
+import { executeGetMarketingWorkItem } from "./executors/get-marketing-work-item.ts";
+import { executeCreateMarketingWorkItem } from "./executors/create-marketing-work-item.ts";
+import { executeHandoffMarketingWorkItem } from "./executors/handoff-marketing-work-item.ts";
+import { executeUpdateMarketingWorkItem } from "./executors/update-marketing-work-item.ts";
+import { executeGenerateAdImage } from "./executors/generate-ad-image.ts";
+import { executeListCampaigners } from "./executors/list-campaigners.ts";
+import { executeCreateCampaigner } from "./executors/create-campaigner.ts";
+import { executeListSalesPeople } from "./executors/list-sales-people.ts";
+import { executeCreateSalesPerson } from "./executors/create-sales-person.ts";
+import { executeListAgencies } from "./executors/list-agencies.ts";
+import { executeCreateAgency } from "./executors/create-agency.ts";
+import { executeListSuppliers } from "./executors/list-suppliers.ts";
+import { executeCreateSupplier } from "./executors/create-supplier.ts";
+import { executeListProducts } from "./executors/list-products.ts";
+import { executeCreateProduct } from "./executors/create-product.ts";
+import { executeListFinance } from "./executors/list-finance.ts";
+import { executeCreateFinanceEntry } from "./executors/create-finance-entry.ts";
+import { executeGetFinanceSummary } from "./executors/get-finance-summary.ts";
+import { executeGetAccountingOverview } from "./executors/get-accounting-overview.ts";
+import { executeGetClientRetainer } from "./executors/get-client-retainer.ts";
+import { executeListOneTimeIncomes } from "./executors/list-one-time-incomes.ts";
+import { executeListIncomePayments } from "./executors/list-income-payments.ts";
+import { executeListExpensePayments } from "./executors/list-expense-payments.ts";
+import { executeListInvoiceUploads } from "./executors/list-invoice-uploads.ts";
+import { executeUpdateClientRetainer } from "./executors/update-client-retainer.ts";
+import { executeListUpdates } from "./executors/list-updates.ts";
+import { executeSaveMediaFromChat } from "./executors/save-media-from-chat.ts";
+import { executeListClientMedia } from "./executors/list-client-media.ts";
 import { executeGetFacebookCampaignData } from "./executors/get-facebook-campaign-data.ts";
 import { executeListFacebookCampaigns } from "./executors/list-facebook-campaigns.ts";
 import { executeFacebookCampaignMutation } from "./executors/facebook-campaign-mutation.ts";
@@ -113,7 +149,7 @@ import {
   openRouterTail,
   lazyBrainTail,
 } from "../_shared/carmen/brain-engine/openrouter-tail.ts";
-import { makeAdImage } from "../_shared/creative/ad-image.ts";
+
 import { remoteAdImage } from "../_shared/creative/ad-image-remote.ts";
 import { nameChatTopicLater } from "../_shared/carmen/chat-topic.ts";
 import {
@@ -153,10 +189,7 @@ import {
 } from "../_shared/carmen-direct-tools.mjs";
 
 import { MANAGER_ROLES } from "./manager-roles.ts";
-import {
-  assertCallerCanAccessClient,
-  assertCallerCanAccessEntityClient,
-} from "../_shared/auth-helpers.ts";
+import { assertCallerCanAccessClient } from "../_shared/auth-helpers.ts";
 import { withChatScopeColumns } from "./chat-scope/filters.ts";
 import {
   getChatHistory,
@@ -170,7 +203,6 @@ import { asUuidOrNull } from "../_shared/uuid.ts";
 
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
 
-import { listUpdates } from "./list-updates.ts";
 import {
   executeVideoDirectorTool,
   isVideoDirectorTool,
@@ -201,7 +233,6 @@ import {
 } from "../_shared/workshop-tools.ts";
 import {
   isBlockedInWorkshop,
-  stripServerOnlyPayloadKeys,
   workshopToolOffered,
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
@@ -229,7 +260,7 @@ import {
   imageProvidersFor,
 } from "../_shared/workshop/capabilities.ts";
 import { fetchPublic } from "../_shared/public-fetch.ts";
-import { findOrCreateClientPipeline } from "../_shared/marketing-client-pipeline.ts";
+
 import { importWebImage } from "../_shared/workshop/tools/add-assets.ts";
 import {
   SILENT_TURN_NUDGE,
@@ -385,15 +416,9 @@ import { openaiAdminGet } from "./openai-admin-get.ts";
 import { readMetaResponse } from "./meta-response.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 import type {
-  AccountingClientRow,
   AutomationFlowStepRow,
   ChatHistorySearchRow,
-  FinanceListRow,
-  FinancialOverlayRow,
-  MarketingStageSummary,
-  MarketingWorkItemListRow,
   MetaLeadQuestion,
-  OneTimeIncomeRow,
 } from "./tool-contracts-marketing.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
@@ -404,10 +429,7 @@ import {
   readGoogleCalendarEvents,
 } from "./tool-contracts-admin.ts";
 
-import {
-  readMarketingWorkItemPayload,
-  readAutomationStepSummary,
-} from "./tool-storage-contracts.ts";
+import { readAutomationStepSummary } from "./tool-storage-contracts.ts";
 
 import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaNode } from "./meta-response.ts";
@@ -2013,145 +2035,37 @@ async function executeTool(
         args as Parameters<typeof executeResolveCampaignAlert>[0],
         toolContext,
       );
-    case "list_social_pages": {
-      let q = supabase
-        .from("social_pages")
-        .select(
-          "id, platform, page_id, page_name, client_id, ig_business_id, picture_url, is_active",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .eq("is_active", true)
-        .order("page_name");
-      if (args.platform) {
-        q = q.eq("platform", args.platform);
-      }
-      if (args.client_id) {
-        q = q.eq("client_id", args.client_id);
-      }
-      const { data, error } = await q;
-      if (error) {
-        return { error: error.message };
-      }
-      return { count: data?.length || 0, pages: data || [] };
-    }
-    case "sync_social_pages": {
-      const targetTenantId = accessibleTenantIds[0];
-      const r = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-pages-sync`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            tenant_id: targetTenantId,
-            client_id: args.client_id,
-          }),
-        },
+    case "list_social_pages":
+      return executeListSocialPages(
+        args as Parameters<typeof executeListSocialPages>[0],
+        toolContext,
       );
-      return await r.json();
-    }
-    case "publish_social_post": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "social_pages",
-        args.page_id,
-        callerScope,
+    case "sync_social_pages":
+      return executeSyncSocialPages(
+        args as Parameters<typeof executeSyncSocialPages>[0],
+        toolContext,
       );
-      if (args.confirmed !== true)
-        return {
-          error: "not_confirmed",
-          message: "אישור משתמש מפורש נדרש (confirmed=true)",
-        };
-      const targetTenantId = accessibleTenantIds[0];
-      const r = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-publish`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            tenant_id: targetTenantId,
-            page_id: args.page_id,
-            post_type: args.post_type,
-            caption: args.caption,
-            media_url: args.media_url,
-            link: args.link,
-          }),
-        },
+    case "publish_social_post":
+      return executePublishSocialPost(
+        args as Parameters<typeof executePublishSocialPost>[0],
+        toolContext,
       );
-      return await r.json();
-    }
-    case "fetch_social_comments": {
-      const targetTenantId = accessibleTenantIds[0];
-      const r = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-comments`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            action: "fetch",
-            tenant_id: targetTenantId,
-            page_id: args.page_id,
-          }),
-        },
+    case "fetch_social_comments":
+      return executeFetchSocialComments(
+        args as Parameters<typeof executeFetchSocialComments>[0],
+        toolContext,
       );
-      return await r.json();
-    }
-    case "list_social_comments": {
-      let q = supabase
-        .from("social_comments")
-        .select(
-          "id, platform, author_name, message, external_post_id, replied_at, hidden_at, created_at_external, page_id, client_id",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .eq("is_from_page", false)
-        .order("created_at_external", { ascending: false, nullsFirst: false })
-        .limit(100);
-      if (args.page_id) q = q.eq("page_id", args.page_id);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      if (args.only_unreplied !== false)
-        q = q.is("replied_at", null).is("hidden_at", null);
-      const { data, error } = await q;
-      if (error) return { error: error.message };
-      return { count: data?.length || 0, comments: data || [] };
-    }
+    case "list_social_comments":
+      return executeListSocialComments(
+        args as Parameters<typeof executeListSocialComments>[0],
+        toolContext,
+      );
     case "reply_to_social_comment":
-    case "hide_social_comment": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "social_comments",
-        args.comment_row_id,
-        callerScope,
+    case "hide_social_comment":
+      return executeHideSocialComment(
+        args as Parameters<typeof executeHideSocialComment>[0],
+        toolContext,
       );
-      if (args.confirmed !== true)
-        return { error: "not_confirmed", message: "אישור משתמש מפורש נדרש" };
-      const targetTenantId = accessibleTenantIds[0];
-      const action = name === "reply_to_social_comment" ? "reply" : "hide";
-      const r = await fetch(
-        `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-comments`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            action,
-            tenant_id: targetTenantId,
-            comment_row_id: args.comment_row_id,
-            message: args.message,
-          }),
-        },
-      );
-      return await r.json();
-    }
     case "get_latest_campaign_pulse":
       return executeGetLatestCampaignPulse(
         args as Parameters<typeof executeGetLatestCampaignPulse>[0],
@@ -2198,338 +2112,44 @@ async function executeTool(
         args as Parameters<typeof executeBatchUpdateClientHealth>[0],
         toolContext,
       );
-    case "create_social_post": {
-      // Insert into both social_media_posts (for publishing) and social_gantt_posts (for planning view)
-      const postData = {
-        tenant_id: tenantId,
-        title: args.title,
-        content: args.content,
-        post_type: args.post_type || "image",
-        media_urls: args.media_urls || [],
-        status: "draft",
-        created_by: userId !== "system" ? userId : null,
-      };
-      const { data, error } = await supabase
-        .from("social_media_posts")
-        .insert(postData)
-        .select("id, title, content, post_type, media_urls, status")
-        .single();
-      if (error) throw error;
-      // Also create in gantt for visibility in the content calendar
-      const today = new Date().toISOString().split("T")[0];
-      try {
-        await supabase.from("social_gantt_posts").insert({
-          tenant_id: tenantId,
-          topic: args.title,
-          copy_text: args.content,
-          platform: "facebook",
-          status: "draft",
-          scheduled_date: today,
-          creative_url: args.media_urls?.[0] || null,
-        });
-      } catch (_e) {
-        /* non-critical */
-      }
-      return {
-        success: true,
-        post_id: data.id,
-        title: data.title,
-        content: data.content,
-        media_urls: data.media_urls,
-        status: "draft",
-        message: "הפוסט נוצר בהצלחה כטיוטה במודול סושיאל מדיה",
-      };
-    }
+    case "create_social_post":
+      return executeCreateSocialPost(
+        args as Parameters<typeof executeCreateSocialPost>[0],
+        toolContext,
+      );
 
     // ============ MARKETING DEPARTMENT (work items / pipeline) ============
-    case "list_marketing_work_items": {
-      let q = supabase
-        .from("marketing_work_items")
-        .select(
-          "id, title, status, target_channel, client_id, pipeline_id, current_stage_id, payload, updated_at, clients(name)",
-        )
-        .eq("tenant_id", tenantId)
-        .order("updated_at", { ascending: false })
-        .limit(args.limit || 30);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      if (args.status) q = q.eq("status", args.status);
-      const { data, error } = await q;
-      if (error) throw error;
-      let items: MarketingWorkItemListRow[] = data || [];
-      if (args.department) {
-        items = items.filter(
-          (it) =>
-            (readMarketingWorkItemPayload(it.payload).department || "") ===
-            args.department,
-        );
-      }
-      return {
-        count: items.length,
-        items: items.map((it) => {
-          const payload = readMarketingWorkItemPayload(it.payload);
-          return {
-            id: it.id,
-            title: it.title,
-            status: it.status,
-            department: payload.department || null,
-            client_id: it.client_id,
-            client_name: it.clients?.name || null,
-            target_channel: it.target_channel,
-            current_stage_id: it.current_stage_id,
-            updated_at: it.updated_at,
-            brief_preview:
-              typeof payload.brief_text === "string"
-                ? payload.brief_text.slice(0, 160)
-                : null,
-          };
-        }),
-      };
-    }
-    case "get_marketing_work_item": {
-      const { data: item, error } = await supabase
-        .from("marketing_work_items")
-        .select(
-          "id, title, status, target_channel, client_id, pipeline_id, current_stage_id, payload, links, scheduled_date, created_at, updated_at, clients(name)",
-        )
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (error || !item) return { error: "עבודה לא נמצאה" };
-      let stage = null;
-      if (item.current_stage_id) {
-        const { data: st } = await supabase
-          .from("marketing_pipeline_stages")
-          .select("id, name, stage_type, sort_order")
-          .eq("id", item.current_stage_id)
-          .maybeSingle();
-        stage = st;
-      }
-      let stages: MarketingStageSummary[] = [];
-      if (item.pipeline_id) {
-        const { data: sts } = await supabase
-          .from("marketing_pipeline_stages")
-          .select("id, name, stage_type, sort_order")
-          .eq("pipeline_id", item.pipeline_id)
-          .order("sort_order");
-        stages = sts || [];
-      }
-      return {
-        item: { ...item, client_name: item.clients?.name },
-        current_stage: stage,
-        pipeline_stages: stages,
-      };
-    }
-    case "create_marketing_work_item": {
-      const client_id = args.client_id;
-      const title = String(args.title || "").trim();
-      const brief = String(args.brief || "").trim();
-      if (!client_id || !title || !brief)
-        return { error: "client_id, title ו-brief נדרשים" };
-      await assertCallerCanAccessClient(supabase, client_id, callerScope);
-      const department = ["copy", "creative", "seo"].includes(args.department)
-        ? args.department
-        : "copy";
-      const track = department === "seo" ? "seo_geo" : "campaigns";
-      const stageType =
-        department === "copy"
-          ? "copy"
-          : department === "creative"
-            ? "creative"
-            : "target_seo";
-
-      // Ensure pipeline + default stages (mirrors ensurePipelineForClient). A client can have
-      // duplicate pipelines: take the oldest, as the department screens do. A failed lookup
-      // creates nothing.
-      const found = await findOrCreateClientPipeline(supabase, {
-        clientId: client_id,
-        tenantId,
-        track,
-      });
-      if ("error" in found) return { error: found.error };
-      const pipeline = found;
-      const { count: stageCount } = await supabase
-        .from("marketing_pipeline_stages")
-        .select("id", { count: "exact", head: true })
-        .eq("pipeline_id", pipeline!.id);
-      if ((stageCount ?? 0) === 0) {
-        const defaultStages = [
-          {
-            stage_type: "strategy",
-            name: "בריף",
-            sort_order: 0,
-            position_x: 1120,
-            position_y: 200,
-          },
-          {
-            stage_type: "copy",
-            name: "כתיבת תוכן",
-            sort_order: 1,
-            position_x: 840,
-            position_y: 200,
-          },
-          {
-            stage_type: "creative",
-            name: "קריאייטיב",
-            sort_order: 2,
-            position_x: 560,
-            position_y: 200,
-          },
-          {
-            stage_type: track === "seo_geo" ? "target_seo" : "target_paid",
-            name: track === "seo_geo" ? "SEO / GEO" : "קמפיין ממומן",
-            sort_order: 3,
-            position_x: 280,
-            position_y: 200,
-          },
-          {
-            stage_type: "measurement",
-            name: "מדידה",
-            sort_order: 4,
-            position_x: 0,
-            position_y: 200,
-          },
-        ];
-        await supabase.from("marketing_pipeline_stages").insert(
-          defaultStages.map((s) => ({
-            ...s,
-            pipeline_id: pipeline!.id,
-            tenant_id: tenantId,
-            approval_mode: "manual",
-            configuration: {},
-          })),
-        );
-      }
-      const { data: stages } = await supabase
-        .from("marketing_pipeline_stages")
-        .select("id, stage_type")
-        .eq("pipeline_id", pipeline!.id);
-      const stageId =
-        stages?.find(
-          (s: Pick<MarketingStageSummary, "id" | "stage_type">) =>
-            s.stage_type === stageType,
-        )?.id || null;
-      if (!stageId) return { error: `שלב ${stageType} לא נמצא בפייפליין` };
-
-      const channel = args.channel || "כללי";
-      const { data: item, error } = await supabase
-        .from("marketing_work_items")
-        .insert({
-          tenant_id: tenantId,
-          client_id,
-          pipeline_id: pipeline!.id,
-          current_stage_id: stageId,
-          title,
-          status: "draft",
-          target_channel: String(channel).toLowerCase().replace(/\s+/g, "_"),
-          payload: {
-            brief_text: brief,
-            notes: args.instructions || "",
-            instructions: args.instructions || "",
-            content_type:
-              args.content_type ||
-              (department === "copy" ? "ad_copy" : department),
-            channel,
-            department,
-            intake_source: "carmen",
-          },
-          created_by: userId !== "system" ? userId : null,
-        })
-        .select("id, title, status, current_stage_id")
-        .single();
-      if (error) throw error;
-      return {
-        success: true,
-        item_id: item.id,
-        title: item.title,
-        department,
-        stage_type: stageType,
-        status: item.status,
-      };
-    }
-    case "handoff_marketing_work_item": {
-      const { data: item } = await supabase
-        .from("marketing_work_items")
-        .select("id, pipeline_id, payload, title")
-        .eq("id", args.item_id)
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      if (!item) return { error: "עבודה לא נמצאה" };
-      const { data: stages } = await supabase
-        .from("marketing_pipeline_stages")
-        .select("id, name, stage_type")
-        .eq("pipeline_id", item.pipeline_id);
-      const stageRows: Omit<MarketingStageSummary, "sort_order">[] =
-        stages || [];
-      const target = stageRows.find((s) => s.stage_type === args.to_stage_type);
-      if (!target)
-        return {
-          error: `שלב ${args.to_stage_type} לא נמצא בפייפליין`,
-          available: stageRows.map((s) => s.stage_type),
-        };
-      const { data: updated, error } = await supabase
-        .from("marketing_work_items")
-        .update({
-          current_stage_id: target.id,
-          status: "draft",
-          payload: {
-            ...(item.payload || {}),
-            department:
-              args.to_stage_type === "creative"
-                ? "creative"
-                : args.to_stage_type === "copy"
-                  ? "copy"
-                  : readMarketingWorkItemPayload(item.payload).department,
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", args.item_id)
-        .select("id, title, current_stage_id, status")
-        .single();
-      if (error) throw error;
-      return {
-        success: true,
-        item_id: updated.id,
-        title: updated.title,
-        handed_off_to: target.name,
-        stage_type: target.stage_type,
-      };
-    }
-    case "update_marketing_work_item": {
-      // The workshop's budget and project state are written only by its own server code.
-      let droppedKeys: string[] = [];
-      let payloadPatch: Record<string, unknown> | null = null;
-      if (args.payload_patch && typeof args.payload_patch === "object") {
-        const safe = stripServerOnlyPayloadKeys(args.payload_patch);
-        droppedKeys = safe.dropped;
-        payloadPatch = safe.patch;
-      }
-      // Merges the patch in SQL (payload || patch), so a concurrent workshop write survives.
-      const { data: rows, error } = await supabase.rpc(
-        "patch_marketing_work_item",
-        {
-          p_item_id: args.item_id,
-          p_tenant_id: tenantId,
-          p_title: args.title != null ? String(args.title) : null,
-          p_status: args.status != null ? String(args.status) : null,
-          p_payload_patch: payloadPatch,
-        },
+    case "list_marketing_work_items":
+      return executeListMarketingWorkItems(
+        args as Parameters<typeof executeListMarketingWorkItems>[0],
+        toolContext,
       );
-      if (error) throw error;
-      const updated = Array.isArray(rows) ? rows[0] : rows;
-      if (!updated) return { error: "עבודה לא נמצאה" };
-      if (droppedKeys.length === 0) return { success: true, item: updated };
-      return {
-        success: true,
-        item: updated,
-        ignored_payload_keys: droppedKeys,
-        message: `לא עודכנו: ${droppedKeys.join(", ")}. את התקציב ואת מצב הפרויקט של הסדנה כותבת רק הסדנה עצמה.`,
-      };
-    }
+    case "get_marketing_work_item":
+      return executeGetMarketingWorkItem(
+        args as Parameters<typeof executeGetMarketingWorkItem>[0],
+        toolContext,
+      );
+    case "create_marketing_work_item":
+      return executeCreateMarketingWorkItem(
+        args as Parameters<typeof executeCreateMarketingWorkItem>[0],
+        toolContext,
+      );
+    case "handoff_marketing_work_item":
+      return executeHandoffMarketingWorkItem(
+        args as Parameters<typeof executeHandoffMarketingWorkItem>[0],
+        toolContext,
+      );
+    case "update_marketing_work_item":
+      return executeUpdateMarketingWorkItem(
+        args as Parameters<typeof executeUpdateMarketingWorkItem>[0],
+        toolContext,
+      );
 
-    case "generate_ad_image": {
-      // _shared/creative/ad-image.ts; the workshop runs it in workshop-image (CPU limit).
-      return await makeAdImage(supabase, tenantId, args);
-    }
+    case "generate_ad_image":
+      return executeGenerateAdImage(
+        args as Parameters<typeof executeGenerateAdImage>[0],
+        toolContext,
+      );
     // CLIENTS - full CRUD
     case "create_client":
     case "update_client":
@@ -2586,134 +2206,60 @@ async function executeTool(
         toolContext,
       );
     // CAMPAIGNERS
-    case "list_campaigners": {
-      const { data, error } = await supabase
-        .from("campaigners")
-        .select("id, full_name, phone, email, role")
-        .in("tenant_id", accessibleTenantIds)
-        .order("full_name")
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, campaigners: data };
-    }
-    case "create_campaigner": {
-      const { data, error } = await supabase
-        .from("campaigners")
-        .insert({
-          full_name: args.full_name,
-          phone: args.phone || null,
-          email: args.email || null,
-          role: args.role || null,
-          tenant_id: tenantId,
-        })
-        .select("id, full_name")
-        .single();
-      if (error) throw error;
-      return { campaigner_id: data.id, full_name: data.full_name };
-    }
+    case "list_campaigners":
+      return executeListCampaigners(
+        args as Parameters<typeof executeListCampaigners>[0],
+        toolContext,
+      );
+    case "create_campaigner":
+      return executeCreateCampaigner(
+        args as Parameters<typeof executeCreateCampaigner>[0],
+        toolContext,
+      );
     // SALES PEOPLE
-    case "list_sales_people": {
-      const { data, error } = await supabase
-        .from("sales_people")
-        .select("id, full_name, phone, email")
-        .in("tenant_id", accessibleTenantIds)
-        .order("full_name")
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, sales_people: data };
-    }
-    case "create_sales_person": {
-      const { data, error } = await supabase
-        .from("sales_people")
-        .insert({
-          full_name: args.full_name,
-          phone: args.phone || null,
-          email: args.email || null,
-          tenant_id: tenantId,
-        })
-        .select("id, full_name")
-        .single();
-      if (error) throw error;
-      return { sales_person_id: data.id, full_name: data.full_name };
-    }
+    case "list_sales_people":
+      return executeListSalesPeople(
+        args as Parameters<typeof executeListSalesPeople>[0],
+        toolContext,
+      );
+    case "create_sales_person":
+      return executeCreateSalesPerson(
+        args as Parameters<typeof executeCreateSalesPerson>[0],
+        toolContext,
+      );
     // AGENCIES
-    case "list_agencies": {
-      const { data, error } = await supabase
-        .from("agencies")
-        .select("id, name, contact_name, phone, email")
-        .in("tenant_id", accessibleTenantIds)
-        .order("name")
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, agencies: data };
-    }
-    case "create_agency": {
-      const { data, error } = await supabase
-        .from("agencies")
-        .insert({
-          name: args.name,
-          contact_name: args.contact_name || null,
-          phone: args.phone || null,
-          email: args.email || null,
-          tenant_id: tenantId,
-        })
-        .select("id, name")
-        .single();
-      if (error) throw error;
-      return { agency_id: data.id, name: data.name };
-    }
+    case "list_agencies":
+      return executeListAgencies(
+        args as Parameters<typeof executeListAgencies>[0],
+        toolContext,
+      );
+    case "create_agency":
+      return executeCreateAgency(
+        args as Parameters<typeof executeCreateAgency>[0],
+        toolContext,
+      );
     // SUPPLIERS
-    case "list_suppliers": {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id, name, type, phone, email")
-        .in("tenant_id", accessibleTenantIds)
-        .order("name")
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, suppliers: data };
-    }
-    case "create_supplier": {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .insert({
-          name: args.name,
-          type: args.type || "other",
-          phone: args.phone || null,
-          email: args.email || null,
-          tenant_id: tenantId,
-        })
-        .select("id, name")
-        .single();
-      if (error) throw error;
-      return { supplier_id: data.id, name: data.name };
-    }
+    case "list_suppliers":
+      return executeListSuppliers(
+        args as Parameters<typeof executeListSuppliers>[0],
+        toolContext,
+      );
+    case "create_supplier":
+      return executeCreateSupplier(
+        args as Parameters<typeof executeCreateSupplier>[0],
+        toolContext,
+      );
     // PRODUCTS
-    case "list_products": {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, description, price, active")
-        .in("tenant_id", accessibleTenantIds)
-        .order("name")
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, products: data };
-    }
-    case "create_product": {
-      const { data, error } = await supabase
-        .from("products")
-        .insert({
-          name: args.name,
-          description: args.description || null,
-          price: args.price,
-          active: true,
-          tenant_id: tenantId,
-        })
-        .select("id, name, price")
-        .single();
-      if (error) throw error;
-      return { product_id: data.id, name: data.name, price: data.price };
-    }
+    case "list_products":
+      return executeListProducts(
+        args as Parameters<typeof executeListProducts>[0],
+        toolContext,
+      );
+    case "create_product":
+      return executeCreateProduct(
+        args as Parameters<typeof executeCreateProduct>[0],
+        toolContext,
+      );
     // AUTOMATIONS
     case "list_automations": {
       let q = supabase
@@ -3442,444 +2988,70 @@ async function executeTool(
     case "get_recent_inbound_messages":
       return getRecentInboundMessages(chatRead, args);
     // FINANCE
-    case "list_finance": {
-      let query = supabase
-        .from("finance")
-        .select("id, amount, type, description, date, client_id, clients(name)")
-        .in("tenant_id", accessibleTenantIds)
-        .order("date", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.client_id) query = query.eq("client_id", args.client_id);
-      if (args.type) query = query.eq("type", args.type);
-      const { data, error } = await query;
-      if (error) throw error;
-      return {
-        count: data.length,
-        entries: data.map((f: FinanceListRow) => ({
-          ...f,
-          client_name: f.clients?.name,
-        })),
-        note: "legacy finance table — prefer get_accounting_overview",
-      };
-    }
-    case "create_finance_entry": {
-      const { data, error } = await supabase
-        .from("finance")
-        .insert({
-          amount: args.amount,
-          type: args.type,
-          description: args.description,
-          date: args.date || new Date().toISOString().split("T")[0],
-          client_id: args.client_id || null,
-          tenant_id: tenantId,
-        })
-        .select("id, amount, type, description")
-        .single();
-      if (error) throw error;
-      return { finance_id: data.id, amount: data.amount, type: data.type };
-    }
-    case "get_finance_summary": {
-      const month = args.month || new Date().toISOString().slice(0, 7);
-      const startDate = `${month}-01`;
-      const endDate = new Date(
-        parseInt(month.split("-")[0]),
-        parseInt(month.split("-")[1]),
-        0,
-      )
-        .toISOString()
-        .split("T")[0];
-      const { data, error } = await supabase
-        .from("finance")
-        .select("amount, type")
-        .in("tenant_id", accessibleTenantIds)
-        .gte("date", startDate)
-        .lte("date", endDate);
-      if (error) throw error;
-      const financeRows: Pick<AgentRow<"finance">, "amount" | "type">[] =
-        data || [];
-      const income = financeRows
-        .filter((f) => f.type === "income")
-        .reduce((s, f) => s + (f.amount || 0), 0);
-      const expense = financeRows
-        .filter((f) => f.type === "expense")
-        .reduce((s, f) => s + (f.amount || 0), 0);
-      return {
-        month,
-        income,
-        expense,
-        profit: income - expense,
-        entries_count: data.length,
-        note: "legacy finance table — prefer get_accounting_overview",
-      };
-    }
+    case "list_finance":
+      return executeListFinance(
+        args as Parameters<typeof executeListFinance>[0],
+        toolContext,
+      );
+    case "create_finance_entry":
+      return executeCreateFinanceEntry(
+        args as Parameters<typeof executeCreateFinanceEntry>[0],
+        toolContext,
+      );
+    case "get_finance_summary":
+      return executeGetFinanceSummary(
+        args as Parameters<typeof executeGetFinanceSummary>[0],
+        toolContext,
+      );
 
     // ============ REAL ACCOUNTING MODULE (AccountingIntegrations) ============
-    case "get_accounting_overview": {
-      const month = String(args.month || new Date().toISOString().slice(0, 7));
-      let agencyId = args.agency_id as string | undefined;
-      if (!agencyId && args.agency_name) {
-        const { data: ag } = await supabase
-          .from("agencies")
-          .select("id, name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${args.agency_name}%`)
-          .limit(1)
-          .maybeSingle();
-        agencyId = ag?.id;
-      }
-      let clientsQ = supabase
-        .from("clients")
-        .select(
-          "id, name, status, agency_id, retainer, monthly_budget, monthly_fixed_expense, agencies(name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .in("status", ["active", "onboarding", "paused"]);
-      if (agencyId) clientsQ = clientsQ.eq("agency_id", agencyId);
-      const { data: clients, error: cErr } = await clientsQ.limit(500);
-      if (cErr) throw cErr;
-      const clientRows: AccountingClientRow[] = clients || [];
-      const clientIds = clientRows.map((c) => c.id);
-      const { data: ctfd }: { data: FinancialOverlayRow[] | null } =
-        clientIds.length
-          ? await supabase
-              .from("client_tenant_financial_data")
-              .select("client_id, retainer, monthly_budget")
-              .eq("tenant_id", tenantId)
-              .in("client_id", clientIds)
-          : { data: [] };
-      const finMap = new Map(
-        (ctfd || []).map((r) => [r.client_id, r] as const),
+    case "get_accounting_overview":
+      return executeGetAccountingOverview(
+        args as Parameters<typeof executeGetAccountingOverview>[0],
+        toolContext,
       );
-      const enriched = clientRows.map((c) => {
-        const overlay = finMap.get(c.id);
-        const retainer = Number(overlay?.retainer ?? c.retainer ?? 0) || 0;
-        return {
-          client_id: c.id,
-          name: c.name,
-          status: c.status,
-          agency: c.agencies?.name || null,
-          retainer,
-          monthly_budget:
-            Number(overlay?.monthly_budget ?? c.monthly_budget ?? 0) || 0,
-          monthly_fixed_expense: Number(c.monthly_fixed_expense ?? 0) || 0,
-        };
-      });
-      const expectedRetainers = enriched
-        .filter((c) => c.status === "active")
-        .reduce((s, c) => s + c.retainer, 0);
-
-      let otiQ = supabase
-        .from("one_time_incomes")
-        .select(
-          "id, client_id, product_name, amount, payment_month, notes, clients(name)",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month);
-      if (agencyId) {
-        const agencyClientIds = enriched.map((c) => c.client_id);
-        otiQ = otiQ.in(
-          "client_id",
-          agencyClientIds.length
-            ? agencyClientIds
-            : ["00000000-0000-0000-0000-000000000000"],
-        );
-      }
-      const { data: oneTime } = await otiQ.limit(200);
-      const oneTimeRows: OneTimeIncomeRow[] = oneTime || [];
-      const oneTimeTotal = oneTimeRows.reduce(
-        (s, r) => s + (Number(r.amount) || 0),
-        0,
+    case "get_client_retainer":
+      return executeGetClientRetainer(
+        args as Parameters<typeof executeGetClientRetainer>[0],
+        toolContext,
       );
-
-      let ipQ = supabase
-        .from("income_payments")
-        .select(
-          "id, client_id, client_name, amount, payment_month, received_at",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month);
-      if (agencyId) {
-        const agencyClientIds = enriched.map((c) => c.client_id);
-        ipQ = ipQ.in(
-          "client_id",
-          agencyClientIds.length
-            ? agencyClientIds
-            : ["00000000-0000-0000-0000-000000000000"],
-        );
-      }
-      const { data: incomePayments } = await ipQ.limit(500);
-      const incomePaymentRows: Pick<
-        AgentRow<"income_payments">,
-        "client_id" | "amount"
-      >[] = incomePayments || [];
-      const collected = incomePaymentRows.reduce(
-        (s, r) => s + (Number(r.amount) || 0),
-        0,
+    case "list_one_time_incomes":
+      return executeListOneTimeIncomes(
+        args as Parameters<typeof executeListOneTimeIncomes>[0],
+        toolContext,
       );
-
-      const { data: expensePayments } = await supabase
-        .from("expense_payments")
-        .select(
-          "id, expense_type, expense_id, expense_name, amount, payment_month, paid_at",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month)
-        .limit(500);
-      const expensePaymentRows: Pick<AgentRow<"expense_payments">, "amount">[] =
-        expensePayments || [];
-      const expensesPaid = expensePaymentRows.reduce(
-        (s, r) => s + (Number(r.amount) || 0),
-        0,
+    case "list_income_payments":
+      return executeListIncomePayments(
+        args as Parameters<typeof executeListIncomePayments>[0],
+        toolContext,
       );
-      const expectedFixedExpenses = enriched
-        .filter((c) => c.status === "active")
-        .reduce((s, c) => s + c.monthly_fixed_expense, 0);
-
-      return {
-        month,
-        agency_id: agencyId || null,
-        expected_retainers: expectedRetainers,
-        one_time_incomes_total: oneTimeTotal,
-        expected_income: expectedRetainers + oneTimeTotal,
-        collected_income: collected,
-        collection_gap: expectedRetainers + oneTimeTotal - collected,
-        expected_fixed_client_expenses: expectedFixedExpenses,
-        expenses_paid: expensesPaid,
-        estimated_gross: collected - expensesPaid,
-        clients_count: enriched.length,
-        active_with_retainer: enriched.filter(
-          (c) => c.status === "active" && c.retainer > 0,
-        ).length,
-        one_time_incomes: oneTimeRows.slice(0, 30).map((r) => ({
-          id: r.id,
-          client_id: r.client_id,
-          client_name: r.clients?.name,
-          product_name: r.product_name,
-          amount: r.amount,
-        })),
-        top_uncollected_retainers: enriched
-          .filter((c) => c.status === "active" && c.retainer > 0)
-          .filter(
-            (c) =>
-              !incomePaymentRows.some(
-                (p) =>
-                  p.client_id === c.client_id &&
-                  Number(p.amount) === c.retainer,
-              ),
-          )
-          .sort((a, b) => b.retainer - a.retainer)
-          .slice(0, 15)
-          .map((c) => ({
-            client_id: c.client_id,
-            name: c.name,
-            retainer: c.retainer,
-            agency: c.agency,
-          })),
-      };
-    }
-    case "get_client_retainer": {
-      let clientId = args.client_id as string | undefined;
-      if (!clientId && args.client_name) {
-        const { data: found } = await supabase
-          .from("clients")
-          .select("id, name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${args.client_name}%`)
-          .limit(1)
-          .maybeSingle();
-        clientId = found?.id;
-      }
-      if (!clientId) return { error: "client_id או client_name נדרש" };
-      await assertCallerCanAccessClient(supabase, clientId, callerScope);
-      const { data: client, error } = await supabase
-        .from("clients")
-        .select(
-          "id, name, status, retainer, monthly_budget, monthly_fixed_expense",
-        )
-        .eq("id", clientId)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (error || !client) return { error: "לקוח לא נמצא" };
-      const { data: overlay } = await supabase
-        .from("client_tenant_financial_data")
-        .select("retainer, monthly_budget, notes")
-        .eq("tenant_id", tenantId)
-        .eq("client_id", clientId)
-        .maybeSingle();
-      return {
-        client_id: client.id,
-        name: client.name,
-        status: client.status,
-        retainer: Number(overlay?.retainer ?? client.retainer ?? 0) || 0,
-        monthly_budget:
-          Number(overlay?.monthly_budget ?? client.monthly_budget ?? 0) || 0,
-        monthly_fixed_expense: Number(client.monthly_fixed_expense ?? 0) || 0,
-        notes: overlay?.notes || null,
-        source: overlay ? "client_tenant_financial_data" : "clients",
-      };
-    }
-    case "list_one_time_incomes": {
-      const month = String(args.month || new Date().toISOString().slice(0, 7));
-      let q = supabase
-        .from("one_time_incomes")
-        .select(
-          "id, client_id, product_name, amount, payment_month, notes, is_paid, clients(name)",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      const { data, error } = await q;
-      if (error) throw error;
-      return {
-        month,
-        count: data?.length || 0,
-        total: (data || []).reduce(
-          (s: number, r: Pick<AgentRow<"one_time_incomes">, "amount">) =>
-            s + (Number(r.amount) || 0),
-          0,
-        ),
-        incomes: (data || []).map(
-          (
-            r: OneTimeIncomeRow & Pick<AgentRow<"one_time_incomes">, "is_paid">,
-          ) => ({
-            ...r,
-            client_name: r.clients?.name,
-          }),
-        ),
-      };
-    }
-    case "list_income_payments": {
-      const month = String(args.month || new Date().toISOString().slice(0, 7));
-      let q = supabase
-        .from("income_payments")
-        .select(
-          "id, client_id, client_name, amount, payment_month, received_at, notes",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month)
-        .order("received_at", { ascending: false })
-        .limit(200);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      const { data, error } = await q;
-      if (error) throw error;
-      return {
-        month,
-        count: data?.length || 0,
-        total_collected: (data || []).reduce(
-          (s: number, r: Pick<AgentRow<"income_payments">, "amount">) =>
-            s + (Number(r.amount) || 0),
-          0,
-        ),
-        payments: data || [],
-      };
-    }
-    case "list_expense_payments": {
-      const month = String(args.month || new Date().toISOString().slice(0, 7));
-      let q = supabase
-        .from("expense_payments")
-        .select(
-          "id, expense_type, expense_id, expense_name, amount, payment_month, paid_at, notes",
-        )
-        .eq("tenant_id", tenantId)
-        .eq("payment_month", month)
-        .order("paid_at", { ascending: false })
-        .limit(200);
-      if (args.expense_type) q = q.eq("expense_type", args.expense_type);
-      const { data, error } = await q;
-      if (error) throw error;
-      return {
-        month,
-        count: data?.length || 0,
-        total_paid: (data || []).reduce(
-          (s: number, r: Pick<AgentRow<"expense_payments">, "amount">) =>
-            s + (Number(r.amount) || 0),
-          0,
-        ),
-        payments: data || [],
-      };
-    }
-    case "list_invoice_uploads": {
-      let q = supabase
-        .from("invoice_uploads")
-        .select(
-          "id, vendor_name, invoice_number, invoice_date, total_amount, currency, status, supplier_id, client_id, finance_id, created_at, error_message",
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 30);
-      if (args.status) q = q.eq("status", args.status);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data?.length || 0, invoices: data || [] };
-    }
+    case "list_expense_payments":
+      return executeListExpensePayments(
+        args as Parameters<typeof executeListExpensePayments>[0],
+        toolContext,
+      );
+    case "list_invoice_uploads":
+      return executeListInvoiceUploads(
+        args as Parameters<typeof executeListInvoiceUploads>[0],
+        toolContext,
+      );
     case "create_one_time_income":
     case "delete_one_time_income":
     case "record_income_payment":
     case "delete_income_payment":
     case "record_expense_payment":
     case "delete_expense_payment":
-    case "update_client_retainer": {
-      if (args.client_id)
-        await assertCallerCanAccessClient(
-          supabase,
-          args.client_id,
-          callerScope,
-        );
-      const acctTitles: Record<string, string> = {
-        create_one_time_income: `הכנסה חד-פעמית: ${args.product_name || ""} ₪${args.amount ?? ""} (${args.payment_month || ""})`,
-        delete_one_time_income: `מחיקת הכנסה חד-פעמית ${args.income_id}`,
-        record_income_payment: `סימון גבייה ₪${args.amount ?? ""} לחודש ${args.payment_month || ""}`,
-        delete_income_payment: `ביטול גבייה ${args.payment_id}`,
-        record_expense_payment: `סימון הוצאה שולמה: ${args.expense_name || ""} ₪${args.amount ?? ""}`,
-        delete_expense_payment: `ביטול תשלום הוצאה ${args.payment_id}`,
-        update_client_retainer: `עדכון ריטיינר לקוח ${args.client_id} → ₪${args.retainer ?? "?"}`,
-      };
-      const { data: aqRow, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: name,
-          title: acctTitles[name] || name,
-          description: "פעולת הנהלת חשבונות — דורשת אישור משתמש מפורש",
-          tool_name: name,
-          tool_input: args,
-          context: { caller_role: callerRole, caller_phone: callerPhone },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aqRow.id,
-        action: name,
-        summary: acctTitles[name] || name,
-        instruction_for_carmen:
-          'הצג למשתמש בקצרה את הפעולה הכספית ובקש אישור: "לאשר? (כן/לא)". אל תבצעי עד execute_pending_approval אחרי תשובה חיובית.',
-      };
-    }
+    case "update_client_retainer":
+      return executeUpdateClientRetainer(
+        args as Parameters<typeof executeUpdateClientRetainer>[0],
+        toolContext,
+      );
     // UPDATES
-    case "list_updates": {
-      if (args.entity_type === "client") {
-        await assertCallerCanAccessClient(
-          supabase,
-          args.entity_id,
-          callerScope,
-        );
-      }
-      return await listUpdates(supabase, {
-        entityType: args.entity_type,
-        entityId: args.entity_id,
-        tenantId,
-        accessibleTenantIds,
-        limit: args.limit,
-      });
-    }
+    case "list_updates":
+      return executeListUpdates(
+        args as Parameters<typeof executeListUpdates>[0],
+        toolContext,
+      );
     // GOALS
     case "create_goal":
       return executeCreateGoal(
@@ -4458,42 +3630,16 @@ async function executeTool(
     }
 
     // ============ MEDIA LIBRARY ============
-    case "save_media_from_chat": {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/carmen-save-media`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-        },
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          created_by: userId,
-          ...args,
-        }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.error || "save_media_failed");
-      return j;
-    }
-    case "list_client_media": {
-      let q = supabase
-        .from("marketing_media_library")
-        .select(
-          "id, mime_type, file_size, ad_ready, caption, tags, created_at, client_id, lead_id",
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      if (args.lead_id) q = q.eq("lead_id", args.lead_id);
-      if (args.only_ad_ready) q = q.eq("ad_ready", true);
-      if (Array.isArray(args.tags) && args.tags.length)
-        q = q.contains("tags", args.tags);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, media: data };
-    }
+    case "save_media_from_chat":
+      return executeSaveMediaFromChat(
+        args as Parameters<typeof executeSaveMediaFromChat>[0],
+        toolContext,
+      );
+    case "list_client_media":
+      return executeListClientMedia(
+        args as Parameters<typeof executeListClientMedia>[0],
+        toolContext,
+      );
 
     // ============ APPROVAL HELPERS ============
     case "list_pending_approvals": {
