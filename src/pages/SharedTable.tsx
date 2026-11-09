@@ -351,6 +351,9 @@ export default function SharedTable() {
     ],
   );
   const { summary, campaigns: campaignSummary, manualRoi } = report;
+  // A Google sales campaign that also brought calls or forms shows them apart.
+  const googleSalesLeads =
+    isGoogleAds && campaignSummary.ecommerce.some((row) => row.leads > 0);
   const forceLeadsOnly = !report.goals.hasEcommerce;
 
   // Generic table columns from fields or data keys
@@ -889,6 +892,9 @@ export default function SharedTable() {
                         <TableHead className="text-right">רכישות</TableHead>
                         <TableHead className="text-right">הכנסות</TableHead>
                         <TableHead className="text-right">ROAS</TableHead>
+                        {googleSalesLeads && (
+                          <TableHead className="text-right">לידים</TableHead>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -917,6 +923,9 @@ export default function SharedTable() {
                                 {roas.toFixed(2)}
                               </span>
                             </TableCell>
+                            {googleSalesLeads && (
+                              <TableCell>{formatNumber(c.leads)}</TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -994,6 +1003,16 @@ export default function SharedTable() {
                             );
                           })()}
                         </TableCell>
+                        {googleSalesLeads && (
+                          <TableCell>
+                            {formatNumber(
+                              campaignSummary.ecommerce.reduce(
+                                (s: number, c: any) => s + c.leads,
+                                0,
+                              ),
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     </TableBody>
                   </Table>

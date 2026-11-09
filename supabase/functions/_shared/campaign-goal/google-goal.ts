@@ -28,6 +28,8 @@ export type GoogleAdsRowData = {
   spend?: number | string;
   conversions?: number | string;
   conversions_value?: number | string;
+  /** A sales campaign's leads (calls, forms), apart from its purchases. */
+  leads?: number | string;
   conversion_goal?: GoogleCampaignGoal;
   /** Google's campaign type and bid strategy; exposure bidding makes traffic (AIO-496). */
   campaign_channel_type?: string;

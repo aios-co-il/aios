@@ -1,6 +1,7 @@
 import {
   aggregateGoogleRecordsAtLevel,
   type AdsEntityLevel,
+  getEntityGroupKey,
 } from "@/lib/adsEntityLevel";
 import type {
   GoogleAdsRowData,
@@ -22,6 +23,7 @@ export function googleCampaignRowsByGoal(
     sharedTableGoogleRows(
       records.filter((record) => goalOf(record.data) === goal),
       level,
+      goal,
     );
   const ecommerce = rowsOf("ecommerce");
   const leads = rowsOf("leads");
@@ -34,17 +36,32 @@ export function googleCampaignRowsByGoal(
   };
 }
 
-/** One row per entity with the columns the shared table shows. */
+/**
+ * One row per entity with the columns the shared table shows. A sales row's
+ * leads are only the calls and forms the sync stores in `leads`: the generic
+ * reader would fall back to its conversions, which are purchases.
+ */
 function sharedTableGoogleRows(
   records: GoogleReportRecord[],
   level: AdsEntityLevel,
+  goal: GoogleReportGoal,
 ) {
+  const salesLeads = new Map<string, number>();
+  if (goal === "ecommerce") {
+    for (const record of records) {
+      const key = getEntityGroupKey(record.data, level);
+      salesLeads.set(
+        key,
+        (salesLeads.get(key) ?? 0) + (Number(record.data?.leads) || 0),
+      );
+    }
+  }
   return aggregateGoogleRecordsAtLevel(records, level).map((c) => ({
     name: c.name,
     spend: c.cost || c.spend,
     impressions: c.impressions,
     clicks: c.clicks,
-    leads: c.leads,
+    leads: goal === "ecommerce" ? (salesLeads.get(c.key) ?? 0) : c.leads,
     purchases: c.purchases,
     revenue: c.conversions_value || c.purchase_value,
     addToCart: c.add_to_cart,
