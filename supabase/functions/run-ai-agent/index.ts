@@ -380,6 +380,7 @@ import { readCampaignGoalTables } from "./goal-tables.ts";
 
 import { jsonObject, isObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { readWaChatScope, type WaChatScope } from "./wa-notify.ts";
 import {
   readGraphAdAccountsPage,
   readMetaLeadQuestionInput,
@@ -425,6 +426,35 @@ import type {
   ConnectedClient,
   DisconnectedClient,
 } from "./helper-results.ts";
+import type { Database } from "../_shared/database.types.ts";
+import type { ToolDef } from "../_shared/carmen-token-optimizer.ts";
+import type { McpLoaded } from "../_shared/mcp-tools.ts";
+import {
+  embeddedName,
+  parseRunAgentRequest,
+  readConversationTurns,
+  readHistoryMessages,
+  readJsonRecord,
+} from "./run-request.ts";
+import type {
+  DirectToolRequest,
+  JsonRecord,
+  RunAgentRequest,
+} from "./run-request.ts";
+import {
+  firstChoiceMessage,
+  isChatCompletionMessage,
+  parseToolArguments,
+  readChatUsage,
+  readErrorStack,
+  readManusTask,
+  readToolResult,
+  toJson,
+} from "./run-loop-contracts.ts";
+import type {
+  ChatCompletionRequest,
+  ChatRequestMessage,
+} from "./run-loop-contracts.ts";
 
 /** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
 function errorMessage(e: unknown): string {
@@ -5968,6 +5998,7 @@ async function devTaskApprovalRefusal(
       };
 }
 
+/** Dispatch an allowed tool using the resolved caller and tenant scope. */
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -6011,6 +6042,7 @@ async function executeTool(
   humanRequesterUserId?: string | null,
   // The "תעדי <code>" this run answers (confirm_finding_draft); omitted = none.
   findingDraftReply?: FindingDraftReply | null,
+  waChatScope?: WaChatScope | null,
 ): Promise<any> {
   // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
   const actorUserId = asUuidOrNull(userId);
@@ -10144,9 +10176,19 @@ async function executeTool(
       // Default: stay inside the active WhatsApp chat_id (private or group).
       let scopeGroupId: string | null = null;
       let scopeNote = "current_chat";
-      if (!browseAll && waNotify?.chat_id) {
-        const chatId = String(waNotify.chat_id);
-        if (isGroupChat(waNotify)) {
+      const waScope = waChatScope ?? readWaChatScope(waNotify);
+      if (!browseAll && waScope && !waScope.chat_id) {
+        return {
+          count: 0,
+          mode: browseMode ? "browse" : "keyword_search",
+          error: "current_chat_unknown",
+          note: "לא זוהה הצ'אט הנוכחי — נסי browse_all_chats=true אם צריך חיפוש ארגוני.",
+        };
+      }
+      if (!browseAll && waScope?.chat_id) {
+        const chatId = waScope.chat_id;
+        const isGroupChat = /@g\.us/i.test(chatId) || waScope.is_group === true;
+        if (isGroupChat) {
           const { data: g } = await supabase
             .from("whatsapp_groups")
             .select("id")
@@ -10208,7 +10250,7 @@ async function executeTool(
         count: data.length,
         mode: browseMode ? "browse" : "keyword_search",
         scope: scopeNote,
-        chat_id: waNotify?.chat_id || null,
+        chat_id: waScope?.chat_id || null,
         note:
           data.length === 0
             ? browseMode
@@ -13801,8 +13843,9 @@ import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 // In non-streaming mode it's a no-op.
 type Emit = ((obj: unknown) => void) | undefined;
 
+/** Run an agent turn with the authenticated caller context and selected tools. */
 async function handleRunAgent(
-  bodyJson: any,
+  bodyJson: RunAgentRequest,
   surface: Surface,
   emit: Emit,
   brainEngine?: Extract<BrainEngine, { kind: "connections" }>,
@@ -13825,11 +13868,12 @@ async function handleRunAgent(
       lead_data,
       tenant_id,
       user_id,
-      task_skills: requestedTaskSkills,
+      task_skills: requestedTaskSkills = [],
       task_mode,
       conversation_history,
       conversation_id,
       wa_notify,
+      wa_chat_scope,
     } = bodyJson;
     const inWorkshopRequest = isWorkshopTurn(surface, requestedTaskSkills);
     let task_skills = requestedTaskSkills;
@@ -13852,7 +13896,10 @@ async function handleRunAgent(
 
     if (!command_text) throw new Error("Missing command_text");
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
 
     // A paid workshop confirm must arrive in a later user message than the quote it confirms;
     // a script approved in this turn may not be replaced in it (workshop-turn-setup.ts).
@@ -13878,9 +13925,10 @@ async function handleRunAgent(
     }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
-    let agent: any;
-    let agent_id = bodyAgentId;
-    if (agent_id) {
+    let agent: AgentRow<"ai_agents">;
+    let agent_id: string;
+    if (bodyAgentId) {
+      agent_id = bodyAgentId;
       const { data, error: agentError } = await supabase
         .from("ai_agents")
         .select("*")
@@ -13916,7 +13964,11 @@ async function handleRunAgent(
     const isCarmenAgent =
       agent.name?.toLowerCase().includes("carmen") ||
       agent.name?.includes("כרמן");
-    const tokenOptimize = shouldUseTokenOptimize(agent, isCarmenAgent);
+    const agentMetadata = jsonObject(agent.metadata);
+    const tokenOptimize = shouldUseTokenOptimize(
+      { metadata: agentMetadata },
+      isCarmenAgent,
+    );
     if (emit && tokenOptimize && !pinSkillsOnly) {
       emit({
         type: "status",
@@ -13945,7 +13997,7 @@ async function handleRunAgent(
           .eq("active", true);
 
         if (matchedCampaigners) {
-          const match = matchedCampaigners.find((c: any) => {
+          const match = matchedCampaigners.find((c) => {
             if (!c.phone) return false;
             const cNorm = c.phone.replace(/[^0-9]/g, "").slice(-9);
             return cNorm === normalizedPhone;
@@ -13985,10 +14037,10 @@ async function handleRunAgent(
       if (rolesError) {
         throw rolesError;
       }
-      const roleList = (roles || []).map((r: any) => r.role);
+      const roleList = (roles || []).map((r) => r.role);
       // Priority order
       for (const r of CALLER_ROLE_PRIORITY) {
-        if (roleList.includes(r)) {
+        if (roleList.some((role) => role === r)) {
           callerRole = r;
           break;
         }
@@ -13998,7 +14050,7 @@ async function handleRunAgent(
           .from("user_managed_agencies")
           .select("agency_id")
           .eq("user_id", callerUserId);
-        callerManagedAgencyIds = (mng || []).map((m: any) => m.agency_id);
+        callerManagedAgencyIds = (mng || []).map((m) => m.agency_id);
       }
       console.log(
         `[AGENT] Caller role: ${callerRole} (user_id=${callerUserId}, managed_agencies=${callerManagedAgencyIds.length})`,
@@ -14064,26 +14116,14 @@ async function handleRunAgent(
           .maybeSingle();
         if (existingConversation) {
           serverConversationId = existingConversation.id;
-          serverConversationHistory = (
-            Array.isArray(existingConversation.messages)
-              ? existingConversation.messages
-              : []
-          )
-            .filter((m: any) => m?.role === "user" || m?.role === "assistant")
-            .map((m: any) => ({
-              role: m.role,
-              content: String(m.content || ""),
-            }))
-            .slice(-24);
+          serverConversationHistory = readConversationTurns(
+            existingConversation.messages,
+          ).slice(-24);
         }
       }
       if (!serverConversationId) {
-        const clientHistory = (
-          Array.isArray(conversation_history) ? conversation_history : []
-        )
-          .filter((m: any) => m?.role === "user" || m?.role === "assistant")
-          .map((m: any) => ({ role: m.role, content: String(m.content || "") }))
-          .slice(-24);
+        const clientHistory =
+          readConversationTurns(conversation_history).slice(-24);
         const { data: createdConversation } = await supabase
           .from("ai_conversations")
           .insert({
@@ -14239,12 +14279,19 @@ async function handleRunAgent(
           `[AGENT] Auto-captured instruction (${surface}, trigger="${m![0]}") → key=${keyBase}`,
         );
       }
-    } catch (e: any) {
-      console.error("[AGENT] auto-instruction capture failed:", e?.message);
+    } catch (e) {
+      console.error(
+        "[AGENT] auto-instruction capture failed:",
+        errorMessage(e),
+      );
     }
 
     // 3. Build system prompt with full tenant context
     // Fetch tenant context, memory for Carmen and all agents
+    const noTeamRoster: Pick<
+      AgentRow<"campaigners">,
+      "id" | "full_name" | "phone" | "email" | "role"
+    >[] = [];
     const [tenantRes, agenciesRes, statsRes, memoryRes, teamRosterRes] =
       await Promise.all([
         supabase
@@ -14290,7 +14337,7 @@ async function handleRunAgent(
               .order("updated_at", { ascending: false })
               .limit(30),
         tokenOptimize
-          ? Promise.resolve({ data: [] as any[] })
+          ? Promise.resolve({ data: noTeamRoster })
           : supabase
               .from("campaigners")
               .select("id, full_name, phone, email, role")
@@ -14298,7 +14345,7 @@ async function handleRunAgent(
               .order("full_name")
               .limit(50),
       ]);
-    const tenantName = tenantRes.data?.name || "הארגון";
+    const tenantName = embeddedName(tenantRes.data) || "הארגון";
     // Resolve shared agencies from other tenants accessible to us
     const { data: sharedAccess } = await supabase
       .from("agency_tenant_access")
@@ -14306,16 +14353,16 @@ async function handleRunAgent(
         "agency_id, source_tenant_id, agencies(name), tenants:source_tenant_id(name)",
       )
       .eq("accessing_tenant_id", resolvedTenantId);
-    const sharedAgencies = (sharedAccess || []).map((s: any) => ({
+    const sharedAgencies = (sharedAccess || []).map((s) => ({
       id: s.agency_id,
       name: s.agencies?.name || "agency",
       source_tenant_id: s.source_tenant_id,
-      source_tenant_name: s.tenants?.name || "other-tenant",
+      source_tenant_name: embeddedName(s.tenants) || "other-tenant",
     }));
     const memoryTenantIds = Array.from(
       new Set([
         resolvedTenantId,
-        ...sharedAgencies.map((agency: any) => agency.source_tenant_id),
+        ...sharedAgencies.map((agency) => agency.source_tenant_id),
       ]),
     );
     let relevantLongTermMemory: Array<{ label: string; text: string }> = [];
@@ -14355,7 +14402,7 @@ async function handleRunAgent(
           importance / 10,
         );
       relevantLongTermMemory = [
-        ...(pointerMemoryRes.data || []).map((row: any) => ({
+        ...(pointerMemoryRes.data || []).map((row) => ({
           label: [row.category, row.subcategory].filter(Boolean).join("/"),
           text: [row.title, row.summary].filter(Boolean).join(": "),
           score: scoreMemory(
@@ -14363,7 +14410,7 @@ async function handleRunAgent(
             row.importance || 0,
           ),
         })),
-        ...(episodeMemoryRes.data || []).map((row: any) => ({
+        ...(episodeMemoryRes.data || []).map((row) => ({
           label: "episode",
           text: [row.topic, row.summary].filter(Boolean).join(": "),
           score: scoreMemory(
@@ -14372,22 +14419,25 @@ async function handleRunAgent(
           ),
         })),
       ]
-        .filter((item: any) => item.text)
-        .sort((a: any, b: any) => b.score - a.score)
+        .filter((item) => item.text)
+        .sort((a, b) => b.score - a.score)
         .slice(0, 12)
-        .map((item: any) => ({ label: item.label, text: item.text }));
+        .map((item) => ({ label: item.label, text: item.text }));
     }
     const ownAgencyList = (agenciesRes.data || [])
-      .map((a: any) => `${a.name} (${a.id})`)
+      .map((a) => `${a.name} (${a.id})`)
       .join(", ");
     const sharedAgencyList = sharedAgencies
-      .map((a: any) => `${a.name} [משותפת מ-${a.source_tenant_name}] (${a.id})`)
+      .map((a) => `${a.name} [משותפת מ-${a.source_tenant_name}] (${a.id})`)
       .join(", ");
     const [leadsData, clientsData, tasksData] = statsRes;
-    const leadsByStatus = (leadsData.data || []).reduce((acc: any, l: any) => {
-      acc[l.status] = (acc[l.status] || 0) + 1;
-      return acc;
-    }, {});
+    const leadsByStatus = (leadsData.data || []).reduce<Record<string, number>>(
+      (acc, l) => {
+        acc[l.status] = (acc[l.status] || 0) + 1;
+        return acc;
+      },
+      {},
+    );
     const teamRoster = (teamRosterRes.data || []) as Array<{
       id: string;
       full_name: string;
@@ -14433,10 +14483,17 @@ async function handleRunAgent(
     // V2 prompt is opt-in per agent via metadata.prompt_version === 'v2'
     // Keeps V1 behavior as default; zero risk to existing agents
     let systemPrompt: string;
+    const promptAgent = {
+      ...agent,
+      allowed_tools: agent.allowed_tools ?? undefined,
+      active_modes: agent.active_modes ?? undefined,
+      active_skills: agent.active_skills ?? undefined,
+      metadata: agentMetadata,
+    };
     console.log(
-      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(agent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen, pinSkillsOnly })}`,
+      `[Carmen] agent=${agent.name} prompt_version=${shouldUseV2Prompt(promptAgent) ? "v2" : "v1"} pulse_rules=${carmenPulseRulesVersion({ isCarmen, pinSkillsOnly })} agency_data_rules=${agencyDataRulesVersion({ isCarmen, pinSkillsOnly })}`,
     );
-    if (shouldUseV2Prompt(agent)) {
+    if (shouldUseV2Prompt(promptAgent)) {
       // Build V2 prompt using the new modular builder
       // We need to collect all the context that V1 was building inline
 
@@ -14462,13 +14519,11 @@ async function handleRunAgent(
         openTasks: tasksData.count ?? 0,
       };
 
-      const memoryItemsObj: any = {
+      const memoryItemsObj = {
         instructionItems:
-          memoryRes.data?.filter((m: any) => m.category === "instructions") ||
-          [],
+          memoryRes.data?.filter((m) => m.category === "instructions") || [],
         otherItems:
-          memoryRes.data?.filter((m: any) => m.category !== "instructions") ||
-          [],
+          memoryRes.data?.filter((m) => m.category !== "instructions") || [],
       };
 
       // Build date/time context
@@ -14499,7 +14554,7 @@ async function handleRunAgent(
       }
 
       systemPrompt = buildCarmenV2SystemPrompt({
-        agent,
+        agent: promptAgent,
         tenant: tenantContextObj,
         caller: callerContext,
         memory: memoryItemsObj,
@@ -14666,7 +14721,7 @@ async function handleRunAgent(
         }
       }
       // Inject active modes
-      const activeModes: string[] = (agent as any).active_modes || [];
+      const activeModes: string[] = agent.active_modes || [];
       if (activeModes.length > 0) {
         const MODES_PROMPTS: Record<string, string> = {
           sales:
@@ -14690,7 +14745,7 @@ async function handleRunAgent(
         }
       }
       // Inject active skills
-      const activeSkills: string[] = (agent as any).active_skills || [];
+      const activeSkills: string[] = agent.active_skills || [];
       if (activeSkills.length > 0) {
         const SKILLS_PROMPTS: Record<string, string> = {
           "lead-qualifier":
@@ -14799,7 +14854,10 @@ async function handleRunAgent(
             .split(/\s+/)
             .filter((t: string) => t.length > 1)
             .slice(0, 8);
-          let relevantSkills: any[] = [];
+          let relevantSkills: Pick<
+            AgentRow<"ai_skills">,
+            "id" | "name" | "description" | "steps" | "version" | "usage_count"
+          >[] = [];
           if (tokens.length > 0) {
             const tsQuery = tokens.join(" | ");
             const { data: ftsHits } = await supabase
@@ -14817,17 +14875,17 @@ async function handleRunAgent(
           if (relevantSkills.length > 0) {
             const skillsBlock = relevantSkills
               .map(
-                (s: any) =>
+                (s) =>
                   `### ${s.name} (v${s.version}, used ${s.usage_count}×)\n${s.description}\n\n${s.steps}`,
               )
               .join("\n\n---\n\n");
             systemPrompt += `\n\n=== סקילים שמורים (פרוצדורות מעבר התנסויות) ===\nאלה פרוצדורות ששמרת או שנשמרו עבורך ממשימות דומות. אם רלוונטי - בצעי לפיהן. אם זיהית דרך טובה יותר - השתמשי ב-update_skill.\n\n${skillsBlock}`;
             // Update usage stats async (don't block)
-            const skillIds = relevantSkills.map((s: any) => s.id);
-            supabase
-              .rpc("increment_skill_usage", { skill_ids: skillIds })
-              .then(() => {})
-              .catch(() => {});
+            const skillIds = relevantSkills.map((s) => s.id);
+            supabase.rpc("increment_skill_usage", { skill_ids: skillIds }).then(
+              () => {},
+              () => {},
+            );
           }
         }
       } catch (e) {
@@ -14835,7 +14893,7 @@ async function handleRunAgent(
       }
 
       // Inject writing style
-      const writingStyle = (agent as any).writing_style;
+      const writingStyle = agent.writing_style;
       if (writingStyle && writingStyle !== "professional") {
         const styleMap: Record<string, string> = {
           friendly: "כתוב בסגנון חברותי וחמול.",
@@ -14847,7 +14905,7 @@ async function handleRunAgent(
           systemPrompt += `\n${styleMap[writingStyle]}`;
       }
       // Inject response length
-      const responseLength = (agent as any).response_length;
+      const responseLength = agent.response_length;
       if (responseLength) {
         const lengthMap: Record<string, string> = {
           short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
@@ -14881,20 +14939,20 @@ async function handleRunAgent(
       const memoryItems = memoryRes.data || [];
       if (memoryItems.length > 0) {
         const instructionItems = memoryItems.filter(
-          (m: any) => m.category === "instructions",
+          (m) => m.category === "instructions",
         );
         const otherItems = memoryItems.filter(
-          (m: any) => m.category !== "instructions",
+          (m) => m.category !== "instructions",
         );
         if (instructionItems.length > 0) {
           const block = instructionItems
-            .map((m: any) => `• ${m.key}: ${m.content}`)
+            .map((m) => `• ${m.key}: ${m.content}`)
             .join("\n");
           systemPrompt += `\n\n📌 === הנחיות קבועות שנשמרו (חובה לפעול לפיהן) ===\n${block}\n⚠️ אלה הנחיות שהמשתמש ביקש שתזכרי. חובה לכבד אותן בכל תשובה. אם תשובה חדשה סותרת אותן — ההנחיות גוברות, אלא אם המשתמש ביקש לעדכן/למחוק (אז קראי ל-save_memory עם אותו key, או delete_memory).`;
         }
         if (otherItems.length > 0) {
           const memoryContext = otherItems
-            .map((m: any) => `[${m.category}] ${m.key}: ${m.content}`)
+            .map((m) => `[${m.category}] ${m.key}: ${m.content}`)
             .join("\n");
           systemPrompt += `\n\n🧠 === זיכרון מתמשך ===\n${memoryContext}`;
         }
@@ -14903,7 +14961,12 @@ async function handleRunAgent(
       // Per-agent memory recall: pull relevant past episodes.
       // Carmen uses fast FTS (cheap, indexed). Other agents use embedding similarity.
       try {
-        const recalled = isCarmen
+        const recalled: Array<{
+          category: string;
+          title: string;
+          summary: string;
+          importance?: number;
+        }> = isCarmen
           ? await recallAgentMemoryFTS(supabase, {
               tenant_id: resolvedTenantId,
               agent_id,
@@ -14915,14 +14978,14 @@ async function handleRunAgent(
         if (recalled.length > 0) {
           const block = recalled
             .map(
-              (m: any) =>
+              (m) =>
                 `• [${m.category}${m.importance ? ` · ${m.importance}` : ""}] ${m.title}: ${m.summary}`,
             )
             .join("\n");
           systemPrompt += `\n\n🧠 === זיכרון רלוונטי מסשנים קודמים ===\n${block}`;
         }
       } catch (e) {
-        console.error("[AGENT] recall memory failed:", (e as any)?.message);
+        console.error("[AGENT] recall memory failed:", errorMessage(e));
       }
 
       // Inject lead context
@@ -14995,9 +15058,8 @@ async function handleRunAgent(
       !pinSkillsOnly
     ) {
       try {
-        const pinnedTenantId = (agent as any)?.tenant_id || tenant_id || null;
-        const disabledForPin = ((agent as any)?.disabled_skins ||
-          []) as string[];
+        const pinnedTenantId = agent.tenant_id || tenant_id || null;
+        const disabledForPin = (agent.disabled_skins || []) as string[];
         const pinnableSlugs = (task_skills as string[]).filter(
           (s) => !disabledForPin.includes(s),
         );
@@ -15111,7 +15173,7 @@ async function handleRunAgent(
     if (isCarmen && relevantLongTermMemory.length > 0) {
       systemPrompt += `\n\n🧠 === זיכרון ארוך רלוונטי שנשלף אוטומטית ===
 זהו זיכרון העבודה שלך מהמערכת, לא "מערכת אחרת". השתמשי בו כשהוא רלוונטי לבקשה, אך העדיפי נתוני כלים חיים כשיש סתירה.
-${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).join("\n")}`;
+${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join("\n")}`;
     }
 
     // ─── Mood / persona modulation (swappable tone layer) ───
@@ -15140,7 +15202,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const allowedTools = (agent.allowed_tools || []) as string[];
     // Carmen can always answer about herself (her personas and their portraits), whatever
     // the agent's allowlist; the settings denylist below still applies.
-    let filteredTools =
+    let filteredTools: ToolDef[] =
       allowedTools.length > 0
         ? ALL_TOOLS.filter(
             (t) =>
@@ -15152,7 +15214,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Access control (denylist): subtract tools turned OFF in settings. Default
     // (empty) = no change, so Carmen keeps access to everything by default.
-    const disabledTools = ((agent as any).disabled_tools || []) as string[];
+    const disabledTools = (agent.disabled_tools || []) as string[];
     if (disabledTools.length > 0) {
       filteredTools = filteredTools.filter(
         (t) => !disabledTools.includes(t.name),
@@ -15295,12 +15357,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       promotedToolNames = routed.fullSchemaNames;
     }
 
-    const exposedMcpTools: Array<{
-      name: string;
-      description?: string;
-      parameters?: any;
-    }> = [];
-    const toolsForAPI: Array<{ type: "function"; function: any }> = [];
+    const exposedMcpTools: ToolDef[] = [];
+    const toolsForAPI: ReturnType<typeof buildToolApiEntries> = [];
     const rebuildToolsForApi = () => {
       toolsForAPI.length = 0;
       toolsForAPI.push(
@@ -15319,14 +15377,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       );
     };
     rebuildToolsForApi();
-    const expandAgentTools = (
-      extra: Array<{ name: string; description?: string; parameters?: any }>,
-    ) => {
+    const expandAgentTools = (extra: ToolDef[]) => {
       for (const t of extra) {
         if (!t?.name) continue;
         promotedToolNames.add(t.name);
         if (!filteredTools.some((ft) => ft.name === t.name))
-          filteredTools.push(t as any);
+          filteredTools.push(t);
       }
       rebuildToolsForApi();
     };
@@ -15353,12 +15409,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 4b. Load MCP tools for this tenant + agent (Phase 3)
-    const mcpExecutors = new Map<string, (args: any) => Promise<any>>();
+    const mcpExecutors: McpLoaded["executors"] = new Map();
     try {
       // The workshop loads no connector tools: they send, publish or change things outside
       // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
       if (!pinSkillsOnly && !inWorkshop) {
-        const disabledIntegrations = ((agent as any).disabled_integrations ||
+        const disabledIntegrations = (agent.disabled_integrations ||
           []) as string[];
         const mcp = await loadMcpTools(
           supabase,
@@ -15376,8 +15432,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           // 'grok'    → Grok Bot MCP only
           // 'none'    → no external escalation MCPs
           // 'all'/unset → keep everything (default, backward-compatible)
+          const configuredEscalationAgent = agentMetadata.escalation_agent;
           const escalationAgent: string =
-            (agent as any).metadata?.escalation_agent || "all";
+            typeof configuredEscalationAgent === "string" &&
+            configuredEscalationAgent
+              ? configuredEscalationAgent
+              : "all";
           const isEscalationMcp = (n: string) =>
             n.startsWith("mcp_Claude__") ||
             n.startsWith("mcp_Manus__") ||
@@ -15435,7 +15495,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               !isDevEscalationToolAllowed(t.name, devEscalationTier)
             )
               continue;
-            exposedMcpTools.push(t as any);
+            exposedMcpTools.push(t);
             if (!tokenOptimize || isEscalationMcp(t.name))
               promotedToolNames.add(t.name);
             const exec = mcp.executors.get(t.name);
@@ -15447,8 +15507,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           );
         }
       }
-    } catch (e: any) {
-      console.error("[AGENT] MCP load failed:", e?.message);
+    } catch (e) {
+      console.error("[AGENT] MCP load failed:", errorMessage(e));
     }
 
     // 5. Run agent with tool loop
@@ -15489,10 +15549,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // ─── Skill resolver: detect active skills from the user message and append their prompts (DB-backed) ───
-    const skillTenantId = (agent as any).tenant_id || tenant_id || null;
+    const skillTenantId = agent.tenant_id || tenant_id || null;
     // Access control: skins turned OFF in settings are excluded even if their
     // trigger matches. Default (empty) = no change.
-    const disabledSkins = ((agent as any).disabled_skins || []) as string[];
+    const disabledSkins = (agent.disabled_skins || []) as string[];
     const _matchedSkills = pinSkillsOnly
       ? (
           await resolveSkillsBySlug(task_skills as string[], skillTenantId)
@@ -15546,15 +15606,17 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
       // Usage signal (fire-and-forget): matched skins bump usage_count so real
       // usage data accumulates for ranking/cleanup. Never blocks the reply.
-      supabase
-        .rpc("bump_skill_usage_by_slug", {
-          p_slugs: matchedSkills,
-          p_tenant_id: skillTenantId,
-        })
-        .then(
-          () => {},
-          () => {},
-        );
+      if (skillTenantId) {
+        supabase
+          .rpc("bump_skill_usage_by_slug", {
+            p_slugs: matchedSkills,
+            p_tenant_id: skillTenantId,
+          })
+          .then(
+            () => {},
+            () => {},
+          );
+      }
     }
     // Skins pinned by the caller (task_skills, e.g. the Creative studio chat) also get
     // their tools, like trigger-matched skins above; their prompts were added earlier.
@@ -15736,7 +15798,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             auto_approval_execute: !!execResult,
             approval_pick: approvalPick.kind,
             approval_id: "row" in approvalPick ? approvalPick.row.id : null,
-            exec_success: !!(execResult && (execResult as any).success),
+            exec_success: !!readToolResult(execResult).success,
           },
           user_id: callerUserId,
           tool_calls: execResult ? 1 : 0,
@@ -15784,7 +15846,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         `[AGENT] Auto-dispatching meeting bot for URL: ${meetingUrl.slice(0, 80)}`,
       );
       const autoStart = Date.now();
-      const execResult = await executeTool(
+      const execResult: unknown = await executeTool(
         "join_meeting_for_client",
         { meeting_url: meetingUrl },
         supabase,
@@ -15797,13 +15859,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         callerPhone,
         wa_notify,
         surface,
+        undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
+        wa_chat_scope,
       );
-      const finalOutput = execResult?.success
+      const execView = readToolResult(execResult);
+      const finalOutput = execView.success
         ? String(
-            execResult.message ||
+            execView.message ||
               "כרמן מצטרפת לפגישה. אשרו אותי בחדר ההמתנה אם נדרש.",
           )
-        : `לא הצלחתי להצטרף לפגישה: ${execResult?.error || "שגיאה לא ידועה"}`;
+        : `לא הצלחתי להצטרף לפגישה: ${String(execView.error || "שגיאה לא ידועה")}`;
       const executionTime = Date.now() - autoStart;
       if (serverConversationId && callerUserId) {
         const persistedMessages = [
@@ -15824,7 +15893,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       if (emit && finalOutput) emit({ type: "token", content: finalOutput });
       return new Response(
         JSON.stringify({
-          success: !!execResult?.success,
+          success: !!execView.success,
           output: finalOutput,
           agent_name: agent.name,
           model: resolveModel(
@@ -15857,7 +15926,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         "[AGENT] Auto-returning cached campaign pulse digest for WhatsApp",
       );
       const autoStart = Date.now();
-      const pulseResult = await executeTool(
+      const pulseResult: unknown = await executeTool(
         "get_latest_campaign_pulse",
         {},
         supabase,
@@ -15870,11 +15939,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         callerPhone,
         wa_notify,
         surface,
+        undefined,
+        {},
+        request.origin ?? null,
+        humanRequesterUserId,
+        findingDraftReply,
+        wa_chat_scope,
       );
-      const digest =
-        typeof pulseResult?.whatsapp_digest === "string"
-          ? pulseResult.whatsapp_digest.trim()
-          : "";
+      const pulseDigest = readToolResult(pulseResult).whatsapp_digest;
+      const digest = typeof pulseDigest === "string" ? pulseDigest.trim() : "";
       const finalOutput =
         digest || "אין בדיקת דופק זמינה כרגע — נסה שוב אחרי הסנכרון הבא.";
       const executionTime = Date.now() - autoStart;
@@ -15919,7 +15992,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Build messages with conversation history
-    const messages: any[] = [{ role: "system", content: systemPrompt }];
+    const messages: ChatRequestMessage[] = [
+      { role: "system", content: systemPrompt },
+    ];
 
     // Add conversation history from Carmen WhatsApp sessions
     const history = serverConversationId
@@ -15927,7 +16002,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       : Array.isArray(conversation_history)
         ? conversation_history
         : [];
-    for (const h of history) {
+    for (const entry of history) {
+      const h = readJsonRecord(entry);
       if (h.role === "user" || h.role === "assistant") {
         messages.push({ role: h.role, content: h.content });
       }
@@ -15937,7 +16013,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     messages.push({ role: "user", content: command_text });
 
     let finalOutput = "";
-    const toolLog: any[] = [];
+    const toolLog: Array<{ tool: string; args: JsonRecord; result: unknown }> =
+      [];
     const startTime = Date.now();
 
     // If the agent's engine is Manus — delegate the entire conversation to Manus AI
@@ -15947,7 +16024,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       !brainEngine &&
       (model === "manus/manus-1" || model === "manus-1")
     ) {
-      const manusBody: any = {
+      const manusBody = {
         action: "create_task",
         tenantId: agent.tenant_id,
         prompt: command_text,
@@ -15974,7 +16051,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
         throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
       }
-      const manusData = await manusRes.json();
+      const manusData = readManusTask(await manusRes.json());
       const taskUrl = manusData.task_url || manusData.share_url || "";
       finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
       if (emit) emit({ type: "token", content: finalOutput });
@@ -16057,7 +16134,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       let res!: Response;
       while (true) {
         const cappedTools = capToolsForTarget(llm, toolsForAPI);
-        const payload: any = {
+        const payload: ChatCompletionRequest = {
           model: llm.model,
           messages: messagesForProvider(messages, llm.provider),
         };
@@ -16075,7 +16152,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           round === 0 &&
           isStoredPulseRequest &&
           cappedTools.some(
-            (t: any) => t.function?.name === "get_latest_campaign_pulse",
+            (t) => t.function?.name === "get_latest_campaign_pulse",
           )
         ) {
           payload.tool_choice = {
@@ -16094,7 +16171,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           round === 0 &&
           extractMeetingUrl(String(command_text || "")) &&
           cappedTools.some(
-            (t: any) => t.function?.name === "join_meeting_for_client",
+            (t) => t.function?.name === "join_meeting_for_client",
           )
         ) {
           payload.tool_choice = {
@@ -16123,7 +16200,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             ? await res
                 .clone()
                 .json()
-                .then((d: any) => !d?.choices?.[0]?.message)
+                .then((d: Json) => !firstChoiceMessage(d))
                 .catch(() => true)
             : false;
         if (res.ok && !malformed) break;
@@ -16180,16 +16257,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           : await res.json();
       // Text already streamed counts as sent, so emitText does not send it again.
       if (streamedText.trim()) emittedTexts.push(streamedText.trim());
-      if (data?.usage) {
-        usageTokensIn +=
-          data.usage.prompt_tokens ?? data.usage.input_tokens ?? 0;
-        usageTokensOut +=
-          data.usage.completion_tokens ?? data.usage.output_tokens ?? 0;
+      const usage = readChatUsage(data);
+      if (usage) {
+        usageTokensIn += usage.input;
+        usageTokensOut += usage.output;
       }
-      const choice = data.choices?.[0];
-      const msg = choice?.message;
+      const msg: unknown = firstChoiceMessage(data);
 
       if (!msg) break;
+      if (!isChatCompletionMessage(msg))
+        throw new Error(
+          `AI provider ${llm.label} returned a malformed message`,
+        );
 
       messages.push(msg);
 
@@ -16207,7 +16286,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           });
           continue;
         }
-        finalOutput = msg.content || "";
+        finalOutput = typeof msg.content === "string" ? msg.content : "";
         console.log(
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
         );
@@ -16222,7 +16301,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
-      const toolResults: any[] = [];
+      const toolResults: ChatRequestMessage[] = [];
       let pulseDigestShortcut: string | null = null;
       // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
       const sayToUser: string[] = [];
@@ -16235,17 +16314,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
       for (const tc of msg.tool_calls) {
         const toolName = tc.function.name;
-        let toolArgs: Record<string, any> = {};
-        try {
-          toolArgs = JSON.parse(tc.function.arguments || "{}");
-        } catch {
-          /* ignore */
-        }
+        const toolArgs = parseToolArguments(tc.function.arguments);
 
         console.log(`[AGENT] Tool call: ${toolName}`);
         if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
 
-        let result: any;
+        let result: unknown;
         // A workshop tap is never an approval, and nothing leaves the board from the workshop;
         // outside it a workshop tool has no board. Either way, even a tool never offered.
         const workshopRefusal = workshopToolRefusal(toolName, inWorkshop);
@@ -16336,22 +16410,25 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
               request.origin ?? null,
               humanRequesterUserId,
               findingDraftReply,
+              wa_chat_scope,
             );
-            if (result?.pending_approval && result?.approval_id) {
+            const approvalResult = readToolResult(result);
+            if (approvalResult.pending_approval && approvalResult.approval_id) {
               await bindApprovalToConversation(
                 supabase,
                 resolvedTenantId,
-                String(result.approval_id),
+                String(approvalResult.approval_id),
                 callerUserId || asUuidOrNull(resolvedUserId),
                 approvalConversation,
               );
             }
           }
           console.log(`[AGENT] Tool ${toolName} OK`);
-        } catch (e: any) {
-          result = { error: e.message };
-          console.error(`[AGENT] Tool ${toolName} ERROR: ${e.message}`);
+        } catch (e) {
+          result = { error: errorMessage(e) };
+          console.error(`[AGENT] Tool ${toolName} ERROR: ${errorMessage(e)}`);
         }
+        const resultView = readToolResult(result);
 
         toolLog.push({ tool: toolName, args: toolArgs, result });
         toolResults.push({
@@ -16362,31 +16439,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
         // Emit tool_result so AIOS can link e.g. delegate_to_subagent → sub_task_id back to the chat.
         if (emit) {
-          const subTaskId =
-            (result &&
-              typeof result === "object" &&
-              (result as any).sub_task_id) ||
-            undefined;
+          const subTaskId = resultView.sub_task_id || undefined;
           emit({
             type: "tool_result",
             tool: toolName,
             sub_task_id: subTaskId,
-            ok: !(result && (result as any).error),
-            error: (result && (result as any).error) || undefined,
+            ok: !resultView.error,
+            error: resultView.error || undefined,
           });
           // Studio tools ask the open Creative studio to run one of its own buttons
           // (or focus a scene / variation); the studio chat executes it on screen.
-          const uiAction =
-            result && typeof result === "object"
-              ? (result as any).ui_action
-              : undefined;
+          const uiAction = resultView.ui_action;
           if (uiAction && typeof uiAction === "object")
             emit({ type: "ui_action", tool: toolName, action: uiAction });
           // Workshop tools tell the board what appeared and which skin is doing the work.
-          const workshopEvent =
-            result && typeof result === "object"
-              ? (result as any).workshop
-              : undefined;
+          const workshopEvent = resultView.workshop;
           if (workshopEvent && typeof workshopEvent === "object")
             emit({ type: "workshop", tool: toolName, ...workshopEvent });
           const skinSlug =
@@ -16401,27 +16468,29 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           toolName === "get_latest_campaign_pulse" &&
           isStoredPulseRequest &&
           pulseSurfacePrefersWhatsAppDigest(surface) &&
-          typeof result?.whatsapp_digest === "string" &&
-          result.whatsapp_digest.trim()
+          typeof resultView.whatsapp_digest === "string" &&
+          resultView.whatsapp_digest.trim()
         ) {
-          pulseDigestShortcut = result.whatsapp_digest.trim();
+          pulseDigestShortcut = resultView.whatsapp_digest.trim();
         }
         if (
           round === 0 &&
           toolName === REFRESH_PULSE_TOOL_NAME &&
           pulseRefreshRoute.digestShortcut
         ) {
-          pulseDigestShortcut = buildPulseRefreshDigestReply(result);
+          pulseDigestShortcut = buildPulseRefreshDigestReply(
+            isObject(result) ? result : null,
+          );
         }
         // A workshop question or budget request is sent to the user exactly as the server
         // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
         if (
           isWorkshopTool(toolName) &&
-          typeof result?.say_to_user === "string" &&
-          result.say_to_user.trim()
+          typeof resultView.say_to_user === "string" &&
+          resultView.say_to_user.trim()
         ) {
-          const say = result.say_to_user.trim();
-          if (result.needs_budget === true) budgetSay = say;
+          const say = resultView.say_to_user.trim();
+          if (resultView.needs_budget === true) budgetSay = say;
           else if (!sayToUser.includes(say)) sayToUser.push(say);
         }
       }
@@ -16490,10 +16559,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         assistant_output: finalOutput,
         tools_used: toolLog.map((t) => t.tool),
       });
-      if (
-        typeof EdgeRuntime !== "undefined" &&
-        (EdgeRuntime as any).waitUntil
-      ) {
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
         EdgeRuntime.waitUntil(memPromise);
       } else {
         memPromise.catch(() => {});
@@ -16511,7 +16577,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         action_details: {
           surface,
           command_preview: String(command_text || "").slice(0, 240),
-          tools_used: toolLog.map((t: any) => t.tool),
+          tools_used: toolLog.map((t) => t.tool),
           tool_count: toolLog.length,
           output_preview: String(finalOutput || "").slice(0, 600),
           caller_role: callerRole,
@@ -16527,8 +16593,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         tokens_out: usageTokensOut || null,
         cost_usd: estimateLLMCostUSD(llm.label, usageTokensIn, usageTokensOut),
       });
-    } catch (e: any) {
-      console.error("[AGENT] action_log insert failed:", e?.message);
+    } catch (e) {
+      console.error("[AGENT] action_log insert failed:", errorMessage(e));
     }
 
     return new Response(
@@ -16544,17 +16610,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("run-ai-agent error:", error);
     // Persist the failure so it's diagnosable from the DB (console logs are ephemeral
     // and invisible to monitoring). Fire-and-forget — never mask the original error.
     try {
-      const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const sb = createClient<Database>(
+        SUPABASE_URL,
+        SUPABASE_SERVICE_ROLE_KEY,
+      );
+      const errorStack = readErrorStack(error);
       await sb.from("error_logs").insert({
         source: "run-ai-agent",
         tenant_id: bodyJson?.tenant_id || null,
-        error_message: String(error?.message || error).slice(0, 2000),
-        error_stack: String(error?.stack || "").slice(0, 4000) || null,
+        error_message: String(errorMessage(error) || error).slice(0, 2000),
+        error_stack: String(errorStack || "").slice(0, 4000) || null,
         context: {
           surface,
           agent_id: bodyJson?.agent_id || null,
@@ -16565,7 +16635,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       console.error("run-ai-agent error_logs insert failed:", logErr);
     }
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: errorMessage(error) }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
@@ -16734,14 +16804,18 @@ async function saveConversationTurn(
 // Same executeTool, same role scoping and per-tool approval gates; tools that would
 // act immediately but are sensitive are queued for approval instead (see
 // _shared/carmen-direct-tools.mjs). Service-role callers only.
-async function handleDirectTool(bodyJson: any): Promise<Response> {
+/** Handle a service-authorized direct tool request without starting a model loop. */
+async function handleDirectTool(bodyJson: RunAgentRequest): Promise<Response> {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  const req = bodyJson.direct_tool || {};
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const req: DirectToolRequest = bodyJson.direct_tool || { args: {} };
+  const supabase = createClient<Database>(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY,
+  );
   const caller =
     String(req.caller || "agent")
       .replace(/[^a-z0-9_-]/gi, "")
@@ -16751,7 +16825,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     const { data: row } = await supabase
       .from("agent_approval_queue")
       .select("*")
-      .eq("id", req.approval_id)
+      .eq("id", String(req.approval_id))
       .maybeSingle();
     if (!row || row.action_type !== "agent_direct_tool")
       return json({ error: "approval_not_found" }, 404);
@@ -16762,12 +16836,12 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       row.tenant_id,
       row.requested_by,
     );
-    let result: any;
+    let result: unknown;
     let failed = false;
     try {
       result = await executeTool(
-        row.tool_name,
-        row.tool_input || {},
+        row.tool_name ?? "",
+        jsonObject(row.tool_input),
         supabase,
         row.tenant_id,
         scope.userId,
@@ -16781,10 +16855,11 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
         null,
         { outOfBand: true },
       );
-      failed = !!result?.error || !!result?.pending_approval;
-    } catch (e: any) {
+      const resultView = readToolResult(result);
+      failed = !!resultView.error || !!resultView.pending_approval;
+    } catch (e) {
       failed = true;
-      result = { error: String(e?.message ?? e) };
+      result = { error: String(errorMessage(e) ?? e) };
     }
     await supabase
       .from("agent_approval_queue")
@@ -16793,7 +16868,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
         approved_by: asUuidOrNull(req.approved_by) || row.requested_by,
         approved_at: row.approved_at || new Date().toISOString(),
         executed_at: new Date().toISOString(),
-        execution_result: result,
+        execution_result: toJson(result),
       })
       .eq("id", row.id);
     return json({ success: !failed, result }, failed ? 400 : 200);
@@ -16817,7 +16892,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   const disabledTools: string[] = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
   const pool = keepCarmenPulseTools(
-    directToolPool(ALL_TOOLS as any[], {
+    directToolPool(ALL_TOOLS, {
       allowedTools: agent.allowed_tools || [],
       disabledTools,
       isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
@@ -16828,7 +16903,7 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
 
   if (req.action === "list") {
     return json({
-      tools: pool.map((t: any) => ({
+      tools: pool.map((t) => ({
         ...t,
         requires_approval: classifyDirectTool(t.name) === "approval",
       })),
@@ -16838,8 +16913,8 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     return json({ error: "unknown direct_tool action" }, 400);
 
   const name = String(req.name || "");
-  const args = req.args && typeof req.args === "object" ? req.args : {};
-  if (!pool.some((t: any) => t.name === name))
+  const args = jsonObject(req.args);
+  if (!pool.some((t) => t.name === name))
     return json({ error: `tool_not_available: ${name}` }, 403);
 
   if (classifyDirectTool(name) === "approval") {
@@ -16888,13 +16963,14 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       null,
     );
     return json({ result });
-  } catch (e: any) {
-    return json({ result: { error: String(e?.message ?? e) } });
+  } catch (e) {
+    return json({ result: { error: String(errorMessage(e) ?? e) } });
   }
 }
 
+/** Resolve the caller identity and roles used by direct tool execution. */
 async function resolveDirectCaller(
-  supabase: any,
+  supabase: AgentDatabaseClient,
   tenantId: string,
   userId: string | null,
 ) {
@@ -16918,7 +16994,7 @@ async function resolveDirectCaller(
       .eq("id", userId)
       .maybeSingle(),
   ]);
-  const roleList = (roles || []).map((r: any) => r.role);
+  const roleList: string[] = (roles || []).map((r) => r.role);
   const order = [
     "super_admin",
     "owner",
@@ -16937,7 +17013,7 @@ async function resolveDirectCaller(
       .from("user_managed_agencies")
       .select("agency_id")
       .eq("user_id", userId);
-    managedAgencyIds = (mng || []).map((m: any) => m.agency_id);
+    managedAgencyIds = (mng || []).map((m) => m.agency_id);
   }
   return {
     userId,
@@ -16980,9 +17056,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  let bodyJson: any = {};
+  let bodyJson: RunAgentRequest = {};
   try {
-    bodyJson = await req.json();
+    bodyJson = parseRunAgentRequest(await req.json());
   } catch {
     /* ignore */
   }
@@ -17007,7 +17083,10 @@ Deno.serve(async (req) => {
 
   // A signed-in user runs only in a tenant they belong to (AIO-306), checked
   // before any brain, key or tool of that tenant is read.
-  const guardClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const guardClient = createClient<Database>(
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY,
+  );
   const tenantDenied = await runTenantDenied(guardClient, auth, bodyJson);
   if (tenantDenied) {
     return new Response(JSON.stringify({ error: tenantDenied }), {
@@ -17076,8 +17155,17 @@ Deno.serve(async (req) => {
   const recorder = createReplyRecorder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const emit = (obj: any) => {
-        recorder.observe(obj);
+      const emit = (obj: unknown) => {
+        if (obj && typeof obj === "object") {
+          recorder.observe({
+            type:
+              "type" in obj && typeof obj.type === "string"
+                ? obj.type
+                : undefined,
+            id: "id" in obj ? obj.id : undefined,
+            content: "content" in obj ? obj.content : undefined,
+          });
+        }
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
@@ -17085,7 +17173,7 @@ Deno.serve(async (req) => {
         }
       };
       const turn = (async () => {
-        let final: any = {};
+        let final: JsonRecord = {};
         try {
           const resp = await handleRunAgent(
             bodyJson,
@@ -17099,7 +17187,7 @@ Deno.serve(async (req) => {
             internalTail,
           );
           try {
-            final = await resp.json();
+            final = readJsonRecord(await resp.json());
           } catch {
             /* ignore */
           }
@@ -17110,12 +17198,12 @@ Deno.serve(async (req) => {
             tools_used: final.tools_used,
             error: final.error,
           });
-        } catch (e: any) {
-          emit({ type: "error", error: e?.message || String(e) });
+        } catch (e) {
+          emit({ type: "error", error: errorMessage(e) || String(e) });
           emit({
             type: "done",
             success: false,
-            error: e?.message || String(e),
+            error: errorMessage(e) || String(e),
           });
         } finally {
           try {
