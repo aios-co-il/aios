@@ -18,6 +18,12 @@ import {
   pickNotifyDelivery,
   resolveCarmenNotifyTarget,
 } from "../_shared/carmen-notify-target.ts";
+import type { Database } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import {
+  readNotifyStep,
+  readNotifyRequest,
+} from "../_shared/manus/contracts.ts";
 import { authorizeSecretOrServiceRole } from "../_shared/auth/edge-caller-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -30,15 +36,27 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function json(body: any, status = 200) {
+type SendMessageBody = {
+  tenantId: string;
+  senderUserId: string;
+  message: string;
+  integrationId?: string;
+  sendKind: "staff_alert";
+  groupId?: string;
+  phoneNumber?: string;
+};
+
+/** Serialize a Manus notification response. */
+function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
+/** Send a notification through the configured action step. */
 async function sendViaActionStep(
-  sb: any,
+  sb: DbClient,
   args: {
     automationId: string;
     tenantId: string;
@@ -75,7 +93,7 @@ async function sendViaActionStep(
   const step = steps?.[0];
   if (!step) return false;
 
-  const cfg = step.configuration || {};
+  const cfg = readNotifyStep(step.configuration);
   const integrationId =
     cfg.green_api_integration_id || cfg.integration_id || null;
 
@@ -96,11 +114,10 @@ async function sendViaActionStep(
       ? "send-manus-wa-message"
       : "send-green-api-message";
 
-  const body: Record<string, unknown> = {
+  const body: SendMessageBody = {
     tenantId,
     senderUserId: connectionUserId,
     message,
-    // A staff notification, never logged on a client card.
     sendKind: "staff_alert",
   };
   if (integrationId) body.integrationId = integrationId;
@@ -142,21 +159,25 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let body: any;
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return json({ error: "bad json" }, 400);
   }
-
-  const tenantId = String(body?.tenant_id ?? "").trim();
-  const message = String(body?.message ?? "").trim();
-  const explicitChatId = body?.chat_id ? String(body.chat_id).trim() : null;
+  const parsed = readNotifyRequest(rawBody);
+  if (!parsed.success) {
+    const fields = parsed.error.issues.map((issue) => issue.path.join("."));
+    console.warn("[manus-notify] invalid request fields", fields);
+    return json({ error: "Invalid notification request", fields }, 400);
+  }
+  const { tenant_id: tenantId, message } = parsed.data;
+  const explicitChatId = parsed.data.chat_id?.trim() || null;
 
   if (!tenantId || !message)
     return json({ error: "tenant_id and message are required" }, 400);
 
-  const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const sb = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
 
@@ -183,17 +204,17 @@ Deno.serve(async (req) => {
     ]);
 
   const staff = (campaigners || [])
-    .filter((c: any) => !!normalizeNotifyPhone(c.phone))
-    .map((c: any) => ({
-      phone: c.phone as string,
-      full_name: c.full_name as string | null,
+    .filter((c) => !!normalizeNotifyPhone(c.phone))
+    .map((c) => ({
+      phone: c.phone,
+      full_name: c.full_name,
       role: Array.isArray(c.role) ? (c.role[0] ?? null) : (c.role ?? null),
     }));
 
   const target = resolveCarmenNotifyTarget({
     preferredPhone: explicitChatId,
     reportRecipients: reportList.recipients,
-    sessions: (sessions || []).map((s: any) => ({
+    sessions: (sessions || []).map((s) => ({
       chat_id: s.chat_id,
       phone: s.phone,
       sender_name: s.sender_name,
