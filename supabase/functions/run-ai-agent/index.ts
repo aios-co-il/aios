@@ -433,7 +433,6 @@ import {
   embeddedName,
   parseRunAgentRequest,
   readConversationTurns,
-  readHistoryMessages,
   readJsonRecord,
 } from "./run-request.ts";
 import type {
@@ -14288,10 +14287,12 @@ async function handleRunAgent(
 
     // 3. Build system prompt with full tenant context
     // Fetch tenant context, memory for Carmen and all agents
-    const noTeamRoster: Pick<
-      AgentRow<"campaigners">,
-      "id" | "full_name" | "phone" | "email" | "role"
-    >[] = [];
+    const noTeamRoster: Array<
+      Pick<
+        AgentRow<"campaigners">,
+        "id" | "full_name" | "phone" | "email" | "role"
+      >
+    > = [];
     const [tenantRes, agenciesRes, statsRes, memoryRes, teamRosterRes] =
       await Promise.all([
         supabase
@@ -14721,7 +14722,7 @@ async function handleRunAgent(
         }
       }
       // Inject active modes
-      const activeModes: string[] = agent.active_modes || [];
+      const activeModes: Array<string> = agent.active_modes || [];
       if (activeModes.length > 0) {
         const MODES_PROMPTS: Record<string, string> = {
           sales:
@@ -14745,7 +14746,7 @@ async function handleRunAgent(
         }
       }
       // Inject active skills
-      const activeSkills: string[] = agent.active_skills || [];
+      const activeSkills: Array<string> = agent.active_skills || [];
       if (activeSkills.length > 0) {
         const SKILLS_PROMPTS: Record<string, string> = {
           "lead-qualifier":
@@ -14854,10 +14855,17 @@ async function handleRunAgent(
             .split(/\s+/)
             .filter((t: string) => t.length > 1)
             .slice(0, 8);
-          let relevantSkills: Pick<
-            AgentRow<"ai_skills">,
-            "id" | "name" | "description" | "steps" | "version" | "usage_count"
-          >[] = [];
+          let relevantSkills: Array<
+            Pick<
+              AgentRow<"ai_skills">,
+              | "id"
+              | "name"
+              | "description"
+              | "steps"
+              | "version"
+              | "usage_count"
+            >
+          > = [];
           if (tokens.length > 0) {
             const tsQuery = tokens.join(" | ");
             const { data: ftsHits } = await supabase
@@ -15059,7 +15067,7 @@ async function handleRunAgent(
     ) {
       try {
         const pinnedTenantId = agent.tenant_id || tenant_id || null;
-        const disabledForPin = (agent.disabled_skins || []) as string[];
+        const disabledForPin = (agent.disabled_skins || []) as Array<string>;
         const pinnableSlugs = (task_skills as string[]).filter(
           (s) => !disabledForPin.includes(s),
         );
@@ -15202,7 +15210,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
     const allowedTools = (agent.allowed_tools || []) as string[];
     // Carmen can always answer about herself (her personas and their portraits), whatever
     // the agent's allowlist; the settings denylist below still applies.
-    let filteredTools: ToolDef[] =
+    let filteredTools: Array<ToolDef> =
       allowedTools.length > 0
         ? ALL_TOOLS.filter(
             (t) =>
@@ -15214,7 +15222,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
 
     // Access control (denylist): subtract tools turned OFF in settings. Default
     // (empty) = no change, so Carmen keeps access to everything by default.
-    const disabledTools = (agent.disabled_tools || []) as string[];
+    const disabledTools = (agent.disabled_tools || []) as Array<string>;
     if (disabledTools.length > 0) {
       filteredTools = filteredTools.filter(
         (t) => !disabledTools.includes(t.name),
@@ -15357,7 +15365,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
       promotedToolNames = routed.fullSchemaNames;
     }
 
-    const exposedMcpTools: ToolDef[] = [];
+    const exposedMcpTools: Array<ToolDef> = [];
     const toolsForAPI: ReturnType<typeof buildToolApiEntries> = [];
     const rebuildToolsForApi = () => {
       toolsForAPI.length = 0;
@@ -15377,15 +15385,17 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
       );
     };
     rebuildToolsForApi();
-    const expandAgentTools = (extra: ToolDef[]) => {
+    /** Promote newly available tools for the next provider round. */
+    function expandAgentTools(extra: Array<ToolDef>) {
       for (const t of extra) {
         if (!t?.name) continue;
         promotedToolNames.add(t.name);
-        if (!filteredTools.some((ft) => ft.name === t.name))
+        if (!filteredTools.some((ft) => ft.name === t.name)) {
           filteredTools.push(t);
+        }
       }
       rebuildToolsForApi();
-    };
+    }
 
     // Unauthorized callers must not see native GitHub-agent delegation either.
     if (!canEscalateDevFixes) {
@@ -15552,7 +15562,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
     const skillTenantId = agent.tenant_id || tenant_id || null;
     // Access control: skins turned OFF in settings are excluded even if their
     // trigger matches. Default (empty) = no change.
-    const disabledSkins = (agent.disabled_skins || []) as string[];
+    const disabledSkins = (agent.disabled_skins || []) as Array<string>;
     const _matchedSkills = pinSkillsOnly
       ? (
           await resolveSkillsBySlug(task_skills as string[], skillTenantId)
@@ -15992,7 +16002,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
     }
 
     // Build messages with conversation history
-    const messages: ChatRequestMessage[] = [
+    const messages: Array<ChatRequestMessage> = [
       { role: "system", content: systemPrompt },
     ];
 
@@ -16265,10 +16275,11 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
       const msg: unknown = firstChoiceMessage(data);
 
       if (!msg) break;
-      if (!isChatCompletionMessage(msg))
+      if (!isChatCompletionMessage(msg)) {
         throw new Error(
           `AI provider ${llm.label} returned a malformed message`,
         );
+      }
 
       messages.push(msg);
 
@@ -16301,7 +16312,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
-      const toolResults: ChatRequestMessage[] = [];
+      const toolResults: Array<ChatRequestMessage> = [];
       let pulseDigestShortcut: string | null = null;
       // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
       const sayToUser: string[] = [];
@@ -16490,8 +16501,11 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
           resultView.say_to_user.trim()
         ) {
           const say = resultView.say_to_user.trim();
-          if (resultView.needs_budget === true) budgetSay = say;
-          else if (!sayToUser.includes(say)) sayToUser.push(say);
+          if (resultView.needs_budget === true) {
+            budgetSay = say;
+          } else if (!sayToUser.includes(say)) {
+            sayToUser.push(say);
+          }
         }
       }
 
@@ -16994,7 +17008,7 @@ async function resolveDirectCaller(
       .eq("id", userId)
       .maybeSingle(),
   ]);
-  const roleList: string[] = (roles || []).map((r) => r.role);
+  const roleList: Array<string> = (roles || []).map((r) => r.role);
   const order = [
     "super_admin",
     "owner",
@@ -17155,7 +17169,8 @@ Deno.serve(async (req) => {
   const recorder = createReplyRecorder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const emit = (obj: unknown) => {
+      /** Record and stream an event while the reply continues in the background. */
+      function emit(obj: unknown) {
         if (obj && typeof obj === "object") {
           recorder.observe({
             type:
@@ -17171,7 +17186,7 @@ Deno.serve(async (req) => {
         } catch {
           /* client gone: keep working, the reply is saved below */
         }
-      };
+      }
       const turn = (async () => {
         let final: JsonRecord = {};
         try {

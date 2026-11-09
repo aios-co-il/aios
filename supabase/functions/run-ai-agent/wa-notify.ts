@@ -17,8 +17,12 @@ function nullableString(value: unknown): value is string | null {
 export function readWaNotifyTarget(
   value: unknown,
 ): WaNotifyTarget | null | undefined {
-  if (value === undefined || value === null) return value;
-  if (!isObject(value)) return null;
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (!isObject(value)) {
+    return null;
+  }
   const target = {
     surface: "surface" in value ? value.surface : undefined,
     tenant_id: "tenant_id" in value ? value.tenant_id : undefined,
@@ -60,7 +64,9 @@ export interface WaChatScope {
 
 /** Keeps the chat scope even when the delivery target is incomplete, so history search never widens. */
 export function readWaChatScope(value: unknown): WaChatScope | null {
-  if (!isObject(value)) return null;
+  if (!isObject(value)) {
+    return null;
+  }
   const chatId = "chat_id" in value ? value.chat_id : undefined;
   const isGroup = "is_group" in value ? value.is_group : undefined;
   const normalized =

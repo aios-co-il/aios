@@ -35,6 +35,7 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 ## Chat tools scope (get_chat_history, search_conversation_history, get_recent_inbound_messages)
 
 - `run-ai-agent` reads `chat_messages` with the service role and scopes it itself (`run-ai-agent/chat-scope/`), from the verified caller and the WhatsApp chat of the turn, never from tool args.
+- `run-ai-agent/wa-notify.ts` retains the originating chat scope when the delivery target is incomplete. An unknown or malformed private origin returns `current_chat_unknown` before history lookup unless `browse_all_chats` is explicitly requested; the caller's read permissions still apply.
 - owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
 - `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
 

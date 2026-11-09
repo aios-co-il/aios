@@ -39,22 +39,6 @@ const directToolSchema = z.object({
 export type DirectToolRequest = z.infer<typeof directToolSchema>;
 
 /**
- * Delivery target sent by Carmen's WhatsApp webhooks; kept as sent because the
- * chat scope and reminders read its fields one by one.
- */
-const waNotifySchema = z
-  .object({
-    surface: z.unknown(),
-    tenant_id: z.unknown(),
-    automation_id: z.unknown(),
-    connection_user_id: z.unknown(),
-    chat_id: z.unknown(),
-    phone_number: z.unknown(),
-    is_group: z.unknown(),
-  })
-  .passthrough();
-
-/**
  * A truthy non-string automation_id still marks an automation run
  * (isAutomationRun), so it is kept as text instead of being dropped.
  */
@@ -148,8 +132,8 @@ const historyMessageSchema = z.object({
 
 /** User/assistant entries of the history sent to the model, content as stored. */
 export function readHistoryMessages(
-  history: unknown[],
-): z.output<typeof historyMessageSchema>[] {
+  history: Array<unknown>,
+): Array<z.output<typeof historyMessageSchema>> {
   return history.flatMap((entry) => {
     const message = historyMessageSchema.safeParse(entry);
     return message.success ? [message.data] : [];
@@ -157,8 +141,10 @@ export function readHistoryMessages(
 }
 
 /** User/assistant turns of a stored or client-sent history; other entries are dropped. */
-export function readConversationTurns(value: unknown): ConversationTurn[] {
-  if (!Array.isArray(value)) return [];
+export function readConversationTurns(value: unknown): Array<ConversationTurn> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((entry) => {
     const turn = conversationTurnSchema.safeParse(entry);
     return turn.success ? [turn.data] : [];

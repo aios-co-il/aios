@@ -36,7 +36,7 @@ export type ChatRequestMessage =
 /** The body sent to an OpenAI-compatible `/chat/completions` endpoint. */
 export interface ChatCompletionRequest {
   model: string;
-  messages: ChatRequestMessage[];
+  messages: Array<ChatRequestMessage>;
   temperature?: number;
   max_tokens?: number;
   tools?: Array<{ type: "function"; function: ToolDef }>;
@@ -81,7 +81,9 @@ export function readChatUsage(
   data: unknown,
 ): { input: number; output: number } | null {
   const { usage } = chatUsageSchema.parse(data);
-  if (!usage) return null;
+  if (!usage) {
+    return null;
+  }
   const fields = usageFieldsSchema.parse(usage);
   return {
     input: fields.prompt_tokens ?? fields.input_tokens ?? 0,
@@ -127,7 +129,9 @@ export function readToolResult(value: unknown): ToolResultView {
 /** A tool result as the JSON that supabase-js would serialize for a jsonb column. */
 export function toJson(value: unknown): Json | undefined {
   const text = JSON.stringify(value);
-  if (text === undefined) return undefined;
+  if (text === undefined) {
+    return undefined;
+  }
   return jsonSchema.parse(JSON.parse(text));
 }
 
