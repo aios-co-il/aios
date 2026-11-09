@@ -28,27 +28,21 @@ export type FacebookGoalInputs = {
 };
 
 /**
- * Leads a traffic, engagement or awareness campaign must measure over the rows
- * judged before it counts as a lead campaign. While it measures leads it shows
- * and alerts on leads, with its clicks still on its row (David, AIO-514, as
- * Google's AIO-496 rule); fewer are stray pixel leads, so it stays traffic.
- */
-export const TRAFFIC_CAMPAIGN_MIN_LEADS = 5;
-
-/**
  * Goal of one Facebook campaign in every campaign report: the internal report,
  * the shared report and its KPIs, the weekly tab, the dashboards' mixed
  * tables and KPIs (groupFacebookRowsByGoal), and the pulse. Traffic stays
- * traffic unless it measures at least TRAFFIC_CAMPAIGN_MIN_LEADS leads, a
- * leads-only table keeps everything else in leads, and otherwise the stored
- * type, the Meta objective, the configured result and the results decide.
+ * traffic whatever leads it measures: it is judged on traffic to its
+ * destination, and its table adds leads and followers columns when it has
+ * them (David reversed AIO-514). A leads-only table keeps everything else in
+ * leads, and otherwise the stored type, the Meta objective, the configured
+ * result and the results decide.
  */
 export function facebookCampaignGoal(
   inputs: FacebookGoalInputs,
   options: { leadsOnly: boolean },
 ): ReportCampaignGoal {
   if (inputs.campaignType === "traffic") {
-    return inputs.leads >= TRAFFIC_CAMPAIGN_MIN_LEADS ? "leads" : "traffic";
+    return "traffic";
   }
   if (options.leadsOnly) {
     return "leads";

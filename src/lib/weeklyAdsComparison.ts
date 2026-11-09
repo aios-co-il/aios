@@ -40,6 +40,8 @@ export type WeeklyCampaignRow = {
   impressions: number;
   clicks: number;
   results: number;
+  /** Leads measured, whatever the goal; a traffic table shows them when any. */
+  leads: number;
   spend: number;
   costPerResult: number;
   revenue: number;
@@ -322,6 +324,7 @@ export function buildWeeklyCampaignSections(
           impressions: campaign.impressions,
           clicks: campaign.clicks,
           results,
+          leads: campaign.leads,
           spend: campaign.spend,
           costPerResult: results > 0 ? campaign.spend / results : 0,
           revenue,
