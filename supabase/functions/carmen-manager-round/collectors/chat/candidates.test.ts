@@ -19,6 +19,7 @@ const confident: ChatVerdict = {
   needs_reply: true,
   is_request: true,
   complaint_ids: [],
+  read_ids: [],
   urgency: "normal",
   summary_he: "מבקש לעדכן את המבצע",
   confidence: 0.9,

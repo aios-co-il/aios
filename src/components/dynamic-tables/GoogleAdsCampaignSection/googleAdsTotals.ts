@@ -9,6 +9,7 @@ export function emptyTotals(): GoogleAdsTotals {
     spend: 0,
     conversions: 0,
     conversions_value: 0,
+    leads: 0,
   };
 }
 
@@ -19,6 +20,7 @@ export function addTotals(target: GoogleAdsTotals, row: GoogleAdsTotals) {
   target.spend += row.spend;
   target.conversions += row.conversions;
   target.conversions_value += row.conversions_value;
+  target.leads = (target.leads ?? 0) + (row.leads ?? 0);
 }
 
 /** Purchases, revenue and ROAS of the ecommerce campaigns; WooCommerce figures replace Google's when it overlays. */

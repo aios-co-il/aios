@@ -3,6 +3,8 @@ import {
   type ChatVerdict,
   parseModelVerdict,
   parseStoredVerdict,
+  verdictClearsComplaint,
+  verdictClearsWait,
   verdictComplaints,
   verdictSaysRequest,
 } from "./verdict.ts";
@@ -11,6 +13,7 @@ const verdict: ChatVerdict = {
   needs_reply: true,
   is_request: false,
   complaint_ids: [],
+  read_ids: [],
   urgency: "normal",
   summary_he: "שואל מתי עולה הקמפיין",
   confidence: 0.8,
@@ -28,6 +31,7 @@ Deno.test("parseModelVerdict", async (t) => {
     assertEquals(parseModelVerdict(answer([1, 3, 1]), lineIds), {
       ...verdict,
       complaint_ids: ["m1", "m3"],
+      read_ids: ["m1", "m3"],
     });
   });
 
@@ -39,7 +43,10 @@ Deno.test("parseModelVerdict", async (t) => {
         null,
       ]);
       assertEquals(parsed?.complaint_ids, []);
-      assertEquals(parseModelVerdict(answer(undefined), ["m1"]), verdict);
+      assertEquals(parseModelVerdict(answer(undefined), ["m1"]), {
+        ...verdict,
+        read_ids: ["m1"],
+      });
     },
   );
 
@@ -76,6 +83,58 @@ Deno.test("parseStoredVerdict", async (t) => {
     });
     assertEquals(parseStoredVerdict({}), null);
   });
+
+  await t.step("a review stored before read_ids is read again", () => {
+    const legacy = {
+      needs_reply: true,
+      is_request: false,
+      complaint_ids: [],
+      urgency: "normal",
+      summary_he: "שואל מתי עולה הקמפיין",
+      confidence: 0.8,
+    };
+    assertEquals(parseStoredVerdict(legacy), null);
+  });
+});
+
+Deno.test("verdictClears", async (t) => {
+  const calm: ChatVerdict = {
+    ...verdict,
+    needs_reply: false,
+    is_request: false,
+    read_ids: ["m1", "m2"],
+    confidence: 0.8,
+  };
+
+  await t.step(
+    "a confident read of every line with no request clears the wait",
+    () => {
+      assertEquals(verdictClearsWait(calm, ["m1", "m2"]), true);
+      assertEquals(verdictClearsWait(calm, ["m1", "m3"]), false, "m3 unread");
+      assertEquals(
+        verdictClearsWait({ ...calm, confidence: 0.79 }, ["m1"]),
+        false,
+      );
+      assertEquals(
+        verdictClearsWait({ ...calm, needs_reply: true }, ["m1"]),
+        false,
+      );
+      assertEquals(verdictClearsWait(calm, []), false);
+      assertEquals(verdictClearsWait(null, ["m1"]), false);
+    },
+  );
+
+  await t.step(
+    "a confident read that names none of the lines clears the complaint",
+    () => {
+      assertEquals(verdictClearsComplaint(calm, ["m1"]), true);
+      assertEquals(
+        verdictClearsComplaint({ ...calm, complaint_ids: ["m1"] }, ["m1"]),
+        false,
+      );
+      assertEquals(verdictClearsComplaint(calm, ["m9"]), false, "m9 unread");
+    },
+  );
 });
 
 Deno.test("verdictSays", async (t) => {

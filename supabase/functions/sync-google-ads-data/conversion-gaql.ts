@@ -3,9 +3,18 @@ import { conversionCategorySide } from "./conversion-goal.ts";
 /** The fields the enrichment queries select, as searchStream returns them. */
 export type GaqlRow = {
   campaign?: { id?: string };
-  segments?: { date?: string; conversionActionCategory?: string };
+  segments?: {
+    date?: string;
+    conversionActionCategory?: string;
+    conversionAction?: string;
+  };
   metrics?: { conversions?: string; allConversions?: string };
   campaignConversionGoal?: { category?: string; biddable?: boolean };
+  conversionAction?: {
+    resourceName?: string;
+    type?: string;
+    category?: string;
+  };
 };
 
 export type RunGaqlSearch = (

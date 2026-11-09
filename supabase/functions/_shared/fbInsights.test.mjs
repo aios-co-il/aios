@@ -163,7 +163,8 @@ Deno.test(
     assertStrictEquals(row.campaign_type, "ecommerce");
     assertStrictEquals(row.result_kind, "initiate_checkout");
     assertStrictEquals(row.conversations, 2);
-    assertStrictEquals(row.leads, 34);
+    // A sales campaign's leads are details left plus messages (David, 2026-11-09).
+    assertStrictEquals(row.leads, 36);
   },
 );
 

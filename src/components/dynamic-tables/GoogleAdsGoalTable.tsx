@@ -17,6 +17,8 @@ type Metrics = {
 export type GoogleAdsGoalTableRow = Metrics & {
   key: string;
   name: string;
+  /** A sales campaign's leads (calls, forms), apart from its purchases. */
+  leads?: number;
   /** Campaign switched off; marked with the "כבוי" badge. */
   off?: boolean;
 };
@@ -38,8 +40,9 @@ type Props = {
 /**
  * One goal of a Google Ads report table: sales campaigns with conversion value
  * and ROAS, lead campaigns with cost per lead, and campaigns set to pay for
- * exposure with clicks and cost per click only (AIO-496). Totals are of this
- * goal only.
+ * exposure with clicks and cost per click only (AIO-496). A sales table adds
+ * a leads column once a campaign also brought leads. Totals are of this goal
+ * only.
  */
 export function GoogleAdsGoalTable({
   goal,
@@ -61,6 +64,18 @@ export function GoogleAdsGoalTable({
     cost: sum("cost"),
     conversions_value: woo ? woo.revenue : sum("conversions_value"),
   };
+  const salesLeads = isEcommerce && rows.some((row) => (row.leads ?? 0) > 0);
+  const totalLeads = rows.reduce((total, row) => total + (row.leads ?? 0), 0);
+  /** A sales row's leads cell, when the table shows leads. */
+  function leadsCell(leads: number) {
+    return (
+      salesLeads && (
+        <td className="p-2 text-center">
+          {formatReportNumber(Math.round(leads))}
+        </td>
+      )
+    );
+  }
   const totalLabel = showTitle ? CAMPAIGN_GOAL_TOTAL_LABELS[goal] : "סה״כ";
   const header = (label: string) => (
     <th className="p-2 text-center font-medium">{label}</th>
@@ -89,6 +104,7 @@ export function GoogleAdsGoalTable({
             {header(
               isTraffic ? "עלות לקליק" : isEcommerce ? "ROAS" : "עלות לליד",
             )}
+            {salesLeads && header("לידים")}
           </tr>
         </thead>
         <tbody>
@@ -104,6 +120,7 @@ export function GoogleAdsGoalTable({
                 currency={currency}
                 isTotal={false}
               />
+              {leadsCell(row.leads ?? 0)}
             </tr>
           ))}
         </tbody>
@@ -111,6 +128,7 @@ export function GoogleAdsGoalTable({
           <tr>
             <td className="p-2 text-right">{totalLabel}</td>
             <MetricCells m={totals} goal={goal} currency={currency} isTotal />
+            {leadsCell(totalLeads)}
           </tr>
         </tfoot>
       </table>

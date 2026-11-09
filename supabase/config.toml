@@ -528,6 +528,10 @@ verify_jwt = true
 [functions.carmen-realtime-session]
 verify_jwt = true
 
+# Carmen's phone line: ElevenLabs webhooks (shared secret header, or a signed post-call).
+[functions.carmen-phone]
+verify_jwt = false
+
 [functions.send-signature-request]
 verify_jwt = true
 

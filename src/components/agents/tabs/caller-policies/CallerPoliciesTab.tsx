@@ -4,6 +4,7 @@ import {
   callerPolicyFor,
 } from "../../../../../supabase/functions/_shared/carmen/caller-policy/policy.ts";
 import { CallerPolicyCard } from "./CallerPolicyCard";
+import { PhoneLineCard } from "./PhoneLineCard";
 import { useCallerPolicies } from "./useCallerPolicies";
 
 /**
@@ -29,6 +30,7 @@ export function CallerPoliciesTab({ tenantId }: { tenantId: string | null }) {
         כך כרמן מדברת עם מי שאינו בצוות, בטלפון ובהמשך גם בערוצים נוספים. מה שלא
         שונה כאן משתמש בברירת המחדל.
       </p>
+      <PhoneLineCard tenantId={tenantId} />
       {CALLER_KINDS.map((kind) => (
         <CallerPolicyCard
           key={kind}

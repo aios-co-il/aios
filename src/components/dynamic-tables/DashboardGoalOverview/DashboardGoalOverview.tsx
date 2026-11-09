@@ -4,6 +4,7 @@ import type { DashboardCombinedSales } from "@/lib/dashboardCombinedFigures";
 import type { DashboardGoalSummary } from "@/lib/dashboardGoalSummary";
 import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
 import type { PlatformLabelOf } from "../DashboardPlatformBreakdown/BreakdownCells";
+import { CombinedRoasCard } from "../CombinedRoasCard";
 import { goalPanels, type GoalFigure } from "./goalPanels";
 
 type Props = {
@@ -20,8 +21,8 @@ type Props = {
 
 /**
  * The "All" tab's summary for a dashboard with campaigns of several goals:
- * one row of what every goal shares (spend, impressions, clicks), then a
- * panel per goal with only what that goal is measured on, so a lead or
+ * one row of what every goal shares (spend, impressions, clicks) plus the
+ * sales campaigns' ROAS when there are any, then a panel per goal with only what that goal is measured on, so a lead or
  * traffic campaign never shows a ROAS and goals are never averaged together.
  */
 export function DashboardGoalOverview({
@@ -37,9 +38,12 @@ export function DashboardGoalOverview({
     { label: "סה״כ חשיפות", value: format.formatNumber(delivery.impressions) },
     { label: "סה״כ קליקים", value: format.formatNumber(delivery.clicks) },
   ];
+  const hasSales = summary.rows.some((row) => row.goal === "ecommerce");
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+      <div
+        className={`grid gap-3 grid-cols-1 ${hasSales ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}
+      >
         {deliveryFigures.map((figure) => (
           <Card
             key={figure.label}
@@ -51,6 +55,14 @@ export function DashboardGoalOverview({
             </CardContent>
           </Card>
         ))}
+        {/* ROAS stays on top as on a single-goal dashboard; it is the sales
+            campaigns' own, never spread over lead or traffic spend. */}
+        {hasSales && (
+          <CombinedRoasCard
+            sales={sales}
+            formatCurrency={format.formatCurrency}
+          />
+        )}
       </div>
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
         {goalPanels({ summary, sales, leads, platformLabel, format }).map(
