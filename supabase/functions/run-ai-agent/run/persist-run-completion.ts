@@ -1,3 +1,5 @@
+import type { BackgroundRuntime } from "../background-runtime.ts";
+declare const EdgeRuntime: BackgroundRuntime;
 import type { RunState } from "./state.ts";
 import { summarizeAndStoreAgentMemory } from "../../_shared/agent-memory.ts";
 import { estimateLLMCostUSD } from "../llm/cost.ts";

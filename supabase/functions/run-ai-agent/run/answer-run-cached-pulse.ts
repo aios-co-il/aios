@@ -1,3 +1,4 @@
+import type { ToolResultMetadata } from "../tool-result-metadata.ts";
 import type { RunState } from "./state.ts";
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
@@ -18,7 +19,7 @@ export async function answerRunCachedPulse(
       "[AGENT] Auto-returning cached campaign pulse digest for WhatsApp",
     );
     const autoStart = Date.now();
-    const pulseResult = await run.dependencies.executeTool(
+    const pulseResult = (await run.dependencies.executeTool(
       "get_latest_campaign_pulse",
       {},
       run.supabase,
@@ -31,7 +32,7 @@ export async function answerRunCachedPulse(
       run.callerPhone,
       run.wa_notify,
       run.input.surface,
-    );
+    )) as ToolResultMetadata | null | undefined;
     const digest =
       typeof pulseResult?.whatsapp_digest === "string"
         ? pulseResult.whatsapp_digest.trim()
