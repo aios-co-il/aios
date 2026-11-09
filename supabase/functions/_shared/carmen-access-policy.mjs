@@ -11,7 +11,9 @@ import {
 import { getDevEscalationTier as getHardcodedDevTier } from "./dev-escalation-auth.mjs";
 
 export const SURFACE_PRIVATE = "whatsapp_private";
+
 export const SURFACE_GROUP = "whatsapp_group";
+
 export const SURFACE_CC = "command_center";
 
 /** @typedef {{ phone: string, label?: string, campaigner_id?: string, client_id?: string, dev_escalation_tier?: string|null, surfaces?: string[] }} PolicyPhoneEntry */
@@ -50,6 +52,7 @@ export function policyPhoneList(entries) {
 /**
  * Merge automation configuration with optional carmen_access_policies row.
  * Policy wins when present; automation remains fallback.
+ * @param {object | null} [policy]
  */
 export function mergeCarmenScopeConfig(
   automationCfg = {},

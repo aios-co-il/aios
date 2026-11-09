@@ -1,5 +1,16 @@
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
-import { handleCarmenMessage, type CarmenContext } from "./carmen.ts";
+import {
+  assertEquals,
+  assertStringIncludes,
+  assertRejects,
+} from "jsr:@std/assert@1";
+import {
+  handleCarmenMessage,
+  findCarmenSessionAutomation,
+  runCarmenAI,
+  type CarmenContext,
+} from "./carmen.ts";
+import { PermanentError } from "./carmen-config.ts";
+import { serviceClient } from "./supabase-clients.ts";
 import { CLIENT_INTAKE_REPLY_HE } from "./carmen/client-intake.ts";
 import {
   accessFlagsFor,
@@ -7,8 +18,11 @@ import {
 } from "./carmen/group-reply-level.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
+
 const GROUP_CHAT = "120363111222333@g.us";
+
 const STRANGER = "972501234567";
+
 /** A 15-digit WhatsApp LID whose last nine digits look like an Israeli mobile. */
 const LID = "224686986293269";
 
@@ -25,6 +39,8 @@ function fakeDb(
   tables: Record<string, Array<Row>>,
   rpcs: Record<string, (args: Row) => unknown> = {},
   updates: Array<FakeUpdate> = [],
+  errors: Record<string, { message: string }> = {},
+  queries: Array<string> = [],
 ) {
   return {
     rpc(fn: string, args: Row) {
@@ -42,11 +58,15 @@ function fakeDb(
       };
     },
     from(table: string) {
+      queries.push(table);
       const filters: Array<(row: Row) => boolean> = [];
       let pendingUpdate: Row | null = null;
       const rows = () =>
         (tables[table] || []).filter((row) => filters.every((f) => f(row)));
       const settle = () => {
+        if (errors[table]) {
+          return { data: null, error: errors[table] };
+        }
         if (pendingUpdate) {
           updates.push({
             table,
@@ -68,6 +88,10 @@ function fakeDb(
         },
         maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null }),
         single: () => Promise.resolve({ data: rows()[0] ?? null }),
+        insert: (values: Row) => {
+          updates.push({ table, values, ids: [] });
+          return query;
+        },
         update: (values: Row) => {
           pendingUpdate = values;
           return query;
@@ -85,7 +109,6 @@ function fakeDb(
         "not",
         "order",
         "limit",
-        "insert",
         "upsert",
       ]) {
         query[passThrough] = () => query;
@@ -100,6 +123,9 @@ function tenantDb(
   scope: Row,
   extra: Record<string, Array<Row>> = {},
   rpcs: Record<string, (args: Row) => unknown> = {},
+  updates: Array<FakeUpdate> = [],
+  errors: Record<string, { message: string }> = {},
+  queries: Array<string> = [],
 ) {
   return fakeDb(
     {
@@ -131,6 +157,9 @@ function tenantDb(
       ...extra,
     },
     rpcs,
+    updates,
+    errors,
+    queries,
   );
 }
 
@@ -504,5 +533,196 @@ Deno.test(
         assertEquals(ended, ["on-carmen-line", "on-this-line", "legacy"]);
       },
     );
+  },
+);
+
+Deno.test(
+  "handleCarmenMessage validates effective scope before any session query",
+  async (t) => {
+    for (const scope of ["invalid", {}, "private_only"]) {
+      for (const withPolicy of [false, true]) {
+        await t.step(
+          `${JSON.stringify(scope)}, policy override: ${withPolicy}`,
+          async () => {
+            const queries: Array<string> = [];
+            const updates: Array<FakeUpdate> = [];
+            const policy = withPolicy
+              ? [
+                  {
+                    tenant_id: TENANT,
+                    agent_id: "agent-1",
+                    private_phones: [{ phone: STRANGER }],
+                  },
+                ]
+              : [];
+            const db = tenantDb(
+              { carmen_scope_mode: scope },
+              {
+                carmen_access_policies: policy,
+              },
+              {},
+              updates,
+              {},
+              queries,
+            );
+            const { ctx } = groupTurn(db, STRANGER);
+            ctx.isGroup = false;
+            ctx.chatId = `${STRANGER}@c.us`;
+            ctx.messageText = "מה המצב?";
+            const { result, posted } = await capturingSends(() =>
+              handleCarmenMessage(ctx),
+            );
+            const valid = withPolicy || scope === "private_only";
+            assertEquals(
+              result,
+              valid
+                ? { handled: false, reason: "no_keyword" }
+                : { handled: false, reason: "invalid_scope_mode" },
+            );
+            assertEquals(queries.includes("carmen_whatsapp_sessions"), valid);
+            assertEquals(updates, []);
+            assertEquals(posted, []);
+          },
+        );
+      }
+    }
+  },
+);
+
+Deno.test(
+  "handleCarmenMessage stops after a failed session lookup",
+  async (t) => {
+    for (const hasAutomation of [true, false]) {
+      await t.step(`automation available: ${hasAutomation}`, async () => {
+        const queries: Array<string> = [];
+        const updates: Array<FakeUpdate> = [];
+        const db = tenantDb(
+          { carmen_scope_mode: "private_only" },
+          hasAutomation ? {} : { automation_flow_steps: [] },
+          {},
+          updates,
+          { carmen_whatsapp_sessions: { message: "database unavailable" } },
+          queries,
+        );
+        const { ctx } = groupTurn(db, STRANGER);
+        ctx.isGroup = false;
+        ctx.chatId = `${STRANGER}@c.us`;
+        const { result, posted } = await capturingSends(() =>
+          handleCarmenMessage(ctx),
+        );
+        assertEquals(
+          result,
+          hasAutomation
+            ? { handled: true, outcome: "error" }
+            : { handled: false, reason: "no_automation_for_integration" },
+        );
+        assertEquals(queries.at(-1), "carmen_whatsapp_sessions");
+        assertEquals(updates, []);
+        assertEquals(posted, []);
+      });
+    }
+  },
+);
+
+Deno.test(
+  "automation selection rejects malformed pins and retains valid base overrides",
+  async (t) => {
+    for (const pin of [
+      42,
+      {},
+      true,
+      false,
+      0,
+      [],
+      "integration-1",
+      "",
+      null,
+      undefined,
+    ]) {
+      await t.step(`pin: ${JSON.stringify(pin)}`, async () => {
+        const db = tenantDb(
+          { carmen_integration_id: pin, agent_id: 5 },
+          {
+            automations: [
+              {
+                id: "auto-1",
+                active: true,
+                configuration: { agent_id: "base-agent" },
+              },
+            ],
+          },
+        );
+        const { ctx } = groupTurn(db, STRANGER);
+        const automation = await findCarmenSessionAutomation(
+          ctx.supabase,
+          TENANT,
+          "integration-1",
+          {
+            isGroup: false,
+            phoneNumber: STRANGER,
+          },
+        );
+        const valid = pin == null || typeof pin === "string";
+        assertEquals(automation?.id ?? null, valid ? "auto-1" : null);
+        if (valid) {
+          assertEquals(automation?.configuration.agent_id, "base-agent");
+        }
+      });
+    }
+  },
+);
+
+Deno.test(
+  "runCarmenAI does not retry 4xx and still retries transient failures",
+  async (t) => {
+    const originalFetch = globalThis.fetch;
+    const oldUrl = Deno.env.get("SUPABASE_URL");
+    const oldKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    Deno.env.set("SUPABASE_URL", "https://carmen.invalid");
+    Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-only");
+    try {
+      for (const status of [400, 403, 429, 500]) {
+        await t.step(`HTTP ${status}`, async () => {
+          let attempts = 0;
+          globalThis.fetch = () => {
+            attempts++;
+            return Promise.resolve(
+              attempts === 1
+                ? new Response("upstream detail", { status })
+                : Response.json({ output: "recovered" }),
+            );
+          };
+
+          /** Invoke the same agent request for each simulated HTTP response. */
+          function run() {
+            return runCarmenAI(serviceClient(), "agent-1", TENANT, "hello", []);
+          }
+
+          if (status < 500) {
+            await assertRejects(
+              run,
+              PermanentError,
+              `run-ai-agent ${status} — upstream detail`,
+            );
+            assertEquals(attempts, 1);
+          } else {
+            assertEquals(await run(), "recovered");
+            assertEquals(attempts, 2);
+          }
+        });
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (oldUrl === undefined) {
+        Deno.env.delete("SUPABASE_URL");
+      } else {
+        Deno.env.set("SUPABASE_URL", oldUrl);
+      }
+      if (oldKey === undefined) {
+        Deno.env.delete("SUPABASE_SERVICE_ROLE_KEY");
+      } else {
+        Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", oldKey);
+      }
+    }
   },
 );
