@@ -3780,6 +3780,7 @@ export default function DynamicTableView({
                           conversions_value: 0,
                           all_conversions: 0,
                           all_conversions_value: 0,
+                          leads: 0,
                           roas_sum: 0,
                           roas_count: 0,
                         };
@@ -3800,6 +3801,7 @@ export default function DynamicTableView({
                         Number(record.data?.all_conversions) || 0;
                       acc[groupKey].all_conversions_value +=
                         Number(record.data?.all_conversions_value) || 0;
+                      acc[groupKey].leads += Number(record.data?.leads) || 0;
                       if (record.data?.roas) {
                         acc[groupKey].roas_sum += Number(record.data.roas) || 0;
                         acc[groupKey].roas_count += 1;
@@ -3818,6 +3820,8 @@ export default function DynamicTableView({
                         conversions_value: number;
                         all_conversions: number;
                         all_conversions_value: number;
+                        /** A sales campaign's leads, apart from its purchases. */
+                        leads: number;
                         roas_sum: number;
                         roas_count: number;
                       }

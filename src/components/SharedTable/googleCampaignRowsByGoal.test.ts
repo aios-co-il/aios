@@ -36,4 +36,22 @@ describe("googleCampaignRowsByGoal", () => {
     expect(rows.traffic.map((row) => row.name)).toEqual(["media"]);
     expect(rows.all.map((row) => row.name)).toEqual(["lead", "media"]);
   });
+
+  it("a sales row's leads are only its stored calls and forms, not its purchases", () => {
+    const sale = (leads?: number) => ({
+      data: {
+        ...record("shop", 100).data,
+        conversions: 5,
+        ...(leads ? { leads } : {}),
+      },
+    });
+    const goal = () => "ecommerce" as const;
+    expect(
+      googleCampaignRowsByGoal([sale()], "campaign", goal).ecommerce[0].leads,
+    ).toBe(0);
+    expect(
+      googleCampaignRowsByGoal([sale(3), sale(1)], "campaign", goal)
+        .ecommerce[0].leads,
+    ).toBe(4);
+  });
 });

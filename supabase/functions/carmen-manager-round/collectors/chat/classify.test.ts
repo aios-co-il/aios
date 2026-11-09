@@ -50,7 +50,7 @@ Deno.test("classifyThreads", async (t) => {
       const { verdicts, llm } = await classify([group()], fake);
       assertEquals(verdicts.get("group:111@g.us"), {
         messageId: "last",
-        verdict: ASKED_VERDICT,
+        verdict: { ...ASKED_VERDICT, read_ids: ["last"] },
       });
       assertEquals(
         [prompts.length, saved.length, llm],
@@ -192,11 +192,11 @@ Deno.test("classifyThreads", async (t) => {
   );
 
   await t.step(
-    "markers that found everything need no model; a bad or billed empty answer is ignored",
+    "lines the markers flagged are asked too; a bad or billed empty answer is ignored",
     async () => {
       const first = fakeClassifyPorts();
       await classify([group("אני לא מרוצה, מתי זה יסתדר?")], first.fake);
-      assertEquals(first.prompts.length, 0);
+      assertEquals(first.prompts.length, 1, "a verdict may clear the markers");
       for (const answer of ["{oops", null]) {
         const broken = fakeClassifyPorts({ answer, costUsd: 0.002 });
         const run = await classify([group()], broken.fake);

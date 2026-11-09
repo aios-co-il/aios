@@ -11,6 +11,8 @@ export type GoogleAdsCampaignSummaryRow = {
   spend: number;
   conversions: number;
   conversions_value: number;
+  /** A sales campaign's leads (calls, forms), apart from its purchases. */
+  leads?: number;
 };
 
 export type GoogleAdsTotals = Omit<

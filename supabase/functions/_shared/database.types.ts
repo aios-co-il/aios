@@ -4401,6 +4401,129 @@ export type Database = {
         };
         Relationships: [];
       };
+      carmen_phone_calls: {
+        Row: {
+          caller_kind: string;
+          caller_name: string | null;
+          caller_phone: string | null;
+          campaigner_id: string | null;
+          client_ids: string[];
+          direction: string;
+          elevenlabs_conversation_id: string | null;
+          ended_at: string | null;
+          id: string;
+          line_id: string | null;
+          messages: Json;
+          started_at: string;
+          summary: string | null;
+          summary_sent_at: string | null;
+          tenant_id: string;
+          transcript: Json | null;
+        };
+        Insert: {
+          caller_kind: string;
+          caller_name?: string | null;
+          caller_phone?: string | null;
+          campaigner_id?: string | null;
+          client_ids?: string[];
+          direction?: string;
+          elevenlabs_conversation_id?: string | null;
+          ended_at?: string | null;
+          id?: string;
+          line_id?: string | null;
+          messages?: Json;
+          started_at?: string;
+          summary?: string | null;
+          summary_sent_at?: string | null;
+          tenant_id: string;
+          transcript?: Json | null;
+        };
+        Update: {
+          caller_kind?: string;
+          caller_name?: string | null;
+          caller_phone?: string | null;
+          campaigner_id?: string | null;
+          client_ids?: string[];
+          direction?: string;
+          elevenlabs_conversation_id?: string | null;
+          ended_at?: string | null;
+          id?: string;
+          line_id?: string | null;
+          messages?: Json;
+          started_at?: string;
+          summary?: string | null;
+          summary_sent_at?: string | null;
+          tenant_id?: string;
+          transcript?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_phone_calls_campaigner_id_fkey";
+            columns: ["campaigner_id"];
+            isOneToOne: false;
+            referencedRelation: "campaigners";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_phone_calls_line_id_fkey";
+            columns: ["line_id"];
+            isOneToOne: false;
+            referencedRelation: "carmen_phone_lines";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "carmen_phone_calls_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_phone_lines: {
+        Row: {
+          active: boolean;
+          created_at: string;
+          id: string;
+          label: string | null;
+          match_key: string | null;
+          phone_number: string;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          match_key?: string | null;
+          phone_number: string;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          active?: boolean;
+          created_at?: string;
+          id?: string;
+          label?: string | null;
+          match_key?: string | null;
+          phone_number?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_phone_lines_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_pronunciations: {
         Row: {
           created_at: string;
