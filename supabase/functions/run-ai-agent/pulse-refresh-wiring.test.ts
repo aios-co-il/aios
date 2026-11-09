@@ -27,9 +27,12 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        '{ role: "system", content: systemPrompt }',
       );
-      assert(runAiAgent.indexOf("if (shouldUseV2Prompt(agent)) {") < v1Start);
+      const v2Start = runAiAgent.indexOf(
+        "if (shouldUseV2Prompt(promptAgent)) {",
+      );
+      assert(v2Start > 0 && v2Start < v1Start);
       assert(append > v1Start && append < systemMessage);
       // Both branches flow into the append: it is not nested in either of them.
       assert(
@@ -59,7 +62,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
+        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(\s*isObject\(result\) \? result : null,?\s*\);/,
       );
       assert(!runAiAgent.includes("isPulseRefreshRequest("));
       // The tool runs with executeTool's caller and scope.
@@ -85,7 +88,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        '{ role: "system", content: systemPrompt }',
       );
       // Every place a skin's text joins the prompt. Tenant pulse_check and
       // ecommerce_pulse overrides (DMM, MarketingCaptain) that say not to
