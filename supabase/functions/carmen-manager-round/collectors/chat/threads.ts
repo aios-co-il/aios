@@ -72,7 +72,9 @@ function toThread(
   calls: CompletedCall[],
 ): Thread {
   const [first] = rows;
-  const messages = rows.map((row) => messageTurn(row, staffKeys));
+  const messages = rows
+    .map((row) => messageTurn(row, staffKeys))
+    .filter((turn) => turn.by === "staff" || !isContentless(turn.text));
   const group = first.thread_kind === "group";
   const start = Math.min(...messages.map((turn) => turn.at.getTime()));
   const callTurns = calls
@@ -116,6 +118,15 @@ function messageTurn(row: ActivityRow, staffKeys: ReadonlySet<string>): Turn {
     text: row.message_text,
     unsure: !staff && row.sender_lid_unmapped === true,
   };
+}
+
+/**
+ * A client line with nothing of its own to answer: only an emoji reaction
+ * ("[תגובה: ❤️]") or a quoted message without text ("[quotedMessage]"). It
+ * starts no wait and is neither a request nor a complaint.
+ */
+function isContentless(text: string): boolean {
+  return /^\[(?:תגובה:[^\]]*|quotedMessage)\]$/.test(text.trim());
 }
 
 /** A completed call as a staff turn at its start time. */
