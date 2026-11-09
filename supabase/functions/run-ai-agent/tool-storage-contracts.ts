@@ -1,3 +1,4 @@
+import { normalizeMetaAdAccountId } from "../_shared/client-report-sync.ts";
 import { z } from "npm:zod@3.25.76";
 
 const optionalText = z.string().nullish().catch(invalidStoredField);
@@ -40,7 +41,7 @@ export function readAutomationStepSummary(value: unknown) {
   return automationStepSummarySchema.parse(value);
 }
 
-/** Validate the stored Meta identifier before account health and replacement checks. */
+/** Validate the stored Meta identifier for account health displays. */
 export function readMetaAdSettings(value: unknown): MetaAdSettings {
   return metaAdSettingsSchema.parse(value);
 }
@@ -58,4 +59,16 @@ function invalidStoredField(context: { error: z.ZodError }): undefined {
 function emptyStoredObject(context: { error: z.ZodError }) {
   invalidStoredField(context);
   return {};
+}
+
+/** Mutation checks must retain the legacy bindings still used by report synchronization. */
+export function readMetaAdAccountBinding(value: unknown): string | null {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    !("ad_account_id" in value)
+  ) {
+    return null;
+  }
+  return normalizeMetaAdAccountId(value.ad_account_id);
 }

@@ -82,10 +82,22 @@ Deno.test(
 );
 
 Deno.test(
-  "Google Calendar payloads without an items array have no events",
+  "Google Calendar preserves empty lists but rejects malformed response shapes",
   () => {
-    for (const value of [null, {}, { items: "x" }, { error: { code: 401 } }]) {
+    for (const value of [
+      {},
+      { items: null },
+      { items: [] },
+      { kind: "calendar#events" },
+    ]) {
       assertEquals(readGoogleCalendarEvents(value), []);
+    }
+    for (const value of [null, [], "response", { items: "x" }, { items: {} }]) {
+      assertThrows(
+        () => readGoogleCalendarEvents(value),
+        Error,
+        "Invalid Google Calendar response:",
+      );
     }
     const [event] = readGoogleCalendarEvents({ items: [null] });
     assertStrictEquals(event.start.dateTime, undefined);
@@ -205,5 +217,30 @@ Deno.test(
       "Invalid automation step: config.delay_value:",
     );
     assertStrictEquals(error.message.includes("\n"), false);
+  },
+);
+
+Deno.test(
+  "rejected delegation logs index and paths without submitted values",
+  () => {
+    const warnings: Array<Array<unknown>> = [];
+    const originalWarn = console.warn;
+    console.warn = (...args: Array<unknown>) => {
+      warnings.push(args);
+    };
+    try {
+      assertEquals(
+        parallelTaskArgs([
+          { title: "private title", prompt: 7 },
+          { title: "valid", prompt: "work" },
+        ]),
+        [{ title: "valid", prompt: "work" }],
+      );
+      assertEquals(warnings, [
+        ["[tools] Rejected delegate_parallel task 0", [["prompt"]]],
+      ]);
+    } finally {
+      console.warn = originalWarn;
+    }
   },
 );

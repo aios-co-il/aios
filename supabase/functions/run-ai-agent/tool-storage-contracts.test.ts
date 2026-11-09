@@ -3,6 +3,7 @@ import {
   readMarketingWorkItemPayload,
   readAutomationStepSummary,
   readMetaAdSettings,
+  readMetaAdAccountBinding,
 } from "./tool-storage-contracts.ts";
 
 Deno.test("malformed storage fields cannot escape into tool responses", () => {
@@ -60,5 +61,24 @@ Deno.test(
         facebook_form_id: "form",
       },
     );
+  },
+);
+
+Deno.test(
+  "replacement checks retain legacy bindings that the health reader discards",
+  () => {
+    const settings = { ad_account_id: ["12345"] };
+    assertEquals(readMetaAdSettings(settings).ad_account_id, undefined);
+    assertEquals(readMetaAdAccountBinding(settings), "act_12345");
+    assertEquals(
+      readMetaAdAccountBinding({ ad_account_id: 12345 }),
+      "act_12345",
+    );
+    assertEquals(
+      readMetaAdAccountBinding({ ad_account_id: "act_12345" }),
+      "act_12345",
+    );
+    assertEquals(readMetaAdAccountBinding({}), null);
+    assertEquals(readMetaAdAccountBinding(null), null);
   },
 );

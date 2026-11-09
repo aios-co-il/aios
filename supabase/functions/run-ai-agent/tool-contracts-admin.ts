@@ -89,17 +89,19 @@ const googleCalendarEventSchema = z
 
 export type GoogleCalendarEventItem = z.infer<typeof googleCalendarEventSchema>;
 
-const googleCalendarEventsSchema = z
-  .object({
-    items: z.array(googleCalendarEventSchema).nullish().catch(null),
-  })
-  .catch({});
+const googleCalendarEventsSchema = z.object({
+  items: z.array(googleCalendarEventSchema).nullish(),
+});
 
-/** Read calendar events, returning an empty list for malformed payloads. */
+/** Omitted items remain an empty calendar; malformed arrays must not hide existing events. */
 export function readGoogleCalendarEvents(
   payload: unknown,
 ): Array<GoogleCalendarEventItem> {
-  return googleCalendarEventsSchema.parse(payload).items ?? [];
+  const parsed = googleCalendarEventsSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw invalidToolInput("Google Calendar response", parsed.error);
+  }
+  return parsed.data.items ?? [];
 }
 
 export interface AdAccountHealthIssue {
@@ -132,9 +134,16 @@ export type ParallelTaskArg = z.infer<typeof parallelTaskArgSchema>;
 export function parallelTaskArgs(
   items: Array<unknown>,
 ): Array<ParallelTaskArg> {
-  return items.flatMap((item) => {
+  return items.flatMap((item, index) => {
     const parsed = parallelTaskArgSchema.safeParse(item);
-    return parsed.success ? [parsed.data] : [];
+    if (!parsed.success) {
+      console.warn(
+        `[tools] Rejected delegate_parallel task ${index}`,
+        parsed.error.issues.map((issue) => issue.path),
+      );
+      return [];
+    }
+    return [parsed.data];
   });
 }
 

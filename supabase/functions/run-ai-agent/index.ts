@@ -411,6 +411,7 @@ import {
 import type { MetaAdSettings } from "./tool-storage-contracts.ts";
 import {
   readMetaAdSettings,
+  readMetaAdAccountBinding,
   readMarketingWorkItemPayload,
   readAutomationStepSummary,
 } from "./tool-storage-contracts.ts";
@@ -12698,11 +12699,7 @@ async function executeTool(
         : null;
       const existingTableAccount =
         (fbTables || [])
-          .map((t) =>
-            normalizeMetaAdAccountId(
-              readMetaAdSettings(t.integration_settings).ad_account_id,
-            ),
-          )
+          .map((t) => readMetaAdAccountBinding(t.integration_settings))
           .find((id: string | null) => !!id) || null;
 
       const conflicts = [existingClientAccount, existingTableAccount]
@@ -12769,10 +12766,7 @@ async function executeTool(
         previous_ad_account_id: string | null;
       }> = [];
       for (const table of fbTables || []) {
-        const tableSettings = readMetaAdSettings(table.integration_settings);
-        const prev = tableSettings.ad_account_id
-          ? normalizeMetaAdAccountId(tableSettings.ad_account_id)
-          : null;
+        const prev = readMetaAdAccountBinding(table.integration_settings);
         const nextSettings = {
           ...(table.integration_settings !== null &&
           typeof table.integration_settings === "object" &&
