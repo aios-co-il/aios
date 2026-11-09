@@ -12,12 +12,11 @@ import {
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import {
   costPerFollower,
-  FOLLOWER_COLUMN_LABELS,
-  formatFollowerCell,
   showsFollowerColumns,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
 import { ratio } from "@/lib/reportNumber";
+import { FollowerCells, FollowerHeads } from "./FollowerColumns";
 import type { SharedCampaignRow } from "./sharedCampaignTables";
 
 /** What a traffic row needs, so the dashboards pass their campaign rows as-is. */
@@ -65,14 +64,12 @@ export function SharedTrafficTable({
         {formatUnitCost(ratio(metrics.spend, metrics.clicks))}
       </TableCell>
       {withFollowers && (
-        <>
-          <TableCell>
-            {formatFollowerCell(metrics.newFollowers, formatNumber)}
-          </TableCell>
-          <TableCell>
-            {formatFollowerCell(metrics.costPerFollower, formatUnitCost)}
-          </TableCell>
-        </>
+        <FollowerCells
+          newFollowers={metrics.newFollowers}
+          costPerFollower={metrics.costPerFollower}
+          formatNumber={formatNumber}
+          formatUnitCost={formatUnitCost}
+        />
       )}
     </>
   );
@@ -95,16 +92,7 @@ export function SharedTrafficTable({
                 <TableHead className="text-right">קליקים</TableHead>
                 <TableHead className="text-right">CTR</TableHead>
                 <TableHead className="text-right">עלות לקליק</TableHead>
-                {withFollowers && (
-                  <>
-                    <TableHead className="text-right">
-                      {FOLLOWER_COLUMN_LABELS.newFollowers}
-                    </TableHead>
-                    <TableHead className="text-right">
-                      {FOLLOWER_COLUMN_LABELS.costPerFollower}
-                    </TableHead>
-                  </>
-                )}
+                {withFollowers && <FollowerHeads />}
               </TableRow>
             </TableHeader>
             <TableBody>

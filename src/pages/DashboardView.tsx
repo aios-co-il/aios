@@ -16,6 +16,7 @@ import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { FacebookDashboardTrafficCard } from "@/components/dynamic-tables/FacebookDashboardTrafficCard";
+import { FacebookDashboardLeadsCard } from "@/components/dynamic-tables/FacebookDashboardLeadsCard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1989,76 +1990,12 @@ export default function DashboardView() {
                       />
                     )}
                     {facebookCampaignGroups.leads.length > 0 && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Facebook className="h-5 w-5 text-blue-600" />
-                            קמפיינים לידים - Facebook
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="overflow-x-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="text-right">
-                                    קמפיין
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    חשיפות
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    קליקים
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    לידים
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    הוצאה
-                                  </TableHead>
-                                  <TableHead className="text-right">
-                                    עלות לליד
-                                  </TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {facebookCampaignGroups.leads.map((c) => {
-                                  const cpl =
-                                    c.leads > 0 ? c.spend / c.leads : 0;
-                                  return (
-                                    <TableRow key={`leads-${c.name}`}>
-                                      <TableCell className="font-medium max-w-[300px]">
-                                        {c.name}
-                                      </TableCell>
-                                      <TableCell>
-                                        {formatNumber(c.impressions)}
-                                      </TableCell>
-                                      <TableCell>
-                                        {formatNumber(c.clicks)}
-                                      </TableCell>
-                                      <TableCell
-                                        className={
-                                          c.leads > 0
-                                            ? "text-green-600 font-medium"
-                                            : ""
-                                        }
-                                      >
-                                        {formatNumber(c.leads)}
-                                      </TableCell>
-                                      <TableCell>
-                                        {formatCurrency(c.spend)}
-                                      </TableCell>
-                                      <TableCell>
-                                        {cpl > 0 ? formatCurrency(cpl) : "-"}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <FacebookDashboardLeadsCard
+                        rows={facebookCampaignGroups.leads}
+                        formatCurrency={formatCurrency}
+                        formatUnitCost={formatUnitCost}
+                        formatNumber={formatNumber}
+                      />
                     )}
                     {facebookCampaignGroups.traffic.length > 0 && (
                       <FacebookDashboardTrafficCard

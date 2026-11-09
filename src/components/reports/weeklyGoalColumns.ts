@@ -18,14 +18,15 @@ export type WeeklyGoalColumn = {
 };
 
 /**
- * The columns of one goal's weekly table. A traffic table adds new followers
- * and cost per follower once a campaign sends people to a Page or profile.
+ * The columns of one goal's weekly table. A traffic or leads table adds new
+ * followers and cost per follower once a campaign sends people to a Page or
+ * profile: such a campaign can count as leads (AIO-514).
  */
 export function weeklyGoalColumnsFor(
   group: WeeklyGoalGroup,
 ): WeeklyGoalColumn[] {
   const columns = WEEKLY_GOAL_COLUMNS[group.kind];
-  if (group.kind === "traffic" && showsFollowerColumns(group.rows)) {
+  if (group.kind !== "ecommerce" && showsFollowerColumns(group.rows)) {
     return [...columns, newFollowersColumn, costPerFollowerColumn];
   }
   return columns;
