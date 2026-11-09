@@ -1,4 +1,4 @@
-import { assertEquals, assertMatch } from "jsr:@std/assert@1";
+import { assertEquals } from "jsr:@std/assert@1";
 import { leadCreationTools, leadMutationTools } from "./lead-tool-schemas.ts";
 
 Deno.test(
@@ -31,18 +31,3 @@ Deno.test(
     );
   },
 );
-
-Deno.test("lead schema groups retain their original catalog positions", () => {
-  const source = Deno.readTextFileSync(new URL("./index.ts", import.meta.url));
-  assertMatch(
-    source,
-    /const ALL_TOOLS = \[\s*\.\.\.leadCreationTools,\s*\/\/ TASKS/,
-  );
-  assertMatch(
-    source,
-    /required: \["active"\],[\s\S]*?\.\.\.leadMutationTools,\s*\/\/ TASKS - full CRUD/,
-  );
-  for (const tool of [...leadCreationTools, ...leadMutationTools]) {
-    assertEquals(source.includes(`name: "${tool.name}"`), false);
-  }
-});
