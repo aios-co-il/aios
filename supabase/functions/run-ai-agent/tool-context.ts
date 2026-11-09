@@ -1,3 +1,7 @@
+import type { AgentDatabaseClient } from "./database-contracts.ts";
+import type { Json } from "../_shared/database.types.ts";
+import type { FindingDraftReply } from "./finding-draft/reply.ts";
+
 export interface ToolCaller {
   tenantId: string;
   userId: string | null;
@@ -58,4 +62,18 @@ export interface ToolDispatchDependencies {
     phone: string | null;
   }): Promise<ToolScope["devEscalationTier"]>;
   accessibleTenants(tenantId: string): Promise<Array<string>>;
+}
+
+export interface ToolExecutionContext extends ToolCaller, ToolScope {
+  supabase: AgentDatabaseClient;
+  name: string;
+  waNotify?: Json;
+  surface?: string | null;
+  conversationId?: string | null;
+  approval: ToolApproval;
+  appLinkOrigin?: string | null;
+  humanRequesterUserId?: string | null;
+  findingDraftReply?: FindingDraftReply | null;
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
 }
