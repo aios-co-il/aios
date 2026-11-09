@@ -7,6 +7,8 @@ import {
 } from "../src/jobs/guide-take.ts";
 import { recordingSeconds } from "../src/jobs/recording-length.ts";
 import { generateVoice } from "../src/jobs/sound.ts";
+import type { RunOutput } from "../src/jobs/types.ts";
+import { runOf } from "./fakes.ts";
 
 // The fixtures' recording is three bytes; ffmpeg's measurement is tested in recording-length.test.ts.
 vi.mock("../src/jobs/recording-length.ts", () => ({
@@ -25,7 +27,7 @@ const TAKE = new Uint8Array(32_000).fill(7);
 
 /** A continuous voice run with the user's recording; records what the run stores. */
 function guideRun(input: Record<string, unknown> = {}) {
-  const run = {
+  const run = runOf({
     id: "run1",
     tenant_id: "t1",
     item_id: "item1",
@@ -36,9 +38,9 @@ function guideRun(input: Record<string, unknown> = {}) {
       guide_audio: { bucket: "creative-video", path: GUIDE },
       ...input,
     },
-    output: {} as Record<string, unknown>,
-  };
-  const rpcs: Array<[string, Record<string, unknown>]> = [];
+    output: {},
+  });
+  const rpcs: Array<[string, GuideMeta]> = [];
   const downloads: Array<string> = [];
   const uploads: Array<string> = [];
   const db = {
@@ -54,10 +56,14 @@ function guideRun(input: Record<string, unknown> = {}) {
     async upload(bucket: string, path: string) {
       uploads.push(`${bucket}/${path}`);
     },
-    async update(_table: string, _filter: string, patch) {
+    async update(
+      _table: string,
+      _filter: string,
+      patch: { output: RunOutput },
+    ) {
       run.output = patch.output;
     },
-    async rpc(name: string, args) {
+    async rpc(name: string, args: { p_meta: GuideMeta }) {
       rpcs.push([name, args.p_meta]);
     },
   };
@@ -68,11 +74,15 @@ function guideRun(input: Record<string, unknown> = {}) {
 function stubElevenLabs(calls: Array<string>, aligner: "ok" | "fails" = "ok") {
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     calls.push(String(url));
-    const form = init.body as FormData;
+    const form = init.body;
+    if (!(form instanceof FormData)) {
+      throw new Error("ElevenLabs is sent a form");
+    }
     if (String(url).includes("/v1/speech-to-speech/")) {
       expect(form.get("model_id")).toBe("eleven_multilingual_sts_v2");
       expect(form.get("remove_background_noise")).toBe("true");
-      expect((form.get("audio") as Blob).type).toBe("audio/webm");
+      const audio = form.get("audio");
+      expect(audio instanceof Blob && audio.type).toBe("audio/webm");
       return new Response(TAKE);
     }
     if (aligner === "fails") {
@@ -126,8 +136,7 @@ describe("the narration from the user's recording", () => {
       guide: { bucket: "creative-video", path: GUIDE },
       pronunciations: {},
     });
-    const alignment = meta.alignment as { characters: Array<string> };
-    expect(alignment.characters.join("")).toBe(SCRIPT);
+    expect(meta.alignment?.characters.join("")).toBe(SCRIPT);
     expect(result.output.audio_meta.seconds).toBe(2);
     expect(result.costUsd).toBe(guideCostUsd(2));
     expect(result.costUsd).toBe(0.004);
@@ -212,3 +221,9 @@ describe("the narration from the user's recording", () => {
     expect(rate).toBe(SPEECH_TO_SPEECH_USD_PER_MINUTE);
   });
 });
+
+/** The narration meta a guide take attaches. */
+interface GuideMeta {
+  alignment?: { characters: Array<string> } | null;
+  [key: string]: unknown;
+}

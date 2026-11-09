@@ -50,7 +50,22 @@ import {
 import { answerableIndex, hidePartialQuickReplies } from "@/lib/quickReplies";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import type { CarmenFaceState } from "./CarmenFace";
-import { startRealtimeVoice, RealtimeHandle } from "./realtimeVoice";
+import {
+  type RealtimeCallbacks,
+  startRealtimeVoice,
+  RealtimeHandle,
+} from "./realtimeVoice";
+import {
+  type CarmenVoice,
+  isElevenLabsVoice,
+  toCarmenVoice,
+  VOICE_STORAGE_KEY,
+} from "./carmenVoices";
+import { CarmenVoiceOptions } from "./CarmenVoiceOptions";
+import {
+  type ElevenLabsSession,
+  startElevenLabsVoice,
+} from "./elevenLabsVoice";
 import { useSavePronunciation } from "./useSavePronunciation";
 import { replyShownThisTurn } from "./chatDedupe";
 import { ChatMessageRow } from "./ChatMessageRow";
@@ -156,25 +171,9 @@ interface CarmenChatBarProps {
   wide?: boolean;
 }
 
-const CARMEN_VOICES = [
-  { id: "marin", label: "Marin — טבעי וחם" },
-  { id: "cedar", label: "Cedar — עמוק ובטוח" },
-  { id: "coral", label: "Coral — בהיר וידידותי" },
-  { id: "sage", label: "Sage — רגוע ומאוזן" },
-  { id: "shimmer", label: "Shimmer — רך ונעים" },
-  { id: "alloy", label: "Alloy — ניטרלי ומדויק" },
-  { id: "ash", label: "Ash — יציב וישיר" },
-  { id: "ballad", label: "Ballad — עשיר והבעתי" },
-  { id: "echo", label: "Echo — חד ואנרגטי" },
-  { id: "verse", label: "Verse — דינמי ושיחתי" },
-] as const;
-
-type CarmenVoice = (typeof CARMEN_VOICES)[number]["id"];
-const VOICE_STORAGE_KEY = "aios:carmen-voice";
-const DEFAULT_VOICE_LABEL = "קול ברירת מחדל של כרמן";
-
 /**
- * The "talk to Carmen" bar: typed text stays text; the mic opens OpenAI Realtime.
+ * The "talk to Carmen" bar: typed text stays text; the mic opens a live session (OpenAI
+ * Realtime, or ElevenLabs for an ElevenLabs voice).
  * Command Center never auto-plays carmen-speak and never falls back to transcribe-voice.
  */
 export const CarmenChatBar = forwardRef<
@@ -307,7 +306,13 @@ export const CarmenChatBar = forwardRef<
               "Content-Type": "application/json",
               Authorization: `Bearer ${session.access_token}`,
             },
-            body: JSON.stringify({ text, voice: selectedVoice ?? undefined }),
+            body: JSON.stringify({
+              text,
+              voice:
+                selectedVoice && !isElevenLabsVoice(selectedVoice)
+                  ? selectedVoice
+                  : undefined,
+            }),
           },
         );
         return res.ok ? await res.blob() : null;
@@ -1045,7 +1050,12 @@ export const CarmenChatBar = forwardRef<
     }
   }, []);
 
-  /** Try to open an OpenAI Realtime session. Returns false on failure — caller must NOT fall back to transcribe-voice. */
+  /**
+   * Opens Carmen's live session: ElevenLabs for an ElevenLabs voice, else OpenAI Realtime. When
+   * ElevenLabs is not available to this caller (403, 502, 503) it opens OpenAI with her default
+   * voice, as the Android app does. Returns false on failure; the caller must NOT fall back to
+   * transcribe-voice.
+   */
   const beginRealtime = useCallback(
     async (voice: CarmenVoice | null = selectedVoice): Promise<boolean> => {
       try {
@@ -1056,34 +1066,46 @@ export const CarmenChatBar = forwardRef<
           reportRealtimeError("no auth session");
           return false;
         }
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/carmen-realtime-session`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
+        const mint = (elevenLabs: boolean) =>
+          fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/carmen-realtime-session`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              // Without an explicit pick, the server uses Carmen's configured voice.
+              body: JSON.stringify({
+                tenant_id: tenantId,
+                ...(elevenLabs ? { provider: "elevenlabs", voice } : {}),
+                ...(!elevenLabs && voice && !isElevenLabsVoice(voice)
+                  ? { voice }
+                  : {}),
+              }),
             },
-            // Without an explicit pick, the server uses Carmen's configured voice.
-            body: JSON.stringify({
-              tenant_id: tenantId,
-              ...(voice ? { voice } : {}),
-            }),
-          },
-        );
+          );
+        let elevenLabs = isElevenLabsVoice(voice);
+        let res = await mint(elevenLabs);
+        if (elevenLabs && [403, 502, 503].includes(res.status)) {
+          reportRealtimeError(
+            `elevenlabs unavailable (HTTP ${res.status}); using OpenAI`,
+          );
+          elevenLabs = false;
+          res = await mint(false);
+        }
         if (!res.ok) {
           reportRealtimeError(
             `session mint failed: HTTP ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`,
           );
           return false;
         }
-        const { client_secret, model } = await res.json();
-        if (!client_secret) {
+        const minted = await res.json();
+        if (!elevenLabs && !minted.client_secret) {
           reportRealtimeError("no client_secret in mint response");
           return false;
         }
-
-        const handle = await startRealtimeVoice(client_secret, model, {
+        const callbacks: RealtimeCallbacks = {
           onUserTranscript: (text) => {
             if (!shouldLogRealtimeTranscript()) return;
             setMessages((prev) => [
@@ -1117,7 +1139,14 @@ export const CarmenChatBar = forwardRef<
           },
           onError: (msg) => reportRealtimeError(msg),
           audioLevelRef,
-        });
+        };
+        const handle = elevenLabs
+          ? await startElevenLabsVoice(minted as ElevenLabsSession, callbacks)
+          : await startRealtimeVoice(
+              minted.client_secret,
+              minted.model,
+              callbacks,
+            );
         handle.setOutputMuted(outputMutedRef.current);
         realtimeRef.current = handle;
         setIsRealtime(true);
@@ -1140,7 +1169,7 @@ export const CarmenChatBar = forwardRef<
   );
 
   /**
-   * Mic button: OpenAI Realtime only. A failed session shows an error —
+   * Mic button: a live session only (beginRealtime). A failed session shows an error —
    * it does not fall back to transcribe-voice.
    */
   const startVoice = useCallback(async () => {
@@ -1995,17 +2024,14 @@ export const CarmenChatBar = forwardRef<
                     title="קול"
                     className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
                   >
-                    <option value="">{DEFAULT_VOICE_LABEL}</option>
-                    {CARMEN_VOICES.map((voice) => (
-                      <option key={voice.id} value={voice.id}>
-                        {voice.label}
-                      </option>
-                    ))}
+                    <CarmenVoiceOptions />
                   </select>
                   <button
                     type="button"
                     onClick={previewVoice}
-                    disabled={isPreviewingVoice}
+                    disabled={
+                      isPreviewingVoice || isElevenLabsVoice(selectedVoice)
+                    }
                     title="דוגמה"
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--cc-line)] text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
                   >
@@ -2066,16 +2092,11 @@ export const CarmenChatBar = forwardRef<
             title="קול"
             className="max-w-[130px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
           >
-            <option value="">{DEFAULT_VOICE_LABEL}</option>
-            {CARMEN_VOICES.map((voice) => (
-              <option key={voice.id} value={voice.id}>
-                {voice.label}
-              </option>
-            ))}
+            <CarmenVoiceOptions />
           </select>
           <button
             onClick={previewVoice}
-            disabled={isPreviewingVoice}
+            disabled={isPreviewingVoice || isElevenLabsVoice(selectedVoice)}
             title="דוגמה"
             className="text-[var(--cc-text-dim)] hover:text-[var(--cc-accent)] disabled:opacity-50"
           >
@@ -2184,6 +2205,3 @@ export const CarmenChatBar = forwardRef<
 });
 
 /** The picked or saved value as a voice, or null for Carmen's default voice. */
-function toCarmenVoice(value: string | null): CarmenVoice | null {
-  return CARMEN_VOICES.find((voice) => voice.id === value)?.id ?? null;
-}

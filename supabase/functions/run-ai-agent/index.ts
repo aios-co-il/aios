@@ -1479,7 +1479,7 @@ const ALL_TOOLS = [
   {
     name: "add_client_update",
     description:
-      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. שיחה (call) או פגישה (meeting) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק note, complaint או weekly_update.",
+      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. פגישה או שיחה (call) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק general, red_flag או weekly_update.",
     parameters: {
       type: "object",
       properties: {
@@ -1489,7 +1489,7 @@ const ALL_TOOLS = [
           type: "string",
           enum: [...CARMEN_CLIENT_UPDATE_TYPES],
           description:
-            "סוג העדכון: note=הערה (ברירת מחדל), call=שיחה שהתקיימה, meeting=פגישה שהתקיימה, complaint=תלונה, weekly_update=עדכון שבועי",
+            "סוג העדכון: call=פגישה / שיחה שהתקיימה, weekly_update=עדכון שבועי, general=עדכון כללי (ברירת מחדל), red_flag=דגל אדום (תלונה, סיכון או בעיה)",
         },
       },
       required: ["client_id", "content"],

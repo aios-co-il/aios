@@ -1,9 +1,12 @@
 // Run input is written by tenant members (marketing_runs allows their inserts), so the
 // worker never trusts a path or URL from it: storage paths must stay inside the run's
 // tenant folder, and remote files may only come from known media hosts.
+import { rowsOf } from "./jobs/rows.ts";
+import type { RunItem, VideoRun, WorkItemRow } from "./jobs/types.ts";
+import type { SupabaseRest } from "./supabaseRest.ts";
 
 /** A storage object path inside the run's tenant folder; rejects . / .. segments. */
-export function assertTenantPath(tenantId, path) {
+export function assertTenantPath(tenantId: string, path: unknown) {
   const value = String(path ?? "");
   const segments = value.split("/");
   if (
@@ -21,14 +24,14 @@ export function assertTenantPath(tenantId, path) {
 }
 
 /** A storage path component that came from data (client id, scene id): no slashes or dots. */
-export function safeSegment(value, fallback = "general") {
+export function safeSegment(value: unknown, fallback = "general") {
   const text = String(value ?? "").trim();
   return /^[A-Za-z0-9_-]{1,80}$/.test(text) ? text : fallback;
 }
 
 const defaultHosts = () =>
   [
-    process.env.SUPABASE_URL && new URL(process.env.SUPABASE_URL).host,
+    process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : "",
     ...String(process.env.MEDIA_URL_HOSTS ?? "")
       .split(",")
       .map((host) => host.trim())
@@ -42,11 +45,11 @@ const defaultHosts = () =>
  * The worker downloads them with its own key instead.
  */
 export function privateStorageObject(
-  url,
+  url: unknown,
   projectUrl = process.env.SUPABASE_URL,
-) {
-  let link;
-  let project;
+): StoredObject | null {
+  let link: URL;
+  let project: URL;
   try {
     link = new URL(String(url));
     project = new URL(String(projectUrl));
@@ -66,8 +69,8 @@ export function privateStorageObject(
 }
 
 /** https only, on the Supabase project, *.supabase.co, or MEDIA_URL_HOSTS. */
-export function assertMediaUrl(url, hosts = defaultHosts()) {
-  let parsed;
+export function assertMediaUrl(url: unknown, hosts = defaultHosts()) {
+  let parsed: URL;
   try {
     parsed = new URL(String(url));
   } catch {
@@ -84,7 +87,10 @@ export function assertMediaUrl(url, hosts = defaultHosts()) {
  * The storage object behind a file a job reads: a `bucket` path, or a link to the project's
  * private entity-attachments bucket (a user's upload). null: another https link.
  */
-export function storedObject(pathOrUrl, bucket) {
+export function storedObject(
+  pathOrUrl: unknown,
+  bucket: string,
+): StoredObject | null {
   const value = String(pathOrUrl ?? "");
   return /^https?:\/\//.test(value)
     ? privateStorageObject(value)
@@ -96,7 +102,12 @@ export function storedObject(pathOrUrl, bucket) {
  * project's private entity-attachments bucket (a user's upload, read with the worker's key and
  * only from the tenant folder), or an https link on an allowed media host.
  */
-export async function readMedia(db, tenantId, pathOrUrl, bucket) {
+export async function readMedia(
+  db: Pick<SupabaseRest, "download">,
+  tenantId: string,
+  pathOrUrl: unknown,
+  bucket: string,
+) {
   const value = String(pathOrUrl ?? "");
   const stored = storedObject(value, bucket);
   if (stored)
@@ -113,12 +124,16 @@ export async function readMedia(db, tenantId, pathOrUrl, bucket) {
  * The run's work item, checked against the run's tenant. Every job derives its storage
  * folder (client id) from here instead of from run.input.
  */
-export async function loadRunItem(db, run) {
-  const [item] =
-    (await db.select(
+export async function loadRunItem(
+  db: Pick<SupabaseRest, "select">,
+  run: RunRef,
+): Promise<RunItem> {
+  const [item] = rowsOf<WorkItemRow>(
+    await db.select(
       "marketing_work_items",
-      `id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=id,tenant_id,client_id`,
-    )) ?? [];
+      `id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=id,tenant_id,client_id`,
+    ),
+  );
   if (!item)
     throw new Error("run item is not in the run's tenant (is required)");
   return {
@@ -128,12 +143,17 @@ export async function loadRunItem(db, run) {
 }
 
 /** The run's scene, checked against the run's item and tenant. */
-export async function loadRunScene(db, run, columns) {
-  const [scene] =
-    (await db.select(
+export async function loadRunScene<Scene>(
+  db: Pick<SupabaseRest, "select">,
+  run: RunRef & Pick<VideoRun, "scene_id">,
+  columns: string,
+): Promise<Scene> {
+  const [scene] = rowsOf<Scene>(
+    await db.select(
       "marketing_video_scenes",
-      `id=eq.${encodeURIComponent(run.scene_id)}&item_id=eq.${encodeURIComponent(run.item_id)}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=${columns}`,
-    )) ?? [];
+      `id=eq.${encodeURIComponent(String(run.scene_id))}&item_id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=${columns}`,
+    ),
+  );
   if (!scene)
     throw new Error("run scene is not in the run's item (is required)");
   return scene;
@@ -154,3 +174,12 @@ export function flagged(error: unknown, flag: "final" | "submitted"): boolean {
     Boolean(Reflect.get(error, flag))
   );
 }
+
+/** A file in a storage bucket. */
+export interface StoredObject {
+  bucket: string;
+  path: string;
+}
+
+/** The run columns that place a job's rows: its tenant and work item. */
+type RunRef = Pick<VideoRun, "tenant_id" | "item_id">;

@@ -6,7 +6,7 @@
  * Pronunciations and nikud are not applied: the user's reading already says each word.
  */
 
-import { assertTenantPath, finalError } from "../guard.ts";
+import { finalError } from "../guard.ts";
 import {
   VOICE_CHANGE_MODEL,
   changeVoice,
@@ -15,8 +15,11 @@ import {
 } from "../providers/elevenlabsVoiceChange.ts";
 import { isPaidPlanError, isRejectedKeyError } from "../providers/plan.ts";
 import { BUCKET, generateOnce } from "./audio-store.ts";
-import { assertGuideLength } from "./guide-length.ts";
+import { assertGuideLength, guideOf } from "./guide-length.ts";
 import { spokenAlignment } from "./spoken-alignment.ts";
+import type { VideoRun } from "./types.ts";
+import type { FetchImpl } from "../providers/types.ts";
+import type { SupabaseRest } from "../supabaseRest.ts";
 
 /**
  * ElevenLabs bills speech to speech by the minute, the credits of 1,000 characters a minute. The
@@ -46,6 +49,15 @@ export async function guideTake({
   apiKey,
   log,
   fetchImpl = fetch,
+}: {
+  db: Pick<SupabaseRest, "download" | "upload" | "update">;
+  run: Pick<VideoRun, "id" | "tenant_id" | "item_id" | "input" | "output">;
+  path: string;
+  submitting?: <T>(work: () => Promise<T>) => Promise<T>;
+  script: string;
+  apiKey?: string | null;
+  log: (line: string) => void;
+  fetchImpl?: FetchImpl;
 }) {
   if (!apiKey) {
     throw finalError(NO_KEY);
@@ -62,7 +74,7 @@ export async function guideTake({
       const bytes = await voiced(
         {
           apiKey,
-          voiceId: run.input.voice_id,
+          voiceId: guide.voiceId,
           audio: recording,
           contentType: contentTypeOf(guide.path),
           fetchImpl,
@@ -81,7 +93,7 @@ export async function guideTake({
         meta: {
           provider: "elevenlabs",
           model: VOICE_CHANGE_MODEL(),
-          voice_id: run.input.voice_id,
+          voice_id: guide.voiceId,
           source: "guide",
           guide: { bucket: BUCKET, path: guide.path },
           alignment: timing.alignment,
@@ -99,30 +111,11 @@ export async function guideTake({
 export const guideCostUsd = (seconds: number) =>
   Math.round((seconds / 60) * SPEECH_TO_SPEECH_USD_PER_MINUTE * 10000) / 10000;
 
-/**
- * The run's recording, checked again here: in creative-video, in the run's tenant folder and in
- * its own project's narration folder (the edge and queue_narration_guide check it first).
- */
-function guideOf(run) {
-  const guide = run.input?.guide_audio ?? {};
-  const path = assertTenantPath(run.tenant_id, guide.path);
-  if (
-    guide.bucket !== BUCKET ||
-    path.split("/")[2] !== run.item_id ||
-    path.split("/")[3] !== "narration"
-  ) {
-    throw finalError(
-      `guide recording outside the project's narration folder: ${path.slice(0, 120)}`,
-    );
-  }
-  if (!run.input?.voice_id) {
-    throw finalError("guide take: voice_id is required");
-  }
-  return { bucket: BUCKET, path };
-}
-
 /** The recording in the run's voice; a refused key or plan fails the run with a Hebrew reason. */
-async function voiced(request: Parameters<typeof changeVoice>[0], log) {
+async function voiced(
+  request: Parameters<typeof changeVoice>[0],
+  log: (line: string) => void,
+) {
   try {
     return await changeVoice(request);
   } catch (error) {
@@ -137,7 +130,11 @@ async function voiced(request: Parameters<typeof changeVoice>[0], log) {
 }
 
 /** The script's timings in the take, or null with the reason when the aligner fails (logged). */
-async function alignment(request: Parameters<typeof forceAlign>[0], run, log) {
+async function alignment(
+  request: Parameters<typeof forceAlign>[0],
+  run: Pick<VideoRun, "id">,
+  log: (line: string) => void,
+) {
   try {
     const timed = await forceAlign(request);
     return {
@@ -157,15 +154,14 @@ async function alignment(request: Parameters<typeof forceAlign>[0], run, log) {
 
 /** The recording's media type, from its extension (the board names it by the recorder's type). */
 function contentTypeOf(path: string) {
-  const ext = path.split(".").pop();
-  return (
-    {
-      webm: "audio/webm",
-      mp4: "audio/mp4",
-      m4a: "audio/mp4",
-      ogg: "audio/ogg",
-      wav: "audio/wav",
-      mp3: "audio/mpeg",
-    }[ext] ?? "application/octet-stream"
-  );
+  const ext = path.split(".").at(-1) ?? "";
+  const types: Record<string, string> = {
+    webm: "audio/webm",
+    mp4: "audio/mp4",
+    m4a: "audio/mp4",
+    ogg: "audio/ogg",
+    wav: "audio/wav",
+    mp3: "audio/mpeg",
+  };
+  return types[ext] ?? "application/octet-stream";
 }
