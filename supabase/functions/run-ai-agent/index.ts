@@ -378,9 +378,17 @@ import { clientPerformanceEntry } from "./client-performance.ts";
 import { staleClientEntry } from "./stale-client-entry.ts";
 import { readCampaignGoalTables } from "./goal-tables.ts";
 
-import { jsonObject } from "./json-config.ts";
+import { readReportSettings } from "./report-settings.ts";
+import {
+  readMetaLeadSettings,
+  type MetaLeadSettings,
+} from "./meta-lead-settings.ts";
+import {
+  connectMetaFormToAutomation,
+  type MetaLeadForm,
+} from "./meta-form-binding.ts";
 import { errorMessage, readErrorMessage } from "./error-message.ts";
-import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { readMetaResponse } from "./meta-response.ts";
 import {
   readGraphAdAccountsPage,
   readMetaLeadQuestionInput,
@@ -4769,7 +4777,7 @@ async function fbResolveClientMetaReport(
     );
   }
   for (const t of data || []) {
-    const s = jsonObject(t?.integration_settings);
+    const s = readReportSettings(t.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
     if (acc) {
       return {
@@ -4938,7 +4946,7 @@ async function searchClientsBroadly(
     const c = t.clients;
     if (!c?.id) continue;
     if (opts.agencyId && c.agency_id !== opts.agencyId) continue;
-    const settings = jsonObject(t.integration_settings);
+    const settings = readReportSettings(t.integration_settings);
     const adAccount = {
       table_id: t.id,
       table_name: t.name,
@@ -5199,16 +5207,6 @@ type MetaLeadPage = {
   integration_id: string;
 };
 
-type MetaLeadForm = {
-  id: string;
-  name: string;
-  status: string | null;
-  fields: Array<{ key: string; label: string; type: string }>;
-  page_id: string;
-  page_name: string;
-  integration_id: string;
-};
-
 function metaNameMatches(value: unknown, query: unknown): boolean {
   const normalize = (input: unknown) =>
     String(input || "")
@@ -5244,7 +5242,8 @@ async function metaLeadIntegrations(
     .eq("is_active", true);
   if (error) throw error;
   const result: Array<
-    Pick<AgentRow<"tenant_integrations">, "id" | "settings"> & {
+    Pick<AgentRow<"tenant_integrations">, "id"> & {
+      settings: MetaLeadSettings;
       api_key: string;
     }
   > = [];
@@ -5253,19 +5252,26 @@ async function metaLeadIntegrations(
       AgentRow<"tenant_integrations">,
       "id" | "api_key" | "settings"
     > = row;
-    if (
-      (!row.api_key || !Array.isArray(jsonObject(row.settings).pages)) &&
-      row.shared_from_integration_id
-    ) {
-      const { data: shared } = await supabase
+    const settings = readMetaLeadSettings(row.settings);
+    if ((!row.api_key || !settings.pages) && row.shared_from_integration_id) {
+      const { data: shared, error: sharedError } = await supabase
         .from("tenant_integrations")
         .select("id, api_key, settings")
         .eq("id", row.shared_from_integration_id)
         .maybeSingle();
+      if (sharedError) {
+        throw sharedError;
+      }
       if (shared) source = { ...shared, id: row.id };
     }
-    if (source.api_key)
-      result.push({ ...source, api_key: source.api_key, id: row.id });
+    if (source.api_key) {
+      result.push({
+        id: row.id,
+        api_key: source.api_key,
+        settings:
+          source === row ? settings : readMetaLeadSettings(source.settings),
+      });
+    }
   }
   return result;
 }
@@ -5277,12 +5283,7 @@ async function metaLeadPages(
   const integrations = await metaLeadIntegrations(supabase, tenantId);
   const pages: MetaLeadPage[] = [];
   for (const integration of integrations) {
-    const configuredPages = jsonObject(integration.settings).pages;
-    let sourcePages: MetaNode[] = Array.isArray(configuredPages)
-      ? configuredPages.filter((page): page is typeof page & MetaNode =>
-          isMetaNode(page),
-        )
-      : [];
+    let sourcePages: Array<MetaNode> = integration.settings.pages || [];
     if (sourcePages.length === 0) {
       let next: string | null =
         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
@@ -5386,86 +5387,6 @@ async function findAutomationForMetaForm(
   const match = matches[0];
   if (!match.tenant_id) throw new Error("Automation has no tenant");
   return { ...match, tenant_id: match.tenant_id };
-}
-
-async function connectMetaFormToAutomation(
-  supabase: AgentDatabaseClient,
-  automation: Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
-    tenant_id: string;
-  },
-  form: MetaLeadForm,
-) {
-  const { data: steps, error: stepsError } = await supabase
-    .from("automation_flow_steps")
-    .select("id, action_type, configuration")
-    .eq("automation_id", automation.id)
-    .eq("tenant_id", automation.tenant_id)
-    .eq("step_type", "trigger");
-  if (stepsError) throw stepsError;
-  const candidates = (steps || []).filter(
-    (step) =>
-      step.action_type === "lead_created" &&
-      (!jsonObject(step.configuration).lead_source ||
-        ["any", "facebook_form"].includes(
-          String(jsonObject(step.configuration).lead_source),
-        )),
-  );
-  if (candidates.length !== 1) {
-    throw new Error(
-      candidates.length === 0
-        ? "לא נמצא באוטומציה טריגר יחיד מסוג ליד חדש שניתן לחבר לטופס Meta"
-        : "נמצאו כמה טריגרים מתאימים באוטומציה; יש לתקן את הזרימה לפני החלפת הטופס",
-    );
-  }
-  const step = candidates[0];
-  const configuration = {
-    ...jsonObject(step.configuration),
-    lead_source: "facebook_form",
-    facebook_integration_id: form.integration_id,
-    facebook_page_id: form.page_id,
-    facebook_page_name: form.page_name,
-    facebook_form_id: form.id,
-    facebook_form_name: form.name,
-    facebook_form_fields: form.fields,
-  };
-  const { error: updateError } = await supabase
-    .from("automation_flow_steps")
-    .update({ configuration })
-    .eq("id", step.id)
-    .eq("tenant_id", automation.tenant_id);
-  if (updateError) throw updateError;
-
-  const { data: integration, error: integrationError } = await supabase
-    .from("tenant_integrations")
-    .select("settings")
-    .eq("id", form.integration_id)
-    .eq("tenant_id", automation.tenant_id)
-    .maybeSingle();
-  if (integrationError) throw integrationError;
-  if (!integration)
-    throw new Error("אינטגרציית Meta של הטופס אינה שייכת לארגון האוטומציה");
-  const settings = jsonObject(integration.settings);
-  const formMappings = { ...jsonObject(settings.form_mappings) };
-  formMappings[form.id] = {
-    ...jsonObject(formMappings[form.id]),
-    form_name: form.name,
-    page_id: form.page_id,
-    page_name: form.page_name,
-    agency_id: jsonObject(formMappings[form.id]).agency_id || null,
-    sales_person_ids: jsonObject(formMappings[form.id]).sales_person_ids || [],
-    fields: jsonObject(formMappings[form.id]).fields || {},
-  };
-  const { error: mappingError } = await supabase
-    .from("tenant_integrations")
-    .update({ settings: { ...settings, form_mappings: formMappings } })
-    .eq("id", form.integration_id)
-    .eq("tenant_id", automation.tenant_id);
-  if (mappingError) throw mappingError;
-  return {
-    automation_id: automation.id,
-    automation_name: automation.name,
-    trigger_step_id: step.id,
-  };
 }
 
 // Pull the lead count out of an insights row's `actions` array (Meta reports leads
@@ -5780,7 +5701,9 @@ async function loadPulseCriticalIssues(
           adAccountIds: clientAdAccountIds(
             activeTables.map((table) => ({
               ...table,
-              integration_settings: jsonObject(table.integration_settings),
+              integration_settings: readReportSettings(
+                table.integration_settings,
+              ),
             })),
           ),
           hasActiveCampaignTable: activeTables.length > 0,
