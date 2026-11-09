@@ -5,15 +5,16 @@ import {
   readCarmenConfig,
   mergeCarmenStepConfig,
   isChatTurn,
-  isPermanentError,
   policyEntriesAreParsed,
 } from "./carmen-config.ts";
+
 Deno.test("Carmen configuration exposes named fields only", () => {
   assertEquals(readCarmenConfig({ agent_id: "a", arbitrary: { x: true } }), {
     agent_id: "a",
   });
   assertEquals(readCarmenConfig(null), {});
 });
+
 Deno.test("invalid routing scopes and group flags cannot enable access", () => {
   const cfg = readCarmenConfig({
     carmen_scope_mode: {},
@@ -24,6 +25,7 @@ Deno.test("invalid routing scopes and group flags cannot enable access", () => {
   assertEquals(cfg.carmen_open_member_groups, false);
   assertEquals(cfg.carmen_allowed_group_ids, []);
 });
+
 Deno.test("step overrides retain base fields and normalize LID aliases", () => {
   assertEquals(
     mergeCarmenStepConfig(
@@ -33,16 +35,12 @@ Deno.test("step overrides retain base fields and normalize LID aliases", () => {
     { agent_id: "b", end_keyword: "bye", carmen_lid_aliases: { "1": "9725" } },
   );
 });
-Deno.test(
-  "chat, policy and permanent-error guards validate concrete fields",
-  () => {
-    assertStrictEquals(isChatTurn({ role: "user", content: "hi" }), true);
-    assertStrictEquals(isChatTurn({ role: "user", content: 3 }), false);
-    assertStrictEquals(isPermanentError({ permanent: true }), true);
-    assertStrictEquals(isPermanentError({ permanent: "false" }), false);
-    assertStrictEquals(policyEntriesAreParsed([{ phone: "123" }]), true);
-  },
-);
+
+Deno.test("chat and policy guards validate concrete fields", () => {
+  assertStrictEquals(isChatTurn({ role: "user", content: "hi" }), true);
+  assertStrictEquals(isChatTurn({ role: "user", content: 3 }), false);
+  assertStrictEquals(policyEntriesAreParsed([{ phone: "123" }]), true);
+});
 
 Deno.test(
   "mixed routing lists preserve valid phones, groups and keywords",
@@ -94,6 +92,23 @@ Deno.test(
         mergeCarmenScopeConfig(cfg, null, [], { isGroup: false }).scopeMode,
       ),
       true,
+    );
+  },
+);
+
+Deno.test(
+  "invalid step values preserve base settings while explicit clears remain",
+  () => {
+    assertEquals(
+      mergeCarmenStepConfig(
+        {
+          agent_id: "base-agent",
+          end_keyword: "bye",
+          trigger_keyword: "Carmen",
+        },
+        { agent_id: 5, end_keyword: null, trigger_keyword: "" },
+      ),
+      { agent_id: "base-agent", end_keyword: null, trigger_keyword: "" },
     );
   },
 );

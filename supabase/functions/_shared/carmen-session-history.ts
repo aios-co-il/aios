@@ -1,10 +1,13 @@
 import { z } from "npm:zod@3.25.76";
+
 const turnSchema = z.object({
   role: z.enum(["user", "assistant", "system"]),
   content: z.string(),
   timestamp: z.union([z.string(), z.number()]).optional().catch(undefined),
 });
+
 export type SessionTurn = z.infer<typeof turnSchema>;
+
 /** Validate stored session messages, dropping malformed entries individually. */
 export function sessionHistoryEntries(value: unknown): SessionTurn[] {
   if (!Array.isArray(value)) return [];
@@ -13,6 +16,7 @@ export function sessionHistoryEntries(value: unknown): SessionTurn[] {
     return parsed.success ? [parsed.data] : [];
   });
 }
+
 /** Mirror only validated role/content pairs into ai_conversations. */
 export function conversationMirrorMessages(
   value: unknown,

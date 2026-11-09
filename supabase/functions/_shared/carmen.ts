@@ -59,7 +59,8 @@ import {
   readCarmenConfig,
   isValidCarmenScopeMode,
   isChatTurn,
-  isPermanentError,
+  PermanentError,
+  hasValidCarmenIntegrationPin,
   mergeCarmenStepConfig,
   policyEntriesAreParsed,
   type CarmenAutomationConfig,
@@ -291,6 +292,7 @@ function messageHasTrigger(
 
 // Hebrew-safe boundary (JS \b is ASCII-only and breaks on Hebrew).
 const HB = String.raw`(?:^|[\s,.:;!?()[\]{}"'׳״،؛؟-])`;
+
 const HE = String.raw`(?=$|[\s,.:;!?()[\]{}"'׳״،؛؟-])`;
 
 // Whole-word Carmen name (כרמן / קרמן / קארמן / כארמן).
@@ -782,8 +784,9 @@ export function buildDualCarmenNote(
   return `\n\n[הנחיית מערכת — בקבוצה זו פעילה גם כרמן של ${otherNames.join(" ו-")} בנוסף אלייך (כרמן של ${myTenantName}). עני אך ורק אם ההודעה נוגעת לארגון שלך — לקוחות, קמפיינים, אנשים או נושאים של ${myTenantName}. אם ההודעה שייכת לארגון האחר, מופנית לכרמן שלו, או שאין דרך לדעת בוודאות ואת לא הנמענת הטבעית — השיבי בדיוק את המחרוזת ${DUAL_CARMEN_SKIP} ותו לא.]`;
 }
 
+/** Select an active automation whose integration pin and scope fit this turn. */
 export async function findCarmenSessionAutomation(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   integrationId?: string | null,
   ctx?: {
@@ -795,8 +798,7 @@ export async function findCarmenSessionAutomation(
     pinnedOnly?: boolean;
   },
 ): Promise<CarmenSessionAutomation | null> {
-  const db: DbClient = supabase;
-  const { data: flowStepRows } = await db
+  const { data: flowStepRows } = await supabase
     .from("automation_flow_steps")
     .select("automation_id, configuration")
     .eq("tenant_id", tenantId)
@@ -804,10 +806,21 @@ export async function findCarmenSessionAutomation(
     .eq("action_type", "carmen_whatsapp_session");
 
   if (!flowStepRows || flowStepRows.length === 0) return null;
-  const flowSteps: CarmenTriggerStep[] = flowStepRows.map((s) => ({
-    automation_id: s.automation_id,
-    configuration: readCarmenConfig(s.configuration),
-  }));
+  const flowSteps: Array<CarmenTriggerStep> = flowStepRows.flatMap((s) => {
+    if (!hasValidCarmenIntegrationPin(s.configuration)) {
+      console.warn("[carmen] invalid automation integration pin", {
+        tenantId,
+        automationId: s.automation_id,
+      });
+      return [];
+    }
+    return [
+      {
+        automation_id: s.automation_id,
+        configuration: readCarmenConfig(s.configuration),
+      },
+    ];
+  });
 
   // Split into pinned-match vs unpinned. Foreign-pinned automations are normally
   // dropped, BUT a `specific_phone` automation is allowed to fire on any inbound
@@ -940,7 +953,7 @@ export async function findCarmenSessionAutomation(
   ranked.sort((a, b) => scoreStep(b) - scoreStep(a));
 
   const automationIds = ranked.map((s) => s.automation_id);
-  const { data: automations } = await db
+  const { data: automations } = await supabase
     .from("automations")
     .select("id, name, configuration")
     .in("id", automationIds)
@@ -969,7 +982,7 @@ export async function findCarmenSessionAutomation(
  * and are never logged.
  */
 export async function sendCarmenReplyViaActionStep(args: {
-  supabase: any;
+  supabase: DbClient;
   automationId: string;
   tenantId: string;
   connectionUserId: string | null;
@@ -986,6 +999,7 @@ export async function sendCarmenReplyViaActionStep(args: {
   sendRef?: string | null;
 }): Promise<boolean> {
   const {
+    supabase,
     automationId,
     tenantId,
     connectionUserId,
@@ -996,7 +1010,6 @@ export async function sendCarmenReplyViaActionStep(args: {
     sendKind = "carmen",
     sendRef = null,
   } = args;
-  const supabase: DbClient = args.supabase;
 
   if (!replyDestinationIsConsistent({ chatId, isGroup })) {
     console.error("[carmen-route] refusing send: chat_id / isGroup mismatch", {
@@ -1185,10 +1198,11 @@ export async function runCarmenAI(
     });
     if (!res.ok) {
       const detail = (await res.text().catch(() => "")).slice(0, 300);
-      throw Object.assign(
-        new Error(`run-ai-agent ${res.status}${detail ? ` — ${detail}` : ""}`),
-        { permanent: res.status >= 400 && res.status < 500 },
-      );
+      const message = `run-ai-agent ${res.status}${detail ? ` — ${detail}` : ""}`;
+      if (res.status >= 400 && res.status < 500) {
+        throw new PermanentError(message);
+      }
+      throw new Error(message);
     }
     const data = await res.json();
     const out = (data?.output || "").toString().trim();
@@ -1200,7 +1214,9 @@ export async function runCarmenAI(
     return await attempt();
   } catch (firstErr) {
     console.error("❌ runCarmenAI attempt 1 failed:", firstErr);
-    if (isPermanentError(firstErr)) throw firstErr;
+    if (firstErr instanceof PermanentError) {
+      throw firstErr;
+    }
     await new Promise((r) => setTimeout(r, 1000));
     try {
       return await attempt();
@@ -1262,6 +1278,7 @@ export async function syncCarmenToAIConversation(
   }
 }
 
+/** Find a live session, throwing on lookup failure so callers cannot start a new one. */
 export async function findActiveCarmenSession(
   supabase: DbClient,
   tenantId: string,
@@ -1291,6 +1308,9 @@ export async function findActiveCarmenSession(
     console.error("[carmen] active session lookup failed", {
       tenantId,
       error: rowsError.message,
+    });
+    throw new Error("Carmen active session lookup failed", {
+      cause: rowsError,
     });
   }
 
@@ -1818,6 +1838,7 @@ export async function handleCarmenMessage(
         tenantId,
         error: staleError.message,
       });
+      return { handled: false, reason: "no_automation_for_integration" };
     }
     const sessions: Array<{ id: string; integration_id: string | null }> =
       active || [];
@@ -1882,7 +1903,12 @@ export async function handleCarmenMessage(
   );
 
   if (!isValidCarmenScopeMode(mergedScope.scopeMode)) {
-    console.warn("[carmen] invalid effective scope");
+    console.warn("[carmen] invalid effective scope", {
+      tenantId,
+      integrationId,
+      automationId: earlyAutomation.id,
+      scopeMode: mergedScope.scopeMode,
+    });
     return { handled: false, reason: "invalid_scope_mode" };
   }
 
@@ -1990,14 +2016,20 @@ export async function handleCarmenMessage(
     return { handled: true, outcome: "active" };
   }
 
-  let activeSession = await findActiveCarmenSession(
-    supabase,
-    tenantId,
-    chatId,
-    connectionUserId,
-    idleMinutes,
-    integrationId,
-  );
+  let activeSession: CarmenSessionRow | null;
+  try {
+    activeSession = await findActiveCarmenSession(
+      supabase,
+      tenantId,
+      chatId,
+      connectionUserId,
+      idleMinutes,
+      integrationId,
+    );
+  } catch (error) {
+    console.error("[carmen] cannot route without a session lookup", error);
+    return { handled: true, outcome: "error" };
+  }
 
   // Agent-switch guard: if there is an active session for a DIFFERENT automation and
   // the current message explicitly triggers the new automation's keyword (within the
@@ -2613,14 +2645,20 @@ export async function handleCarmenMessage(
     // Treat that as success and let the existing session take this turn — never create
     // a duplicate or surface an error to the user.
     if (sessionError?.code === "23505") {
-      const existing = await findActiveCarmenSession(
-        supabase,
-        tenantId,
-        chatId,
-        connectionUserId,
-        idleMinutes,
-        integrationId,
-      );
+      let existing: CarmenSessionRow | null;
+      try {
+        existing = await findActiveCarmenSession(
+          supabase,
+          tenantId,
+          chatId,
+          connectionUserId,
+          idleMinutes,
+          integrationId,
+        );
+      } catch (error) {
+        console.error("[carmen] cannot resolve session creation race", error);
+        return { handled: true, outcome: "error" };
+      }
       if (existing) {
         console.log(
           "[carmen] Lost create race — deferring to existing active session",

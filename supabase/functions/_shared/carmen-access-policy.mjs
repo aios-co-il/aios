@@ -11,7 +11,9 @@ import {
 import { getDevEscalationTier as getHardcodedDevTier } from "./dev-escalation-auth.mjs";
 
 export const SURFACE_PRIVATE = "whatsapp_private";
+
 export const SURFACE_GROUP = "whatsapp_group";
+
 export const SURFACE_CC = "command_center";
 
 /** @typedef {{ phone: string, label?: string, campaigner_id?: string, client_id?: string, dev_escalation_tier?: string|null, surfaces?: string[] }} PolicyPhoneEntry */
