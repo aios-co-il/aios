@@ -26,6 +26,10 @@ import {
 } from "./fb-insights/followers.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
 import {
+  customConversionLeads,
+  fetchLeadCustomConversionIds,
+} from "./fb-insights/customConversionLeads.ts";
+import {
   fetchInstagramFollows,
   INSTAGRAM_FOLLOWS_FIELD,
   instagramFollowsKey,
@@ -585,6 +589,7 @@ export function buildInsightRecord(
   optimizationGoalsByCampaign: Record<string, string> = {},
   resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
   destinationTypes: DestinationTypeMaps = { byCampaign: {}, byAdset: {} },
+  leadCustomConversionIds: Set<string> | null = null,
 ): InsightRecord {
   // Deduplicate: FB often returns the same event (e.g. leadgen_grouped,
   // offsite_conversion.fb_pixel_lead) in BOTH insight.actions AND
@@ -654,29 +659,14 @@ export function buildInsightRecord(
     sumByTypes(["messaging_conversation_started_7d"]),
   );
   const _pixelLeadsValue = sumByTypes(["offsite_conversion.fb_pixel_lead"]);
-  // Custom Conversions on the Pixel.
-  // FB returns BOTH a parent aggregate (`offsite_conversion.custom` or
-  // `offsite_conversion.fb_pixel_custom` — exact match, no suffix) AND each child
-  // custom conversion (e.g. `offsite_conversion.fb_pixel_custom.NewLead`). The
-  // parent equals the sum of children, so we sum CHILDREN only to avoid double
-  // counting. We accept both `offsite_conversion.custom.*` (legacy) and
-  // `offsite_conversion.fb_pixel_custom.*` (current) prefixes. Fall back to the
-  // PARENT aggregate when FB returns no children.
-  const _customChildrenValue = allActions
-    .filter((a: any) => {
-      const t = String(a.action_type || "");
-      return (
-        t.startsWith("offsite_conversion.custom.") ||
-        t.startsWith("offsite_conversion.fb_pixel_custom.")
-      );
-    })
-    .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
-  const _customParentValue = sumByTypes([
-    "offsite_conversion.fb_pixel_custom",
-    "offsite_conversion.custom",
-  ]);
+  // Custom conversions count only when they are lead, registration or contact
+  // conversions; a purchase thank-you page is not a lead. A sales campaign's
+  // leads are Meta's own lead events only: its custom conversions fire on the
+  // purchase page and would count every sale as a lead.
   const _customConversionLeadsValue =
-    _customChildrenValue > 0 ? _customChildrenValue : _customParentValue;
+    metaObjectiveGoal(_objectiveForLeads) === "ecommerce"
+      ? 0
+      : customConversionLeads(allActions, leadCustomConversionIds);
   // Standard intent events fired on landing pages (Complete Registration / etc.)
   const _standardIntentValue = sumByTypes(STANDARD_INTENT_LEAD_TYPES);
 
@@ -1075,6 +1065,10 @@ export async function buildAllLevelInsightRecords(
     destinationTypes,
     optimizationGoalsByCampaign,
   );
+  const leadCustomConversionIds = await fetchLeadCustomConversionIds(
+    adAccountId,
+    accessToken,
+  );
 
   for (const level of ADS_LEVELS) {
     try {
@@ -1107,6 +1101,7 @@ export async function buildAllLevelInsightRecords(
             optimizationGoalsByCampaign,
             resultMetrics,
             destinationTypes,
+            leadCustomConversionIds,
           ),
         );
       }
