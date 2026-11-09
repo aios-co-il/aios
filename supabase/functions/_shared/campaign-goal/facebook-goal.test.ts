@@ -1,8 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import {
-  facebookCampaignGoals,
-  TRAFFIC_CAMPAIGN_MIN_LEADS,
-} from "./facebook-goal.ts";
+import { facebookCampaignGoals } from "./facebook-goal.ts";
 
 type Row = { data: Record<string, unknown> };
 
@@ -34,23 +31,16 @@ function goalOf(records: Array<Row>): string | undefined {
 Deno.test(
   "facebookCampaignGoal: a traffic campaign that measures leads",
   async (t) => {
-    await t.step("is a lead campaign from the threshold (AIO-514)", () => {
+    await t.step("stays traffic however many leads it measures", () => {
       // איימי בכור's Instagram traffic campaign: 45 leads in 30 days.
-      assertEquals(goalOf([trafficRow(40), trafficRow(5)]), "leads");
-      assertEquals(
-        goalOf([trafficRow(TRAFFIC_CAMPAIGN_MIN_LEADS - 2), trafficRow(2)]),
-        "leads",
-      );
-    });
-
-    await t.step("stays traffic on a few stray pixel leads", () => {
+      assertEquals(goalOf([trafficRow(40), trafficRow(5)]), "traffic");
       assertEquals(goalOf([trafficRow(3)]), "traffic");
       assertEquals(goalOf([trafficRow(0)]), "traffic");
     });
 
     await t.step("an engagement campaign follows the same rule", () => {
       assertEquals(goalOf([engagementRow(3)]), "traffic");
-      assertEquals(goalOf([engagementRow(34)]), "leads");
+      assertEquals(goalOf([engagementRow(34)]), "traffic");
     });
 
     await t.step("purchases alone never make it a sales campaign", () => {

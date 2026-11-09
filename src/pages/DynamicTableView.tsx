@@ -119,7 +119,6 @@ import {
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
-import { FacebookLeadsTable } from "@/components/dynamic-tables/FacebookLeadsTable";
 import { FacebookTrafficTable } from "@/components/dynamic-tables/FacebookTrafficTable";
 import {
   facebookCostPerResult,
@@ -3602,11 +3601,101 @@ export default function DynamicTableView({
                     })()}
 
                   {leadCampaigns.length > 0 && (
-                    <FacebookLeadsTable
-                      rows={leadCampaigns}
-                      entityHeader={entityHeader("לידים")}
-                      currency={currency}
-                    />
+                    <Card className="mb-4 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm" dir="rtl">
+                          <thead className="bg-muted/50 border-b">
+                            <tr>
+                              <th className="p-2 text-right font-medium">
+                                {entityHeader("לידים")}
+                              </th>
+                              <th className="p-2 text-center font-medium">
+                                חשיפות
+                              </th>
+                              <th className="p-2 text-center font-medium">
+                                קליקים
+                              </th>
+                              <th className="p-2 text-center font-medium">
+                                לידים
+                              </th>
+                              <th className="p-2 text-center font-medium">
+                                הוצאה
+                              </th>
+                              <th className="p-2 text-center font-medium">
+                                עלות לליד
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {leadCampaigns.map(([groupKey, data]) => {
+                              const costPerLead =
+                                data.leads > 0 ? data.spend / data.leads : 0;
+                              return (
+                                <tr
+                                  key={`lead-${groupKey}`}
+                                  className="border-b hover:bg-muted/30"
+                                >
+                                  <td className="p-2 text-right font-medium">
+                                    <CampaignOffBadge off={data.off} />
+                                    {data.name}
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {data.impressions.toLocaleString("he-IL")}
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {data.clicks.toLocaleString("he-IL")}
+                                  </td>
+                                  <td className="p-2 text-center text-green-600 font-medium">
+                                    {data.leads.toLocaleString("he-IL")}
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {currency}
+                                    {data.spend.toLocaleString("he-IL", {
+                                      maximumFractionDigits: 0,
+                                    })}
+                                  </td>
+                                  <td className="p-2 text-center text-blue-600 font-medium">
+                                    {currency}
+                                    {costPerLead.toLocaleString("he-IL", {
+                                      maximumFractionDigits: 1,
+                                    })}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-primary/10 font-bold">
+                            <tr>
+                              <td className="p-2 text-right">סה״כ</td>
+                              <td className="p-2 text-center">
+                                {leadTotals.impressions.toLocaleString("he-IL")}
+                              </td>
+                              <td className="p-2 text-center">
+                                {leadTotals.clicks.toLocaleString("he-IL")}
+                              </td>
+                              <td className="p-2 text-center text-green-600">
+                                {leadTotals.leads.toLocaleString("he-IL")}
+                              </td>
+                              <td className="p-2 text-center">
+                                {currency}
+                                {leadTotals.spend.toLocaleString("he-IL", {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </td>
+                              <td className="p-2 text-center text-blue-600">
+                                {currency}
+                                {(leadTotals.leads > 0
+                                  ? leadTotals.spend / leadTotals.leads
+                                  : 0
+                                ).toLocaleString("he-IL", {
+                                  maximumFractionDigits: 1,
+                                })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </Card>
                   )}
 
                   {trafficCampaigns.length > 0 && (

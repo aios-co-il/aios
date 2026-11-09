@@ -73,7 +73,6 @@ import {
   sharedIntegrationReport,
 } from "@/components/SharedTable/sharedIntegrationReport";
 import { SharedTrafficTable } from "@/components/SharedTable/SharedTrafficTable";
-import { SharedLeadsTable } from "@/components/SharedTable/SharedLeadsTable";
 import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import { isEcommerceReportTable } from "@/lib/pulseCampaignGoals";
@@ -1007,14 +1006,101 @@ export default function SharedTable() {
         {isAdsPlatform(integrationType || "") &&
           adsReportView === "summary" &&
           campaignSummary.leads?.length > 0 && (
-            <SharedLeadsTable
-              rows={campaignSummary.leads}
-              entityColumnLabel={campaignSummary.entityColumnLabel}
-              formatCurrency={formatCurrency}
-              formatUnitCost={formatTableUnitCost}
-              formatNumber={formatNumber}
-              results={isGoogleAds ? "conversions" : "leads"}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>{CAMPAIGN_GOAL_TITLES.leads}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-right">
+                          {campaignSummary.entityColumnLabel}
+                        </TableHead>
+                        <TableHead className="text-right">הוצאה</TableHead>
+                        <TableHead className="text-right">חשיפות</TableHead>
+                        <TableHead className="text-right">קליקים</TableHead>
+                        <TableHead className="text-right">
+                          {isGoogleAds ? "המרות" : "לידים"}
+                        </TableHead>
+                        <TableHead className="text-right">
+                          {isGoogleAds ? "עלות להמרה" : "עלות לליד"}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {campaignSummary.leads.map((c: any) => {
+                        const cpl = c.leads > 0 ? c.spend / c.leads : 0;
+                        return (
+                          <TableRow key={c.name}>
+                            <TableCell className="font-medium max-w-[200px] truncate">
+                              <CampaignOffBadge off={c.off} />
+                              {c.name}
+                            </TableCell>
+                            <TableCell>{formatCurrency(c.spend)}</TableCell>
+                            <TableCell>{formatNumber(c.impressions)}</TableCell>
+                            <TableCell>{formatNumber(c.clicks)}</TableCell>
+                            <TableCell>{formatNumber(c.leads)}</TableCell>
+                            <TableCell>{formatCurrency(cpl)}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      <TableRow className="bg-primary/10 font-bold border-t-2">
+                        <TableCell>סה"כ</TableCell>
+                        <TableCell>
+                          {formatCurrency(
+                            campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.spend,
+                              0,
+                            ),
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatNumber(
+                            campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.impressions,
+                              0,
+                            ),
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatNumber(
+                            campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.clicks,
+                              0,
+                            ),
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatNumber(
+                            campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.leads,
+                              0,
+                            ),
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const totalSpend = campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.spend,
+                              0,
+                            );
+                            const totalLeads = campaignSummary.leads.reduce(
+                              (s: number, c: any) => s + c.leads,
+                              0,
+                            );
+                            return formatCurrency(
+                              totalLeads > 0 ? totalSpend / totalLeads : 0,
+                            );
+                          })()}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
         {/* Campaign Breakdown for Ads platforms - Traffic (clicks are the result) */}
