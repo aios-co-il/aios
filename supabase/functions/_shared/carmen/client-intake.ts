@@ -84,7 +84,7 @@ export async function forwardClientRequest(input: {
   sendAlert: (phone: string, message: string) => Promise<boolean>;
 }): Promise<number> {
   const [phones, context] = await Promise.all([
-    teamPhones(input.db, input.tenantId, input.clientIds),
+    clientTeamPhones(input.db, input.tenantId, input.clientIds),
     forwardContext(input.db, input.groupId, input.clientIds),
   ]);
   const text = [
@@ -111,7 +111,7 @@ export async function forwardClientRequest(input: {
 }
 
 /** The client's active campaigners' phones, else the tenant's report list. */
-async function teamPhones(
+export async function clientTeamPhones(
   db: IntakeDb,
   tenantId: string,
   clientIds: Array<string>,

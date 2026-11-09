@@ -9,8 +9,8 @@ import { orgBriefInstructions } from "./org-brief-text.ts";
 import {
   loadPronunciations,
   type Pronunciation,
-  pronunciationInstructions,
-} from "./pronunciations.ts";
+} from "../_shared/carmen/pronunciations/dictionary.ts";
+import { pronunciationInstructions } from "./pronunciations.ts";
 import {
   type LastConversation,
   lastConversationInstructions,
