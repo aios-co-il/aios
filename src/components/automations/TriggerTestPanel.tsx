@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,19 @@ import {
 import { NodeIconDisplay } from "./nodeIcons";
 import { ACTION_TYPE_LABELS } from "./FlowNode";
 import { cn } from "@/lib/utils";
+import {
+  errorMessage,
+  jsonObjectTextSchema,
+  listOf,
+  optionalTextSchema,
+  type WebhookPayload,
+  type StepConfig,
+} from "./automationStepConfig";
+import {
+  parseFlowStepResults,
+  firstFlowRunResponse,
+  type FlowStepDisplayResult,
+} from "./automationRunResults";
 
 interface TriggerTestPanelProps {
   open: boolean;
@@ -51,28 +65,77 @@ interface TriggerTestPanelProps {
   automationId: string;
   automationName: string;
   triggerType: string;
-  triggerConfig?: Record<string, any>;
-}
-
-interface StepResult {
-  step_id?: string;
-  action_type?: string;
-  success: boolean;
-  error?: string;
-  output?: any;
+  triggerConfig?: StepConfig;
 }
 
 interface TestResult {
   success?: boolean;
+  held?: boolean;
   error?: string;
-  steps?: StepResult[];
+  steps: Array<FlowStepDisplayResult>;
   agent_output?: string;
-  flow?: any;
+  raw: unknown;
+}
+
+const pickerText = z.string().nullish();
+
+const pickerEntitySchema = z.object({
+  id: z.string(),
+  contact_name: pickerText,
+  phone: pickerText,
+  email: pickerText,
+  source: pickerText,
+  status: pickerText,
+  notes: pickerText,
+  title: pickerText,
+  description: pickerText,
+});
+
+type PickerEntity = z.infer<typeof pickerEntitySchema>;
+
+function toPickerEntities(
+  rows: readonly unknown[] | undefined,
+): PickerEntity[] {
+  return listOf(pickerEntitySchema, rows ?? []) ?? [];
+}
+
+const testResponseSchema = z.object({
+  success: z.boolean(),
+  error: optionalTextSchema,
+  steps: z.unknown().transform(parseFlowStepResults),
+  agent_output: optionalTextSchema,
+});
+
+/** Normalize the trigger endpoint's nested execution or explicit hold response. */
+export function toTestResult(data: unknown): TestResult {
+  const hold = z
+    .object({ held: z.literal(true), reason: z.string() })
+    .safeParse(data);
+  if (hold.success) {
+    return {
+      success: false,
+      held: true,
+      error: hold.data.reason,
+      steps: [],
+      raw: data,
+    };
+  }
+  const parsed = testResponseSchema.safeParse(data);
+  if (!parsed.success) {
+    throw new Error("תגובה לא תקינה מהפעלת הטריגר");
+  }
+  const flow = firstFlowRunResponse(data);
+  return {
+    ...parsed.data,
+    steps: flow?.steps ?? parsed.data.steps,
+    agent_output: flow?.agent_output ?? parsed.data.agent_output,
+    raw: data,
+  };
 }
 
 // ─── Helper: build default payload per trigger type ──────────────────────────
 
-function getDefaultPayload(triggerType: string): Record<string, any> {
+function getDefaultPayload(triggerType: string): WebhookPayload {
   switch (triggerType) {
     case "lead_created":
     case "lead_updated":
@@ -537,7 +600,7 @@ export function TriggerTestPanel({
   const { tenantId } = useCurrentTenant();
   const { toast } = useToast();
 
-  const [payload, setPayload] = useState<Record<string, any>>(() =>
+  const [payload, setPayload] = useState<WebhookPayload>(() =>
     getDefaultPayload(triggerType),
   );
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -622,11 +685,11 @@ export function TriggerTestPanel({
 
   const handleFieldChange = (key: string, value: string) => {
     if (key === "_json_payload") {
-      try {
-        const parsed = JSON.parse(value);
-        setPayload(parsed);
+      const parsed = jsonObjectTextSchema.safeParse(value);
+      if (parsed.success) {
+        setPayload(parsed.data);
         setJsonError(null);
-      } catch {
+      } else {
         setJsonError("JSON לא תקין");
         setPayload((prev) => ({ ...prev, _raw_json: value }));
       }
@@ -635,10 +698,10 @@ export function TriggerTestPanel({
     }
   };
 
-  const handleSelectEntity = (entity: any) => {
+  const handleSelectEntity = (entity: PickerEntity) => {
     setSelectedEntityId(entity.id);
     // Pre-fill payload from entity
-    const newPayload: Record<string, any> = {
+    const newPayload: WebhookPayload = {
       ...getDefaultPayload(triggerType),
     };
     if (isLeadTrigger) {
@@ -672,7 +735,7 @@ export function TriggerTestPanel({
     try {
       // Build the final payload
       // trigger-automation reads the test flag from the payload, not the body.
-      const finalPayload: Record<string, any> = { ...payload, test: true };
+      const finalPayload: WebhookPayload = { ...payload, test: true };
       // Remove internal keys
       delete finalPayload._raw_json;
 
@@ -691,21 +754,27 @@ export function TriggerTestPanel({
 
       if (error) throw error;
 
-      setTestResult(data);
+      const result = toTestResult(data);
+      setTestResult(result);
 
-      const success = data?.success !== false && !data?.error;
+      const success = result.success !== false && !result.error;
       toast({
-        title: success ? "הטריגר הופעל בהצלחה" : "הטריגר נכשל",
+        title: result.held
+          ? "ההפעלה בהמתנה"
+          : success
+            ? "הטריגר הופעל בהצלחה"
+            : "הטריגר נכשל",
         description: success
           ? `האוטומציה "${automationName}" הורצה`
-          : data?.error || "שגיאה לא ידועה",
+          : result.error || "שגיאה לא ידועה",
         variant: success ? "default" : "destructive",
       });
-    } catch (err: any) {
-      setTestResult({ error: err.message });
+    } catch (err) {
+      const message = errorMessage(err) || "שגיאה לא ידועה";
+      setTestResult({ error: message, steps: [], raw: { error: message } });
       toast({
         title: "שגיאה בהפעלת הטריגר",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -714,12 +783,12 @@ export function TriggerTestPanel({
   };
 
   const triggerLabel = ACTION_TYPE_LABELS[triggerType] || triggerType;
-  const entityList = isLeadTrigger
+  const entityList: PickerEntity[] | undefined = isLeadTrigger
     ? leads
     : isClientTrigger
       ? clients
       : isTaskTrigger
-        ? tasks
+        ? toPickerEntities(tasks)
         : [];
   const canPickEntity =
     (isLeadTrigger || isClientTrigger || isTaskTrigger) && useExistingEntity;
@@ -804,7 +873,7 @@ export function TriggerTestPanel({
               </div>
               <ScrollArea className="h-[160px] rounded-lg border">
                 <div className="p-1 space-y-0.5">
-                  {((entityList as any[]) || []).map((entity: any) => (
+                  {(entityList || []).map((entity) => (
                     <button
                       key={entity.id}
                       className={cn(
@@ -824,7 +893,7 @@ export function TriggerTestPanel({
                       )}
                     </button>
                   ))}
-                  {((entityList as any[]) || []).length === 0 && (
+                  {(entityList || []).length === 0 && (
                     <p className="text-center text-xs text-muted-foreground py-4">
                       לא נמצאו תוצאות
                     </p>
@@ -928,7 +997,7 @@ export function TriggerTestPanel({
                   <>
                     <XCircle className="h-5 w-5 text-destructive shrink-0" />
                     <span className="text-sm font-medium text-destructive">
-                      נכשל
+                      {testResult.held ? "בהמתנה" : "נכשל"}
                     </span>
                   </>
                 ) : (
@@ -948,7 +1017,7 @@ export function TriggerTestPanel({
               )}
 
               {/* Step results */}
-              {testResult.steps && testResult.steps.length > 0 && (
+              {testResult.steps.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-muted-foreground">
                     צעדים שהורצו:
@@ -1012,7 +1081,7 @@ export function TriggerTestPanel({
                   className="text-[10px] bg-muted rounded-lg p-3 overflow-auto max-h-[200px] text-left"
                   dir="ltr"
                 >
-                  {JSON.stringify(testResult, null, 2)}
+                  {JSON.stringify(testResult.raw, null, 2)}
                 </pre>
               )}
             </div>

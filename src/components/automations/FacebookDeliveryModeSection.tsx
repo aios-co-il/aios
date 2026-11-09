@@ -6,6 +6,27 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Copy, Loader2, Webhook, RefreshCw, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { errorMessage } from "./automationStepConfig";
+
+const pageSubscriptionSchema = z.object({
+  status: z.string().optional().catch(undefined),
+  subscribed_at: z.string().optional().catch(undefined),
+});
+
+type PageSubscription = z.infer<typeof pageSubscriptionSchema>;
+
+const deliverySettingsSchema = z
+  .object({
+    delivery_mode: z.unknown(),
+    page_subscriptions: z
+      .record(pageSubscriptionSchema.catch({}))
+      .optional()
+      .catch(undefined),
+  })
+  .catch({ delivery_mode: undefined, page_subscriptions: undefined });
+
+const subscribeResponseSchema = z.object({ error: z.unknown() });
 
 interface Props {
   integrationId?: string;
@@ -23,7 +44,9 @@ export function FacebookDeliveryModeSection({
 }: Props) {
   const { toast } = useToast();
   const [mode, setMode] = useState<"pull" | "webhook">("pull");
-  const [pageSubs, setPageSubs] = useState<Record<string, any>>({});
+  const [pageSubs, setPageSubs] = useState<Record<string, PageSubscription>>(
+    {},
+  );
   const [loading, setLoading] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
@@ -35,9 +58,9 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = (data?.settings as any) ?? {};
-    setMode(s.delivery_mode === "webhook" ? "webhook" : "pull");
-    setPageSubs(s.page_subscriptions ?? {});
+    const settings = deliverySettingsSchema.parse(data?.settings);
+    setMode(settings.delivery_mode === "webhook" ? "webhook" : "pull");
+    setPageSubs(settings.page_subscriptions ?? {});
     setLoading(false);
   };
 
@@ -53,7 +76,11 @@ export function FacebookDeliveryModeSection({
       .select("settings")
       .eq("id", integrationId)
       .maybeSingle();
-    const s = (data?.settings as any) ?? {};
+    const stored = data?.settings;
+    const s =
+      stored && typeof stored === "object" && !Array.isArray(stored)
+        ? stored
+        : {};
     await supabase
       .from("tenant_integrations")
       .update({ settings: { ...s, delivery_mode: newMode } })
@@ -79,14 +106,17 @@ export function FacebookDeliveryModeSection({
         },
       );
       if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      const response = subscribeResponseSchema.safeParse(data);
+      if (response.success && response.data.error) {
+        throw new Error(String(response.data.error));
+      }
       toast({ title: "העמוד נרשם ל-Webhook" });
       await loadSettings();
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה ברישום העמוד",
         description:
-          e?.message || "בדוק שה-Access Token כולל pages_manage_metadata",
+          errorMessage(e) || "בדוק שה-Access Token כולל pages_manage_metadata",
         variant: "destructive",
       });
     } finally {
@@ -99,7 +129,8 @@ export function FacebookDeliveryModeSection({
     toast({ title: "הועתק!", description: label });
   };
 
-  const pageStatus = pageId ? pageSubs[pageId] : null;
+  const pageStatus = pageId ? pageSubs[pageId] : undefined;
+  const subscribedAt = pageStatus?.subscribed_at;
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-3">
@@ -184,10 +215,9 @@ export function FacebookDeliveryModeSection({
                   ? "רשום מחדש את העמוד"
                   : "רשום עמוד ל-Webhook"}
               </Button>
-              {pageStatus?.subscribed_at && (
+              {subscribedAt && (
                 <p className="text-[10px] text-muted-foreground text-right">
-                  נרשם:{" "}
-                  {new Date(pageStatus.subscribed_at).toLocaleString("he-IL")}
+                  נרשם: {new Date(subscribedAt).toLocaleString("he-IL")}
                 </p>
               )}
             </div>
