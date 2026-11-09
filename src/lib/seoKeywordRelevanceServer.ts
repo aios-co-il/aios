@@ -65,7 +65,7 @@ export async function fetchClientSeoKeywordRelevance(
     .eq("id", clientId)
     .maybeSingle();
   if (error) throw error;
-  return parseSeoKeywordRelevance((data as any)?.seo_keyword_relevance);
+  return parseSeoKeywordRelevance(data?.seo_keyword_relevance);
 }
 
 /** Persist overrides on the client row and mirror into localStorage cache. */
@@ -76,7 +76,7 @@ export async function saveClientSeoKeywordRelevance(
   const payload = seoKeywordRelevancePayload(lists);
   const { error } = await supabase
     .from("clients")
-    .update({ seo_keyword_relevance: payload } as any)
+    .update({ seo_keyword_relevance: payload })
     .eq("id", clientId);
   if (error) throw error;
   saveSeoForceRelevant(clientId, lists.forceRelevant);

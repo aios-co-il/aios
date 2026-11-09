@@ -17,7 +17,7 @@ export function UsagePanel({ tenantId, clientId }: Props) {
         .from("marketing_work_items")
         .select("id")
         .eq("client_id", clientId);
-      const ids = (items ?? []).map((i: any) => i.id);
+      const ids = (items ?? []).map((i) => i.id);
       if (ids.length === 0) {
         return {
           total: 0,
@@ -38,11 +38,11 @@ export function UsagePanel({ tenantId, clientId }: Props) {
       const r = runs ?? [];
       return {
         total: r.length,
-        success: r.filter((x: any) => x.status === "completed").length,
-        failed: r.filter((x: any) => x.status === "failed").length,
-        tokensIn: r.reduce((s: number, x: any) => s + (x.tokens_in ?? 0), 0),
-        tokensOut: r.reduce((s: number, x: any) => s + (x.tokens_out ?? 0), 0),
-        cost: r.reduce((s: number, x: any) => s + Number(x.cost_usd ?? 0), 0),
+        success: r.filter((x) => x.status === "completed").length,
+        failed: r.filter((x) => x.status === "failed").length,
+        tokensIn: r.reduce((s: number, x) => s + (x.tokens_in ?? 0), 0),
+        tokensOut: r.reduce((s: number, x) => s + (x.tokens_out ?? 0), 0),
+        cost: r.reduce((s: number, x) => s + Number(x.cost_usd ?? 0), 0),
         runs: r,
       };
     },
@@ -98,7 +98,7 @@ export function UsagePanel({ tenantId, clientId }: Props) {
           </div>
         ) : (
           <div className="space-y-1 text-xs">
-            {stats.runs.slice(0, 30).map((r: any, idx: number) => (
+            {stats.runs.slice(0, 30).map((r, idx) => (
               <div
                 key={idx}
                 className="flex items-center gap-2 border-b py-1 last:border-0"

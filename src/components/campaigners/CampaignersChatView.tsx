@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -129,7 +130,7 @@ export function CampaignersChatView({
 
   const updateCampaignerField = async (
     id: string,
-    patch: Record<string, any>,
+    patch: TablesUpdate<"campaigners">,
   ) => {
     const { error } = await supabase
       .from("campaigners")
@@ -209,7 +210,7 @@ export function CampaignersChatView({
           .select("campaigner_id")
           .in("agency_id", crossTenantAgencyIds);
         crossTenantCampaignerIds = Array.from(
-          new Set((caRows || []).map((r: any) => r.campaigner_id)),
+          new Set((caRows || []).map((r) => r.campaigner_id)),
         );
       }
 
@@ -241,9 +242,9 @@ export function CampaignersChatView({
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((c: any) => ({
+      return (data || []).map((c) => ({
         ...c,
-        client_team: (c.client_team || []).filter((ct: any) => ct.clients),
+        client_team: (c.client_team || []).filter((ct) => ct.clients),
       }));
     },
     enabled: !!tenantId,
@@ -254,30 +255,27 @@ export function CampaignersChatView({
     let list = campaigners;
 
     if (selectedAgency && selectedAgency !== "all") {
-      list = list.filter((c: any) =>
-        c.campaigner_agencies?.some(
-          (ca: any) => ca.agency_id === selectedAgency,
-        ),
+      list = list.filter((c) =>
+        c.campaigner_agencies?.some((ca) => ca.agency_id === selectedAgency),
       );
     }
 
-    if (activeFilter === "active") list = list.filter((c: any) => c.active);
-    else if (activeFilter === "inactive")
-      list = list.filter((c: any) => !c.active);
+    if (activeFilter === "active") list = list.filter((c) => c.active);
+    else if (activeFilter === "inactive") list = list.filter((c) => !c.active);
 
     const q = search.trim().toLowerCase();
     if (q) {
-      list = list.filter((c: any) =>
+      list = list.filter((c) =>
         [c.full_name, c.phone, c.email]
-          .filter(Boolean)
-          .some((v: string) => v.toLowerCase().includes(q)),
+          .filter((v): v is string => Boolean(v))
+          .some((v) => v.toLowerCase().includes(q)),
       );
     }
     return list;
   }, [campaigners, selectedAgency, activeFilter, search]);
 
   const selected = useMemo(
-    () => filteredCampaigners.find((c: any) => c.id === selectedId) || null,
+    () => filteredCampaigners.find((c) => c.id === selectedId) || null,
     [filteredCampaigners, selectedId],
   );
 
@@ -291,7 +289,7 @@ export function CampaignersChatView({
   const visibleClientTeam = useMemo(() => {
     const team = selected?.client_team || [];
     if (clientStatusFilter === "all") return team;
-    return team.filter((assignment: any) =>
+    return team.filter((assignment) =>
       isActiveClientStatus(assignment.clients?.status),
     );
   }, [selected?.client_team, clientStatusFilter]);
@@ -359,10 +357,10 @@ export function CampaignersChatView({
               </div>
             ) : (
               <div className="divide-y w-full">
-                {filteredCampaigners.map((c: any) => {
+                {filteredCampaigners.map((c) => {
                   const isSelected = c.id === selectedId;
                   const agencyNames = (c.campaigner_agencies || [])
-                    .map((ca: any) => ca?.agencies?.name)
+                    .map((ca) => ca?.agencies?.name)
                     .filter(Boolean)
                     .join(", ");
                   return (
@@ -405,7 +403,7 @@ export function CampaignersChatView({
                           <span className="block text-xs text-muted-foreground mt-0.5 truncate">
                             לקוחות פעילים:{" "}
                             {
-                              (c.client_team || []).filter((ct: any) =>
+                              (c.client_team || []).filter((ct) =>
                                 isActiveClientStatus(ct.clients?.status),
                               ).length
                             }
@@ -565,10 +563,10 @@ export function CampaignersChatView({
                         <AgenciesRow
                           currentAgencyIds={(
                             selected.campaigner_agencies || []
-                          ).map((ca: any) => ca.agency_id)}
+                          ).map((ca) => ca.agency_id)}
                           currentLabels={
                             (selected.campaigner_agencies || [])
-                              .map((ca: any) => ca?.agencies?.name)
+                              .map((ca) => ca?.agencies?.name)
                               .filter(Boolean)
                               .join(", ") || ""
                           }
@@ -646,7 +644,7 @@ export function CampaignersChatView({
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {visibleClientTeam.map((assignment: any) => {
+                            {visibleClientTeam.map((assignment) => {
                               const client = assignment.clients;
                               if (!client?.id) return null;
                               return (
@@ -792,7 +790,7 @@ function EditableRow({
   placeholder?: string;
   isLink?: boolean;
   linkPrefix?: string;
-  onSave: (v: string) => void | Promise<any>;
+  onSave: (v: string) => void | Promise<unknown>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || "");
@@ -910,7 +908,7 @@ function AgenciesRow({
   currentAgencyIds: string[];
   currentLabels: string;
   allAgencies: { id: string; name: string }[];
-  onSave: (ids: string[]) => void | Promise<any>;
+  onSave: (ids: string[]) => void | Promise<unknown>;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>(currentAgencyIds);

@@ -73,7 +73,7 @@ export function useSocialMediaChannels() {
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
-        .from("social_media_channels" as any)
+        .from("social_media_channels")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
@@ -99,7 +99,7 @@ export function useCreateChannel() {
     }) => {
       if (!tenantId) throw new Error("No tenant");
       const { data, error } = await supabase
-        .from("social_media_channels" as any)
+        .from("social_media_channels")
         .insert({ ...channel, tenant_id: tenantId })
         .select()
         .single();
@@ -125,7 +125,7 @@ export function useDeleteChannel() {
   return useMutation({
     mutationFn: async (channelId: string) => {
       const { error } = await supabase
-        .from("social_media_channels" as any)
+        .from("social_media_channels")
         .delete()
         .eq("id", channelId);
       if (error) throw error;
@@ -151,7 +151,7 @@ export function useSocialMediaPosts(statusFilter?: string) {
     queryFn: async () => {
       if (!tenantId) return [];
       let query = supabase
-        .from("social_media_posts" as any)
+        .from("social_media_posts")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
@@ -171,7 +171,7 @@ export function usePostChannels(postId: string) {
     queryKey: ["social-media-post-channels", postId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("social_media_post_channels" as any)
+        .from("social_media_post_channels")
         .select("*")
         .eq("post_id", postId);
       if (error) throw error;
@@ -202,7 +202,7 @@ export function useCreatePost() {
       const { channel_ids, ...postData } = params;
 
       const { data: post, error: postError } = await supabase
-        .from("social_media_posts" as any)
+        .from("social_media_posts")
         .insert({
           ...postData,
           tenant_id: tenantId,
@@ -220,7 +220,7 @@ export function useCreatePost() {
           channel_id,
         }));
         const { error: channelError } = await supabase
-          .from("social_media_post_channels" as any)
+          .from("social_media_post_channels")
           .insert(channelRecords);
         if (channelError) throw channelError;
       }
@@ -252,7 +252,7 @@ export function useUpdatePostStatus() {
       status: SocialMediaPost["status"];
     }) => {
       const { error } = await supabase
-        .from("social_media_posts" as any)
+        .from("social_media_posts")
         .update({ status, updated_at: new Date().toISOString() })
         .eq("id", postId);
       if (error) throw error;
@@ -272,7 +272,7 @@ export function useDeletePost() {
   return useMutation({
     mutationFn: async (postId: string) => {
       const { error } = await supabase
-        .from("social_media_posts" as any)
+        .from("social_media_posts")
         .delete()
         .eq("id", postId);
       if (error) throw error;
@@ -298,7 +298,7 @@ export function useWordPressSites() {
     queryFn: async () => {
       if (!tenantId) return [];
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
@@ -322,7 +322,7 @@ export function useCreateWordPressSite() {
     }) => {
       if (!tenantId) throw new Error("No tenant");
       const { data, error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .insert({ ...site, tenant_id: tenantId })
         .select()
         .single();
@@ -348,7 +348,7 @@ export function useDeleteWordPressSite() {
   return useMutation({
     mutationFn: async (siteId: string) => {
       const { error } = await supabase
-        .from("social_media_wordpress_sites" as any)
+        .from("social_media_wordpress_sites")
         .delete()
         .eq("id", siteId);
       if (error) throw error;

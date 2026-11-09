@@ -60,6 +60,16 @@ interface NumberRow {
   is_ignored: boolean;
 }
 
+const NUMBER_CATEGORIES: readonly NumberRow["category"][] = [
+  "organic",
+  "paid",
+  "general",
+];
+
+function isNumberCategory(v: string): v is NumberRow["category"] {
+  return NUMBER_CATEGORIES.some((c) => c === v);
+}
+
 interface ClientOption {
   id: string;
   name: string;
@@ -73,7 +83,7 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("maskyoo_numbers" as any)
+        .from("maskyoo_numbers")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
@@ -98,8 +108,8 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .eq("accessing_tenant_id", tenantId);
       const agencyIds = Array.from(
         new Set([
-          ...(owned || []).map((a: any) => a.id),
-          ...(shared || []).map((s: any) => s.agency_id),
+          ...(owned || []).map((a) => a.id),
+          ...(shared || []).map((s) => s.agency_id),
         ]),
       ).filter(Boolean);
 
@@ -120,9 +130,7 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
       if (error) throw error;
       // Dedupe by id
       const map = new Map<string, ClientOption>();
-      (data || []).forEach((c: any) =>
-        map.set(c.id, { id: c.id, name: c.name }),
-      );
+      (data || []).forEach((c) => map.set(c.id, { id: c.id, name: c.name }));
       return Array.from(map.values());
     },
   });
@@ -161,7 +169,7 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
       patch: Partial<NumberRow>;
     }) => {
       const { error } = await supabase
-        .from("maskyoo_numbers" as any)
+        .from("maskyoo_numbers")
         .update(patch)
         .eq("id", id);
       if (error) throw error;
@@ -169,14 +177,14 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["maskyoo-numbers", tenantId] });
     },
-    onError: (e: any) =>
+    onError: (e: Error) =>
       toast.error("שגיאה בעדכון", { description: e.message }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("maskyoo_numbers" as any)
+        .from("maskyoo_numbers")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -255,12 +263,13 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
                       <TableCell>
                         <Select
                           value={row.category}
-                          onValueChange={(v) =>
-                            updateMutation.mutate({
-                              id: row.id,
-                              patch: { category: v as any },
-                            })
-                          }
+                          onValueChange={(v) => {
+                            if (isNumberCategory(v))
+                              updateMutation.mutate({
+                                id: row.id,
+                                patch: { category: v },
+                              });
+                          }}
                         >
                           <SelectTrigger className="h-8 min-w-[110px]">
                             <SelectValue />

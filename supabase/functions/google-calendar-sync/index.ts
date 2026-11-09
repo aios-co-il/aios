@@ -12,6 +12,13 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type {
+  Database,
+  Tables,
+  TablesUpdate,
+} from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { getPath, getString } from "../_shared/provider-json.ts";
 import { calendarEventCancelledTaskUpdates } from "../_shared/calendar-task-sync.ts";
 
 const corsHeaders = {
@@ -21,8 +28,11 @@ const corsHeaders = {
 };
 
 async function refreshAccessTokenIfNeeded(
-  serviceClient: any,
-  token: any,
+  serviceClient: DbClient,
+  token: Pick<
+    Tables<"calendar_tokens">,
+    "expires_at" | "access_token" | "refresh_token" | "user_id"
+  >,
 ): Promise<{ accessToken: string; needsReconnect: boolean }> {
   const expiresAt = new Date(token.expires_at);
   if (expiresAt > new Date(Date.now() + 60_000)) {
@@ -105,7 +115,7 @@ function toJerusalemDateTime(iso: string): {
   };
 }
 
-async function performSync(serviceClient: any, userId: string) {
+async function performSync(serviceClient: DbClient, userId: string) {
   const { data: token, error: tokenError } = await serviceClient
     .from("calendar_tokens")
     .select("*")
@@ -147,7 +157,7 @@ async function performSync(serviceClient: any, userId: string) {
   let syncToken: string | null = token.next_sync_token || null;
   let pageToken: string | undefined = undefined;
   let nextSyncToken: string | null = null;
-  const allEvents: any[] = [];
+  const allEvents: unknown[] = [];
   let attempt = 0;
 
   while (true) {
@@ -191,15 +201,16 @@ async function performSync(serviceClient: any, userId: string) {
   let updated = 0;
   let completed = 0;
   for (const ev of allEvents) {
-    if (!ev.id) continue;
+    const eventId = getString(ev, "id");
+    if (!eventId) continue;
     const { data: task } = await serviceClient
       .from("tasks")
       .select("id, title, due_date, due_time, duration_minutes")
-      .eq("google_calendar_event_id", ev.id)
+      .eq("google_calendar_event_id", eventId)
       .maybeSingle();
     if (!task) continue;
 
-    if (ev.status === "cancelled") {
+    if (getPath(ev, "status") === "cancelled") {
       // Event was deleted in Google -> mark the linked AIOS task done.
       await serviceClient
         .from("tasks")
@@ -209,12 +220,12 @@ async function performSync(serviceClient: any, userId: string) {
       continue;
     }
 
-    const startIso = ev.start?.dateTime;
-    const endIso = ev.end?.dateTime;
+    const startIso = getString(ev, "start", "dateTime");
+    const endIso = getString(ev, "end", "dateTime");
     if (!startIso) continue; // skip all-day for our timed task model
 
     const start = toJerusalemDateTime(startIso);
-    const updates: Record<string, any> = {
+    const updates: TablesUpdate<"tasks"> = {
       due_date: start.date,
       due_time: start.time,
     };
@@ -223,12 +234,9 @@ async function performSync(serviceClient: any, userId: string) {
       const minutes = Math.max(5, Math.round(ms / 60000));
       updates.duration_minutes = minutes;
     }
-    if (
-      typeof ev.summary === "string" &&
-      ev.summary &&
-      ev.summary !== task.title
-    ) {
-      updates.title = ev.summary;
+    const summary = getPath(ev, "summary");
+    if (typeof summary === "string" && summary && summary !== task.title) {
+      updates.title = summary;
     }
     await serviceClient.from("tasks").update(updates).eq("id", task.id);
     updated++;
@@ -255,16 +263,16 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const serviceClient = createClient(supabaseUrl, serviceKey);
+    const serviceClient = createClient<Database>(supabaseUrl, serviceKey);
 
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await req.json();
     } catch {
       /* ignore */
     }
 
-    let userId: string | null = body?.user_id || null;
+    let userId: string | null = getString(body, "user_id") || null;
 
     // If no user_id passed, require an authenticated user (sync own calendar).
     if (!userId) {

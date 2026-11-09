@@ -16,7 +16,7 @@ export function CreativeBoard({ clientId, onSelectItem }: Props) {
         .from("marketing_work_items")
         .select("id")
         .eq("client_id", clientId);
-      const ids = (items ?? []).map((i: any) => i.id);
+      const ids = (items ?? []).map((i) => i.id);
       if (ids.length === 0) return [];
       const { data } = await supabase
         .from("marketing_assets")
@@ -36,7 +36,7 @@ export function CreativeBoard({ clientId, onSelectItem }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {(assets ?? []).map((a: any) => (
+          {(assets ?? []).map((a) => (
             <Card
               key={a.id}
               className="cursor-pointer overflow-hidden p-0 hover:shadow-lg"

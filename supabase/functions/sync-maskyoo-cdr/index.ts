@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getArray, getPath, getText } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
       headers: { Authorization: `Bearer ${settings.api_token}` },
     });
     const body = await res.text();
-    let data: any = {};
+    let data: unknown = {};
     try {
       data = JSON.parse(body);
     } catch {
@@ -91,12 +92,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rows: any[] = Array.isArray(data?.result) ? data.result : [];
+    const rows = getArray(data, "result");
     let inserted = 0,
       updated = 0;
 
     for (const r of rows) {
-      const uniqueid = r.cdr_uniqueid;
+      const uniqueid = getPath(r, "cdr_uniqueid");
       if (!uniqueid) continue;
 
       // Try match existing log by provider_call_id
@@ -109,8 +110,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       // Try match lead/client by phone
-      const callerPhone = normalizePhone(r.cdr_ani);
-      const calleePhone = normalizePhone(r.cdr_ddi);
+      const cdrAni = getText(r, "cdr_ani");
+      const cdrDdi = getText(r, "cdr_ddi");
+      const callerPhone = normalizePhone(cdrAni);
+      const calleePhone = normalizePhone(cdrDdi);
       const targetPhone = calleePhone || callerPhone;
       let lead_id: string | null = null;
       let client_id: string | null = null;
@@ -134,14 +137,16 @@ Deno.serve(async (req) => {
         }
       }
 
+      const callStatus = getPath(r, "call_status");
+      const callDuration = getPath(r, "call_duration");
       const status =
-        r.call_status === "ANSWERED"
+        callStatus === "ANSWERED"
           ? "completed"
-          : r.call_status === "NO ANSWER"
+          : callStatus === "NO ANSWER"
             ? "no-answer"
-            : r.call_status === "BUSY"
+            : callStatus === "BUSY"
               ? "busy"
-              : r.call_status === "FAILED"
+              : callStatus === "FAILED"
                 ? "failed"
                 : "completed";
 
@@ -149,11 +154,11 @@ Deno.serve(async (req) => {
         tenant_id,
         provider: "maskyoo",
         provider_call_id: uniqueid,
-        from_number: r.cdr_ani || null,
-        to_number: r.cdr_ddi || null,
-        duration: r.call_duration ? parseInt(r.call_duration) : null,
+        from_number: cdrAni || null,
+        to_number: cdrDdi || null,
+        duration: callDuration ? parseInt(String(callDuration)) : null,
         status,
-        notes: `Maskyoo: ${r.user_name || ""} (${r.user_phone || ""}) [${r.call_status}]`,
+        notes: `Maskyoo: ${getPath(r, "user_name") || ""} (${getPath(r, "user_phone") || ""}) [${callStatus}]`,
         lead_id,
         client_id,
       };

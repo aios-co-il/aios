@@ -66,14 +66,14 @@ export default function ZoomSettings() {
       if (integration) {
         const { error } = await supabase
           .from("tenant_integrations")
-          .update({ settings: settings as any, is_active: true })
+          .update({ settings, is_active: true })
           .eq("id", integration.id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("tenant_integrations").insert({
           tenant_id: currentTenantId,
           integration_type: "zoom",
-          settings: settings as any,
+          settings,
           is_active: true,
         });
         if (error) throw error;
@@ -85,7 +85,7 @@ export default function ZoomSettings() {
       });
       toast({ title: "נשמר בהצלחה", description: "הגדרות Zoom נשמרו" });
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast({
         title: "שגיאה",
         description: err.message,

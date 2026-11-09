@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { errorMessage } from "@/components/broadcast/templateUtils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,12 +12,14 @@ import { toast } from "sonner";
 // A/B Test Panel — shows copy variants for a work item and lets the user
 // select the winning variant to advance the pipeline stage.
 
+type ABVariant = Tables<"marketing_ab_variants">;
+
 interface ABTestPanelProps {
   workItemId: string;
   tenantId: string;
   brief: string;
   channel: string;
-  onVariantSelected: (variant: any) => void;
+  onVariantSelected: (variant: ABVariant) => void;
 }
 
 export function ABTestPanel({
@@ -36,19 +40,19 @@ export function ABTestPanel({
     queryKey: ["ab-test-variants", workItemId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("marketing_ab_variants" as any)
+        .from("marketing_ab_variants")
         .select("*")
         .eq("work_item_id", workItemId)
         .order("created_at", { ascending: true });
-      return (data as any[]) || [];
+      return data || [];
     },
     enabled: !!workItemId,
   });
 
   const selectVariant = useMutation({
-    mutationFn: async (variant: any) => {
+    mutationFn: async (variant: ABVariant) => {
       const { error } = await supabase
-        .from("marketing_ab_variants" as any)
+        .from("marketing_ab_variants")
         .update({ selected: true })
         .eq("id", variant.id);
       if (error) throw error;
@@ -60,7 +64,7 @@ export function ABTestPanel({
       });
       onVariantSelected(variant);
     },
-    onError: (e: any) => toast.error("שגיאה: " + e.message),
+    onError: (e: Error) => toast.error("שגיאה: " + e.message),
   });
 
   const generateVariants = async () => {
@@ -78,8 +82,8 @@ export function ABTestPanel({
       if (error) throw error;
       toast.success("גרסאות נוצרו!");
       await refetch();
-    } catch (e: any) {
-      toast.error("שגיאה ביצירת גרסאות: " + e.message);
+    } catch (e) {
+      toast.error("שגיאה ביצירת גרסאות: " + errorMessage(e));
     } finally {
       setGenerating(false);
     }
@@ -128,7 +132,7 @@ export function ABTestPanel({
       )}
 
       <div className="space-y-3">
-        {variants.map((v: any, i: number) => (
+        {variants.map((v, i) => (
           <Card
             key={v.id}
             className={`p-4 space-y-2 ${v.selected ? "border-emerald-500 bg-emerald-50/30" : ""}`}
@@ -154,9 +158,7 @@ export function ABTestPanel({
                 </Button>
               )}
             </div>
-            <p className="text-sm whitespace-pre-wrap">
-              {v.content || v.copy || v.text}
-            </p>
+            <p className="text-sm whitespace-pre-wrap">{v.content}</p>
           </Card>
         ))}
       </div>

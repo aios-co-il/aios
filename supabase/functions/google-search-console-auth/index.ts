@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  getArray,
+  getObject,
+  getPath,
+  getString,
+} from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,11 +215,13 @@ serve(async (req) => {
 
       const existingForEmail = googleEmail
         ? allGsc?.find(
-            (row: any) => (row.settings as any)?.google_email === googleEmail,
+            (row: { settings: unknown }) =>
+              getPath(row.settings, "google_email") === googleEmail,
           ) || null
         : null;
       const existingForUser =
-        allGsc?.find((row: any) => row.user_id === userId) || null;
+        allGsc?.find((row: { user_id: unknown }) => row.user_id === userId) ||
+        null;
       const existingIntegration = existingForEmail || existingForUser;
       const existingSettings =
         (existingIntegration?.settings as Record<string, unknown> | null) ||
@@ -225,11 +233,10 @@ serve(async (req) => {
         settings: {
           ...(existingSettings || {}),
           refresh_token:
-            tokens.refresh_token || (existingSettings as any)?.refresh_token,
+            tokens.refresh_token || existingSettings?.refresh_token,
           expires_at: expiresAt,
           connected_at: new Date().toISOString(),
-          google_email:
-            googleEmail || (existingSettings as any)?.google_email || "",
+          google_email: googleEmail || existingSettings?.google_email || "",
           // Clear any stale reconnect flags on successful re-authorization
           needs_reauth: false,
           reauth_reason: null,
@@ -308,7 +315,7 @@ serve(async (req) => {
       }
 
       let accessToken = integration.api_key;
-      const settings = integration.settings as any;
+      const settings = getObject(integration.settings);
       const ownerEmail = settings?.google_email || null;
 
       const refreshAccessToken = async (): Promise<{
@@ -325,7 +332,7 @@ serve(async (req) => {
             body: new URLSearchParams({
               client_id: clientId,
               client_secret: clientSecret,
-              refresh_token: settings.refresh_token,
+              refresh_token: String(settings.refresh_token),
               grant_type: "refresh_token",
             }),
           },
@@ -349,7 +356,13 @@ serve(async (req) => {
       };
 
       // Proactive refresh if expired
-      if (settings?.expires_at && new Date(settings.expires_at) < new Date()) {
+      const storedExpiresAt = settings?.expires_at;
+      if (
+        (typeof storedExpiresAt === "string" ||
+          typeof storedExpiresAt === "number") &&
+        storedExpiresAt &&
+        new Date(storedExpiresAt) < new Date()
+      ) {
         await refreshAccessToken();
       }
 
@@ -359,14 +372,14 @@ serve(async (req) => {
         });
 
       let sitesResponse = await fetchSites();
-      let sitesData: any = await sitesResponse.json().catch(() => ({}));
+      let sitesData: unknown = await sitesResponse.json().catch(() => ({}));
 
       // If credentials invalid, try one forced refresh and retry once.
       const looksUnauthorized =
         sitesResponse.status === 401 ||
-        sitesData?.error?.code === 401 ||
+        getPath(sitesData, "error", "code") === 401 ||
         /invalid.*credential|invalid_grant|unauthorized/i.test(
-          sitesData?.error?.message || "",
+          String(getPath(sitesData, "error", "message") || ""),
         );
 
       if (looksUnauthorized) {
@@ -387,12 +400,13 @@ serve(async (req) => {
         }
       }
 
-      if (sitesData?.error) {
+      const sitesError = getPath(sitesData, "error");
+      if (sitesError) {
         // Still failing after refresh -> reconnect required.
         const stillUnauthorized =
-          sitesData.error.code === 401 ||
+          getPath(sitesError, "code") === 401 ||
           /invalid.*credential|invalid_grant|unauthorized/i.test(
-            sitesData.error.message || "",
+            String(getPath(sitesError, "message") || ""),
           );
         if (stillUnauthorized) {
           return new Response(
@@ -411,28 +425,27 @@ serve(async (req) => {
         // UI stays usable instead of looping on "reconnect".
         console.error(
           "GSC get_sites Google API error:",
-          JSON.stringify(sitesData.error),
+          JSON.stringify(sitesError),
         );
-        const cachedOnError = Array.isArray(settings?.available_sites)
-          ? settings.available_sites
-          : [];
+        const cachedSites = settings?.available_sites;
+        const cachedOnError = Array.isArray(cachedSites) ? cachedSites : [];
         return new Response(
           JSON.stringify({
             sites: cachedOnError,
             needs_reconnect: cachedOnError.length === 0,
             owner_email: ownerEmail,
             reason: "google_api_error",
-            error_detail: sitesData.error.message || String(sitesData.error),
-            error_code: sitesData.error.code ?? null,
-            error_status: sitesData.error.status ?? null,
+            error_detail: getPath(sitesError, "message") || String(sitesError),
+            error_code: getPath(sitesError, "code") ?? null,
+            error_status: getPath(sitesError, "status") ?? null,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
-      const sites = (sitesData.siteEntry || []).map((site: any) => ({
-        siteUrl: site.siteUrl,
-        permissionLevel: site.permissionLevel,
+      const sites = getArray(sitesData, "siteEntry").map((site) => ({
+        siteUrl: getPath(site, "siteUrl"),
+        permissionLevel: getPath(site, "permissionLevel"),
       }));
 
       // Cache the fresh list back into settings.available_sites so the UI can
@@ -451,10 +464,10 @@ serve(async (req) => {
       return new Response(JSON.stringify({ sites, owner_email: ownerEmail }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching sites:", error);
       return new Response(
-        JSON.stringify({ error: error.message || String(error) }),
+        JSON.stringify({ error: getString(error, "message") || String(error) }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

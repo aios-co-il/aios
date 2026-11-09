@@ -9,13 +9,18 @@
 //   - text  → reuse send-green-api-message / send-manus-wa-message (service role)
 //   - image → manus: reuse send-manus-wa-file ; green_api: call Green API sendFileByUrl
 //             directly (the green file function requires a real user, not service role)
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serviceClient, type DbClient } from "../_shared/supabase-clients.ts";
+import { isAutomationStream, storedStats } from "./broadcast-json.ts";
+import { loadGreenApiIntegration } from "./green-api-integration.ts";
+import type { Json, Tables, TablesUpdate } from "../_shared/database.types.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 import { buildEmailContent } from "../_shared/broadcast/template/email-html.ts";
+import { renderTemplate } from "../_shared/broadcast/template/template-vars.ts";
 import {
-  buildTemplateVars,
-  renderTemplate,
-  type TemplateVars,
-} from "../_shared/broadcast/template/template-vars.ts";
+  providerMessageId,
+  recipientVars,
+  type RecipientRow,
+} from "./recipient-vars.ts";
 import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
@@ -48,18 +53,9 @@ function jitter(minS: number, maxS: number, seed: number): number {
   return Math.round((lo + frac * (hi - lo)) * 1000);
 }
 
-// Merge fields come from the recipient's vars snapshot; older rows (before
-// vars existed) fall back to name / phone / email columns.
-function recipientVars(r: any): TemplateVars {
-  const base = buildTemplateVars({
-    contact_name: r.contact_name,
-    email: r.email,
-    phone: r.entity_type === "wa_group" ? null : r.phone,
-  });
-  return { ...base, ...(r.vars && typeof r.vars === "object" ? r.vars : {}) };
-}
+type BroadcastRow = Tables<"broadcasts">;
 
-async function invokeEdgeFn(name: string, payload: any) {
+async function invokeEdgeFn(name: string, payload: object) {
   const res = await fetch(`${SB_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -69,35 +65,27 @@ async function invokeEdgeFn(name: string, payload: any) {
     },
     body: JSON.stringify(payload),
   });
-  const json = await res.json().catch(() => ({}));
+  const json: Json = await res.json().catch(() => ({}));
   return { ok: res.ok, json };
 }
 
 // Direct Green API image send (sendFileByUrl) — used because send-green-api-file needs a user token.
 async function greenApiSendImage(
-  db: any,
-  integrationId: string,
+  db: DbClient,
+  integrationId: string | null,
   tenantId: string,
   senderUserId: string,
   chatPhone: string,
-  imageUrl: string,
+  imageUrl: string | null,
   caption: string,
   broadcastId: string,
   clientId: string | null,
 ) {
-  const { data: integ } = await db
-    .from("tenant_integrations")
-    .select("api_key, settings")
-    .eq("id", integrationId)
-    .maybeSingle();
-  if (!integ?.api_key || !integ?.settings?.instance_id) {
+  const integration = await loadGreenApiIntegration(db, integrationId);
+  if (!integration) {
     return { ok: false, json: { error: "green_api_not_configured" } };
   }
-  const instanceId = integ.settings.instance_id;
-  const apiToken = integ.api_key;
-  const cc = String(
-    integ.settings.country_code || integ.settings.default_country_code || "972",
-  );
+  const { instanceId, apiToken, countryCode: cc } = integration;
   let digits = String(chatPhone).replace(/[^0-9]/g, "");
   if (digits.startsWith("00")) digits = digits.slice(2);
   if (!digits.startsWith(cc))
@@ -115,7 +103,7 @@ async function greenApiSendImage(
       caption,
     }),
   });
-  const json = await res.json().catch(() => ({}));
+  const json: Json = await res.json().catch(() => ({}));
   if (res.ok) {
     const { error } = await db.from("chat_messages").insert({
       tenant_id: tenantId,
@@ -142,9 +130,9 @@ async function greenApiSendImage(
 }
 
 async function sendOne(
-  db: any,
-  b: any,
-  r: any,
+  db: DbClient,
+  b: BroadcastRow,
+  r: RecipientRow,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
   const unsubUrl = unsubscribeUrl(SB_URL, r.id);
@@ -190,7 +178,7 @@ async function sendOne(
       ),
     });
     return res.ok
-      ? { ok: true, messageId: res.json?.id }
+      ? { ok: true, messageId: providerMessageId(res.json, "id") }
       : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
   }
 
@@ -217,7 +205,7 @@ async function sendOne(
             ...sendStamp,
           });
           return res.ok
-            ? { ok: true, messageId: res.json?.messageId }
+            ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
             : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
         }
         const res = await invokeEdgeFn("send-manus-wa-message", {
@@ -229,7 +217,7 @@ async function sendOne(
           ...sendStamp,
         });
         return res.ok
-          ? { ok: true, messageId: res.json?.messageId }
+          ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
           : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
       }
       // green_api
@@ -255,7 +243,7 @@ async function sendOne(
             caption: body,
           }),
         });
-        const json2 = await res2.json().catch(() => ({}));
+        const json2: Json = await res2.json().catch(() => ({}));
         if (res2.ok) {
           // Same chat history row as the text path, with the group.
           const { error } = await db.from("chat_messages").insert({
@@ -279,7 +267,7 @@ async function sendOne(
           }
         }
         return res2.ok
-          ? { ok: true, messageId: json2?.idMessage }
+          ? { ok: true, messageId: providerMessageId(json2, "idMessage") }
           : { ok: false, error: JSON.stringify(json2).slice(0, 300) };
       }
       const res = await invokeEdgeFn("send-green-api-message", {
@@ -290,10 +278,10 @@ async function sendOne(
         ...sendStamp,
       });
       return res.ok
-        ? { ok: true, messageId: res.json?.messageId }
+        ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
-    } catch (e: any) {
-      return { ok: false, error: String(e?.message || e).slice(0, 300) };
+    } catch (e) {
+      return { ok: false, error: String(errorMessage(e) || e).slice(0, 300) };
     }
   }
 
@@ -320,7 +308,7 @@ async function sendOne(
           ...recipientStamp,
         });
         return res.ok
-          ? { ok: true, messageId: res.json?.messageId }
+          ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
           : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
       }
       const res = await invokeEdgeFn("send-manus-wa-message", {
@@ -332,7 +320,7 @@ async function sendOne(
         ...recipientStamp,
       });
       return res.ok
-        ? { ok: true, messageId: res.json?.messageId }
+        ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
     }
 
@@ -350,7 +338,7 @@ async function sendOne(
         clientId,
       );
       return res.ok
-        ? { ok: true, messageId: res.json?.idMessage }
+        ? { ok: true, messageId: providerMessageId(res.json, "idMessage") }
         : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
     }
     const res = await invokeEdgeFn("send-green-api-message", {
@@ -361,10 +349,10 @@ async function sendOne(
       ...recipientStamp,
     });
     return res.ok
-      ? { ok: true, messageId: res.json?.messageId }
+      ? { ok: true, messageId: providerMessageId(res.json, "messageId") }
       : { ok: false, error: JSON.stringify(res.json).slice(0, 300) };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || e).slice(0, 300) };
+  } catch (e) {
+    return { ok: false, error: String(errorMessage(e) || e).slice(0, 300) };
   }
 }
 
@@ -374,9 +362,7 @@ Deno.serve(async (req) => {
 
   const startedAt = Date.now();
   try {
-    const db = createClient(SB_URL, SB_SERVICE, {
-      auth: { persistSession: false },
-    });
+    const db = serviceClient();
     const nowIso = new Date().toISOString();
     const startOfDayIso = nowIso.slice(0, 10) + "T00:00:00.000Z";
 
@@ -396,7 +382,7 @@ Deno.serve(async (req) => {
       .order("started_at", { ascending: true })
       .limit(200);
     for (const b of maybeDone || []) {
-      if (b.origin === "automation" && !b.audience_filter?.source) continue;
+      if (isAutomationStream(b)) continue;
       const { count } = await db
         .from("broadcast_recipients")
         .select("id", { count: "exact", head: true })
@@ -417,7 +403,11 @@ Deno.serve(async (req) => {
     );
     if (candidatesError) throw candidatesError;
 
-    const summary: any[] = [];
+    const summary: (
+      | { id: string; done: true }
+      | { id: string; capped: true }
+      | { id: string; sentThisRun: number; remainingPending: number }
+    )[] = [];
     let worked = 0;
 
     for (const b of sending || []) {
@@ -440,7 +430,7 @@ Deno.serve(async (req) => {
 
       if ((pendingCount ?? 0) === 0) {
         // Automation streams never complete; they wait for the next recipient.
-        if (b.origin === "automation" && !b.audience_filter?.source) continue;
+        if (isAutomationStream(b)) continue;
         await db
           .from("broadcasts")
           .update({ status: "sent", completed_at: nowIso })
@@ -552,15 +542,15 @@ Deno.serve(async (req) => {
         .select("stats")
         .eq("id", b.id)
         .maybeSingle();
-      const update: any = {
+      const update: TablesUpdate<"broadcasts"> = {
         stats: {
-          ...(fresh?.stats || {}),
+          ...storedStats(fresh?.stats),
           total: totalCnt ?? 0,
           sent: sentCnt ?? 0,
           failed: failCnt ?? 0,
         },
       };
-      const isStream = b.origin === "automation" && !b.audience_filter?.source;
+      const isStream = isAutomationStream(b);
       if ((stillPending ?? 0) === 0 && !isStream) {
         update.status = "sent";
         update.completed_at = new Date().toISOString();
@@ -578,11 +568,14 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, processed: summary.length, summary }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[broadcast-dispatch]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(
+      JSON.stringify({ error: String(errorMessage(e) || e) }),
+      {
+        status: 500,
+        headers: corsHeaders,
+      },
+    );
   }
 });

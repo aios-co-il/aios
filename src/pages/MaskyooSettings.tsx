@@ -38,12 +38,12 @@ export default function MaskyooSettings() {
     queryKey: ["maskyoo-settings", tenantId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("maskyoo_settings" as any)
+        .from("maskyoo_settings")
         .select("*")
         .eq("tenant_id", tenantId!)
         .maybeSingle();
       if (error) throw error;
-      return data as any;
+      return data;
     },
     enabled: !!tenantId,
   });
@@ -69,7 +69,7 @@ export default function MaskyooSettings() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!tenantId) throw new Error("Missing tenant");
-      const { error } = await supabase.from("maskyoo_settings" as any).upsert(
+      const { error } = await supabase.from("maskyoo_settings").upsert(
         {
           tenant_id: tenantId,
           base_url: baseUrl.trim(),
@@ -89,8 +89,7 @@ export default function MaskyooSettings() {
         queryKey: ["maskyoo-settings", tenantId],
       });
     },
-    onError: (e: any) =>
-      toast.error("שגיאה בשמירה", { description: e.message }),
+    onError: (e) => toast.error("שגיאה בשמירה", { description: e.message }),
   });
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

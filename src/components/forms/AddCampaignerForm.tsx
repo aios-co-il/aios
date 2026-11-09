@@ -92,14 +92,17 @@ export function AddCampaignerForm() {
 
       // Combine and remove duplicates
       const combined = [...(ownedAgencies || []), ...shared];
-      const uniqueMap = new Map();
+      const uniqueMap = new Map<
+        string,
+        NonNullable<(typeof combined)[number]>
+      >();
       combined.forEach((agency) => {
         if (agency && agency.id && !uniqueMap.has(agency.id)) {
           uniqueMap.set(agency.id, agency);
         }
       });
 
-      return Array.from(uniqueMap.values()).sort((a: any, b: any) =>
+      return Array.from(uniqueMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
       );
     },

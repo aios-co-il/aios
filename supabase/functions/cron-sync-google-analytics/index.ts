@@ -1,5 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { kickNextBatch } from "../_shared/kick-next-batch.ts";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
+
+type TableSyncResult = {
+  tableId: string;
+  status: string;
+  reason?: string;
+  tenantId?: string;
+  name?: string;
+  httpStatus?: number;
+  response?: string;
+  error?: string;
+};
 import {
   countCronTables,
   cronRunResponse,
@@ -21,7 +33,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   const startedAt = new Date().toISOString();
-  const results: any[] = [];
+  const results: TableSyncResult[] = [];
 
   // Process tables in batches and self-invoke the next batch, so a large number
   // of GA tables completes across chained invocations instead of timing out in
@@ -70,7 +82,7 @@ Deno.serve(async (req) => {
     const startDate = start.toISOString().split("T")[0];
 
     for (const t of tables || []) {
-      const settings = (t.integration_settings as any) || {};
+      const settings = asRecord(t.integration_settings);
       const integrationId = settings.integrationId || settings.integration_id;
       const propertyId = settings.propertyId || settings.property_id;
       if (!integrationId || !propertyId) {
@@ -98,7 +110,7 @@ Deno.serve(async (req) => {
         });
         continue;
       }
-      if ((integ.settings as any)?.needs_reauth) {
+      if (asRecord(integ.settings).needs_reauth) {
         results.push({
           tableId: t.id,
           status: "failed",
@@ -141,11 +153,11 @@ Deno.serve(async (req) => {
         } catch (_e) {
           /* non-fatal */
         }
-      } catch (err: any) {
+      } catch (err) {
         results.push({
           tableId: t.id,
           status: "error",
-          error: String(err?.message || err),
+          error: String(errorMessage(err) || err),
         });
         try {
           await supabase.rpc("record_integration_result", {
@@ -171,10 +183,10 @@ Deno.serve(async (req) => {
       { startedAt, batch_offset: batchOffset, total: results.length, results },
       corsHeaders,
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("[cron-ga] Fatal error:", error);
     return new Response(
-      JSON.stringify({ error: String(error?.message || error), results }),
+      JSON.stringify({ error: String(errorMessage(error) || error), results }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

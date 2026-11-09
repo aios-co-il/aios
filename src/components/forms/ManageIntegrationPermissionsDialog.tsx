@@ -131,7 +131,7 @@ export function ManageIntegrationPermissionsDialog({
           ) : tenantUsers && tenantUsers.length > 0 ? (
             <div className="space-y-2">
               {tenantUsers.map((tenantUser) => {
-                const profile = tenantUser.profiles as any;
+                const profile = tenantUser.profiles;
                 const isCurrentOwner = isOwner(tenantUser.user_id);
                 const hasAccess = hasPermission(tenantUser.user_id);
                 const isCurrentUser = tenantUser.user_id === userId;

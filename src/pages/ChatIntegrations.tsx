@@ -302,7 +302,7 @@ export default function ChatIntegrations() {
       });
       toast.success("סטטוס חיבור עודכן");
     },
-    onError: (error: any) => {
+    onError: (error) => {
       console.error("Toggle error:", error);
       toast.error("שגיאה בעדכון סטטוס האינטגרציה");
     },
@@ -576,7 +576,7 @@ export default function ChatIntegrations() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {permittedGreenApiIntegrations.map((integration: any) => (
+              {permittedGreenApiIntegrations.map((integration) => (
                 <div
                   key={integration.id}
                   className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
@@ -667,7 +667,7 @@ export default function ChatIntegrations() {
             </div>
           ) : (
             <div className="space-y-3">
-              {whatsappGroups.map((group: any) => (
+              {whatsappGroups.map((group) => (
                 <div
                   key={group.id}
                   className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
@@ -727,7 +727,9 @@ export default function ChatIntegrations() {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            navigator.clipboard.writeText(group.invite_link);
+                            navigator.clipboard.writeText(
+                              group.invite_link ?? "",
+                            );
                             toast.success("קישור הקבוצה הועתק");
                           }}
                         >

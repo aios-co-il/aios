@@ -310,13 +310,13 @@ export default function Integrations() {
     queryKey: ["wordpress-site-integration", currentTenantId],
     queryFn: async () => {
       if (!currentTenantId) return null;
-      const { data } = await (supabase
-        .from("social_media_wordpress_sites" as any)
+      const { data } = await supabase
+        .from("social_media_wordpress_sites")
         .select("id, woocommerce_enabled")
         .eq("tenant_id", currentTenantId)
         .eq("is_active", true)
         .limit(1)
-        .maybeSingle() as any);
+        .maybeSingle();
       return data;
     },
     enabled: !!currentTenantId,
@@ -361,7 +361,7 @@ export default function Integrations() {
     queryFn: async () => {
       if (!currentTenantId) return null;
       const { data } = await supabase
-        .from("maskyoo_settings" as any)
+        .from("maskyoo_settings")
         .select("*")
         .eq("tenant_id", currentTenantId)
         .maybeSingle();

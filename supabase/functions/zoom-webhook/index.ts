@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,18 +138,19 @@ Deno.serve(async (req) => {
       }
 
       const recordingFiles = meetingObject.recording_files || [];
-      const insertRows = recordingFiles.map((file: any) => ({
+      const insertRows = recordingFiles.map((file: unknown) => ({
         tenant_id: tenantId,
         meeting_id: String(meetingObject.id || meetingObject.uuid || ""),
         meeting_topic: meetingObject.topic || null,
         host_email: meetingObject.host_email || null,
         start_time: meetingObject.start_time || null,
         duration: meetingObject.duration || null,
-        recording_url: file.download_url || file.play_url || null,
+        recording_url:
+          getPath(file, "download_url") || getPath(file, "play_url") || null,
         recording_password:
           payload?.download_token || meetingObject.password || null,
-        recording_type: file.recording_type || null,
-        file_size: file.file_size || null,
+        recording_type: getPath(file, "recording_type") || null,
+        file_size: getPath(file, "file_size") || null,
       }));
 
       if (insertRows.length > 0) {

@@ -14,6 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { errorMessage } from "@/components/broadcast/templateUtils";
+import { jsonString } from "@/lib/jsonFields";
+import {
+  type BoardStage,
+  type BoardWorkItem,
+  type MarketingApprovalMode,
+} from "@/types/marketingPipeline";
 import {
   X,
   Send,
@@ -39,13 +46,14 @@ import {
   Zap,
   Hand,
   Edit,
+  type LucideIcon,
 } from "lucide-react";
 
 // ─── Stage identity ───────────────────────────────────────────────────────────
 const STAGE_CONFIG: Record<
   string,
   {
-    icon: any;
+    icon: LucideIcon;
     label: string;
     agentRole: string;
     headerBg: string;
@@ -128,7 +136,7 @@ const STAGE_CONFIG: Record<
 
 const STATUS_CONFIG: Record<
   string,
-  { label: string; icon: any; color: string; borderColor: string }
+  { label: string; icon: LucideIcon; color: string; borderColor: string }
 > = {
   draft: {
     label: "טיוטה",
@@ -189,13 +197,18 @@ function ModeToggle({
   stage,
   onUpdate,
 }: {
-  stage: any;
+  stage: BoardStage;
   onUpdate: (
     mode: Tables<"marketing_pipeline_stages">["approval_mode"],
   ) => void;
 }) {
   const current = stage.approval_mode ?? "hybrid";
-  const modes = [
+  const modes: {
+    key: MarketingApprovalMode;
+    label: string;
+    icon: LucideIcon;
+    activeClass: string;
+  }[] = [
     {
       key: "auto" as const,
       label: "אוטומטי",
@@ -288,8 +301,8 @@ function WorkItemCard({
   onReject,
   running,
 }: {
-  item: any;
-  stage: any;
+  item: BoardWorkItem;
+  stage: BoardStage;
   onSelect: () => void;
   onRun: () => void;
   onApprove: () => void;
@@ -301,6 +314,10 @@ function WorkItemCard({
   const StatusIcon = statusCfg.icon;
   const isRunning = item.status === "in_progress" || running;
   const isAwaiting = item.status === "waiting_approval";
+  const imageUrl = jsonString(item.payload, "image_url");
+  const brief = jsonString(item.payload, "brief");
+  const briefText = jsonString(item.payload, "brief_text");
+  const copyText = jsonString(item.payload, "copy_text");
 
   return (
     <div
@@ -316,12 +333,8 @@ function WorkItemCard({
       dir="rtl"
     >
       {/* Thumbnail */}
-      {item.payload?.image_url && (
-        <img
-          src={item.payload.image_url}
-          alt=""
-          className="w-full h-32 object-cover"
-        />
+      {imageUrl && (
+        <img src={imageUrl} alt="" className="w-full h-32 object-cover" />
       )}
 
       <div className="p-3 space-y-2">
@@ -357,13 +370,9 @@ function WorkItemCard({
         </div>
 
         {/* Copy preview (2 lines) */}
-        {(item.payload?.brief_text ||
-          item.payload?.brief ||
-          item.payload?.copy_text) && (
+        {(briefText || brief || copyText) && (
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-            {item.payload?.copy_text ??
-              item.payload?.brief_text ??
-              item.payload?.brief}
+            {copyText ?? briefText ?? brief}
           </p>
         )}
 
@@ -420,23 +429,23 @@ function WorkItemCard({
         {/* Expanded details */}
         {expanded && (
           <div className="border-t border-border/40 pt-2 space-y-2">
-            {item.payload?.brief && (
+            {brief && (
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
                   בריף
                 </div>
                 <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">
-                  {item.payload.brief}
+                  {brief}
                 </p>
               </div>
             )}
-            {item.payload?.copy_text && (
+            {copyText && (
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
                   קופי
                 </div>
                 <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-wrap">
-                  {item.payload.copy_text}
+                  {copyText}
                 </p>
               </div>
             )}
@@ -449,11 +458,11 @@ function WorkItemCard({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 interface Props {
-  stage: any;
+  stage: BoardStage;
   pipelineId: string;
   tenantId: string;
   clientId: string;
-  items: any[];
+  items: BoardWorkItem[];
   onClose: () => void;
   onSelectItem: (id: string) => void;
   onNewItem: () => void;
@@ -474,8 +483,8 @@ export function StageWorkspace({
   const Icon = cfg.icon;
   const agentName = stage.ai_agents?.name ?? "כרמן";
   const skinSlug =
-    stage.configuration?.skin ??
-    stage.configuration?.skin_slug ??
+    jsonString(stage.configuration, "skin") ??
+    jsonString(stage.configuration, "skin_slug") ??
     DEFAULT_SKIN_BY_STAGE[stage.stage_type] ??
     "campaigner";
 
@@ -513,12 +522,13 @@ export function StageWorkspace({
         .slice(0, 3)
         .map(
           (i) =>
-            `- ${i.title}: ${i.payload?.brief ?? i.payload?.copy_text ?? ""}`,
+            `- ${i.title}: ${jsonString(i.payload, "brief") ?? jsonString(i.payload, "copy_text") ?? ""}`,
         )
         .join("\n");
 
+      const stageInstructions = jsonString(stage.configuration, "instructions");
       const systemPrompt = `${cfg.systemHint}
-${stage.configuration?.instructions ? `הוראות ספציפיות לשלב: ${stage.configuration.instructions}` : ""}
+${stageInstructions ? `הוראות ספציפיות לשלב: ${stageInstructions}` : ""}
 ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
 ענה תמיד בעברית, בצורה מקצועית ועניינית.`;
 
@@ -567,10 +577,14 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         ...prev,
         { role: "assistant", content: reply, ts: Date.now() },
       ]);
-    } catch (e: any) {
+    } catch (e) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `שגיאה: ${e.message}`, ts: Date.now() },
+        {
+          role: "assistant",
+          content: `שגיאה: ${errorMessage(e)}`,
+          ts: Date.now(),
+        },
       ]);
     } finally {
       setChatLoading(false);
@@ -591,10 +605,10 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
       queryClient.invalidateQueries({
         queryKey: ["marketing-assets", itemId, tenantId],
       });
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בהרצה",
-        description: e.message,
+        description: errorMessage(e) || undefined,
         variant: "destructive",
       });
     } finally {
@@ -632,10 +646,10 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
       toast({
         title: nextStage ? "הפריט אושר והועבר לשלב הבא" : "הפריט אושר",
       });
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה באישור",
-        description: e.message,
+        description: errorMessage(e) || undefined,
         variant: "destructive",
       });
     }
@@ -651,10 +665,10 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         queryKey: ["marketing-items", pipelineId, tenantId],
       });
       toast({ title: "הפריט נדחה וחזר לטיוטה" });
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בדחייה",
-        description: e.message,
+        description: errorMessage(e) || undefined,
         variant: "destructive",
       });
     }
@@ -669,10 +683,10 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         .update({ approval_mode: mode })
         .eq("id", stage.id);
       toast({ title: `מצב עדכן ל-${mode}` });
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "שגיאה בעדכון מצב",
-        description: e.message,
+        description: errorMessage(e) || undefined,
         variant: "destructive",
       });
     }

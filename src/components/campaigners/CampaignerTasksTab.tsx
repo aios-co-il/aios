@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
+import type { RecurrenceFrequency } from "@/lib/taskRecurrence";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,12 +24,33 @@ interface CampaignerTasksTabProps {
 
 type DateFilter = "week" | "month" | "all";
 
+type DetailTask = NonNullable<ComponentProps<typeof TaskDetailDialog>["task"]>;
+
+const RECURRENCE_FREQUENCIES: readonly RecurrenceFrequency[] = [
+  "daily",
+  "weekly",
+  "monthly",
+];
+
+function toDetailTask(
+  task: Omit<DetailTask, "recurrence_frequency"> & {
+    recurrence_frequency?: string | null;
+  },
+): DetailTask {
+  const frequency = task.recurrence_frequency;
+  return {
+    ...task,
+    recurrence_frequency:
+      RECURRENCE_FREQUENCIES.find((f) => f === frequency) ?? null,
+  };
+}
+
 export function CampaignerTasksTab({
   campaignerId,
   campaignerName,
 }: CampaignerTasksTabProps) {
   const [dateFilter, setDateFilter] = useState<DateFilter>("month");
-  const [editingTask, setEditingTask] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<DetailTask | null>(null);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const { crossTenantAgencyIds } = useCrossTenantAgencyIds();
@@ -58,8 +80,8 @@ export function CampaignerTasksTab({
         new Set((collabRows || []).map((row) => row.task_id)),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const applyTabFilters = (q: any) => {
+      const tasksQuery = () => {
+        let q = supabase.from("tasks").select(TASK_SELECT);
         if (crossTenantAgencyIds.length > 0) {
           q = q.or(
             `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`,
@@ -79,25 +101,17 @@ export function CampaignerTasksTab({
         return q;
       };
 
-      const { data, error } = await applyTabFilters(
-        supabase
-          .from("tasks")
-          .select(TASK_SELECT)
-          .eq("campaigner_id", campaignerId)
-          .order("due_date", { ascending: false }),
-      );
+      const { data, error } = await tasksQuery()
+        .eq("campaigner_id", campaignerId)
+        .order("due_date", { ascending: false });
       if (error) throw error;
       let rows = data || [];
-      const have = new Set(rows.map((task: { id: string }) => task.id));
+      const have = new Set(rows.map((task) => task.id));
       const missing = collaboratorTaskIds.filter((id) => !have.has(id));
       for (const chunk of chunkIds(missing)) {
-        const { data: extra, error: extraError } = await applyTabFilters(
-          supabase
-            .from("tasks")
-            .select(TASK_SELECT)
-            .in("id", chunk)
-            .order("due_date", { ascending: false }),
-        );
+        const { data: extra, error: extraError } = await tasksQuery()
+          .in("id", chunk)
+          .order("due_date", { ascending: false });
         if (extraError) throw extraError;
         rows = rows.concat(extra || []);
       }
@@ -203,7 +217,7 @@ export function CampaignerTasksTab({
                   key={task.id}
                   task={task}
                   isCompleted={false}
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toDetailTask(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,
@@ -241,7 +255,7 @@ export function CampaignerTasksTab({
                   key={task.id}
                   task={task}
                   isCompleted
-                  onEdit={() => setEditingTask(task)}
+                  onEdit={() => setEditingTask(toDetailTask(task))}
                   onToggleComplete={() =>
                     updateStatusMutation.mutate({
                       taskId: task.id,

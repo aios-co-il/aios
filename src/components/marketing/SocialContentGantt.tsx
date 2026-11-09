@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { isJsonObject, jsonString } from "@/lib/jsonFields";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { Constants, type TablesUpdate } from "@/integrations/supabase/types";
 import {
@@ -74,7 +76,7 @@ interface WorkItem {
   title: string;
   status: string;
   scheduled_date: string | null;
-  payload: Record<string, any>;
+  payload: Json;
   current_stage_id: string | null;
   target_channel?: string | null;
   marketing_pipeline_stages?: { name: string; stage_type: string } | null;
@@ -338,9 +340,10 @@ function PostChip({
   onSelect?: (e: React.MouseEvent) => void;
 }) {
   const cfg = statusConfig[item.status] ?? statusConfig.draft;
-  const channel = item.payload?.channel ?? item.target_channel ?? "general";
+  const channel =
+    jsonString(item.payload, "channel") ?? item.target_channel ?? "general";
   const chCfg = channelConfig[channel] ?? channelConfig.general;
-  const imageUrl = item.payload?.image_url;
+  const imageUrl = jsonString(item.payload, "image_url");
 
   return (
     <button
@@ -392,9 +395,12 @@ function PostDetailDialog({
 
   if (!item) return null;
 
-  const imageUrl = item.payload?.image_url;
-  const copyText = item.payload?.copy_text ?? item.payload?.brief_text;
-  const channel = item.payload?.channel ?? item.target_channel ?? "general";
+  const imageUrl = jsonString(item.payload, "image_url");
+  const copyText =
+    jsonString(item.payload, "copy_text") ??
+    jsonString(item.payload, "brief_text");
+  const channel =
+    jsonString(item.payload, "channel") ?? item.target_channel ?? "general";
   const chCfg = channelConfig[channel] ?? channelConfig.general;
 
   return (
@@ -601,7 +607,7 @@ function NewItemDialog({
       setCopy("");
       setChannels(["instagram"]);
       setAutoRun(false);
-    } catch (e: any) {
+    } catch {
       toast.error("שגיאה ביצירת פריט");
     } finally {
       setSaving(false);
@@ -741,22 +747,31 @@ function ListItemRow({
 }) {
   const [editingCopy, setEditingCopy] = useState(false);
   const [copyDraft, setCopyDraft] = useState(
-    item.payload?.copy_text ?? item.payload?.brief_text ?? "",
+    jsonString(item.payload, "copy_text") ??
+      jsonString(item.payload, "brief_text") ??
+      "",
   );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const cfg = statusConfig[item.status] ?? statusConfig.draft;
-  const channel = item.payload?.channel ?? item.target_channel ?? "general";
+  const channel =
+    jsonString(item.payload, "channel") ?? item.target_channel ?? "general";
   const chCfg = channelConfig[channel] ?? channelConfig.general;
-  const imageUrl = item.payload?.image_url;
-  const copyText = item.payload?.copy_text ?? item.payload?.brief_text ?? "";
+  const imageUrl = jsonString(item.payload, "image_url");
+  const copyText =
+    jsonString(item.payload, "copy_text") ??
+    jsonString(item.payload, "brief_text") ??
+    "";
   const preview =
     copyText.length > 100 ? copyText.slice(0, 100) + "…" : copyText;
 
   const handleCopySave = () => {
     setEditingCopy(false);
     if (copyDraft !== copyText) {
-      const newPayload = { ...(item.payload ?? {}), copy_text: copyDraft };
+      const newPayload = {
+        ...(isJsonObject(item.payload) ? item.payload : {}),
+        copy_text: copyDraft,
+      };
       onUpdate(item.id, { payload: newPayload });
     }
   };
@@ -1050,7 +1065,8 @@ export function SocialContentGantt({
   const filteredItems = useMemo(() => {
     if (platformFilter === "all") return items;
     return items.filter((item) => {
-      const ch = item.payload?.channel ?? item.target_channel ?? "general";
+      const ch =
+        jsonString(item.payload, "channel") ?? item.target_channel ?? "general";
       return ch === platformFilter;
     });
   }, [items, platformFilter]);

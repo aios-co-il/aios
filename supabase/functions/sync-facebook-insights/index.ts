@@ -13,6 +13,30 @@ import {
   latestCampaignUpdatedTime,
 } from "../_shared/fbInsights.ts";
 import {
+  getArray,
+  getPath,
+  getString,
+  isJsonObject,
+} from "../_shared/provider-json.ts";
+
+interface AdsetRow {
+  id?: string;
+  campaign_id?: string;
+  optimization_goal?: string;
+  promoted_object?: unknown;
+}
+
+function adsetRows(payload: unknown): AdsetRow[] {
+  return getArray(payload, "data")
+    .filter(isJsonObject)
+    .map((row) => ({
+      id: getString(row, "id"),
+      campaign_id: getString(row, "campaign_id"),
+      optimization_goal: getString(row, "optimization_goal"),
+      promoted_object: row.promoted_object,
+    }));
+}
+import {
   buildDestinationTypeMaps,
   fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
@@ -427,7 +451,7 @@ Deno.serve(async (req) => {
       .select("key")
       .eq("table_id", table_id);
     const existingFieldKeys = new Set(
-      (existingFields || []).map((f: any) => f.key),
+      (existingFields || []).map((f: { key: string }) => f.key),
     );
     const fieldsToInsert = fieldKeys
       .map((key, i) => ({
@@ -493,14 +517,16 @@ Deno.serve(async (req) => {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in sync-facebook-insights:", error);
     await recordFailure?.(
       error instanceof Error ? error.message : String(error),
     );
     // Upstream errors can print the request URL, Meta access token included.
     return new Response(
-      JSON.stringify({ error: redactSyncError(error?.message ?? error) }),
+      JSON.stringify({
+        error: redactSyncError(getPath(error, "message") ?? error),
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

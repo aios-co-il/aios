@@ -23,6 +23,20 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, TablesInsert } from "../_shared/database.types.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
+import { getPath } from "../_shared/provider-json.ts";
+
+interface ResolvedPageResult {
+  page_id: string;
+  page_name: unknown;
+  category: unknown;
+  picture_url: unknown;
+  ig_id: unknown;
+  ig_username: unknown;
+  source: string;
+  upserted: boolean;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +49,7 @@ const FB_VERSION = "v21.0";
 const FB_BASE = `https://graph.facebook.com/${FB_VERSION}`;
 
 async function getFbToken(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<string | null> {
   // Try own integration first, then shared
@@ -151,7 +165,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
+    const supabase = createClient<Database>(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
@@ -205,7 +219,7 @@ Deno.serve(async (req) => {
     const pageDetails = await fetchPageDetails(resolved.page_id, token);
     const igAccount = pageDetails?.instagram_business_account;
 
-    const result: Record<string, any> = {
+    const result: ResolvedPageResult = {
       page_id: resolved.page_id,
       page_name: pageDetails?.name ?? null,
       category: pageDetails?.category ?? null,
@@ -219,7 +233,7 @@ Deno.serve(async (req) => {
     // Auto-upsert into social_pages
     if (auto_upsert) {
       // Facebook page
-      const fbRow: Record<string, any> = {
+      const fbRow: TablesInsert<"social_pages"> = {
         tenant_id,
         client_id: client_id ?? null,
         platform: "facebook",
@@ -237,7 +251,7 @@ Deno.serve(async (req) => {
 
       // Instagram account
       if (igAccount?.id) {
-        const igRow: Record<string, any> = {
+        const igRow: TablesInsert<"social_pages"> = {
           tenant_id,
           client_id: client_id ?? null,
           platform: "instagram",
@@ -259,10 +273,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("resolve-meta-page-from-ad-account error:", err);
     return new Response(
-      JSON.stringify({ error: err?.message ?? String(err) }),
+      JSON.stringify({ error: getPath(err, "message") ?? String(err) }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -212,7 +212,7 @@ export function CalendarIframeSettings() {
       setEventStart("");
       setEventEnd("");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || "שגיאה בהוספת אירוע");
     },
   });

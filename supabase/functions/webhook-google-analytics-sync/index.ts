@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getPath } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +24,24 @@ interface GoogleAnalyticsRecord {
   page_path?: string;
   page_title?: string;
   // Additional metrics
+  transactions?: number;
+  revenue?: number;
+  conversion_rate?: number;
+}
+
+interface GaRecordData {
+  date?: string;
+  source_medium?: string;
+  campaign?: string;
+  sessions?: number;
+  users?: number;
+  new_users?: number;
+  pageviews?: number;
+  bounce_rate?: number;
+  avg_session_duration?: number;
+  pages_per_session?: number;
+  page_path?: string;
+  page_title?: string;
   transactions?: number;
   revenue?: number;
   conversion_rate?: number;
@@ -142,7 +161,7 @@ Deno.serve(async (req) => {
       .eq("table_id", table_id);
 
     const existingKeys = new Set(
-      (existingFieldsRes.data || []).map((f: any) => f.key),
+      (existingFieldsRes.data || []).map((f: { key: string }) => f.key),
     );
 
     const fieldsToInsert = GA_FIELDS.filter(
@@ -173,7 +192,7 @@ Deno.serve(async (req) => {
 
     for (const record of records) {
       // Build record data
-      const recordData: Record<string, any> = {};
+      const recordData: GaRecordData = {};
 
       // Map incoming data to our field structure
       if (record.date) recordData.date = record.date;
@@ -208,7 +227,7 @@ Deno.serve(async (req) => {
         recordData.conversion_rate = Number(record.conversion_rate) || 0;
 
       // Check for existing record by date + source_medium
-      const matchCondition: Record<string, any> = { table_id };
+      const matchCondition = { table_id };
 
       if (recordData.date && recordData.source_medium) {
         // Try to find existing record with same date and source
@@ -218,9 +237,9 @@ Deno.serve(async (req) => {
           .eq("table_id", table_id);
 
         const existingRecord = existingRecords?.find(
-          (r: any) =>
-            r.data?.date === recordData.date &&
-            r.data?.source_medium === recordData.source_medium,
+          (r: { data: unknown }) =>
+            getPath(r.data, "date") === recordData.date &&
+            getPath(r.data, "source_medium") === recordData.source_medium,
         );
 
         if (existingRecord) {

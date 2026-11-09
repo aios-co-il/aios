@@ -60,6 +60,30 @@ import { Label } from "@/components/ui/label";
 import { EditClientDialog } from "@/components/forms/EditClientDialog";
 import { addMonths, format, subMonths } from "date-fns";
 import { he } from "date-fns/locale";
+import {
+  Constants,
+  type Database,
+  type Json,
+} from "@/integrations/supabase/types";
+
+type ClientStatus = Database["public"]["Enums"]["client_status"];
+
+const isClientStatus = (value: string): value is ClientStatus =>
+  (Constants.public.Enums.client_status as readonly string[]).includes(value);
+
+type FinanceExpenseItem = {
+  id: string;
+  category: string | null;
+  amount: number;
+};
+
+type SupplierExpenseRow = {
+  id: string;
+  supplier_name: string;
+  agency_name: string;
+  agency_id: string | null;
+  amount: number;
+};
 
 const getMonthOptions = () => {
   const months = [];
@@ -87,7 +111,9 @@ export default function AccountingIntegrations() {
   const [selectedMonth, setSelectedMonth] = useState(() =>
     format(subMonths(new Date(), 1), "yyyy-MM"),
   );
-  const [editingClient, setEditingClient] = useState<any | null>(null);
+  const [editingClient, setEditingClient] = useState<AccountingClient | null>(
+    null,
+  );
   const [typeFilter, setTypeFilter] = useState<string[]>([
     "retainer",
     "one_time",
@@ -176,7 +202,7 @@ export default function AccountingIntegrations() {
             .select("client_id, retainer, monthly_budget")
             .eq("tenant_id", currentTenantId)
             .in("client_id", clientIds)
-        : { data: [] as any[] };
+        : { data: [] };
 
       const financialMap = new Map(
         (financialData || []).map((f) => [f.client_id, f]),
@@ -305,6 +331,9 @@ export default function AccountingIntegrations() {
     enabled: !!currentTenantId,
   });
 
+  type AccountingClient = NonNullable<typeof clients>[number];
+  type OneTimeIncome = NonNullable<typeof oneTimeIncomes>[number];
+
   // Create one-time income
   const createOneTimeIncome = useMutation({
     mutationFn: async (data: {
@@ -373,9 +402,12 @@ export default function AccountingIntegrations() {
       clientId: string;
       status: string;
     }) => {
+      if (!isClientStatus(status)) {
+        throw new Error(`Invalid client status: ${status}`);
+      }
       const { error } = await supabase
         .from("clients")
-        .update({ status: status as any })
+        .update({ status })
         .eq("id", clientId);
       if (error) throw error;
     },
@@ -391,7 +423,10 @@ export default function AccountingIntegrations() {
   });
 
   // Helpers to detect SEO clients (kept for legacy display purposes)
-  const isSeoClient = (c: any) =>
+  const isSeoClient = (c: {
+    is_seo_client?: boolean | null;
+    services?: Json | null;
+  }) =>
     !!c?.is_seo_client ||
     (Array.isArray(c?.services) && c.services.includes("seo"));
 
@@ -400,20 +435,20 @@ export default function AccountingIntegrations() {
   // up in the accounting table for every month, unless a finance row with
   // category 'הוצאה קבועה' already exists for that client+month (override).
   const syntheticSeoExpenses = useMemo(() => {
-    if (!clients) return [] as Array<any>;
+    if (!clients) return [];
     const haveFixedFinance = new Set(
       (financeExpenses || [])
-        .filter((e: any) => (e.category || "") === "הוצאה קבועה")
-        .map((e: any) => e.client_id)
+        .filter((e) => (e.category || "") === "הוצאה קבועה")
+        .map((e) => e.client_id)
         .filter(Boolean),
     );
     return clients
       .filter(
-        (c: any) =>
+        (c) =>
           Number(c?.monthly_fixed_expense || 0) > 0 &&
           !haveFixedFinance.has(c.id),
       )
-      .map((c: any) => ({
+      .map((c) => ({
         id: `auto-fixed-${c.id}-${selectedMonth}`,
         client_id: c.id,
         agency_id: c.agency_id,
@@ -454,7 +489,7 @@ export default function AccountingIntegrations() {
   }, [campaignerPayments, financeExpenses, syntheticSeoExpenses]);
 
   const clientFinanceExpensesMap = useMemo(() => {
-    const map = new Map<string, Array<any>>();
+    const map = new Map<string, FinanceExpenseItem[]>();
     financeExpenses?.forEach((expense) => {
       if (!expense.client_id) return;
       const list = map.get(expense.client_id) || [];
@@ -471,7 +506,7 @@ export default function AccountingIntegrations() {
 
   // One-time incomes grouped by client
   const clientOneTimeMap = useMemo(() => {
-    const map = new Map<string, Array<any>>();
+    const map = new Map<string, OneTimeIncome[]>();
     oneTimeIncomes?.forEach((oti) => {
       const list = map.get(oti.client_id) || [];
       list.push(oti);
@@ -482,14 +517,14 @@ export default function AccountingIntegrations() {
 
   // Build supplier expense rows (each non-zero payment slot becomes a row)
   const supplierExpenseRows = useMemo(() => {
-    if (!suppliers) return [] as Array<any>;
-    const rows: any[] = [];
-    suppliers.forEach((s: any) => {
-      [1, 2, 3].forEach((i) => {
-        const amount = Number(s[`payment_${i}`] || 0);
+    if (!suppliers) return [];
+    const rows: SupplierExpenseRow[] = [];
+    suppliers.forEach((s) => {
+      ([1, 2, 3] as const).forEach((i) => {
+        const amount = Number(s[`payment_${i}` as const] || 0);
         if (amount <= 0) return;
-        const agency = s[`agency_${i}`];
-        const agencyId = s[`agency_id_${i}`];
+        const agency = s[`agency_${i}` as const];
+        const agencyId = s[`agency_id_${i}` as const];
         if (agencyFilter && agencyFilter !== "all" && agencyId !== agencyFilter)
           return;
         rows.push({
@@ -524,7 +559,10 @@ export default function AccountingIntegrations() {
   // has an explicit end_date inside/after that month. Without an end_date we
   // can't claim it was active then — otherwise every paused/ended client
   // without an end_date leaks into every month.
-  const wasActiveInMonth = (client: any) => {
+  const wasActiveInMonth = (client: {
+    end_date: string | null;
+    start_date: string | null;
+  }) => {
     const { monthStart, monthEnd } = monthRange;
     if (!client.end_date) return false;
     const ed = new Date(client.end_date);
@@ -621,9 +659,7 @@ export default function AccountingIntegrations() {
   const totalOneTime = showOneTime
     ? filteredClients.reduce((sum, c) => {
         const items = clientOneTimeMap.get(c.id) || [];
-        return (
-          sum + items.reduce((s: number, i: any) => s + (i.amount || 0), 0)
-        );
+        return sum + items.reduce((s, i) => s + (i.amount || 0), 0);
       }, 0)
     : 0;
   const totalIncome = totalRetainer + totalOneTime;
@@ -885,7 +921,7 @@ export default function AccountingIntegrations() {
                           const oneTimeItems =
                             clientOneTimeMap.get(client.id) || [];
                           const oneTimeTotal = oneTimeItems.reduce(
-                            (s: number, i: any) => s + (i.amount || 0),
+                            (s, i) => s + (i.amount || 0),
                             0,
                           );
 
@@ -903,14 +939,14 @@ export default function AccountingIntegrations() {
                                   </Button>
                                   {(client.status === "paused" ||
                                     client.status === "ended") &&
-                                    (client as any).end_date && (
+                                    client.end_date && (
                                       <Badge
                                         variant="secondary"
                                         className="text-[10px]"
                                       >
                                         היה פעיל עד{" "}
                                         {format(
-                                          new Date((client as any).end_date),
+                                          new Date(client.end_date),
                                           "dd/MM/yyyy",
                                         )}
                                       </Badge>
@@ -918,7 +954,7 @@ export default function AccountingIntegrations() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">
-                                {(client.agencies as any)?.name || "-"}
+                                {client.agencies?.name || "-"}
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button
@@ -970,7 +1006,7 @@ export default function AccountingIntegrations() {
                               <TableCell className="text-right">
                                 {oneTimeItems.length > 0 ? (
                                   <div className="space-y-1">
-                                    {oneTimeItems.map((oti: any) => (
+                                    {oneTimeItems.map((oti) => (
                                       <div
                                         key={oti.id}
                                         className="flex items-center gap-2 text-sm"
@@ -1169,7 +1205,7 @@ export default function AccountingIntegrations() {
                   <SelectValue placeholder="בחר לקוח" />
                 </SelectTrigger>
                 <SelectContent>
-                  {clients?.map((client: any) => (
+                  {clients?.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
                     </SelectItem>

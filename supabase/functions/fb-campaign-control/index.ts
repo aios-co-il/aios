@@ -1,5 +1,9 @@
 // Updates Facebook campaign budget or duplicates a campaign. Write ops with audit log.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  createClient,
+  type SupabaseClient,
+} from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { asRecord, errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +14,7 @@ const corsHeaders = {
 
 // Deployed with carmen FB campaign tooling (analyze + selective ad enable).
 async function getFbToken(
-  supabase: any,
+  supabase: SupabaseClient,
   tenant_id: string,
 ): Promise<string | null> {
   let { data: integ } = await supabase
@@ -87,7 +91,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: corsHeaders },
       );
 
-    let result: any = null;
+    let result: unknown = null;
 
     if (action === "update_budget") {
       const params = new URLSearchParams({ access_token: token });
@@ -112,9 +116,10 @@ Deno.serve(async (req) => {
         body: params,
       });
       result = await r.json();
-      if (result?.error)
+      const updateError = asRecord(result).error;
+      if (updateError)
         return new Response(
-          JSON.stringify({ error: "fb_api_error", fb_error: result.error }),
+          JSON.stringify({ error: "fb_api_error", fb_error: updateError }),
           { status: 400, headers: corsHeaders },
         );
     } else if (action === "duplicate") {
@@ -133,9 +138,10 @@ Deno.serve(async (req) => {
         { method: "POST", body: params },
       );
       result = await r.json();
-      if (result?.error)
+      const copyError = asRecord(result).error;
+      if (copyError)
         return new Response(
-          JSON.stringify({ error: "fb_api_error", fb_error: result.error }),
+          JSON.stringify({ error: "fb_api_error", fb_error: copyError }),
           { status: 400, headers: corsHeaders },
         );
     } else {
@@ -159,17 +165,17 @@ Deno.serve(async (req) => {
       })
       .then(
         () => {},
-        (e: any) => console.warn("audit log failed", e),
+        (e: unknown) => console.warn("audit log failed", e),
       );
 
     return new Response(
       JSON.stringify({ success: true, action, campaign_id, before, result }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("[fb-campaign-control]", err);
     return new Response(
-      JSON.stringify({ error: String(err?.message || err) }),
+      JSON.stringify({ error: String(errorMessage(err) || err) }),
       { status: 500, headers: corsHeaders },
     );
   }

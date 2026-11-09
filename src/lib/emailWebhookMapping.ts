@@ -16,6 +16,12 @@ export function extractTemplateVariables(
 
 export type EmailFieldUsage = "subject" | "body" | "recipient";
 
+export type EmailMappingConfiguration = {
+  subject_template?: string | null;
+  body_template?: string | null;
+  email_recipients?: unknown;
+};
+
 export type EmailMappedField = {
   key: string;
   label: string;
@@ -50,7 +56,7 @@ function sampleValueForKey(key: string): string {
 }
 
 export function collectEmailMappedFields(
-  configuration: Record<string, any>,
+  configuration: EmailMappingConfiguration,
   availableFields: { key: string; label: string }[],
 ): EmailMappedField[] {
   const labelByKey = new Map(availableFields.map((f) => [f.key, f.label]));

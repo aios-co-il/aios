@@ -74,8 +74,8 @@ export function ListFileImport({ listId }: { listId: string }) {
       setHeaders(parsed.headers);
       setRows(parsed.rows);
       setMap(parsed.headers.map(guess));
-    } catch (e: any) {
-      toast.error("לא הצלחתי לקרוא את הקובץ: " + (e?.message || ""));
+    } catch (e) {
+      toast.error("לא הצלחתי לקרוא את הקובץ: " + errorMessage(e));
     }
   };
 

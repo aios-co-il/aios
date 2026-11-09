@@ -188,8 +188,34 @@ export const CREATIVE_STUDIO_TOOLS = [
 export const isCreativeStudioTool = (name: string) =>
   CREATIVE_STUDIO_TOOLS.some((tool) => tool.name === name);
 
-// deno-lint-ignore no-explicit-any
-type Db = any;
+type QueryResult = { data: unknown; error: { message: string } | null };
+
+export interface CreativeStudioQuery extends PromiseLike<QueryResult> {
+  select(columns: string): CreativeStudioQuery;
+  eq(
+    column: "id" | "item_id" | "tenant_id",
+    value: unknown,
+  ): CreativeStudioQuery;
+  order(column: string): CreativeStudioQuery;
+  single(): PromiseLike<QueryResult>;
+  maybeSingle(): PromiseLike<QueryResult>;
+}
+
+export interface CreativeStudioTable {
+  select(columns: string): CreativeStudioQuery;
+  update(values: Record<string, unknown>): CreativeStudioQuery;
+  insert(values: Record<string, unknown>): CreativeStudioQuery;
+  delete(): CreativeStudioQuery;
+}
+
+/** Only the builder methods the studio tools call; the generated-schema client satisfies it. */
+export interface CreativeStudioDb {
+  from(
+    table: "marketing_work_items" | "marketing_video_scenes",
+  ): CreativeStudioTable;
+}
+
+type Db = CreativeStudioDb;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -545,7 +571,7 @@ export async function executeCreativeStudioTool(
       return {
         added: true,
         scene_number: after + 1,
-        ui_action: { type: "focus_scene", scene_id: data?.id },
+        ui_action: { type: "focus_scene", scene_id: asRecord(data).id },
       };
     }
 

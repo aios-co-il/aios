@@ -1,6 +1,7 @@
 // Campaign Scheduler Cron — picks campaign_schedules rows whose next_run_at has arrived
 // and executes pause/resume via carmen-fb-tools / carmen-google-tools.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { errorMessage } from "../_shared/provider-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,7 @@ function naiveNextRun(
   return null;
 }
 
-async function invokeEdgeFn(name: string, payload: any) {
+async function invokeEdgeFn(name: string, payload: Record<string, unknown>) {
   const r = await fetch(`${SB_URL}/functions/v1/${name}`, {
     method: "POST",
     headers: {
@@ -73,7 +74,7 @@ async function invokeEdgeFn(name: string, payload: any) {
     },
     body: JSON.stringify(payload),
   });
-  const json = await r.json().catch(() => ({}));
+  const json: unknown = await r.json().catch(() => ({}));
   return { ok: r.ok, json };
 }
 
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
       .lte("next_run_at", nowIso)
       .limit(50);
 
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
     for (const row of due || []) {
       const route = pickFn(row.entity_type);
       if (!route) {
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         tenant_id: row.tenant_id,
         action: row.action,
         confirmed: true,
@@ -166,9 +167,10 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: true, processed: results.length, results }),
       { status: 200, headers: corsHeaders },
     );
-  } catch (e: any) {
+  } catch (e) {
     console.error("[campaign-scheduler-cron]", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+    const message = String(errorMessage(e) || e);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: corsHeaders,
     });

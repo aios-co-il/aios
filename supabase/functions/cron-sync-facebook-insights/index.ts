@@ -24,6 +24,27 @@ import {
   type SyncWindow,
 } from "../_shared/report-sync-window.ts";
 import {
+  asArray,
+  asRecord,
+  asRecords,
+  errorMessage,
+  optString,
+} from "../_shared/provider-json.ts";
+
+type AdsetRow = {
+  id?: string;
+  campaign_id?: string;
+  optimization_goal?: string;
+  promoted_object?: unknown;
+};
+
+const toAdsetRow = (row: Record<string, unknown>): AdsetRow => ({
+  id: optString(row.id),
+  campaign_id: optString(row.campaign_id),
+  optimization_goal: optString(row.optimization_goal),
+  promoted_object: row.promoted_object,
+});
+import {
   isWriteSuccess,
   scheduledMarkerPatch,
 } from "../_shared/ads-sync/outcome.ts";
@@ -56,14 +77,17 @@ Deno.serve(async (req) => {
     );
 
     // Parse batch params
-    let body: any = {};
+    let body: unknown = {};
     try {
       body = await req.json();
     } catch {
       // Missing or invalid batch parameters use the default full sync below.
     }
-    const batchOffset = body.batch_offset || 0;
-    const tableIds: string[] | null = body.table_ids || null;
+    const batchOffset = Number(asRecord(body).batch_offset) || 0;
+    const rawTableIds = asRecord(body).table_ids;
+    const tableIds: string[] | null = Array.isArray(rawTableIds)
+      ? rawTableIds.filter((id): id is string => typeof id === "string")
+      : null;
 
     // Get Facebook Insights tables
     let query = supabase
@@ -266,7 +290,7 @@ Deno.serve(async (req) => {
           .select("key")
           .eq("table_id", table.id);
         const existingFieldKeys = new Set(
-          (existingFields || []).map((f: any) => f.key),
+          (existingFields || []).map((f: { key: string }) => f.key),
         );
         const fieldsToInsert = fieldKeys
           .map((key, i) => ({
@@ -442,8 +466,11 @@ Deno.serve(async (req) => {
               `🚨 ${taskTitle}\n${statusLabel}${accountDisableReason ? ` — ${accountDisableReason}` : ""}\nחשבון: ${adAccountId}`,
             );
           }
-        } catch (billingErr: any) {
-          console.error(`[billing-alert] ${table.name}:`, billingErr?.message);
+        } catch (billingErr) {
+          console.error(
+            `[billing-alert] ${table.name}:`,
+            errorMessage(billingErr),
+          );
         }
 
         // === Campaign-level status alerts (official Facebook signals) ===
@@ -528,18 +555,17 @@ Deno.serve(async (req) => {
                   const issuesRes = await fetch(
                     `https://graph.facebook.com/v21.0/${campaign.id}?fields=issues_info&access_token=${accessToken}`,
                   );
-                  const issuesData = await issuesRes.json();
-                  if (
-                    Array.isArray(issuesData?.issues_info) &&
-                    issuesData.issues_info.length > 0
-                  ) {
+                  const issuesInfo = asArray(
+                    asRecord(await issuesRes.json()).issues_info,
+                  );
+                  if (issuesInfo.length > 0) {
                     extraInfo =
                       "\n\nפרטי הבעיה: " +
-                      issuesData.issues_info
-                        .map(
-                          (i: any) =>
-                            i.error_summary || i.error_message || i.level,
-                        )
+                      issuesInfo
+                        .map((issue) => {
+                          const i = asRecord(issue);
+                          return i.error_summary || i.error_message || i.level;
+                        })
                         .filter(Boolean)
                         .join(" | ");
                   }
@@ -561,10 +587,10 @@ Deno.serve(async (req) => {
               }
             }
           }
-        } catch (statusErr: any) {
+        } catch (statusErr) {
           console.error(
             `[campaign-status-alert] ${table.name}:`,
-            statusErr?.message,
+            errorMessage(statusErr),
           );
         }
 
@@ -649,8 +675,8 @@ Deno.serve(async (req) => {
               }
             }
           }
-        } catch (zeroErr: any) {
-          console.error(`[spend-drop] ${table.name}:`, zeroErr?.message);
+        } catch (zeroErr) {
+          console.error(`[spend-drop] ${table.name}:`, errorMessage(zeroErr));
         }
 
         // === Check report_alerts and trigger automations ===
@@ -732,7 +758,8 @@ Deno.serve(async (req) => {
                   if (!problemStatuses.includes(agg.effective_status)) continue;
                   currentValue = agg.effective_status;
                 } else {
-                  currentValue = (agg as any)[metric] || 0;
+                  const aggValues: Record<string, number | string> = agg;
+                  currentValue = aggValues[metric] || 0;
                   const threshold = alert.threshold;
                   const op = alert.operator; // '>', '<', '>=', '<='
                   let triggered = false;
@@ -809,16 +836,16 @@ Deno.serve(async (req) => {
               }
             }
           }
-        } catch (alertError: any) {
+        } catch (alertError) {
           console.error(
             `⚠️ Error checking alerts for ${table.name}:`,
-            alertError.message,
+            errorMessage(alertError),
           );
         }
-      } catch (tableError: any) {
+      } catch (tableError) {
         console.error(
           `❌ Error syncing table ${table.name}:`,
-          tableError.message,
+          errorMessage(tableError),
         );
         if (!runRecorded) {
           await failedRunRecorder(supabase, {
@@ -832,7 +859,7 @@ Deno.serve(async (req) => {
           );
         }
         results.failed++;
-        results.errors.push(`${table.name}: ${tableError.message}`);
+        results.errors.push(`${table.name}: ${errorMessage(tableError)}`);
       }
     }
 
@@ -882,9 +909,9 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("❌ Cron sync error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: errorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
