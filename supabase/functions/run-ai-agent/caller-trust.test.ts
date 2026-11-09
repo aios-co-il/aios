@@ -1,3 +1,4 @@
+import { readRunSource } from "./run-source-fixture.ts";
 import {
   assert,
   assertEquals,
@@ -189,40 +190,43 @@ Deno.test("automation and task runs: source guards", async (t) => {
   await t.step(
     "run-ai-agent refuses approval decisions outside a person's message",
     () => {
-      const flow = agent.slice(
-        agent.indexOf("// ─── Chat approval flow (AIO-230)"),
-        agent.indexOf("// Deterministic path: meeting join URL"),
-      );
+      const flow =
+        readRunSource("pick-run-approval") +
+        "\n" +
+        readRunSource("execute-run-approval");
       assert(flow.length > 0);
       assertStrictEquals(flow.split("mayDecideApprovals &&").length - 1, 2);
       assertMatch(
-        agent,
-        /const mayDecideApprovals = runMayDecideApprovals\(bodyJson, surface\);/,
+        readRunSource("initialize-run"),
+        /mayDecideApprovals = runMayDecideApprovals\(\s*bodyJson,\s*surface,?\s*\);/,
       );
-      const guard = agent.indexOf(
+      const loop = readRunSource("execute-model-tool");
+      const guard = loop.indexOf(
         "} else if (!mayDecideApprovals && isApprovalDecisionTool(toolName)) {",
       );
-      const loopExec = agent.search(/result = await executeTool\(\s*toolName,/);
+      const loopExec = loop.search(/result = await executeTool\(\s*toolName,/);
       assert(guard > 0 && loopExec > guard && loopExec - guard < 1500);
       assertMatch(
-        agent,
+        readRunSource("prepare-run-tool-api"),
         /buildToolApiEntries\(\s*approvalScopedTools\(filteredTools, mayDecideApprovals\),/,
       );
       assertStrictEquals(
-        agent.split("buildToolApiEntries(filteredTools").length - 1,
+        readRunSource("prepare-run-tool-api").split(
+          "buildToolApiEntries(filteredTools",
+        ).length - 1,
         0,
       );
-      assertMatch(agent, /const callerPhone = runCallerPhone\(bodyJson\);/);
+      assertMatch(
+        readRunSource("resolve-run-caller"),
+        /callerPhone = runCallerPhone\(bodyJson\);/,
+      );
     },
   );
 
   await t.step(
     "run-ai-agent reads the caller's roles in this tenant only",
     () => {
-      const section = agent.slice(
-        agent.indexOf("// 2.6. Resolve caller role"),
-        agent.indexOf("// 2.7."),
-      );
+      const section = readRunSource("resolve-run-caller");
       assertMatch(
         section,
         /\.from\("user_roles"\)\s*\.select\("role"\)\s*\.eq\("user_id", callerUserId\)\s*\.or\(`tenant_id\.eq\.\$\{resolvedTenantId\},tenant_id\.is\.null`\);\s*if \(rolesError\) \{\s*throw rolesError;/,
@@ -233,10 +237,7 @@ Deno.test("automation and task runs: source guards", async (t) => {
   await t.step(
     "run-ai-agent learns no instruction from an automation run",
     () => {
-      const capture = agent.slice(
-        agent.indexOf("// ─── 2.7. Code-level instruction capture"),
-        agent.indexOf('await supabase.from("ai_memory").upsert('),
-      );
+      const capture = readRunSource("capture-run-instruction");
       // The guard may also skip a workshop brief (PR 932); it must always skip an automation.
       assertMatch(
         capture,

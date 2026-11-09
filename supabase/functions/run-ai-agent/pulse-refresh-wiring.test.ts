@@ -1,3 +1,4 @@
+import { readRunStages } from "./run-source-fixture.ts";
 import {
   assert,
   assertEquals,
@@ -14,21 +15,21 @@ import { ALL_TOOLS } from "./tool-catalog.ts";
 
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
-const runAiAgent = read("./index.ts");
+const runAiAgent = readRunStages() + "\n" + read("./index.ts");
 
-// These steps read index.ts as text: handleRunAgent is too large to run with
-// fakes here. A handler-level test waits for its prompt assembly and tool pool
-// to move out of index.ts (AIO-123).
+// Source guards follow the extracted owners; full-run parity tests cover assembled requests.
 Deno.test("run-ai-agent index.ts", async (t) => {
   await t.step(
     "run-ai-agent appends the pulse block after the V1/V2 branch and wires the refresh tool",
     () => {
-      const v1Start = runAiAgent.indexOf("// ─── V1 PROMPT BUILDING");
+      const v1Start = runAiAgent.indexOf(
+        "export function initializeV1RunPrompt(",
+      );
       const append = runAiAgent.indexOf(
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        'messages = [{ role: "system", content: systemPrompt }];',
       );
       assert(runAiAgent.indexOf("if (shouldUseV2Prompt(agent)) {") < v1Start);
       assert(append > v1Start && append < systemMessage);
@@ -91,7 +92,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        'messages = [{ role: "system", content: systemPrompt }];',
       );
       // Every place a skin's text joins the prompt. Tenant pulse_check and
       // ecommerce_pulse overrides (DMM, MarketingCaptain) that say not to
@@ -156,7 +157,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       // An unidentified WhatsApp or task caller keeps the narrow list.
       assertMatch(
         runAiAgent.slice(keep),
-        /^[^}]*caller: \{ surface, callerCampaignerId, callerUserId \},/,
+        /^[^}]*caller: \{\s*surface,\s*callerCampaignerId,\s*callerUserId,?\s*\},/,
       );
       assertMatch(
         runAiAgent,
@@ -165,7 +166,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       // Nor do matched or pinned skins hand that caller the pulse tools.
       assertMatch(
         runAiAgent,
-        /const skinDisabledTools = skinToolDenylist\(disabledTools, \{\s*surface,\s*callerCampaignerId,\s*callerUserId,\s*\}\);/,
+        /skinDisabledTools = skinToolDenylist\(disabledTools, \{\s*surface,\s*callerCampaignerId,\s*callerUserId,\s*\}\);/,
       );
       const skinPromotions = [
         ...runAiAgent.matchAll(
