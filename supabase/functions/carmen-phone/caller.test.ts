@@ -38,10 +38,26 @@ function fakeDb(kind: string, senderStaff = false, fail = false) {
 }
 
 Deno.test("a team member's number is staff, with their name", async () => {
-  const caller = await identifyCaller(fakeDb("staff"), "t1", "0541112222");
+  const caller = await identifyCaller(
+    fakeDb("staff", true),
+    "t1",
+    "0541112222",
+  );
   assertEquals(caller.kind, "staff");
   assertEquals(caller.name, "רון");
   assertEquals(caller.campaignerId, "c1");
+});
+
+Deno.test("a related org's team member is not this org's staff", async () => {
+  // resolve_send_recipient says "staff" for a parent, child or shared-agency org's team, but only
+  // sender_staff means this org's own team.
+  const caller = await identifyCaller(
+    fakeDb("staff", false),
+    "t1",
+    "0541112222",
+  );
+  assertEquals(caller.kind, "unknown");
+  assertEquals(caller.name, null);
 });
 
 Deno.test(

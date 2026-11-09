@@ -39,7 +39,9 @@ export async function identifyCaller(
       address: phone,
       groupId: null,
     });
-    if (recipient?.kind === "staff" || recipient?.senderStaff) {
+    // Only this org's own team is staff. resolve_send_recipient's "staff" kind also covers related
+    // orgs (parent, child, shared agencies), whose people must not hear this org's brief.
+    if (recipient?.senderStaff) {
       return {
         ...unknown,
         kind: "staff",
