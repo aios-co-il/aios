@@ -1,5 +1,8 @@
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
-import { fetchUncountedCallsByCampaignDay } from "./call-leads.ts";
+import {
+  type CampaignDayLeads,
+  fetchLeadsByCampaignDay,
+} from "./call-leads.ts";
 import { googleCampaignConversionGoal } from "./conversion-goal.ts";
 import {
   type CampaignConversions,
@@ -20,6 +23,8 @@ export type ConversionEnrichedRecord = {
   cost_per_conversion?: number;
   /** Phone calls added to `conversions` that Google left out of it. */
   added_call_leads?: number;
+  /** A sales campaign's leads (calls, forms...), shown apart from purchases. */
+  leads?: number;
 };
 
 export type ConversionEnrichmentContext = {
@@ -125,19 +130,19 @@ function stampAddToCart(
 }
 
 /**
- * Add the calls Google left out of `conversions` to campaign-level records of
- * campaigns that are not sales campaigns: a call is a lead, not a purchase. The
- * call read is per campaign, so ad group and ad rows keep Google's own
- * conversions. A failed read is logged and leaves conversions as Google has
- * them.
+ * Leads on campaign-level records; the read is per campaign, so ad group and ad
+ * rows keep Google's own conversions. A lead campaign's conversions add the
+ * calls Google left out of them. A sales campaign keeps its conversions (a call
+ * is not a purchase) and records every lead in `leads`, for its own column. A
+ * failed read is logged and leaves the records as Google has them.
  */
 async function addUncountedCalls(
   records: Array<ConversionEnrichedRecord>,
   context: ConversionEnrichmentContext,
 ) {
-  let callsByCampaignDay: Map<string, number>;
+  let leads: CampaignDayLeads;
   try {
-    callsByCampaignDay = await fetchUncountedCallsByCampaignDay(
+    leads = await fetchLeadsByCampaignDay(
       context.runGaqlSearch,
       context.startIso,
       context.endIso,
@@ -152,12 +157,19 @@ async function addUncountedCalls(
     return;
   }
   for (const rec of records) {
-    const calls = callsByCampaignDay.get(`${rec.campaign_id}|${rec.date}`);
-    if (
-      !calls ||
-      (rec.entity_level || "campaign") !== "campaign" ||
-      rec.conversion_goal === "ecommerce"
-    ) {
+    if ((rec.entity_level || "campaign") !== "campaign") {
+      continue;
+    }
+    const key = `${rec.campaign_id}|${rec.date}`;
+    if (rec.conversion_goal === "ecommerce") {
+      const saleLeads = leads.allLeads.get(key);
+      if (saleLeads) {
+        rec.leads = saleLeads;
+      }
+      continue;
+    }
+    const calls = leads.uncountedCalls.get(key);
+    if (!calls) {
       continue;
     }
     rec.conversions = (rec.conversions || 0) + calls;
@@ -167,6 +179,6 @@ async function addUncountedCalls(
     }
   }
   console.log(
-    `[sync-google-ads] uncounted call segments: ${callsByCampaignDay.size}`,
+    `[sync-google-ads] uncounted call segments: ${leads.uncountedCalls.size}, lead segments: ${leads.allLeads.size}`,
   );
 }

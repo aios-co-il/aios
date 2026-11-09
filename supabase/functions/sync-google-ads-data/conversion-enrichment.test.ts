@@ -198,10 +198,21 @@ Deno.test("every phone call is a lead campaign's conversion", async (t) => {
     assertEquals(row.added_call_leads, undefined);
   });
 
-  await t.step("a sales campaign keeps its conversions", async () => {
-    const row = await enriched([actionRow(AD_CALL, "0", "3")], "PURCHASE");
-    assertEquals(row.conversions, 2);
-  });
+  await t.step(
+    "a sales campaign keeps its conversions and records its leads",
+    async () => {
+      const row = await enriched(
+        [
+          actionRow(AD_CALL, "1", "3"),
+          actionRow(FORM, "0", "2"),
+          actionRow(TEL_TAP, "0", "1"),
+        ],
+        "PURCHASE",
+      );
+      assertEquals(row.conversions, 2);
+      assertEquals(row.leads, 6);
+    },
+  );
 
   await t.step("ad group rows keep Google's conversions", async () => {
     const row = await enriched(

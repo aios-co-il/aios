@@ -70,6 +70,8 @@ interface GoogleAdsRecord {
   add_to_cart?: number;
   /** Phone calls Google left out of conversions, already added to them. */
   added_call_leads?: number;
+  /** A sales campaign's leads (calls, forms...), shown apart from purchases. */
+  leads?: number;
   /** Campaign type (PERFORMANCE_MAX, SEARCH, SHOPPING…) and bidding, for goal detection. */
   campaign_channel_type?: string;
   bidding_strategy_type?: string;
