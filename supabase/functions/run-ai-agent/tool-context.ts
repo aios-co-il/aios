@@ -67,7 +67,7 @@ export interface ToolDispatchDependencies {
 export interface ToolExecutionContext extends ToolCaller, ToolScope {
   supabase: AgentDatabaseClient;
   name: string;
-  waNotify?: Json;
+  waNotify?: Record<string, Json | undefined> | null;
   surface?: string | null;
   conversationId?: string | null;
   approval: ToolApproval;
