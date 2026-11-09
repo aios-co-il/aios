@@ -19,8 +19,20 @@ const reportSettingsSchema = z.object({
   account_id: metaAdAccountIdSchema.nullable(),
   meta_account_id: metaAdAccountIdSchema.nullable(),
   customer_id: metaAdAccountIdSchema.nullable(),
-  ad_account_name: z.string().nullish(),
-  account_status: z.union([z.string(), z.number()]).nullish(),
-  campaign_type: z.string().nullish(),
+  ad_account_name: z.string().nullish().catch(invalidReportField),
+  account_status: z
+    .union([z.string(), z.number()])
+    .nullish()
+    .catch(invalidReportField),
+  campaign_type: z.string().nullish().catch(invalidReportField),
 });
 export type ReportSettings = z.infer<typeof reportSettingsSchema>;
+
+/** Discard only the malformed optional field, retaining the table's valid settings. */
+function invalidReportField(context: { error: z.ZodError }): undefined {
+  console.warn(
+    "[reports] Invalid stored field",
+    context.error.issues.map((issue) => issue.path),
+  );
+  return undefined;
+}

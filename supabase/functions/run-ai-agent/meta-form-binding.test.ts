@@ -1,34 +1,12 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import { createClient } from "npm:@supabase/supabase-js@2.75.0";
-import type { Database } from "../_shared/database.types.ts";
-import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
-import { readMetaLeadSettings } from "./meta-lead-settings.ts";
+import { connectMetaFormToAutomation } from "./meta-form-binding.ts";
 import {
-  connectMetaFormToAutomation,
-  type MetaLeadForm,
-} from "./meta-form-binding.ts";
-
-const automation = {
-  id: "automation-1",
-  name: "New leads",
-  active: true,
-  tenant_id: "tenant-1",
-};
-const form: MetaLeadForm = {
-  id: "form-1",
-  name: "New form",
-  status: "ACTIVE",
-  fields: [{ key: "email", label: "Email", type: "EMAIL" }],
-  page_id: "page-1",
-  page_name: "Page",
-  integration_id: "integration-1",
-};
-const configuration = {
-  lead_source: "any",
-  facebook_form_id: "old-form",
-  conditions: { source: ["facebook"] },
-};
+  setup,
+  automation,
+  form,
+  configuration,
+} from "./meta-form-binding-fixture.ts";
 
 describe("connecting a Meta form with validated persisted settings", () => {
   it("writes metadata while preserving canonical field mappings and unrelated routing", async () => {
@@ -45,6 +23,11 @@ describe("connecting a Meta form with validated persisted settings", () => {
         "other-form": { client_id: "other-client" },
       },
       page_subscriptions: { "other-page": true },
+      pages: [
+        null,
+        { id: "valid", access_token: "fixture" },
+        { id: "invalid", access_token: {} },
+      ],
     };
     const { db, writes } = setup(settings);
     await connectMetaFormToAutomation(db, automation, form);
@@ -84,7 +67,7 @@ describe("connecting a Meta form with validated persisted settings", () => {
     }
   });
 
-  it("does not create a fields alias or suppress the webhook's default field mapping", async () => {
+  it("does not create a fields alias or an empty field_mappings key", async () => {
     const { db, writes } = setup(null);
     await connectMetaFormToAutomation(db, automation, form);
     const body = writes()[1].body;
@@ -101,19 +84,6 @@ describe("connecting a Meta form with validated persisted settings", () => {
         },
       },
     });
-    const mapping = readMetaLeadSettings(
-      body && typeof body === "object" && "settings" in body
-        ? body.settings
-        : undefined,
-    ).form_mappings?.[form.id];
-    assertEquals(
-      mapping?.field_mappings || {
-        full_name: "contact_name",
-        email: "email",
-        phone_number: "phone",
-      },
-      { full_name: "contact_name", email: "email", phone_number: "phone" },
-    );
   });
 
   it("rejects invalid integration settings or trigger configuration before any writes", async () => {
@@ -137,7 +107,7 @@ describe("connecting a Meta form with validated persisted settings", () => {
   });
 
   it("restores the original trigger when saving the integration mapping fails", async () => {
-    const { db, writes } = setup({}, configuration, true);
+    const { db, writes } = setup({}, configuration, { failMapping: true });
     const failure = await connectMetaFormToAutomation(
       db,
       automation,
@@ -148,54 +118,66 @@ describe("connecting a Meta form with validated persisted settings", () => {
     assertEquals(writes()[2].body, { configuration });
     assertEquals(writes()[2].url.searchParams.get("tenant_id"), "eq.tenant-1");
   });
-});
+  it("refuses another tenant's integration without updating the trigger", async () => {
+    const { db, writes } = setup({}, configuration, {
+      integrationTenantId: "other-tenant",
+    });
+    await assertRejects(
+      () => connectMetaFormToAutomation(db, automation, form),
+      Error,
+      "אינה שייכת",
+    );
+    assertEquals(writes(), []);
+  });
 
-/** Exercise real PostgREST serialization against the repository's HTTP fake. */
-function setup(
-  settings: unknown,
-  config: unknown = configuration,
-  failMapping = false,
-) {
-  const http = fakeSupabaseHttp({
-    supabaseUrl: "https://supabase.test",
-    tables: {
-      automation_flow_steps: [
+  it("surfaces both rollback causes and logs them without leaking secrets", async () => {
+    const { db, writes } = setup({}, configuration, {
+      failMapping: true,
+      failRollback: true,
+      mappingMessage: "Mapping write failed api_key=private-mapping",
+      rollbackMessage: "Rollback write failed access_token=private-rollback",
+    });
+    const logs: Array<unknown> = [];
+    const originalError = console.error;
+    console.error = (...args: Array<unknown>) => {
+      logs.push(args);
+    };
+    try {
+      const failure = await assertRejects(
+        () => connectMetaFormToAutomation(db, automation, form),
+        AggregateError,
+        "Mapping write failed api_key=[redacted]",
+      );
+      assertEquals(
+        failure.message.includes(
+          "Rollback write failed access_token=[redacted]",
+        ),
+        true,
+      );
+      assertEquals(
+        /private-mapping|private-rollback/.test(failure.message),
+        false,
+      );
+    } finally {
+      console.error = originalError;
+    }
+    assertEquals(writes().length, 3);
+    assertEquals(logs, [
+      [
+        "[Meta form binding] trigger rollback failed",
         {
-          id: "step-1",
-          automation_id: automation.id,
-          tenant_id: automation.tenant_id,
-          step_type: "trigger",
-          action_type: "lead_created",
-          configuration: config,
+          automationId: automation.id,
+          stepId: "step-1",
+          mappingError: {
+            code: "XX000",
+            message: "Mapping write failed api_key=[redacted]",
+          },
+          rollbackError: {
+            code: "XX000",
+            message: "Rollback write failed access_token=[redacted]",
+          },
         },
       ],
-      tenant_integrations: [
-        { id: form.integration_id, tenant_id: automation.tenant_id, settings },
-      ],
-    },
+    ]);
   });
-  const db = createClient<Database>("https://supabase.test", "test-key", {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: {
-      fetch: async (input, init) => {
-        const response = await http.fetch(input, init);
-        const request = new Request(input, init);
-        if (
-          failMapping &&
-          request.method === "PATCH" &&
-          new URL(request.url).pathname.endsWith("/tenant_integrations")
-        ) {
-          return new Response(
-            JSON.stringify({ message: "Mapping write failed", code: "XX000" }),
-            { status: 400, headers: { "Content-Type": "application/json" } },
-          );
-        }
-        return response;
-      },
-    },
-  });
-  return {
-    db,
-    writes: () => http.calls.filter((call) => call.method === "PATCH"),
-  };
-}
+});

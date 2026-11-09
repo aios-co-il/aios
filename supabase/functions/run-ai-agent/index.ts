@@ -379,15 +379,14 @@ import { staleClientEntry } from "./stale-client-entry.ts";
 import { readCampaignGoalTables } from "./goal-tables.ts";
 
 import { readReportSettings } from "./report-settings.ts";
-import {
-  readMetaLeadSettings,
-  type MetaLeadSettings,
-} from "./meta-lead-settings.ts";
+import { configuredPages } from "./meta-lead-settings.ts";
+import { metaLeadIntegrations } from "./meta-lead-integrations.ts";
 import {
   connectMetaFormToAutomation,
   type MetaLeadForm,
 } from "./meta-form-binding.ts";
-import { errorMessage, readErrorMessage } from "./error-message.ts";
+import { errorMessage } from "./error-message.ts";
+import { openaiAdminGet } from "./openai-admin-get.ts";
 import { readMetaResponse } from "./meta-response.ts";
 import {
   readGraphAdAccountsPage,
@@ -589,45 +588,6 @@ async function resolveOpenAiAdminKey(
     /* ignore */
   }
   return { key: null, source: null };
-}
-
-async function openaiAdminGet(
-  pathWithQuery: string,
-  adminKey: string,
-): Promise<{ ok: boolean; status: number; json: unknown; error?: string }> {
-  try {
-    const res = await fetch(`https://api.openai.com/v1${pathWithQuery}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${adminKey}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const text = await res.text();
-    let json: unknown = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    if (!res.ok) {
-      const msg = redactSecretsFromText(
-        providerErrorMessage(json) ||
-          readErrorMessage(json) ||
-          text ||
-          `HTTP ${res.status}`,
-      );
-      return { ok: false, status: res.status, json, error: msg };
-    }
-    return { ok: true, status: res.status, json };
-  } catch (e) {
-    return {
-      ok: false,
-      status: 0,
-      json: null,
-      error: redactSecretsFromText(errorMessage(e)),
-    };
-  }
 }
 
 async function fetchOpenAiBillingStatus(args: {
@@ -5230,52 +5190,6 @@ function assertHttpsUrl(value: unknown, field: string): string {
   return url.toString();
 }
 
-async function metaLeadIntegrations(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-) {
-  const { data, error } = await supabase
-    .from("tenant_integrations")
-    .select("id, api_key, settings, shared_from_integration_id")
-    .eq("tenant_id", tenantId)
-    .eq("integration_type", "facebook_lead_ads")
-    .eq("is_active", true);
-  if (error) throw error;
-  const result: Array<
-    Pick<AgentRow<"tenant_integrations">, "id"> & {
-      settings: MetaLeadSettings;
-      api_key: string;
-    }
-  > = [];
-  for (const row of data || []) {
-    let source: Pick<
-      AgentRow<"tenant_integrations">,
-      "id" | "api_key" | "settings"
-    > = row;
-    const settings = readMetaLeadSettings(row.settings);
-    if ((!row.api_key || !settings.pages) && row.shared_from_integration_id) {
-      const { data: shared, error: sharedError } = await supabase
-        .from("tenant_integrations")
-        .select("id, api_key, settings")
-        .eq("id", row.shared_from_integration_id)
-        .maybeSingle();
-      if (sharedError) {
-        throw sharedError;
-      }
-      if (shared) source = { ...shared, id: row.id };
-    }
-    if (source.api_key) {
-      result.push({
-        id: row.id,
-        api_key: source.api_key,
-        settings:
-          source === row ? settings : readMetaLeadSettings(source.settings),
-      });
-    }
-  }
-  return result;
-}
-
 async function metaLeadPages(
   supabase: AgentDatabaseClient,
   tenantId: string,
@@ -5283,7 +5197,7 @@ async function metaLeadPages(
   const integrations = await metaLeadIntegrations(supabase, tenantId);
   const pages: MetaLeadPage[] = [];
   for (const integration of integrations) {
-    let sourcePages: Array<MetaNode> = integration.settings.pages || [];
+    let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
     if (sourcePages.length === 0) {
       let next: string | null =
         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;

@@ -40,7 +40,7 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 
 ## Persisted tool settings
 
-`run-ai-agent` validates report settings, configured Meta pages/form mappings and lead-trigger selectors before using them. The readers reuse account-ID and automation-editor schemas, preserve unrelated stored keys on writes, and retain the webhook's canonical `field_mappings` contract. Form binding validates both documents before writing and restores the trigger if the integration mapping write fails.
+`run-ai-agent` validates report settings, configured Meta pages/form mappings and lead-trigger selectors before using them. The readers reuse account-ID and automation-editor schemas, preserve unrelated stored keys on writes, and retain the webhook's canonical `field_mappings` contract. Form binding validates both documents before writing and attempts to restore the trigger if the integration mapping write fails. A rollback failure raises an `AggregateError` with redacted causes; operators must check it because the trigger may remain changed.
 
 ## AI providers (replacing the former Lovable AI gateway)
 

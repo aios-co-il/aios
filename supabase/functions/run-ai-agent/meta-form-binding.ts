@@ -1,6 +1,8 @@
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import { readLeadTriggerConfiguration } from "./lead-trigger-configuration.ts";
 import { readMetaLeadSettings } from "./meta-lead-settings.ts";
+import { errorMessage } from "./error-message.ts";
+import { redactSecrets } from "../_shared/reconcile/errors.ts";
 
 export type MetaLeadForm = {
   id: string;
@@ -102,13 +104,17 @@ export async function connectMetaFormToAutomation(
       .eq("id", step.id)
       .eq("tenant_id", automation.tenant_id);
     if (rollbackError) {
+      const mappingMessage = redactSecrets(errorMessage(mappingError));
+      const rollbackMessage = redactSecrets(errorMessage(rollbackError));
       console.error("[Meta form binding] trigger rollback failed", {
         automationId: automation.id,
         stepId: step.id,
+        mappingError: { code: mappingError.code, message: mappingMessage },
+        rollbackError: { code: rollbackError.code, message: rollbackMessage },
       });
       throw new AggregateError(
         [mappingError, rollbackError],
-        "Meta mapping update and trigger rollback failed",
+        `Meta mapping update failed (${mappingMessage}) and trigger rollback failed (${rollbackMessage})`,
       );
     }
     throw mappingError;

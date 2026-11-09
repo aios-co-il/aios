@@ -1,4 +1,5 @@
 import { z } from "npm:zod@3.25.76";
+import type { Json } from "../_shared/database.types.ts";
 import { isMetaNode, type MetaNode } from "./meta-response.ts";
 import { invalidToolInput } from "./tool-input-errors.ts";
 
@@ -9,6 +10,21 @@ export function readMetaLeadSettings(value: unknown): MetaLeadSettings {
     throw invalidToolInput("Meta lead settings", parsed.error);
   }
   return parsed.data;
+}
+
+/** Validate configured pages only when reading them for Meta requests. */
+export function configuredPages(
+  settings: MetaLeadSettings,
+): Array<ConfiguredMetaPage> {
+  const pages: Array<ConfiguredMetaPage> = [];
+  for (const page of settings.pages ?? []) {
+    if (isMetaNode(page)) {
+      pages.push(page);
+    } else {
+      console.warn("[Meta lead settings] Invalid configured page");
+    }
+  }
+  return pages;
 }
 
 export type ConfiguredMetaPage = Pick<MetaNode, "id" | "name" | "access_token">;
@@ -28,19 +44,20 @@ const formMappingFields = z.object({
 export type MetaFormMapping = z.infer<typeof formMappingFields>;
 const formMappingSchema: z.ZodType<MetaFormMapping> =
   formMappingFields.passthrough();
+// Persisted pages round-trip even when their known Meta fields are invalid.
+const storedPageValue: z.ZodType<Json> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(storedPageValue),
+    z.record(storedPageValue.optional()),
+  ]),
+);
+
 const metaLeadSettingsFields = z.object({
-  pages: z
-    .array(z.unknown())
-    .transform((pages): Array<ConfiguredMetaPage> =>
-      pages.filter((page): page is MetaNode => {
-        if (isMetaNode(page)) {
-          return true;
-        }
-        console.warn("[Meta lead settings] Invalid configured page");
-        return false;
-      }),
-    )
-    .nullish(),
+  pages: z.array(storedPageValue).nullish(),
   form_mappings: z.record(formMappingSchema).nullish(),
 });
 export type MetaLeadSettings = z.infer<typeof metaLeadSettingsFields>;

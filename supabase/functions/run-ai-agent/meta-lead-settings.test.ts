@@ -1,6 +1,6 @@
 import { assertEquals, assertThrows } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
-import { readMetaLeadSettings } from "./meta-lead-settings.ts";
+import { readMetaLeadSettings, configuredPages } from "./meta-lead-settings.ts";
 
 describe("persisted Meta lead settings", () => {
   it("retains nested mappings, routing metadata and unowned integration settings", () => {
@@ -33,10 +33,10 @@ describe("persisted Meta lead settings", () => {
 
   it("keeps valid configured pages when neighboring entries are malformed", () => {
     const page = { id: "page-1", name: null, access_token: "token" };
-    assertEquals(
-      readMetaLeadSettings({ pages: [null, page, { access_token: {} }] }).pages,
-      [page],
-    );
+    const stored = { pages: [null, page, { access_token: {} }] };
+    const settings = readMetaLeadSettings(stored);
+    assertEquals<unknown>(settings.pages, stored.pages);
+    assertEquals(configuredPages(settings), [page]);
     assertEquals(readMetaLeadSettings(null), {});
     assertEquals(readMetaLeadSettings(undefined), {});
     assertEquals(readMetaLeadSettings({ pages: null, form_mappings: null }), {

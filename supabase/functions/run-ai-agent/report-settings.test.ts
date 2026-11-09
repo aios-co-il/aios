@@ -49,15 +49,37 @@ describe("report settings domain contract", () => {
     );
   });
 
-  it("accepts absent settings but rejects invalid known account and goal fields", () => {
-    assertEquals(readReportSettings(null), {});
-    for (const settings of [
-      { ad_account_id: {} },
-      { account_status: [] },
-      { campaign_type: true },
-      [],
+  it("drops only each malformed optional field and retains account, goal and passthrough settings", () => {
+    const settings = {
+      ad_account_id: "act_123",
+      campaign_type: "leads",
+      custom: { retained: true },
+    };
+    for (const { input, expected } of [
+      {
+        input: { ad_account_name: {} },
+        expected: { ad_account_name: undefined },
+      },
+      {
+        input: { account_status: [] },
+        expected: { account_status: undefined },
+      },
+      {
+        input: { campaign_type: true },
+        expected: { campaign_type: undefined },
+      },
     ]) {
-      assertEquals(readReportSettings(settings).ad_account_id, undefined);
+      const parsed = readReportSettings({ ...settings, ...input });
+      assertEquals<unknown>(parsed, { ...settings, ...expected });
+      assertEquals(clientAdAccountIds([{ integration_settings: parsed }]), [
+        "123",
+      ]);
     }
+    assertEquals(
+      readReportSettings({ ad_account_id: {} }).ad_account_id,
+      undefined,
+    );
+    assertEquals(readReportSettings(null), {});
+    assertEquals(readReportSettings([]), {});
   });
 });
