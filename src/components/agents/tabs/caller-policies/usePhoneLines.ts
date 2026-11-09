@@ -28,7 +28,10 @@ export function usePhoneLines(tenantId: string | null) {
   });
 }
 
-/** Adds or removes a number; RLS lets only owners write, and a refused write is the error. */
+/**
+ * Adds or removes a number. RLS lets only a super admin add one and owners or a super
+ * admin remove one; a refused write is the error.
+ */
 export function usePhoneLineMutations(tenantId: string | null) {
   const queryClient = useQueryClient();
   const refresh = () =>
