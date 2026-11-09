@@ -63,6 +63,7 @@ export function summarizeGoogleAdsCampaigns(
     row.spend += Number(data.cost) || Number(data.spend) || 0;
     row.conversions += Number(data.conversions) || 0;
     row.conversions_value += Number(data.conversions_value) || 0;
+    row.leads = (row.leads ?? 0) + (Number(data.leads) || 0);
   }
 
   const campaigns = [...map.values()]

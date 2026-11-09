@@ -9,6 +9,8 @@ import type {
 
 type Props = GoogleAdsFormatters & {
   goal: GoogleReportGoal;
+  /** The sales table shows a leads column. */
+  showLeads?: boolean;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
 };
@@ -16,6 +18,7 @@ type Props = GoogleAdsFormatters & {
 /** Totals row of one goal's table; the sales columns use the store totals (WooCommerce when it overlays). */
 export function GoogleAdsCampaignTotalsRow({
   goal,
+  showLeads = false,
   groupTotals,
   store,
   formatCurrency,
@@ -49,6 +52,9 @@ export function GoogleAdsCampaignTotalsRow({
               ? formatCurrency(store.revenue / store.purchases)
               : "-"}
           </TableCell>
+          {showLeads && (
+            <TableCell>{formatNumber(groupTotals.leads ?? 0)}</TableCell>
+          )}
         </>
       ) : (
         <>

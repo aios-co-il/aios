@@ -78,9 +78,11 @@ describe("DashboardGoalOverview", () => {
 
   it("measures the free course by cost per purchase, never a ROAS", () => {
     renderAimee();
-    expect(screen.getByText("עלות לרכישה")).toBeTruthy();
-    expect(screen.getByText("₪22")).toBeTruthy();
+    // Both the top card and the sales panel show it in place of a ROAS.
+    expect(screen.getAllByText("עלות לרכישה")).toHaveLength(2);
+    expect(screen.getAllByText("₪22")).toHaveLength(2);
     expect(screen.queryByText("ROAS")).toBeNull();
+    expect(screen.queryByText("ROAS משולב")).toBeNull();
   });
 
   it("keeps each platform's cost per lead next to the combined one", () => {
@@ -95,5 +97,35 @@ describe("DashboardGoalOverview", () => {
     renderAimee();
     expect(screen.getByText("809")).toBeTruthy();
     expect(screen.getByText("₪0.83")).toBeTruthy();
+  });
+
+  it("keeps the sales ROAS on top, over the sales spend only", () => {
+    const summary = summarizeDashboardGoals({
+      facebook: {
+        ecommerce: [
+          fbCampaign("Shop", {
+            spend: 1000,
+            purchases: 10,
+            purchase_value: 4000,
+          }),
+        ],
+        leads: [fbCampaign("Leads", { spend: 1000, leads: 20 })],
+        traffic: [],
+      },
+      google: [],
+    });
+    render(
+      <DashboardGoalOverview
+        summary={summary}
+        sales={combinedDashboardSales(summary, null)}
+        leads={combinedDashboardLeads(summary)}
+        delivery={{ spend: 2000, impressions: 2000, clicks: 200 }}
+        platformLabel={() => ({ name: "Facebook", color: "", icon: null })}
+        format={format}
+      />,
+    );
+    expect(screen.getByText("ROAS משולב")).toBeTruthy();
+    // 4000 over the sales spend of 1000, not over the 2000 of all goals.
+    expect(screen.getAllByText("4.00").length).toBeGreaterThan(0);
   });
 });

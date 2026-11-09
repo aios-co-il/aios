@@ -8,6 +8,7 @@ const verdict: ChatVerdict = {
   needs_reply: false,
   is_request: false,
   complaint_ids: ["m1"],
+  read_ids: [],
   urgency: "high",
   summary_he: "הלקוח לא מרוצה מהלידים",
   confidence: 0.7,

@@ -6,7 +6,10 @@
  * message names the finding; the line the model named is the one quoted. A
  * complaint stays reported while its message is in the read window, as
  * stored, even after it leaves the thread's last messages; a person
- * acknowledges or resolves it.
+ * acknowledges or resolves it. A read that judged the streak's flagged lines
+ * at DROP_CONFIDENCE and named none of them clears it: it is not raised, and
+ * an open one (raised by the words or by an earlier read) is no longer
+ * reported, so the round auto-clears it.
  */
 import type { FindingCandidate } from "../types.ts";
 import { type ChatLink, threadLink } from "./candidates.ts";
@@ -16,7 +19,8 @@ import { readMarkers } from "./markers.ts";
 import { type ClientStreak, clientStreaks } from "./streaks.ts";
 import { complaintSummary, isLowConfidence, quoteOf } from "./summary.ts";
 import type { Thread, Turn } from "./threads.ts";
-import { verdictComplaints } from "./verdict.ts";
+import { hasComplaintWords } from "../../../_shared/client-signals/complaint-words.ts";
+import { verdictClearsComplaint, verdictComplaints } from "./verdict.ts";
 
 /** The line the model read as a complaint, with its summary of it. */
 type ModelComplaint = { turn: Turn; summary: string };
@@ -29,23 +33,54 @@ export function complaintCandidates(
   scope: { since: Date; clientIds: string[] | null; chatLink: ChatLink },
 ): FindingCandidate[] {
   const open = live.filter((finding) => finding.kind === "client_complaint");
+  const cleared = new Set<string>();
   const found = threads.flatMap((thread) =>
     clientStreaks(thread).flatMap((streak) => {
       const model = modelComplaint(verdicts, thread, streak);
       const words = readMarkers(streak.turns.map((t) => t.text)).complaint;
+      const fingerprint = streakFingerprint(thread, streak);
+      const stored = open.some((f) => f.fingerprint === fingerprint);
+      if (!model && (words || stored) && falseAlarm(verdicts, thread, streak)) {
+        cleared.add(fingerprint);
+        return [];
+      }
       if (!(words || model) || startedBeforeRead(thread, streak, open)) {
         return [];
       }
       return [complaint(thread, streak, words ? null : model, scope)];
     }),
   );
-  const reported = new Set(found.map((c) => c.fingerprint));
+  // A streak found again, or cleared by the model, is not re-reported as stored.
+  const handled = new Set([...found.map((c) => c.fingerprint), ...cleared]);
   const kept = open.flatMap((finding) =>
-    !reported.has(finding.fingerprint) && inScope(finding.stored, scope)
+    !handled.has(finding.fingerprint) && inScope(finding.stored, scope)
       ? [finding.stored]
       : [],
   );
   return [...found, ...kept];
+}
+
+/**
+ * True when the thread's read judged the streak's flagged lines (those with
+ * complaint words, or every line of a complaint an earlier read raised) and
+ * named none of them.
+ */
+function falseAlarm(
+  verdicts: Verdicts,
+  thread: Thread,
+  streak: ClientStreak,
+): boolean {
+  const worded = streak.turns.filter((turn) => hasComplaintWords(turn.text));
+  const flagged = (worded.length ? worded : streak.turns).map((t) => t.id);
+  return verdictClearsComplaint(
+    verdicts.get(thread.key)?.verdict ?? null,
+    flagged,
+  );
+}
+
+/** The streak's complaint fingerprint: its first message. */
+function streakFingerprint(thread: Thread, streak: ClientStreak): string {
+  return `${complaintPrefix(thread.key)}${streak.turns[0].id}`;
 }
 
 /** Every complaint finding of a thread starts with this. */
@@ -98,7 +133,7 @@ function complaint(
   const lowConfidence = isLowConfidence(turns);
   return {
     kind: "client_complaint",
-    fingerprint: `${complaintPrefix(thread.key)}${turns[0].id}`,
+    fingerprint: streakFingerprint(thread, streak),
     severity: lowConfidence ? "info" : "warning",
     client_id: thread.clientId,
     agency_id: null,

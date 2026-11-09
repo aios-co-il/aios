@@ -45,6 +45,8 @@ export function GoogleAdsCampaignTable({
   const { formatCurrency, formatNumber, formatUnitCost } = formats;
   const isEcommerce = goal === "ecommerce";
   const isTraffic = goal === "traffic";
+  // A sales campaign that also brought leads (calls, forms) shows them apart.
+  const showLeads = isEcommerce && rows.some((row) => (row.leads ?? 0) > 0);
   const title = titleOverride ?? (mixed ? GOAL_TITLES[goal] : SINGLE_TITLE);
   return (
     <Card>
@@ -74,6 +76,9 @@ export function GoogleAdsCampaignTable({
                     <TableHead className="text-right">הכנסות</TableHead>
                     <TableHead className="text-right">ROAS</TableHead>
                     <TableHead className="text-right">AOV</TableHead>
+                    {showLeads && (
+                      <TableHead className="text-right">לידים</TableHead>
+                    )}
                   </>
                 ) : (
                   <>
@@ -116,6 +121,9 @@ export function GoogleAdsCampaignTable({
                         <TableCell>
                           {aov > 0 ? formatCurrency(aov) : "-"}
                         </TableCell>
+                        {showLeads && (
+                          <TableCell>{formatNumber(c.leads ?? 0)}</TableCell>
+                        )}
                       </>
                     ) : (
                       <>
@@ -132,6 +140,7 @@ export function GoogleAdsCampaignTable({
               })}
               <GoogleAdsCampaignTotalsRow
                 goal={goal}
+                showLeads={showLeads}
                 groupTotals={groupTotals}
                 store={store}
                 {...formats}

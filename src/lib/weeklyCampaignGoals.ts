@@ -95,6 +95,7 @@ function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
       sum.impressions += row.impressions;
       sum.clicks += row.clicks;
       sum.results += row.results;
+      sum.leads += row.leads;
       sum.spend += row.spend;
       sum.revenue += row.revenue;
       sum.addToCart += row.addToCart;
@@ -104,6 +105,7 @@ function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
       impressions: 0,
       clicks: 0,
       results: 0,
+      leads: 0,
       spend: 0,
       costPerResult: 0,
       revenue: 0,

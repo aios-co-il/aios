@@ -23,7 +23,7 @@ import type { SharedCampaignRow } from "./sharedCampaignTables";
 /** What a traffic row needs, so the dashboards pass their campaign rows as-is. */
 type TrafficRow = Pick<
   SharedCampaignRow,
-  "name" | "spend" | "impressions" | "clicks" | "followers"
+  "name" | "spend" | "impressions" | "clicks" | "leads" | "followers"
 > &
   Partial<Pick<SharedCampaignRow, "off">>;
 
@@ -43,8 +43,9 @@ type Props = {
 
 /**
  * Traffic campaigns of a shared report or dashboard. A click is their result,
- * so the table shows CTR and cost per click instead of leads or purchases,
- * plus new followers once a campaign sends people to a Page or profile.
+ * so the table shows CTR and cost per click, plus leads once a campaign
+ * measured any and new followers once a campaign sends people to a Page or
+ * profile.
  */
 export function SharedTrafficTable({
   rows,
@@ -54,6 +55,7 @@ export function SharedTrafficTable({
   formatNumber,
   title = CAMPAIGN_GOAL_TITLES.traffic,
 }: Props) {
+  const withLeads = rows.some((row) => row.leads > 0);
   const withFollowers = showsFollowerColumns(rows);
   const cells = (metrics: TrafficMetrics) => (
     <>
@@ -64,6 +66,7 @@ export function SharedTrafficTable({
       <TableCell>
         {formatUnitCost(ratio(metrics.spend, metrics.clicks))}
       </TableCell>
+      {withLeads && <TableCell>{formatNumber(metrics.leads)}</TableCell>}
       {withFollowers && (
         <>
           <TableCell>
@@ -95,6 +98,9 @@ export function SharedTrafficTable({
                 <TableHead className="text-right">קליקים</TableHead>
                 <TableHead className="text-right">CTR</TableHead>
                 <TableHead className="text-right">עלות לקליק</TableHead>
+                {withLeads && (
+                  <TableHead className="text-right">לידים</TableHead>
+                )}
                 {withFollowers && (
                   <>
                     <TableHead className="text-right">
@@ -133,6 +139,7 @@ type TrafficMetrics = {
   spend: number;
   impressions: number;
   clicks: number;
+  leads: number;
   newFollowers: number | null;
   costPerFollower: number | null;
 };
@@ -145,6 +152,7 @@ function trafficMetrics(rows: TrafficRow[]): TrafficMetrics {
     spend: sum((row) => row.spend),
     impressions: sum((row) => row.impressions),
     clicks: sum((row) => row.clicks),
+    leads: sum((row) => row.leads),
     newFollowers: sumFacebookFollowers(rows).newFollowers,
     costPerFollower: costPerFollower(rows),
   };

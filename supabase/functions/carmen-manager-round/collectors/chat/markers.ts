@@ -1,8 +1,9 @@
 /**
  * Deterministic markers of what a client wrote: a request (a question or a
  * request verb) and a complaint (the shared complaint words). They decide
- * alone for direct chats and whenever the LLM is unavailable, and an LLM
- * verdict can only add to them, never clear them.
+ * alone for direct chats and whenever the LLM gives no verdict; a confident
+ * verdict that judged the flagged lines can add to them or clear them
+ * (verdict.ts DROP_CONFIDENCE).
  */
 import { hasComplaintWords } from "../../../_shared/client-signals/complaint-words.ts";
 

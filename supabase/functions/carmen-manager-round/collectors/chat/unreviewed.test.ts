@@ -55,7 +55,7 @@ Deno.test("needsModel", async (t) => {
   );
 
   await t.step(
-    "complaint words settle a streak; the open wait still needs a request",
+    "lines the markers flagged are read too, so a verdict can clear them",
     () => {
       const flagged = thread([
         staffRow({ created_at: il("08:00") }),
@@ -66,7 +66,7 @@ Deno.test("needsModel", async (t) => {
         staffRow({ created_at: il("08:00") }),
         row({ created_at: il("09:00"), message_text: "אני לא מרוצה, מתי?" }),
       ]);
-      assertEquals(needsModel(asked, asked.pending, ALL), false);
+      assertEquals(needsModel(asked, asked.pending, ALL), true);
       const answered = thread([
         staffRow({ created_at: il("08:00") }),
         row({
@@ -78,7 +78,7 @@ Deno.test("needsModel", async (t) => {
       ]);
       assertEquals(
         needsModel(answered, unreviewedTurns(answered, undefined), ALL),
-        false,
+        true,
       );
     },
   );

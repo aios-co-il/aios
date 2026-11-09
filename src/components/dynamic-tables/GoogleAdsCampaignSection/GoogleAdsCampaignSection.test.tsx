@@ -85,4 +85,31 @@ describe("GoogleAdsCampaignSection", () => {
     expect(within(trafficTable).queryByText("המרות")).toBeNull();
     expect(within(trafficTable).queryByText("עלות להמרה")).toBeNull();
   });
+
+  it("a sales campaign that also brought leads shows them in their own column", () => {
+    const withLeads = [
+      row({ ...records[0].data, campaign_id: "shop", leads: 4 }),
+      records[1],
+    ];
+    render(
+      <GoogleAdsCampaignSection
+        summary={summarizeGoogleAdsCampaigns(withLeads, [table])}
+        icon={null}
+        formatCurrency={format}
+        formatNumber={format}
+        formatUnitCost={format}
+      />,
+    );
+    const [salesTable, leadsTable] = screen.getAllByRole("table");
+    const salesHeaders = within(salesTable)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent);
+    expect(salesHeaders.at(-1)).toBe("לידים");
+    const shopCells = within(salesTable)
+      .getByText("PMax חנות")
+      .closest("tr")?.children;
+    expect(shopCells?.[shopCells.length - 1]?.textContent).toBe("4");
+    // The lead table keeps its own conversions columns.
+    expect(within(leadsTable).queryAllByText("לידים")).toHaveLength(0);
+  });
 });

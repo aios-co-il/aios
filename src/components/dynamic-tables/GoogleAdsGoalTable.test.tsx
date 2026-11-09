@@ -118,4 +118,34 @@ describe("Google Ads report table per goal", () => {
     expect(headers(leads)).toContain("לידים");
     expect(footer(leads)[3]).toBe("6");
   });
+
+  it("a sales table adds a leads column once a campaign brought leads", () => {
+    render(
+      <GoogleAdsGoalTable
+        goal="ecommerce"
+        rows={[
+          { ...row("Shopping", 300, 6, 900), leads: 4 },
+          row("PMax", 100, 2, 300),
+        ]}
+        entityColumnLabel="קמפיין"
+        currency="₪"
+      />,
+    );
+    const region = screen.getByRole("region", { name: "קמפייני מכירות" });
+    expect(headers(region).at(-1)).toBe("לידים");
+    expect(footer(region).at(-1)).toBe("4");
+  });
+
+  it("a sales table without leads has no leads column", () => {
+    render(
+      <GoogleAdsGoalTable
+        goal="ecommerce"
+        rows={[row("Shopping", 300, 6, 900)]}
+        entityColumnLabel="קמפיין"
+        currency="₪"
+      />,
+    );
+    const region = screen.getByRole("region", { name: "קמפייני מכירות" });
+    expect(headers(region)).not.toContain("לידים");
+  });
 });
