@@ -149,9 +149,9 @@ export function getSundayStart(date: Date): Date {
 }
 
 /**
- * A week's campaign goal, the same as in the report's tables: Google by its
- * campaign's goal (the table's type when unknown), Facebook Ecommerce always
- * sales, Facebook Insights by facebookCampaignGoal.
+ * A week's campaign goal, the same as on the dashboard: Google by its
+ * campaign's goal (the table's type when unknown), Meta (Insights and
+ * Ecommerce) by facebookCampaignGoal.
  */
 function campaignKind(
   campaign: WeekCampaign,
@@ -168,7 +168,9 @@ function campaignKind(
     return "ecommerce";
   }
   return facebookCampaignGoal(campaign.facebookGoalInputs, {
-    leadsOnly: sourceModes.facebook_insights === "leads",
+    leadsOnly:
+      campaign.source === "facebook_insights" &&
+      sourceModes.facebook_insights === "leads",
   });
 }
 
@@ -207,7 +209,9 @@ export function buildWeeklyCampaignSections(
 
     const { campaign, campaignId } = weeklyCampaignIdentity(data);
     const rowKey = `${source}:${campaignId}`;
-    if (source === "facebook_insights") {
+    // Meta campaigns take their own goal, as on the dashboard: a lead campaign
+    // in a Facebook Ecommerce table is a lead campaign, not a sale.
+    if (source === "facebook_insights" || source === "facebook_ecommerce") {
       facebookGoalInputs.set(
         rowKey,
         addFacebookGoalRecord(
