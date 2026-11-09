@@ -16210,7 +16210,7 @@ ${relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join(
             ? await res
                 .clone()
                 .json()
-                .then((d: Json) => !firstChoiceMessage(d))
+                .then((d: unknown) => !firstChoiceMessage(d))
                 .catch(() => true)
             : false;
         if (res.ok && !malformed) break;
