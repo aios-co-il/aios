@@ -1,10 +1,8 @@
+import { asRecordsClient } from "../_shared/ads-sync/records-client.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import { CALLER_TABLE_COLUMNS } from "./caller-table.ts";
-import {
-  fetchCampaignLevelRecords,
-  type RecordsClient,
-} from "../_shared/ads-sync/campaign-records.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
 import { loadTableData, type TableDataDeps } from "./table-data.ts";
 import { eventPeriodWindows } from "./event-windows.ts";
 import { analyzePeriods } from "./periods.ts";
@@ -289,15 +287,4 @@ function liveTableDataDeps(req: Request): TableDataDeps {
         .eq("tenant_id", tenantId)
         .limit(1),
   };
-}
-
-/**
- * The service client as the paged reader sees it. Checking the generated
- * client against RecordsClient compares every table's query builder and hits
- * TypeScript's depth limit (TS2589), so the check stops at `from`.
- */
-function asRecordsClient(client: {
-  from(table: "crm_records"): unknown;
-}): RecordsClient {
-  return client as RecordsClient;
 }
