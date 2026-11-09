@@ -107,4 +107,16 @@ describe("SharedTrafficTable", () => {
       "0.40 ₪",
     ]);
   });
+
+  it("adds a leads column once a campaign measured leads", () => {
+    renderTable([
+      { ...row("Profile", 120, 60), leads: 6 },
+      row("Blog", 50, 20),
+    ]);
+    expect(
+      screen.getAllByRole("columnheader").map((cell) => cell.textContent),
+    ).toContain("לידים");
+    expect(cells("Profile")[6]).toBe("6");
+    expect(cells('סה"כ')[6]).toBe("6");
+  });
 });

@@ -1,20 +1,29 @@
 /**
  * The narration review's one paid step (narration-review.ts): a new recording of the narration
- * alone. The take it makes is read by narration-take-state.ts.
+ * alone, read by the narrator or, from the user's own recording, voiced again in the narrator's
+ * voice (narration-guide.ts). The take it makes is read by narration-take-state.ts.
  */
 
 import { withBudget, budgetOf, spendBudget } from "../budget.ts";
 import type { Quote } from "../budget-types.ts";
-import { costSceneOf, roundUsd, voiceEstimate } from "../cost-scene.ts";
-import type { Db } from "../db.ts";
+import {
+  costSceneOf,
+  guideEstimate,
+  roundUsd,
+  voiceEstimate,
+} from "../cost-scene.ts";
 import { gatePaid, refundMissing } from "../gate.ts";
+import type { GuideAudio } from "../narration-guide.ts";
 import { savePayload } from "../project-io.ts";
 import { asRecord } from "../record.ts";
 import type { ToolContext } from "../tool-context.ts";
+import { queueGuide, queueNarration } from "./narration-queue.ts";
 
 const TOOL = "workshop_produce_video";
 /** payload.video: the narration script of the newest recording queued (narrationScript). */
 export const RECORDED_SCRIPT = "recorded_narration_script";
+/** payload.video: the user's recording the newest recording voiced, null for the narrator's reading. */
+export const RECORDED_GUIDE = "recorded_narration_guide";
 
 /** What produce_video knows when the narration is reviewed: the voice, the stage and the film's quote. */
 export interface NarrationPlan {
@@ -35,21 +44,22 @@ export interface NarrationPlan {
 /**
  * Records the narration alone, in the chosen voice. The budget check covers the whole film that
  * follows (so the user approves one budget, not one for the narration and another for the film),
- * and only the narration is charged now. Returns the run, a budget stop, or an error after giving
- * the charge back.
+ * and only the narration is charged now. With `guide` the take voices the user's recording, priced
+ * by its length. Returns the run, a budget stop, or an error after giving the charge back.
  */
 export async function recordNarration(
   ctx: Pick<ToolContext, "supabase" | "tenantId" | "args" | "deps">,
   itemId: string,
   payload: Record<string, unknown>,
   plan: NarrationPlan,
+  guide: GuideAudio | null = null,
 ): Promise<
   | { payload: Record<string, unknown>; runId: string }
   | { stop: Record<string, unknown> }
   | { error: string }
 > {
   const { supabase, tenantId, args, deps } = ctx;
-  const voiceUsd = narrationUsd(plan.scenes);
+  const voiceUsd = narrationUsd(plan.scenes, guide);
   const quote: Quote = {
     tool: TOOL,
     engine: plan.engine,
@@ -67,7 +77,7 @@ export async function recordNarration(
     {
       narration_usd: voiceUsd,
       estimated_usd: quote.usd,
-      message: `קודם מוקלטת הקריינות לבדיקה (כ-$${voiceUsd}); כל הסרט יעלה עד כ-$${quote.usd}.`,
+      message: `${guide ? "קודם ההקלטה שלך מקבלת את הקול הנבחר" : "קודם מוקלטת הקריינות"} לבדיקה (כ-$${voiceUsd}); כל הסרט יעלה עד כ-$${quote.usd}.`,
     },
   );
   if ("stop" in gate) {
@@ -81,6 +91,7 @@ export async function recordNarration(
       ...asRecord(gate.payload.video),
       voice_id: plan.voiceId,
       [RECORDED_SCRIPT]: narrationScript(plan.scenes),
+      [RECORDED_GUIDE]: guide?.path ?? null,
     },
   };
   try {
@@ -90,41 +101,14 @@ export async function recordNarration(
       error: error instanceof Error ? error.message : "שמירת הפרויקט נכשלה",
     };
   }
-  const runId = await queueNarration(supabase, itemId, plan, voiceUsd);
+  const runId = guide
+    ? await queueGuide(supabase, itemId, plan, voiceUsd, guide)
+    : await queueNarration(supabase, itemId, plan, voiceUsd);
   if (!runId) {
     await refundMissing(supabase, tenantId, itemId, TOOL, 1);
     return { error: "הקלטת הקריינות לא הותחלה. נסי שוב בעוד רגע." };
   }
   return { payload: charged, runId };
-}
-
-/** Queues one continuous voice run of the narration; its id, or null when nothing was queued (logged). */
-async function queueNarration(
-  supabase: Db,
-  itemId: string,
-  plan: NarrationPlan,
-  voiceUsd: number,
-): Promise<string | null> {
-  const { data, error } = await supabase.rpc("queue_video_sound", {
-    p_item_id: itemId,
-    p_kind: "voice",
-    p_scene_ids: plan.scenes.map((scene) => String(scene.id)),
-    p_provider: "elevenlabs",
-    p_estimate: { usd: voiceUsd, credits: 0 },
-    p_stage_id: plan.stageId,
-    p_prompt: null,
-    p_voice_id: plan.voiceId,
-  });
-  const run = asRecord(Array.isArray(data) ? data[0] : data);
-  if (error || typeof run.id !== "string") {
-    console.error(
-      "[workshop] narration not queued",
-      itemId,
-      error?.message ?? "no run",
-    );
-    return null;
-  }
-  return run.id;
 }
 
 /** The film's narration as one text, to tell whether the script changed since a recording. */
@@ -135,12 +119,18 @@ export const narrationScript = (scenes: Array<Record<string, unknown>>) =>
     )
     .join("\n");
 
-/** The narration's quote: the film's narrated lines, as produce_video prices them. */
-function narrationUsd(scenes: Array<Record<string, unknown>>) {
+/**
+ * The narration's quote: the film's narrated lines, as produce_video prices them, or the length of
+ * the user's recording of them (guideEstimate).
+ */
+function narrationUsd(
+  scenes: Array<Record<string, unknown>>,
+  guide: GuideAudio | null,
+) {
   const spoken = scenes
     .map(costSceneOf)
     .filter((scene) => !scene.lipsync && scene.voiceover_text.trim());
-  return voiceEstimate(spoken).usd;
+  return (guide ? guideEstimate(spoken) : voiceEstimate(spoken)).usd;
 }
 
 /** The payload with the produce step's unit price set to the narration's, so spend and refund charge it. */

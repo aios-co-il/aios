@@ -18,17 +18,24 @@ export type WeeklyGoalColumn = {
 };
 
 /**
- * The columns of one goal's weekly table. A traffic table adds new followers
- * and cost per follower once a campaign sends people to a Page or profile.
+ * The columns of one goal's weekly table. A traffic table adds leads once a
+ * campaign measured any, and new followers and cost per follower once a
+ * campaign sends people to a Page or profile.
  */
 export function weeklyGoalColumnsFor(
   group: WeeklyGoalGroup,
-): WeeklyGoalColumn[] {
+): Array<WeeklyGoalColumn> {
   const columns = WEEKLY_GOAL_COLUMNS[group.kind];
-  if (group.kind === "traffic" && showsFollowerColumns(group.rows)) {
-    return [...columns, newFollowersColumn, costPerFollowerColumn];
+  if (group.kind !== "traffic") {
+    return columns;
   }
-  return columns;
+  return [
+    ...columns,
+    ...(group.rows.some((row) => row.leads > 0) ? [trafficLeadsColumn] : []),
+    ...(showsFollowerColumns(group.rows)
+      ? [newFollowersColumn, costPerFollowerColumn]
+      : []),
+  ];
 }
 
 const impressions: WeeklyGoalColumn = {
@@ -93,6 +100,11 @@ const WEEKLY_GOAL_COLUMNS: Record<ReportCampaignGoal, WeeklyGoalColumn[]> = {
   ],
 };
 
+/** Leads a traffic campaign measured, beside its clicks. */
+const trafficLeadsColumn: WeeklyGoalColumn = {
+  label: "לידים",
+  value: (m) => formatReportNumber(m.leads),
+};
 const newFollowersColumn: WeeklyGoalColumn = {
   label: FOLLOWER_COLUMN_LABELS.newFollowers,
   value: (m) =>

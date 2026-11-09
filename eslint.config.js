@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     rules: {
       curly: "warn",
+      "func-style": ["warn", "declaration", { allowArrowFunctions: false }],
       "max-lines": [
         "warn",
         { max: 150, skipBlankLines: true, skipComments: true },

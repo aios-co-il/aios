@@ -88,4 +88,18 @@ describe("WeeklyGoalTable traffic followers", () => {
       "₪3",
     ]);
   });
+
+  it("traffic that measured leads adds a leads column", () => {
+    const region = renderTrafficWeek([
+      traffic("Instagram", {
+        campaign_objective: "OUTCOME_TRAFFIC",
+        optimization_goal: "PROFILE_VISIT",
+        spend: 90,
+        leads: 6,
+      }),
+    ]);
+    expect(headers(region)).toContain("לידים");
+    const row = within(region).getByText("Instagram").closest("tr");
+    expect(cells(row)[5]).toBe("6");
+  });
 });

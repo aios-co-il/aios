@@ -15,6 +15,7 @@ import { runClipWithFallback } from "./clip-fallback.ts";
 import { createInFlight } from "./inflight.ts";
 import { claimableKinds, runSlots } from "./loop.ts";
 import { flagged } from "./guard.ts";
+import { rowsOf } from "./jobs/rows.ts";
 import type { VideoRun } from "./jobs/types.ts";
 import type { ProviderKeys } from "./providers/types.ts";
 import type { SupabaseRest } from "./supabaseRest.ts";
@@ -138,11 +139,13 @@ const targets = loadTargets().map((target) => ({
 async function resolveKeys(db: SupabaseRest, tenantId: string) {
   let openaiKey = process.env.OPENAI_API_KEY || null;
   if (!openaiKey) {
-    const rows = await db.select(
-      "tenant_integrations",
-      `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
+    const rows = rowsOf<IntegrationRow>(
+      await db.select(
+        "tenant_integrations",
+        `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
+      ),
     );
-    openaiKey = rows?.[0]?.settings?.openai_api_key || null;
+    openaiKey = rows[0]?.settings?.openai_api_key || null;
   }
   if (!openaiKey)
     throw new Error(
@@ -160,11 +163,13 @@ async function resolveMediaKeys(
   db: SupabaseRest,
   tenantId: string,
 ): Promise<ProviderKeys> {
-  const rows = await db.select(
-    "tenant_integrations",
-    `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
+  const rows = rowsOf<IntegrationRow>(
+    await db.select(
+      "tenant_integrations",
+      `tenant_id=eq.${tenantId}&integration_type=eq.llm&is_active=eq.true&select=settings&order=updated_at.desc&limit=1`,
+    ),
   );
-  const settings = rows?.[0]?.settings ?? {};
+  const settings: LlmSettings = rows[0]?.settings ?? {};
   return {
     elevenLabsKey:
       settings.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY || null,
@@ -195,11 +200,13 @@ async function openRouterKey(
   db: SupabaseRest,
   tenantId: string,
 ): Promise<string | null> {
-  const rows = await db.select(
-    "carmen_brain_connections",
-    `tenant_id=eq.${tenantId}&kind=eq.chat_model&provider_preset=eq.openrouter&key_last4=not.is.null&select=id&order=created_at.asc&limit=1`,
+  const rows = rowsOf<{ id?: string }>(
+    await db.select(
+      "carmen_brain_connections",
+      `tenant_id=eq.${tenantId}&kind=eq.chat_model&provider_preset=eq.openrouter&key_last4=not.is.null&select=id&order=created_at.asc&limit=1`,
+    ),
   );
-  const id = rows?.[0]?.id;
+  const id = rows[0]?.id;
   if (!id) return null;
   const secret = await db.rpc("carmen_brain_secret_get", {
     p_connection_id: id,
@@ -255,7 +262,7 @@ async function processOne(db: SupabaseRest, workerId: string) {
       p_worker: workerId,
     }),
   );
-  const run = Array.isArray(claimed) ? claimed[0] : null;
+  const run = rowsOf<VideoRun>(claimed)[0] ?? null;
   if (!run) return false;
   inFlight.hold(db, run);
   console.log(
@@ -316,9 +323,11 @@ for (const signal of ["SIGINT", "SIGTERM"])
     exiting ??= inFlight
       .requeue()
       .then(
-        (ids) =>
-          ids.length &&
-          console.log(`[worker] ${signal}: queued again ${ids.join(", ")}`),
+        (ids) => {
+          if (ids.length) {
+            console.log(`[worker] ${signal}: queued again ${ids.join(", ")}`);
+          }
+        },
         (error) => console.error(`[worker] ${signal}: requeue failed`, error),
       )
       .finally(() => process.exit(0));
@@ -344,6 +353,22 @@ await Promise.all(
     }),
   ),
 );
+
+/** A tenant_integrations row of the LLM integration: the tenant's own provider keys. */
+interface IntegrationRow {
+  settings?: LlmSettings | null;
+}
+
+/** The provider keys a tenant saves in its LLM integration settings. */
+interface LlmSettings {
+  openai_api_key?: string | null;
+  elevenlabs_api_key?: string | null;
+  google_api_key?: string | null;
+  higgsfield_api_key_id?: string | null;
+  higgsfield_api_key_secret?: string | null;
+  kling_access_key?: string | null;
+  kling_secret_key?: string | null;
+}
 
 /** What a handler gets for one claimed run. */
 interface JobContext {

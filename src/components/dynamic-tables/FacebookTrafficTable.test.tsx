@@ -108,4 +108,27 @@ describe("FacebookTrafficTable", () => {
     expect(cells("Older profile").slice(-2)).toStrictEqual(["—", "—"]);
     expect(cells("סה״כ").slice(-2)).toStrictEqual(["30", "₪4"]);
   });
+
+  it("a profile campaign with leads stays traffic and shows its leads", () => {
+    // איימי בכור's Instagram campaign: profile visits that also measure leads.
+    renderTraffic([
+      day("Instagram", {
+        campaign_type: "lead",
+        campaign_objective: "OUTCOME_TRAFFIC",
+        optimization_goal: "PROFILE_VISIT",
+        destination_type: "INSTAGRAM_PROFILE",
+        spend: 120,
+        leads: 6,
+        new_followers: 40,
+      }),
+      day("Blog", { spend: 100 }),
+    ]);
+    expect(headers().slice(-3)).toStrictEqual([
+      "לידים",
+      "עוקבים חדשים",
+      "עלות לעוקב",
+    ]);
+    expect(cells("Instagram")[6]).toBe("6");
+    expect(cells("Blog")[6]).toBe("0");
+  });
 });

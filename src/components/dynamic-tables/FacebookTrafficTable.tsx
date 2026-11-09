@@ -21,13 +21,18 @@ type Props = {
 
 /**
  * The report's Facebook traffic campaigns. A click is their result, so the
- * table shows CTR and cost per click, plus new followers and cost per follower
- * once a campaign sends people to a Page or profile.
+ * table shows CTR and cost per click, plus leads once a campaign measured any,
+ * and new followers and cost per follower once a campaign sends people to a
+ * Page or profile.
  */
 export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
   const campaigns = rows.map(([, campaign]) => campaign);
+  const withLeads = campaigns.some((campaign) => campaign.leads > 0);
   const withFollowers = showsFollowerColumns(campaigns);
   const headers = ["חשיפות", "קליקים", "הוצאה", "CTR", "עלות לקליק"];
+  if (withLeads) {
+    headers.push("לידים");
+  }
   if (withFollowers) {
     headers.push(
       FOLLOWER_COLUMN_LABELS.newFollowers,
@@ -62,6 +67,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
                 <TrafficCells
                   campaigns={[campaign]}
                   currency={currency}
+                  withLeads={withLeads}
                   withFollowers={withFollowers}
                   isTotal={false}
                 />
@@ -74,6 +80,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
               <TrafficCells
                 campaigns={campaigns}
                 currency={currency}
+                withLeads={withLeads}
                 withFollowers={withFollowers}
                 isTotal
               />
@@ -89,11 +96,13 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
 function TrafficCells({
   campaigns,
   currency,
+  withLeads,
   withFollowers,
   isTotal,
 }: {
   campaigns: FacebookReportCampaign[];
   currency: string;
+  withLeads: boolean;
   withFollowers: boolean;
   isTotal: boolean;
 }) {
@@ -119,6 +128,11 @@ function TrafficCells({
         {currency}
         {formatReportNumber(ratio(spend, clicks), 2)}
       </td>
+      {withLeads && (
+        <td className="p-2 text-center">
+          {formatReportNumber(sum((campaign) => campaign.leads))}
+        </td>
+      )}
       {withFollowers && (
         <>
           <td className={resultCellClass("text-green-600", isTotal)}>

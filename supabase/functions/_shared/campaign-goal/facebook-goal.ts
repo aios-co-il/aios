@@ -30,9 +30,12 @@ export type FacebookGoalInputs = {
 /**
  * Goal of one Facebook campaign in every campaign report: the internal report,
  * the shared report and its KPIs, the weekly tab, the dashboards' mixed
- * tables and KPIs (groupFacebookRowsByGoal), and the pulse. Traffic stays traffic, a
- * leads-only table keeps everything else in leads, and otherwise the stored
- * type, the Meta objective, the configured result and the results decide.
+ * tables and KPIs (groupFacebookRowsByGoal), and the pulse. Traffic stays
+ * traffic whatever leads it measures: it is judged on traffic to its
+ * destination, and its table adds leads and followers columns when it has
+ * them (David reversed AIO-514). A leads-only table keeps everything else in
+ * leads, and otherwise the stored type, the Meta objective, the configured
+ * result and the results decide.
  */
 export function facebookCampaignGoal(
   inputs: FacebookGoalInputs,

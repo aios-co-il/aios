@@ -19,8 +19,14 @@ import {
   END_CARD_STYLES as CARMEN_END_CARDS,
   SCENE_TRANSITIONS as CARMEN_TRANSITIONS,
 } from "../../supabase/functions/_shared/workshop/film-look.ts";
+import { runOf, sceneOf, timelineOf } from "./fakes.ts";
+import type { TimelineScene } from "../src/compose/types.ts";
+import type { FilmPayload, RowMeta } from "../src/jobs/types.ts";
 
-const scene = (id, extra = {}) => ({
+const scene = (
+  id: string,
+  extra: Partial<TimelineScene> & { position?: number } = {},
+) => ({
   id,
   position: 1,
   clipPath: `${id}.mp4`,
@@ -77,16 +83,33 @@ describe("film look", () => {
     );
     expect(timeline.endCardStyle).toBe("minimal");
     expect(timeline.scenes[1].transition).toBe("whip");
-    const { manifest } = buildWorkshopManifest({
-      ...timeline,
-      aspect: "9:16",
-      scenes: [
-        { id: "a", durationS: 2, clipPath: "a.mp4" },
-        { id: "b", durationS: 2, clipPath: "b.mp4", transition: "whip" },
-        { id: "c", durationS: 2, clipPath: "c.mp4", transition: "ripple" },
-        { id: "d", durationS: 2, clipPath: "d.mp4", transition: "glitch" },
-      ],
-    });
+    const { manifest } = buildWorkshopManifest(
+      timelineOf({
+        ...timeline,
+        aspect: "9:16",
+        scenes: [
+          sceneOf({ id: "a", durationS: 2, clipPath: "a.mp4" }),
+          sceneOf({
+            id: "b",
+            durationS: 2,
+            clipPath: "b.mp4",
+            transition: "whip",
+          }),
+          sceneOf({
+            id: "c",
+            durationS: 2,
+            clipPath: "c.mp4",
+            transition: "ripple",
+          }),
+          sceneOf({
+            id: "d",
+            durationS: 2,
+            clipPath: "d.mp4",
+            transition: "glitch",
+          }),
+        ],
+      }),
+    );
     expect(manifest.endCardStyle).toBe("minimal");
     expect(manifest.scenes.map((s) => s.transition)).toStrictEqual([
       "cut",
@@ -97,15 +120,17 @@ describe("film look", () => {
     expect(manifest.scenes.map((s) => s.transitionFrames)).toStrictEqual([
       0, 9, 20, 8,
     ]);
-    const plain = buildWorkshopManifest({
-      aspect: "9:16",
-      scenes: [scene("x")],
-    });
+    const plain = buildWorkshopManifest(
+      timelineOf({
+        aspect: "9:16",
+        scenes: [sceneOf(scene("x"))],
+      }),
+    );
     expect(plain.manifest.endCardStyle).toBeUndefined();
   });
 
   test("the run reads the scene's meta.transition and the film's end_card_style", async () => {
-    const row = (meta) => ({
+    const row = (meta: RowMeta) => ({
       id: "s1",
       position: 1,
       overlay_text: "",
@@ -114,9 +139,9 @@ describe("film look", () => {
       clip_asset_id: "clip-1",
       meta,
     });
-    const sourcesFor = async (meta) => {
+    const sourcesFor = async (meta: RowMeta) => {
       const db = {
-        select: async (table, query) => {
+        select: async (table: string, query: string) => {
           if (!query.includes("tenant_id=eq.t1")) return [];
           if (table === "marketing_video_scenes") return [row(meta)];
           if (table === "marketing_assets")
@@ -124,17 +149,17 @@ describe("film look", () => {
           return [];
         },
       };
-      const run = { id: "r1", tenant_id: "t1", item_id: "i1" };
+      const run = runOf({ id: "r1", tenant_id: "t1", item_id: "i1" });
       return (await loadFilmSources(db, run)).scenes[0];
     };
     expect((await sourcesFor({ transition: "glitch" })).transition).toBe(
       "glitch",
     );
     expect((await sourcesFor({ transition: "spin" })).transition).toBeNull();
-    const settingsFor = (video) =>
+    const settingsFor = (video: FilmPayload) =>
       loadFilmSettings(
         { select: async () => [{ payload: { video } }] },
-        { item_id: "i1", tenant_id: "t1" },
+        runOf({ item_id: "i1", tenant_id: "t1" }),
       );
     expect((await settingsFor({ end_card_style: "split" })).endCardStyle).toBe(
       "split",
@@ -149,10 +174,10 @@ describe("film look", () => {
     expect(endCardBackgroundOf("neon")).toBeNull();
     expect(endCardGlassOf(true)).toBe(true);
     expect(endCardGlassOf("true")).toBe(false);
-    const settingsFor = (video) =>
+    const settingsFor = (video: FilmPayload) =>
       loadFilmSettings(
         { select: async () => [{ payload: { video } }] },
-        { item_id: "i1", tenant_id: "t1" },
+        runOf({ item_id: "i1", tenant_id: "t1" }),
       );
     const chosen = await settingsFor({
       end_card_background: "particles",
@@ -170,19 +195,23 @@ describe("film look", () => {
       endCardBackground: chosen.endCardBackground,
       endCardGlass: chosen.endCardGlass,
     });
-    const { manifest } = buildWorkshopManifest({
-      ...timeline,
-      aspect: "9:16",
-      scenes: [{ id: "a", durationS: 2, clipPath: "a.mp4" }],
-    });
+    const { manifest } = buildWorkshopManifest(
+      timelineOf({
+        ...timeline,
+        aspect: "9:16",
+        scenes: [sceneOf({ id: "a", durationS: 2, clipPath: "a.mp4" })],
+      }),
+    );
     expect(manifest.endCardBackground).toBe("particles");
     expect(manifest.endCardGlass).toBe(true);
     // Unset, the film decides (its last scene, no glass): the manifest carries neither.
-    const plain = buildWorkshopManifest({
-      ...buildTimeline([scene("a")]),
-      aspect: "9:16",
-      scenes: [{ id: "a", durationS: 2, clipPath: "a.mp4" }],
-    });
+    const plain = buildWorkshopManifest(
+      timelineOf({
+        ...buildTimeline([scene("a")]),
+        aspect: "9:16",
+        scenes: [sceneOf({ id: "a", durationS: 2, clipPath: "a.mp4" })],
+      }),
+    );
     expect(plain.manifest.endCardBackground).toBeUndefined();
     expect(plain.manifest.endCardGlass).toBeUndefined();
   });

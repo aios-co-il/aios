@@ -276,7 +276,8 @@ describe("a campaign's Meta setup decides its table, not each day's stored type"
       "traffic",
     ],
     [
-      "a profile-visit traffic campaign with lead days",
+      // Judged on its traffic; its table shows the leads (AIO-514 reversed).
+      "a profile-visit traffic campaign that measures leads",
       {
         campaign_objective: "OUTCOME_TRAFFIC",
         optimization_goal: "PROFILE_VISIT",

@@ -18,6 +18,7 @@ import { klingLipsyncProvider } from "./lipsync-kling.ts";
 import { mockProvider } from "./mock.ts";
 import { openRouterProvider } from "./openrouter.ts";
 import type { LipsyncProvider, ProviderKeys, VideoProvider } from "./types.ts";
+import type { VideoRun } from "../jobs/types.ts";
 
 const LIPSYNC_PROVIDERS: Record<
   string,
@@ -67,7 +68,8 @@ export function getLipsyncProvider(
  * then every provider this tenant has a key for. Empty means there is no way to lip-sync.
  */
 export function lipsyncProviderNames(
-  run,
+  run:
+    Pick<VideoRun, "provider" | "provider_job_id" | "input"> | null | undefined,
   keys: ProviderKeys = {},
   env: NodeJS.ProcessEnv = process.env,
 ): Array<string> {
@@ -75,7 +77,7 @@ export function lipsyncProviderNames(
     run?.provider_job_id ? run.provider : null,
     run?.input?.provider,
     env.LIPSYNC_PROVIDER,
-  ].filter((name) => name && LIPSYNC_PROVIDERS[name]);
+  ].filter((name): name is string => Boolean(name && LIPSYNC_PROVIDERS[name]));
   if (run?.provider_job_id && wanted[0]) return [wanted[0]];
   return [...new Set([...wanted, ...lipsyncCandidates(keys, env)])];
 }
@@ -87,7 +89,7 @@ export function lipsyncProviderNames(
  */
 export const talkingPrompt = (
   motionPrompt: string | null | undefined,
-  { line, speaker }: { line?: string; speaker?: string } = {},
+  { line, speaker }: { line?: string; speaker?: string | null } = {},
   carmen = false,
 ) =>
   [
