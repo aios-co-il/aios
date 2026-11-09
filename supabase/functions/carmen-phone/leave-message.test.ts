@@ -83,3 +83,60 @@ Deno.test("a made-up call id or an empty message is refused", async () => {
     false,
   );
 });
+
+const RECIPIENTS = [{ user_id: null, phone: "0501234567", label: null }];
+
+Deno.test(
+  "a 4th message in one call is refused and sends nothing",
+  async () => {
+    const taken = [1, 2, 3].map((n) => ({ message: `הודעה ${n}` }));
+    const { result, sent, writes } = await run(
+      {
+        carmen_phone_calls: [{ ...call("unknown"), messages: taken }],
+        carmen_caller_policies: [],
+        carmen_report_recipients: RECIPIENTS,
+      },
+      { call_id: CALL_ID, message: "עוד הודעה" },
+    );
+    assertEquals(result.ok, false);
+    assertEquals(result.result.includes("כבר נרשמה"), true);
+    assertEquals(sent.length, 0);
+    assertEquals(writes.length, 0);
+  },
+);
+
+Deno.test(
+  "a call over the hourly limit takes no messages, even from the team",
+  async () => {
+    const { result, sent, writes } = await run(
+      {
+        carmen_phone_calls: [{ ...call("staff"), rate_limited: true }],
+        carmen_report_recipients: RECIPIENTS,
+      },
+      { call_id: CALL_ID, message: "תחזרו אליי" },
+    );
+    assertEquals(result.ok, false);
+    assertEquals(sent.length, 0);
+    assertEquals(writes.length, 0);
+  },
+);
+
+Deno.test(
+  "a message neither stored nor delivered is reported as not recorded",
+  async () => {
+    const { db } = fakeDb(
+      {
+        carmen_phone_calls: [call("unknown")],
+        carmen_caller_policies: [],
+        carmen_report_recipients: RECIPIENTS,
+      },
+      ["carmen_phone_calls.update"],
+    );
+    const result = await leaveMessage(db, () => Promise.resolve(false), {
+      call_id: CALL_ID,
+      message: "מעוניין בפגישה",
+    });
+    assertEquals(result.ok, false);
+    assertEquals(result.result.includes("לא הצלחתי לרשום"), true);
+  },
+);

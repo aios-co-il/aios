@@ -4404,6 +4404,7 @@ export type Database = {
       carmen_phone_calls: {
         Row: {
           caller_kind: string;
+          caller_match_key: string | null;
           caller_name: string | null;
           caller_phone: string | null;
           campaigner_id: string | null;
@@ -4414,14 +4415,17 @@ export type Database = {
           id: string;
           line_id: string | null;
           messages: Json;
+          rate_limited: boolean;
           started_at: string;
           summary: string | null;
+          summary_error: string | null;
           summary_sent_at: string | null;
           tenant_id: string;
           transcript: Json | null;
         };
         Insert: {
           caller_kind: string;
+          caller_match_key?: string | null;
           caller_name?: string | null;
           caller_phone?: string | null;
           campaigner_id?: string | null;
@@ -4432,14 +4436,17 @@ export type Database = {
           id?: string;
           line_id?: string | null;
           messages?: Json;
+          rate_limited?: boolean;
           started_at?: string;
           summary?: string | null;
+          summary_error?: string | null;
           summary_sent_at?: string | null;
           tenant_id: string;
           transcript?: Json | null;
         };
         Update: {
           caller_kind?: string;
+          caller_match_key?: string | null;
           caller_name?: string | null;
           caller_phone?: string | null;
           campaigner_id?: string | null;
@@ -4450,8 +4457,10 @@ export type Database = {
           id?: string;
           line_id?: string | null;
           messages?: Json;
+          rate_limited?: boolean;
           started_at?: string;
           summary?: string | null;
+          summary_error?: string | null;
           summary_sent_at?: string | null;
           tenant_id?: string;
           transcript?: Json | null;
