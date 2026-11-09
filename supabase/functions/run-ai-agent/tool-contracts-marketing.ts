@@ -1,3 +1,4 @@
+import { invalidToolInput } from "./tool-input-errors.ts";
 import { z } from "npm:zod@3.25.76";
 import type { AgentRow } from "./database-contracts.ts";
 
@@ -141,5 +142,9 @@ export type MetaLeadQuestionInput = z.infer<typeof metaLeadQuestionInputSchema>;
 export function readMetaLeadQuestionInput(
   value: unknown,
 ): MetaLeadQuestionInput {
-  return metaLeadQuestionInputSchema.parse(value);
+  const parsed = metaLeadQuestionInputSchema.safeParse(value);
+  if (!parsed.success) {
+    throw invalidToolInput("Meta lead question", parsed.error);
+  }
+  return parsed.data;
 }

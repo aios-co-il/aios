@@ -398,15 +398,25 @@ import type {
   OnboardingListRow,
   PrioritizedTaskRow,
 } from "./tool-contracts-marketing.ts";
-import type { TablesUpdate } from "../_shared/database.types.ts";
-
-/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
-function errorMessage(e: unknown): string {
-  if (isObject(e) && typeof e.message === "string") return e.message;
-  return String(e);
-}
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
+import {
+  adAccountDisableReason,
+  automationStepArg,
+  parallelTaskArgs,
+  providerErrorMessage,
+  readGoogleAdsCampaignRow,
+  readGoogleCalendarEvents,
+} from "./tool-contracts-admin.ts";
+import type { MetaAdSettings } from "./tool-storage-contracts.ts";
+import {
+  readMetaAdSettings,
+  readMetaAdAccountBinding,
+  readMarketingWorkItemPayload,
+  readAutomationStepSummary,
+} from "./tool-storage-contracts.ts";
+import type { AdAccountHealthIssue } from "./tool-contracts-admin.ts";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
   SearchClient,
@@ -415,6 +425,12 @@ import type {
   ConnectedClient,
   DisconnectedClient,
 } from "./helper-results.ts";
+
+/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
+function errorMessage(e: unknown): string {
+  if (isObject(e) && typeof e.message === "string") return e.message;
+  return String(e);
+}
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
@@ -8684,13 +8700,15 @@ async function executeTool(
       let items: MarketingWorkItemListRow[] = data || [];
       if (args.department) {
         items = items.filter(
-          (it) => (jsonObject(it.payload).department || "") === args.department,
+          (it) =>
+            (readMarketingWorkItemPayload(it.payload).department || "") ===
+            args.department,
         );
       }
       return {
         count: items.length,
         items: items.map((it) => {
-          const payload = jsonObject(it.payload);
+          const payload = readMarketingWorkItemPayload(it.payload);
           return {
             id: it.id,
             title: it.title,
@@ -8902,7 +8920,7 @@ async function executeTool(
                 ? "creative"
                 : args.to_stage_type === "copy"
                   ? "copy"
-                  : jsonObject(item.payload).department,
+                  : readMarketingWorkItemPayload(item.payload).department,
           },
           updated_at: new Date().toISOString(),
         })
@@ -9486,7 +9504,7 @@ async function executeTool(
       return {
         automation: auto,
         steps: stepRows.map((s) => {
-          const configuration = jsonObject(s.configuration);
+          const configuration = readAutomationStepSummary(s.configuration);
           return {
             id: s.id,
             step_type: s.step_type,
@@ -9586,7 +9604,13 @@ async function executeTool(
       >[] = triggerSteps || [];
       const currentByAutomation = new Map(
         triggerRows
-          .map((s) => [s.automation_id, jsonObject(s.configuration)] as const)
+          .map(
+            (s) =>
+              [
+                s.automation_id,
+                readAutomationStepSummary(s.configuration),
+              ] as const,
+          )
           .filter(([, configuration]) => configuration.facebook_form_id),
       );
 
@@ -11252,31 +11276,36 @@ async function executeTool(
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
+      const db: AgentDatabaseClient = supabase;
       const healthSel =
         "id, name, agency_id, meta_ads_account_id, agencies(name)";
-      const healthFilters = (q: any) => {
+      const healthClients = (scopeTenantId: string) =>
+        db.from("clients").select(healthSel).eq("tenant_id", scopeTenantId);
+      const healthFilters = (q: ReturnType<typeof healthClients>) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
         if (args.agency_id) q = q.eq("agency_id", args.agency_id);
         return q;
       };
       const { data: healthOwn } = await healthFilters(
-        supabase.from("clients").select(healthSel).eq("tenant_id", tenantId),
+        healthClients(tenantId),
       ).order("name");
-      let scopeClients: any[] = healthOwn || [];
-      const { data: healthShares } = await supabase
+      let scopeClients = healthOwn || [];
+      const { data: healthShares } = await db
         .from("agency_tenant_access")
         .select("source_tenant_id, agency_id")
         .eq("accessing_tenant_id", tenantId);
       // Same ownership rule as analyze_campaign_performance above.
       const healthShareAgencyIds = [
         ...new Set(
-          (healthShares || []).map((s: any) => s.agency_id).filter(Boolean),
+          (healthShares || [])
+            .map((s) => s.agency_id)
+            .filter((id): id is string => Boolean(id)),
         ),
       ];
       const healthOwnedAgencies = new Set<string>();
       if (healthShareAgencyIds.length > 0) {
-        const { data: ags } = await supabase
+        const { data: ags } = await db
           .from("agencies")
           .select("id")
           .eq("tenant_id", tenantId)
@@ -11292,16 +11321,12 @@ async function executeTool(
           continue;
         if (!healthOwnedAgencies.has(sh.agency_id)) continue;
         const { data: sharedClients } = await healthFilters(
-          supabase
-            .from("clients")
-            .select(healthSel)
-            .eq("tenant_id", sh.source_tenant_id)
-            .eq("agency_id", sh.agency_id),
+          healthClients(sh.source_tenant_id).eq("agency_id", sh.agency_id),
         );
         if (sharedClients?.length)
           scopeClients = scopeClients.concat(sharedClients);
       }
-      const clientIds = (scopeClients || []).map((c: any) => c.id);
+      const clientIds = (scopeClients || []).map((c) => c.id);
       if (clientIds.length === 0)
         return {
           count: 0,
@@ -11311,16 +11336,20 @@ async function executeTool(
         };
 
       // 2. Find facebook_insights tables (which contain ad_account_id) for these clients
-      const { data: fbTables } = await supabase
+      const { data: fbTables } = await db
         .from("crm_tables")
         .select("client_id, integration_settings")
         .in("tenant_id", accessibleTenantIds)
         .in("client_id", clientIds)
         .eq("integration_type", "facebook_insights");
 
-      const fbTableByClient = new Map<string, any>();
-      for (const t of fbTables || [])
-        fbTableByClient.set(t.client_id, t.integration_settings);
+      const fbTableByClient = new Map<string | null, MetaAdSettings>();
+      for (const t of fbTables || []) {
+        fbTableByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
+      }
 
       // 3. Fetch Facebook access token (tenant integration)
       let { data: integration } = await supabase
@@ -11346,7 +11375,11 @@ async function executeTool(
       // 4. Fetch all ad accounts in one shot (status + spend_cap)
       const accountStatusById = new Map<
         string,
-        { status: number; name: string; disable_reason?: number }
+        {
+          status: MetaNode["account_status"] | undefined;
+          name: MetaNode["name"] | undefined;
+          disable_reason?: unknown;
+        }
       >();
       let tokenOk = !!accessToken;
       if (accessToken) {
@@ -11354,22 +11387,23 @@ async function executeTool(
           let url: string | null =
             `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,account_id,name,account_status,disable_reason&limit=200&access_token=${accessToken}`;
           while (url) {
-            const r: any = await fetch(url);
-            const j: any = await r.json();
-            if (j.error) {
+            const r: Response = await fetch(url);
+            const res = await readMetaResponse(r);
+            if (!res.ok || res.value.error) {
               tokenOk = false;
               break;
             }
+            const j = res.value;
             for (const a of j.data || []) {
               accountStatusById.set(String(a.id), {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: a.disable_reason,
+                disable_reason: adAccountDisableReason(a),
               });
               accountStatusById.set(`act_${a.account_id}`, {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: a.disable_reason,
+                disable_reason: adAccountDisableReason(a),
               });
             }
             url = j.paging?.next || null;
@@ -11384,18 +11418,21 @@ async function executeTool(
       const d7 = new Date(now);
       d7.setDate(d7.getDate() - 7);
       const d7Str = d7.toISOString().split("T")[0];
-      const fbTableIds = (fbTables || []).map((t: any) => t).filter(Boolean);
-      const tableIdsForRecords = await supabase
+      const fbTableIds = (fbTables || []).map((t) => t).filter(Boolean);
+      const tableIdsForRecords = await db
         .from("crm_tables")
         .select("id, client_id, integration_settings")
         .in("client_id", clientIds)
         .in("tenant_id", accessibleTenantIds)
         .eq("integration_type", "facebook_insights");
-      const tableIdToClient = new Map<string, string>();
-      const settingsByClient = new Map<string, any>();
+      const tableIdToClient = new Map<string, string | null>();
+      const settingsByClient = new Map<string | null, MetaAdSettings>();
       for (const t of tableIdsForRecords.data || []) {
         tableIdToClient.set(t.id, t.client_id);
-        settingsByClient.set(t.client_id, t.integration_settings);
+        settingsByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
       }
       const tableIds = Array.from(tableIdToClient.keys());
       const spendByClient = new Map<
@@ -11429,7 +11466,7 @@ async function executeTool(
         }
       }
 
-      const unhealthy: any[] = [];
+      const unhealthy: AdAccountHealthIssue[] = [];
       let healthy = 0;
       for (const c of scopeClients || []) {
         const settings = settingsByClient.get(c.id);
@@ -11512,7 +11549,8 @@ async function executeTool(
     }
     case "list_unconnected_clients": {
       // Get active clients that don't have a facebook_insights table
-      const { data: allClients, error: clientsErr } = await supabase
+      const db: AgentDatabaseClient = supabase;
+      const { data: allClients, error: clientsErr } = await db
         .from("clients")
         .select("id, name, agency_id, agencies(name)")
         .in("tenant_id", accessibleTenantIds)
@@ -11520,7 +11558,7 @@ async function executeTool(
         .order("name");
       if (clientsErr) throw clientsErr;
 
-      const { data: connectedTables } = await supabase
+      const { data: connectedTables } = await db
         .from("crm_tables")
         .select("client_id")
         .in("tenant_id", accessibleTenantIds)
@@ -11528,11 +11566,11 @@ async function executeTool(
         .not("client_id", "is", null);
 
       const connectedClientIds = new Set(
-        (connectedTables || []).map((t: any) => t.client_id),
+        (connectedTables || []).map((t) => t.client_id),
       );
       const unconnected = (allClients || [])
-        .filter((c: any) => !connectedClientIds.has(c.id))
-        .map((c: any) => ({
+        .filter((c) => !connectedClientIds.has(c.id))
+        .map((c) => ({
           id: c.id,
           name: c.name,
           agency_name: c.agencies?.name,
@@ -11541,7 +11579,8 @@ async function executeTool(
       return { count: unconnected.length, unconnected_clients: unconnected };
     }
     case "list_integrations": {
-      let q = supabase
+      const db: AgentDatabaseClient = supabase;
+      let q = db
         .from("tenant_integrations")
         .select(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
@@ -11554,7 +11593,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data?.length || 0,
-        integrations: (data || []).map((i: any) => ({
+        integrations: (data || []).map((i) => ({
           id: i.id,
           type: i.integration_type,
           is_active: i.is_active,
@@ -11605,7 +11644,7 @@ async function executeTool(
       };
     }
     case "update_agent": {
-      const updates: any = {};
+      const updates: TablesUpdate<"ai_agents"> = {};
       for (const k of [
         "name",
         "talent",
@@ -11613,7 +11652,7 @@ async function executeTool(
         "soul",
         "engine",
         "active",
-      ]) {
+      ] as const) {
         if (args[k] !== undefined) updates[k] = args[k];
       }
       const { data, error } = await supabase
@@ -11832,7 +11871,7 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .single();
       if (!current) return { error: "Skill not found" };
-      const updates: any = {
+      const updates: TablesUpdate<"ai_skills"> = {
         steps: args.body,
         version: (current.version || 1) + 1,
         updated_at: new Date().toISOString(),
@@ -11883,23 +11922,19 @@ async function executeTool(
     }
 
     case "delegate_parallel": {
-      const items = Array.isArray(args.tasks) ? args.tasks : [];
+      const items: unknown[] = Array.isArray(args.tasks) ? args.tasks : [];
       if (items.length === 0)
         throw new Error("tasks (array of {title, prompt}) is required");
       if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
-      const cleaned = items
-        .filter((it: any) => it && it.title && it.prompt)
-        .map((it: any) => ({
-          title: String(it.title),
-          prompt: String(it.prompt),
-          taskSkills: Array.isArray(it.task_skills)
-            ? it.task_skills
-            : undefined,
-          // Routing: read-only subtasks (side_effects:false) run in parallel;
-          // mutating ones (default) run one-at-a-time in the serial lane.
-          sideEffects:
-            typeof it.side_effects === "boolean" ? it.side_effects : undefined,
-        }));
+      const cleaned = parallelTaskArgs(items).map((it) => ({
+        title: it.title,
+        prompt: it.prompt,
+        taskSkills: Array.isArray(it.task_skills) ? it.task_skills : undefined,
+        // Routing: read-only subtasks (side_effects:false) run in parallel;
+        // mutating ones (default) run one-at-a-time in the serial lane.
+        sideEffects:
+          typeof it.side_effects === "boolean" ? it.side_effects : undefined,
+      }));
       if (cleaned.length === 0)
         throw new Error("כל תת-משימה חייבת title ו-prompt");
       const batchId = crypto.randomUUID();
@@ -11931,6 +11966,7 @@ async function executeTool(
       ) {
         throw new Error("name, trigger_type ו-steps (מערך לא ריק) נדרשים");
       }
+      const stepArgs: unknown[] = args.steps;
       const spec = {
         name: String(args.name),
         description: args.description ? String(args.description) : null,
@@ -11939,14 +11975,17 @@ async function executeTool(
           args.trigger_config && typeof args.trigger_config === "object"
             ? args.trigger_config
             : {},
-        steps: (args.steps as any[]).slice(0, 20).map((s) => ({
-          type: String(s.type || "agent"),
-          skin: s.skin ? String(s.skin) : null,
-          instruction: s.instruction ? String(s.instruction) : null,
-          action_type: s.action_type ? String(s.action_type) : null,
-          config: s.config && typeof s.config === "object" ? s.config : {},
-          label: s.label ? String(s.label) : null,
-        })),
+        steps: stepArgs
+          .slice(0, 20)
+          .map(automationStepArg)
+          .map((s) => ({
+            type: s.type || "agent",
+            skin: s.skin || null,
+            instruction: s.instruction || null,
+            action_type: s.action_type || null,
+            config: s.config && typeof s.config === "object" ? s.config : {},
+            label: s.label || null,
+          })),
       };
       const stepSummary = spec.steps
         .map(
@@ -12278,7 +12317,7 @@ async function executeTool(
         accessibleTenantIds,
       );
 
-      let result = accounts.map((a: any) => ({
+      let result = accounts.map((a) => ({
         customer_id: a.customer_id,
         name: a.name,
         status: a.status,
@@ -12288,7 +12327,7 @@ async function executeTool(
       }));
 
       if (args.client_id) {
-        result = result.filter((a: any) => a.client_id === args.client_id);
+        result = result.filter((a) => a.client_id === args.client_id);
       }
 
       return { count: result.length, accounts: result };
@@ -12384,32 +12423,30 @@ async function executeTool(
           error: `Google Ads API: ${searchData.error?.message || JSON.stringify(searchData.error)}`,
         };
 
-      let campaigns = (searchData.results || []).map((row: any) => ({
-        campaign_id: String(row.campaign?.id || ""),
-        name: row.campaign?.name || null,
-        status: row.campaign?.status || null,
-        daily_budget:
-          row.campaignBudget?.amountMicros != null
-            ? Number(row.campaignBudget.amountMicros) / 1_000_000
-            : null,
-        cost:
-          row.metrics?.costMicros != null
-            ? Number(row.metrics.costMicros) / 1_000_000
-            : null,
-        clicks: row.metrics?.clicks != null ? Number(row.metrics.clicks) : null,
-        impressions:
-          row.metrics?.impressions != null
-            ? Number(row.metrics.impressions)
-            : null,
-        conversions:
-          row.metrics?.conversions != null
-            ? Number(row.metrics.conversions)
-            : null,
-      }));
+      const searchRows: unknown[] = searchData.results || [];
+      let campaigns = searchRows.map((row) => {
+        const { campaign, campaignBudget, metrics } =
+          readGoogleAdsCampaignRow(row);
+        const budgetMicros = campaignBudget.amountMicros;
+        const { costMicros, clicks, impressions, conversions } = metrics;
+        return {
+          campaign_id: String(campaign.id || ""),
+          name: campaign.name || null,
+          status: campaign.status || null,
+          daily_budget:
+            budgetMicros != null ? Number(budgetMicros) / 1_000_000 : null,
+          cost: costMicros != null ? Number(costMicros) / 1_000_000 : null,
+          clicks: clicks != null ? Number(clicks) : null,
+          impressions: impressions != null ? Number(impressions) : null,
+          conversions: conversions != null ? Number(conversions) : null,
+        };
+      });
       if (args.name_search) {
         const needle = String(args.name_search).toLowerCase();
-        campaigns = campaigns.filter((c: any) =>
-          (c.name || "").toLowerCase().includes(needle),
+        campaigns = campaigns.filter((c) =>
+          String(c.name || "")
+            .toLowerCase()
+            .includes(needle),
         );
       }
       return { customer_id: customerId, count: campaigns.length, campaigns };
@@ -12649,7 +12686,8 @@ async function executeTool(
       if (clientErr) throw clientErr;
       if (!client) return { error: "לקוח לא נמצא או מחוץ להרשאות" };
 
-      const { data: fbTables } = await supabase
+      const db: AgentDatabaseClient = supabase;
+      const { data: fbTables } = await db
         .from("crm_tables")
         .select("id, name, integration_settings")
         .eq("client_id", clientId)
@@ -12661,9 +12699,7 @@ async function executeTool(
         : null;
       const existingTableAccount =
         (fbTables || [])
-          .map((t: any) =>
-            normalizeMetaAdAccountId(t?.integration_settings?.ad_account_id),
-          )
+          .map((t) => readMetaAdAccountBinding(t.integration_settings))
           .find((id: string | null) => !!id) || null;
 
       const conflicts = [existingClientAccount, existingTableAccount]
@@ -12730,11 +12766,13 @@ async function executeTool(
         previous_ad_account_id: string | null;
       }> = [];
       for (const table of fbTables || []) {
-        const prev = table?.integration_settings?.ad_account_id
-          ? normalizeMetaAdAccountId(table.integration_settings.ad_account_id)
-          : null;
+        const prev = readMetaAdAccountBinding(table.integration_settings);
         const nextSettings = {
-          ...(table.integration_settings || {}),
+          ...(table.integration_settings !== null &&
+          typeof table.integration_settings === "object" &&
+          !Array.isArray(table.integration_settings)
+            ? table.integration_settings
+            : {}),
           ad_account_id: normalizedAccountId,
           ...(account_name ? { ad_account_name: account_name } : {}),
         };
@@ -12909,7 +12947,7 @@ async function executeTool(
     }
     case "create_broadcast": {
       // Build audience_filter from source + extra filter
-      const audience_filter: Record<string, any> = {
+      const audience_filter: TablesInsert<"broadcasts">["audience_filter"] = {
         source: args.audience_source,
         ...(args.audience_filter || {}),
       };
@@ -12938,7 +12976,7 @@ async function executeTool(
           .maybeSingle();
         if (integ) provider = integ.integration_type;
       }
-      const insertData: Record<string, any> = {
+      const insertData: TablesInsert<"broadcasts"> = {
         tenant_id: tenantId,
         created_by: userId && userId !== "system" ? userId : null,
         name: args.name,
@@ -13100,7 +13138,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13136,7 +13174,7 @@ async function executeTool(
         guestsCanModify: false,
       };
       let zoom_available: boolean | null = null;
-      let zoom_status: string | null = null;
+      let zoom_status: string | null | undefined = null;
       let conference_applied = "none";
       const qp = new URLSearchParams({
         sendUpdates: "all",
@@ -13219,7 +13257,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13246,19 +13284,20 @@ async function executeTool(
           headers: { Authorization: `Bearer ${cal.accessToken}` },
         },
       );
-      const data = await resp.json();
+      const data: unknown = await resp.json();
       if (!resp.ok)
         return {
-          error: `שגיאת Google Calendar: ${data?.error?.message || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
+      const calendarItems = readGoogleCalendarEvents(data);
       return {
-        count: (data.items || []).length,
-        events: (data.items || []).map((e: any) => ({
+        count: calendarItems.length,
+        events: calendarItems.map((e) => ({
           event_id: e.id,
           title: e.summary,
-          start: e.start?.dateTime || e.start?.date,
-          end: e.end?.dateTime || e.end?.date,
-          attendees: (e.attendees || []).map((a: any) => a.email),
+          start: e.start.dateTime || e.start.date,
+          end: e.end.dateTime || e.end.date,
+          attendees: (e.attendees || []).map((a) => a.email),
           link: e.htmlLink,
           conference_url: extractConferenceUrl(e),
           conference_type: conferenceKindFromUrl(extractConferenceUrl(e)),
@@ -13275,7 +13314,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13349,7 +13388,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13361,9 +13400,9 @@ async function executeTool(
         },
       );
       if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
-        const data = await resp.json().catch(() => ({}));
+        const data: unknown = await resp.json().catch(() => ({}));
         return {
-          error: `שגיאת Google Calendar: ${(data as any)?.error?.message || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
       }
       return {
@@ -13474,10 +13513,12 @@ async function executeTool(
           tenantId,
           includeTokens: args.include_tokens !== false,
         });
-      } catch (e: any) {
+      } catch (e) {
         return {
           ok: false,
-          error: redactSecretsFromText(e?.message || "openai billing failed"),
+          error: redactSecretsFromText(
+            errorMessage(e) || "openai billing failed",
+          ),
           remaining_credit: null,
           remaining_credit_available: false,
           summary_he: "שגיאה בשליפת סטטוס חיוב OpenAI.",
@@ -13497,7 +13538,9 @@ async function executeTool(
         tenantId,
         entityType,
       );
-      let rows = roster.map(formatStaffContact).filter(Boolean) as any[];
+      let rows = roster
+        .map(formatStaffContact)
+        .filter((contact) => contact !== null);
       if (onlyWithPhone) rows = rows.filter((r) => r.has_phone);
       if (search) {
         rows = rows
@@ -13608,9 +13651,10 @@ async function executeTool(
       const pEnd = period_end || defaultEnd;
 
       // Resolve client_id by name if not given
+      const db: AgentDatabaseClient = supabase;
       let resolvedClientId = argClientId;
       if (!resolvedClientId && client_name) {
-        const { data: found } = await supabase
+        const { data: found } = await db
           .from("clients")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
@@ -13621,14 +13665,14 @@ async function executeTool(
         if (found.length > 1)
           return {
             ambiguous: true,
-            matches: found.map((c: any) => ({ id: c.id, name: c.name })),
+            matches: found.map((c) => ({ id: c.id, name: c.name })),
             message: "נמצאו מספר לקוחות — ציין client_id",
           };
         resolvedClientId = found[0].id;
       }
 
       // Query seo_call_snapshots for given period
-      const snapshotQuery = supabase
+      const snapshotQuery = db
         .from("seo_call_snapshots")
         .select(
           "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
@@ -13647,21 +13691,19 @@ async function executeTool(
       if (snapErr) return { error: snapErr.message };
 
       // Enrich with client names
-      const clientIds = [
-        ...new Set((snapshots || []).map((s: any) => s.client_id)),
-      ];
+      const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
       const clientNames: Record<string, string> = {};
       if (clientIds.length) {
-        const { data: clients } = await supabase
+        const { data: clients } = await db
           .from("clients")
           .select("id, name")
           .in("id", clientIds);
-        clients?.forEach((c: any) => {
+        clients?.forEach((c) => {
           clientNames[c.id] = c.name;
         });
       }
 
-      const rows = (snapshots || []).map((s: any) => ({
+      const rows = (snapshots || []).map((s) => ({
         client_id: s.client_id,
         client_name: clientNames[s.client_id] || s.client_id,
         category: s.category,
@@ -13673,7 +13715,12 @@ async function executeTool(
       }));
 
       // Optional: compare with previous period of same length
-      let prevRows: any[] = [];
+      let prevRows: Array<{
+        client_id: string;
+        category: string;
+        incoming_calls: number;
+        period: string;
+      }> = [];
       if (period_compare) {
         const startDate = new Date(pStart);
         const endDate = new Date(pEnd);
@@ -13685,7 +13732,7 @@ async function executeTool(
           .toISOString()
           .split("T")[0];
 
-        const prevQuery = supabase
+        const prevQuery = db
           .from("seo_call_snapshots")
           .select("client_id, category, incoming_count")
           .in("tenant_id", accessibleTenantIds)
@@ -13694,7 +13741,7 @@ async function executeTool(
         if (resolvedClientId) prevQuery.eq("client_id", resolvedClientId);
         if (category && category !== "all") prevQuery.eq("category", category);
         const { data: prev } = await prevQuery;
-        prevRows = (prev || []).map((p: any) => ({
+        prevRows = (prev || []).map((p) => ({
           client_id: p.client_id,
           category: p.category,
           incoming_calls: p.incoming_count,
@@ -13752,7 +13799,7 @@ import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
-type Emit = ((obj: any) => void) | undefined;
+type Emit = ((obj: unknown) => void) | undefined;
 
 async function handleRunAgent(
   bodyJson: any,
