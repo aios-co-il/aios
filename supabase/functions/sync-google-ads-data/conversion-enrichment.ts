@@ -1,4 +1,8 @@
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
+import {
+  type CampaignDayLeads,
+  fetchLeadsByCampaignDay,
+} from "./call-leads.ts";
 import { googleCampaignConversionGoal } from "./conversion-goal.ts";
 import {
   type CampaignConversions,
@@ -14,6 +18,13 @@ export type ConversionEnrichedRecord = {
   campaign_id: string;
   add_to_cart?: number;
   conversion_goal?: GoogleCampaignGoal;
+  conversions?: number;
+  cost?: number;
+  cost_per_conversion?: number;
+  /** Phone calls added to `conversions` that Google left out of it. */
+  added_call_leads?: number;
+  /** A sales campaign's leads (calls, forms...), shown apart from purchases. */
+  leads?: number;
 };
 
 export type ConversionEnrichmentContext = {
@@ -30,7 +41,8 @@ export type ConversionEnrichmentContext = {
  * check reads `conversion_goal` to tell an ecommerce campaign from a lead campaign
  * inside the same account. Add-to-cart is usually a SECONDARY action, so it lives
  * in `all_conversions`; purchases stay on `metrics.conversions` so the report keeps
- * matching the Google Ads UI.
+ * matching the Google Ads UI. Every phone call is a lead, so a lead campaign's
+ * conversions add the calls Google left out of them.
  */
 export async function enrichConversionCategories(
   records: ConversionEnrichedRecord[],
@@ -66,6 +78,7 @@ export async function enrichConversionCategories(
         : JSON.stringify(categoryErr).slice(0, 300),
     );
   }
+  await addUncountedCalls(records, context);
 }
 
 /** Set `conversion_goal` on every record whose campaign's goal is known; returns how many campaigns have one. */
@@ -114,4 +127,58 @@ function stampAddToCart(
     rec.add_to_cart =
       addToCartByCampaignDay.get(`${rec.campaign_id}|${rec.date}`) || 0;
   }
+}
+
+/**
+ * Leads on campaign-level records; the read is per campaign, so ad group and ad
+ * rows keep Google's own conversions. A lead campaign's conversions add the
+ * calls Google left out of them. A sales campaign keeps its conversions (a call
+ * is not a purchase) and records every lead in `leads`, for its own column. A
+ * failed read is logged and leaves the records as Google has them.
+ */
+async function addUncountedCalls(
+  records: Array<ConversionEnrichedRecord>,
+  context: ConversionEnrichmentContext,
+) {
+  let leads: CampaignDayLeads;
+  try {
+    leads = await fetchLeadsByCampaignDay(
+      context.runGaqlSearch,
+      context.startIso,
+      context.endIso,
+    );
+  } catch (callErr) {
+    console.warn(
+      "[sync-google-ads] call leads read failed (non-fatal):",
+      callErr instanceof Error
+        ? callErr.message
+        : JSON.stringify(callErr).slice(0, 300),
+    );
+    return;
+  }
+  for (const rec of records) {
+    if ((rec.entity_level || "campaign") !== "campaign") {
+      continue;
+    }
+    const key = `${rec.campaign_id}|${rec.date}`;
+    if (rec.conversion_goal === "ecommerce") {
+      const saleLeads = leads.allLeads.get(key);
+      if (saleLeads) {
+        rec.leads = saleLeads;
+      }
+      continue;
+    }
+    const calls = leads.uncountedCalls.get(key);
+    if (!calls) {
+      continue;
+    }
+    rec.conversions = (rec.conversions || 0) + calls;
+    rec.added_call_leads = calls;
+    if (rec.cost !== undefined) {
+      rec.cost_per_conversion = rec.cost / rec.conversions;
+    }
+  }
+  console.log(
+    `[sync-google-ads] uncounted call segments: ${leads.uncountedCalls.size}, lead segments: ${leads.allLeads.size}`,
+  );
 }
