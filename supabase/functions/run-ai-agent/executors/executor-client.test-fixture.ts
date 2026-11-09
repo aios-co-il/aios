@@ -4,7 +4,7 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Uses the real query builder and intercepts HTTP without external writes. */
 export function executorClient(
-  responses: Array<unknown>,
+  responses: Array<unknown> | ((request: Request) => unknown),
   status = 200,
   overrides: Partial<ToolExecutionContext> = {},
   onRequest?: () => void,
@@ -32,7 +32,9 @@ export function executorClient(
           onRequest?.();
           const response = await (respond
             ? respond(new URL(request.url))
-            : responses.shift());
+            : typeof responses === "function"
+              ? responses(request)
+              : responses.shift());
           if (response instanceof Response) {
             return response;
           }

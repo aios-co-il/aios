@@ -1,5 +1,5 @@
 import type { Tables } from "../../_shared/database.types.ts";
-import type { RunDependencies } from "../index.ts";
+import type { RunDependencies } from "./dependencies.ts";
 import type { Surface } from "../surface.ts";
 import type {
   BrainEngine,
