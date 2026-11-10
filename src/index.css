@@ -136,6 +136,20 @@
     pointer-events: none;
   }
 
+  /* AIOS wordmark set inside a glass sphere (ChannelSphere.tsx) */
+  .aios-emboss {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--foreground) / 0.82) 10%,
+      hsl(var(--brand-accent-600) / 0.9) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 0.18em hsl(var(--primary) / 0.7))
+      drop-shadow(0 0 0.6em hsl(var(--primary) / 0.35));
+  }
+
   .direction-ltr {
     direction: ltr;
   }
