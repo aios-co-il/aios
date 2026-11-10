@@ -1,7 +1,8 @@
 import type { Json } from "../_shared/database.types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 import { callerLabel, notifyTeam, type SendAlert } from "./recipients.ts";
-import { claimSummarySend, loadCall, recordCallEnd } from "./calls.ts";
+import { loadCall, recordCallEnd } from "./calls.ts";
+import { claimSummarySend, releaseSummaryClaim } from "./summary-claim.ts";
 
 /** The parts of ElevenLabs' post_call_transcription webhook this handler reads. */
 export type PostCallPayload = {
@@ -17,9 +18,13 @@ export type PostCallPayload = {
   };
 };
 
+const SUMMARY_UNDELIVERED = "summary reached no team member";
+
 /**
  * Records a finished call and sends its summary to the team once. Other webhook types, and calls
- * that were never set up (a number no org owns), are ignored.
+ * that were never set up (a number no org owns), are ignored; a call over the hourly limit sends
+ * no summary. A summary that reaches nobody is recorded on the call (summary_error) and its claim
+ * released, so a redelivered webhook sends it again.
  */
 export async function handlePostCall(
   db: DbClient,
@@ -48,6 +53,13 @@ export async function handlePostCall(
     summary,
     conversationId: data.conversation_id ?? null,
   });
+  if (call.rateLimited) {
+    console.warn("[carmen-phone] no summary for a rate-limited call", {
+      tenantId: call.tenantId,
+      callId: call.id,
+    });
+    return;
+  }
   if (!(await claimSummarySend(db, call))) {
     return;
   }
@@ -55,7 +67,7 @@ export async function handlePostCall(
     1,
     Math.round((data.metadata?.call_duration_secs ?? 0) / 60),
   );
-  await notifyTeam(
+  const delivered = await notifyTeam(
     db,
     sendAlert,
     call,
@@ -68,4 +80,8 @@ export async function handlePostCall(
         : []),
     ].join("\n"),
   );
+  if (delivered === 0) {
+    // Answered 200 all the same: ElevenLabs disables a webhook that keeps failing.
+    await releaseSummaryClaim(db, call, SUMMARY_UNDELIVERED);
+  }
 }

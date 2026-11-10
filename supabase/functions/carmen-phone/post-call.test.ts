@@ -20,26 +20,27 @@ const payload = {
   },
 };
 
+const staffCall = {
+  id: CALL_ID,
+  tenant_id: "t1",
+  caller_kind: "staff",
+  caller_phone: "0541112222",
+  caller_name: "רון",
+  client_ids: [],
+  messages: [],
+  started_at: "2026-11-08T08:00:00Z",
+  rate_limited: false,
+};
+
+const RECIPIENTS = [{ user_id: null, phone: "0501234567", label: null }];
+
 Deno.test(
   "the summary is sent once even when the webhook is retried",
   async () => {
     const sent: Array<string> = [];
     const { db } = fakeDb({
-      carmen_phone_calls: [
-        {
-          id: CALL_ID,
-          tenant_id: "t1",
-          caller_kind: "staff",
-          caller_phone: "0541112222",
-          caller_name: "רון",
-          client_ids: [],
-          messages: [],
-          started_at: "2026-11-08T08:00:00Z",
-        },
-      ],
-      carmen_report_recipients: [
-        { user_id: null, phone: "0501234567", label: null },
-      ],
+      carmen_phone_calls: [{ ...staffCall }],
+      carmen_report_recipients: RECIPIENTS,
     });
     const send = (_t: string, _p: string, text: string) => (
       sent.push(text),
@@ -50,6 +51,47 @@ Deno.test(
     assertEquals(sent.length, 1);
   },
 );
+
+Deno.test(
+  "a summary that reached nobody is recorded and sent on a redelivered webhook",
+  async () => {
+    const sent: Array<string> = [];
+    const { db, writes } = fakeDb({
+      carmen_phone_calls: [{ ...staffCall }],
+      carmen_report_recipients: RECIPIENTS,
+    });
+    await handlePostCall(db, () => Promise.resolve(false), payload);
+    const failure = writes.find(
+      (w) =>
+        w.op === "update" &&
+        (w.values as Record<string, unknown>).summary_error,
+    );
+    assertEquals(failure?.values, {
+      summary_sent_at: null,
+      summary_error: "summary reached no team member",
+    });
+    await handlePostCall(
+      db,
+      (_t, _p, text) => (sent.push(text), Promise.resolve(true)),
+      payload,
+    );
+    assertEquals(sent.length, 1);
+  },
+);
+
+Deno.test("a call over the hourly limit sends no summary", async () => {
+  const sent: Array<string> = [];
+  const { db } = fakeDb({
+    carmen_phone_calls: [{ ...staffCall, rate_limited: true }],
+    carmen_report_recipients: RECIPIENTS,
+  });
+  await handlePostCall(
+    db,
+    (_t, _p, text) => (sent.push(text), Promise.resolve(true)),
+    payload,
+  );
+  assertEquals(sent.length, 0);
+});
 
 Deno.test("other webhook types and unknown calls are ignored", async () => {
   const sent: Array<string> = [];

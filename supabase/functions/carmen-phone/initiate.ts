@@ -11,6 +11,7 @@ import type { DbClient } from "../_shared/supabase-clients.ts";
 import { identifyCaller } from "./caller.ts";
 import { callSetup } from "./instructions.ts";
 import { insertCall } from "./calls.ts";
+import { callerOverLimit } from "./limits.ts";
 import { findPhoneLine, loadPolicyRows, orgName } from "./store.ts";
 
 /** What ElevenLabs sends when a call to the agent starts. */
@@ -38,7 +39,9 @@ const NOT_CONFIGURED_PROMPT =
 
 /**
  * Sets up an incoming call: the org of the dialled number, who is calling, and the instructions
- * for that caller. A number that belongs to no org gets a short refusal and no call row.
+ * for that caller. A number that belongs to no org gets a short refusal and no call row. A caller
+ * over the hourly limit is still answered, but the call is marked so it takes no messages and
+ * sends no summary.
  */
 export async function initiateCall(
   db: DbClient,
@@ -62,12 +65,20 @@ export async function initiateCall(
     payload.caller_id ?? null,
   );
   const isStaff = caller.kind === "staff";
-  const [name, policyRows, brief, pronunciations] = await Promise.all([
-    orgName(db, line.tenantId),
-    isStaff ? Promise.resolve([]) : loadPolicyRows(db, line.tenantId),
-    isStaff ? loadOrgBrief(db, line.tenantId) : Promise.resolve(null),
-    loadPronunciations(db, line.tenantId),
-  ]);
+  const [rateLimited, name, policyRows, brief, pronunciations] =
+    await Promise.all([
+      callerOverLimit(db, line.tenantId, caller.phone),
+      orgName(db, line.tenantId),
+      isStaff ? Promise.resolve([]) : loadPolicyRows(db, line.tenantId),
+      isStaff ? loadOrgBrief(db, line.tenantId) : Promise.resolve(null),
+      loadPronunciations(db, line.tenantId),
+    ]);
+  if (rateLimited) {
+    console.warn("[carmen-phone] caller over the hourly call limit", {
+      tenantId: line.tenantId,
+      callerKind: caller.kind,
+    });
+  }
   const setup = callSetup({
     orgName: name,
     caller,
@@ -82,6 +93,7 @@ export async function initiateCall(
     line,
     caller,
     payload.conversation_id ?? null,
+    rateLimited,
   );
   return reply(callId, caller.kind, setup.prompt, setup.firstMessage);
 }

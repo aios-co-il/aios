@@ -13,16 +13,19 @@ export type PhoneCall = {
   clientIds: Array<string>;
   messages: Array<Json>;
   startedAt: string;
+  /** The caller went over the hourly call limit: no messages, no summary. */
+  rateLimited: boolean;
 };
 
 const LOG = "[carmen-phone]";
 
-/** Opens the call's row and returns its id. */
+/** Opens the call's row and returns its id; a rate-limited call is marked on the row. */
 export async function insertCall(
   db: DbClient,
   line: PhoneLine,
   caller: PhoneCaller,
   conversationId: string | null,
+  rateLimited: boolean,
 ): Promise<string> {
   const { data, error } = await db
     .from("carmen_phone_calls")
@@ -35,6 +38,7 @@ export async function insertCall(
       client_ids: caller.clientIds,
       campaigner_id: caller.campaignerId,
       elevenlabs_conversation_id: conversationId,
+      rate_limited: rateLimited,
     })
     .select("id")
     .single();
@@ -55,7 +59,7 @@ export async function loadCall(
   const { data, error } = await db
     .from("carmen_phone_calls")
     .select(
-      "id, tenant_id, caller_kind, caller_phone, caller_name, client_ids, messages, started_at",
+      "id, tenant_id, caller_kind, caller_phone, caller_name, client_ids, messages, started_at, rate_limited",
     )
     .eq("id", callId)
     .maybeSingle();
@@ -74,23 +78,30 @@ export async function loadCall(
     clientIds: data.client_ids,
     messages: Array.isArray(data.messages) ? data.messages : [],
     startedAt: data.started_at,
+    rateLimited: data.rate_limited,
   };
 }
 
-/** Adds a message Carmen took to the call. */
+/** Adds a message Carmen took to the call; false (and logged) when it was not stored. */
 export async function appendMessage(
   db: DbClient,
   call: PhoneCall,
   message: Json,
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await db
     .from("carmen_phone_calls")
     .update({ messages: [...call.messages, message] })
     .eq("id", call.id)
     .eq("tenant_id", call.tenantId);
   if (error) {
-    console.error(`${LOG} message not stored on the call`, error.message);
+    console.error(`${LOG} message not stored on the call`, {
+      tenantId: call.tenantId,
+      callId: call.id,
+      error: error.message,
+    });
+    return false;
   }
+  return true;
 }
 
 /** Stores the transcript and summary of a finished call. */
@@ -118,27 +129,6 @@ export async function recordCallEnd(
   if (error) {
     throw new Error(`call end not stored: ${error.message}`);
   }
-}
-
-/**
- * Claims the right to send the call's summary: true once per call, so a retried webhook does not
- * send it twice.
- */
-export async function claimSummarySend(
-  db: DbClient,
-  call: PhoneCall,
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("carmen_phone_calls")
-    .update({ summary_sent_at: new Date().toISOString() })
-    .eq("id", call.id)
-    .eq("tenant_id", call.tenantId)
-    .is("summary_sent_at", null)
-    .select("id");
-  if (error) {
-    throw new Error(`summary claim failed: ${error.message}`);
-  }
-  return (data ?? []).length > 0;
 }
 
 /** Whether a string is a UUID, so a made-up id never reaches a query. */
