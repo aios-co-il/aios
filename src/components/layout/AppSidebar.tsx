@@ -160,7 +160,7 @@ import {
   type MenuTabId,
 } from "@/lib/menuStructure";
 import { computeSidebarOverlay } from "@/visual-workspace/hooks/useSitemap";
-import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { AiosOrbMark } from "@/components/brand/AiosOrbMark";
 
 // Permissions are derived from the menu structure itself — see permissionForMenuKey
 // in @/lib/menuStructure (explicit `permission` field on a module, else
@@ -326,12 +326,18 @@ export function AppSidebar() {
       return canAccess(item.key);
     });
 
+  // The admin tab lives in the header's menu (UserMenu), not in the sidebar.
+  const sidebarTabs = effectiveTabs.filter((t) => t.id !== "admin");
   const activeMenuTab =
     effectiveTabs.find((t) => t.id === activeTab) || effectiveTabs[0];
 
   if (isLoadingMenuItems || isLoading) {
     return (
-      <Sidebar collapsible="icon" side="right" className="dark">
+      <Sidebar
+        collapsible="icon"
+        side="right"
+        className="dark text-sidebar-foreground"
+      >
         <SidebarHeader className="border-b border-sidebar-border p-4">
           <div className="h-8 w-32 bg-muted animate-pulse rounded" />
         </SidebarHeader>
@@ -345,7 +351,11 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" side="right" className="dark">
+    <Sidebar
+      collapsible="icon"
+      side="right"
+      className="dark text-sidebar-foreground"
+    >
       {/* ── Header ── */}
       <SidebarHeader className="border-b border-sidebar-border">
         {isCollapsed ? (
@@ -357,10 +367,10 @@ export function AppSidebar() {
                 className="h-8 w-8 object-contain"
               />
             ) : (
-              <CarmenOrb className="h-8 w-8" />
+              <AiosOrbMark />
             )}
             {/* Tab icons in collapsed mode */}
-            {effectiveTabs.map((tab) => {
+            {sidebarTabs.map((tab) => {
               const TabIcon = tab.icon;
               return (
                 <Tooltip key={tab.id}>
@@ -451,13 +461,13 @@ export function AppSidebar() {
                   className="h-8 w-8 shrink-0 object-contain"
                 />
               ) : (
-                <CarmenOrb className="h-8 w-8" />
+                <AiosOrbMark />
               )}
             </div>
 
             {/* Tab switcher — 3 main tabs */}
             <div className="flex gap-1 bg-sidebar-accent/40 rounded-lg p-1">
-              {effectiveTabs
+              {sidebarTabs
                 .filter((t) => t.id !== "daily")
                 .map((tab) => {
                   const TabIcon = tab.icon;
@@ -548,7 +558,7 @@ export function AppSidebar() {
                 {!isCollapsed && (
                   <SidebarGroupLabel asChild>
                     <CollapsibleTrigger
-                      className="flex items-center gap-2 w-full hover:bg-accent/50 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                      className="flex items-center gap-2 w-full hover:bg-accent/50 rounded-md px-2 py-1 text-xs font-semibold text-sidebar-foreground/80 uppercase tracking-wide"
                       dir="rtl"
                     >
                       <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]/collapsible:rotate-180 ml-auto" />

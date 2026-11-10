@@ -1,21 +1,26 @@
-import { ChevronDown, LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { AiosLogo } from "@/components/brand/AiosLogo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAccessibleMenuModules } from "@/hooks/useAccessibleMenuModules";
+import { useTenantPath } from "@/hooks/useTenantPath";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/** Header logo menu with the logout action. */
+/** Header menu: the system settings (the menu's admin tab) and logout. */
 export function UserMenu() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { buildPath } = useTenantPath();
+  const { groups } = useAccessibleMenuModules();
+  const settings = groups.find((group) => group.id === "admin")?.modules ?? [];
 
   const logout = useMutation({
     mutationFn: async () => {
@@ -50,16 +55,34 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="h-10 gap-1 px-2"
-          aria-label="תפריט משתמש"
+          size="icon"
+          className="h-10 w-10"
+          aria-label="תפריט מערכת"
         >
-          <AiosLogo className="text-xl md:text-2xl" />
-          <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+          <Menu className="h-5 w-5" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="bg-background z-[100]">
-        <DropdownMenuItem onClick={() => logout.mutate()}>
-          <LogOut className="mr-2 h-4 w-4" />
+      <DropdownMenuContent
+        align="end"
+        dir="rtl"
+        className="z-[100] max-h-[min(80vh,36rem)] w-60 overflow-y-auto bg-background"
+      >
+        {settings.map((module) => {
+          const Icon = module.icon;
+          return (
+            <DropdownMenuItem
+              key={module.key}
+              onClick={() => navigate(buildPath(module.route))}
+              className="gap-2"
+            >
+              <Icon className="h-4 w-4" />
+              {module.label}
+            </DropdownMenuItem>
+          );
+        })}
+        {settings.length > 0 && <DropdownMenuSeparator />}
+        <DropdownMenuItem onClick={() => logout.mutate()} className="gap-2">
+          <LogOut className="h-4 w-4" />
           התנתק
         </DropdownMenuItem>
       </DropdownMenuContent>

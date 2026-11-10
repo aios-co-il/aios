@@ -40,7 +40,7 @@ export function AppLayout() {
           <AppSidebar />
           <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
             <ViewAsBanner />
-            <header className="sticky top-0 z-50 h-14 md:h-16 border-b bg-card flex items-center justify-between px-2 sm:px-4 md:px-6 gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
+            <header className="sticky top-0 z-50 h-14 md:h-16 border-b bg-brand-neutral/30 dark:bg-card flex items-center justify-between px-2 sm:px-4 md:px-6 gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
                 <SidebarTrigger className="shrink-0" />
                 <h1 className="text-sm md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent truncate hidden sm:inline">
