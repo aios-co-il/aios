@@ -50,6 +50,7 @@ import {
   Brain,
   Sparkles,
   Globe,
+  CalendarRange,
   ShoppingCart,
   FileText,
   type LucideIcon,
@@ -504,6 +505,13 @@ export const INTEGRATION_SETTINGS: Array<MenuModule & { parentKey: string }> = [
     label: "SerpAPI",
     route: "/integrations/serpapi",
     icon: Globe,
+  },
+  {
+    key: "zoom-settings",
+    parentKey: "lead-integrations",
+    label: "Zoom",
+    route: "/zoom-settings",
+    icon: CalendarRange,
   },
   {
     key: "telephony-settings",

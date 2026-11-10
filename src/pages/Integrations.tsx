@@ -23,9 +23,11 @@ import {
   Globe,
   ShoppingCart,
   Link2,
+  Video,
   Send,
   Music2,
 } from "lucide-react";
+import { useZoomIntegration } from "@/components/ZoomSettings/useZoomSettings";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -201,6 +203,8 @@ export default function Integrations() {
     },
     enabled: !!currentTenantId,
   });
+
+  const { data: zoomIntegration } = useZoomIntegration(currentTenantId ?? null);
 
   // Check Google Analytics integration status (per-user)
   const hasGoogleAnalytics = useHasIntegrationAccess(
@@ -613,6 +617,15 @@ export default function Integrations() {
       isConnected: !!makeIntegration,
       route: "make-settings",
       gradient: "bg-gradient-to-r from-violet-600 to-purple-700",
+    },
+    {
+      icon: <Video className="h-6 w-6" />,
+      title: "Zoom",
+      description: "חיבור חשבון Zoom ליצירת קישורי פגישה",
+      features: ["קישור Zoom לפגישות שכרמן קובעת", "Server-to-Server OAuth"],
+      isConnected: !!zoomIntegration?.is_active,
+      route: "zoom-settings",
+      gradient: "bg-gradient-to-r from-blue-500 to-blue-700",
     },
     {
       icon: <Mail className="h-6 w-6" />,
