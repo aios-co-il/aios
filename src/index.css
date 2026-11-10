@@ -287,16 +287,6 @@
   }
 }
 
-/* Marketing pages use the logo's mint as their action color. Unlayered and
-   with the `.dark` forms, so it also wins over the generated dark theme. */
-.theme-mint,
-.theme-mint.dark,
-.theme-mint .dark {
-  --primary: var(--brand-mint);
-  --ring: var(--brand-mint);
-  --status-active: var(--brand-mint);
-}
-
 /* The rolling orb (RollingOrb.tsx) stands in for the header orb */
 body.orb-traveling header [data-orb-home] {
   visibility: hidden;

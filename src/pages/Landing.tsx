@@ -23,7 +23,7 @@ export default function Landing() {
   return (
     <div
       className={cn(
-        "theme-mint min-h-screen overflow-x-clip bg-background text-foreground",
+        "min-h-screen overflow-x-clip bg-background text-foreground",
         mode === "dark" && "dark",
       )}
     >

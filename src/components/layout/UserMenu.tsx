@@ -53,7 +53,7 @@ export function UserMenu() {
           className="h-10 gap-1 px-2"
           aria-label="תפריט משתמש"
         >
-          <AiosLogo orb className="text-xl md:text-2xl" />
+          <AiosLogo className="text-xl md:text-2xl" />
           <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
         </Button>
       </DropdownMenuTrigger>

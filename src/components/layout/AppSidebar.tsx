@@ -331,7 +331,7 @@ export function AppSidebar() {
 
   if (isLoadingMenuItems || isLoading) {
     return (
-      <Sidebar collapsible="icon" side="right">
+      <Sidebar collapsible="icon" side="right" className="dark">
         <SidebarHeader className="border-b border-sidebar-border p-4">
           <div className="h-8 w-32 bg-muted animate-pulse rounded" />
         </SidebarHeader>
@@ -345,7 +345,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon" side="right">
+    <Sidebar collapsible="icon" side="right" className="dark">
       {/* ── Header ── */}
       <SidebarHeader className="border-b border-sidebar-border">
         {isCollapsed ? (

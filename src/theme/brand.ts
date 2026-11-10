@@ -18,7 +18,8 @@ export interface BrandColors {
 /** AIOS / Carmen brand. */
 export const AIOS_BRAND: BrandColors = {
   ink: "#0A1526",
-  accent: "#08F467",
+  // The logo's green; the brand book's neon #08F467 read too loud on screens.
+  accent: "#40CE80",
   accentSoft: "#E3FAE0",
   neutral: "#B9C0CC",
   highlight: "#F5F64A",
