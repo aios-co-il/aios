@@ -1,4 +1,7 @@
-import { getDashboardDateRange } from "@/lib/dashboardDateFilters";
+import {
+  getJerusalemDashboardDateRange,
+  shiftYmd,
+} from "@/lib/calendarTimeZone";
 
 /** A date window as yyyy-MM-dd strings, both ends included. */
 export type PeriodRange = { startDate: string; endDate: string };
@@ -9,17 +12,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * The window of the same length right before the report's window: the 7 days
  * before the last 7 days, the days of last month before this month so far.
  * Null when the report shows all history or a custom range is incomplete.
+ * Days are counted in Israel time, as crm-records counts the report's own
+ * window, so a browser abroad asks for the same days.
  */
 export function previousPeriodRange(
   dateFilter: string,
   customFrom: string | null,
   customTo: string | null,
-  now: Date = reportToday(),
+  now: Date = new Date(),
 ): PeriodRange | null {
   if (dateFilter === "custom" && !(customFrom && customTo)) {
     return null;
   }
-  const { startDate, endDate } = getDashboardDateRange(
+  const { startDate, endDate } = getJerusalemDashboardDateRange(
     dateFilter,
     now,
     customFrom,
@@ -28,11 +33,10 @@ export function previousPeriodRange(
   if (!startDate || !endDate) {
     return null;
   }
-  const start = utcDay(startDate);
-  const days = Math.round((utcDay(endDate) - start) / DAY_MS) + 1;
+  const days = Math.round((utcDay(endDate) - utcDay(startDate)) / DAY_MS) + 1;
   return {
-    startDate: isoDay(start - days * DAY_MS),
-    endDate: isoDay(start - DAY_MS),
+    startDate: shiftYmd(startDate, -days),
+    endDate: shiftYmd(startDate, -1),
   };
 }
 
@@ -55,28 +59,8 @@ export function periodChange(
   return rose === (direction === "higher") ? "better" : "worse";
 }
 
-/**
- * Today's calendar date in the report's time zone (crm-records counts days in
- * Asia/Jerusalem), as a local Date, so a browser abroad asks for the same days.
- */
-export function reportToday(instant: Date = new Date()): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jerusalem",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(instant);
-  const [year, month, day] = parts.split("-").map(Number);
-  return new Date(year, month - 1, day, 12);
-}
-
 /** Midnight UTC of a yyyy-MM-dd day, so day arithmetic ignores clock changes. */
 function utcDay(day: string): number {
   const [year, month, date] = day.split("-").map(Number);
   return Date.UTC(year, month - 1, date);
-}
-
-/** A UTC timestamp as yyyy-MM-dd. */
-function isoDay(time: number): string {
-  return new Date(time).toISOString().slice(0, 10);
 }
