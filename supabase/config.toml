@@ -368,9 +368,6 @@ verify_jwt = true
 [functions.run-sync-job]
 verify_jwt = false
 
-[functions.zoom-webhook]
-verify_jwt = false
-
 [functions.run-ai-agent]
 verify_jwt = false
 
@@ -707,9 +704,6 @@ verify_jwt = true
 [functions.fetch-gsc-data]
 verify_jwt = true
 
-[functions.fetch-zoom-recordings]
-verify_jwt = true
-
 [functions.generate-ai-prompts]
 verify_jwt = true
 
@@ -795,9 +789,6 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.process-invoice-emails]
-verify_jwt = true
-
-[functions.process-new-recording]
 verify_jwt = true
 
 [functions.process-user-invitation]
