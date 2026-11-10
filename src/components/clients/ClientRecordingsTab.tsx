@@ -256,7 +256,10 @@ export function ClientRecordingsTab({
   const transcriptionBadge = (rec: RecordingRow) => {
     if (rec.transcription) {
       return (
-        <Badge variant="outline" className="text-green-600 border-green-600">
+        <Badge
+          variant="outline"
+          className="bg-status-active-surface text-status-foreground border-transparent"
+        >
           <CheckCircle2 className="h-3 w-3 ml-1" />
           תומלל
         </Badge>
@@ -264,7 +267,10 @@ export function ClientRecordingsTab({
     }
     if (rec.transcription_status === "processing") {
       return (
-        <Badge variant="outline" className="text-blue-600 border-blue-600">
+        <Badge
+          variant="outline"
+          className="bg-status-progress-surface text-status-foreground border-brand-highlight/60"
+        >
           <Loader2 className="h-3 w-3 ml-1 animate-spin" />
           מתמלל...
         </Badge>
@@ -272,7 +278,10 @@ export function ClientRecordingsTab({
     }
     if (rec.transcription_status === "failed") {
       return (
-        <Badge variant="outline" className="text-red-600 border-red-600">
+        <Badge
+          variant="outline"
+          className="bg-surface-status-red text-destructive border-destructive"
+        >
           <XCircle className="h-3 w-3 ml-1" />
           תמלול נכשל
         </Badge>

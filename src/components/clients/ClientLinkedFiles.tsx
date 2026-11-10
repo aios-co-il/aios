@@ -39,11 +39,13 @@ export function ClientLinkedFiles({
   }
 
   const getIcon = (type: string) => {
-    if (type === "image")
-      return <ImageIcon className="h-4 w-4 text-blue-500" />;
-    if (type === "link")
-      return <ExternalLink className="h-4 w-4 text-green-500" />;
-    return <FileText className="h-4 w-4 text-orange-500" />;
+    if (type === "image") {
+      return <ImageIcon className="h-4 w-4 text-muted-foreground" />;
+    }
+    if (type === "link") {
+      return <ExternalLink className="h-4 w-4 text-muted-foreground" />;
+    }
+    return <FileText className="h-4 w-4 text-muted-foreground" />;
   };
 
   return (

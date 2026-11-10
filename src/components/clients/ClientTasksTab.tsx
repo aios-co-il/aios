@@ -143,7 +143,7 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
         {/* In Progress Column */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-blue-600" />
+            <Clock className="h-5 w-5 text-status-progress" />
             <h3 className="text-lg font-semibold">
               בביצוע
               <Badge variant="secondary" className="mr-2">
@@ -184,7 +184,7 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
         {/* Completed Column */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <CheckCheck className="h-5 w-5 text-green-600" />
+            <CheckCheck className="h-5 w-5 text-status-active" />
             <h3 className="text-lg font-semibold">
               הושלמו
               <Badge variant="secondary" className="mr-2">

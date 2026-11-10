@@ -1136,7 +1136,7 @@ export function ClientsChatView({
                       <Button
                         variant="outline"
                         size="icon"
-                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        className="h-8 w-8 text-brand-accent-700 dark:text-brand-accent-400 hover:bg-surface-status-green"
                         onClick={() => setCallDialogOpen(true)}
                         title="התקשר דרך מרכזיה"
                       >
@@ -1481,7 +1481,7 @@ export function ClientsChatView({
                   <TabsContent value="details" className="mt-0 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       {/* Timeline - shown first in DOM but appears on LEFT in RTL layout */}
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-sm">
+                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
                         <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
                           ציר זמן
                           <Clock className="h-4 w-4 text-primary" />
@@ -1546,7 +1546,7 @@ export function ClientsChatView({
                       </div>
 
                       {/* Contact info - shown second in DOM but appears on RIGHT in RTL layout */}
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-sm">
+                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
                         <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
                           פרטי קשר ראשי
                           <User className="h-4 w-4 text-primary" />
@@ -2039,7 +2039,7 @@ export function ClientsChatView({
                     </div>
 
                     {/* Team - editable */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-sm">
+                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-elevation-1">
                       <h3 className="font-semibold text-sm mb-2 flex items-center gap-2 justify-end">
                         קמפיינרים משויכים
                         <Users className="h-4 w-4 text-primary" />
@@ -2100,7 +2100,7 @@ export function ClientsChatView({
                     </div>
 
                     {/* Notes */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-sm">
+                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-elevation-1">
                       <h3 className="font-semibold text-sm mb-2">הערות</h3>
                       <EditableField
                         label=""
@@ -2134,7 +2134,7 @@ export function ClientsChatView({
 
                   {canViewFinance && (
                     <TabsContent value="business" className="mt-0 space-y-6">
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-sm">
+                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
                         <h3 className="font-semibold text-sm flex items-center gap-2 justify-end">
                           מידע עסקי
                           <DollarSign className="h-4 w-4 text-primary" />

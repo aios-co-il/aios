@@ -23,17 +23,19 @@ const TIER_OPTIONS = [
   {
     value: "A",
     label: "A — עדיפות גבוהה",
-    color: "bg-red-100 text-red-700 border-red-300",
+    color: "bg-surface-status-red text-destructive border-destructive",
   },
   {
     value: "B",
     label: "B — עדיפות בינונית",
-    color: "bg-yellow-100 text-yellow-700 border-yellow-300",
+    color:
+      "bg-status-progress-surface text-status-foreground border-brand-highlight/60",
   },
   {
     value: "C",
     label: "C — עדיפות רגילה",
-    color: "bg-green-100 text-green-700 border-green-300",
+    color:
+      "bg-status-active-surface text-status-foreground border-status-active",
   },
 ];
 
@@ -48,9 +50,13 @@ const SERVICE_OPTIONS = [
 ];
 
 const SEO_STATUS_OPTIONS = [
-  { value: "up", label: "עלייה", color: "text-green-700" },
-  { value: "stable", label: "יציב", color: "text-blue-700" },
-  { value: "down", label: "ירידה", color: "text-red-700" },
+  {
+    value: "up",
+    label: "עלייה",
+    color: "text-brand-accent-700 dark:text-brand-accent-400",
+  },
+  { value: "stable", label: "יציב", color: "text-muted-foreground" },
+  { value: "down", label: "ירידה", color: "text-destructive" },
 ];
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -168,7 +174,7 @@ export function CRMSettingsSection({
   return (
     <>
       <div
-        className="bg-card border border-border/60 rounded-xl p-4 space-y-4 text-right shadow-sm"
+        className="bg-card border border-border/60 rounded-xl p-4 space-y-4 text-right shadow-elevation-1"
         dir="rtl"
       >
         <h3 className="font-semibold text-sm flex items-center gap-2 justify-end">

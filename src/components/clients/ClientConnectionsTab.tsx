@@ -246,7 +246,7 @@ export function ClientConnectionsTab({
               {missing && (
                 <Badge
                   variant="outline"
-                  className="text-amber-600 border-amber-300"
+                  className="bg-status-progress-surface text-status-foreground border-brand-highlight/60"
                 >
                   חסר חיבור
                 </Badge>
@@ -288,10 +288,10 @@ export function ClientConnectionsTab({
                 </Button>
 
                 {resolvedPage && (
-                  <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800 p-3 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                  <div className="flex items-start gap-2 rounded-md border border-brand-accent/30 bg-surface-status-green p-3 text-sm">
+                    <CheckCircle2 className="h-4 w-4 text-status-active mt-0.5 shrink-0" />
                     <div className="space-y-0.5">
-                      <p className="font-medium text-green-800 dark:text-green-300">
+                      <p className="font-medium text-brand-accent-700 dark:text-brand-accent-400">
                         {resolvedPage.page_name || resolvedPage.page_id}
                       </p>
                       <p className="text-xs text-muted-foreground">

@@ -29,9 +29,9 @@ interface ClientsMultiSelectToolbarProps {
 }
 
 const STATUS_OPTIONS = [
-  { value: "active", label: "פעיל", color: "bg-success" },
-  { value: "onboarding", label: "בקליטה", color: "bg-blue-500" },
-  { value: "paused", label: "מושהה", color: "bg-yellow-500" },
+  { value: "active", label: "פעיל", color: "bg-status-active" },
+  { value: "onboarding", label: "בקליטה", color: "bg-brand-accent/40" },
+  { value: "paused", label: "מושהה", color: "bg-status-progress" },
   { value: "ended", label: "הסתיים", color: "bg-muted-foreground" },
 ] as const;
 

@@ -80,26 +80,26 @@ const MOOD_STATUS_OPTIONS = [
   {
     value: "happy",
     label: "😊 מבסוט / תקין",
-    color: "text-green-700",
-    bg: "bg-green-50 border-green-200",
+    color: "text-brand-accent-700 dark:text-brand-accent-400",
+    bg: "bg-surface-status-green border-brand-accent/30",
   },
   {
     value: "wavering",
     label: "😐 מתנדנד / רגיש",
-    color: "text-yellow-700",
-    bg: "bg-yellow-50 border-yellow-200",
+    color: "text-foreground",
+    bg: "bg-status-progress-surface border-brand-highlight/60",
   },
   {
     value: "churn_risk",
     label: "😟 סכנת נטישה / תלונה",
-    color: "text-red-700",
-    bg: "bg-red-50 border-red-200",
+    color: "text-destructive",
+    bg: "bg-surface-status-red border-destructive",
   },
   {
     value: "not_progressing",
     label: "😔 לא מתקדם",
-    color: "text-orange-700",
-    bg: "bg-orange-50 border-orange-200",
+    color: "text-muted-foreground",
+    bg: "bg-surface-status-yellow border-brand-highlight/60",
   },
 ];
 
@@ -451,7 +451,7 @@ export function ClientUpdatesTab({
   return (
     <div className="space-y-4 overflow-x-hidden w-full" dir="rtl">
       {/* Composer (right 25%) + history filtered by סוג עדכון (left 75%), one white frame */}
-      <Card className="bg-card border-border/60 shadow-sm">
+      <Card className="bg-card border-border/60 shadow-elevation-1">
         <CardContent className="p-3 sm:p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-1 space-y-3 min-w-0">
@@ -859,7 +859,7 @@ export function ClientUpdatesTab({
         {/* In Progress */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-blue-600" />
+            <Clock className="h-4 w-4 text-status-progress" />
             <h3 className="font-semibold text-sm">
               בביצוע
               <Badge variant="secondary" className="mr-2 text-xs">
@@ -901,7 +901,7 @@ export function ClientUpdatesTab({
         {/* Completed */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <CheckCheck className="h-4 w-4 text-green-600" />
+            <CheckCheck className="h-4 w-4 text-status-active" />
             <h3 className="font-semibold text-sm">
               הושלמו
               <Badge variant="secondary" className="mr-2 text-xs">

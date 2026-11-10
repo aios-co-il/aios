@@ -675,13 +675,13 @@ export default function Clients() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-success/10 text-success border-success/20";
+        return "bg-status-active-surface text-status-foreground border-transparent";
       case "onboarding":
-        return "bg-blue-500/10 text-blue-600 border-blue-500/20";
+        return "bg-brand-accent/10 text-foreground border-brand-accent/30";
       case "paused":
-        return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
+        return "bg-status-progress-surface text-status-foreground border-brand-highlight/60";
       case "ended":
-        return "bg-muted text-muted-foreground border-border";
+        return "bg-status-draft-surface text-status-foreground border-border";
       default:
         return "";
     }
@@ -708,31 +708,35 @@ export default function Clients() {
         return {
           emoji: "😊",
           text: "לקוח מבסוט",
-          color: "text-green-600 bg-green-50 border-green-200",
+          color:
+            "text-status-foreground bg-status-active-surface border-transparent",
         };
       case "wavering":
         return {
           emoji: "😐",
           text: "לקוח מתנדנד",
-          color: "text-yellow-600 bg-surface-status-yellow border-yellow-200",
+          color:
+            "text-status-foreground bg-status-progress-surface border-brand-highlight/60",
         };
       case "churn_risk":
         return {
           emoji: "😟",
           text: "סכנת נטישה",
-          color: "text-red-600 bg-surface-status-red border-red-200",
+          color: "text-destructive bg-surface-status-red border-destructive",
         };
       case "not_progressing":
         return {
           emoji: "😔",
           text: "לא מתקדם",
-          color: "text-orange-600 bg-orange-50 border-orange-200",
+          color:
+            "text-status-foreground bg-surface-status-yellow border-brand-highlight/60",
         };
       default:
         return {
           emoji: "😊",
           text: "לקוח מבסוט",
-          color: "text-green-600 bg-green-50 border-green-200",
+          color:
+            "text-status-foreground bg-status-active-surface border-transparent",
         };
     }
   };
@@ -1078,7 +1082,7 @@ export default function Clients() {
             {visibleClients?.map((client) => (
               <Card
                 key={client.id}
-                className="shadow-card hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer group relative"
+                className="shadow-elevation-1 hover:shadow-elevation-2 transition-all hover:scale-[1.02] cursor-pointer group relative"
                 onClick={() => openClientInChat(client.id)}
               >
                 <div className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
@@ -1227,19 +1231,19 @@ export default function Clients() {
                       <SelectContent className="bg-background" align="end">
                         <SelectItem value="active">
                           <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-success"></div>
+                            <div className="h-2 w-2 rounded-full bg-status-active"></div>
                             פעיל
                           </div>
                         </SelectItem>
                         <SelectItem value="onboarding">
                           <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                            <div className="h-2 w-2 rounded-full bg-brand-accent/40"></div>
                             בקליטה
                           </div>
                         </SelectItem>
                         <SelectItem value="paused">
                           <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
+                            <div className="h-2 w-2 rounded-full bg-status-progress"></div>
                             מושהה
                           </div>
                         </SelectItem>
@@ -1291,25 +1295,29 @@ export default function Clients() {
                         <SelectItem value="happy">
                           <div className="flex items-center gap-2">
                             <span>😊</span>
-                            <span className="text-green-600">לקוח מבסוט</span>
+                            <span className="text-brand-accent-700 dark:text-brand-accent-400">
+                              לקוח מבסוט
+                            </span>
                           </div>
                         </SelectItem>
                         <SelectItem value="wavering">
                           <div className="flex items-center gap-2">
                             <span>😐</span>
-                            <span className="text-yellow-600">לקוח מתנדנד</span>
+                            <span className="text-foreground">לקוח מתנדנד</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="churn_risk">
                           <div className="flex items-center gap-2">
                             <span>😟</span>
-                            <span className="text-red-600">סכנת נטישה</span>
+                            <span className="text-destructive">סכנת נטישה</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="not_progressing">
                           <div className="flex items-center gap-2">
                             <span>😔</span>
-                            <span className="text-orange-600">לא מתקדם</span>
+                            <span className="text-muted-foreground">
+                              לא מתקדם
+                            </span>
                           </div>
                         </SelectItem>
                       </SelectContent>
@@ -1417,7 +1425,7 @@ export default function Clients() {
             ))}
           </div>
         ) : (
-          <div className="bg-card rounded-lg border shadow-sm overflow-x-auto">
+          <div className="bg-card rounded-lg border shadow-elevation-1 overflow-x-auto">
             {selectedClientIds.length > 0 && (
               <div className="p-2">
                 <ClientsMultiSelectToolbar
@@ -1577,19 +1585,19 @@ export default function Clients() {
                         <SelectContent className="bg-background">
                           <SelectItem value="active">
                             <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full bg-success"></div>
+                              <div className="h-2 w-2 rounded-full bg-status-active"></div>
                               פעיל
                             </div>
                           </SelectItem>
                           <SelectItem value="onboarding">
                             <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                              <div className="h-2 w-2 rounded-full bg-brand-accent/40"></div>
                               בקליטה
                             </div>
                           </SelectItem>
                           <SelectItem value="paused">
                             <div className="flex items-center gap-2">
-                              <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
+                              <div className="h-2 w-2 rounded-full bg-status-progress"></div>
                               מושהה
                             </div>
                           </SelectItem>
@@ -1841,7 +1849,7 @@ export default function Clients() {
                     className="flex items-start gap-2 text-sm py-1"
                   >
                     {r.status === "success" ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 text-status-active mt-0.5 shrink-0" />
                     ) : (
                       <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                     )}

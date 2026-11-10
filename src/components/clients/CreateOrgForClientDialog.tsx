@@ -400,7 +400,7 @@ export function CreateOrgForClientDialog({
 function ResultView({ result }: { result: OrgCreatedResult }) {
   return (
     <div className="space-y-3 text-sm">
-      <div className="flex items-start gap-2 text-green-600">
+      <div className="flex items-start gap-2 text-brand-accent-700 dark:text-brand-accent-400">
         <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
         <div>
           <p className="font-medium">הארגון נוצר בהצלחה</p>
@@ -427,13 +427,13 @@ function ResultView({ result }: { result: OrgCreatedResult }) {
       </p>
 
       {result.warnings.length > 0 && (
-        <div className="rounded-md border border-yellow-200 bg-yellow-50 p-2 space-y-1">
-          <p className="flex items-center gap-1 font-medium text-yellow-700 text-xs">
-            <AlertCircle className="h-3.5 w-3.5" />
+        <div className="rounded-md border border-brand-highlight/60 bg-surface-status-yellow p-2 space-y-1">
+          <p className="flex items-center gap-1 font-medium text-status-foreground text-xs">
+            <AlertCircle className="h-3.5 w-3.5 text-status-progress" />
             הערות
           </p>
           {result.warnings.map((w, i) => (
-            <p key={i} className="text-xs text-yellow-700">
+            <p key={i} className="text-xs text-status-foreground">
               {w}
             </p>
           ))}
@@ -448,7 +448,9 @@ function Stat({ label, value }: { label: string; value: number }) {
     <div
       className={cn(
         "rounded-md border p-2",
-        value > 0 ? "bg-green-50 border-green-200" : "bg-muted/30",
+        value > 0
+          ? "bg-surface-status-green border-brand-accent/30"
+          : "bg-surface-inset",
       )}
     >
       <p className="text-lg font-bold">{value}</p>
