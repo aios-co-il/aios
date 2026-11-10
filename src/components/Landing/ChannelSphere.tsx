@@ -17,9 +17,15 @@ export interface SphereSpec {
 const ICON = "h-[36%] w-[36%]";
 const WORD = "text-[2.2em] font-extrabold leading-none tracking-tight";
 
-// Channel colors are fixed and decorative; the AIOS sphere follows the brand.
-export const SPHERES: Array<SphereSpec> = [
-  { id: "aios", label: "AIOS Marketing", core: <AiosWordmark /> },
+/** The brand sphere: follows the tenant accent. */
+export const AIOS_SPHERE: SphereSpec = {
+  id: "aios",
+  label: "AIOS Marketing",
+  core: <AiosWordmark />,
+};
+
+// Channel colors are fixed and decorative.
+export const CHANNEL_SPHERES: Array<SphereSpec> = [
   {
     id: "seo",
     label: "SEO",

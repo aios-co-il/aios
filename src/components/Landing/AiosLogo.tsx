@@ -8,24 +8,38 @@ const MINT_EXTRUDE = {
   "--extrude": "var(--brand-accent-800)",
 } as CSSProperties;
 
-/** "AiOs" with "Marketing AI Operating System" under it. */
-export function AiosLogo({ className }: { className?: string }) {
+interface AiosLogoProps {
+  /** Show "Marketing AI Operating System" under the letters. */
+  tagline?: boolean;
+  /** Size and spacing classes for the letters. */
+  className?: string;
+}
+
+/** The "AiOs" logo, optionally with its tagline. */
+export function AiosLogo({ tagline = false, className }: AiosLogoProps) {
   return (
-    <div
+    <span
       dir="ltr"
       role="img"
-      aria-label="AiOs Marketing AI Operating System"
-      className={cn("flex flex-col items-center leading-none", className)}
+      aria-label={tagline ? "AiOs Marketing AI Operating System" : "AiOs"}
+      className="inline-flex flex-col items-center leading-none"
     >
-      <span className="logo-3d text-7xl font-extrabold tracking-tight text-foreground md:text-8xl">
+      <span
+        className={cn(
+          "logo-3d font-extrabold tracking-tight text-foreground",
+          className,
+        )}
+      >
         <span style={INK_EXTRUDE}>Ai</span>
         <span className="text-brand-mint" style={MINT_EXTRUDE}>
           Os
         </span>
       </span>
-      <span className="mt-3 font-[Outfit,Heebo,sans-serif] text-lg font-semibold text-foreground md:text-xl">
-        Marketing AI Operating System
-      </span>
-    </div>
+      {tagline && (
+        <span className="mt-3 whitespace-nowrap font-[Outfit,Heebo,sans-serif] text-lg font-semibold text-foreground md:text-xl">
+          Marketing AI Operating System
+        </span>
+      )}
+    </span>
   );
 }

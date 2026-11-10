@@ -1,8 +1,7 @@
 import { ArrowDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AiosLogo } from "./AiosLogo";
-import { SphereCarousel } from "./SphereCarousel";
+import { AIOS_SPHERE, ChannelSphere } from "./ChannelSphere";
+import { PlanetOrbits } from "./PlanetOrbits";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
 
@@ -12,7 +11,7 @@ const HERO_POINTS = [
   "מערכת אחת לשיווק ולמכירות",
 ];
 
-/** Headline, calls to action and the five-sphere channel scene. */
+/** Headline, calls to action and the logo with orbiting channel spheres. */
 export function HeroSection() {
   return (
     <section
@@ -20,11 +19,12 @@ export function HeroSection() {
       className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 md:grid-cols-2 md:px-6 md:pb-28 md:pt-24"
     >
       <div>
-        <Badge variant="active" className="gap-2 px-3 py-1 tracking-[0.18em]">
-          <span className="h-1.5 w-1.5 rounded-full bg-status-active" />
-          AIOS
-        </Badge>
-        <h1 className="mt-6 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
+        <ChannelSphere
+          spec={AIOS_SPHERE}
+          showLabel={false}
+          className="w-28 md:w-32"
+        />
+        <h1 className="mt-4 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
           כל השיווק והמכירות
           <br />
           במקום אחד
@@ -57,10 +57,7 @@ export function HeroSection() {
           ))}
         </ul>
       </div>
-      <div className="flex flex-col items-center">
-        <AiosLogo />
-        <SphereCarousel />
-      </div>
+      <PlanetOrbits />
     </section>
   );
 }

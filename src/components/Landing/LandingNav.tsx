@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowUpLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BrandWordmark } from "./BrandWordmark";
+import { AiosLogo } from "./AiosLogo";
 import { NAV_LINKS, WHATSAPP_URL } from "./landingContent";
 
 /** Sticky frosted-glass header with section links and the two calls to action. */
@@ -14,7 +14,7 @@ export function LandingNav() {
     <header className="material-glass sticky top-0 z-50 border-x-0 border-t-0">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-6 px-4 md:px-6">
         <a href="#top" aria-label="AIOS">
-          <BrandWordmark />
+          <AiosLogo className="text-3xl" />
         </a>
         <nav
           aria-label="ניווט ראשי"
