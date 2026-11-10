@@ -73,6 +73,8 @@
   .carmen-orb {
     --orb-tint: var(--primary);
     position: relative;
+    /* Keeps the core's blend inside this sphere, not with what is behind */
+    isolation: isolate;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -92,9 +94,9 @@
       ),
       radial-gradient(
         circle at 50% 42%,
-        hsl(40 20% 99% / 0.95) 0%,
-        hsl(220 14% 93% / 0.92) 68%,
-        hsl(220 12% 84% / 0.92) 100%
+        hsl(40 20% 99%) 0%,
+        hsl(220 14% 93%) 68%,
+        hsl(220 12% 84%) 100%
       );
     border: 1px solid hsl(0 0% 100% / 0.7);
     box-shadow:
@@ -145,7 +147,7 @@
     --core-ink: var(--brand-accent-800);
     color: hsl(var(--core-ink) / 0.85);
     mix-blend-mode: multiply;
-    filter: drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
+    filter: blur(0.4px) drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
       drop-shadow(0 0 0.55em hsl(var(--orb-tint) / 0.45));
   }
 
@@ -161,7 +163,6 @@
       hsl(0 0% 100% / 0.14) 55%,
       hsl(0 0% 100% / 0.06) 100%
     );
-    backdrop-filter: blur(0.45px);
     pointer-events: none;
   }
 

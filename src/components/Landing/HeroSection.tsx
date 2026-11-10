@@ -1,7 +1,7 @@
 import { ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HeroOrbs } from "./HeroOrbs";
+import { SphereCarousel } from "./SphereCarousel";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
 
@@ -56,7 +56,7 @@ export function HeroSection() {
           ))}
         </ul>
       </div>
-      <HeroOrbs />
+      <SphereCarousel />
     </section>
   );
 }
