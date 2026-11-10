@@ -85,7 +85,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable";
+import { GoogleAdsGoalTable } from "@/components/dynamic-tables/GoogleAdsGoalTable/GoogleAdsGoalTable";
+import {
+  googlePreviousPeriod,
+  googleRecordMetrics,
+} from "@/components/dynamic-tables/GoogleAdsGoalTable/googlePreviousPeriod";
 import { googleGoalSections } from "@/components/dynamic-tables/googleGoalSections";
 import { googleManualRoiFigures } from "@/components/dynamic-tables/googleLeadCampaignRecords";
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
@@ -119,11 +123,12 @@ import {
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookReportCampaigns } from "@/components/dynamic-tables/facebookReportCampaigns";
+import { FacebookLeadsTable } from "@/components/dynamic-tables/FacebookLeadsTable";
+import { FacebookSalesTable } from "@/components/dynamic-tables/FacebookSalesTable/FacebookSalesTable";
 import { FacebookTrafficTable } from "@/components/dynamic-tables/FacebookTrafficTable";
-import {
-  facebookCostPerResult,
-  facebookResultsColumnLabel,
-} from "@/lib/facebookResultMetric";
+import { facebookPreviousPeriod } from "@/components/dynamic-tables/facebookPreviousPeriod";
+import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { usePreviousPeriodRecords } from "@/components/reports/PreviousPeriod/usePreviousPeriodRecords";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
 import { WooAttributionSection } from "@/components/dynamic-tables/WooAttributionSection";
@@ -152,7 +157,6 @@ import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { AllGoalsSpendRow } from "@/components/reports/AllGoalsSpendRow";
-import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
 import {
   applyCampaignOffRule,
   campaignOffKeys,
@@ -608,6 +612,43 @@ export default function DynamicTableView({
       ),
     );
   }, [entityLevelRecords, debouncedCampaignSearch, adsEntityLevel]);
+
+  const [comparePrevious, setComparePrevious] = useState(false);
+  const previousPeriod = usePreviousPeriodRecords({
+    tableId: table?.id,
+    dateFilter,
+    customFrom: customFromStr,
+    customTo: customToStr,
+    enabled: comparePrevious && isAdsReportTable,
+  });
+  // The previous period's records at the same level and search as the report.
+  const previousFilteredRecords = useMemo(() => {
+    if (!previousPeriod.records) {
+      return undefined;
+    }
+    const levelRecords = filterRecordsByEntityLevel(
+      previousPeriod.records,
+      adsEntityLevel,
+    );
+    if (!debouncedCampaignSearch.trim()) {
+      return levelRecords;
+    }
+    // Keep the history of the entities the search shows now, by their stable
+    // key: a campaign renamed since then still compares with its old rows.
+    const shownKeys = new Set(
+      filteredRecords.map((record) =>
+        getEntityGroupKey(record.data, adsEntityLevel),
+      ),
+    );
+    return levelRecords.filter((record) =>
+      shownKeys.has(getEntityGroupKey(record.data, adsEntityLevel)),
+    );
+  }, [
+    previousPeriod.records,
+    adsEntityLevel,
+    debouncedCampaignSearch,
+    filteredRecords,
+  ]);
 
   const addColumnMutation = useMutation({
     mutationFn: async (columnName: string) => {
@@ -2584,6 +2625,15 @@ export default function DynamicTableView({
               </Select>
             </div>
 
+            {isAdsReportTable && adsReportView === "summary" && (
+              <PreviousPeriodToggle
+                on={comparePrevious}
+                onChange={setComparePrevious}
+                range={previousPeriod.range}
+                loading={previousPeriod.isPending}
+              />
+            )}
+
             {/* Custom Date Range Picker Dialog */}
             <Dialog
               open={showCustomDatePicker}
@@ -3237,465 +3287,41 @@ export default function DynamicTableView({
                 { impressions: 0, clicks: 0, leads: 0, spend: 0 },
               );
 
-              const ecommerceTotals = ecommerceCampaigns.reduce(
-                (acc, [, campaign]) => ({
-                  impressions: acc.impressions + campaign.impressions,
-                  clicks: acc.clicks + campaign.clicks,
-                  spend: acc.spend + campaign.spend,
-                  purchases: acc.purchases + campaign.purchases,
-                  purchase_value: acc.purchase_value + campaign.purchase_value,
-                  add_to_cart: acc.add_to_cart + campaign.add_to_cart,
-                  leads: acc.leads + campaign.leads,
-                  conversations: acc.conversations + campaign.conversations,
-                }),
-                {
-                  impressions: 0,
-                  clicks: 0,
-                  spend: 0,
-                  purchases: 0,
-                  purchase_value: 0,
-                  add_to_cart: 0,
-                  leads: 0,
-                  conversations: 0,
-                },
-              );
+              // The previous period's rows, grouped the same way, while the
+              // comparison is on.
+              const facebookPrevious = previousFilteredRecords
+                ? facebookPreviousPeriod(
+                    groupFacebookReportCampaigns(
+                      previousFilteredRecords,
+                      adsEntityLevel,
+                      {
+                        leadsOnly: isFacebookLeadsOnlyTable(
+                          table?.integration_settings,
+                        ),
+                        isReportOff: reportOffLookup(table ? [table] : []),
+                      },
+                    ),
+                  )
+                : null;
 
               return (
                 <>
-                  {ecommerceCampaigns.length > 0 &&
-                    (() => {
-                      // Dynamic columns: hide ROAS / purchase_value / add_to_cart when the
-                      // account doesn't track them (e.g. sales page without cart, no pixel value).
-                      const showValueCols =
-                        ecommerceTotals.purchase_value > 0 ||
-                        ecommerceTotals.add_to_cart > 0;
-                      const showLeadCols = ecommerceTotals.leads > 0;
-                      const showConversationCols =
-                        ecommerceTotals.conversations > 0;
-                      // Show the configured Meta result only when some campaign optimizes for
-                      // something other than purchases (otherwise it duplicates רכישות).
-                      const ecommerceResults = ecommerceCampaigns.map(
-                        ([, data]) => data.result,
-                      );
-                      const showResultCols = ecommerceResults.some(
-                        (r) => r.result_kind && r.result_kind !== "purchases",
-                      );
-                      const resultsColumnLabel =
-                        facebookResultsColumnLabel(ecommerceResults);
-                      const showResultLabelInCell =
-                        resultsColumnLabel === "תוצאות";
-                      const totalResults =
-                        ecommerceResults.some((r) => r.result_mixed) ||
-                        new Set(
-                          ecommerceResults
-                            .map((r) => r.result_kind)
-                            .filter(Boolean),
-                        ).size > 1
-                          ? null
-                          : ecommerceResults.reduce(
-                              (sum, r) => sum + r.results,
-                              0,
-                            );
-                      return (
-                        <Card className="mb-4 overflow-hidden">
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-sm" dir="rtl">
-                              <thead className="bg-muted/50 border-b">
-                                <tr>
-                                  <th className="p-2 text-right font-medium">
-                                    {entityHeader("איקומרס")}
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    חשיפות
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    קליקים
-                                  </th>
-                                  <th className="p-2 text-center font-medium">
-                                    הוצאה
-                                  </th>
-                                  {showResultCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      {resultsColumnLabel}
-                                    </th>
-                                  )}
-                                  {showResultCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      עלות לתוצאה
-                                    </th>
-                                  )}
-                                  {showValueCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      הוספות לעגלה
-                                    </th>
-                                  )}
-                                  <th className="p-2 text-center font-medium">
-                                    רכישות
-                                  </th>
-                                  {showValueCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      ערך רכישות
-                                    </th>
-                                  )}
-                                  {!showValueCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      עלות לרכישה
-                                    </th>
-                                  )}
-                                  {showValueCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      ROAS
-                                    </th>
-                                  )}
-                                  {showLeadCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      לידים
-                                    </th>
-                                  )}
-                                  {showLeadCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      עלות לליד
-                                    </th>
-                                  )}
-                                  {showConversationCols && (
-                                    <th className="p-2 text-center font-medium">
-                                      שיחות
-                                    </th>
-                                  )}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {ecommerceCampaigns.map(([groupKey, data]) => {
-                                  const roas =
-                                    data.spend > 0
-                                      ? data.purchase_value / data.spend
-                                      : 0;
-                                  const costPerPurchase =
-                                    data.purchases > 0
-                                      ? data.spend / data.purchases
-                                      : 0;
-                                  const costPerLead =
-                                    data.leads > 0
-                                      ? data.spend / data.leads
-                                      : 0;
-                                  return (
-                                    <tr
-                                      key={`ecom-${groupKey}`}
-                                      className="border-b hover:bg-muted/30"
-                                    >
-                                      <td className="p-2 text-right font-medium">
-                                        <CampaignOffBadge off={data.off} />
-                                        {data.name}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {data.impressions.toLocaleString(
-                                          "he-IL",
-                                        )}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {data.clicks.toLocaleString("he-IL")}
-                                      </td>
-                                      <td className="p-2 text-center">
-                                        {currency}
-                                        {data.spend.toLocaleString("he-IL", {
-                                          maximumFractionDigits: 0,
-                                        })}
-                                      </td>
-                                      {showResultCols && (
-                                        <td className="p-2 text-center text-green-600 font-medium">
-                                          {data.result.result_kind ? (
-                                            <>
-                                              {data.result.results.toLocaleString(
-                                                "he-IL",
-                                              )}
-                                              {showResultLabelInCell &&
-                                                data.result.result_label && (
-                                                  <span className="block text-xs font-normal text-muted-foreground">
-                                                    {data.result.result_label}
-                                                  </span>
-                                                )}
-                                            </>
-                                          ) : (
-                                            "—"
-                                          )}
-                                        </td>
-                                      )}
-                                      {showResultCols && (
-                                        <td className="p-2 text-center text-blue-600 font-medium">
-                                          {data.result.results > 0
-                                            ? `${currency}${facebookCostPerResult(data.spend, data.result.results).toLocaleString("he-IL", { maximumFractionDigits: 1 })}`
-                                            : "—"}
-                                        </td>
-                                      )}
-                                      {showValueCols && (
-                                        <td className="p-2 text-center text-orange-600">
-                                          {data.add_to_cart.toLocaleString(
-                                            "he-IL",
-                                          )}
-                                        </td>
-                                      )}
-                                      <td className="p-2 text-center text-green-600 font-medium">
-                                        {data.purchases.toLocaleString("he-IL")}
-                                      </td>
-                                      {showValueCols && (
-                                        <td className="p-2 text-center text-green-600">
-                                          {currency}
-                                          {data.purchase_value.toLocaleString(
-                                            "he-IL",
-                                            { maximumFractionDigits: 0 },
-                                          )}
-                                        </td>
-                                      )}
-                                      {!showValueCols && (
-                                        <td className="p-2 text-center text-blue-600 font-medium">
-                                          {currency}
-                                          {costPerPurchase.toLocaleString(
-                                            "he-IL",
-                                            { maximumFractionDigits: 1 },
-                                          )}
-                                        </td>
-                                      )}
-                                      {showValueCols && (
-                                        <td className="p-2 text-center text-blue-600 font-medium">
-                                          {roas.toLocaleString("he-IL", {
-                                            maximumFractionDigits: 1,
-                                          })}
-                                          x
-                                        </td>
-                                      )}
-                                      {showLeadCols && (
-                                        <td className="p-2 text-center text-green-600 font-medium">
-                                          {data.leads.toLocaleString("he-IL")}
-                                        </td>
-                                      )}
-                                      {showLeadCols && (
-                                        <td className="p-2 text-center text-blue-600 font-medium">
-                                          {currency}
-                                          {costPerLead.toLocaleString("he-IL", {
-                                            maximumFractionDigits: 1,
-                                          })}
-                                        </td>
-                                      )}
-                                      {showConversationCols && (
-                                        <td className="p-2 text-center">
-                                          {data.conversations.toLocaleString(
-                                            "he-IL",
-                                          )}
-                                        </td>
-                                      )}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              <tfoot className="bg-primary/10 font-bold">
-                                <tr>
-                                  <td className="p-2 text-right">סה״כ</td>
-                                  <td className="p-2 text-center">
-                                    {ecommerceTotals.impressions.toLocaleString(
-                                      "he-IL",
-                                    )}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {ecommerceTotals.clicks.toLocaleString(
-                                      "he-IL",
-                                    )}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {currency}
-                                    {ecommerceTotals.spend.toLocaleString(
-                                      "he-IL",
-                                      { maximumFractionDigits: 0 },
-                                    )}
-                                  </td>
-                                  {showResultCols && (
-                                    <td className="p-2 text-center text-green-600">
-                                      {totalResults === null
-                                        ? "—"
-                                        : totalResults.toLocaleString("he-IL")}
-                                    </td>
-                                  )}
-                                  {showResultCols && (
-                                    <td className="p-2 text-center text-blue-600">
-                                      {totalResults
-                                        ? `${currency}${facebookCostPerResult(ecommerceTotals.spend, totalResults).toLocaleString("he-IL", { maximumFractionDigits: 1 })}`
-                                        : "—"}
-                                    </td>
-                                  )}
-                                  {showValueCols && (
-                                    <td className="p-2 text-center text-orange-600">
-                                      {ecommerceTotals.add_to_cart.toLocaleString(
-                                        "he-IL",
-                                      )}
-                                    </td>
-                                  )}
-                                  <td className="p-2 text-center text-green-600">
-                                    {ecommerceTotals.purchases.toLocaleString(
-                                      "he-IL",
-                                    )}
-                                  </td>
-                                  {showValueCols && (
-                                    <td className="p-2 text-center text-green-600">
-                                      {currency}
-                                      {ecommerceTotals.purchase_value.toLocaleString(
-                                        "he-IL",
-                                        { maximumFractionDigits: 0 },
-                                      )}
-                                    </td>
-                                  )}
-                                  {!showValueCols && (
-                                    <td className="p-2 text-center text-blue-600">
-                                      {currency}
-                                      {(ecommerceTotals.purchases > 0
-                                        ? ecommerceTotals.spend /
-                                          ecommerceTotals.purchases
-                                        : 0
-                                      ).toLocaleString("he-IL", {
-                                        maximumFractionDigits: 1,
-                                      })}
-                                    </td>
-                                  )}
-                                  {showValueCols && (
-                                    <td className="p-2 text-center text-blue-600">
-                                      {(ecommerceTotals.spend > 0
-                                        ? ecommerceTotals.purchase_value /
-                                          ecommerceTotals.spend
-                                        : 0
-                                      ).toLocaleString("he-IL", {
-                                        maximumFractionDigits: 1,
-                                      })}
-                                      x
-                                    </td>
-                                  )}
-                                  {showLeadCols && (
-                                    <td className="p-2 text-center text-green-600">
-                                      {ecommerceTotals.leads.toLocaleString(
-                                        "he-IL",
-                                      )}
-                                    </td>
-                                  )}
-                                  {showLeadCols && (
-                                    <td className="p-2 text-center text-blue-600">
-                                      {currency}
-                                      {(ecommerceTotals.leads > 0
-                                        ? ecommerceTotals.spend /
-                                          ecommerceTotals.leads
-                                        : 0
-                                      ).toLocaleString("he-IL", {
-                                        maximumFractionDigits: 1,
-                                      })}
-                                    </td>
-                                  )}
-                                  {showConversationCols && (
-                                    <td className="p-2 text-center">
-                                      {ecommerceTotals.conversations.toLocaleString(
-                                        "he-IL",
-                                      )}
-                                    </td>
-                                  )}
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </Card>
-                      );
-                    })()}
+                  {ecommerceCampaigns.length > 0 && (
+                    <FacebookSalesTable
+                      rows={ecommerceCampaigns}
+                      entityHeader={entityHeader("איקומרס")}
+                      currency={currency}
+                      previous={facebookPrevious?.ecommerce}
+                    />
+                  )}
 
                   {leadCampaigns.length > 0 && (
-                    <Card className="mb-4 overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm" dir="rtl">
-                          <thead className="bg-muted/50 border-b">
-                            <tr>
-                              <th className="p-2 text-right font-medium">
-                                {entityHeader("לידים")}
-                              </th>
-                              <th className="p-2 text-center font-medium">
-                                חשיפות
-                              </th>
-                              <th className="p-2 text-center font-medium">
-                                קליקים
-                              </th>
-                              <th className="p-2 text-center font-medium">
-                                לידים
-                              </th>
-                              <th className="p-2 text-center font-medium">
-                                הוצאה
-                              </th>
-                              <th className="p-2 text-center font-medium">
-                                עלות לליד
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {leadCampaigns.map(([groupKey, data]) => {
-                              const costPerLead =
-                                data.leads > 0 ? data.spend / data.leads : 0;
-                              return (
-                                <tr
-                                  key={`lead-${groupKey}`}
-                                  className="border-b hover:bg-muted/30"
-                                >
-                                  <td className="p-2 text-right font-medium">
-                                    <CampaignOffBadge off={data.off} />
-                                    {data.name}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {data.impressions.toLocaleString("he-IL")}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {data.clicks.toLocaleString("he-IL")}
-                                  </td>
-                                  <td className="p-2 text-center text-green-600 font-medium">
-                                    {data.leads.toLocaleString("he-IL")}
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {currency}
-                                    {data.spend.toLocaleString("he-IL", {
-                                      maximumFractionDigits: 0,
-                                    })}
-                                  </td>
-                                  <td className="p-2 text-center text-blue-600 font-medium">
-                                    {currency}
-                                    {costPerLead.toLocaleString("he-IL", {
-                                      maximumFractionDigits: 1,
-                                    })}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot className="bg-primary/10 font-bold">
-                            <tr>
-                              <td className="p-2 text-right">סה״כ</td>
-                              <td className="p-2 text-center">
-                                {leadTotals.impressions.toLocaleString("he-IL")}
-                              </td>
-                              <td className="p-2 text-center">
-                                {leadTotals.clicks.toLocaleString("he-IL")}
-                              </td>
-                              <td className="p-2 text-center text-green-600">
-                                {leadTotals.leads.toLocaleString("he-IL")}
-                              </td>
-                              <td className="p-2 text-center">
-                                {currency}
-                                {leadTotals.spend.toLocaleString("he-IL", {
-                                  maximumFractionDigits: 0,
-                                })}
-                              </td>
-                              <td className="p-2 text-center text-blue-600">
-                                {currency}
-                                {(leadTotals.leads > 0
-                                  ? leadTotals.spend / leadTotals.leads
-                                  : 0
-                                ).toLocaleString("he-IL", {
-                                  maximumFractionDigits: 1,
-                                })}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </Card>
+                    <FacebookLeadsTable
+                      rows={leadCampaigns}
+                      entityHeader={entityHeader("לידים")}
+                      currency={currency}
+                      previous={facebookPrevious?.leads}
+                    />
                   )}
 
                   {trafficCampaigns.length > 0 && (
@@ -3703,6 +3329,7 @@ export default function DynamicTableView({
                       rows={trafficCampaigns}
                       entityHeader={entityHeader("טראפיק")}
                       currency={currency}
+                      previous={facebookPrevious?.traffic}
                     />
                   )}
 
@@ -3759,6 +3386,22 @@ export default function DynamicTableView({
                         ? "קבוצת מודעות"
                         : "קמפיין";
 
+                  // The previous period, with goals read from its own rows.
+                  const googlePrevious = previousFilteredRecords
+                    ? googlePreviousPeriod(
+                        previousFilteredRecords,
+                        adsEntityLevel,
+                        googleCampaignGoalOf(
+                          previousFilteredRecords.map((record) => ({
+                            table_id: table.id,
+                            data: record.data,
+                          })),
+                          [table],
+                          fallbackGoal,
+                        ).goalOf,
+                      )
+                    : null;
+
                   const campaignGroups = filteredRecords.reduce(
                     (acc, record) => {
                       const groupKey = getEntityGroupKey(
@@ -3785,18 +3428,13 @@ export default function DynamicTableView({
                           roas_count: 0,
                         };
                       }
-                      acc[groupKey].impressions +=
-                        Number(record.data?.impressions) || 0;
-                      acc[groupKey].clicks += Number(record.data?.clicks) || 0;
-                      acc[groupKey].conversions +=
-                        Number(record.data?.conversions) ||
-                        Number(record.data?.purchases) ||
-                        0;
-                      acc[groupKey].cost += Number(record.data?.cost) || 0;
+                      const metrics = googleRecordMetrics(record.data);
+                      acc[groupKey].impressions += metrics.impressions;
+                      acc[groupKey].clicks += metrics.clicks;
+                      acc[groupKey].conversions += metrics.conversions;
+                      acc[groupKey].cost += metrics.cost;
                       acc[groupKey].conversions_value +=
-                        Number(record.data?.conversions_value) ||
-                        Number(record.data?.purchase_value) ||
-                        0;
+                        metrics.conversions_value;
                       acc[groupKey].all_conversions +=
                         Number(record.data?.all_conversions) || 0;
                       acc[groupKey].all_conversions_value +=
@@ -4005,6 +3643,19 @@ export default function DynamicTableView({
                           entityColumnLabel={entityColumnLabel}
                           currency={gaCurrency}
                           showTitle={mixedGoals}
+                          previous={
+                            googlePrevious
+                              ? {
+                                  ...googlePrevious[goal],
+                                  // WooCommerce replaces the sales total, so
+                                  // Google's previous total does not compare.
+                                  total:
+                                    goal === "ecommerce" && useGoogleWooOverlay
+                                      ? null
+                                      : googlePrevious[goal].total,
+                                }
+                              : null
+                          }
                           wooTotals={
                             useGoogleWooOverlay
                               ? {

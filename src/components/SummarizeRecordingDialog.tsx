@@ -630,83 +630,6 @@ export default function SummarizeRecordingDialog({
                     <RotateCcw className="h-3 w-3 ml-1" />
                     נסה שוב
                   </Button>
-                  {(failedError.includes("Zoom") ||
-                    failedError.includes("unauthorized") ||
-                    failedError.includes("הרשאות") ||
-                    failedError.includes("expired") ||
-                    failedError.includes("download") ||
-                    failedError.includes("media")) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          setIsTranscribing(true);
-                          setFailedError(null);
-                          toast({ title: "מרענן קישורי הקלטות..." });
-
-                          // Refresh URLs via fetch-zoom-recordings
-                          const startTime = recording?.start_time
-                            ? new Date(recording.start_time)
-                            : new Date();
-                          const fromDate = new Date(
-                            startTime.getTime() - 7 * 24 * 60 * 60 * 1000,
-                          )
-                            .toISOString()
-                            .split("T")[0];
-                          const toDate = new Date(
-                            startTime.getTime() + 1 * 24 * 60 * 60 * 1000,
-                          )
-                            .toISOString()
-                            .split("T")[0];
-
-                          const { error: refreshError } =
-                            await supabase.functions.invoke(
-                              "fetch-zoom-recordings",
-                              {
-                                body: {
-                                  tenant_id: currentTenantId,
-                                  from_date: fromDate,
-                                  to_date: toDate,
-                                },
-                              },
-                            );
-
-                          if (refreshError) throw refreshError;
-
-                          toast({ title: "קישורים רוענו, מנסה שוב..." });
-                          queryClient.invalidateQueries({
-                            queryKey: ["recordings", currentTenantId],
-                          });
-
-                          // Reset status and retry
-                          await supabase
-                            .from("zoom_recordings")
-                            .update({
-                              transcription_status: null,
-                              transcription_error: null,
-                            } as any)
-                            .eq("id", recording.id);
-
-                          // Small delay to let DB update
-                          await new Promise((r) => setTimeout(r, 1000));
-                          void handleTranscribe();
-                        } catch (err: any) {
-                          setIsTranscribing(false);
-                          setFailedError(err.message || "שגיאה ברענון");
-                          toast({
-                            title: "שגיאה ברענון קישורים",
-                            description: err.message,
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      className="text-primary border-primary hover:bg-primary/10"
-                    >
-                      <RotateCcw className="h-3 w-3 ml-1" />
-                      רענן קישורים ונסה שוב
-                    </Button>
-                  )}
                 </div>
               </div>
             )}
@@ -714,7 +637,7 @@ export default function SummarizeRecordingDialog({
             <p className="text-sm text-muted-foreground">
               {hasAudioSource
                 ? "לחץ על ״תמלל אוטומטית״ או הדבק תמלול ידנית. תומך בקבצים גדולים."
-                : "הדבק את התמלול מ-Zoom, או כתוב הערות ונקודות מרכזיות מהפגישה"}
+                : "הדבק את התמלול, או כתוב הערות ונקודות מרכזיות מהפגישה"}
             </p>
             <Textarea
               value={transcript}

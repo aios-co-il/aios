@@ -7,6 +7,7 @@ import {
   MEETING_SUMMARY_SYSTEM_PROMPT,
   prepareDetailedSummarySource,
 } from "./meeting-summary-prompts.ts";
+import { summarizeWithOpenRouter } from "./meeting-summary-openrouter.ts";
 
 export class AiHttpError extends Error {
   status: number;
@@ -59,12 +60,40 @@ async function requestMeetingCompletion(
   return content;
 }
 
+export interface MeetingSummaryKeys {
+  openaiKey: string;
+  /** The tenant's OpenRouter key, or "" when the tenant has none. */
+  openRouterKey: string;
+  tenantId: string;
+}
+
+/**
+ * The summary from the tenant's OpenRouter model when it has a key; otherwise,
+ * or when that call fails, from the chunked gpt-4o-mini path.
+ */
 export async function generateMeetingSummary(
-  openaiKey: string,
+  keys: MeetingSummaryKeys,
   transcript: string,
   recordingInfo: string,
   focusPrompt: string,
 ): Promise<string> {
+  if (keys.openRouterKey) {
+    try {
+      return await summarizeWithOpenRouter({
+        apiKey: keys.openRouterKey,
+        tenantId: keys.tenantId,
+        transcript,
+        recordingInfo,
+        focusPrompt,
+      });
+    } catch (err) {
+      console.error(
+        "[meeting-summary] OpenRouter summary failed; using gpt-4o-mini",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  const openaiKey = keys.openaiKey;
   // Long meetings need a coverage pass before synthesis. Asking one completion
   // to both scan a long transcript and write polished prose caused late agenda
   // items to disappear and encouraged the model to fill gaps.

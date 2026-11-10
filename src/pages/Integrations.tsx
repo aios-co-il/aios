@@ -17,16 +17,17 @@ import {
   Calculator,
   Zap,
   Search,
-  Video,
   Mail,
   Brain,
   Phone,
   Globe,
   ShoppingCart,
   Link2,
+  Video,
   Send,
   Music2,
 } from "lucide-react";
+import { useZoomIntegration } from "@/components/ZoomSettings/useZoomSettings";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -203,6 +204,8 @@ export default function Integrations() {
     enabled: !!currentTenantId,
   });
 
+  const { data: zoomIntegration } = useZoomIntegration(currentTenantId ?? null);
+
   // Check Google Analytics integration status (per-user)
   const hasGoogleAnalytics = useHasIntegrationAccess(
     currentTenantId,
@@ -269,23 +272,6 @@ export default function Integrations() {
         .select("*")
         .eq("tenant_id", currentTenantId)
         .eq("integration_type", "sumit")
-        .eq("is_active", true)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!currentTenantId,
-  });
-
-  // Check Zoom integration status
-  const { data: zoomIntegration } = useQuery({
-    queryKey: ["zoom-integration", currentTenantId],
-    queryFn: async () => {
-      if (!currentTenantId) return null;
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", currentTenantId)
-        .eq("integration_type", "zoom")
         .eq("is_active", true)
         .maybeSingle();
       return data;
@@ -635,13 +621,9 @@ export default function Integrations() {
     {
       icon: <Video className="h-6 w-6" />,
       title: "Zoom",
-      description: "קבלת הקלטות פגישות אוטומטית דרך Webhook",
-      features: [
-        "קבלת הקלטות מסך ואודיו",
-        "שיוך הקלטות ללקוח או ליד",
-        "תמיכה ב-Zoom Webhook Events",
-      ],
-      isConnected: !!zoomIntegration,
+      description: "חיבור חשבון Zoom ליצירת קישורי פגישה",
+      features: ["קישור Zoom לפגישות שכרמן קובעת", "Server-to-Server OAuth"],
+      isConnected: !!zoomIntegration?.is_active,
       route: "zoom-settings",
       gradient: "bg-gradient-to-r from-blue-500 to-blue-700",
     },

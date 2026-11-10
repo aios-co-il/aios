@@ -1,0 +1,43 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { reportRecordsQueryOptions } from "@/lib/reportRecords";
+import { previousPeriodRange } from "./previousPeriod";
+
+/**
+ * The report table's records for the window right before the one shown, read
+ * only while the comparison is on. Null range when the window has no
+ * "before" (all history, or an unfinished custom range).
+ */
+export function usePreviousPeriodRecords({
+  tableId,
+  dateFilter,
+  customFrom,
+  customTo,
+  enabled,
+}: {
+  tableId: string | undefined;
+  dateFilter: string;
+  customFrom: string | null;
+  customTo: string | null;
+  enabled: boolean;
+}) {
+  const range = previousPeriodRange(dateFilter, customFrom, customTo);
+  const query = useQuery({
+    ...reportRecordsQueryOptions(
+      supabase,
+      tableId ?? "",
+      "custom",
+      range?.startDate,
+      range?.endDate,
+    ),
+    enabled: enabled && !!tableId && !!range,
+  });
+  // The shared report options keep the last window's rows while a new one
+  // loads; those belong to another window, so they are never compared.
+  const loading = query.isPending || query.isPlaceholderData;
+  return {
+    range,
+    records: enabled && range && !loading ? query.data : undefined,
+    isPending: enabled && !!range && loading,
+  };
+}

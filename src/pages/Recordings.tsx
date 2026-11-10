@@ -23,7 +23,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Video,
   Search,
-  Download,
   Loader2,
   Upload,
   Bot,
@@ -78,15 +77,6 @@ export default function Recordings() {
   const [uploadClientId, setUploadClientId] = useState<string>("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
-  const [fetchFromDate, setFetchFromDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split("T")[0];
-  });
-  const [fetchToDate, setFetchToDate] = useState(
-    () => new Date().toISOString().split("T")[0],
-  );
-  const [zoomFetchOpen, setZoomFetchOpen] = useState(false);
   const [joinBotOpen, setJoinBotOpen] = useState(false);
 
   const [summarizeRec, setSummarizeRec] = useState<FeedRecording | null>(null);
@@ -103,21 +93,6 @@ export default function Recordings() {
   const [renameValue, setRenameValue] = useState("");
 
   // ── Data ──────────────────────────────────────────────────────
-
-  const { data: zoomIntegration } = useQuery({
-    queryKey: ["zoom-integration", currentTenantId],
-    queryFn: async () => {
-      if (!currentTenantId) return null;
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("id, is_active")
-        .eq("tenant_id", currentTenantId)
-        .eq("integration_type", "zoom")
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!currentTenantId,
-  });
 
   const {
     data: recordings = [],
@@ -300,38 +275,6 @@ export default function Recordings() {
     onError: (err: any) =>
       toast({
         title: "שגיאה במחיקה",
-        description: err.message,
-        variant: "destructive",
-      }),
-  });
-
-  const fetchRecordingsMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke(
-        "fetch-zoom-recordings",
-        {
-          body: {
-            tenant_id: currentTenantId,
-            from_date: fetchFromDate,
-            to_date: fetchToDate,
-          },
-        },
-      );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      invalidate();
-      setZoomFetchOpen(false);
-      toast({
-        title: "הקלטות נמשכו בהצלחה",
-        description: `נמצאו ${data.meetings_found} פגישות, עובדו ${data.recordings_processed} הקלטות`,
-      });
-    },
-    onError: (err: any) =>
-      toast({
-        title: "שגיאה במשיכת הקלטות",
         description: err.message,
         variant: "destructive",
       }),
@@ -637,12 +580,6 @@ export default function Recordings() {
           הקלטות
         </h1>
         <div className="flex gap-2">
-          {zoomIntegration?.is_active && (
-            <Button variant="outline" onClick={() => setZoomFetchOpen(true)}>
-              <Download className="h-4 w-4 ml-2" />
-              משוך מ-Zoom
-            </Button>
-          )}
           <Button variant="outline" onClick={() => setJoinBotOpen(true)}>
             <Bot className="h-4 w-4 ml-2" />
             שלח את כרמן לפגישה
@@ -860,7 +797,7 @@ export default function Recordings() {
               <Video className="h-10 w-10" />
               <div className="font-medium">אין הקלטות להצגה</div>
               <div className="text-sm">
-                הקלט פגישה עם התוסף, העלה קובץ, או משוך הקלטות מ-Zoom
+                שלח את כרמן לפגישה, הקלט עם התוסף או העלה קובץ
               </div>
             </div>
           ) : (
@@ -978,45 +915,6 @@ export default function Recordings() {
         campaigners={campaigners}
         agencies={agencies}
       />
-
-      {/* Zoom fetch dialog */}
-      <Dialog open={zoomFetchOpen} onOpenChange={setZoomFetchOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>משיכת הקלטות מ-Zoom</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>מתאריך</Label>
-              <Input
-                type="date"
-                value={fetchFromDate}
-                onChange={(e) => setFetchFromDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label>עד תאריך</Label>
-              <Input
-                type="date"
-                value={fetchToDate}
-                onChange={(e) => setFetchToDate(e.target.value)}
-              />
-            </div>
-            <Button
-              className="w-full"
-              onClick={() => fetchRecordingsMutation.mutate()}
-              disabled={fetchRecordingsMutation.isPending}
-            >
-              {fetchRecordingsMutation.isPending ? (
-                <Loader2 className="h-4 w-4 ml-2 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 ml-2" />
-              )}
-              משוך הקלטות
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {summarizeRec && (
         <SummarizeRecordingDialog

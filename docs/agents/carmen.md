@@ -48,6 +48,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 - **Carmen's own engine:** `ai_agents.engine`, Gemini 3.5 Flash by default (AIO-510); `buildLLMChain` fails over to GPT-5.4 Mini and Claude Sonnet. Gemini 3 needs each tool call's `extra_content` (its thought signature) sent back on the next round: `readStreamedCompletion` keeps it and `messagesForProvider` strips it for any other provider (`run-ai-agent/stream-completion.ts`).
 - **Chat / extraction:** OpenAI `gpt-4o-mini` (via `OPENAI_API_KEY` secret), endpoint `api.openai.com/v1/chat/completions`.
+- **Meeting summaries:** the tenant's OpenRouter brain, `anthropic/claude-opus-5.5` (`MEETING_SUMMARY_MODEL` overrides), reads the whole transcript in one pass; without that key, or when the call fails, the chunked `gpt-4o-mini` path runs (`_shared/meeting-summary-openrouter.ts`).
 - **Embeddings:** OpenAI `text-embedding-3-small`, **1536 dims** — must match the `summary_embedding` vector columns on `carmen_memory_pointers` / `agent_memory`.
 - **Image gen:** OpenAI Images `gpt-image-2.5-sunburst` (`gpt-image-1` was shut down on 2026-10-23) (`/v1/images/generations`, returns base64 PNG).
 - Per-tenant LLM keys for the main agent live in the `llm` row of `tenant_integrations` (see `resolveLLMTarget` in `run-ai-agent`).

@@ -9,6 +9,9 @@ import {
 } from "../_shared/meeting-summary.ts";
 import { dispatchMeetingSummaryToCursor } from "../_shared/meeting-summary-cursor.ts";
 import { resolveOpenAIKey } from "../_shared/ai.ts";
+import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
+import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -195,7 +198,11 @@ serve(async (req) => {
     let summary: string;
     try {
       summary = await generateMeetingSummary(
-        OPENAI_API_KEY,
+        {
+          openaiKey: OPENAI_API_KEY,
+          openRouterKey: await callerTenantSummaryKey(tenant_id, user.id),
+          tenantId: tenant_id,
+        },
         transcript,
         recordingInfo,
         focusPrompt,
@@ -299,3 +306,25 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * The tenant's OpenRouter key, only when the caller belongs to the tenant named
+ * in the body: the key is billed to that tenant.
+ */
+async function callerTenantSummaryKey(
+  tenantId: string,
+  userId: string,
+): Promise<string> {
+  const admin = serviceClient();
+  try {
+    const access = await tenantUserAccess(admin, tenantId, userId);
+    if (!access.member && !access.superAdmin) return "";
+  } catch (err) {
+    console.error(
+      "[summarize-recording] tenant access check failed",
+      err instanceof Error ? err.message : err,
+    );
+    return "";
+  }
+  return await tenantSummaryKey(admin, tenantId);
+}
