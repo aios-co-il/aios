@@ -1,5 +1,6 @@
 import { getCarmenRole } from "../../../supabase/functions/_shared/carmen/skin-roles";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
+import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useCarmenSkins } from "@/hooks/useCarmenSkins";
@@ -26,6 +27,7 @@ export function CarmenSkinSwitcher({
     canEdit,
     isLoading,
   } = useCarmenSkins();
+  const { style } = useCarmenAvatarStyle();
   if (!canEdit || (!isLoading && skins.length === 0)) return null;
   const active = skins.find(
     (s) => s.slug === (getCarmenRole(activeSlug)?.slug ?? BASE),
@@ -63,9 +65,10 @@ export function CarmenSkinSwitcher({
             aria-label={s.name}
           >
             <span className="flex items-center gap-2">
-              {s.avatarUrl && (
+              {(style === "orbs" || s.avatarUrl) && (
                 <span aria-hidden="true">
-                  <CarmenPortrait
+                  <CarmenAvatar
+                    skin={s.slug}
                     image={s.avatarUrl}
                     name={s.name}
                     custom

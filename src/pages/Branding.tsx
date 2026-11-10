@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTheme, ColorPalette } from "@/contexts/ThemeContext";
 import { BRAND_PRESETS } from "@/theme";
+import { CarmenStylePicker } from "@/components/carmen/CarmenStylePicker";
 import {
   Palette,
   Check,
@@ -269,6 +270,8 @@ export default function Branding() {
           </CardContent>
         </Card>
       </div>
+
+      <CarmenStylePicker />
 
       {/* Color Palettes Section */}
       <div className="space-y-6">
