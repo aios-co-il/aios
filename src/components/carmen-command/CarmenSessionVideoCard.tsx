@@ -2,6 +2,9 @@ import { useNavigate } from "react-router-dom";
 import { Maximize2 } from "lucide-react";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
+import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { getRoleOrbTint } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import type { useDraggableCard } from "./useDraggableCard";
 import type { CarmenFaceState } from "./CarmenFace";
 
@@ -23,6 +26,7 @@ export function CarmenSessionVideoCard({
   const navigate = useNavigate();
   const { buildPath, isReady } = useTenantPath();
   const identity = useCarmenIdentity();
+  const { style } = useCarmenAvatarStyle();
   return (
     <div
       ref={videoCard.ref}
@@ -47,12 +51,22 @@ export function CarmenSessionVideoCard({
           <Maximize2 className="h-4 w-4" />
         </button>
       )}
-      <img
-        key={identity.image}
-        src={identity.image}
-        alt=""
-        className={`carmen-session-character ${identity.custom ? "is-custom" : ""}`}
-      />
+      {style === "character" ? (
+        <img
+          key={identity.image}
+          src={identity.image}
+          alt=""
+          className={`carmen-session-character ${identity.custom ? "is-custom" : ""}`}
+        />
+      ) : (
+        // `dark` gives the orb the see-through glass look on the navy card.
+        <div className="carmen-session-orb dark" data-state={faceState}>
+          <CarmenOrb
+            tint={getRoleOrbTint(identity.activeSkin)}
+            className="h-full w-full"
+          />
+        </div>
+      )}
       <div className="carmen-session-caption">
         <span className="carmen-session-dot" />
         {identity.name}
