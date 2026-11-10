@@ -60,6 +60,7 @@ Deno.test(
       "את כרמן",
       VOICE,
       fakeFetch(200, { signed_url: signed }, seen),
+      "כן, אני איתך.",
     );
     assertEquals(seen[0].headers.get("xi-api-key"), "key");
     assertEquals(new URL(seen[0].url).searchParams.get("agent_id"), "agent_1");
@@ -69,7 +70,7 @@ Deno.test(
         provider: "elevenlabs",
         signed_url: signed,
         prompt: "את כרמן",
-        first_message: "כן, אני מקשיבה",
+        first_message: "כן, אני איתך.",
         language: "he",
         voice: { id: VOICE.id, label: VOICE.label },
         voice_id: VOICE.voiceId,

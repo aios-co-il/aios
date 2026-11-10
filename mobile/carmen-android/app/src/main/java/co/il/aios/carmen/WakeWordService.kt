@@ -28,6 +28,7 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private lateinit var account: AiosAccount
     private var engine: WakeWordEngine? = null
     private var conversation: LiveConversation? = null
+    private var cue: ActivationCue? = null
     private var talkWhenReady = false
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -118,19 +119,16 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         CarmenSession.begin()
         showCarmen()
         val activatedAt = System.currentTimeMillis()
-        if (account.isSignedIn) {
-            // Carmen says "כן, אני מקשיבה" herself, in her own voice, once the call connects.
-            startConversation(activatedAt)
-        } else {
-            voice.acknowledge(
-                onStart = { ms -> log.record(EventLog.Event.VOICE_STARTED, "latency_ms=$ms") },
-                onDone = { handler.post { startConversation(activatedAt) } },
-            )
+        // Typing and "אני כבר איתך" at once; once connected Carmen greets herself (AIO-543).
+        cue?.release()
+        cue = ActivationCue(this, VoicePreference(this).selected?.id).also { activationCue ->
+            activationCue.play { if (!account.isSignedIn) startConversation(activatedAt) }
         }
+        if (account.isSignedIn) startConversation(activatedAt)
         handler.postDelayed(endSessionOnTimeout, ActivationGate.DEFAULT_MAX_SESSION_MS)
     }
 
-    /** After "כן, אני מקשיבה", opens the live conversation with Carmen's brain. */
+    /** Opens the live conversation with Carmen's brain while the activation cue plays. */
     private fun startConversation(activatedAt: Long) {
         if (gate.state != ActivationGate.State.ACTIVE || conversation != null) return
         if (!account.isSignedIn) {
@@ -165,7 +163,11 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
         RealtimeConversation(this, account, log, conversationListener, activatedAt)
 
     private val conversationListener = object : LiveConversation.Listener {
-        override fun onState(state: CarmenSession.State) = CarmenSession.setState(state)
+        override fun onState(state: CarmenSession.State) {
+            // Her live voice takes over from the activation cue.
+            if (state == CarmenSession.State.SPEAKING) handler.post { cue?.silence() }
+            CarmenSession.setState(state)
+        }
         override fun onTranscript(line: String) = CarmenSession.addLine(line)
         override fun onEnded(reason: String) {
             if (reason.startsWith("error")) {
@@ -191,6 +193,8 @@ class WakeWordService : Service(), WakeWordEngine.Listener {
     private fun endSession(reason: String) {
         // A running conversation always stops, even if the session state already moved on.
         conversation?.also { conversation = null }?.stop(reason)
+        cue?.release()
+        cue = null
         if (gate.state != ActivationGate.State.ACTIVE) return
         handler.removeCallbacks(endSessionOnTimeout)
         CarmenSession.setState(CarmenSession.State.ENDED)

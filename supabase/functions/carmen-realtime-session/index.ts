@@ -20,6 +20,7 @@ import {
   loadSessionContext,
   sessionInstructions,
 } from "./session-context.ts";
+import { pickGreeting } from "./greetings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -193,7 +194,12 @@ Deno.serve(async (req) => {
     const secret = data?.value ?? data?.client_secret?.value;
     if (!secret)
       return json(502, { error: "No client secret in OpenAI response" });
-    return json(200, { client_secret: secret, model: REALTIME_MODEL });
+    // The app says this line first, so ElevenLabs and OpenAI greet from the same list.
+    return json(200, {
+      client_secret: secret,
+      model: REALTIME_MODEL,
+      greeting: pickGreeting(),
+    });
   } catch (e) {
     return json(500, {
       error: e instanceof Error ? e.message : "Unknown error",

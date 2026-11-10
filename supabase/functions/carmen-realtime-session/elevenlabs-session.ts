@@ -1,4 +1,5 @@
 import type { ElevenLabsVoice } from "./elevenlabs-voices.ts";
+import { pickGreeting } from "./greetings.ts";
 
 /** What the app needs to open Carmen's ElevenLabs conversation. */
 export type ElevenLabsSession = {
@@ -24,9 +25,6 @@ export type ElevenLabsConfig = { apiKey: string; agentId: string };
 const SIGNED_URL_ENDPOINT =
   "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url";
 
-// The same opening line as the OpenAI session's greeting, then Carmen waits.
-const FIRST_MESSAGE = "כן, אני מקשיבה";
-
 const LOG = "[carmen-realtime-session]";
 
 /**
@@ -51,6 +49,7 @@ export async function mintElevenLabsSession(
   instructions: string,
   voice: ElevenLabsVoice,
   fetcher: typeof fetch = fetch,
+  greeting: string = pickGreeting(),
 ): Promise<{ ok: true; session: ElevenLabsSession } | ElevenLabsRefusal> {
   if (!config) {
     return { ok: false, status: 503, error: "elevenlabs_not_configured" };
@@ -65,7 +64,7 @@ export async function mintElevenLabsSession(
       provider: "elevenlabs",
       signed_url: signedUrl,
       prompt: instructions,
-      first_message: FIRST_MESSAGE,
+      first_message: greeting,
       language: "he",
       voice: { id: voice.id, label: voice.label },
       voice_id: voice.voiceId,
