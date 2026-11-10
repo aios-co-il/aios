@@ -1,3 +1,5 @@
+import { prepareToolDispatch } from "./tool-dispatch.ts";
+import type { ToolApproval } from "./tool-context.ts";
 import { ALL_TOOLS } from "./tool-catalog.ts";
 // redeploy trigger (restore #5): a Grok-driven session replaced this file — in git AND in prod (v81) — with a
 // literal "REPLACE_WITH_FIXED_VERSION" placeholder, so the deployed function had no code at all and every Carmen
@@ -2301,6 +2303,10 @@ async function devTaskApprovalRefusal(
       };
 }
 
+/**
+ * Execute a named tool after escalation checks and caller-scope preparation.
+ * Preserve approval context and handler ordering for normal and direct calls.
+ */
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -2315,28 +2321,7 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
-  approval: {
-    turnId?: string | null;
-    userText?: string | null;
-    /** Carmen's previous message; the workshop reads the taps that answer it. */
-    lastAssistant?: string | null;
-    /** The board page marked with this message (workshop_artifact_id). */
-    markedArtifactId?: string | null;
-    outOfBand?: boolean;
-    /** The client open in the workshop view (workshop_client_id). */
-    viewClientId?: string | null;
-    /** The project open on the workshop board (workshop_item_id). */
-    openItemId?: string | null;
-    /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
-    devTaskTurn?: {
-      /** When the user's message of this turn arrived; the offered task must be older. */
-      turnStartedAt: string;
-      /** A signed-in user typed this turn in an AIOS chat (not a service call). */
-      appChatUser: boolean;
-      /** Carmen's previous message; the user's yes answers its dev-task question only. */
-      lastAssistantText: string;
-    } | null;
-  } = {},
+  approval: ToolApproval = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
   appLinkOrigin?: string | null,
   // The person talking to Carmen in this run (resolveHumanRequesterUserId).
@@ -2345,49 +2330,36 @@ async function executeTool(
   // The "תעדי <code>" this run answers (confirm_finding_draft); omitted = none.
   findingDraftReply?: FindingDraftReply | null,
 ): Promise<any> {
-  // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
-  const actorUserId = asUuidOrNull(userId);
-  // Coding-agent escalations are identity-allowlisted (David=full, Ana=bugfix-only).
-  const devEscalationTier = await loadDevEscalationTierFromDb(supabase, {
-    tenantId,
-    agentId: agentId || null,
-    userId: actorUserId,
-    campaignerId: callerCampaignerId || null,
-    phone: callerPhone || null,
-  });
-  if (
-    isDevEscalationTool(name) &&
-    !isDevEscalationToolAllowed(name, devEscalationTier)
-  ) {
-    return {
-      error: "dev_escalation_forbidden",
-      message:
-        devEscalationTier === "bugfix"
-          ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
-          : DEV_ESCALATION_REFUSAL_HE,
-    };
+  const prepared = await prepareToolDispatch(
+    name,
+    {
+      tenantId,
+      userId,
+      callerCampaignerId,
+      agentId,
+      callerRole,
+      callerManagedAgencyIds,
+      callerPhone,
+    },
+    {
+      loadTier: (caller) => loadDevEscalationTierFromDb(supabase, caller),
+      accessibleTenants: (id) => getAccessibleTenantIds(supabase, id),
+    },
+  );
+  if ("refusal" in prepared) {
+    return prepared.refusal;
   }
-  const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // callerRole is the highest role in any of the caller's tenants, not only this
-  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
-  // already re-reads the roles held in this tenant.
-  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
-  const isTeamManager = callerRole === "team_manager";
-  const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
-    ? callerManagedAgencyIds
-    : [];
-  // Effective scope flag — true means "do not narrow to a single caller campaigner"
-  const bypassCampaignerScope =
-    isManagerRole || (isTeamManager && managedAgencyIds.length > 0);
-  const canManageAutomations = isManagerRole || isTeamManager;
-  // Caller-scope bundle for assertCallerCanAccessClient (client-scoped mutations).
-  const callerScope = {
-    callerCampaignerId,
+  const {
+    actorUserId,
+    devEscalationTier,
+    accessibleTenantIds,
     isManagerRole,
     isTeamManager,
     managedAgencyIds,
-    accessibleTenantIds,
-  };
+    bypassCampaignerScope,
+    canManageAutomations,
+    callerScope,
+  } = prepared.scope;
   if (isWorkshopTool(name)) {
     return executeWorkshopTool(
       supabase,
