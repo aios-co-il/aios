@@ -165,17 +165,14 @@
     pointer-events: none;
   }
 
-  /* AiOs logo (AiosLogo.tsx): heavy geometric letters with a stacked
-     extrusion and a soft glow, after the original product wordmark. Depth
-     is in em so it scales with the letter size. */
+  /* AiOs logo (AiosLogo.tsx): heavy geometric letters with a faint lift.
+     Depth is in em so it scales with the letter size. */
   .logo-3d {
     --extrude: var(--foreground);
     font-family: Outfit, Heebo, sans-serif;
     text-shadow:
-      0 0.012em 0 hsl(var(--extrude) / 0.35),
-      0 0.024em 0 hsl(var(--extrude) / 0.2),
-      0 0.1em 0.25em hsl(var(--foreground) / 0.08),
-      0 0 0.5em hsl(var(--brand-mint) / 0.18);
+      0 0.012em 0 hsl(var(--extrude) / 0.18),
+      0 0.08em 0.2em hsl(var(--foreground) / 0.06);
   }
 
   .direction-ltr {
