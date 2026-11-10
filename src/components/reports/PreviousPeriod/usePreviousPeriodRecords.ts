@@ -32,9 +32,12 @@ export function usePreviousPeriodRecords({
     ),
     enabled: enabled && !!tableId && !!range,
   });
+  // The shared report options keep the last window's rows while a new one
+  // loads; those belong to another window, so they are never compared.
+  const loading = query.isPending || query.isPlaceholderData;
   return {
     range,
-    records: enabled && range ? query.data : undefined,
-    isPending: enabled && !!range && query.isPending,
+    records: enabled && range && !loading ? query.data : undefined,
+    isPending: enabled && !!range && loading,
   };
 }

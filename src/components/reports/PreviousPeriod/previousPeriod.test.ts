@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { periodChange, previousPeriodRange } from "./previousPeriod";
+import {
+  periodChange,
+  previousPeriodRange,
+  reportToday,
+} from "./previousPeriod";
 
 const NOW = new Date(2026, 10, 10, 12);
 
@@ -38,5 +42,17 @@ describe("periodChange", () => {
   it("gives spend and an unchanged value no verdict", () => {
     expect(periodChange(500, 300, "neutral")).toBe("same");
     expect(periodChange(7, 7, "higher")).toBe("same");
+  });
+});
+
+describe("reportToday", () => {
+  it("is the calendar date in Israel, wherever the browser is", () => {
+    // 23:30 UTC on 9 Nov is already 10 Nov in Jerusalem.
+    const today = reportToday(new Date(Date.UTC(2026, 10, 9, 23, 30)));
+    expect([
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    ]).toStrictEqual([2026, 10, 10]);
   });
 });

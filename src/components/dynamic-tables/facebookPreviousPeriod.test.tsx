@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FacebookLeadsTable } from "./FacebookLeadsTable";
 import { FacebookSalesTable } from "./FacebookSalesTable/FacebookSalesTable";
+import { FacebookTrafficTable } from "./FacebookTrafficTable";
 import { facebookPreviousPeriod } from "./facebookPreviousPeriod";
 import {
   type FacebookReportCampaign,
@@ -121,5 +122,33 @@ describe("previous period columns in the Facebook tables", () => {
     ]);
     const purchasesPrev = row?.children[6];
     expect(purchasesPrev?.className).toContain("text-red-600");
+  });
+
+  it("shows a dash for followers the previous period did not measure", () => {
+    /** Aimee-style profile traffic with this follower count. */
+    function profile(newFollowers: number | null) {
+      return campaign("Profile", {
+        clicks: 80,
+        spend: 120,
+        followers: { newFollowers, followerSpend: 120, profileTraffic: true },
+      });
+    }
+    render(
+      <FacebookTrafficTable
+        rows={[["p", profile(40)]]}
+        entityHeader="קמפיין"
+        currency="₪"
+        previous={
+          facebookPreviousPeriod({
+            ecommerce: [],
+            leads: [],
+            traffic: [["p", profile(null)]],
+          }).traffic
+        }
+      />,
+    );
+    const texts = cells(screen.getByText("Profile").closest("tr"));
+    // New followers 40, then its previous value: unknown, not 0.
+    expect(texts[texts.indexOf("40") + 1]).toBe("—");
   });
 });

@@ -633,14 +633,22 @@ export default function DynamicTableView({
     if (!debouncedCampaignSearch.trim()) {
       return levelRecords;
     }
-    return levelRecords.filter((record) =>
-      recordMatchesEntitySearch(
-        record.data,
-        adsEntityLevel,
-        debouncedCampaignSearch,
+    // Keep the history of the entities the search shows now, by their stable
+    // key: a campaign renamed since then still compares with its old rows.
+    const shownKeys = new Set(
+      filteredRecords.map((record) =>
+        getEntityGroupKey(record.data, adsEntityLevel),
       ),
     );
-  }, [previousPeriod.records, adsEntityLevel, debouncedCampaignSearch]);
+    return levelRecords.filter((record) =>
+      shownKeys.has(getEntityGroupKey(record.data, adsEntityLevel)),
+    );
+  }, [
+    previousPeriod.records,
+    adsEntityLevel,
+    debouncedCampaignSearch,
+    filteredRecords,
+  ]);
 
   const addColumnMutation = useMutation({
     mutationFn: async (columnName: string) => {
