@@ -17,7 +17,7 @@ export const WHATSAPP_URL =
 export const NAV_LINKS = [
   { href: "#why", label: "הגישה" },
   { href: "#system", label: "המערכת" },
-  { href: "#workflow", label: "איך אני עובדת" },
+  { href: "#workflow", label: "איך זה עובד" },
 ];
 
 export interface LandingModule {

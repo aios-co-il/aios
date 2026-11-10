@@ -5,6 +5,12 @@ import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
 
+const HERO_POINTS = [
+  "בינה מלאכותית שעובדת בשבילך",
+  "אנשי מקצוע שמפקחים על כל שלב",
+  "מערכת אחת לשיווק ולמכירות",
+];
+
 /** Headline, calls to action and Carmen's orb with floating UI samples. */
 export function HeroSection() {
   return (
@@ -18,25 +24,37 @@ export function HeroSection() {
           AIOS
         </Badge>
         <h1 className="mt-6 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
-          מנהלת השיווק
+          כל השיווק והמכירות
           <br />
-          החדשה שלך
+          במקום אחד
           <BrandDot />
         </h1>
         <div className="mt-6 h-1 w-14 rounded-full bg-primary" />
-        <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">
-          העסק שלך לא צריך עוד קמפיין. הוא צריך מישהי שתחבר את כל השיווק,
-          המכירות והניהול — למקום אחד.
+        <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground">
+          AIOS היא מערכת מבוססת בינה מלאכותית שמנהלת לך את כל השיווק והמכירות —
+          יחד עם צוות מומחים שמכוון, מפקח ואחראי על התוצאות. לא עוד תוכנה
+          שמפעילים לבד, אלא שירות ומערכת בעבודה אחת.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <TalkButton size="lg" label="בוא נדבר על העסק שלך" />
           <Button asChild size="lg" variant="outline">
             <a href="#system">
-              תראה מה אני עושה
+              תראה איך זה עובד
               <ArrowDown />
             </a>
           </Button>
         </div>
+        <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-medium">
+          {HERO_POINTS.map((point) => (
+            <li
+              key={point}
+              className="flex items-center gap-2 whitespace-nowrap"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+              {point}
+            </li>
+          ))}
+        </ul>
       </div>
       <HeroVisual />
     </section>
@@ -53,8 +71,8 @@ function HeroVisual() {
       <div className="absolute bottom-[12%] h-10 w-2/3 rounded-full bg-primary/30 blur-2xl" />
       <CarmenOrb className="h-[72%] w-[72%] animate-carmen-breathe" />
       <div className="material-glass absolute right-0 top-[8%] rounded-lg px-4 py-3 shadow-elevation-2">
-        <p className="text-xs text-muted-foreground">כל השיווק</p>
-        <p className="text-sm font-bold">במקום אחד.</p>
+        <p className="text-xs text-muted-foreground">כל שלב</p>
+        <p className="text-sm font-bold">בפיקוח אנשי מקצוע.</p>
       </div>
       <div className="material-glass absolute bottom-[6%] left-0 flex gap-2 rounded-lg p-2.5 shadow-elevation-2">
         <Badge variant="draft">טיוטה</Badge>
