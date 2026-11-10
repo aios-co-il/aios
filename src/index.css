@@ -314,8 +314,8 @@ body.orb-traveling header [data-orb-home] {
   background:
     radial-gradient(
       circle at 30% 24%,
-      hsl(0 0% 100% / 0.55) 0%,
-      hsl(0 0% 100% / 0.12) 16%,
+      hsl(0 0% 100% / 0.28) 0%,
+      hsl(0 0% 100% / 0.06) 16%,
       transparent 36%
     ),
     radial-gradient(
@@ -336,6 +336,19 @@ body.orb-traveling header [data-orb-home] {
     inset 0 2px 8px hsl(0 0% 100% / 0.16),
     inset 0 -10px 24px hsl(var(--orb-tint) / 0.28),
     0 0 24px -4px hsl(var(--orb-tint) / 0.45);
+}
+
+/* Softer reflections on dark glass */
+.dark .carmen-orb::before {
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.32), transparent);
+}
+
+.dark .carmen-orb::after {
+  background: radial-gradient(
+    circle at 50% 108%,
+    hsl(0 0% 100% / 0.18) 0%,
+    transparent 38%
+  );
 }
 
 /* Cores glow in the sphere's own color from inside the dark glass */
