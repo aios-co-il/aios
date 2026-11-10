@@ -5,7 +5,7 @@
  */
 import type { CampaignGoalTable } from "../_shared/campaign-goal/campaign-goals.ts";
 import type { AgentDatabaseClient } from "./database-contracts.ts";
-import { jsonObject } from "./json-config.ts";
+import { readReportSettings } from "./report-settings.ts";
 
 /** A report table with whether its campaigns are switched on (`campaign_active`). */
 export type ReportGoalTable = CampaignGoalTable & { campaign_active?: boolean };
@@ -34,7 +34,7 @@ export async function readCampaignGoalTables(
   for (const table of data ?? []) {
     tables.set(table.id, {
       ...table,
-      integration_settings: jsonObject(table.integration_settings),
+      integration_settings: readReportSettings(table.integration_settings),
     });
   }
   return tables;

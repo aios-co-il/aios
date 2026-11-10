@@ -20,17 +20,16 @@ const automationStepSummarySchema = z
     facebook_integration_id: optionalText,
   })
   .catch(emptyStoredObject);
+export const metaAdAccountIdSchema = z
+  .union([
+    z.string(),
+    z.number(),
+    z.tuple([z.union([z.string(), z.number()])]).transform(([id]) => id),
+  ])
+  .optional()
+  .catch(invalidStoredField);
 const metaAdSettingsSchema = z
-  .object({
-    ad_account_id: z
-      .union([
-        z.string(),
-        z.number(),
-        z.tuple([z.union([z.string(), z.number()])]).transform(([id]) => id),
-      ])
-      .optional()
-      .catch(invalidStoredField),
-  })
+  .object({ ad_account_id: metaAdAccountIdSchema })
   .catch(emptyStoredObject);
 
 export type MetaAdSettings = z.infer<typeof metaAdSettingsSchema>;

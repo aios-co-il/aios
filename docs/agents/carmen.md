@@ -38,6 +38,10 @@ A group is opted in by a `specific_group` scope or by open-member-groups mode on
 - owner/super_admin in this tenant (or a global role) read every chat. A group turn by anyone else reads only that group. Other staff read the client/lead threads they are responsible for plus their own private chat with Carmen. Unknown senders and runs with no user read nothing.
 - `green_api` rows follow the Chat page rule: `chat_allowed_connection_user_ids` = `get_chat_contacts` (own, org-wide and shared lines).
 
+## Persisted tool settings
+
+`run-ai-agent` validates report settings, configured Meta pages/form mappings and lead-trigger selectors before using them. The readers reuse account-ID and automation-editor schemas, preserve unrelated stored keys on writes, and retain the webhook's canonical `field_mappings` contract. Form binding validates both documents before writing and attempts to restore the trigger if the integration mapping write fails. A rollback failure raises an `AggregateError` with a redacted `message`; its `errors` array retains the original, potentially unredacted database errors. Operators must check for rollback failure because the trigger may remain changed.
+
 ## AI providers (replacing the former Lovable AI gateway)
 
 We use the org's own connected models. Standardized helper: `supabase/functions/_shared/ai.ts`.
