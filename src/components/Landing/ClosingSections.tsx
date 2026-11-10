@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowUpLeft } from "lucide-react";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
-import { AiosLogo } from "./AiosLogo";
+import { AiosLogo } from "@/components/brand/AiosLogo";
 import { TalkButton } from "./LandingNav";
 import { Reveal } from "./Reveal";
 import { BrandDot, SectionHeading } from "./SectionHeading";
