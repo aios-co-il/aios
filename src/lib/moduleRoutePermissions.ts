@@ -63,7 +63,6 @@ const MODULE_ROUTE_PERMISSIONS: Record<string, ModulePermission> = {
   "rank-tracking": "rank_tracking",
   "dmm-dashboard": "crm_dashboard",
   "integrations/serpapi": "integrations",
-  "zoom-settings": "integrations",
   recordings: "recordings",
   "team-chat": "team_chat",
   signatures: "signatures",

@@ -17,7 +17,6 @@ import {
   Calculator,
   Zap,
   Search,
-  Video,
   Mail,
   Brain,
   Phone,
@@ -269,23 +268,6 @@ export default function Integrations() {
         .select("*")
         .eq("tenant_id", currentTenantId)
         .eq("integration_type", "sumit")
-        .eq("is_active", true)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!currentTenantId,
-  });
-
-  // Check Zoom integration status
-  const { data: zoomIntegration } = useQuery({
-    queryKey: ["zoom-integration", currentTenantId],
-    queryFn: async () => {
-      if (!currentTenantId) return null;
-      const { data } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("tenant_id", currentTenantId)
-        .eq("integration_type", "zoom")
         .eq("is_active", true)
         .maybeSingle();
       return data;
@@ -631,19 +613,6 @@ export default function Integrations() {
       isConnected: !!makeIntegration,
       route: "make-settings",
       gradient: "bg-gradient-to-r from-violet-600 to-purple-700",
-    },
-    {
-      icon: <Video className="h-6 w-6" />,
-      title: "Zoom",
-      description: "קבלת הקלטות פגישות אוטומטית דרך Webhook",
-      features: [
-        "קבלת הקלטות מסך ואודיו",
-        "שיוך הקלטות ללקוח או ליד",
-        "תמיכה ב-Zoom Webhook Events",
-      ],
-      isConnected: !!zoomIntegration,
-      route: "zoom-settings",
-      gradient: "bg-gradient-to-r from-blue-500 to-blue-700",
     },
     {
       icon: <Mail className="h-6 w-6" />,

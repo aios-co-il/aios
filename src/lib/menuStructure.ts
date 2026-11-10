@@ -51,7 +51,6 @@ import {
   Sparkles,
   Globe,
   ShoppingCart,
-  CalendarRange,
   FileText,
   type LucideIcon,
 } from "lucide-react";
@@ -505,13 +504,6 @@ export const INTEGRATION_SETTINGS: Array<MenuModule & { parentKey: string }> = [
     label: "SerpAPI",
     route: "/integrations/serpapi",
     icon: Globe,
-  },
-  {
-    key: "zoom-settings",
-    parentKey: "lead-integrations",
-    label: "Zoom",
-    route: "/zoom-settings",
-    icon: CalendarRange,
   },
   {
     key: "telephony-settings",

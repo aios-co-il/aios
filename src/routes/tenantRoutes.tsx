@@ -64,7 +64,6 @@ const SiteAnalytics = lazy(() => import("@/pages/SiteAnalytics"));
 const RankTracking = lazy(() => import("@/pages/RankTracking"));
 const RankTrackingProject = lazy(() => import("@/pages/RankTrackingProject"));
 const SerpApiSettings = lazy(() => import("@/pages/SerpApiSettings"));
-const ZoomSettings = lazy(() => import("@/pages/ZoomSettings"));
 const Recordings = lazy(() => import("@/pages/Recordings"));
 const AutomationFlow = lazy(() => import("@/pages/AutomationFlow"));
 const TeamChat = lazy(() => import("@/pages/TeamChat"));
@@ -228,7 +227,6 @@ export function tenantRoutes() {
         />
         <Route path="dmm-dashboard" element={<DMMDashboard />} />
         <Route path="integrations/serpapi" element={<SerpApiSettings />} />
-        <Route path="zoom-settings" element={<ZoomSettings />} />
         <Route path="recordings" element={<Recordings />} />
         <Route path="team-chat" element={<TeamChat />} />
         <Route path="gmail-settings" element={<GmailSettings />} />
