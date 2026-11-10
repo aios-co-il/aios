@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Carmen Marketing OS palette (src/index.css dark theme, src/pages/Auth.tsx) -->
+    <!-- AIOS palette (src/index.css dark theme, src/pages/Auth.tsx) -->
     <color name="carmen_primary">#3BDCB9</color>
     <color name="carmen_accent">#3BDCB9</color>
     <color name="carmen_alert">#FBBF24</color>

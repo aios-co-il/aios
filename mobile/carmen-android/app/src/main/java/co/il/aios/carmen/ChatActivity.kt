@@ -9,6 +9,7 @@ import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -32,6 +33,7 @@ class ChatActivity : AppCompatActivity() {
         scroll = findViewById(R.id.chat_scroll)
         input = findViewById(R.id.chat_input)
         send = findViewById(R.id.chat_send)
+        CarmenLook.showAvatar(findViewById(R.id.chat_avatar))
         send.setOnClickListener { sendMessage() }
         input.setOnEditorActionListener { _, action, _ ->
             (action == EditorInfo.IME_ACTION_SEND).also { if (it) sendMessage() }
@@ -57,43 +59,50 @@ class ChatActivity : AppCompatActivity() {
             runOnUiThread {
                 CarmenChat.busy = false
                 send.isEnabled = true
-                typing.video.stopPlayback()
+                typing.video?.stopPlayback()
                 list.removeView(typing.row)
                 addBubble(CarmenChat.add(CarmenChat.Role.CARMEN, answer))
             }
         }
     }
 
-    /** Carmen's reply while it is written: her small working loop beside a bubble that fills in live. */
-    private class TypingRow(val row: LinearLayout, val video: VideoView, val bubble: TextView)
+    /**
+     * Carmen's reply while it is written: beside a bubble that fills in live, her small working
+     * loop in the character style, or her orb in the orb style.
+     */
+    private class TypingRow(val row: LinearLayout, val video: VideoView?, val bubble: TextView)
 
     private fun addTypingRow(): TypingRow {
         val density = resources.displayMetrics.density
         val size = (44 * density).toInt()
-        val video = VideoView(this).apply {
-            setVideoURI(Uri.parse("android.resource://$packageName/${resources.getIdentifier("carmen_working", "raw", packageName)}"))
-            setOnPreparedListener { player ->
-                player.isLooping = true
-                player.setVolume(0f, 0f)
-                start()
-            }
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
-            }
-            clipToOutline = true
-        }
+        val video = if (CarmenLook.isCharacter(this)) workingLoop() else null
+        val face: View = video ?: ImageView(this).also { CarmenLook.showAvatar(it) }
         val bubble = bubbleView(getString(R.string.chat_typing), mine = false).apply {
             maxWidth = resources.displayMetrics.widthPixels * 3 / 4
         }
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(video, LinearLayout.LayoutParams(size, size).apply { marginEnd = (8 * density).toInt() })
+            addView(face, LinearLayout.LayoutParams(size, size).apply { marginEnd = (8 * density).toInt() })
             addView(bubble, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         }
         list.addView(row, rowParams(mine = false))
         scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
         return TypingRow(row, video, bubble)
+    }
+
+    /** The character's silent working clip, clipped to a circle. */
+    private fun workingLoop(): VideoView = VideoView(this).apply {
+        setVideoURI(Uri.parse("android.resource://$packageName/${resources.getIdentifier("carmen_working", "raw", packageName)}"))
+        setOnPreparedListener { player ->
+            player.isLooping = true
+            player.setVolume(0f, 0f)
+            start()
+        }
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
+        }
+        clipToOutline = true
     }
 
     private fun addBubble(message: CarmenChat.Message): TextView {
