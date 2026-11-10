@@ -242,7 +242,7 @@ export function AgentAvatar({
         </div>
       )}
       {isCompleted && (
-        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center shadow">
+        <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center shadow">
           ✓
         </div>
       )}

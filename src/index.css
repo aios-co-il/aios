@@ -2,157 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
-@layer base {
-  :root {
-    /* Deep Blue #0A1526 - Primary brand color */
-    --background: 0 0% 94%;
-    --foreground: 209 59% 10%;
-
-    /* Warm cream — bordered panels sit above the page background */
-    --card: 40 35% 99%;
-    --card-foreground: 209 59% 10%;
-    --surface-elevated: 42 48% 99%;
-    --surface-inset: 42 36% 97%;
-    --surface-status-yellow: 46 62% 97.5%;
-    --surface-status-red: 8 58% 97.5%;
-    --surface-status-green: 145 42% 97.5%;
-
-    --popover: 42 48% 99%;
-    --popover-foreground: 209 59% 10%;
-
-    /* Turquoise Green - Primary accent color */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Light background */
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 209 59% 10%;
-
-    --muted: 0 0% 94%;
-    --muted-foreground: 209 19% 40%;
-
-    /* Light turquoise - Accent color */
-    --accent: 175 65% 60%;
-    --accent-foreground: 209 59% 10%;
-
-    /* Success color */
-    --success: 167 70% 93%;
-    --success-foreground: 209 59% 10%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 167 70% 55%;
-
-    --radius: 0.75rem;
-
-    /* Primary glow - lighter turquoise */
-    --primary-glow: 175 65% 70%;
-
-    /* Turquoise Green gradient */
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
-    );
-    /* Success gradient */
-    --gradient-success: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
-    );
-    /* Subtle gradient for backgrounds */
-    --gradient-subtle: linear-gradient(
-      180deg,
-      hsl(167, 70%, 97%),
-      hsl(0, 0%, 100%)
-    );
-    --shadow-card:
-      0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg:
-      0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-
-    /* Turquoise sidebar */
-    --sidebar-background: 209 59% 10%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 209 59% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
-  }
-
-  .dark {
-    /* Deep Blue #0A1526 - Dark mode background */
-    --background: 209 59% 10%;
-    --foreground: 0 0% 100%;
-
-    --card: 209 59% 13%;
-    --card-foreground: 0 0% 100%;
-
-    --popover: 209 59% 13%;
-    --popover-foreground: 0 0% 100%;
-
-    /* Turquoise Green - Primary accent in dark mode */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 209 59% 15%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 209 59% 15%;
-    --muted-foreground: 0 0% 70%;
-
-    /* Light turquoise - Accent in dark mode */
-    --accent: 175 65% 60%;
-    --accent-foreground: 0 0% 100%;
-
-    /* Success in dark mode */
-    --success: 167 70% 93%;
-    --success-foreground: 209 59% 10%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 209 59% 18%;
-    --input: 209 59% 18%;
-    --ring: 167 70% 55%;
-
-    /* Turquoise Green gradient */
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
-    );
-    /* Success gradient */
-    --gradient-success: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
-    );
-    --shadow-card:
-      0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-    --shadow-lg:
-      0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
-
-    /* Turquoise sidebar in dark mode */
-    --sidebar-background: 209 59% 8%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 209 59% 13%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
-  }
-}
+/* Design tokens (colors, shadows, radius) are generated at runtime from the
+   tenant's brand colors by src/theme. Do not define color variables here. */
 
 @layer base {
   * {
@@ -197,6 +48,49 @@ All colors MUST be HSL.
 
   .shadow-lg {
     box-shadow: var(--shadow-lg);
+  }
+
+  /* Materials: frosted glass, page surface, card */
+  .material-glass {
+    background: hsl(var(--surface-elevated) / 0.6);
+    backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  .material-surface {
+    background: hsl(var(--background));
+  }
+
+  .material-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--elevation-1);
+  }
+
+  /* Carmen's frosted-glass orb, lit by the tenant accent (CarmenOrb.tsx) */
+  .carmen-orb {
+    border-radius: 9999px;
+    background:
+      radial-gradient(
+        circle at 32% 28%,
+        hsl(0 0% 100% / 0.95) 0%,
+        hsl(0 0% 100% / 0.4) 22%,
+        transparent 46%
+      ),
+      radial-gradient(
+        circle at 66% 72%,
+        hsl(var(--primary) / 0.65) 0%,
+        transparent 58%
+      ),
+      radial-gradient(
+        circle at 50% 50%,
+        hsl(var(--surface-elevated)) 0%,
+        hsl(var(--border)) 100%
+      );
+    box-shadow:
+      inset 0 0 0 1px hsl(0 0% 100% / 0.5),
+      inset 0 -2px 6px hsl(var(--primary) / 0.25),
+      0 4px 14px hsl(var(--primary) / 0.28);
   }
 
   .direction-ltr {

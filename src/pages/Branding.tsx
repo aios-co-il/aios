@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTheme, ColorPalette } from "@/contexts/ThemeContext";
+import { BRAND_PRESETS } from "@/theme";
 import {
   Palette,
   Check,
@@ -25,22 +26,14 @@ import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 
+// Swatches come from BRAND_PRESETS so the preview always matches the theme.
+// "green-gradient" is not offered: it now equals the default brand.
 const colorPalettes = [
   {
     id: "default" as ColorPalette,
-    name: "ברירת מחדל",
-    description: "פלטת הצבעים הסטנדרטית של המערכת",
-    icon: Palette,
-    preview: "bg-gradient-to-br from-gray-700 to-gray-900",
-    colors: ["bg-gray-700", "bg-gray-800", "bg-gray-900"],
-  },
-  {
-    id: "green-gradient" as ColorPalette,
-    name: "גרדיינט ירוק",
-    description: "מראה יוקרתי עם גרדיינט ירוק-טורקיז",
+    name: "AIOS / Carmen",
+    description: "נייבי וירוק: שפת המותג של המערכת",
     icon: Sparkles,
-    preview: "bg-gradient-to-br from-[#36d399] to-[#3abff8]",
-    colors: ["bg-[#36d399]", "bg-[#3abff8]", "bg-[#2dd4bf]"],
     featured: true,
   },
   {
@@ -48,26 +41,29 @@ const colorPalettes = [
     name: "כחול מודרני",
     description: "כחול עז ומרענן למראה מקצועי",
     icon: Zap,
-    preview: "bg-gradient-to-br from-blue-500 to-purple-600",
-    colors: ["bg-blue-500", "bg-indigo-600", "bg-purple-600"],
   },
   {
     id: "purple" as ColorPalette,
     name: "סגול יצירתי",
     description: "סגול עשיר למראה יצירתי וייחודי",
-    icon: Sparkles,
-    preview: "bg-gradient-to-br from-purple-500 to-pink-600",
-    colors: ["bg-purple-500", "bg-fuchsia-600", "bg-pink-600"],
+    icon: Palette,
   },
   {
     id: "orange" as ColorPalette,
     name: "כתום אנרגטי",
     description: "כתום חם ואנרגטי למראה דינמי",
     icon: Flame,
-    preview: "bg-gradient-to-br from-orange-500 to-amber-600",
-    colors: ["bg-orange-500", "bg-orange-600", "bg-amber-600"],
   },
 ];
+
+/** Preview gradient and swatches for one preset. */
+function presetPreview(id: ColorPalette) {
+  const brand = BRAND_PRESETS[id];
+  return {
+    background: `linear-gradient(135deg, ${brand.ink} 0%, ${brand.ink} 45%, ${brand.accent} 100%)`,
+    swatches: [brand.ink, brand.accent, brand.accentSoft, brand.neutral],
+  };
+}
 
 export default function Branding() {
   const { palette, setPalette, logoUrl, setLogoUrl } = useTheme();
@@ -290,8 +286,11 @@ export default function Branding() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {colorPalettes.map((paletteOption) => {
-            const isSelected = palette === paletteOption.id;
+            // Compares brands, so a saved "green-gradient" shows the default as selected.
+            const isSelected =
+              BRAND_PRESETS[palette] === BRAND_PRESETS[paletteOption.id];
             const Icon = paletteOption.icon;
+            const preview = presetPreview(paletteOption.id);
 
             return (
               <Card
@@ -304,7 +303,8 @@ export default function Branding() {
                 <CardHeader>
                   {/* Preview */}
                   <div
-                    className={`relative h-32 rounded-lg ${paletteOption.preview} overflow-hidden mb-4`}
+                    className="relative h-32 rounded-lg overflow-hidden mb-4"
+                    style={{ background: preview.background }}
                   >
                     {paletteOption.featured && (
                       <Badge className="absolute top-2 right-2 bg-white/90 text-primary">
@@ -321,10 +321,11 @@ export default function Branding() {
                     )}
                     {/* Color Swatches */}
                     <div className="absolute bottom-2 left-2 flex gap-1">
-                      {paletteOption.colors.map((color, idx) => (
+                      {preview.swatches.map((color) => (
                         <div
-                          key={idx}
-                          className={`w-6 h-6 rounded-full ${color} border-2 border-white shadow-md`}
+                          key={color}
+                          className="w-6 h-6 rounded-full border-2 border-white shadow-md"
+                          style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
@@ -337,7 +338,7 @@ export default function Branding() {
                       }`}
                     >
                       <Icon
-                        className={`h-5 w-5 ${isSelected ? "text-white" : "text-muted-foreground"}`}
+                        className={`h-5 w-5 ${isSelected ? "text-primary-foreground" : "text-muted-foreground"}`}
                       />
                     </div>
                     <div className="flex-1">

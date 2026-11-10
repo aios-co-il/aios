@@ -22,7 +22,7 @@ export function CarmenSessionButton() {
       aria-label={`פתח פגישת עבודה עם ${identity.name}${unread ? " (תשובה חדשה)" : ""}`}
       aria-expanded={sidecar.open}
     >
-      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse z-10" />
+      <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-highlight border-2 border-background animate-pulse z-10" />
       {unread && (
         <span
           className="absolute -top-0.5 -left-0.5 h-3 w-3 rounded-full bg-primary border-2 border-background z-10"
