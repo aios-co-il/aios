@@ -172,11 +172,10 @@
     --extrude: var(--foreground);
     font-family: Outfit, Heebo, sans-serif;
     text-shadow:
-      0 0.012em 0 hsl(var(--extrude) / 0.8),
-      0 0.024em 0 hsl(var(--extrude) / 0.6),
-      0 0.036em 0 hsl(var(--extrude) / 0.4),
-      0 0.12em 0.2em hsl(var(--foreground) / 0.14),
-      0 0 0.4em hsl(var(--primary) / 0.2);
+      0 0.012em 0 hsl(var(--extrude) / 0.35),
+      0 0.024em 0 hsl(var(--extrude) / 0.2),
+      0 0.1em 0.25em hsl(var(--foreground) / 0.08),
+      0 0 0.5em hsl(var(--brand-mint) / 0.18);
   }
 
   .direction-ltr {

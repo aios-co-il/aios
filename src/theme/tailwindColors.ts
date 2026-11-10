@@ -66,6 +66,7 @@ export const tailwindColors = {
       soft: "hsl(var(--brand-accent-soft) / <alpha-value>)",
     },
     ink: "hsl(var(--brand-ink) / <alpha-value>)",
+    mint: "hsl(var(--brand-mint) / <alpha-value>)",
     neutral: "hsl(var(--brand-neutral) / <alpha-value>)",
     highlight: "hsl(var(--brand-highlight) / <alpha-value>)",
   },
