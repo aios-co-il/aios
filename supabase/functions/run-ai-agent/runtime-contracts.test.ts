@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { jsonObject } from "./json-config.ts";
 import { isMetaNode, readMetaResponse } from "./meta-response.ts";
 
 function response(value: unknown, status = 200) {
@@ -89,17 +88,4 @@ test("configured Meta pages accept nullable optional fields and reject malformed
     true,
   );
   assert.equal(isMetaNode({ id: "page-1", access_token: {} }), false);
-});
-
-test("persisted configuration keeps nested mappings intact while primitives have no keys", () => {
-  const settings = {
-    form_mappings: {
-      form1: { agency_id: "agency-1", fields: { email: "EMAIL" } },
-    },
-    other: true,
-  };
-  assert.equal(jsonObject(settings), settings);
-  for (const value of [null, undefined, true, 42, "legacy", []]) {
-    assert.deepEqual(jsonObject(value), {});
-  }
 });

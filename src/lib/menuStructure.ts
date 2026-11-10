@@ -50,8 +50,8 @@ import {
   Brain,
   Sparkles,
   Globe,
-  ShoppingCart,
   CalendarRange,
+  ShoppingCart,
   FileText,
   type LucideIcon,
 } from "lucide-react";

@@ -8,9 +8,14 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "./TenantContext";
 import { useQuery } from "@tanstack/react-query";
+import {
+  AIOS_BRAND,
+  applyBrandTheme,
+  BRAND_PRESETS,
+  type ColorPalette,
+} from "@/theme";
 
-export type ColorPalette =
-  "default" | "green-gradient" | "blue" | "purple" | "orange";
+export type { ColorPalette };
 
 interface ThemeContextType {
   palette: ColorPalette;
@@ -21,53 +26,9 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const palettes = {
-  default: {
-    primary: "222.2 47.4% 11.2%",
-    "primary-foreground": "210 40% 98%",
-    "primary-glow": "222.2 47.4% 20%",
-  },
-  "green-gradient": {
-    primary: "158 64% 52%", // #36d399 - green
-    "primary-foreground": "0 0% 100%",
-    "primary-glow": "158 64% 62%",
-    "gradient-primary":
-      "linear-gradient(135deg, hsl(158, 64%, 52%) 0%, hsl(174, 60%, 51%) 100%)",
-    "gradient-subtle":
-      "linear-gradient(180deg, hsl(158, 64%, 97%) 0%, hsl(0, 0%, 100%) 100%)",
-  },
-  blue: {
-    primary: "221 83% 53%", // #3b82f6 - blue
-    "primary-foreground": "0 0% 100%",
-    "primary-glow": "221 83% 63%",
-    "gradient-primary":
-      "linear-gradient(135deg, hsl(221, 83%, 53%) 0%, hsl(243, 75%, 59%) 100%)",
-    "gradient-subtle":
-      "linear-gradient(180deg, hsl(221, 83%, 97%) 0%, hsl(0, 0%, 100%) 100%)",
-  },
-  purple: {
-    primary: "271 81% 56%", // #a855f7 - purple
-    "primary-foreground": "0 0% 100%",
-    "primary-glow": "271 81% 66%",
-    "gradient-primary":
-      "linear-gradient(135deg, hsl(271, 81%, 56%) 0%, hsl(292, 84%, 61%) 100%)",
-    "gradient-subtle":
-      "linear-gradient(180deg, hsl(271, 81%, 97%) 0%, hsl(0, 0%, 100%) 100%)",
-  },
-  orange: {
-    primary: "25 95% 53%", // #fb923c - orange
-    "primary-foreground": "0 0% 100%",
-    "primary-glow": "25 95% 63%",
-    "gradient-primary":
-      "linear-gradient(135deg, hsl(25, 95%, 53%) 0%, hsl(38, 92%, 50%) 100%)",
-    "gradient-subtle":
-      "linear-gradient(180deg, hsl(25, 95%, 97%) 0%, hsl(0, 0%, 100%) 100%)",
-  },
-};
-
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const { currentTenantId } = useTenant();
-  const [palette, setPaletteState] = useState<ColorPalette>("green-gradient");
+  const [palette, setPaletteState] = useState<ColorPalette>("default");
   const [logoUrl, setLogoUrlState] = useState<string | null>(null);
 
   // Load tenant branding settings
@@ -156,19 +117,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const applyPalette = (paletteKey: ColorPalette) => {
-    const colors = palettes[paletteKey];
-    const root = document.documentElement;
-
-    Object.entries(colors).forEach(([key, value]) => {
-      if (key.startsWith("gradient")) {
-        // For gradients, we set them as CSS custom properties
-        root.style.setProperty(`--${key}`, value);
-      } else {
-        root.style.setProperty(`--${key}`, value);
-      }
-    });
-  };
+  /** Saved settings may hold a palette that no longer exists. */
+  function applyPalette(paletteKey: ColorPalette) {
+    applyBrandTheme(BRAND_PRESETS[paletteKey] ?? AIOS_BRAND);
+  }
 
   useEffect(() => {
     applyPalette(palette);

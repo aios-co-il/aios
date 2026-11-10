@@ -9,14 +9,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useUserRole } from "@/hooks/useUserRole";
 import { usePhoneLineMutations, usePhoneLines } from "./usePhoneLines";
 
-/** The org's numbers that ring Carmen; calls to them follow the policies below. */
+/**
+ * The org's numbers that ring Carmen; calls to them follow the policies below. Owners
+ * read and remove them; only a super admin adds one (AIO-511).
+ */
 export function PhoneLineCard({ tenantId }: { tenantId: string }) {
   const lines = usePhoneLines(tenantId);
-  const { add, remove } = usePhoneLineMutations(tenantId);
-  const [number, setNumber] = useState("");
-  const fail = (e: Error) => toast.error(`הפעולה נכשלה: ${e.message}`);
+  const { remove } = usePhoneLineMutations(tenantId);
+  const { isSuperAdmin, isLoading: roleLoading } = useUserRole();
 
   return (
     <Card dir="rtl">
@@ -41,30 +44,50 @@ export function PhoneLineCard({ tenantId }: { tenantId: string }) {
             </Button>
           </div>
         ))}
-        <div className="flex gap-2">
-          <Input
-            dir="ltr"
-            placeholder="03-1234567"
-            value={number}
-            onChange={(e) => setNumber(e.target.value)}
-            aria-label="מספר טלפון"
-          />
-          <Button
-            disabled={!number.trim() || add.isPending}
-            onClick={() =>
-              add.mutate(number, {
-                onSuccess: () => {
-                  setNumber("");
-                  toast.success("המספר נוסף");
-                },
-                onError: fail,
-              })
-            }
-          >
-            הוספה
-          </Button>
-        </div>
+        {roleLoading ? null : isSuperAdmin ? (
+          <AddPhoneLine tenantId={tenantId} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            רק סופר אדמין מוסיף מספרים.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+/** Registers a number for the org; RLS lets only a super admin insert. */
+function AddPhoneLine({ tenantId }: { tenantId: string }) {
+  const { add } = usePhoneLineMutations(tenantId);
+  const [number, setNumber] = useState("");
+  return (
+    <div className="flex gap-2">
+      <Input
+        dir="ltr"
+        placeholder="03-1234567"
+        value={number}
+        onChange={(e) => setNumber(e.target.value)}
+        aria-label="מספר טלפון"
+      />
+      <Button
+        disabled={!number.trim() || add.isPending}
+        onClick={() =>
+          add.mutate(number, {
+            onSuccess: () => {
+              setNumber("");
+              toast.success("המספר נוסף");
+            },
+            onError: fail,
+          })
+        }
+      >
+        הוספה
+      </Button>
+    </div>
+  );
+}
+
+/** Shows a refused or failed write; RLS refusals arrive here. */
+function fail(e: Error) {
+  toast.error(`הפעולה נכשלה: ${e.message}`);
 }

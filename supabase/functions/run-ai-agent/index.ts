@@ -1,3 +1,6 @@
+import { prepareToolDispatch } from "./tool-dispatch.ts";
+import type { ToolApproval } from "./tool-context.ts";
+import { ALL_TOOLS } from "./tool-catalog.ts";
 // redeploy trigger (restore #5): a Grok-driven session replaced this file — in git AND in prod (v81) — with a
 // literal "REPLACE_WITH_FIXED_VERSION" placeholder, so the deployed function had no code at all and every Carmen
 // call failed. This restores the last known-good monolithic version (cb03f8b, includes Maskyoo tools from PR #102).
@@ -61,10 +64,7 @@ import {
   agencyDataRulesVersion,
   appendAgencyDataRules,
 } from "./agency-data/rules-block.ts";
-import {
-  executeRefreshCampaignPulse,
-  REFRESH_CAMPAIGN_PULSE_TOOL,
-} from "./pulse-refresh/tool.ts";
+import { executeRefreshCampaignPulse } from "./pulse-refresh/tool.ts";
 import {
   keepCarmenPulseTools,
   skinToolDenylist,
@@ -93,37 +93,29 @@ import { scopedChatRead } from "./chat-scope/scoped-read.ts";
 import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
-import {
-  CARMEN_CLIENT_UPDATE_TYPES,
-  CLIENT_CARD_SOURCES,
-} from "../_shared/client-card/sources.ts";
+
 import {
   addClientUpdateFromCarmen,
-  HEALTH_CARD_ENTRY_ERROR_HINT,
   recordHealthCardEntryAfterUpdate,
 } from "./carmen-client-card-tools.ts";
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
 import { setClientMoodStatus } from "./client-health-status.ts";
 import { listUpdates } from "./list-updates.ts";
 import {
-  VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
   isVideoDirectorTool,
 } from "../_shared/video-director-tools.ts";
 import {
-  CARD_DRAFT_TOOLS,
   executeCardDraftTool,
   isCardDraftTool,
   promoteCardDraftTool,
 } from "./card-draft-approval/tool.ts";
 import {
-  CREATIVE_STUDIO_TOOLS,
   executeCreativeStudioTool,
   isCreativeStudioTool,
 } from "../_shared/creative-studio-tools.ts";
 import {
   executeFindingDraftTool,
-  FINDING_DRAFT_TOOLS,
   isFindingDraftTool,
   promoteFindingDraftTool,
 } from "./finding-draft/tool.ts";
@@ -192,7 +184,6 @@ import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
 import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
-  PULSE_TARGET_TOOLS,
   PULSE_TARGET_TOOL_NAMES,
   isPulseTargetTool,
 } from "../_shared/carmen/pulse-targets/tool-defs.ts";
@@ -378,8 +369,16 @@ import { clientPerformanceEntry } from "./client-performance.ts";
 import { staleClientEntry } from "./stale-client-entry.ts";
 import { readCampaignGoalTables } from "./goal-tables.ts";
 
-import { jsonObject, isObject } from "./json-config.ts";
-import { isMetaNode, readMetaResponse } from "./meta-response.ts";
+import { readReportSettings } from "./report-settings.ts";
+import { configuredPages } from "./meta-lead-settings.ts";
+import { metaLeadIntegrations } from "./meta-lead-integrations.ts";
+import {
+  connectMetaFormToAutomation,
+  type MetaLeadForm,
+} from "./meta-form-binding.ts";
+import { errorMessage } from "./error-message.ts";
+import { openaiAdminGet } from "./openai-admin-get.ts";
+import { readMetaResponse } from "./meta-response.ts";
 import {
   readGraphAdAccountsPage,
   readMetaLeadQuestionInput,
@@ -398,15 +397,25 @@ import type {
   OnboardingListRow,
   PrioritizedTaskRow,
 } from "./tool-contracts-marketing.ts";
-import type { TablesUpdate } from "../_shared/database.types.ts";
-
-/** Reads `.message` from any thrown value, including plain-object Supabase/PostgREST errors. */
-function errorMessage(e: unknown): string {
-  if (isObject(e) && typeof e.message === "string") return e.message;
-  return String(e);
-}
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
+import {
+  adAccountDisableReason,
+  automationStepArg,
+  parallelTaskArgs,
+  providerErrorMessage,
+  readGoogleAdsCampaignRow,
+  readGoogleCalendarEvents,
+} from "./tool-contracts-admin.ts";
+import type { MetaAdSettings } from "./tool-storage-contracts.ts";
+import {
+  readMetaAdSettings,
+  readMetaAdAccountBinding,
+  readMarketingWorkItemPayload,
+  readAutomationStepSummary,
+} from "./tool-storage-contracts.ts";
+import type { AdAccountHealthIssue } from "./tool-contracts-admin.ts";
+import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
   SearchClient,
@@ -570,50 +579,6 @@ async function resolveOpenAiAdminKey(
     /* ignore */
   }
   return { key: null, source: null };
-}
-
-async function openaiAdminGet(
-  pathWithQuery: string,
-  adminKey: string,
-): Promise<{ ok: boolean; status: number; json: unknown; error?: string }> {
-  try {
-    const res = await fetch(`https://api.openai.com/v1${pathWithQuery}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${adminKey}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const text = await res.text();
-    let json: unknown = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-    if (!res.ok) {
-      const msg = redactSecretsFromText(
-        (isObject(json) &&
-        "error" in json &&
-        isObject(json.error) &&
-        "message" in json.error
-          ? json.error.message
-          : undefined) ||
-          (isObject(json) && "message" in json ? json.message : undefined) ||
-          text ||
-          `HTTP ${res.status}`,
-      );
-      return { ok: false, status: res.status, json, error: msg };
-    }
-    return { ok: true, status: res.status, json };
-  } catch (e) {
-    return {
-      ok: false,
-      status: 0,
-      json: null,
-      error: redactSecretsFromText(errorMessage(e)),
-    };
-  }
 }
 
 async function fetchOpenAiBillingStatus(args: {
@@ -1230,3489 +1195,6 @@ async function makeZoomMeetingCreator(
 // ===========================
 // ALL AVAILABLE TOOLS
 // ===========================
-const ALL_TOOLS = [
-  // LEADS
-  {
-    name: "create_lead",
-    description: "יצירת ליד חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        company_name: { type: "string" },
-        contact_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-        source: { type: "string" },
-        notes: { type: "string" },
-      },
-      required: ["contact_name"],
-    },
-  },
-  {
-    name: "list_leads",
-    description:
-      "רשימת הלידים של הסוכנות עצמה (לקוחות פוטנציאליים של הסוכנות). לא הלידים של לקוחות הסוכנות: אלה מגיעים מהדוחות (get_latest_campaign_pulse, get_facebook_campaign_data).",
-    parameters: {
-      type: "object",
-      properties: { status: { type: "string" }, limit: { type: "integer" } },
-    },
-  },
-  {
-    name: "update_lead_status",
-    description: "עדכון סטטוס ליד",
-    parameters: {
-      type: "object",
-      properties: { lead_id: { type: "string" }, status: { type: "string" } },
-      required: ["lead_id", "status"],
-    },
-  },
-  {
-    name: "add_lead_update",
-    description: "הוספת עדכון לליד",
-    parameters: {
-      type: "object",
-      properties: { lead_id: { type: "string" }, content: { type: "string" } },
-      required: ["lead_id", "content"],
-    },
-  },
-  // TASKS (team tasks - for campaigners/team members)
-  {
-    name: "create_task",
-    description:
-      "יצירת משימה לצוות (קמפיינרים/אנשי צוות). השתמש בכלי הזה רק כשרוצים ליצור משימה לאדם אחר בצוות. אם המשימה היא לכרמן עצמה — השתמש ב-create_agent_task במקום!",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        client_id: { type: "string" },
-        lead_id: { type: "string" },
-        campaigner_id: {
-          type: "string",
-          description: "מזהה קמפיינר לשיוך המשימה",
-        },
-        priority: { type: "integer" },
-        due_date: { type: "string" },
-        due_time: { type: "string" },
-        notes: { type: "string" },
-        duration_minutes: { type: "integer", description: "משך המשימה בדקות" },
-      },
-      required: ["title"],
-    },
-  },
-  // AGENT TASKS (for Carmen herself)
-  {
-    name: "create_agent_task",
-    description:
-      'יצירת משימה לכרמן עצמה (ניהול משימות סוכנים). השתמש בכלי הזה כשהמשתמש מבקש מכרמן ליצור משימה לעצמה, משימה חוזרת, או תזכורת. המשימה תופיע בלוח "ניהול משימות סוכנים". חשוב: scheduled_at חייב להיות בפורמט ISO UTC (Z). אם המשתמש נקב בשעה — היא בשעון ישראל (Asia/Jerusalem); המירי ל-UTC לפני השמירה.',
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "כותרת המשימה" },
-        description: { type: "string", description: "תיאור מפורט של המשימה" },
-        priority: {
-          type: "integer",
-          description: "עדיפות 1-10 (ברירת מחדל 5)",
-        },
-        schedule_type: {
-          type: "string",
-          enum: ["once", "daily", "weekly"],
-          description: "סוג תזמון",
-        },
-        scheduled_at: {
-          type: "string",
-          description:
-            "תאריך ושעה לביצוע ב-ISO UTC (לדוגמה 2026-06-20T18:30:00Z עבור 21:30 שעון ישראל)",
-        },
-        cron_expression: {
-          type: "string",
-          description: "ביטוי CRON למשימות חוזרות",
-        },
-        task_skills: {
-          type: "array",
-          items: { type: "string" },
-          description: "רשימת סקילים להפעלה",
-        },
-      },
-      required: ["title"],
-    },
-  },
-  {
-    name: "list_my_agent_tasks",
-    description:
-      'רשימת המשימות המתוזמנות של כרמן עצמה (agent_tasks). השתמשי בכלי הזה כשהמשתמש שואל "מה תזמנת?", "באיזו שעה התזכורת?", "תבדקי אם הגדרת" — אסור לענות על שאלות כאלה מהזיכרון בלי לקרוא לכלי הזה. מחזיר זמני תזמון בשעון ישראל.',
-    parameters: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          enum: ["pending", "running", "completed", "failed"],
-          description: "סינון לפי סטטוס (אופציונלי)",
-        },
-        limit: { type: "integer", description: "ברירת מחדל 10" },
-      },
-    },
-  },
-  {
-    name: "recall_recent_action",
-    description:
-      "בדיקה אם כרמן כבר ביצעה פעולה כבדה לאחרונה (pulse_check, campaign_analysis, lead_review וכד׳). חובה לקרוא לכלי הזה לפני סקירת קמפיינים / סקירת לידים — כדי לא לעבוד פעמיים. בדיקת דופק לא צריכה את זה: get_latest_campaign_pulse מחזיר את הבדיקה השמורה, ו-refresh_campaign_pulse מרענן אותה. מחזיר את הסיכום של הריצה האחרונה אם נמצאה בחלון הזמן. אם נמצא תוצאה: ענה על הסיכום הקיים וציין את הזמן (בשעון ישראל), ושאל את המשתמש אם לרענן.",
-    parameters: {
-      type: "object",
-      properties: {
-        action_type: {
-          type: "string",
-          description:
-            "שם הפעולה — לדוגמה pulse_check, campaign_analysis, lead_review",
-        },
-        max_age_hours: {
-          type: "integer",
-          description: "גיל מקסימלי של הריצה הקודמת בשעות (ברירת מחדל 8)",
-        },
-      },
-      required: ["action_type"],
-    },
-  },
-  {
-    name: "record_action_episode",
-    description:
-      "שמירת תוצאה של פעולה כבדה ב-long-term memory של כרמן (carmen_memory_episodes). חובה לקרוא בסיום של סקירת קמפיינים / סקירת לידים — כדי שבפעם הבאה recall_recent_action ימצא את התוצאה. כתוב summary תמציתי של מה שמצאת.",
-    parameters: {
-      type: "object",
-      properties: {
-        action_type: {
-          type: "string",
-          description: "pulse_check / campaign_analysis / lead_review וכד׳",
-        },
-        summary: {
-          type: "string",
-          description:
-            "סיכום תמציתי של מה שמצאת — מספר לקוחות, דגלים, אזהרות, החלטות",
-        },
-        topic_tags: {
-          type: "array",
-          items: { type: "string" },
-          description: "תגיות נוספות (לקוחות מעורבים, סוכנויות וכו׳)",
-        },
-        importance: { type: "integer", description: "1-100 (ברירת מחדל 50)" },
-      },
-      required: ["action_type", "summary"],
-    },
-  },
-  {
-    name: "search_tasks",
-    description:
-      "חיפוש משימות לפי שם/כותרת. חשוב! השתמש בכלי הזה לפני יצירת משימה כדי לוודא שהיא לא קיימת כבר",
-    parameters: {
-      type: "object",
-      properties: {
-        search_term: {
-          type: "string",
-          description: "מילת חיפוש בכותרת המשימה",
-        },
-        status: { type: "string" },
-        client_id: { type: "string" },
-      },
-      required: ["search_term"],
-    },
-  },
-  {
-    name: "list_tasks",
-    description: "רשימת משימות",
-    parameters: {
-      type: "object",
-      properties: {
-        status: { type: "string" },
-        client_id: { type: "string" },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "update_task_status",
-    description: "עדכון סטטוס משימה",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        status: {
-          type: "string",
-          enum: ["open", "in_progress", "done", "completed"],
-        },
-      },
-      required: ["task_id", "status"],
-    },
-  },
-  // CLIENTS
-  {
-    name: "list_clients",
-    description:
-      'רשימת/חיפוש לקוחות. אפשר לסנן לפי סטטוס, קמפיינר, סוכנות (agency_id/agency_name — חובה לסנן כשהמשתמש שואל על "לקוחות בסוכנות X"), או name_search. הערה: כשהקורא הוא קמפיינר (WhatsApp), ברירת המחדל היא הצגת לקוחות שמשוייכים אליו בלבד בסטטוס active/onboarding — אלא אם סופק campaigner_name/agency_name אחר במפורש. החיפוש case-insensitive. אל תאמר "לא נמצא" לפני שניסית name_search.',
-    parameters: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          description:
-            "active / onboarding / inactive. ברירת מחדל עבור קמפיינר WhatsApp: active+onboarding בלבד.",
-        },
-        limit: { type: "integer" },
-        name_search: {
-          type: "string",
-          description:
-            "חיפוש חלקי בשם הלקוח או איש הקשר (case-insensitive). נסה גם תעתיק אנגלי לעברית ולהפך.",
-        },
-        campaigner_id: {
-          type: "string",
-          description: "סינון ללקוחות המשוייכים לקמפיינר זה (דרך client_team)",
-        },
-        campaigner_name: {
-          type: "string",
-          description: "סינון לפי שם קמפיינר (חיפוש חופשי בשם המלא)",
-        },
-        agency_id: {
-          type: "string",
-          description: "סינון ללקוחות בסוכנות זו בלבד",
-        },
-        agency_name: {
-          type: "string",
-          description:
-            "סינון לפי שם סוכנות (חיפוש חלקי, case-insensitive). חובה להשתמש כשהמשתמש מציין סוכנות בשם.",
-        },
-        all_scopes: {
-          type: "boolean",
-          description:
-            "דרוס את הסקופ האוטומטי של הקמפיינר והחזר את כל הלקוחות בארגון (לשימוש רק אם המשתמש ביקש זאת מפורשות).",
-        },
-      },
-    },
-  },
-  {
-    name: "get_client_info",
-    description: "מידע על לקוח",
-    parameters: {
-      type: "object",
-      properties: { client_id: { type: "string" } },
-      required: ["client_id"],
-    },
-  },
-  {
-    name: "add_client_update",
-    description:
-      "רישום עדכון בכרטיס הלקוח — הכלי היחיד לתיעוד קשר עם לקוח. פגישה או שיחה (call) נרשמות רק כשאיש צוות מבקש ממך ישירות לתעד אותן, והן נרשמות על שמו ונספרות כקשר עם הלקוח. בריצה אוטומטית אפשר לרשום רק general, red_flag או weekly_update.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        content: { type: "string" },
-        update_type: {
-          type: "string",
-          enum: [...CARMEN_CLIENT_UPDATE_TYPES],
-          description:
-            "סוג העדכון: call=פגישה / שיחה שהתקיימה, weekly_update=עדכון שבועי, general=עדכון כללי (ברירת מחדל), red_flag=דגל אדום (תלונה, סיכון או בעיה)",
-        },
-      },
-      required: ["client_id", "content"],
-    },
-  },
-  ...FINDING_DRAFT_TOOLS,
-  // MESSAGES
-  {
-    name: "send_message",
-    description: "שליחת הודעת WhatsApp ללקוח או ליד",
-    parameters: {
-      type: "object",
-      properties: {
-        contact_type: { type: "string", enum: ["lead", "client"] },
-        contact_id: { type: "string" },
-        message_text: { type: "string" },
-      },
-      required: ["contact_type", "contact_id", "message_text"],
-    },
-  },
-  {
-    name: "lookup_staff_whatsapp",
-    description:
-      "מיפוי אנשי צוות לשליחת WhatsApp: קמפיינרים, אנשי מכירות ופרופילי צוות עם מספרי טלפון מה-DB. השתמשי לפני send_whatsapp_to_staff כשצריך לבחור לפי שם.",
-    parameters: {
-      type: "object",
-      properties: {
-        entity_type: {
-          type: "string",
-          enum: ["campaigner", "sales_person", "team_member", "auto"],
-          description: "סוג ישות (ברירת מחדל auto = הכל)",
-        },
-        search: { type: "string", description: "חיפוש חלקי בשם" },
-        only_with_phone: {
-          type: "boolean",
-          description: "רק מי שיש להם טלפון (ברירת מחדל true)",
-        },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "send_whatsapp_to_staff",
-    description:
-      "שליחת WhatsApp ישירות לחבר צוות לפי מיפוי המערכת (campaigner / sales_person / team_member). פותרת טלפון מה-DB בלבד — לא ממספר ידני. עדיף על send_message (שמיועד לליד/לקוח) ועל send_whatsapp_via_gateway כשלא יודעים את המספר.",
-    parameters: {
-      type: "object",
-      properties: {
-        entity_type: {
-          type: "string",
-          enum: ["campaigner", "sales_person", "team_member", "auto"],
-        },
-        staff_id: {
-          type: "string",
-          description: "UUID של הקמפיינר / איש מכירות / פרופיל",
-        },
-        name: { type: "string", description: "שם לחיפוש אם אין staff_id" },
-        message: { type: "string", description: "תוכן ההודעה" },
-        campaigner_id: {
-          type: "string",
-          description: "alias ל-staff_id כשentity_type=campaigner",
-        },
-        message_text: { type: "string", description: "alias ל-message" },
-      },
-      required: ["message"],
-    },
-  },
-  {
-    name: "send_message_to_campaigner",
-    description:
-      "שליחת WhatsApp לקמפיינר לפי campaigner_id (עטיפה ל-send_whatsapp_to_staff).",
-    parameters: {
-      type: "object",
-      properties: {
-        campaigner_id: { type: "string", description: "מזהה הקמפיינר (UUID)" },
-        message_text: { type: "string", description: "תוכן ההודעה" },
-        name: { type: "string", description: "אופציונלי — שם אם אין id" },
-      },
-      required: ["message_text"],
-    },
-  },
-  {
-    name: "get_openai_billing_status",
-    description:
-      "סטטוס חיוב/שימוש OpenAI לארגון (super_admin בלבד): עלות החודש הנוכחי, טוקנים אם זמינים, ומגבלות אם זמינות. יתרת קרדיט לא נחשפת ב-API הרשמי — מחזיר unavailable במקום להמציא. דורש OPENAI_ADMIN_KEY (או openai_admin_api_key באינטגרציית llm).",
-    parameters: {
-      type: "object",
-      properties: {
-        include_tokens: {
-          type: "boolean",
-          description:
-            "כלול גם סיכום טוקנים מ-usage/completions (ברירת מחדל true)",
-        },
-      },
-    },
-  },
-  // SEARCH
-  {
-    name: "search_entities",
-    description:
-      "חיפוש סוכנויות, לקוחות, קמפיינרים, אנשי מכירות או לידים לפי שם. ללקוחות: מחפש גם aliases/אנגלית/עברית, שמות חשבונות מודעות Meta, טבלאות דוח, ולקוחות ended/paused — לא רק active. עבור קמפיינר WhatsApp התוצאות מוגבלות אלא אם all_scopes=true.",
-    parameters: {
-      type: "object",
-      properties: {
-        entity_type: {
-          type: "string",
-          enum: ["agency", "client", "campaigner", "sales_person", "lead"],
-        },
-        search_term: { type: "string" },
-        agency_id: {
-          type: "string",
-          description: "הגבלה לסוכנות מסוימת (רלוונטי ל-client/lead)",
-        },
-        all_scopes: {
-          type: "boolean",
-          description: "דרוס את סקופ הקמפיינר והחזר תוצאות מכל הארגון.",
-        },
-        include_inactive: {
-          type: "boolean",
-          description:
-            "ללקוחות: כלול ended/paused (ברירת מחדל true בחיפוש לפי שם)",
-        },
-      },
-      required: ["entity_type", "search_term"],
-    },
-  },
-  {
-    name: "query_system_graph",
-    description:
-      "חיפוש לקריאה בלבד בגרף הארכיטקטורה של AIOS: קוד, Edge Functions, טבלאות SQL, מודולים וקשרים ביניהם. השתמשי רק לשאלות טכניות על מבנה המערכת, מיקום מימוש, תלות בין רכיבים או השפעת שינוי. הכלי זמין למנהלים בלבד ואינו מחזיר נתוני לקוחות.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description:
-            "מונחים טכניים לחיפוש, רצוי באנגלית ושמות רכיבים מדויקים",
-        },
-        depth: {
-          type: "integer",
-          minimum: 0,
-          maximum: 3,
-          description: "עומק ניווט בקשרים, ברירת מחדל 2",
-        },
-        limit: {
-          type: "integer",
-          minimum: 1,
-          maximum: 80,
-          description: "מספר צמתים מרבי, ברירת מחדל 40",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  // MANUS AI - Complex task delegation
-  {
-    name: "delegate_to_manus",
-    description:
-      "שליחת משימה מורכבת ל-Manus AI לביצוע ברקע (מחקר שוק, ניתוח קמפיינים, יצירת תוכן, ניתוח נתונים). המשימה רצה ברקע ועשויה לקחת דקות עד שעות.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: { type: "string", description: "תיאור מפורט של המשימה לביצוע" },
-        context_data: {
-          type: "string",
-          description: "נתוני הקשר רלוונטיים (למשל נתוני קמפיינים)",
-        },
-      },
-      required: ["prompt"],
-    },
-  },
-  {
-    name: "send_message_to_manus",
-    description:
-      "שליחת הודעה ישירה ל-Manus agent פעיל (תקשורת ישירה). משמש לשאלות, עדכונים, או המשך שיחה עם Manus על משימה קיימת. מחזיר מיידית ללא המתנה לתשובה.",
-    parameters: {
-      type: "object",
-      properties: {
-        message: { type: "string", description: "ההודעה לשליחה ל-Manus" },
-        task_id: {
-          type: "string",
-          description:
-            "מזהה המשימה הקיימת (אופציונלי — אם לא מוגדר ישתמש ב-agent-default)",
-        },
-      },
-      required: ["message"],
-    },
-  },
-  {
-    name: "get_facebook_campaign_data",
-    description:
-      "שליפת נתוני קמפיינים מפייסבוק לצורך ניתוח. לכל קמפיין goal ו-results כמו בדוח: רכישות לקמפיין מכירות (ecommerce), לידים לקמפיין לידים (leads), ובקמפיין תנועה (traffic) אין תוצאה.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        days: {
-          type: "integer",
-          description: "מספר ימים אחורה (ברירת מחדל 30)",
-        },
-      },
-    },
-  },
-  {
-    name: "list_facebook_campaigns",
-    description:
-      "רשימת קמפיינים פעילים/מושבתים של לקוח עם campaign_id, שם וסטטוס. השתמש כדי למצוא את ה-campaign_id לפני toggle.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        name_search: { type: "string", description: "חיפוש חלקי בשם הקמפיין" },
-      },
-      required: ["client_id"],
-    },
-  },
-  {
-    name: "toggle_facebook_campaign",
-    description:
-      "הפעלה (ACTIVE) או השהיה (PAUSED) של קמפיין/ad set/מודעה בפייסבוק. campaign_id יכול להיות גם ad_id. מכניס בקשת אישור לתור — לא מבצע מיד. אחרי אישור — execute_pending_approval.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string", description: "מזהה הלקוח" },
-        campaign_id: {
-          type: "string",
-          description: "Facebook campaign_id / adset_id / ad_id",
-        },
-        status: { type: "string", enum: ["ACTIVE", "PAUSED"] },
-        level: {
-          type: "string",
-          enum: ["campaign", "adset", "ad"],
-          description: "ברירת מחדל campaign; עבור מודעה בודדת העבירי level=ad",
-        },
-      },
-      required: ["client_id", "campaign_id", "status"],
-    },
-  },
-  {
-    name: "analyze_facebook_campaign",
-    description:
-      "ניתוח עומק של קמפיין פייסבוק יחיד: היום/7/30 ימים + פירוט מודעות (ad-level) עם spend/leads/CPL. השתמשי לפני הפעלה/כיבוי סלקטיבי של מודעות.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "מזהה הלקוח שהקמפיין שייך אליו",
-        },
-        campaign_id: { type: "string" },
-      },
-      required: ["client_id", "campaign_id"],
-    },
-  },
-  {
-    name: "list_facebook_ads",
-    description:
-      "רשימת מודעות (ads) תחת קמפיין פייסבוק עם סטטוס ו-CPL/spend/leads ל-7 ימים. להשתמש לפני הדלקה סלקטיבית של מודעות עם CPL נמוך.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        campaign_id: { type: "string" },
-      },
-      required: ["client_id", "campaign_id"],
-    },
-  },
-  // Placed early (near other FB tools) so OpenAI's 128-tool cap cannot drop them.
-  {
-    name: "inspect_facebook_ad",
-    description:
-      "קריאה בלבד: פרטי מודעת Meta מקור (adset_id, campaign_id, page_id, creative_id, lead_form_id, טקסט/כותרת נוכחיים). חובה לפני שכפול עם וריאציות קופי.",
-    parameters: {
-      type: "object",
-      properties: { client_id: { type: "string" }, ad_id: { type: "string" } },
-      required: ["client_id", "ad_id"],
-    },
-  },
-  {
-    name: "fb_duplicate_ad_variants",
-    description:
-      'שכפול מודעת Meta מנצחת ל-N מודעות חדשות באותו ad set, עם וריאציות primary_text/headline — שומר media/page/lead form. דורש אישור (pending_approval). אופציונלי: daily_budget בש"ח + budget_level=campaign|adset.',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        source_ad_id: { type: "string" },
-        count: { type: "integer", description: "כמה מודעות ליצור (עד 8)" },
-        variants: {
-          type: "array",
-          description: "מערך {primary_text, headline?, name?, description?}",
-          items: {
-            type: "object",
-            properties: {
-              primary_text: { type: "string" },
-              headline: { type: "string" },
-              name: { type: "string" },
-              description: { type: "string" },
-            },
-            required: ["primary_text"],
-          },
-        },
-        daily_budget: {
-          type: "number",
-          description: 'תקציב יומי בש"ח (למשל 200)',
-        },
-        budget_level: {
-          type: "string",
-          enum: ["campaign", "adset"],
-          description: "ברירת מחדל campaign",
-        },
-        status: {
-          type: "string",
-          enum: ["PAUSED", "ACTIVE"],
-          description: "סטטוס המודעות החדשות — ברירת מחדל PAUSED",
-        },
-      },
-      required: ["client_id", "source_ad_id", "variants"],
-    },
-  },
-  {
-    name: "duplicate_facebook_ad_variants",
-    description:
-      "Alias ל-fb_duplicate_ad_variants — שכפול מודעה עם וריאציות קופי (דורש אישור).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        source_ad_id: { type: "string" },
-        count: { type: "integer" },
-        variants: { type: "array", items: { type: "object" } },
-        daily_budget: { type: "number" },
-        budget_level: { type: "string", enum: ["campaign", "adset"] },
-        status: { type: "string", enum: ["PAUSED", "ACTIVE"] },
-      },
-      required: ["client_id", "source_ad_id", "variants"],
-    },
-  },
-  {
-    name: "update_facebook_budget",
-    description:
-      'עדכון תקציב יומי או כולל לקמפיין פייסבוק. מכניס בקשת אישור לתור — לא מבצע מיד. חריגה של מעל 20% או מעל 500 ש"ח דורשת התרעה מפורשת לפני הבקשה. אחרי אישור המשתמש — execute_pending_approval.',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "מזהה הלקוח שהקמפיין שייך אליו",
-        },
-        campaign_id: { type: "string" },
-        daily_budget: {
-          type: "number",
-          description: "תקציב יומי בשקלים (לא במיקרו-יחידות)",
-        },
-        lifetime_budget: { type: "number" },
-      },
-      required: ["client_id", "campaign_id"],
-    },
-  },
-  {
-    name: "duplicate_facebook_campaign",
-    description:
-      "שכפול קמפיין פייסבוק (במצב PAUSED). מכניס בקשת אישור לתור — לא מבצע מיד. אחרי אישור — execute_pending_approval.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "מזהה הלקוח שהקמפיין שייך אליו",
-        },
-        campaign_id: { type: "string" },
-        name_suffix: { type: "string" },
-      },
-      required: ["client_id", "campaign_id"],
-    },
-  },
-  {
-    name: "get_campaign_alerts",
-    description:
-      "שליפת התראות פתוחות על קמפיינים (קמפיין נעצר, מודעה לא מאושרת, CPL חורג, frequency גבוה). השתמש בתחילת בדיקת דופק או כשהמשתמש שואל על מצב הקמפיינים.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        severity: { type: "string", enum: ["info", "warning", "critical"] },
-        only_open: { type: "boolean", description: "ברירת מחדל true" },
-      },
-    },
-  },
-  {
-    name: "acknowledge_campaign_alert",
-    description: "סימון התראת קמפיין כטופלה (acknowledged).",
-    parameters: {
-      type: "object",
-      properties: { alert_id: { type: "string" } },
-      required: ["alert_id"],
-    },
-  },
-  {
-    name: "resolve_campaign_alert",
-    description: "סגירת התראת קמפיין (resolved) — כשהבעיה תוקנה בפועל.",
-    parameters: {
-      type: "object",
-      properties: { alert_id: { type: "string" } },
-      required: ["alert_id"],
-    },
-  },
-  {
-    name: "list_social_pages",
-    description:
-      "רשימת עמודים מחוברים (פייסבוק/אינסטגרם) של הטננט. שימושי לפני פרסום או טיפול בתגובות.",
-    parameters: {
-      type: "object",
-      properties: {
-        platform: { type: "string", enum: ["facebook", "instagram"] },
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "publish_social_post",
-    description:
-      "פרסום פוסט/תמונה/וידאו/Reel/Story לעמוד פייסבוק או אינסטגרם. דורש page_id (UUID של social_pages, לא ה-FB page id), post_type ו-caption/media_url. דורש confirmed=true.",
-    parameters: {
-      type: "object",
-      properties: {
-        page_id: { type: "string" },
-        post_type: {
-          type: "string",
-          enum: ["post", "photo", "video", "reel", "story", "link"],
-        },
-        caption: { type: "string" },
-        media_url: {
-          type: "string",
-          description: "URL ציבורי של המדיה (חובה ל-photo/video/reel/story)",
-        },
-        link: { type: "string" },
-        confirmed: { type: "boolean" },
-      },
-      required: ["page_id", "post_type", "confirmed"],
-    },
-  },
-  {
-    name: "fetch_social_comments",
-    description:
-      "משיכת תגובות חדשות מעמוד פייסבוק/אינסטגרם ועדכון מסד הנתונים.",
-    parameters: {
-      type: "object",
-      properties: { page_id: { type: "string" } },
-      required: ["page_id"],
-    },
-  },
-  {
-    name: "list_social_comments",
-    description: "רשימת תגובות שלא נענו, לפי לקוח/עמוד.",
-    parameters: {
-      type: "object",
-      properties: {
-        page_id: { type: "string" },
-        client_id: { type: "string" },
-        only_unreplied: { type: "boolean" },
-      },
-    },
-  },
-  {
-    name: "reply_to_social_comment",
-    description:
-      "מענה לתגובה בעמוד פייסבוק/אינסטגרם. דורש comment_row_id (UUID מ-social_comments) ו-message. דורש confirmed=true.",
-    parameters: {
-      type: "object",
-      properties: {
-        comment_row_id: { type: "string" },
-        message: { type: "string" },
-        confirmed: { type: "boolean" },
-      },
-      required: ["comment_row_id", "message", "confirmed"],
-    },
-  },
-  {
-    name: "hide_social_comment",
-    description: "הסתרת תגובה (FB בלבד). דורש confirmed=true.",
-    parameters: {
-      type: "object",
-      properties: {
-        comment_row_id: { type: "string" },
-        confirmed: { type: "boolean" },
-      },
-      required: ["comment_row_id", "confirmed"],
-    },
-  },
-  {
-    name: "sync_social_pages",
-    description:
-      "סנכרון מחדש של כל העמודים (כולל Page Access Tokens) מפייסבוק. הרץ אחרי חיבור חדש או כשעמוד חסר.",
-    parameters: {
-      type: "object",
-      properties: { client_id: { type: "string" } },
-    },
-  },
-  {
-    name: "analyze_campaign_performance",
-    description:
-      "ניתוח ביצועי קמפיינים מטבלאות CRM. מזהה טבלאות קמפיין לפי שדות (spend+campaign_name) ולא לפי שם — תופס גם טבלאות בעברית. מחזיר coverage_summary (כמה לקוחות מסונכרנים מתוך הסקופ), synced_clients (עם spend/CPL/שינוי 7 מול 30 יום; לידים רק מקמפייני לידים ורכישות רק מקמפייני מכירות, כמו בדוח) ו-not_connected_clients (לקוחות שאין להם טבלת קמפיין). חובה לדווח על שני הסלוטים, ולא רק על מי שיש לו נתונים.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string", description: "מזהה לקוח ספציפי" },
-        agency_id: { type: "string", description: "סינון לסוכנות מסוימת" },
-        agency_name: {
-          type: "string",
-          description: "סינון לפי שם סוכנות (case-insensitive, חיפוש חלקי)",
-        },
-      },
-    },
-  },
-  {
-    name: "get_latest_campaign_pulse",
-    description:
-      "שליפת תמונת הדופק האחרונה שכבר חושבה ונשמרה. בוואטסאפ מחזיר whatsapp_digest קצר (סיכום סטטוסים + קישור לדשבורד) בלבד — בלי טבלת לקוחות. בדשבורד הפנימי אפשר גם formatted_markdown. לבדיקת דופק עדכנית — refresh_campaign_pulse. רק אם המשתמש מבקש נתונים חיים/ניתוח עמוק עבור לקוח — analyze_campaign_performance.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        client_name: { type: "string", description: "חיפוש חלקי בשם הלקוח" },
-        agency_id: { type: "string" },
-        agency_name: { type: "string", description: "חיפוש חלקי בשם הסוכנות" },
-        status: {
-          type: "string",
-          enum: ["healthy", "warning", "critical", "no_data"],
-        },
-      },
-    },
-  },
-  REFRESH_CAMPAIGN_PULSE_TOOL,
-  // MASKYOO CALLS REPORTING
-  {
-    name: "get_maskyoo_calls_report",
-    description:
-      "דוח שיחות מסקיו לדוחות SEO. מחזיר ספירות שיחות נכנסות לפי לקוח וקטגוריה (organic/paid) מ-seo_call_snapshots. אם אין snapshot — שולף ישירות מ-call_logs. מחזיר השוואה בין תקופות אם period_compare=true.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "מזהה לקוח (אופציונלי — בלעדיו מחזיר כל הלקוחות)",
-        },
-        client_name: {
-          type: "string",
-          description: "חיפוש לקוח לפי שם אם אין client_id",
-        },
-        period_start: {
-          type: "string",
-          description:
-            "תחילת תקופה YYYY-MM-DD (ברירת מחדל: תחילת החודש הנוכחי)",
-        },
-        period_end: {
-          type: "string",
-          description: "סוף תקופה YYYY-MM-DD (ברירת מחדל: היום)",
-        },
-        category: {
-          type: "string",
-          enum: ["organic", "paid", "all"],
-          description: "ברירת מחדל: all",
-        },
-        period_compare: {
-          type: "boolean",
-          description: "אם true — מחזיר גם תקופה קודמת מקבילה להשוואה",
-        },
-      },
-    },
-  },
-  {
-    name: "sync_maskyoo_cdr",
-    description:
-      "סנכרון CDRs (Call Detail Records) מ-API של מסקיו אל call_logs. הרץ כשהנתונים לא עדכניים. מחזיר כמה רשומות נוספו.",
-    parameters: {
-      type: "object",
-      properties: {
-        from_date: {
-          type: "string",
-          description:
-            "YYYY-MM-DD — תאריך התחלה לסנכרון (ברירת מחדל 7 ימים אחורה)",
-        },
-      },
-    },
-  },
-  {
-    name: "update_client_health",
-    description: `עדכון מצב בריאות לקוח: מעדכן mood_status בטבלת clients ויוצר רשומה ב-communication_logs. השתמש בכלי הזה כדי להדליק דגל על לקוח כשמזהים בעיה (התייקרות, ירידה בביצועים). ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        mood_status: {
-          type: "string",
-          enum: ["happy", "wavering", "churn_risk"],
-          description:
-            "מצב הלקוח: happy=תקין, wavering=מתלבט, churn_risk=סיכון נטישה",
-        },
-        communication_status: {
-          type: "string",
-          enum: ["normal", "sensitive", "complaint"],
-          description: "סטטוס תקשורת לרשומת communication_logs",
-        },
-        note: { type: "string", description: "הערה/סיכום — מה הבעיה שזוהתה" },
-      },
-      required: ["client_id", "mood_status", "note"],
-    },
-  },
-  {
-    name: "get_client_retention_scan",
-    description:
-      "דופק שימור: מדרג לקוחות פעילים לטיפול עכשיו או למעקב לפי דופק שמור ומצב CRM. לא מחשב דופק חדש, לא קורא למודל, ולא שולח הודעה ללקוח. בוואטסאפ החזירי רק whatsapp_digest.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        client_name: { type: "string", description: "חיפוש חלקי בשם הלקוח" },
-      },
-    },
-  },
-  {
-    name: "batch_update_client_health",
-    description: `עדכון בריאות לכמה לקוחות בבת אחת (עד 25). לכל שורה חובה client_id, mood_status ו-note. רק אחרי בקשה מפורשת לעדכן את הדשבורד — לא כחלק מסריקת שימור. ${HEALTH_CARD_ENTRY_ERROR_HINT}`,
-    parameters: {
-      type: "object",
-      properties: {
-        updates: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              client_id: { type: "string" },
-              mood_status: {
-                type: "string",
-                enum: ["happy", "wavering", "churn_risk"],
-              },
-              communication_status: {
-                type: "string",
-                enum: ["normal", "sensitive", "complaint"],
-              },
-              note: { type: "string" },
-            },
-            required: ["client_id", "mood_status", "note"],
-          },
-        },
-      },
-      required: ["updates"],
-    },
-  },
-  // CLIENTS - full CRUD
-  {
-    name: "create_client",
-    description: "יצירת לקוח חדש במערכת",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "שם העסק/לקוח" },
-        contact_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-        agency_id: { type: "string", description: "מזהה סוכנות (אופציונלי)" },
-        notes: { type: "string" },
-      },
-      required: ["name"],
-    },
-  },
-  {
-    name: "update_client",
-    description: "עדכון פרטי לקוח קיים",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        name: { type: "string" },
-        contact_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-        status: { type: "string", enum: ["active", "inactive", "lead"] },
-        notes: { type: "string" },
-        follow_up_date: {
-          type: "string",
-          description: "תאריך לדבר עם הלקוח בפורמט YYYY-MM-DD",
-        },
-      },
-      required: ["client_id"],
-    },
-  },
-  {
-    name: "update_client_status",
-    description: "עדכון סטטוס לקוח",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        status: { type: "string", enum: ["active", "inactive", "lead"] },
-      },
-      required: ["client_id", "status"],
-    },
-  },
-  {
-    name: "set_campaign_table_active",
-    description:
-      "סימון טבלת קמפיין כפעילה/כבויה (crm_tables.campaign_active). השתמשי כשאומרים לך שקמפיין של לקוח הופסק או חזר לפעול — בדיקות דופק ובדיקות חיבורים מדווחות רק על טבלאות שמסומנות פעילות. זיהוי לפי client_id (כל טבלאות הקמפיינים של הלקוח), table_id מדויק, או table_name (חיפוש חלקי).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        table_id: { type: "string" },
-        table_name: {
-          type: "string",
-          description: "שם או slug של הטבלה (חיפוש חלקי)",
-        },
-        active: {
-          type: "boolean",
-          description:
-            "true=הקמפיין פעיל ומדווחים עליו, false=כבוי ולא מדווחים",
-        },
-      },
-      required: ["active"],
-    },
-  },
-  // LEADS - full CRUD
-  {
-    name: "update_lead",
-    description: "עדכון פרטי ליד קיים (שם, טלפון, אימייל, מקור, הערות)",
-    parameters: {
-      type: "object",
-      properties: {
-        lead_id: { type: "string" },
-        company_name: { type: "string" },
-        contact_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-        source: { type: "string" },
-        notes: { type: "string" },
-        follow_up_date: {
-          type: "string",
-          description: "תאריך מעקב בפורמט YYYY-MM-DD",
-        },
-      },
-      required: ["lead_id"],
-    },
-  },
-  {
-    name: "delete_lead",
-    description:
-      "העברת ליד לארכיון (לא מחיקה לצמיתות). אפשר לשחזר מארכיון הלידים.",
-    parameters: {
-      type: "object",
-      properties: { lead_id: { type: "string" } },
-      required: ["lead_id"],
-    },
-  },
-  // TASKS - full CRUD
-  {
-    name: "update_task",
-    description:
-      "עדכון פרטי משימה (כותרת, תאריך, עדיפות, הערות, סטטוס, שיוך ליד/קמפיינר)",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        title: { type: "string" },
-        due_date: { type: "string" },
-        due_time: { type: "string" },
-        priority: { type: "integer", description: "1-10" },
-        notes: { type: "string" },
-        client_id: { type: "string" },
-        lead_id: { type: "string" },
-        campaigner_id: { type: "string" },
-        duration_minutes: { type: "integer" },
-        status: {
-          type: "string",
-          enum: ["open", "in_progress", "done", "completed"],
-        },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "delete_task",
-    description: "מחיקת משימה",
-    parameters: {
-      type: "object",
-      properties: { task_id: { type: "string" } },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "add_task_update",
-    description: "הוספת הערה/עדכון למשימה",
-    parameters: {
-      type: "object",
-      properties: { task_id: { type: "string" }, content: { type: "string" } },
-      required: ["task_id", "content"],
-    },
-  },
-  {
-    name: "manage_task_collaborators",
-    description: "הוספה או הסרה של שותפים (קמפיינרים) למשימה",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        campaigner_id: { type: "string" },
-        action: { type: "string", enum: ["add", "remove"] },
-      },
-      required: ["task_id", "campaigner_id", "action"],
-    },
-  },
-  // CLIENT ONBOARDING
-  {
-    name: "create_onboarding",
-    description: "יצירת תהליך קליטת לקוח חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        client_id: { type: "string" },
-        campaigner_id: { type: "string" },
-        notes: { type: "string" },
-      },
-      required: ["title", "client_id"],
-    },
-  },
-  {
-    name: "list_onboarding",
-    description: "רשימת תהליכי קליטת לקוחות",
-    parameters: {
-      type: "object",
-      properties: { status: { type: "string" }, limit: { type: "integer" } },
-    },
-  },
-  {
-    name: "update_onboarding_status",
-    description: "עדכון סטטוס קליטת לקוח",
-    parameters: {
-      type: "object",
-      properties: {
-        onboarding_id: { type: "string" },
-        status: {
-          type: "string",
-          enum: ["pending", "in_progress", "completed", "cancelled"],
-        },
-      },
-      required: ["onboarding_id", "status"],
-    },
-  },
-  // CAMPAIGNERS
-  {
-    name: "list_campaigners",
-    description: "רשימת קמפיינרים בטננט",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "create_campaigner",
-    description: "יצירת קמפיינר חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        full_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-        role: { type: "array", items: { type: "string" } },
-      },
-      required: ["full_name"],
-    },
-  },
-  // SALES PEOPLE
-  {
-    name: "list_sales_people",
-    description: "רשימת אנשי מכירות",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "create_sales_person",
-    description: "יצירת איש מכירות חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        full_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-      },
-      required: ["full_name"],
-    },
-  },
-  // AGENCIES
-  {
-    name: "list_agencies",
-    description: "רשימת סוכנויות בטננט",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "create_agency",
-    description: "יצירת סוכנות חדשה",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        contact_name: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-      },
-      required: ["name"],
-    },
-  },
-  // SUPPLIERS
-  {
-    name: "list_suppliers",
-    description: "רשימת ספקים",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "create_supplier",
-    description: "יצירת ספק חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        type: { type: "string" },
-        phone: { type: "string" },
-        email: { type: "string" },
-      },
-      required: ["name"],
-    },
-  },
-  // PRODUCTS
-  {
-    name: "list_products",
-    description: "רשימת מוצרים/שירותים",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "create_product",
-    description: "יצירת מוצר/שירות חדש",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        description: { type: "string" },
-        price: { type: "number" },
-      },
-      required: ["name", "price"],
-    },
-  },
-  // AUTOMATIONS
-  {
-    name: "list_automations",
-    description:
-      "רשימת אוטומציות (id, name, active, trigger_type, is_flow). לפרטי שלבים השתמשי ב-get_automation_details.",
-    parameters: {
-      type: "object",
-      properties: {
-        limit: { type: "integer" },
-        active_only: { type: "boolean" },
-        name_search: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "get_automation_details",
-    description:
-      "פרטי אוטומציה כולל צעדי flow (automation_flow_steps) — טריגר, agent, action, condition.",
-    parameters: {
-      type: "object",
-      properties: {
-        automation_id: { type: "string" },
-        name_search: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "toggle_automation",
-    description: "הפעלה/כיבוי אוטומציה. מכניס לתור אישורים — לא מבצע מיד.",
-    parameters: {
-      type: "object",
-      properties: {
-        automation_id: { type: "string" },
-        active: { type: "boolean" },
-      },
-      required: ["automation_id", "active"],
-    },
-  },
-  {
-    name: "delete_automation",
-    description: "מחיקת אוטומציה (כולל צעדי flow). מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: { automation_id: { type: "string" } },
-      required: ["automation_id"],
-    },
-  },
-  {
-    name: "propose_automation_edit",
-    description:
-      "הצעת עריכה לאוטומציה קיימת (שם/תיאור/טריגר/החלפת steps). מכניס לתור אישורים; אחרי אישור מעדכן את האוטומציה.",
-    parameters: {
-      type: "object",
-      properties: {
-        automation_id: { type: "string" },
-        name: { type: "string" },
-        description: { type: "string" },
-        trigger_type: { type: "string" },
-        trigger_config: { type: "object" },
-        steps: {
-          type: "array",
-          description:
-            "אם מסופק — מחליף את כל צעדי ה-flow (חוץ מהטריגר נבנה מחדש)",
-          items: { type: "object" },
-        },
-      },
-      required: ["automation_id"],
-    },
-  },
-  {
-    name: "inspect_meta_lead_forms",
-    description:
-      "בדיקה חיה של טפסי לידים ב-Meta ושל הטופס המחובר לאוטומציה. מחזיר אוטומציות, Page/Form ID, שמות, סטטוס ושדות. השתמשי בכלי זה לפני החלפה או יצירה של טופס, וניתן לחפש לפי שם אוטומציה, עמוד או טופס.",
-    parameters: {
-      type: "object",
-      properties: {
-        automation_name: {
-          type: "string",
-          description: "שם מלא או חלקי של האוטומציה",
-        },
-        page_name: {
-          type: "string",
-          description: "שם מלא או חלקי של עמוד Meta",
-        },
-        form_name: {
-          type: "string",
-          description: "שם מלא או חלקי של טופס הלידים",
-        },
-      },
-    },
-  },
-  {
-    name: "set_automation_meta_lead_form",
-    description:
-      "החלפת טופס הלידים המחובר לטריגר של אוטומציה לפי שם הטופס ב-Meta. הכלי מאמת התאמה יחידה לעמוד, לטופס ולאוטומציה, מעדכן את Form ID ורושם את הטופס לסנכרון. דורש אישור מפורש של המשתמש.",
-    parameters: {
-      type: "object",
-      properties: {
-        automation_id: {
-          type: "string",
-          description: "מזהה האוטומציה, אם ידוע",
-        },
-        automation_name: {
-          type: "string",
-          description: "שם מלא או חלקי של האוטומציה",
-        },
-        form_name: {
-          type: "string",
-          description: "שם טופס Meta המדויק או חלק ייחודי ממנו",
-        },
-        page_name: {
-          type: "string",
-          description: "שם עמוד Meta; מומלץ כשיש טפסים בעלי שם זהה",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "חובה true ורק לאחר אישור מפורש של המשתמש",
-        },
-      },
-      required: ["form_name", "confirmed"],
-    },
-  },
-  {
-    name: "create_meta_lead_form",
-    description:
-      "יצירת Instant Form חדש בעמוד Meta. ניתן גם לחבר אותו מיד לאוטומציה. טופס שפורסם ב-Meta אינו ניתן לעריכה רגילה, לכן יש להציג למשתמש את השם, השדות, מדיניות הפרטיות והעמוד ולקבל אישור מפורש לפני הקריאה.",
-    parameters: {
-      type: "object",
-      properties: {
-        page_name: {
-          type: "string",
-          description: "שם עמוד Meta המדויק או חלק ייחודי ממנו",
-        },
-        form_name: { type: "string", description: "שם הטופס החדש" },
-        questions: {
-          type: "array",
-          description: "שדות הטופס לפי הסדר",
-          items: {
-            type: "object",
-            properties: {
-              type: {
-                type: "string",
-                description:
-                  "סוג שדה Meta, למשל FULL_NAME, EMAIL, PHONE, CITY, CUSTOM",
-              },
-              label: {
-                type: "string",
-                description: "חובה לשדה CUSTOM; אופציונלי לשדה רגיל",
-              },
-            },
-            required: ["type"],
-          },
-        },
-        privacy_policy_url: {
-          type: "string",
-          description: "קישור HTTPS למדיניות הפרטיות",
-        },
-        privacy_policy_link_text: {
-          type: "string",
-          description: "טקסט קישור למדיניות, ברירת מחדל מדיניות פרטיות",
-        },
-        follow_up_action_url: {
-          type: "string",
-          description: "קישור HTTPS למסך התודה/אתר לאחר השליחה",
-        },
-        automation_id: {
-          type: "string",
-          description: "אוטומציה לחיבור מיידי, אם ידועה",
-        },
-        automation_name: {
-          type: "string",
-          description: "שם אוטומציה לחיבור מיידי",
-        },
-        confirmed: {
-          type: "boolean",
-          description: "חובה true ורק לאחר אישור מפורש של המשתמש",
-        },
-      },
-      required: [
-        "page_name",
-        "form_name",
-        "questions",
-        "privacy_policy_url",
-        "follow_up_action_url",
-        "confirmed",
-      ],
-    },
-  },
-  // REPORTS & ANALYTICS
-  {
-    name: "get_dashboard_stats",
-    description: "שליפת נתוני דשבורד: כמה לידים, לקוחות, משימות פתוחות, ועוד",
-    parameters: { type: "object", properties: {} },
-  },
-  // SOCIAL MEDIA
-  {
-    name: "create_social_post",
-    description:
-      "יצירת פוסט/מודעה חדשה במודול ניהול סושיאל מדיה. השתמש בכלי הזה כדי ליצור פוסטים עם תוכן טקסטואלי ותמונות. הפוסט יישמר כטיוטה במערכת.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "כותרת הפוסט/מודעה" },
-        content: {
-          type: "string",
-          description: "תוכן הפוסט - הקופי של המודעה",
-        },
-        post_type: {
-          type: "string",
-          enum: ["text", "image", "video", "carousel"],
-          description: "סוג הפוסט",
-        },
-        media_urls: {
-          type: "array",
-          items: { type: "string" },
-          description: "קישורי מדיה (תמונות/וידאו)",
-        },
-      },
-      required: ["title", "content"],
-    },
-  },
-  // Marketing department (Copy / Creative / SEO pipeline)
-  ...VIDEO_DIRECTOR_TOOLS,
-  ...CREATIVE_STUDIO_TOOLS,
-  ...PULSE_TARGET_TOOLS,
-  ...CARD_DRAFT_TOOLS,
-  {
-    name: "list_marketing_work_items",
-    description:
-      "רשימת עבודות במחלקת השיווק (קופי/קריאייטיב/SEO). אפשר לסנן לפי לקוח, מחלקה או סטטוס.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        department: { type: "string", enum: ["copy", "creative", "seo"] },
-        status: { type: "string" },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "get_marketing_work_item",
-    description: "פרטי עבודת שיווק כולל payload ושלב נוכחי.",
-    parameters: {
-      type: "object",
-      properties: { item_id: { type: "string" } },
-      required: ["item_id"],
-    },
-  },
-  {
-    name: "create_marketing_work_item",
-    description:
-      "יצירת בריף/עבודה חדשה במחלקת שיווק (copy/creative/seo). יוצר pipeline ללקוח אם חסר וממקם בשלב המתאים.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        title: { type: "string" },
-        brief: { type: "string", description: "בריף / חומר גלם" },
-        department: {
-          type: "string",
-          enum: ["copy", "creative", "seo"],
-          description: "ברירת מחדל copy",
-        },
-        content_type: { type: "string" },
-        channel: { type: "string" },
-        instructions: { type: "string" },
-      },
-      required: ["client_id", "title", "brief"],
-    },
-  },
-  {
-    name: "handoff_marketing_work_item",
-    description:
-      "העברת עבודת שיווק לשלב הבא בפייפליין (למשל מ-copy ל-creative, מ-creative ל-target_paid).",
-    parameters: {
-      type: "object",
-      properties: {
-        item_id: { type: "string" },
-        to_stage_type: {
-          type: "string",
-          enum: [
-            "strategy",
-            "copy",
-            "creative",
-            "target_paid",
-            "target_seo",
-            "target_organic",
-            "measurement",
-          ],
-        },
-      },
-      required: ["item_id", "to_stage_type"],
-    },
-  },
-  {
-    name: "update_marketing_work_item",
-    description: "עדכון כותרת/סטטוס/payload של עבודת שיווק.",
-    parameters: {
-      type: "object",
-      properties: {
-        item_id: { type: "string" },
-        title: { type: "string" },
-        status: {
-          type: "string",
-          enum: ["draft", "in_progress", "review", "approved", "archived"],
-        },
-        payload_patch: {
-          type: "object",
-          description: "מיזוג לתוך payload הקיים",
-        },
-      },
-      required: ["item_id"],
-    },
-  },
-  {
-    name: "generate_ad_image",
-    description:
-      "יצירת תמונה למודעה/פוסט באמצעות AI. מחזיר URL של התמונה שנוצרה. השתמש בכלי הזה כדי ליצור ויזואל למודעות ופוסטים ואז השתמש ב-create_social_post כדי לשמור את הפוסט.",
-    parameters: {
-      type: "object",
-      properties: {
-        prompt: {
-          type: "string",
-          description: "תיאור מפורט של התמונה הרצויה באנגלית",
-        },
-        aspect_ratio: {
-          type: "string",
-          enum: ["1:1", "16:9", "9:16", "4:5"],
-          description: "יחס גובה-רוחב",
-        },
-        reference_urls: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "קישורי https של תמונות רפרנס (סגנון, דמות, מוצר) שהתמונה צריכה להתאים להן",
-        },
-        engine: {
-          type: "string",
-          enum: ["google", "elevenlabs", "higgsfield", "openai"],
-          description:
-            "מנוע תמונות מסוים. כשמחוברים כמה, שאלי את המשתמש באיזה ליצור. בלי זה נבחר אוטומטית.",
-        },
-      },
-      required: ["prompt"],
-    },
-  },
-  // MEMORY
-  {
-    name: "save_memory",
-    description: "שמירת מידע לזיכרון מתמשך (העדפות, פרויקטים, הוראות)",
-    parameters: {
-      type: "object",
-      properties: {
-        key: { type: "string", description: "מפתח זיהוי" },
-        content: { type: "string", description: "התוכן לשמירה" },
-        category: {
-          type: "string",
-          enum: [
-            "preferences",
-            "projects",
-            "clients",
-            "workflows",
-            "personal",
-            "instructions",
-          ],
-        },
-      },
-      required: ["key", "content"],
-    },
-  },
-  {
-    name: "recall_memory",
-    description: "שליפת זיכרונות שנשמרו (key/value, מהיר)",
-    parameters: {
-      type: "object",
-      properties: { category: { type: "string" }, search: { type: "string" } },
-    },
-  },
-  {
-    name: "search_agent_tools",
-    description:
-      "חיפוש כלים רלוונטיים למשימה מתוך קטלוג הכלים (אינדקס embedding). השתמשי כשחסר כלי לביצוע המשימה — הכלים שיימצאו יתווספו ויהיו זמינים מסבב הבא.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "תיאור קצר של מה צריך לבצע" },
-        limit: { type: "integer", description: "ברירת מחדל 12" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "recall_memory_fts",
-    description:
-      "חיפוש זיכרונות חוצה-שיחות עם Full-Text Search ודירוג לפי importance. השתמשי כדי למצוא הקשר רלוונטי משיחות עבר על נושא, לקוח, או הוראה. שונה מ-recall_memory: זה מחפש בכל ה-agent_memory (זיכרונות שנוצרו אוטומטית מסיכומי ריצות + זיכרונות ידניים) ומדורג לפי חשיבות.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "טקסט חיפוש (מילות מפתח, שם לקוח, נושא)",
-        },
-        limit: { type: "integer", description: "ברירת מחדל 5" },
-        min_importance: {
-          type: "integer",
-          description: "סף חשיבות מינימלי 0-100",
-        },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "delete_memory",
-    description: "מחיקת זיכרון",
-    parameters: {
-      type: "object",
-      properties: { key: { type: "string" } },
-      required: ["key"],
-    },
-  },
-  // KNOWLEDGE BASE (Carmen Memory Pointers + Episodes — ממלכת הידע)
-  {
-    name: "kb_list_folder",
-    description:
-      "דפדוף בממלכת הידע של כרמן. מחזיר מצביעים (pointers) בתיקייה: clients/, team/, messages/<date>/, conversations/<topic>/, system_map/. הציון `path` הוא ההיררכיה. השתמש כדי לראות מה קיים לפני kb_open.",
-    parameters: {
-      type: "object",
-      properties: {
-        category: {
-          type: "string",
-          enum: ["clients", "team", "messages", "conversations", "system_map"],
-        },
-        subcategory: { type: "string" },
-        path_prefix: {
-          type: "string",
-          description:
-            'תחילית נתיב לסינון, למשל "clients/" או "team/<id>/tasks"',
-        },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "kb_search",
-    description:
-      "חיפוש סמנטי+טקסטואלי בממלכת הידע. מחזיר pointers רלוונטיים לפי דמיון embedding ל-query, מסונן אופציונלית לקטגוריה/תאריך. השתמש כשמחפשים מידע על נושא, לקוח, או אירוע ולא יודעים את הנתיב המדויק.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string" },
-        category: { type: "string" },
-        since_days: {
-          type: "integer",
-          description: "הגבל לרשומות עם ref_date מ-N הימים האחרונים",
-        },
-        limit: { type: "integer" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "kb_open",
-    description:
-      "פתיחת pointer וקבלת הנתון החי מה-DB (clients/campaigners/tasks/chat_messages/seo_reports וכו׳ — תמיד הנתון העדכני, לא העתק). השתמש אחרי kb_list_folder/kb_search.",
-    parameters: {
-      type: "object",
-      properties: { pointer_id: { type: "string" } },
-      required: ["pointer_id"],
-    },
-  },
-  {
-    name: "kb_recall_conversation",
-    description:
-      "שליפת סיכומי שיחות עבר (episodes) לפי נושא או חיפוש סמנטי. מחזיר summary + source_ids להפניה להודעות המקוריות.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string" },
-        topic: { type: "string" },
-        since_days: { type: "integer" },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "kb_learn",
-    description:
-      "שמירת ידע פרוצדורלי/אפיזודי חדש (לקח שנלמד, נוהל, סיכום שיחה חשובה). שונה מ-save_memory: זה נכנס לממלכת הידע עם embedding לחיפוש סמנטי. שמור פה דברים שכרמן צריכה לזכור לטווח ארוך עם הקשר.",
-    parameters: {
-      type: "object",
-      properties: {
-        topic: { type: "string" },
-        summary: { type: "string" },
-        topic_tags: { type: "array", items: { type: "string" } },
-        importance: { type: "integer", description: "1-10" },
-        source_table: { type: "string" },
-        source_ids: { type: "array", items: { type: "string" } },
-      },
-      required: ["topic", "summary"],
-    },
-  },
-  // CHAT HISTORY
-  {
-    name: "get_chat_history",
-    description: "שליפת היסטוריית שיחות WhatsApp עם ליד או לקוח",
-    parameters: {
-      type: "object",
-      properties: {
-        contact_type: { type: "string", enum: ["lead", "client"] },
-        contact_id: { type: "string" },
-        limit: { type: "integer" },
-      },
-      required: ["contact_type", "contact_id"],
-    },
-  },
-  {
-    name: "search_conversation_history",
-    description:
-      "שליפת היסטוריית WhatsApp. כברירת מחדל בשיחת WhatsApp פעילה — רק הצ׳אט הנוכחי (chat_id). לדפדוף בכל הארגון: browse_all_chats=true. מצבים: (1) חיפוש מילות תוכן (לא מילות זמן כמו אתמול) (2) דפדוף לפי זמן בלי query.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "מילות תוכן לחיפוש (עד 4). השמיטי לדפדוף לפי זמן.",
-        },
-        days_back: {
-          type: "integer",
-          description:
-            "כמה ימים אחורה (ברירת מחדל 180; לדפדוף אתמול השתמשי ב-2)",
-        },
-        only_carmen_chats: {
-          type: "boolean",
-          description: "רק ערוץ manus_wa (ברירת מחדל true בדפדוף)",
-        },
-        with_phone: { type: "string", description: "סינון למספר טלפון" },
-        browse_all_chats: {
-          type: "boolean",
-          description: "true = חפשי בכל שיחות הארגון, לא רק הצ׳אט הנוכחי",
-        },
-        limit: {
-          type: "integer",
-          description: "מקסימום תוצאות (ברירת מחדל 20, בדפדוף 40)",
-        },
-      },
-    },
-  },
-  {
-    name: "get_recent_inbound_messages",
-    description: "שליפת הודעות נכנסות אחרונות מכל השיחות",
-    parameters: {
-      type: "object",
-      properties: {
-        limit: { type: "integer" },
-        hours: {
-          type: "integer",
-          description: "כמה שעות אחורה (ברירת מחדל 24)",
-        },
-      },
-    },
-  },
-  // FINANCE
-  {
-    name: "list_finance",
-    description:
-      "רשימת תנועות מטבלת finance הישנה (legacy). להנהלת חשבונות האמיתית השתמשי ב-get_accounting_overview / list_one_time_incomes / list_income_payments.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        type: { type: "string", enum: ["income", "expense"] },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "create_finance_entry",
-    description:
-      "יצירת רשומה בטבלת finance הישנה (legacy). להכנסה חד-פעמית בהנהלת חשבונות השתמשי ב-create_one_time_income (דורש אישור).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        amount: { type: "number" },
-        type: { type: "string", enum: ["income", "expense"] },
-        description: { type: "string" },
-        date: { type: "string" },
-      },
-      required: ["amount", "type", "description"],
-    },
-  },
-  {
-    name: "get_finance_summary",
-    description:
-      "סיכום חודשי מטבלת finance הישנה (legacy). להנהלת חשבונות האמיתית השתמשי ב-get_accounting_overview.",
-    parameters: {
-      type: "object",
-      properties: { month: { type: "string", description: "YYYY-MM" } },
-    },
-  },
-  // Real accounting module (AccountingIntegrations)
-  {
-    name: "get_accounting_overview",
-    description:
-      "סיכום הנהלת חשבונות לחודש: ריטיינרים צפויים, הכנסות חד-פעמיות, גביות בפועל (income_payments), הוצאות ששולמו, ורווח גולמי משוער. זה המודול האמיתי — לא טבלת finance.",
-    parameters: {
-      type: "object",
-      properties: {
-        month: {
-          type: "string",
-          description: "YYYY-MM, ברירת מחדל החודש הנוכחי",
-        },
-        agency_id: { type: "string" },
-        agency_name: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "get_client_retainer",
-    description:
-      "ריטיינר ותקציב חודשי של לקוח (עם overlay של client_tenant_financial_data לפי טננט).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        client_name: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "list_one_time_incomes",
-    description: "הכנסות חד-פעמיות לחודש (one_time_incomes).",
-    parameters: {
-      type: "object",
-      properties: {
-        month: { type: "string", description: "YYYY-MM" },
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "list_income_payments",
-    description: "גביות בפועל לחודש (income_payments) — מה שסומן כנגבה בתזרים.",
-    parameters: {
-      type: "object",
-      properties: {
-        month: { type: "string", description: "YYYY-MM" },
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "list_expense_payments",
-    description: "הוצאות ששולמו לחודש (expense_payments).",
-    parameters: {
-      type: "object",
-      properties: {
-        month: { type: "string", description: "YYYY-MM" },
-        expense_type: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "list_invoice_uploads",
-    description: "תור חשבוניות שהועלו (invoice_uploads) — סטטוס OCR/קישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          enum: ["pending", "processed", "linked", "failed"],
-        },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "create_one_time_income",
-    description:
-      "יצירת הכנסה חד-פעמית בהנהלת חשבונות. מכניס לתור אישורים — לא מבצע מיד.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        product_name: { type: "string" },
-        amount: { type: "number" },
-        payment_month: { type: "string", description: "YYYY-MM" },
-        notes: { type: "string" },
-      },
-      required: ["client_id", "product_name", "amount", "payment_month"],
-    },
-  },
-  {
-    name: "delete_one_time_income",
-    description: "מחיקת הכנסה חד-פעמית. מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: { income_id: { type: "string" } },
-      required: ["income_id"],
-    },
-  },
-  {
-    name: "record_income_payment",
-    description:
-      "סימון גבייה בפועל מלקוח (insert ל-income_payments). מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        amount: { type: "number" },
-        payment_month: { type: "string", description: "YYYY-MM" },
-        notes: { type: "string" },
-      },
-      required: ["client_id", "amount", "payment_month"],
-    },
-  },
-  {
-    name: "delete_income_payment",
-    description:
-      "ביטול סימון גבייה (מחיקת income_payments). מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: { payment_id: { type: "string" } },
-      required: ["payment_id"],
-    },
-  },
-  {
-    name: "record_expense_payment",
-    description:
-      "סימון הוצאה כשולמה (insert ל-expense_payments). מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: {
-        expense_type: {
-          type: "string",
-          description:
-            "supplier | client_fixed | supplier_payment | campaigner",
-        },
-        expense_id: { type: "string", description: "מזהה ספק/לקוח" },
-        expense_name: { type: "string" },
-        amount: { type: "number" },
-        payment_month: { type: "string", description: "YYYY-MM" },
-        notes: { type: "string" },
-      },
-      required: [
-        "expense_type",
-        "expense_id",
-        "expense_name",
-        "amount",
-        "payment_month",
-      ],
-    },
-  },
-  {
-    name: "delete_expense_payment",
-    description: "ביטול סימון תשלום הוצאה. מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: { payment_id: { type: "string" } },
-      required: ["payment_id"],
-    },
-  },
-  {
-    name: "update_client_retainer",
-    description:
-      "עדכון ריטיינר/תקציב חודשי של לקוח (upsert ל-client_tenant_financial_data). מכניס לתור אישורים.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        retainer: { type: "number" },
-        monthly_budget: { type: "number" },
-        notes: { type: "string" },
-      },
-      required: ["client_id"],
-    },
-  },
-  // UPDATES
-  {
-    name: "list_updates",
-    description: `רשימת עדכונים ללקוח או ליד. ללקוח: כולל מי רשם (author), סוג העדכון (update_type) ומקור (source: ${CLIENT_CARD_SOURCES.join(" / ")}).`,
-    parameters: {
-      type: "object",
-      properties: {
-        entity_type: { type: "string", enum: ["client", "lead"] },
-        entity_id: { type: "string" },
-        limit: { type: "integer" },
-      },
-      required: ["entity_type", "entity_id"],
-    },
-  },
-  // GOALS
-  {
-    name: "create_goal",
-    description: "יצירת יעד חדש במערכת היעדים ההיררכית",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        description: { type: "string" },
-        parent_goal_id: {
-          type: "string",
-          description: "מזהה יעד-אב (אופציונלי)",
-        },
-        due_date: { type: "string" },
-        owner_type: { type: "string", enum: ["agent", "campaigner"] },
-        owner_id: { type: "string" },
-      },
-      required: ["title"],
-    },
-  },
-  {
-    name: "list_goals",
-    description: "רשימת יעדים עם אחוז התקדמות",
-    parameters: {
-      type: "object",
-      properties: { status: { type: "string" }, limit: { type: "integer" } },
-    },
-  },
-  {
-    name: "find_execution_goal_duplicates",
-    description: "חיפוש יעדי ביצוע פתוחים דומים (דדופ לפני יצירה).",
-    parameters: {
-      type: "object",
-      properties: { title: { type: "string" } },
-      required: ["title"],
-    },
-  },
-  {
-    name: "create_execution_goal",
-    description:
-      "יצירת יעד במרכז הפיקוד. autonomous=true: לולאה אוטונומית עם Completion Gate + worker. autonomous=false (ברירת מחדל): ניהול ידני עם אבני דרך. פעולות פיננסיות/פרודקשן דורשות execute_pending_approval.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        description: { type: "string" },
-        due_date: { type: "string" },
-        priority: { type: "string", enum: ["urgent", "high", "normal", "low"] },
-        completion_criteria: { type: "string" },
-        next_action: { type: "string" },
-        autonomous: {
-          type: "boolean",
-          description: "true = Autonomous Goal Engine (worker + evidence gate)",
-        },
-        objective: { type: "string" },
-        risk_level: {
-          type: "string",
-          enum: [
-            "READ",
-            "SAFE_WRITE",
-            "REVERSIBLE",
-            "PRODUCTION",
-            "DESTRUCTIVE",
-          ],
-        },
-        success_criteria: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              key: { type: "string" },
-              description: { type: "string" },
-              required: { type: "boolean" },
-            },
-            required: ["description"],
-          },
-        },
-        milestones: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              description: { type: "string" },
-              due_date: { type: "string" },
-            },
-            required: ["title"],
-          },
-        },
-      },
-      required: ["title"],
-    },
-  },
-  {
-    name: "get_execution_goal_report",
-    description:
-      "דוח ביצוע יעד: מה השתנה, חסמים, מה ממתין לאישור דוד, 3 פעולות הבאות.",
-    parameters: {
-      type: "object",
-      properties: {
-        goal_id: { type: "string" },
-        since_hours: { type: "integer" },
-      },
-      required: ["goal_id"],
-    },
-  },
-  {
-    name: "add_goal_milestone",
-    description: "הוספת אבן דרך ליעד ביצוע.",
-    parameters: {
-      type: "object",
-      properties: {
-        goal_id: { type: "string" },
-        title: { type: "string" },
-        description: { type: "string" },
-        due_date: { type: "string" },
-      },
-      required: ["goal_id", "title"],
-    },
-  },
-  {
-    name: "add_goal_blocker",
-    description: "רישום חסם על יעד ביצוע (מעדכן סטטוס ל-blocked).",
-    parameters: {
-      type: "object",
-      properties: {
-        goal_id: { type: "string" },
-        title: { type: "string" },
-        description: { type: "string" },
-      },
-      required: ["goal_id", "title"],
-    },
-  },
-  {
-    name: "link_task_to_execution_goal",
-    description: "קישור משימת tasks קיימת ליעד ביצוע.",
-    parameters: {
-      type: "object",
-      properties: { goal_id: { type: "string" }, task_id: { type: "string" } },
-      required: ["goal_id", "task_id"],
-    },
-  },
-  {
-    name: "get_autonomous_goal_status",
-    description:
-      "סטטוס יעד (כולל אוטונומי): engine_status, קריטריונים, Evidence, Completion Gate. alias ל-get_execution_goal_report על יעד אוטונומי.",
-    parameters: {
-      type: "object",
-      properties: { goal_id: { type: "string" } },
-      required: ["goal_id"],
-    },
-  },
-  // AGENT TASK OWNERSHIP
-  {
-    name: "take_task",
-    description:
-      "כרמן לוקחת בעלות על משימה - מעדכנת assigned_agent וסטטוס ל-agent_working",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        agent_name: {
-          type: "string",
-          description: "שם הסוכן שלוקח את המשימה (ברירת מחדל: כרמן)",
-        },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "assign_task_to_cursor",
-    description:
-      "מקצה משימה ל-Cursor (תור פיתוח). מעדכן assigned_agent=Cursor ומפעיל dispatch אוטומטי אם אין משימה אחרת ב-in_progress.",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        notes: { type: "string", description: "הערות נוספות למשימה" },
-      },
-      required: ["task_id"],
-    },
-  },
-  {
-    name: "find_dev_task_duplicates",
-    description:
-      "חיפוש משימות פיתוח פתוחות דומות לפי כותרת (דדופ לפני יצירה/שליחה).",
-    parameters: {
-      type: "object",
-      properties: { title: { type: "string" } },
-      required: ["title"],
-    },
-  },
-  {
-    name: "create_dev_task",
-    description:
-      "יצירת משימת פיתוח מובנית (טיוטה). כולל brief: title, problem, expected/current behavior, scope, acceptance criteria. תמיד בדקי duplicates קודם.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        problem: { type: "string" },
-        expected_behavior: { type: "string" },
-        current_behavior: { type: "string" },
-        scope: { type: "string" },
-        affected_areas: { type: "string" },
-        constraints: { type: "string" },
-        acceptance_criteria: { type: "string" },
-        base_branch: { type: "string", description: "ברירת מחדל develop" },
-        environment: { type: "string", description: "ברירת מחדל staging" },
-        requested_by: { type: "string" },
-        priority: { type: "string", enum: ["urgent", "high", "normal", "low"] },
-        assigned_agent: {
-          type: "string",
-          enum: ["cursor", "grok", "manus", "claude"],
-        },
-        dedup_of: {
-          type: "string",
-          description: "מזהה משימה קיימת לעדכון במקום חדשה",
-        },
-        goal_id: { type: "string", description: "קישור ליעד ביצוע" },
-        source_message: { type: "string" },
-      },
-      required: ["title"],
-    },
-  },
-  {
-    name: "approve_dev_task",
-    description: "אישור משימת פיתוח לפני שליחה לסוכן קוד.",
-    parameters: {
-      type: "object",
-      properties: { dev_task_id: { type: "string" } },
-      required: ["dev_task_id"],
-    },
-  },
-  {
-    name: "dispatch_dev_task",
-    description:
-      "שליחת משימת פיתוח מאושרת לסוכן הקוד שלה (assigned_agent: cursor או claude). כל משימה נפתחת בסשן חדש משלה — לא בצ׳אט הישיר עם Cursor/Claude. מחזיר delivered/userStatus — אם delivered=true דווחי שנשלח גם כשיש dispatchToolError (reconciled). אם verificationFailed=true או timeout/delivery_unconfirmed — אמרי שלא אומתה הגעה (ייתכן שנשלח); אסור להגיד שקרסר לא קיבל. צייני dispatchToolError ו/או attach_dev_task_session.",
-    parameters: {
-      type: "object",
-      properties: { dev_task_id: { type: "string" } },
-      required: ["dev_task_id"],
-    },
-  },
-  {
-    name: "list_dev_tasks",
-    description: "רשימת משימות פיתוח מה-Dev Task Command Center.",
-    parameters: {
-      type: "object",
-      properties: {
-        status: { type: "string" },
-        priority: { type: "string" },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "update_dev_task",
-    description: "עדכון משימת פיתוח: PR URL, סטטוס, עדיפות, הערות.",
-    parameters: {
-      type: "object",
-      properties: {
-        dev_task_id: { type: "string" },
-        pr_url: { type: "string" },
-        status: { type: "string" },
-        priority: { type: "string" },
-        problem: { type: "string" },
-        acceptance_criteria: { type: "string" },
-      },
-      required: ["dev_task_id"],
-    },
-  },
-  {
-    name: "attach_dev_task_session",
-    description: "קישור סשן Cursor קיים למשימת פיתוח (reconcile אחרי timeout).",
-    parameters: {
-      type: "object",
-      properties: {
-        dev_task_id: { type: "string" },
-        cursor_session_id: { type: "string", description: "bc-…" },
-        cursor_session_url: { type: "string" },
-      },
-      required: ["dev_task_id", "cursor_session_id"],
-    },
-  },
-  {
-    name: "complete_task_step",
-    description:
-      "כרמן מדווחת על השלמת שלב במשימה ומוסיפה עדכון מסוג agent_action",
-    parameters: {
-      type: "object",
-      properties: {
-        task_id: { type: "string" },
-        step_description: { type: "string" },
-        mark_complete: {
-          type: "boolean",
-          description: "האם לסמן את המשימה כהושלמה",
-        },
-      },
-      required: ["task_id", "step_description"],
-    },
-  },
-  {
-    name: "prioritize_tasks",
-    description:
-      "ניתוח משימות פתוחות והצעת סדר עדיפויות לפי דדליינים, יעדים ועומס",
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  // FACEBOOK AD ACCOUNTS
-  {
-    name: "list_facebook_ad_accounts",
-    description:
-      "שליפת כל חשבונות המודעות מפייסבוק. מחזיר id, name, status, currency.",
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "create_facebook_report_table",
-    description:
-      "חיבור חשבון מודעות פייסבוק ללקוח — יוצר טבלת דוח facebook_insights ב-CRM",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string", description: "מזהה הלקוח" },
-        ad_account_id: {
-          type: "string",
-          description: "מזהה חשבון מודעות פייסבוק (act_XXXXX)",
-        },
-        ad_account_name: { type: "string", description: "שם חשבון המודעות" },
-      },
-      required: ["client_id", "ad_account_id", "ad_account_name"],
-    },
-  },
-  {
-    name: "list_unconnected_clients",
-    description:
-      "רשימת לקוחות פעילים שאין להם עדיין טבלת דוח פייסבוק (facebook_insights) ב-CRM. שימושי לזיהוי לקוחות שצריכים חיבור.",
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "verify_report_vs_meta",
-    description:
-      'בדיקת אמינות דוחות: משווה את מה שהדוח של הלקוח ב-AIOS מציג מול מטא עצמה (נתונים חיים) לאותם קמפיינים, יום אחר יום לפי אזור הזמן של חשבון המודעות — הוצאה, תוצאה עיקרית (לידים/רכישות) והכנסות לכל קמפיין, ימים חסרים, קמפיינים חסרים, והתאמת סוג הדוח (לידים/איקומרס) ליעד הקמפיין במטא. השתמשי בכלי הזה כשמבקשים "תבדקי שהדוחות תואמים למטא", "הדוח לא נכון", או לפני שליחת דוח ללקוח. בלי client_id בודק את כל הלקוחות הפעילים עם דוח פייסבוק (מנהלים בלבד); לתוצאות הבדיקה הלילית לכל הלקוחות (כולל גוגל) השתמשי ב-get_reconciliation_status. ימים שעוד לא סונכרנו מופיעים ב-not_yet_synced — אל תציגי אותם כתואמים. ענו בקצרה: כמה תקינים, ולכל לקוח עם פער — מה הפער.',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        agency_name: {
-          type: "string",
-          description: "סינון לסוכנות (חיפוש חלקי בשם)",
-        },
-        days: {
-          type: "integer",
-          description: "כמה ימים מלאים אחורה (ברירת מחדל 7, עד 30)",
-        },
-      },
-    },
-  },
-  {
-    name: "get_reconciliation_status",
-    description:
-      'תוצאות הבדיקה הלילית שמשווה את הדוחות ב-AIOS מול מטא וגוגל (7 ימים מלאים, לכל קמפיין ולכל יום: הוצאה, תוצאה עיקרית והכנסות; ימים חסרים; קמפיינים שחסרים בצד אחד; ולבעלים — חשבונות מודעות עם הוצאה שלא משויכים ללקוח). קריאה בלבד מהתוצאה השמורה האחרונה — לא פונה לפלטפורמות. השתמשי כששואלים "הדוחות תואמים?", "יש פערים מול הפלטפורמה?" או לפני דוח ללקוח. בלי client_id מחזיר את כל הלקוחות (מנהלים בלבד).',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "check_ad_accounts_health",
-    description:
-      'בדיקת תקינות חשבונות מודעות פייסבוק לכל הלקוחות בסקופ הקורא. מחזיר לכל לקוח: status (active/disabled/closed), has_spend_7d (האם יש הוצאה ב-7 ימים אחרונים), all_paused (האם כל הקמפיינים מושהים), token_ok (האם הטוקן תקף), flags (מערך של בעיות). השתמשי ב-pulse check ובכל בקשת "תקינות/מצב חשבונות מודעות".',
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        agency_id: { type: "string" },
-      },
-    },
-  },
-  // INTEGRATIONS MANAGEMENT
-  {
-    name: "list_integrations",
-    description:
-      "רשימת אינטגרציות מוגדרות בטננט (סוג, סטטוס פעיל, הגדרות בסיסיות). שימושי כשרוצים לדעת מה מחובר ומה לא.",
-    parameters: {
-      type: "object",
-      properties: {
-        type: {
-          type: "string",
-          description:
-            'סינון לפי סוג אינטגרציה. "whatsapp" מחזיר את כל קווי הוואטסאפ (manus_wa, green_api, meta_whatsapp).',
-        },
-        only_active: { type: "boolean" },
-      },
-    },
-  },
-  {
-    name: "toggle_integration",
-    description: "הפעלה או השבתה של אינטגרציה לפי מזהה.",
-    parameters: {
-      type: "object",
-      properties: {
-        integration_id: { type: "string" },
-        is_active: { type: "boolean" },
-      },
-      required: ["integration_id", "is_active"],
-    },
-  },
-  // AGENT MANAGEMENT (Carmen building & managing sub-agents)
-  {
-    name: "list_agents",
-    description: "רשימת סוכני AI בטננט (כולל סוכנים תחתיים של כרמן).",
-    parameters: {
-      type: "object",
-      properties: { only_active: { type: "boolean" } },
-    },
-  },
-  {
-    name: "create_agent",
-    description:
-      "יצירת סוכן AI חדש תחת כרמן. השתמש כשהמשתמש מבקש לבנות סוכן חדש לתפקיד ספציפי.",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        talent: { type: "string", description: "תיאור התפקיד והמומחיות" },
-        personality: { type: "string" },
-        soul: { type: "string", description: "מטרה/ייעוד" },
-        engine: { type: "string", description: "מודל (gemini-3-flash וכו׳)" },
-      },
-      required: ["name", "talent"],
-    },
-  },
-  {
-    name: "update_agent",
-    description: "עדכון פרטי סוכן קיים.",
-    parameters: {
-      type: "object",
-      properties: {
-        agent_id: { type: "string" },
-        name: { type: "string" },
-        talent: { type: "string" },
-        personality: { type: "string" },
-        soul: { type: "string" },
-        engine: { type: "string" },
-        active: { type: "boolean" },
-      },
-      required: ["agent_id"],
-    },
-  },
-  // GITHUB AGENT DELEGATION (system self-repair)
-
-  // WHATSAPP GATEWAY MANAGEMENT (Manus Gateway)
-  {
-    name: "create_whatsapp_instance",
-    description:
-      "יצירת instance חדש של WhatsApp ב-Gateway עבור לקוח. מחזיר integrationId ו-instanceId. לאחר יצירה, השתמש ב-get_whatsapp_qr_link כדי לקבל קישור סריקה.",
-    parameters: {
-      type: "object",
-      properties: {
-        displayName: {
-          type: "string",
-          description: 'שם תצוגה לחיבור (לדוגמה: "יוסי - עסק")',
-        },
-        countryCode: {
-          type: "string",
-          description: "קידומת מדינה (ברירת מחדל: 972 לישראל)",
-        },
-      },
-      required: ["displayName"],
-    },
-  },
-  {
-    name: "get_whatsapp_qr_link",
-    description:
-      "קבלת קישור ציבורי לסריקת QR לחיבור WhatsApp. שלח את הקישור ללקוח. הקישור תקף ל-2 שעות.",
-    parameters: {
-      type: "object",
-      properties: {
-        integrationId: {
-          type: "string",
-          description:
-            "מזהה האינטגרציה (מ-create_whatsapp_instance או מ-list_integrations)",
-        },
-      },
-      required: ["integrationId"],
-    },
-  },
-  {
-    name: "get_whatsapp_status",
-    description:
-      "בדיקת סטטוס חיבור WhatsApp של instance. מחזיר CONNECTED/DISCONNECTED/QR_READY ומספר הטלפון אם מחובר.",
-    parameters: {
-      type: "object",
-      properties: {
-        integrationId: { type: "string", description: "מזהה האינטגרציה" },
-      },
-      required: ["integrationId"],
-    },
-  },
-  {
-    name: "send_whatsapp_via_gateway",
-    description:
-      "שליחת הודעת WhatsApp לכל מספר (גם למשתמש עצמו או לאיש קשר פרטי) דרך קו הוואטסאפ של הארגון. בלי integrationId נשלח מקו ה-manus_wa הפעיל של הארגון.",
-    parameters: {
-      type: "object",
-      properties: {
-        integrationId: {
-          type: "string",
-          description:
-            "מזהה קו manus_wa מסוים (לא חובה; בלי זה נשלח מהקו הפעיל של הארגון)",
-        },
-        phone: { type: "string", description: "מספר טלפון (עם או בלי קידומת)" },
-        message: { type: "string", description: "תוכן ההודעה" },
-      },
-      required: ["phone", "message"],
-    },
-  },
-  {
-    name: "delegate_to_github_agent",
-    description:
-      "האצלת בעיה טכנית/באג במערכת לסוכן הגיטהאב לאבחון או תיקון. השתמש כשמדווחים על תקלה במערכת או באג בקוד.",
-    parameters: {
-      type: "object",
-      properties: {
-        message: { type: "string", description: "תיאור הבעיה/הבקשה הטכנית" },
-        action: {
-          type: "string",
-          enum: [
-            "chat_support",
-            "analyze_error",
-            "fix_code",
-            "check_permissions",
-          ],
-          description: "ברירת מחדל: chat_support",
-        },
-      },
-      required: ["message"],
-    },
-  },
-  // ===========================
-  // HERMES SKILLS SYSTEM (self-improving procedural memory)
-  // ===========================
-  {
-    name: "get_carmen_skins",
-    description:
-      "הסקינים (הפרסונות) של כרמן ותמונות הדיוקן שלהן: slug, שם בעברית, הסקינים שבכל פרסונה, has_portrait ו-portrait_url. כשהעסק העלה תמונה משלו לסקין מוחזר קישור חתום לשעה (source=custom). portrait_url הוא קישור מלא: בצ׳אט שמציג Markdown כתמונה ![שם](portrait_url), בוואטסאפ כקישור. לשאלות על כרמן עצמה, על הסקינים שלה ועל התמונות שלהן. קריאה בלבד.",
-    parameters: { type: "object", properties: {} },
-  },
-  {
-    name: "recall_skills",
-    description:
-      "חיפוש סקילים (פרוצדורות שמורות) רלוונטיים למשימה הנוכחית. השתמש כשהמשימה מורכבת/חוזרת ויתכן שכבר יש לך פרוצדורה שמורה לבצע אותה. הסקילים הרלוונטיים ביותר כבר מוזרקים אוטומטית, אבל ניתן לחפש עוד.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "תיאור המשימה לחיפוש" },
-        limit: { type: "integer", description: "ברירת מחדל 5" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "create_skill",
-    description:
-      "יצירת סקיל חדש (פרוצדורה שמורה) אחרי שביצעת משימה מורכבת בהצלחה ויש סיכוי שתבצע אותה שוב. כתוב את ה-body כשלבים ברורים בעברית, מצב מילות טריגר רלוונטיות שיעזרו למצוא את הסקיל בעתיד. אל תיצור סקיל למשימות פשוטות/חד-פעמיות.",
-    parameters: {
-      type: "object",
-      properties: {
-        name: {
-          type: "string",
-          description: 'שם קצר וברור (למשל "ניתוח קמפיין שבועי")',
-        },
-        description: {
-          type: "string",
-          description: "משפט אחד שמתאר מתי להשתמש בסקיל הזה",
-        },
-        body: {
-          type: "string",
-          description:
-            "תוכן הסקיל - שלבים מסודרים, באיזה כלים להשתמש, מה לבדוק",
-        },
-        trigger_phrases: {
-          type: "array",
-          items: { type: "string" },
-          description: "מילים/ביטויים בעברית או באנגלית שיעזרו למצוא את הסקיל",
-        },
-      },
-      required: ["name", "description", "body"],
-    },
-  },
-  {
-    name: "update_skill",
-    description:
-      "עדכון/שיפור סקיל קיים על בסיס ניסיון חדש. השתמש כשגילית שצעד מסוים לא עובד טוב או שיש דרך טובה יותר לבצע את המשימה.",
-    parameters: {
-      type: "object",
-      properties: {
-        skill_id: { type: "string" },
-        body: { type: "string", description: "תוכן מעודכן" },
-        description: {
-          type: "string",
-          description: "תיאור מעודכן (אופציונלי)",
-        },
-        change_note: { type: "string", description: "הערה קצרה מה השתנה ולמה" },
-      },
-      required: ["skill_id", "body"],
-    },
-  },
-  // ===========================
-  // SUBAGENT DELEGATION (Phase 4) — spawn focused background sub-tasks
-  // ===========================
-  {
-    name: "delegate_to_subagent",
-    description:
-      "יצירת תת-סוכן (subagent) שירוץ ברקע על משימה ממוקדת — מחקר, ניתוח רב-לקוחות, סריקה ארוכה, או כל עבודה שלא חייבת להיענות בשיחה הנוכחית. מחזיר sub_task_id מיידית. השתמשי בכלי הזה במקום delegate_to_manus כשהמשימה היא פנימית למערכת (מצריכה כלים של כרמן עצמה). אסור להשתמש בו לתשובה קצרה שאפשר לענות מיד — רק כשהמשימה תיקח זמן או צריכה לרוץ ברקע במקביל לשיחה.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "כותרת קצרה לתת-המשימה" },
-        prompt: {
-          type: "string",
-          description:
-            "הוראה מפורטת מה לבצע. כתבי כאילו את מדריכה כרמן אחרת — כללי המטרה, היקף, ומה חייב להחזיר בסוף.",
-        },
-        task_mode: {
-          type: "string",
-          enum: [
-            "analyst",
-            "sales",
-            "support",
-            "copywriting",
-            "scheduler",
-            "onboarding",
-          ],
-          description: "מוד פעולה (אופציונלי)",
-        },
-        task_skills: {
-          type: "array",
-          items: { type: "string" },
-          description: "סקילים להפעיל בתת-הסוכן",
-        },
-        priority: { type: "integer", description: "1-10" },
-      },
-      required: ["title", "prompt"],
-    },
-  },
-  {
-    name: "get_subagent_result",
-    description:
-      "בדיקת מצב/קבלת תוצאה של תת-סוכן שנוצר ב-delegate_to_subagent. מחזיר status, done, ואם הסתיים — output. אל תקראי לזה בלולאה צמודה; אם done=false פשוט המשיכי בעבודה אחרת או הודיעי למשתמש שהמשימה עדיין רצה.",
-    parameters: {
-      type: "object",
-      properties: {
-        sub_task_id: {
-          type: "string",
-          description: "המזהה שהוחזר מ-delegate_to_subagent",
-        },
-      },
-      required: ["sub_task_id"],
-    },
-  },
-  {
-    name: "delegate_parallel",
-    description:
-      "מולטיטאסק: פיזור כמה תת-משימות עצמאיות לרקע (עד 8). משימות קריאה/ניתוח/מחקר (side_effects=false) רצות במקביל; משימות שמשנות משהו/שולחות החוצה (side_effects=true, ברירת מחדל) נכנסות לתור סדרתי ורצות אחת-בכל-רגע — לעולם לא שתיים מסוכנות יחד. סמני side_effects נכון לכל תת-משימה. כל תת-משימה עצמאית ולא חופפת. מחזיר batch_id; אספי עם get_batch_results וסנתזי. אל תשתמשי בזה למשימה אחת — לזה יש delegate_to_subagent.",
-    parameters: {
-      type: "object",
-      properties: {
-        tasks: {
-          type: "array",
-          description: "מערך תת-משימות עצמאיות",
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string" },
-              prompt: {
-                type: "string",
-                description:
-                  'הוראה עצמאית מלאה — מטרה, היקף, פורמט פלט, ובמפורש "אל תחפפי עם תת-משימות אחרות".',
-              },
-              task_skills: {
-                type: "array",
-                items: { type: "string" },
-                description: 'סקינז לכפות על תת-משימה זו (למשל ["campaigner"])',
-              },
-              side_effects: {
-                type: "boolean",
-                description:
-                  "true = משנה/שולח (תור סדרתי) · false = קריאה/ניתוח בלבד (מקבילי). ברירת מחדל true.",
-              },
-            },
-            required: ["title", "prompt"],
-          },
-        },
-      },
-      required: ["tasks"],
-    },
-  },
-  {
-    name: "get_batch_results",
-    description:
-      "איסוף תוצאות של batch שנוצר ב-delegate_parallel. מחזיר לכל תת-משימה status/output (גם אם חלקן נכשלו — בידוד כשל חלקי), וכן total/completed/failed/running ו-all_done. כשהכל הושלם — סנתזי את התוצאות לתשובה אחת.",
-    parameters: {
-      type: "object",
-      properties: {
-        batch_id: {
-          type: "string",
-          description: "ה-batch_id שהוחזר מ-delegate_parallel",
-        },
-      },
-      required: ["batch_id"],
-    },
-  },
-  {
-    name: "propose_automation",
-    description:
-      'הצעת אוטומציה חדשה לבנייה — כרמן מתכננת פלואו (טריגר + שלבים) ושולחת לאישור המשתמש. האוטומציה תיווצר כבויה רק לאחר אישור, אז בטוח להציע. השתמשי בזה כשהמשתמש מבקש "תבני/תחברי לי אוטומציה". כל שלב agent יכול לכפות סקין (campaigner/seo/...). מחזיר approval_id; הסבירי למשתמש מה תכננת ובקשי אישור.',
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "שם האוטומציה" },
-        description: { type: "string" },
-        trigger_type: {
-          type: "string",
-          description:
-            "סוג טריגר, למשל scheduled_daily / lead_created / whatsapp_message_received",
-        },
-        trigger_config: {
-          type: "object",
-          description:
-            'הגדרת הטריגר, למשל {"hour":8,"minute":0} ל-scheduled_daily',
-        },
-        steps: {
-          type: "array",
-          description: "שלבי הפלואו בסדר לינארי",
-          items: {
-            type: "object",
-            properties: {
-              type: {
-                type: "string",
-                enum: ["agent", "action", "condition", "delay", "merge"],
-                description: "סוג השלב",
-              },
-              skin: {
-                type: "string",
-                description: "לשלב agent — סקין לכפות (slug)",
-              },
-              instruction: {
-                type: "string",
-                description: "לשלב agent — ההוראה לשלב",
-              },
-              action_type: {
-                type: "string",
-                description:
-                  "לשלב action — למשל notification / send_greenapi_message / create_task",
-              },
-              config: { type: "object", description: "הגדרת השלב" },
-              label: { type: "string" },
-            },
-            required: ["type"],
-          },
-        },
-      },
-      required: ["name", "trigger_type", "steps"],
-    },
-  },
-  // ===========================
-  // MEDIA LIBRARY (carmen-media bucket + marketing_media_library)
-  // ===========================
-  {
-    name: "save_media_from_chat",
-    description:
-      "שמירת מדיה (תמונה/וידאו) מהודעת צ'אט אל ספריית המדיה של הלקוח. אם message_id ניתן — מושך את כתובת הקובץ מההודעה אוטומטית. אם רק media_url — שומר ישירות. אסור להמציא URL — או לקבל מהמשתמש או להשתמש ב-message_id מההיסטוריה.",
-    parameters: {
-      type: "object",
-      properties: {
-        message_id: {
-          type: "string",
-          description: "מזהה ההודעה ב-chat_messages (עדיף)",
-        },
-        media_url: { type: "string" },
-        mime_type: { type: "string" },
-        client_id: { type: "string" },
-        lead_id: { type: "string" },
-        caption: { type: "string" },
-        tags: { type: "array", items: { type: "string" } },
-      },
-    },
-  },
-  {
-    name: "list_client_media",
-    description:
-      "רשימת קבצי מדיה ששמורים ללקוח (או ליד). מחזיר media_id, mime, ad_ready, caption.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        lead_id: { type: "string" },
-        only_ad_ready: { type: "boolean" },
-        tags: { type: "array", items: { type: "string" } },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  // ===========================
-  // META (Facebook + Instagram) ADS — all mutating actions go through approval queue
-  // ===========================
-  {
-    name: "fb_create_campaign",
-    description:
-      "יצירת קמפיין חדש בפייסבוק/אינסטגרם. **דורש אישור בוואטסאפ** — הכלי יוצר בקשת אישור ומחכה. סטטוס ברירת מחדל PAUSED. השתמש objective: OUTCOME_LEADS / OUTCOME_TRAFFIC / OUTCOME_SALES.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        name: { type: "string" },
-        objective: { type: "string" },
-        daily_budget: { type: "number", description: 'בש"ח (לא מינור-יוניטס)' },
-        special_ad_categories: { type: "array", items: { type: "string" } },
-      },
-      required: ["client_id", "name"],
-    },
-  },
-  {
-    name: "fb_create_adset",
-    description: "יצירת ad set חדש (קהל יעד + תקציב). דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        campaign_id: { type: "string" },
-        name: { type: "string" },
-        daily_budget: { type: "number" },
-        billing_event: { type: "string" },
-        optimization_goal: { type: "string" },
-        targeting: {
-          type: "object",
-          description: "מבנה Meta targeting (geo, age, interests)",
-        },
-        start_time: { type: "string" },
-        end_time: { type: "string" },
-      },
-      required: ["campaign_id", "name", "targeting"],
-    },
-  },
-  {
-    name: "fb_create_creative_from_media",
-    description:
-      "בניית קריאייטיב חדש מתוך media_id בספריה + page_id + טקסט. דורש אישור. אם lead_form_id מצורף — הקריאייטיב יוצר/מקושר ל-Lead Gen Form.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        media_id: { type: "string" },
-        page_id: { type: "string" },
-        message: { type: "string" },
-        link: { type: "string" },
-        name: { type: "string" },
-        call_to_action_type: { type: "string" },
-        lead_form_id: { type: "string" },
-      },
-      required: ["client_id", "media_id", "page_id", "message"],
-    },
-  },
-  {
-    name: "fb_create_ad",
-    description:
-      "יצירת מודעה (ad) ב-ad set קיים עם קריאייטיב מוכן. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        adset_id: { type: "string" },
-        name: { type: "string" },
-        creative_id: { type: "string" },
-      },
-      required: ["adset_id", "name", "creative_id"],
-    },
-  },
-  {
-    name: "fb_replace_lead_form",
-    description: "החלפת טופס לידים במודעה קיימת. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        ad_id: { type: "string" },
-        new_form_id: { type: "string" },
-      },
-      required: ["ad_id", "new_form_id"],
-    },
-  },
-  {
-    name: "fb_update_budget",
-    description: "שינוי תקציב יומי או lifetime לקמפיין/ad set. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        entity_id: { type: "string", description: "campaign_id או adset_id" },
-        daily_budget: { type: "number" },
-        lifetime_budget: { type: "number" },
-      },
-      required: ["entity_id"],
-    },
-  },
-  {
-    name: "fb_pause",
-    description: "השהיית קמפיין/ad set/מודעה (PAUSED). דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: { entity_id: { type: "string" } },
-      required: ["entity_id"],
-    },
-  },
-  {
-    name: "fb_resume",
-    description: "הדלקה מחדש (ACTIVE) של קמפיין/ad set/מודעה. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: { entity_id: { type: "string" } },
-      required: ["entity_id"],
-    },
-  },
-  // inspect_facebook_ad / fb_duplicate_ad_variants live next to list_facebook_ads (early in ALL_TOOLS).
-  // ===========================
-  // GOOGLE ADS — pause/resume/budget at campaign level
-  // ===========================
-  {
-    name: "gads_pause",
-    description: "השהיית קמפיין Google Ads. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        customer_id: { type: "string" },
-        campaign_id: { type: "string" },
-      },
-      required: ["customer_id", "campaign_id"],
-    },
-  },
-  {
-    name: "gads_resume",
-    description: "הדלקת קמפיין Google Ads. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        customer_id: { type: "string" },
-        campaign_id: { type: "string" },
-      },
-      required: ["customer_id", "campaign_id"],
-    },
-  },
-  {
-    name: "gads_update_budget",
-    description: "שינוי תקציב יומי לקמפיין Google Ads. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: {
-        customer_id: { type: "string" },
-        campaign_id: { type: "string" },
-        daily_budget: { type: "number" },
-      },
-      required: ["customer_id", "campaign_id", "daily_budget"],
-    },
-  },
-  {
-    name: "list_google_ad_accounts",
-    description:
-      "שליפת כל חשבונות Google Ads המחוברים לטננט. מחזיר customer_id, name, status, client_id (אם משויך ללקוח).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: {
-          type: "string",
-          description: "סינון לפי לקוח ספציפי (אופציונלי)",
-        },
-      },
-    },
-  },
-  {
-    name: "list_google_campaigns",
-    description:
-      "רשימת קמפיינים בחשבון Google Ads (חי מ-API). ספקי customer_id או client_id (ייפתר מטבלת google_ads משויכת או clients.google_ads_account_id).",
-    parameters: {
-      type: "object",
-      properties: {
-        customer_id: { type: "string" },
-        client_id: { type: "string" },
-        name_search: { type: "string" },
-        status: {
-          type: "string",
-          enum: ["ENABLED", "PAUSED", "REMOVED", "ALL"],
-        },
-      },
-      required: [],
-    },
-  },
-  {
-    name: "create_google_ads_report_table",
-    description:
-      "יצירת טבלת דוח Google Ads ב-CRM ללקוח (integration_type=google_ads). לא מריץ sync — קראי ל-sync_google_ads_report אחרי.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        customer_id: { type: "string", description: "מזהה חשבון Google Ads" },
-        account_name: { type: "string" },
-        date_range: { type: "string", description: "ברירת מחדל last_30_days" },
-      },
-      required: ["client_id", "customer_id"],
-    },
-  },
-  {
-    name: "sync_google_ads_report",
-    description:
-      "סנכרון נתוני Google Ads לטבלת CRM. זהה לפי table_id או client_id (טבלת google_ads של הלקוח).",
-    parameters: {
-      type: "object",
-      properties: {
-        table_id: { type: "string" },
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "sync_facebook_insights",
-    description:
-      "סנכרון נתוני Facebook Insights לטבלת CRM. זהה לפי table_id או client_id (טבלת facebook_insights של הלקוח).",
-    parameters: {
-      type: "object",
-      properties: {
-        table_id: { type: "string" },
-        client_id: { type: "string" },
-      },
-    },
-  },
-  {
-    name: "connect_google_ads_account",
-    description:
-      "שיוך חשבון Google Ads (customer_id) ללקוח ב-CRM. שומר את המזהה ב-clients.google_ads_account_id.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string", description: "מזהה הלקוח" },
-        customer_id: {
-          type: "string",
-          description: "מזהה חשבון Google Ads (ספרות בלבד, ללא מקפים)",
-        },
-      },
-      required: ["client_id", "customer_id"],
-    },
-  },
-  {
-    name: "connect_client_meta_ad_account",
-    description:
-      "שיוך חשבון מודעות Meta/Facebook (act_...) ללקוח ב-CRM. מעדכן clients.meta_ads_account_id (מקור האמת ל-analyze_campaign/get_client_info) ומסנכרן טבלת facebook_insights אם קיימת. אם כבר מחובר חשבון אחר — דורש confirm_replace=true אחרי אזהרה מפורשת.",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string", description: "מזהה הלקוח (UUID)" },
-        ad_account_id: {
-          type: "string",
-          description: "מזהה חשבון מודעות Meta (act_XXXXX או ספרות)",
-        },
-        account_name: {
-          type: "string",
-          description:
-            "שם חשבון המודעות (אופציונלי, לעדכון טבלת facebook_insights)",
-        },
-        platform: {
-          type: "string",
-          enum: ["facebook", "meta", "facebook/meta"],
-          description: "ברירת מחדל facebook/meta",
-        },
-        confirm_replace: {
-          type: "boolean",
-          description: "חובה true כדי להחליף חשבון Meta קיים אחר",
-        },
-      },
-      required: ["client_id", "ad_account_id"],
-    },
-  },
-  // ===========================
-  // SCHEDULED PAUSE/RESUME
-  // ===========================
-  {
-    name: "schedule_campaign_toggle",
-    description:
-      'תזמון אוטומטי של כיבוי/הדלקה בלוח זמנים (cron) או חד-פעמי (run_at). דורש אישור. דוגמה: לכבות כל יום ב-22:00 → cron_expression "0 22 * * *". להדליק ראשון-חמישי 07:00 → "0 7 * * 1-5".',
-    parameters: {
-      type: "object",
-      properties: {
-        entity_id: { type: "string" },
-        entity_type: {
-          type: "string",
-          enum: ["fb_campaign", "fb_adset", "fb_ad", "google_campaign"],
-        },
-        action: { type: "string", enum: ["pause", "resume"] },
-        cron_expression: { type: "string" },
-        run_at: { type: "string", description: "ISO datetime לחד-פעמי" },
-        timezone: { type: "string", description: "ברירת מחדל Asia/Jerusalem" },
-        client_id: { type: "string" },
-        notes: { type: "string" },
-      },
-      required: ["entity_id", "entity_type", "action"],
-    },
-  },
-  {
-    name: "list_campaign_schedules",
-    description: "רשימת תזמונים פעילים של פעולות על קמפיינים (כיבוי/הדלקה).",
-    parameters: {
-      type: "object",
-      properties: {
-        client_id: { type: "string" },
-        only_enabled: { type: "boolean" },
-        limit: { type: "integer" },
-      },
-    },
-  },
-  {
-    name: "cancel_campaign_schedule",
-    description: "ביטול תזמון קיים.",
-    parameters: {
-      type: "object",
-      properties: { schedule_id: { type: "string" } },
-      required: ["schedule_id"],
-    },
-  },
-  // ===========================
-  // BROADCAST (דיוור)
-  // ===========================
-  {
-    name: "list_broadcasts",
-    description:
-      "רשימת דיוורים קיימים (broadcasts). מחזיר שם, ערוץ, סטטוס, תאריך תזמון וסטטיסטיקות שליחה. השתמש כדי לראות מה קיים לפני יצירה חדשה.",
-    parameters: {
-      type: "object",
-      properties: {
-        status: {
-          type: "string",
-          enum: [
-            "draft",
-            "scheduled",
-            "sending",
-            "sent",
-            "paused",
-            "failed",
-            "canceled",
-          ],
-          description: "סינון לפי סטטוס (אופציונלי)",
-        },
-        limit: { type: "integer", description: "ברירת מחדל 20" },
-      },
-    },
-  },
-  {
-    name: "create_broadcast",
-    description:
-      'יצירת דיוור WhatsApp חדש לקהל יעד (לקוחות / לידים / קמפיינרים / רשימה / קבוצות וואטסאפ). דורש אישור לפני שליחה. אחרי יצירה — שאל "לשלוח עכשיו או לתזמן?".',
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "שם הדיוור" },
-        body_text: {
-          type: "string",
-          description: "תוכן ההודעה. אפשר להשתמש ב-{{contact_name}} כמשתנה.",
-        },
-        audience_source: {
-          type: "string",
-          enum: ["clients", "leads", "campaigners", "wa_groups"],
-          description: "מקור הקהל",
-        },
-        audience_filter: {
-          type: "object",
-          description:
-            'פרמטרים נוספים לפי source: clients→{statuses,tagIds}, leads→{statusKeys,salesPersonIds}, campaigners→{roles}, wa_groups→{groupIds:["uuid1",...]}',
-        },
-        scheduled_at: {
-          type: "string",
-          description:
-            "תאריך ושעה לתזמון ב-ISO UTC (אופציונלי — ריק = שלח מיד אחרי אישור)",
-        },
-        integration_id: {
-          type: "string",
-          description:
-            "UUID של חיבור WhatsApp לשימוש (אופציונלי — ישתמש בברירת מחדל)",
-        },
-      },
-      required: ["name", "body_text", "audience_source"],
-    },
-  },
-  {
-    name: "send_broadcast_now",
-    description:
-      "שליחה מיידית של דיוור קיים (status=draft/scheduled). דורש אישור. מעביר לסטטוס sending ומתחיל לשלוח.",
-    parameters: {
-      type: "object",
-      properties: {
-        broadcast_id: { type: "string", description: "מזהה הדיוור" },
-      },
-      required: ["broadcast_id"],
-    },
-  },
-  {
-    name: "schedule_broadcast",
-    description:
-      "תזמון דיוור קיים לשליחה בזמן עתידי. דורש אישור. מעביר לסטטוס scheduled.",
-    parameters: {
-      type: "object",
-      properties: {
-        broadcast_id: { type: "string", description: "מזהה הדיוור" },
-        scheduled_at: {
-          type: "string",
-          description:
-            "תאריך ושעה ב-ISO UTC (לדוגמה 2026-07-01T18:00:00Z עבור 21:00 שעון ישראל)",
-        },
-      },
-      required: ["broadcast_id", "scheduled_at"],
-    },
-  },
-  {
-    name: "cancel_broadcast",
-    description: "ביטול דיוור מתוזמן או עצירת דיוור פעיל. דורש אישור.",
-    parameters: {
-      type: "object",
-      properties: { broadcast_id: { type: "string" } },
-      required: ["broadcast_id"],
-    },
-  },
-  {
-    name: "list_wa_groups",
-    description:
-      "רשימת קבוצות וואטסאפ הזמינות לדיוור (לא חסומות). מחזיר id, group_name, group_chat_id. השתמש כדי לקבל groupIds לפני יצירת דיוור לקבוצות.",
-    parameters: {
-      type: "object",
-      properties: {
-        name_search: {
-          type: "string",
-          description: "חיפוש חלקי בשם הקבוצה (אופציונלי)",
-        },
-        limit: { type: "integer", description: "ברירת מחדל 50" },
-      },
-    },
-  },
-  // ===========================
-  // APPROVAL FLOW
-  // ===========================
-  {
-    name: "list_pending_approvals",
-    description:
-      'רשימת בקשות אישור פתוחות שהמשתמש רשאי לאשר, כל אחת עם קוד קצר. לאישור בקשה מהרשימה המשתמש עונה "כן" ואחריו הקוד.',
-    parameters: { type: "object", properties: { limit: { type: "integer" } } },
-  },
-  {
-    name: "execute_pending_approval",
-    description:
-      'ביצוע בקשת אישור פתוחה — אחרי שהמשתמש אישר ("כן"/"מאשר"/"תעשי את זה"). מבצע רק בקשה שהמשתמש עצמו ביקש בשיחה הזו ב-30 הדקות האחרונות. אחרת לא מבוצע כלום ומוחזרת רשימת בקשות עם קודים — הציגי אותה ובקשי לענות "כן" ואחריו הקוד. כספים, שליחות החוצה והגדרות דורשים בעלים/מנהל סוכנות. אסור לטעון שבוצע אלא אם success=true.',
-    parameters: {
-      type: "object",
-      properties: {
-        approval_id: { type: "string" },
-        tool_name: {
-          type: "string",
-          description: "אופציונלי: העדף pending עם tool_name הזה",
-        },
-      },
-    },
-  },
-  {
-    name: "reject_pending_approval",
-    description: "דחיית בקשת אישור פתוחה — אחרי שהמשתמש סירב.",
-    parameters: {
-      type: "object",
-      properties: {
-        approval_id: { type: "string" },
-        reason: { type: "string" },
-      },
-      required: ["approval_id"],
-    },
-  },
-  // ===========================
-  // CALENDAR INVITES
-  // ===========================
-  {
-    name: "send_calendar_invite",
-    description:
-      "שליחת זימון Google Calendar דרך מייל. אפשר להוסיף Google Meet (ברירת מחדל כש-add_conference=true) או Zoom אם האינטגרציה מוגדרת, ומוזמנים נוספים. גוגל שולחת מייל עם אישור/דחייה.",
-    parameters: {
-      type: "object",
-      properties: {
-        attendee_email: {
-          type: "string",
-          description: "כתובת המייל של המוזמן הראשי",
-        },
-        attendee_name: { type: "string", description: "שם המוזמן (אופציונלי)" },
-        title: { type: "string", description: "שם הפגישה/האירוע" },
-        date: { type: "string", description: "תאריך בפורמט YYYY-MM-DD" },
-        time: { type: "string", description: "שעת התחלה בפורמט HH:MM" },
-        duration_minutes: {
-          type: "integer",
-          description: "משך בדקות (ברירת מחדל 60)",
-        },
-        notes: {
-          type: "string",
-          description: "הערות / תיאור הפגישה (אופציונלי)",
-        },
-        add_conference: {
-          type: "boolean",
-          description: "true = הוסף שיחת וידאו. ברירת מחדל Google Meet.",
-        },
-        conference_type: {
-          type: "string",
-          description: "meet | zoom. zoom נופל ל-Meet אם Zoom לא מוגדר בטננט.",
-        },
-        add_attendee_emails: {
-          type: "array",
-          items: { type: "string" },
-          description: "מיילים נוספים למוזמנים",
-        },
-        add_carmen: {
-          type: "boolean",
-          description:
-            "הוסף את כרמן כמוזמנת (מייל) אם יש carmen_email / קמפיינר כרמן",
-        },
-        carmen_email: {
-          type: "string",
-          description: "מייל כרמן כמוזמנת, אם ידוע",
-        },
-      },
-      required: ["attendee_email", "title", "date", "time"],
-    },
-  },
-  {
-    name: "list_calendar_events",
-    description:
-      'רשימת אירועים ביומן הארגון בטווח תאריכים (ברירת מחדל: 14 הימים הקרובים). השתמשי כדי למצוא event_id לפני עדכון/ביטול פגישה, או כשנשאלת "מה יש ביומן".',
-    parameters: {
-      type: "object",
-      properties: {
-        date_from: {
-          type: "string",
-          description: "YYYY-MM-DD (ברירת מחדל היום)",
-        },
-        date_to: {
-          type: "string",
-          description: "YYYY-MM-DD (ברירת מחדל +14 ימים)",
-        },
-        search: {
-          type: "string",
-          description: "סינון טקסט חופשי (שם פגישה/משתתף)",
-        },
-      },
-    },
-  },
-  {
-    name: "update_calendar_invite",
-    description:
-      "עדכון פגישה קיימת לפי event_id: מועד/כותרת/הערות, הוספת Google Meet או Zoom, והוספת מוזמנים בלי למחוק קיימים. מחזיר event_link, conference_url ורשימת attendees. Zoom נופל ל-Meet אם האינטגרציה לא מוגדרת.",
-    parameters: {
-      type: "object",
-      properties: {
-        event_id: { type: "string" },
-        date: { type: "string", description: "YYYY-MM-DD" },
-        time: { type: "string", description: "HH:MM שעון ישראל" },
-        duration_minutes: { type: "integer" },
-        title: { type: "string" },
-        notes: { type: "string" },
-        add_conference: {
-          type: "boolean",
-          description: "true = הוסף שיחת וידאו לאירוע הקיים",
-        },
-        conference_type: {
-          type: "string",
-          description:
-            "meet | zoom. zoom מנסה Zoom API ואם חסר — Google Meet + zoom_available=false",
-        },
-        add_attendee_emails: {
-          type: "array",
-          items: { type: "string" },
-          description: "מיילים להוספה; לא מחליפים מוזמנים קיימים",
-        },
-        add_carmen: {
-          type: "boolean",
-          description: "הוסף את כרמן כמוזמנת מייל אם ניתן לזהות מייל",
-        },
-        carmen_email: {
-          type: "string",
-          description: "מייל כרמן כמוזמנת",
-        },
-      },
-      required: ["event_id"],
-    },
-  },
-  {
-    name: "cancel_calendar_invite",
-    description:
-      "ביטול פגישה ביומן — המשתתפים מקבלים הודעת ביטול. חובה event_id (מ-list_calendar_events). חובה confirmed=true אחרי שהמשתמש אישר במפורש.",
-    parameters: {
-      type: "object",
-      properties: {
-        event_id: { type: "string" },
-        confirmed: {
-          type: "boolean",
-          description: "חובה true — רק אחרי אישור מפורש של המשתמש",
-        },
-      },
-      required: ["event_id", "confirmed"],
-    },
-  },
-  // ===========================
-  // MEETING BOT (Zoom / Meet / Teams)
-  // ===========================
-  {
-    name: "join_meeting_for_client",
-    description:
-      "שליחת כרמן (בוט תמלול גלוי) לפגישת Zoom, Google Meet או Microsoft Teams — גם בלי זימון ביומן. מתמללת ומסכמת פגישת לקוח, פגישה פנימית שמשויכת לאיש צוות/קמפיינר, או פגישה כללית של הסוכנות. בלי יעד מפורש כרמן מזהה לקוח/צוות ואם אין התאמה שומרת סיכום סוכנות כללי.",
-    parameters: {
-      type: "object",
-      properties: {
-        meeting_url: {
-          type: "string",
-          description:
-            "קישור מלא לפגישה (zoom.us/j/..., meet.google.com/..., teams.microsoft.com/...)",
-        },
-        client_id: { type: "string", description: "מזהה לקוח לשיוך הסיכום" },
-        lead_id: { type: "string", description: "מזהה ליד" },
-        campaigner_ids: {
-          type: "array",
-          items: { type: "string" },
-          description: "מזהי אנשי צוות/קמפיינרים לפגישה פנימית",
-        },
-        agency_id: {
-          type: "string",
-          description: "מזהה סוכנות לסיכום כללי או פנימי",
-        },
-        summary_scope: {
-          type: "string",
-          enum: ["auto", "client", "lead", "campaigner", "agency"],
-          description: "סוג יעד הסיכום",
-        },
-        meeting_topic: {
-          type: "string",
-          description: "שם/נושא הפגישה (אופציונלי)",
-        },
-      },
-      required: ["meeting_url"],
-    },
-  },
-  {
-    name: "get_meeting_bot_status",
-    description:
-      "סטטוס בוט פגישה של כרמן — האם הצטרפה, מקליטה, מעבדת סיכום, או נכשלה. לפי session_id או bot_id.",
-    parameters: {
-      type: "object",
-      properties: {
-        session_id: { type: "string" },
-        bot_id: { type: "string" },
-      },
-    },
-  },
-  // ===========================
-  // CAMPAIGNER MESSAGING
-  // ===========================
-  // send_message_to_campaigner / send_whatsapp_to_staff / lookup_staff_whatsapp — defined near send_message (CORE/PRIORITY) so the OpenAI 128-tool cap cannot drop them.
-  // Last, so adding them never shifts which earlier tools survive the tool cap.
-  ...WORKSHOP_TOOLS,
-];
 
 // ===========================
 // TOOL EXECUTOR
@@ -4763,7 +1245,7 @@ async function fbResolveClientMetaReport(
     );
   }
   for (const t of data || []) {
-    const s = jsonObject(t?.integration_settings);
+    const s = readReportSettings(t.integration_settings);
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
     if (acc) {
       return {
@@ -4932,7 +1414,7 @@ async function searchClientsBroadly(
     const c = t.clients;
     if (!c?.id) continue;
     if (opts.agencyId && c.agency_id !== opts.agencyId) continue;
-    const settings = jsonObject(t.integration_settings);
+    const settings = readReportSettings(t.integration_settings);
     const adAccount = {
       table_id: t.id,
       table_name: t.name,
@@ -5193,16 +1675,6 @@ type MetaLeadPage = {
   integration_id: string;
 };
 
-type MetaLeadForm = {
-  id: string;
-  name: string;
-  status: string | null;
-  fields: Array<{ key: string; label: string; type: string }>;
-  page_id: string;
-  page_name: string;
-  integration_id: string;
-};
-
 function metaNameMatches(value: unknown, query: unknown): boolean {
   const normalize = (input: unknown) =>
     String(input || "")
@@ -5226,44 +1698,6 @@ function assertHttpsUrl(value: unknown, field: string): string {
   return url.toString();
 }
 
-async function metaLeadIntegrations(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-) {
-  const { data, error } = await supabase
-    .from("tenant_integrations")
-    .select("id, api_key, settings, shared_from_integration_id")
-    .eq("tenant_id", tenantId)
-    .eq("integration_type", "facebook_lead_ads")
-    .eq("is_active", true);
-  if (error) throw error;
-  const result: Array<
-    Pick<AgentRow<"tenant_integrations">, "id" | "settings"> & {
-      api_key: string;
-    }
-  > = [];
-  for (const row of data || []) {
-    let source: Pick<
-      AgentRow<"tenant_integrations">,
-      "id" | "api_key" | "settings"
-    > = row;
-    if (
-      (!row.api_key || !Array.isArray(jsonObject(row.settings).pages)) &&
-      row.shared_from_integration_id
-    ) {
-      const { data: shared } = await supabase
-        .from("tenant_integrations")
-        .select("id, api_key, settings")
-        .eq("id", row.shared_from_integration_id)
-        .maybeSingle();
-      if (shared) source = { ...shared, id: row.id };
-    }
-    if (source.api_key)
-      result.push({ ...source, api_key: source.api_key, id: row.id });
-  }
-  return result;
-}
-
 async function metaLeadPages(
   supabase: AgentDatabaseClient,
   tenantId: string,
@@ -5271,12 +1705,7 @@ async function metaLeadPages(
   const integrations = await metaLeadIntegrations(supabase, tenantId);
   const pages: MetaLeadPage[] = [];
   for (const integration of integrations) {
-    const configuredPages = jsonObject(integration.settings).pages;
-    let sourcePages: MetaNode[] = Array.isArray(configuredPages)
-      ? configuredPages.filter((page): page is typeof page & MetaNode =>
-          isMetaNode(page),
-        )
-      : [];
+    let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
     if (sourcePages.length === 0) {
       let next: string | null =
         `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
@@ -5380,86 +1809,6 @@ async function findAutomationForMetaForm(
   const match = matches[0];
   if (!match.tenant_id) throw new Error("Automation has no tenant");
   return { ...match, tenant_id: match.tenant_id };
-}
-
-async function connectMetaFormToAutomation(
-  supabase: AgentDatabaseClient,
-  automation: Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
-    tenant_id: string;
-  },
-  form: MetaLeadForm,
-) {
-  const { data: steps, error: stepsError } = await supabase
-    .from("automation_flow_steps")
-    .select("id, action_type, configuration")
-    .eq("automation_id", automation.id)
-    .eq("tenant_id", automation.tenant_id)
-    .eq("step_type", "trigger");
-  if (stepsError) throw stepsError;
-  const candidates = (steps || []).filter(
-    (step) =>
-      step.action_type === "lead_created" &&
-      (!jsonObject(step.configuration).lead_source ||
-        ["any", "facebook_form"].includes(
-          String(jsonObject(step.configuration).lead_source),
-        )),
-  );
-  if (candidates.length !== 1) {
-    throw new Error(
-      candidates.length === 0
-        ? "לא נמצא באוטומציה טריגר יחיד מסוג ליד חדש שניתן לחבר לטופס Meta"
-        : "נמצאו כמה טריגרים מתאימים באוטומציה; יש לתקן את הזרימה לפני החלפת הטופס",
-    );
-  }
-  const step = candidates[0];
-  const configuration = {
-    ...jsonObject(step.configuration),
-    lead_source: "facebook_form",
-    facebook_integration_id: form.integration_id,
-    facebook_page_id: form.page_id,
-    facebook_page_name: form.page_name,
-    facebook_form_id: form.id,
-    facebook_form_name: form.name,
-    facebook_form_fields: form.fields,
-  };
-  const { error: updateError } = await supabase
-    .from("automation_flow_steps")
-    .update({ configuration })
-    .eq("id", step.id)
-    .eq("tenant_id", automation.tenant_id);
-  if (updateError) throw updateError;
-
-  const { data: integration, error: integrationError } = await supabase
-    .from("tenant_integrations")
-    .select("settings")
-    .eq("id", form.integration_id)
-    .eq("tenant_id", automation.tenant_id)
-    .maybeSingle();
-  if (integrationError) throw integrationError;
-  if (!integration)
-    throw new Error("אינטגרציית Meta של הטופס אינה שייכת לארגון האוטומציה");
-  const settings = jsonObject(integration.settings);
-  const formMappings = { ...jsonObject(settings.form_mappings) };
-  formMappings[form.id] = {
-    ...jsonObject(formMappings[form.id]),
-    form_name: form.name,
-    page_id: form.page_id,
-    page_name: form.page_name,
-    agency_id: jsonObject(formMappings[form.id]).agency_id || null,
-    sales_person_ids: jsonObject(formMappings[form.id]).sales_person_ids || [],
-    fields: jsonObject(formMappings[form.id]).fields || {},
-  };
-  const { error: mappingError } = await supabase
-    .from("tenant_integrations")
-    .update({ settings: { ...settings, form_mappings: formMappings } })
-    .eq("id", form.integration_id)
-    .eq("tenant_id", automation.tenant_id);
-  if (mappingError) throw mappingError;
-  return {
-    automation_id: automation.id,
-    automation_name: automation.name,
-    trigger_step_id: step.id,
-  };
 }
 
 // Pull the lead count out of an insights row's `actions` array (Meta reports leads
@@ -5774,7 +2123,9 @@ async function loadPulseCriticalIssues(
           adAccountIds: clientAdAccountIds(
             activeTables.map((table) => ({
               ...table,
-              integration_settings: jsonObject(table.integration_settings),
+              integration_settings: readReportSettings(
+                table.integration_settings,
+              ),
             })),
           ),
           hasActiveCampaignTable: activeTables.length > 0,
@@ -5952,6 +2303,10 @@ async function devTaskApprovalRefusal(
       };
 }
 
+/**
+ * Execute a named tool after escalation checks and caller-scope preparation.
+ * Preserve approval context and handler ordering for normal and direct calls.
+ */
 async function executeTool(
   name: string,
   args: Record<string, any>,
@@ -5966,28 +2321,7 @@ async function executeTool(
   waNotify?: any,
   surface?: string | null,
   conversationId?: string | null,
-  approval: {
-    turnId?: string | null;
-    userText?: string | null;
-    /** Carmen's previous message; the workshop reads the taps that answer it. */
-    lastAssistant?: string | null;
-    /** The board page marked with this message (workshop_artifact_id). */
-    markedArtifactId?: string | null;
-    outOfBand?: boolean;
-    /** The client open in the workshop view (workshop_client_id). */
-    viewClientId?: string | null;
-    /** The project open on the workshop board (workshop_item_id). */
-    openItemId?: string | null;
-    /** approve_dev_task and dispatch_dev_task wait for the user's yes in a later message. */
-    devTaskTurn?: {
-      /** When the user's message of this turn arrived; the offered task must be older. */
-      turnStartedAt: string;
-      /** A signed-in user typed this turn in an AIOS chat (not a service call). */
-      appChatUser: boolean;
-      /** Carmen's previous message; the user's yes answers its dev-task question only. */
-      lastAssistantText: string;
-    } | null;
-  } = {},
+  approval: ToolApproval = {},
   /** The chat's app origin (request Origin), for full links to files the app serves. */
   appLinkOrigin?: string | null,
   // The person talking to Carmen in this run (resolveHumanRequesterUserId).
@@ -5996,49 +2330,36 @@ async function executeTool(
   // The "תעדי <code>" this run answers (confirm_finding_draft); omitted = none.
   findingDraftReply?: FindingDraftReply | null,
 ): Promise<any> {
-  // WhatsApp / automations often pass the sentinel "system". Never write that into uuid columns.
-  const actorUserId = asUuidOrNull(userId);
-  // Coding-agent escalations are identity-allowlisted (David=full, Ana=bugfix-only).
-  const devEscalationTier = await loadDevEscalationTierFromDb(supabase, {
-    tenantId,
-    agentId: agentId || null,
-    userId: actorUserId,
-    campaignerId: callerCampaignerId || null,
-    phone: callerPhone || null,
-  });
-  if (
-    isDevEscalationTool(name) &&
-    !isDevEscalationToolAllowed(name, devEscalationTier)
-  ) {
-    return {
-      error: "dev_escalation_forbidden",
-      message:
-        devEscalationTier === "bugfix"
-          ? DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE
-          : DEV_ESCALATION_REFUSAL_HE,
-    };
+  const prepared = await prepareToolDispatch(
+    name,
+    {
+      tenantId,
+      userId,
+      callerCampaignerId,
+      agentId,
+      callerRole,
+      callerManagedAgencyIds,
+      callerPhone,
+    },
+    {
+      loadTier: (caller) => loadDevEscalationTierFromDb(supabase, caller),
+      accessibleTenants: (id) => getAccessibleTenantIds(supabase, id),
+    },
+  );
+  if ("refusal" in prepared) {
+    return prepared.refusal;
   }
-  const accessibleTenantIds = await getAccessibleTenantIds(supabase, tenantId);
-  // callerRole is the highest role in any of the caller's tenants, not only this
-  // one, until AIO-275 scopes it to this tenant; get_reconciliation_status
-  // already re-reads the roles held in this tenant.
-  const isManagerRole = !!callerRole && MANAGER_ROLES.includes(callerRole);
-  const isTeamManager = callerRole === "team_manager";
-  const managedAgencyIds = Array.isArray(callerManagedAgencyIds)
-    ? callerManagedAgencyIds
-    : [];
-  // Effective scope flag — true means "do not narrow to a single caller campaigner"
-  const bypassCampaignerScope =
-    isManagerRole || (isTeamManager && managedAgencyIds.length > 0);
-  const canManageAutomations = isManagerRole || isTeamManager;
-  // Caller-scope bundle for assertCallerCanAccessClient (client-scoped mutations).
-  const callerScope = {
-    callerCampaignerId,
+  const {
+    actorUserId,
+    devEscalationTier,
+    accessibleTenantIds,
     isManagerRole,
     isTeamManager,
     managedAgencyIds,
-    accessibleTenantIds,
-  };
+    bypassCampaignerScope,
+    canManageAutomations,
+    callerScope,
+  } = prepared.scope;
   if (isWorkshopTool(name)) {
     return executeWorkshopTool(
       supabase,
@@ -8684,13 +5005,15 @@ async function executeTool(
       let items: MarketingWorkItemListRow[] = data || [];
       if (args.department) {
         items = items.filter(
-          (it) => (jsonObject(it.payload).department || "") === args.department,
+          (it) =>
+            (readMarketingWorkItemPayload(it.payload).department || "") ===
+            args.department,
         );
       }
       return {
         count: items.length,
         items: items.map((it) => {
-          const payload = jsonObject(it.payload);
+          const payload = readMarketingWorkItemPayload(it.payload);
           return {
             id: it.id,
             title: it.title,
@@ -8902,7 +5225,7 @@ async function executeTool(
                 ? "creative"
                 : args.to_stage_type === "copy"
                   ? "copy"
-                  : jsonObject(item.payload).department,
+                  : readMarketingWorkItemPayload(item.payload).department,
           },
           updated_at: new Date().toISOString(),
         })
@@ -9486,7 +5809,7 @@ async function executeTool(
       return {
         automation: auto,
         steps: stepRows.map((s) => {
-          const configuration = jsonObject(s.configuration);
+          const configuration = readAutomationStepSummary(s.configuration);
           return {
             id: s.id,
             step_type: s.step_type,
@@ -9586,7 +5909,13 @@ async function executeTool(
       >[] = triggerSteps || [];
       const currentByAutomation = new Map(
         triggerRows
-          .map((s) => [s.automation_id, jsonObject(s.configuration)] as const)
+          .map(
+            (s) =>
+              [
+                s.automation_id,
+                readAutomationStepSummary(s.configuration),
+              ] as const,
+          )
           .filter(([, configuration]) => configuration.facebook_form_id),
       );
 
@@ -11252,31 +7581,36 @@ async function executeTool(
     case "check_ad_accounts_health": {
       // 1. Resolve client scope: own tenant + shared-agency clients only (see
       // analyze_campaign_performance — same cross-tenant flooding hazard).
+      const db: AgentDatabaseClient = supabase;
       const healthSel =
         "id, name, agency_id, meta_ads_account_id, agencies(name)";
-      const healthFilters = (q: any) => {
+      const healthClients = (scopeTenantId: string) =>
+        db.from("clients").select(healthSel).eq("tenant_id", scopeTenantId);
+      const healthFilters = (q: ReturnType<typeof healthClients>) => {
         q = q.in("status", ["active"]); // pulse/health reports must exclude paused/ended/onboarding clients
         if (args.client_id) q = q.eq("id", args.client_id);
         if (args.agency_id) q = q.eq("agency_id", args.agency_id);
         return q;
       };
       const { data: healthOwn } = await healthFilters(
-        supabase.from("clients").select(healthSel).eq("tenant_id", tenantId),
+        healthClients(tenantId),
       ).order("name");
-      let scopeClients: any[] = healthOwn || [];
-      const { data: healthShares } = await supabase
+      let scopeClients = healthOwn || [];
+      const { data: healthShares } = await db
         .from("agency_tenant_access")
         .select("source_tenant_id, agency_id")
         .eq("accessing_tenant_id", tenantId);
       // Same ownership rule as analyze_campaign_performance above.
       const healthShareAgencyIds = [
         ...new Set(
-          (healthShares || []).map((s: any) => s.agency_id).filter(Boolean),
+          (healthShares || [])
+            .map((s) => s.agency_id)
+            .filter((id): id is string => Boolean(id)),
         ),
       ];
       const healthOwnedAgencies = new Set<string>();
       if (healthShareAgencyIds.length > 0) {
-        const { data: ags } = await supabase
+        const { data: ags } = await db
           .from("agencies")
           .select("id")
           .eq("tenant_id", tenantId)
@@ -11292,16 +7626,12 @@ async function executeTool(
           continue;
         if (!healthOwnedAgencies.has(sh.agency_id)) continue;
         const { data: sharedClients } = await healthFilters(
-          supabase
-            .from("clients")
-            .select(healthSel)
-            .eq("tenant_id", sh.source_tenant_id)
-            .eq("agency_id", sh.agency_id),
+          healthClients(sh.source_tenant_id).eq("agency_id", sh.agency_id),
         );
         if (sharedClients?.length)
           scopeClients = scopeClients.concat(sharedClients);
       }
-      const clientIds = (scopeClients || []).map((c: any) => c.id);
+      const clientIds = (scopeClients || []).map((c) => c.id);
       if (clientIds.length === 0)
         return {
           count: 0,
@@ -11311,16 +7641,20 @@ async function executeTool(
         };
 
       // 2. Find facebook_insights tables (which contain ad_account_id) for these clients
-      const { data: fbTables } = await supabase
+      const { data: fbTables } = await db
         .from("crm_tables")
         .select("client_id, integration_settings")
         .in("tenant_id", accessibleTenantIds)
         .in("client_id", clientIds)
         .eq("integration_type", "facebook_insights");
 
-      const fbTableByClient = new Map<string, any>();
-      for (const t of fbTables || [])
-        fbTableByClient.set(t.client_id, t.integration_settings);
+      const fbTableByClient = new Map<string | null, MetaAdSettings>();
+      for (const t of fbTables || []) {
+        fbTableByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
+      }
 
       // 3. Fetch Facebook access token (tenant integration)
       let { data: integration } = await supabase
@@ -11346,7 +7680,11 @@ async function executeTool(
       // 4. Fetch all ad accounts in one shot (status + spend_cap)
       const accountStatusById = new Map<
         string,
-        { status: number; name: string; disable_reason?: number }
+        {
+          status: MetaNode["account_status"] | undefined;
+          name: MetaNode["name"] | undefined;
+          disable_reason?: unknown;
+        }
       >();
       let tokenOk = !!accessToken;
       if (accessToken) {
@@ -11354,22 +7692,23 @@ async function executeTool(
           let url: string | null =
             `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,account_id,name,account_status,disable_reason&limit=200&access_token=${accessToken}`;
           while (url) {
-            const r: any = await fetch(url);
-            const j: any = await r.json();
-            if (j.error) {
+            const r: Response = await fetch(url);
+            const res = await readMetaResponse(r);
+            if (!res.ok || res.value.error) {
               tokenOk = false;
               break;
             }
+            const j = res.value;
             for (const a of j.data || []) {
               accountStatusById.set(String(a.id), {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: a.disable_reason,
+                disable_reason: adAccountDisableReason(a),
               });
               accountStatusById.set(`act_${a.account_id}`, {
                 status: a.account_status,
                 name: a.name,
-                disable_reason: a.disable_reason,
+                disable_reason: adAccountDisableReason(a),
               });
             }
             url = j.paging?.next || null;
@@ -11384,18 +7723,21 @@ async function executeTool(
       const d7 = new Date(now);
       d7.setDate(d7.getDate() - 7);
       const d7Str = d7.toISOString().split("T")[0];
-      const fbTableIds = (fbTables || []).map((t: any) => t).filter(Boolean);
-      const tableIdsForRecords = await supabase
+      const fbTableIds = (fbTables || []).map((t) => t).filter(Boolean);
+      const tableIdsForRecords = await db
         .from("crm_tables")
         .select("id, client_id, integration_settings")
         .in("client_id", clientIds)
         .in("tenant_id", accessibleTenantIds)
         .eq("integration_type", "facebook_insights");
-      const tableIdToClient = new Map<string, string>();
-      const settingsByClient = new Map<string, any>();
+      const tableIdToClient = new Map<string, string | null>();
+      const settingsByClient = new Map<string | null, MetaAdSettings>();
       for (const t of tableIdsForRecords.data || []) {
         tableIdToClient.set(t.id, t.client_id);
-        settingsByClient.set(t.client_id, t.integration_settings);
+        settingsByClient.set(
+          t.client_id,
+          readMetaAdSettings(t.integration_settings),
+        );
       }
       const tableIds = Array.from(tableIdToClient.keys());
       const spendByClient = new Map<
@@ -11429,7 +7771,7 @@ async function executeTool(
         }
       }
 
-      const unhealthy: any[] = [];
+      const unhealthy: AdAccountHealthIssue[] = [];
       let healthy = 0;
       for (const c of scopeClients || []) {
         const settings = settingsByClient.get(c.id);
@@ -11512,7 +7854,8 @@ async function executeTool(
     }
     case "list_unconnected_clients": {
       // Get active clients that don't have a facebook_insights table
-      const { data: allClients, error: clientsErr } = await supabase
+      const db: AgentDatabaseClient = supabase;
+      const { data: allClients, error: clientsErr } = await db
         .from("clients")
         .select("id, name, agency_id, agencies(name)")
         .in("tenant_id", accessibleTenantIds)
@@ -11520,7 +7863,7 @@ async function executeTool(
         .order("name");
       if (clientsErr) throw clientsErr;
 
-      const { data: connectedTables } = await supabase
+      const { data: connectedTables } = await db
         .from("crm_tables")
         .select("client_id")
         .in("tenant_id", accessibleTenantIds)
@@ -11528,11 +7871,11 @@ async function executeTool(
         .not("client_id", "is", null);
 
       const connectedClientIds = new Set(
-        (connectedTables || []).map((t: any) => t.client_id),
+        (connectedTables || []).map((t) => t.client_id),
       );
       const unconnected = (allClients || [])
-        .filter((c: any) => !connectedClientIds.has(c.id))
-        .map((c: any) => ({
+        .filter((c) => !connectedClientIds.has(c.id))
+        .map((c) => ({
           id: c.id,
           name: c.name,
           agency_name: c.agencies?.name,
@@ -11541,7 +7884,8 @@ async function executeTool(
       return { count: unconnected.length, unconnected_clients: unconnected };
     }
     case "list_integrations": {
-      let q = supabase
+      const db: AgentDatabaseClient = supabase;
+      let q = db
         .from("tenant_integrations")
         .select(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
@@ -11554,7 +7898,7 @@ async function executeTool(
       if (error) throw error;
       return {
         count: data?.length || 0,
-        integrations: (data || []).map((i: any) => ({
+        integrations: (data || []).map((i) => ({
           id: i.id,
           type: i.integration_type,
           is_active: i.is_active,
@@ -11605,7 +7949,7 @@ async function executeTool(
       };
     }
     case "update_agent": {
-      const updates: any = {};
+      const updates: TablesUpdate<"ai_agents"> = {};
       for (const k of [
         "name",
         "talent",
@@ -11613,7 +7957,7 @@ async function executeTool(
         "soul",
         "engine",
         "active",
-      ]) {
+      ] as const) {
         if (args[k] !== undefined) updates[k] = args[k];
       }
       const { data, error } = await supabase
@@ -11832,7 +8176,7 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .single();
       if (!current) return { error: "Skill not found" };
-      const updates: any = {
+      const updates: TablesUpdate<"ai_skills"> = {
         steps: args.body,
         version: (current.version || 1) + 1,
         updated_at: new Date().toISOString(),
@@ -11883,23 +8227,19 @@ async function executeTool(
     }
 
     case "delegate_parallel": {
-      const items = Array.isArray(args.tasks) ? args.tasks : [];
+      const items: unknown[] = Array.isArray(args.tasks) ? args.tasks : [];
       if (items.length === 0)
         throw new Error("tasks (array of {title, prompt}) is required");
       if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
-      const cleaned = items
-        .filter((it: any) => it && it.title && it.prompt)
-        .map((it: any) => ({
-          title: String(it.title),
-          prompt: String(it.prompt),
-          taskSkills: Array.isArray(it.task_skills)
-            ? it.task_skills
-            : undefined,
-          // Routing: read-only subtasks (side_effects:false) run in parallel;
-          // mutating ones (default) run one-at-a-time in the serial lane.
-          sideEffects:
-            typeof it.side_effects === "boolean" ? it.side_effects : undefined,
-        }));
+      const cleaned = parallelTaskArgs(items).map((it) => ({
+        title: it.title,
+        prompt: it.prompt,
+        taskSkills: Array.isArray(it.task_skills) ? it.task_skills : undefined,
+        // Routing: read-only subtasks (side_effects:false) run in parallel;
+        // mutating ones (default) run one-at-a-time in the serial lane.
+        sideEffects:
+          typeof it.side_effects === "boolean" ? it.side_effects : undefined,
+      }));
       if (cleaned.length === 0)
         throw new Error("כל תת-משימה חייבת title ו-prompt");
       const batchId = crypto.randomUUID();
@@ -11931,6 +8271,7 @@ async function executeTool(
       ) {
         throw new Error("name, trigger_type ו-steps (מערך לא ריק) נדרשים");
       }
+      const stepArgs: unknown[] = args.steps;
       const spec = {
         name: String(args.name),
         description: args.description ? String(args.description) : null,
@@ -11939,14 +8280,17 @@ async function executeTool(
           args.trigger_config && typeof args.trigger_config === "object"
             ? args.trigger_config
             : {},
-        steps: (args.steps as any[]).slice(0, 20).map((s) => ({
-          type: String(s.type || "agent"),
-          skin: s.skin ? String(s.skin) : null,
-          instruction: s.instruction ? String(s.instruction) : null,
-          action_type: s.action_type ? String(s.action_type) : null,
-          config: s.config && typeof s.config === "object" ? s.config : {},
-          label: s.label ? String(s.label) : null,
-        })),
+        steps: stepArgs
+          .slice(0, 20)
+          .map(automationStepArg)
+          .map((s) => ({
+            type: s.type || "agent",
+            skin: s.skin || null,
+            instruction: s.instruction || null,
+            action_type: s.action_type || null,
+            config: s.config && typeof s.config === "object" ? s.config : {},
+            label: s.label || null,
+          })),
       };
       const stepSummary = spec.steps
         .map(
@@ -12278,7 +8622,7 @@ async function executeTool(
         accessibleTenantIds,
       );
 
-      let result = accounts.map((a: any) => ({
+      let result = accounts.map((a) => ({
         customer_id: a.customer_id,
         name: a.name,
         status: a.status,
@@ -12288,7 +8632,7 @@ async function executeTool(
       }));
 
       if (args.client_id) {
-        result = result.filter((a: any) => a.client_id === args.client_id);
+        result = result.filter((a) => a.client_id === args.client_id);
       }
 
       return { count: result.length, accounts: result };
@@ -12384,32 +8728,30 @@ async function executeTool(
           error: `Google Ads API: ${searchData.error?.message || JSON.stringify(searchData.error)}`,
         };
 
-      let campaigns = (searchData.results || []).map((row: any) => ({
-        campaign_id: String(row.campaign?.id || ""),
-        name: row.campaign?.name || null,
-        status: row.campaign?.status || null,
-        daily_budget:
-          row.campaignBudget?.amountMicros != null
-            ? Number(row.campaignBudget.amountMicros) / 1_000_000
-            : null,
-        cost:
-          row.metrics?.costMicros != null
-            ? Number(row.metrics.costMicros) / 1_000_000
-            : null,
-        clicks: row.metrics?.clicks != null ? Number(row.metrics.clicks) : null,
-        impressions:
-          row.metrics?.impressions != null
-            ? Number(row.metrics.impressions)
-            : null,
-        conversions:
-          row.metrics?.conversions != null
-            ? Number(row.metrics.conversions)
-            : null,
-      }));
+      const searchRows: unknown[] = searchData.results || [];
+      let campaigns = searchRows.map((row) => {
+        const { campaign, campaignBudget, metrics } =
+          readGoogleAdsCampaignRow(row);
+        const budgetMicros = campaignBudget.amountMicros;
+        const { costMicros, clicks, impressions, conversions } = metrics;
+        return {
+          campaign_id: String(campaign.id || ""),
+          name: campaign.name || null,
+          status: campaign.status || null,
+          daily_budget:
+            budgetMicros != null ? Number(budgetMicros) / 1_000_000 : null,
+          cost: costMicros != null ? Number(costMicros) / 1_000_000 : null,
+          clicks: clicks != null ? Number(clicks) : null,
+          impressions: impressions != null ? Number(impressions) : null,
+          conversions: conversions != null ? Number(conversions) : null,
+        };
+      });
       if (args.name_search) {
         const needle = String(args.name_search).toLowerCase();
-        campaigns = campaigns.filter((c: any) =>
-          (c.name || "").toLowerCase().includes(needle),
+        campaigns = campaigns.filter((c) =>
+          String(c.name || "")
+            .toLowerCase()
+            .includes(needle),
         );
       }
       return { customer_id: customerId, count: campaigns.length, campaigns };
@@ -12649,7 +8991,8 @@ async function executeTool(
       if (clientErr) throw clientErr;
       if (!client) return { error: "לקוח לא נמצא או מחוץ להרשאות" };
 
-      const { data: fbTables } = await supabase
+      const db: AgentDatabaseClient = supabase;
+      const { data: fbTables } = await db
         .from("crm_tables")
         .select("id, name, integration_settings")
         .eq("client_id", clientId)
@@ -12661,9 +9004,7 @@ async function executeTool(
         : null;
       const existingTableAccount =
         (fbTables || [])
-          .map((t: any) =>
-            normalizeMetaAdAccountId(t?.integration_settings?.ad_account_id),
-          )
+          .map((t) => readMetaAdAccountBinding(t.integration_settings))
           .find((id: string | null) => !!id) || null;
 
       const conflicts = [existingClientAccount, existingTableAccount]
@@ -12730,11 +9071,13 @@ async function executeTool(
         previous_ad_account_id: string | null;
       }> = [];
       for (const table of fbTables || []) {
-        const prev = table?.integration_settings?.ad_account_id
-          ? normalizeMetaAdAccountId(table.integration_settings.ad_account_id)
-          : null;
+        const prev = readMetaAdAccountBinding(table.integration_settings);
         const nextSettings = {
-          ...(table.integration_settings || {}),
+          ...(table.integration_settings !== null &&
+          typeof table.integration_settings === "object" &&
+          !Array.isArray(table.integration_settings)
+            ? table.integration_settings
+            : {}),
           ad_account_id: normalizedAccountId,
           ...(account_name ? { ad_account_name: account_name } : {}),
         };
@@ -12909,7 +9252,7 @@ async function executeTool(
     }
     case "create_broadcast": {
       // Build audience_filter from source + extra filter
-      const audience_filter: Record<string, any> = {
+      const audience_filter: TablesInsert<"broadcasts">["audience_filter"] = {
         source: args.audience_source,
         ...(args.audience_filter || {}),
       };
@@ -12938,7 +9281,7 @@ async function executeTool(
           .maybeSingle();
         if (integ) provider = integ.integration_type;
       }
-      const insertData: Record<string, any> = {
+      const insertData: TablesInsert<"broadcasts"> = {
         tenant_id: tenantId,
         created_by: userId && userId !== "system" ? userId : null,
         name: args.name,
@@ -13100,7 +9443,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13136,7 +9479,7 @@ async function executeTool(
         guestsCanModify: false,
       };
       let zoom_available: boolean | null = null;
-      let zoom_status: string | null = null;
+      let zoom_status: string | null | undefined = null;
       let conference_applied = "none";
       const qp = new URLSearchParams({
         sendUpdates: "all",
@@ -13219,7 +9562,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13246,19 +9589,20 @@ async function executeTool(
           headers: { Authorization: `Bearer ${cal.accessToken}` },
         },
       );
-      const data = await resp.json();
+      const data: unknown = await resp.json();
       if (!resp.ok)
         return {
-          error: `שגיאת Google Calendar: ${data?.error?.message || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
+      const calendarItems = readGoogleCalendarEvents(data);
       return {
-        count: (data.items || []).length,
-        events: (data.items || []).map((e: any) => ({
+        count: calendarItems.length,
+        events: calendarItems.map((e) => ({
           event_id: e.id,
           title: e.summary,
-          start: e.start?.dateTime || e.start?.date,
-          end: e.end?.dateTime || e.end?.date,
-          attendees: (e.attendees || []).map((a: any) => a.email),
+          start: e.start.dateTime || e.start.date,
+          end: e.end.dateTime || e.end.date,
+          attendees: (e.attendees || []).map((a) => a.email),
           link: e.htmlLink,
           conference_url: extractConferenceUrl(e),
           conference_type: conferenceKindFromUrl(extractConferenceUrl(e)),
@@ -13275,7 +9619,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13349,7 +9693,7 @@ async function executeTool(
       const cal = await resolveCalendarAccessToken(
         supabase,
         tenantId,
-        callerCampaignerId,
+        callerCampaignerId ?? null,
         userId,
       );
       if (cal.error || !cal.accessToken) return { error: cal.error };
@@ -13361,9 +9705,9 @@ async function executeTool(
         },
       );
       if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
-        const data = await resp.json().catch(() => ({}));
+        const data: unknown = await resp.json().catch(() => ({}));
         return {
-          error: `שגיאת Google Calendar: ${(data as any)?.error?.message || resp.status}`,
+          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
         };
       }
       return {
@@ -13474,10 +9818,12 @@ async function executeTool(
           tenantId,
           includeTokens: args.include_tokens !== false,
         });
-      } catch (e: any) {
+      } catch (e) {
         return {
           ok: false,
-          error: redactSecretsFromText(e?.message || "openai billing failed"),
+          error: redactSecretsFromText(
+            errorMessage(e) || "openai billing failed",
+          ),
           remaining_credit: null,
           remaining_credit_available: false,
           summary_he: "שגיאה בשליפת סטטוס חיוב OpenAI.",
@@ -13497,7 +9843,9 @@ async function executeTool(
         tenantId,
         entityType,
       );
-      let rows = roster.map(formatStaffContact).filter(Boolean) as any[];
+      let rows = roster
+        .map(formatStaffContact)
+        .filter((contact) => contact !== null);
       if (onlyWithPhone) rows = rows.filter((r) => r.has_phone);
       if (search) {
         rows = rows
@@ -13608,9 +9956,10 @@ async function executeTool(
       const pEnd = period_end || defaultEnd;
 
       // Resolve client_id by name if not given
+      const db: AgentDatabaseClient = supabase;
       let resolvedClientId = argClientId;
       if (!resolvedClientId && client_name) {
-        const { data: found } = await supabase
+        const { data: found } = await db
           .from("clients")
           .select("id, name")
           .in("tenant_id", accessibleTenantIds)
@@ -13621,14 +9970,14 @@ async function executeTool(
         if (found.length > 1)
           return {
             ambiguous: true,
-            matches: found.map((c: any) => ({ id: c.id, name: c.name })),
+            matches: found.map((c) => ({ id: c.id, name: c.name })),
             message: "נמצאו מספר לקוחות — ציין client_id",
           };
         resolvedClientId = found[0].id;
       }
 
       // Query seo_call_snapshots for given period
-      const snapshotQuery = supabase
+      const snapshotQuery = db
         .from("seo_call_snapshots")
         .select(
           "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
@@ -13647,21 +9996,19 @@ async function executeTool(
       if (snapErr) return { error: snapErr.message };
 
       // Enrich with client names
-      const clientIds = [
-        ...new Set((snapshots || []).map((s: any) => s.client_id)),
-      ];
+      const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
       const clientNames: Record<string, string> = {};
       if (clientIds.length) {
-        const { data: clients } = await supabase
+        const { data: clients } = await db
           .from("clients")
           .select("id, name")
           .in("id", clientIds);
-        clients?.forEach((c: any) => {
+        clients?.forEach((c) => {
           clientNames[c.id] = c.name;
         });
       }
 
-      const rows = (snapshots || []).map((s: any) => ({
+      const rows = (snapshots || []).map((s) => ({
         client_id: s.client_id,
         client_name: clientNames[s.client_id] || s.client_id,
         category: s.category,
@@ -13673,7 +10020,12 @@ async function executeTool(
       }));
 
       // Optional: compare with previous period of same length
-      let prevRows: any[] = [];
+      let prevRows: Array<{
+        client_id: string;
+        category: string;
+        incoming_calls: number;
+        period: string;
+      }> = [];
       if (period_compare) {
         const startDate = new Date(pStart);
         const endDate = new Date(pEnd);
@@ -13685,7 +10037,7 @@ async function executeTool(
           .toISOString()
           .split("T")[0];
 
-        const prevQuery = supabase
+        const prevQuery = db
           .from("seo_call_snapshots")
           .select("client_id, category, incoming_count")
           .in("tenant_id", accessibleTenantIds)
@@ -13694,7 +10046,7 @@ async function executeTool(
         if (resolvedClientId) prevQuery.eq("client_id", resolvedClientId);
         if (category && category !== "all") prevQuery.eq("category", category);
         const { data: prev } = await prevQuery;
-        prevRows = (prev || []).map((p: any) => ({
+        prevRows = (prev || []).map((p) => ({
           client_id: p.client_id,
           category: p.category,
           incoming_calls: p.incoming_count,
@@ -13752,7 +10104,7 @@ import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
 // In non-streaming mode it's a no-op.
-type Emit = ((obj: any) => void) | undefined;
+type Emit = ((obj: unknown) => void) | undefined;
 
 async function handleRunAgent(
   bodyJson: any,

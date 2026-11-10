@@ -5,6 +5,7 @@ import {
   saveSummaryForTarget,
 } from "./meeting-summary.ts";
 import { dispatchMeetingSummaryToCursor } from "./meeting-summary-cursor.ts";
+import { tenantSummaryKey } from "./meeting-summary-openrouter.ts";
 import { matchRecordingToClient } from "./recording-match.ts";
 import { enrichRecordingFromCalendar } from "./calendar-recording-match.ts";
 import { resolveOpenAIKey } from "./ai.ts";
@@ -267,7 +268,11 @@ export async function runRecordingPipeline(
   }
 
   const summary = await generateMeetingSummary(
-    OPENAI_API_KEY,
+    {
+      openaiKey: OPENAI_API_KEY,
+      openRouterKey: await tenantSummaryKey(admin, recording.tenant_id),
+      tenantId: recording.tenant_id,
+    },
     transcription,
     recordingInfo,
     "",

@@ -161,7 +161,7 @@ const STATUS_LABEL: Record<VideoSceneStatus, string> = {
 
 const STATUS_CLASS: Partial<Record<VideoSceneStatus, string>> = {
   still_ready: "bg-amber-500/90 text-white",
-  still_approved: "bg-emerald-600/90 text-white",
+  still_approved: "bg-primary/90 text-primary-foreground",
   clip_ready: "bg-sky-600/90 text-white",
   clip_approved: "bg-emerald-700/90 text-white",
   failed: "bg-destructive text-destructive-foreground",

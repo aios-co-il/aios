@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
 import typography from "@tailwindcss/typography";
+import { tailwindColors } from "./src/theme/tailwindColors";
 
 export default {
   darkMode: ["class"],
@@ -25,66 +26,16 @@ export default {
         heebo: ["Heebo", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        success: {
-          DEFAULT: "hsl(var(--success))",
-          foreground: "hsl(var(--success-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-        surface: {
-          elevated: "hsl(var(--surface-elevated))",
-          inset: "hsl(var(--surface-inset))",
-          "status-yellow": "hsl(var(--surface-status-yellow))",
-          "status-red": "hsl(var(--surface-status-red))",
-          "status-green": "hsl(var(--surface-status-green))",
-        },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
-        },
-      },
+      colors: tailwindColors,
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        md: "var(--radius-md)",
+        sm: "var(--radius-sm)",
+      },
+      boxShadow: {
+        "elevation-0": "none",
+        "elevation-1": "var(--elevation-1)",
+        "elevation-2": "var(--elevation-2)",
       },
       keyframes: {
         "accordion-down": {
@@ -106,11 +57,11 @@ export default {
         "carmen-glow": {
           "0%, 100%": {
             boxShadow:
-              "0 0 8px 4px rgba(52, 211, 153, 0.5), 0 0 16px 8px rgba(52, 211, 153, 0.3), inset 0 0 4px 1px rgba(52, 211, 153, 0.1)",
+              "0 0 8px 4px hsl(var(--primary) / 0.5), 0 0 16px 8px hsl(var(--primary) / 0.3), inset 0 0 4px 1px hsl(var(--primary) / 0.1)",
           },
           "50%": {
             boxShadow:
-              "0 0 14px 7px rgba(52, 211, 153, 0.7), 0 0 28px 14px rgba(52, 211, 153, 0.4), inset 0 0 6px 2px rgba(52, 211, 153, 0.15)",
+              "0 0 14px 7px hsl(var(--primary) / 0.7), 0 0 28px 14px hsl(var(--primary) / 0.4), inset 0 0 6px 2px hsl(var(--primary) / 0.15)",
           },
         },
         "carmen-breathe": {

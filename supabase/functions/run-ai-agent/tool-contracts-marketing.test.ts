@@ -65,3 +65,15 @@ Deno.test(
     }
   },
 );
+
+Deno.test(
+  "Meta question validation errors identify the rejected field concisely",
+  () => {
+    const error = assertThrows(
+      () => readMetaLeadQuestionInput({ type: 123 }),
+      Error,
+      "Invalid Meta lead question: type:",
+    );
+    assertEquals(error.message.includes("\n"), false);
+  },
+);

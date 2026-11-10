@@ -78,7 +78,6 @@ export const KNOWN_BYPASSES: CallSiteLists["bypasses"] = {
 export const KNOWN_UNSTAMPED_CALLERS: CallSiteLists["unstampedCallers"] = {
   "_shared/agent-channel/whatsapp-direct.ts": "AIO-261(b) staff_alert",
   "marketing-run-stage/index.ts": "AIO-261(b) staff_alert",
-  "process-new-recording/index.ts": "AIO-261(b) staff_alert",
   "test-campaign-monitor/index.ts": "AIO-261(b) staff_alert",
   "carmen-activate-phone/index.ts": "AIO-248 carmen with its activation ref",
   "carmen-introduce-group/index.ts": "AIO-248 activation codes, as carmen",

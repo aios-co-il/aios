@@ -200,7 +200,7 @@ function ModeToggle({
       key: "auto" as const,
       label: "אוטומטי",
       icon: Zap,
-      activeClass: "bg-emerald-500 text-white",
+      activeClass: "bg-primary text-primary-foreground",
     },
     {
       key: "hybrid" as const,

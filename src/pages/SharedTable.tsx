@@ -504,7 +504,7 @@ export default function SharedTable() {
                 setMonthlyWorkFullPage(true);
                 window.scrollTo({ top: 0 });
               }}
-              className="h-auto w-full justify-between gap-3 rounded-2xl bg-emerald-600 px-5 py-4 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 sm:px-7 sm:py-5"
+              className="h-auto w-full justify-between gap-3 rounded-2xl bg-primary px-5 py-4 text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 sm:px-7 sm:py-5"
             >
               <span className="flex items-center gap-3 text-right">
                 <FileText className="h-6 w-6 shrink-0 sm:h-7 sm:w-7" />

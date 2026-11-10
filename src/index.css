@@ -2,157 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
-@layer base {
-  :root {
-    /* Deep Blue #0A1526 - Primary brand color */
-    --background: 0 0% 94%;
-    --foreground: 209 59% 10%;
-
-    /* Warm cream — bordered panels sit above the page background */
-    --card: 40 35% 99%;
-    --card-foreground: 209 59% 10%;
-    --surface-elevated: 42 48% 99%;
-    --surface-inset: 42 36% 97%;
-    --surface-status-yellow: 46 62% 97.5%;
-    --surface-status-red: 8 58% 97.5%;
-    --surface-status-green: 145 42% 97.5%;
-
-    --popover: 42 48% 99%;
-    --popover-foreground: 209 59% 10%;
-
-    /* Turquoise Green - Primary accent color */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Light background */
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 209 59% 10%;
-
-    --muted: 0 0% 94%;
-    --muted-foreground: 209 19% 40%;
-
-    /* Light turquoise - Accent color */
-    --accent: 175 65% 60%;
-    --accent-foreground: 209 59% 10%;
-
-    /* Success color */
-    --success: 167 70% 93%;
-    --success-foreground: 209 59% 10%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 0 0% 89%;
-    --input: 0 0% 89%;
-    --ring: 167 70% 55%;
-
-    --radius: 0.75rem;
-
-    /* Primary glow - lighter turquoise */
-    --primary-glow: 175 65% 70%;
-
-    /* Turquoise Green gradient */
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
-    );
-    /* Success gradient */
-    --gradient-success: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
-    );
-    /* Subtle gradient for backgrounds */
-    --gradient-subtle: linear-gradient(
-      180deg,
-      hsl(167, 70%, 97%),
-      hsl(0, 0%, 100%)
-    );
-    --shadow-card:
-      0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg:
-      0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-
-    /* Turquoise sidebar */
-    --sidebar-background: 209 59% 10%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 209 59% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
-  }
-
-  .dark {
-    /* Deep Blue #0A1526 - Dark mode background */
-    --background: 209 59% 10%;
-    --foreground: 0 0% 100%;
-
-    --card: 209 59% 13%;
-    --card-foreground: 0 0% 100%;
-
-    --popover: 209 59% 13%;
-    --popover-foreground: 0 0% 100%;
-
-    /* Turquoise Green - Primary accent in dark mode */
-    --primary: 167 70% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 209 59% 15%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 209 59% 15%;
-    --muted-foreground: 0 0% 70%;
-
-    /* Light turquoise - Accent in dark mode */
-    --accent: 175 65% 60%;
-    --accent-foreground: 0 0% 100%;
-
-    /* Success in dark mode */
-    --success: 167 70% 93%;
-    --success-foreground: 209 59% 10%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 209 59% 18%;
-    --input: 209 59% 18%;
-    --ring: 167 70% 55%;
-
-    /* Turquoise Green gradient */
-    --gradient-primary: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(195, 70%, 60%)
-    );
-    /* Success gradient */
-    --gradient-success: linear-gradient(
-      135deg,
-      hsl(167, 70%, 55%),
-      hsl(175, 65%, 60%)
-    );
-    --shadow-card:
-      0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-    --shadow-lg:
-      0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
-
-    /* Turquoise sidebar in dark mode */
-    --sidebar-background: 209 59% 8%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 167 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 209 59% 13%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 209 59% 15%;
-    --sidebar-ring: 167 70% 55%;
-  }
-}
+/* Design tokens (colors, shadows, radius) are generated at runtime from the
+   tenant's brand colors by src/theme. Do not define color variables here. */
 
 @layer base {
   * {
@@ -197,6 +48,131 @@ All colors MUST be HSL.
 
   .shadow-lg {
     box-shadow: var(--shadow-lg);
+  }
+
+  /* Materials: frosted glass, page surface, card */
+  .material-glass {
+    background: hsl(var(--surface-elevated) / 0.6);
+    backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.6);
+  }
+
+  .material-surface {
+    background: hsl(var(--background));
+  }
+
+  .material-card {
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--elevation-1);
+  }
+
+  /* Glass orb (CarmenOrb.tsx), after the brand book: a milky white frosted
+     sphere with a soft inner glow in --orb-tint (HSL channels, defaults to
+     the tenant accent). */
+  .carmen-orb {
+    --orb-tint: var(--primary);
+    position: relative;
+    /* Keeps the core's blend inside this sphere, not with what is behind */
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background:
+      radial-gradient(
+        circle at 30% 24%,
+        hsl(0 0% 100% / 0.95) 0%,
+        hsl(0 0% 100% / 0.45) 18%,
+        transparent 44%
+      ),
+      radial-gradient(
+        circle at 70% 76%,
+        hsl(var(--orb-tint) / 0.42) 0%,
+        hsl(var(--orb-tint) / 0.12) 28%,
+        transparent 58%
+      ),
+      radial-gradient(
+        circle at 50% 42%,
+        hsl(40 20% 99% / 0.6) 0%,
+        hsl(220 14% 93% / 0.58) 68%,
+        hsl(220 12% 84% / 0.72) 100%
+      );
+    border: 1px solid hsl(0 0% 100% / 0.12);
+    box-shadow:
+      inset 0 3px 8px hsl(0 0% 100% / 0.45),
+      inset 0 -12px 26px hsl(var(--orb-tint) / 0.16),
+      0 14px 30px -10px hsl(var(--orb-tint) / 0.3);
+  }
+
+  /* Sharp specular reflection near the top edge */
+  .carmen-orb::before {
+    content: "";
+    z-index: 1;
+    position: absolute;
+    top: 7%;
+    left: 22%;
+    width: 38%;
+    height: 20%;
+    border-radius: 9999px;
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100% / 0.9),
+      hsl(0 0% 100% / 0)
+    );
+    transform: rotate(-18deg);
+    pointer-events: none;
+  }
+
+  /* Light caught on the lower rim */
+  .carmen-orb::after {
+    content: "";
+    z-index: 1;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at 50% 108%,
+      hsl(0 0% 100% / 0.55) 0%,
+      transparent 38%
+    );
+    pointer-events: none;
+  }
+
+  /* A sphere's core (ChannelSphere.tsx): text or icon in a dark shade of the
+     sphere's color, glowing from inside. It is not positioned, so the
+     orb's highlight and rim light (::before/::after) paint over it. */
+  .sphere-core {
+    --core-ink: var(--brand-accent-800);
+    color: hsl(var(--core-ink) / 0.85);
+    mix-blend-mode: multiply;
+    filter: blur(0.4px) drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
+      drop-shadow(0 0 0.55em hsl(var(--orb-tint) / 0.45));
+  }
+
+  /* Thin milky veil over a sphere's core, so the core reads as inside the
+     glass. Sits under the orb's highlight and rim light. */
+  .sphere-veil {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 50% 45%,
+      hsl(0 0% 100% / 0.22) 0%,
+      hsl(0 0% 100% / 0.14) 55%,
+      hsl(0 0% 100% / 0.06) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* AiOs logo (AiosLogo.tsx): heavy geometric letters with a faint lift.
+     Depth is in em so it scales with the letter size. */
+  .logo-3d {
+    --extrude: var(--foreground);
+    font-family: Outfit, Heebo, sans-serif;
+    text-shadow:
+      0 0.012em 0 hsl(var(--extrude) / 0.18),
+      0 0.08em 0.2em hsl(var(--foreground) / 0.06);
   }
 
   .direction-ltr {
@@ -309,4 +285,97 @@ All colors MUST be HSL.
   75% {
     transform: rotate(1.5deg);
   }
+}
+
+/* Marketing pages use the logo's mint as their action color. Unlayered and
+   with the `.dark` forms, so it also wins over the generated dark theme. */
+.theme-mint,
+.theme-mint.dark,
+.theme-mint .dark {
+  --primary: var(--brand-mint);
+  --ring: var(--brand-mint);
+  --status-active: var(--brand-mint);
+}
+
+/* The rolling orb (RollingOrb.tsx) stands in for the header orb */
+body.orb-traveling header [data-orb-home] {
+  visibility: hidden;
+}
+
+/* Navy contrast surfaces stay distinct when the whole page is dark */
+.dark .contrast-surface {
+  background: hsl(var(--surface-elevated));
+}
+
+/* Glass spheres on dark surfaces: a see-through body that is brighter at
+   the edges (fresnel), a tinted inner glow and a sharp highlight, instead of
+   the milky body used on light surfaces. */
+.dark .carmen-orb {
+  background:
+    radial-gradient(
+      circle at 30% 24%,
+      hsl(0 0% 100% / 0.28) 0%,
+      hsl(0 0% 100% / 0.06) 16%,
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 68% 76%,
+      hsl(var(--orb-tint) / 0.5) 0%,
+      hsl(var(--orb-tint) / 0.14) 30%,
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      hsl(0 0% 100% / 0.03) 0%,
+      hsl(0 0% 100% / 0.06) 55%,
+      hsl(var(--orb-tint) / 0.18) 88%,
+      hsl(0 0% 100% / 0.12) 100%
+    );
+  border-color: hsl(0 0% 100% / 0.05);
+  box-shadow:
+    inset 0 2px 8px hsl(0 0% 100% / 0.16),
+    inset 0 -10px 24px hsl(var(--orb-tint) / 0.28),
+    0 0 24px -4px hsl(var(--orb-tint) / 0.45);
+}
+
+/* Softer reflections on dark glass */
+.dark .carmen-orb::before {
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.32), transparent);
+}
+
+.dark .carmen-orb::after {
+  background: radial-gradient(
+    circle at 50% 108%,
+    hsl(0 0% 100% / 0.18) 0%,
+    transparent 38%
+  );
+}
+
+/* Cores glow in the sphere's own color from inside the dark glass */
+.dark .sphere-core {
+  color: hsl(var(--orb-tint));
+  mix-blend-mode: normal;
+}
+
+.dark .sphere-veil {
+  background: radial-gradient(
+    circle at 50% 45%,
+    hsl(0 0% 100% / 0.06) 0%,
+    transparent 70%
+  );
+}
+
+/* Faint grid behind the hero spheres, so their glass reads as see-through.
+   Light mode only: the dark glass already shows the page through it. */
+.orb-grid {
+  background-image:
+    linear-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center;
+  mask-image: radial-gradient(circle at 50% 50%, black 25%, transparent 68%);
+}
+
+.dark .orb-grid {
+  display: none;
 }

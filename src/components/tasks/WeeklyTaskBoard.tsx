@@ -2019,7 +2019,7 @@ export function WeeklyTaskBoard() {
               </Button>
             ) : (
               <Button
-                className="h-8 gap-1.5 px-2 text-xs shrink-0 bg-emerald-600 text-white hover:bg-emerald-500"
+                className="h-8 gap-1.5 px-2 text-xs shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
                 onClick={() => void handleConnectCalendar()}
                 disabled={connectingCalendar}
               >
@@ -2040,7 +2040,7 @@ export function WeeklyTaskBoard() {
           </span>
           <Button
             size="sm"
-            className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-500"
+            className="h-8 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={() => void handleConnectCalendar()}
             disabled={connectingCalendar}
           >
