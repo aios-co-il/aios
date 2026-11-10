@@ -1,6 +1,7 @@
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { AiosLogo } from "@/components/brand/AiosLogo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -47,12 +48,8 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full">
-          <img
-            src="/brand/carmen/symbol-soft.webp"
-            alt="Logo"
-            className="h-8 w-8 object-contain"
-          />
+        <Button variant="ghost" className="h-10 px-2" aria-label="תפריט משתמש">
+          <AiosLogo orb className="text-xl md:text-2xl" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-background z-[100]">
