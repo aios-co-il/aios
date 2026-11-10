@@ -10,6 +10,7 @@ import {
   PULSE_CHECK_SKILL_ROW,
 } from "../_shared/skills/pulse-skill-rows.ts";
 import { REFRESH_CAMPAIGN_PULSE_TOOL } from "./pulse-refresh/tool.ts";
+import { ALL_TOOLS } from "./tool-catalog.ts";
 
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
@@ -72,7 +73,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         runAiAgent.indexOf("function capToolsForTarget("),
       );
       assert(priority.includes("  REFRESH_PULSE_TOOL_NAME,\n"));
-      assert(runAiAgent.includes("  REFRESH_CAMPAIGN_PULSE_TOOL,\n"));
+      assert(ALL_TOOLS.includes(REFRESH_CAMPAIGN_PULSE_TOOL));
       const catalog = read("../../../src/lib/agentToolsCatalog.ts");
       assert(catalog.includes("name: REFRESH_PULSE_TOOL_NAME,"));
     },
@@ -171,12 +172,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
   );
 
   await t.step("pulse skins only name tools that run-ai-agent offers", () => {
-    const toolNames = new Set(
-      [...runAiAgent.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)].map(
-        (m) => m[1],
-      ),
-    );
-    toolNames.add(REFRESH_CAMPAIGN_PULSE_TOOL.name);
+    const toolNames = new Set(ALL_TOOLS.map((tool) => tool.name));
     for (const row of [PULSE_CHECK_SKILL_ROW, ECOMMERCE_PULSE_SKILL_ROW]) {
       for (const tool of row.allowed_tools) {
         assert(toolNames.has(tool), `${row.slug} → ${tool}`);
