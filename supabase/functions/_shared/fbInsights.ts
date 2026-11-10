@@ -737,8 +737,13 @@ export function buildInsightRecord(
       // Leads beside purchases or traffic: details left or messages (David,
       // 2026-11-09/10). Registration and other intent events fire on the
       // purchase page, so they are not leads here.
-      leads =
-        Math.max(_formLeadsValue, _pixelLeadsValue) + _messagingLeadsValue;
+      // A first reply can be the only messaging event Meta reports.
+      const messages = Math.max(
+        _messagingLeadsValue,
+        sumByTypes(["onsite_conversion.messaging_first_reply"]),
+        sumByTypes(["messaging_first_reply"]),
+      );
+      leads = Math.max(_formLeadsValue, _pixelLeadsValue) + messages;
     } else {
       // Conversions / Sales / Traffic with pixel — website leads.
       leads = _websiteLeads > 0 ? _websiteLeads : _formLeadsValue;
@@ -760,7 +765,11 @@ export function buildInsightRecord(
     else leads += _callLeadsValue;
   }
   // Aggregate `lead` does not include calls. Use it only when no lead signal fired.
-  if (!_leadsAuthoritative && leads === 0) leads = _aggregateLeadValue;
+  // Not for sales, traffic and awareness: the aggregate can carry the
+  // thank-you-page conversions those campaigns leave out.
+  if (!_leadsAuthoritative && !_detailsAndMessagesOnly && leads === 0) {
+    leads = _aggregateLeadValue;
+  }
 
   const _spendForLog = parseFloat(insight.spend) || 0;
   if (leads === 0 && _spendForLog > 0) {

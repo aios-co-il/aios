@@ -117,6 +117,24 @@ Deno.test("leads the sync stores from custom conversions", async (t) => {
     },
   );
 
+  await t.step("a traffic campaign skips the aggregate lead fallback", () => {
+    assertEquals(
+      storedLeads("OUTCOME_TRAFFIC", LEAD_IDS, [
+        { action_type: "lead", value: "3" },
+      ]),
+      0,
+    );
+  });
+
+  await t.step("a traffic campaign counts a first reply as a message", () => {
+    assertEquals(
+      storedLeads("OUTCOME_TRAFFIC", LEAD_IDS, [
+        { action_type: "onsite_conversion.messaging_first_reply", value: "2" },
+      ]),
+      2,
+    );
+  });
+
   await t.step("a lead campaign still counts its lead conversion", () => {
     assertEquals(storedLeads("OUTCOME_LEADS", LEAD_IDS), 3);
   });
