@@ -1,5 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { hasComplaintWords } from "./complaint-words.ts";
+import {
+  hasComplaintWords,
+  hasSeriousComplaintWords,
+} from "./complaint-words.ts";
 
 Deno.test("hasComplaintWords", async (t) => {
   await t.step("flags the Hebrew complaint words and the update type", () => {
@@ -12,6 +15,36 @@ Deno.test("hasComplaintWords", async (t) => {
         "תלונה על השירות",
       ].map(hasComplaintWords),
       [true, true, true, true, true],
+    );
+  });
+
+  await t.step("tells serious complaint words from mild ones", () => {
+    const serious = [
+      "הלקוח כועס",
+      "אנחנו רוצים לבטל את ההתקשרות",
+      "מגיע לי החזר כספי",
+      "אני פונה לעורך דין",
+      "Refund now",
+    ];
+    assertEquals(serious.map(hasComplaintWords), [
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    assertEquals(serious.map(hasSeriousComplaintWords), [
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+    assertEquals(
+      ["אני לא מרוצה מהקמפיין", "תלונה על השירות", "אפשר לבטל את הפוסט?"].map(
+        hasSeriousComplaintWords,
+      ),
+      [false, false, false],
     );
   });
 
