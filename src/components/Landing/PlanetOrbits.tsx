@@ -1,4 +1,4 @@
-import { AiosLogo } from "./AiosLogo";
+import { AiosLogo } from "@/components/brand/AiosLogo";
 import { CHANNEL_SPHERES, ChannelSphere } from "./ChannelSphere";
 import { CENTER_LAYER, type Orbit, usePlanetOrbits } from "./usePlanetOrbits";
 

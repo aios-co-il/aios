@@ -62,6 +62,14 @@
   width: 100%;
   left: 0;
 }
+/* Orb style: the humanised orb floats in the middle of the card. */
+.carmen-session-orb {
+  position: absolute;
+  width: 76%;
+  left: 12%;
+  top: 8%;
+  pointer-events: none;
+}
 .carmen-session-caption {
   position: absolute;
   bottom: 0;

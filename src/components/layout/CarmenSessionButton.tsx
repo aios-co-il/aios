@@ -1,5 +1,5 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { useCarmenUnreadReply } from "@/components/carmen-command/useCarmenUnreadReply";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
@@ -29,7 +29,8 @@ export function CarmenSessionButton() {
           aria-hidden
         />
       )}
-      <CarmenPortrait
+      <CarmenAvatar
+        skin={identity.activeSkin}
         image={identity.image}
         name={identity.name}
         custom={identity.custom}
