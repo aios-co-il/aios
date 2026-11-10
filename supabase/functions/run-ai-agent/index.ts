@@ -2303,6 +2303,10 @@ async function devTaskApprovalRefusal(
       };
 }
 
+/**
+ * Execute a named tool after escalation checks and caller-scope preparation.
+ * Preserve approval context and handler ordering for normal and direct calls.
+ */
 async function executeTool(
   name: string,
   args: Record<string, any>,
