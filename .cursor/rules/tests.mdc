@@ -1,6 +1,6 @@
 ---
 description: Tests
-globs: "**/*.test.ts,**/*.test.tsx,**/*.test.mjs"
+globs: "**/*.test.ts,**/*.test.tsx,**/*.test.mjs,**/*.test-fixture.ts,**/*.test-fixture.tsx"
 alwaysApply: false
 ---
 
@@ -9,6 +9,7 @@ alwaysApply: false
 # Tests
 
 - **Tests sit beside their module**, are named after it (`foo.ts` → `foo.test.ts`), group cases with `describe`, and match a runner's discovery pattern (`vitest.config.ts` `include`, or the `deno test` path in `.github/workflows/ci-frontend.yml`).
+- **Test-only fixtures sit beside their tests** and use `<module>.test-fixture.ts` (or `.tsx` for JSX); import them explicitly from tests and keep them outside test discovery patterns.
 - **Edge tests use `Deno.test`** with `jsr:@std/assert`.
 - **Simulate user interactions with `@testing-library/user-event`.** Create a session with `userEvent.setup()` and await its interactions; use this instead of `fireEvent`.
 - **Test the seam that broke.** A fix gets a test that fails on the old code at the integration point: handler, SQL function, trigger or grant. Inject dependencies so fakes fit, and cover the error paths the UI must handle.

@@ -6,7 +6,7 @@ import {
   automation,
   form,
   configuration,
-} from "./meta-form-binding-fixture.ts";
+} from "./meta-form-binding.test-fixture.ts";
 
 describe("connecting a Meta form with validated persisted settings", () => {
   it("writes metadata while preserving canonical field mappings and unrelated routing", async () => {
