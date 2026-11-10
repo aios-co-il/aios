@@ -10,7 +10,11 @@ import {
   resolveCarmenConnectionRole,
   sanitizeCarmenInstructions,
   secondaryCarmenGate,
+  type SecondaryGateResult,
 } from "./carmen-connection-role.ts";
+
+const gateReason = (result: SecondaryGateResult) =>
+  result.allow ? undefined : result.reason;
 
 Deno.test("role: explicit setting wins", () => {
   assertStrictEquals(
@@ -81,37 +85,36 @@ Deno.test(
 
 Deno.test("secondary gate: fail closed", () => {
   assertStrictEquals(
-    (secondaryCarmenGate({ ...base, pinnedIntegrationId: null }) as any).reason,
+    gateReason(secondaryCarmenGate({ ...base, pinnedIntegrationId: null })),
     "not_pinned_to_connection",
   );
   assertStrictEquals(
-    (secondaryCarmenGate({ ...base, pinnedIntegrationId: "other" }) as any)
-      .reason,
+    gateReason(secondaryCarmenGate({ ...base, pinnedIntegrationId: "other" })),
     "not_pinned_to_connection",
   );
   assertStrictEquals(
-    (secondaryCarmenGate({ ...base, integrationId: null }) as any).reason,
+    gateReason(secondaryCarmenGate({ ...base, integrationId: null })),
     "not_pinned_to_connection",
   );
   assertStrictEquals(
-    (secondaryCarmenGate({ ...base, isGroup: true }) as any).reason,
+    gateReason(secondaryCarmenGate({ ...base, isGroup: true })),
     "group_on_secondary",
   );
   // No trigger-less continuation on a personal phone.
   assertStrictEquals(
-    (secondaryCarmenGate({ ...base, hasTrigger: false }) as any).reason,
+    gateReason(secondaryCarmenGate({ ...base, hasTrigger: false })),
     "no_trigger",
   );
   // A contact writing "כרמן" to the owner's phone is ignored unless the
   // automation is limited to specific phones.
   assertStrictEquals(
-    (
+    gateReason(
       secondaryCarmenGate({
         ...base,
         isIncoming: true,
         isManualOutgoing: false,
-      }) as any
-    ).reason,
+      }),
+    ),
     "incoming_requires_phone_scope",
   );
   assertEquals(
@@ -145,6 +148,17 @@ Deno.test("automation context and prompt block", () => {
       carmen_instructions: " דברי רק על לידים ",
     }),
     { automation_id: "a1", carmen_instructions: "דברי רק על לידים" },
+  );
+  assertEquals(buildCarmenAutomationContext("a1", "x"), {
+    automation_id: "a1",
+    carmen_instructions: null,
+  });
+  assertStrictEquals(
+    resolveCarmenConnectionRole(
+      { integration_type: "green_api", settings: "secondary" },
+      { tenantHasActiveManus: false },
+    ),
+    "primary",
   );
   assertStrictEquals(automationInstructionsBlock(null), "");
   assertMatch(automationInstructionsBlock("שלום"), /הנחיות לשיחה זו/);
