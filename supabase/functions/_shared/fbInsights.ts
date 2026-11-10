@@ -361,6 +361,19 @@ export const STANDARD_INTENT_LEAD_TYPES = [
   "offsite_conversion.fb_pixel_subscribe",
 ];
 
+/**
+ * Traffic and awareness objectives: their leads are only details left or
+ * messages, as for a sales campaign.
+ */
+const DETAILS_AND_MESSAGES_OBJECTIVES: ReadonlySet<string> = new Set([
+  "OUTCOME_TRAFFIC",
+  "OUTCOME_AWARENESS",
+  "LINK_CLICKS",
+  "REACH",
+  "BRAND_AWARENESS",
+  "VIDEO_VIEWS",
+]);
+
 export const LEAD_ACTION_TYPES = [
   "lead", // Aggregate lead count
   "leadgen_grouped",
@@ -639,6 +652,13 @@ export function buildInsightRecord(
     metaObjectiveGoal(_objectiveForLeads) === "leads";
   const _isSalesObjective =
     metaObjectiveGoal(_objectiveForLeads) === "ecommerce";
+  // Sales, traffic and awareness campaigns count only people who left details
+  // (a form or the pixel Lead event) or wrote on Messenger/WhatsApp. Their
+  // custom conversions and intent events fire on thank-you and purchase pages
+  // (Aimee's Instagram traffic campaign counted course buyers as leads).
+  const _detailsAndMessagesOnly =
+    _isSalesObjective ||
+    DETAILS_AND_MESSAGES_OBJECTIVES.has(_objectiveForLeads);
   const _isMessagingObjective = ["OUTCOME_ENGAGEMENT", "MESSAGES"].includes(
     _objectiveForLeads,
   );
@@ -664,7 +684,7 @@ export function buildInsightRecord(
   // Custom conversions count only when they are lead, registration or contact
   // conversions; a purchase thank-you page is not a lead. A sales campaign
   // skips them: they fire on its purchase page and would count every sale.
-  const _customConversionLeadsValue = _isSalesObjective
+  const _customConversionLeadsValue = _detailsAndMessagesOnly
     ? 0
     : customConversionLeads(allActions, leadCustomConversionIds);
   // Standard intent events fired on landing pages (Complete Registration / etc.)
@@ -713,10 +733,9 @@ export function buildInsightRecord(
       // Prefer real form submissions; if the "Leads" campaign actually drives to a
       // website (pixel), use the pixel value instead of reporting 0.
       leads = _formLeadsValue > 0 ? _formLeadsValue : _websiteLeads;
-    } else if (_isSalesObjective) {
-      // A sales campaign's leads are people who left details (a form or the
-      // pixel Lead event) or wrote on Messenger/WhatsApp, beside its purchases
-      // (David, 2026-11-09). Registration and other intent events fire on the
+    } else if (_detailsAndMessagesOnly) {
+      // Leads beside purchases or traffic: details left or messages (David,
+      // 2026-11-09/10). Registration and other intent events fire on the
       // purchase page, so they are not leads here.
       leads =
         Math.max(_formLeadsValue, _pixelLeadsValue) + _messagingLeadsValue;

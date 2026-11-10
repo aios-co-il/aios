@@ -99,8 +99,26 @@ Deno.test("leads the sync stores from custom conversions", async (t) => {
     assertEquals(leads, 6);
   });
 
-  await t.step("a traffic campaign counts only the lead conversion", () => {
-    assertEquals(storedLeads("OUTCOME_TRAFFIC", LEAD_IDS), 3);
+  await t.step(
+    "a traffic campaign does not count thank-you conversions",
+    () => {
+      // Aimee's Instagram traffic campaign: the "ליד" conversion fires on the
+      // course purchase page, so its buyers were counted as leads.
+      assertEquals(storedLeads("OUTCOME_TRAFFIC", LEAD_IDS), 0);
+      assertEquals(
+        storedLeads("OUTCOME_TRAFFIC", LEAD_IDS, [
+          {
+            action_type: "onsite_conversion.messaging_conversation_started_7d",
+            value: "2",
+          },
+        ]),
+        2,
+      );
+    },
+  );
+
+  await t.step("a lead campaign still counts its lead conversion", () => {
+    assertEquals(storedLeads("OUTCOME_LEADS", LEAD_IDS), 3);
   });
 });
 
