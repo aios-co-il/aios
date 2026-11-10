@@ -74,8 +74,9 @@ function placePlanet(
   const x = flatX * Math.cos(tilt) - flatY * Math.sin(tilt);
   const y = flatX * Math.sin(tilt) + flatY * Math.cos(tilt);
 
+  // Strong size change sells the depth: far side about a third of the near.
   const nearness = (depth + 1) / 2;
-  const scale = 0.62 + 0.38 * nearness;
+  const scale = 0.45 + 0.85 * nearness ** 1.2;
   node.style.left = `${50 + x}%`;
   node.style.top = `${50 + y}%`;
   node.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
@@ -85,5 +86,5 @@ function placePlanet(
       : 10 + Math.round(nearness * 30),
   );
   const far = 1 - nearness;
-  node.style.filter = `blur(${(far * 1.6).toFixed(2)}px) saturate(${(1 - far * 0.5).toFixed(2)})`;
+  node.style.filter = `blur(${(far * 2.2).toFixed(2)}px) saturate(${(1 - far * 0.55).toFixed(2)})`;
 }
