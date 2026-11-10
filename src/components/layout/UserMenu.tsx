@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { AiosLogo } from "@/components/brand/AiosLogo";
@@ -48,8 +48,13 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-10 px-2" aria-label="תפריט משתמש">
+        <Button
+          variant="ghost"
+          className="h-10 gap-1 px-2"
+          aria-label="תפריט משתמש"
+        >
           <AiosLogo orb className="text-xl md:text-2xl" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-background z-[100]">
