@@ -69,8 +69,11 @@ export function CarmenStylePicker() {
               data-style={option.style}
               // One Tab stop for the group; arrow keys move between options.
               tabIndex={selected ? 0 : -1}
-              disabled={saving || !canEdit}
-              onClick={() => setStyle(option.style)}
+              // While saving, stay focusable (aria-disabled) so keyboard
+              // focus does not drop out of the group; clicks are ignored.
+              disabled={!canEdit}
+              aria-disabled={saving || !canEdit}
+              onClick={() => !saving && setStyle(option.style)}
               className="text-start"
             >
               <Card

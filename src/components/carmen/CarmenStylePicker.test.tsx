@@ -6,13 +6,14 @@ import { CarmenStylePicker } from "./CarmenStylePicker";
 const state = vi.hoisted(() => ({
   style: "orbs" as "orbs" | "character",
   isOwner: true,
+  saving: false,
   setStyle: vi.fn(),
 }));
 vi.mock("@/hooks/useCarmenAvatarStyle", () => ({
   useCarmenAvatarStyle: () => ({
     style: state.style,
     setStyle: state.setStyle,
-    saving: false,
+    saving: state.saving,
   }),
 }));
 vi.mock("@/hooks/useUserRole", () => ({
@@ -25,6 +26,7 @@ vi.mock("@/components/carmen-profile/CarmenPortrait", () => ({
 beforeEach(() => {
   state.style = "orbs";
   state.isOwner = true;
+  state.saving = false;
   state.setStyle.mockReset();
 });
 
@@ -61,5 +63,21 @@ describe("CarmenStylePicker", () => {
     expect(screen.getByText(/רק בעלי הארגון/)).toBeInTheDocument();
     await user.click(character);
     expect(state.setStyle).not.toHaveBeenCalled();
+  });
+
+  test("keeps focus in the group while a save is pending", async () => {
+    state.saving = true;
+    const user = userEvent.setup();
+    render(<CarmenStylePicker />);
+    const orbs = screen.getByRole("radio", { name: /ספירות/ });
+    orbs.focus();
+    expect(orbs).toHaveFocus();
+    expect(orbs).toHaveAttribute("aria-disabled", "true");
+    await user.keyboard("{ArrowDown}");
+    await user.click(screen.getByRole("radio", { name: /כרמן/ }));
+    expect(state.setStyle).not.toHaveBeenCalled();
+    expect(screen.getByRole("radiogroup")).toContainElement(
+      document.activeElement as HTMLElement,
+    );
   });
 });
