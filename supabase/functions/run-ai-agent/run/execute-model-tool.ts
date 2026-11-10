@@ -1,3 +1,4 @@
+import type { ToolResultMetadata } from "../tool-result-metadata.ts";
 import type { McpExecutor } from "./contracts.ts";
 import type { RunState } from "./state.ts";
 import { lastAssistantText } from "../../_shared/workshop/tapped-answers.ts";
@@ -133,11 +134,12 @@ export async function executeModelTool(
         run.humanRequesterUserId,
         run.findingDraftReply,
       );
-      if (result?.pending_approval && result?.approval_id) {
+      const metadata = result as ToolResultMetadata | null | undefined;
+      if (metadata?.pending_approval && metadata?.approval_id) {
         await bindApprovalToConversation(
           run.supabase,
           run.resolvedTenantId,
-          String(result.approval_id),
+          String(metadata.approval_id),
           run.callerUserId || asUuidOrNull(run.resolvedUserId),
           run.approvalConversation,
         );

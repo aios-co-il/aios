@@ -29,7 +29,11 @@ const forgedBody = () => ({
 
 // The service-only fields are trusted only because these callers use the service
 // key and the browser never sends them, so the guards below keep that true.
-const agent = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+const entry = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+const agent = readFileSync(
+  new URL("./request/handle.ts", import.meta.url),
+  "utf8",
+);
 
 Deno.test("bindRunAgentCaller", async (t) => {
   await t.step(
@@ -90,8 +94,11 @@ Deno.test("service-only fields: source guards", async (t) => {
   await t.step(
     "run-ai-agent binds the caller before any use of the body",
     () => {
-      const serveAt = agent.indexOf("Deno.serve(async (req) =>");
-      assert(serveAt > 0, "Deno.serve entry point not found");
+      assertMatch(entry, /Deno\.serve\(handleRequest\);/);
+      const serveAt = agent.indexOf(
+        "export async function handleRequestWithDependencies(",
+      );
+      assert(serveAt > 0, "request handler not found");
       const serve = agent.slice(serveAt);
       const bindAt = serve.indexOf("bindRunAgentCaller(bodyJson, auth);");
       assert(
@@ -111,7 +118,7 @@ Deno.test("service-only fields: source guards", async (t) => {
         );
       assertMatch(
         agent,
-        /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\/caller-trust\.ts";/,
+        /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\.\/caller-trust\.ts";/,
       );
     },
   );

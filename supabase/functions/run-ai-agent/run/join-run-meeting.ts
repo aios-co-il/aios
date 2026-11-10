@@ -1,3 +1,4 @@
+import type { ToolResultMetadata } from "../tool-result-metadata.ts";
 import type { RunState } from "./state.ts";
 import { extractMeetingUrl } from "../../_shared/meeting-url.ts";
 import { isBlockedInWorkshop } from "../../_shared/workshop/blocked-tools.ts";
@@ -20,7 +21,7 @@ export async function joinRunMeeting(
       `[AGENT] Auto-dispatching meeting bot for URL: ${meetingUrl.slice(0, 80)}`,
     );
     const autoStart = Date.now();
-    const execResult = await run.dependencies.executeTool(
+    const execResult = (await run.dependencies.executeTool(
       "join_meeting_for_client",
       { meeting_url: meetingUrl },
       run.supabase,
@@ -33,7 +34,7 @@ export async function joinRunMeeting(
       run.callerPhone,
       run.wa_notify,
       run.input.surface,
-    );
+    )) as ToolResultMetadata | null | undefined;
     const finalOutput = execResult?.success
       ? String(
           execResult.message ||

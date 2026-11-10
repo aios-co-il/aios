@@ -15,7 +15,7 @@ import { ALL_TOOLS } from "./tool-catalog.ts";
 
 const read = (path: string) =>
   Deno.readTextFileSync(new URL(path, import.meta.url));
-const runAiAgent = readRunStages() + "\n" + read("./index.ts");
+const runAiAgent = readRunStages() + "\n" + read("./direct-tools/handle.ts");
 
 // Source guards follow the extracted owners; full-run parity tests cover assembled requests.
 Deno.test("run-ai-agent index.ts", async (t) => {
@@ -61,13 +61,13 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(result\);/,
+        /toolName === REFRESH_PULSE_TOOL_NAME &&\s*pulseRefreshRoute\.digestShortcut\s*\) \{\s*pulseDigestShortcut = buildPulseRefreshDigestReply\(\s*result\b/,
       );
       assert(!runAiAgent.includes("isPulseRefreshRequest("));
       // The tool runs with executeTool's caller and scope.
       assertMatch(
-        runAiAgent,
-        /case REFRESH_PULSE_TOOL_NAME:\s*return executeRefreshCampaignPulseTool\(/,
+        read("./tool-execution/routes/pulse.ts"),
+        /\[REFRESH_PULSE_TOOL_NAME\]: legacyRefreshCampaignPulseRoute/,
       );
       assertMatch(
         read("./executors/refresh-campaign-pulse.ts"),
