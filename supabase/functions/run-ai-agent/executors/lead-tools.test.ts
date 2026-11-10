@@ -4,7 +4,7 @@ import {
   assertObjectMatch,
   assertRejects,
 } from "jsr:@std/assert@1";
-import { executorClient } from "./test-client.ts";
+import { executorClient } from "./executor-client.test-fixture.ts";
 import { executeLeadTool } from "./lead-tools.ts";
 
 Deno.test(

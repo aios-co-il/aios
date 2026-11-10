@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { listClients } from "./client-list.ts";
-import { executorClient } from "./test-client.ts";
+import { executorClient } from "./executor-client.test-fixture.ts";
 
 Deno.test(
   "an unmatched agency stops client listing before other lookups",

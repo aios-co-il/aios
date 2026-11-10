@@ -1,11 +1,12 @@
 import { assert, assertEquals, assertObjectMatch } from "jsr:@std/assert@1";
 import { executeCreateAgentTask } from "./create-agent-task.ts";
-import { executorClient } from "./test-client.ts";
+import type { ToolWhatsAppNotify } from "../tool-context.ts";
+import { executorClient } from "./executor-client.test-fixture.ts";
 
 Deno.test(
   "a reminder retains its exact originating WhatsApp destination",
   async () => {
-    const notify = {
+    const notify: ToolWhatsAppNotify = {
       surface: "whatsapp",
       chat_id: "group@g.us",
       connection_user_id: "owner",

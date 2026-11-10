@@ -1,5 +1,5 @@
 import type { AgentDatabaseClient } from "./database-contracts.ts";
-import type { Json } from "../_shared/database.types.ts";
+import type { CarmenWaNotify } from "../_shared/carmen-session-identity.ts";
 import type { FindingDraftReply } from "./finding-draft/reply.ts";
 
 export interface ToolCaller {
@@ -64,10 +64,15 @@ export interface ToolDispatchDependencies {
   accessibleTenants(tenantId: string): Promise<Array<string>>;
 }
 
+/** Legacy callers omit envelope fields; retain their exact delivery metadata. */
+export type ToolWhatsAppNotify = Partial<CarmenWaNotify> & {
+  integration_id?: string | null;
+};
+
 export interface ToolExecutionContext extends ToolCaller, ToolScope {
   supabase: AgentDatabaseClient;
   name: string;
-  waNotify?: Json;
+  waNotify?: ToolWhatsAppNotify | null;
   surface?: string | null;
   conversationId?: string | null;
   approval: ToolApproval;
