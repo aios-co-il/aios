@@ -25,7 +25,10 @@ export function HeroSection() {
           <BrandDot />
         </h1>
         <div className="mt-6 h-1 w-14 rounded-full bg-primary" />
-        <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground">
+        <p
+          data-orb-track=""
+          className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground"
+        >
           AIOS היא מערכת מבוססת בינה מלאכותית שמנהלת לך את כל השיווק והמכירות —
           יחד עם צוות מומחים שמכוון, מפקח ואחראי על התוצאות. לא עוד תוכנה
           שמפעילים לבד, אלא שירות ומערכת בעבודה אחת.

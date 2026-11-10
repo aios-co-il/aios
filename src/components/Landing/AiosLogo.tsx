@@ -37,7 +37,11 @@ export function AiosLogo({
           className,
         )}
       >
-        {orb && <CarmenOrb className="me-[0.25em] h-[1.05em] w-[1.05em]" />}
+        {orb && (
+          <span data-orb-home="" className="me-[0.25em] inline-flex">
+            <CarmenOrb className="h-[1.05em] w-[1.05em]" />
+          </span>
+        )}
         <span style={INK_EXTRUDE}>Ai</span>
         <span className="text-brand-mint" style={MINT_EXTRUDE}>
           Os

@@ -26,7 +26,10 @@ export function SectionHeading({
       >
         {kicker}
       </span>
-      <h2 className="mt-4 text-4xl font-extrabold leading-[1.1] tracking-tight md:text-5xl">
+      <h2
+        data-orb-track=""
+        className="mt-4 text-4xl font-extrabold leading-[1.1] tracking-tight md:text-5xl"
+      >
         {title}
         {subtitle && (
           <>

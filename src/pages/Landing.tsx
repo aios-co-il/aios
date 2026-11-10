@@ -9,6 +9,7 @@ import { HeroSection } from "@/components/Landing/HeroSection";
 import { JourneySection } from "@/components/Landing/JourneySection";
 import { LandingNav } from "@/components/Landing/LandingNav";
 import { ModulesSection } from "@/components/Landing/ModulesSection";
+import { RollingOrb } from "@/components/Landing/RollingOrb";
 import { ShiftSection } from "@/components/Landing/ShiftSection";
 import { useSignedInRedirect } from "@/components/Landing/useSignedInRedirect";
 
@@ -30,6 +31,7 @@ export default function Landing() {
         <ClosingSection />
       </main>
       <LandingFooter />
+      <RollingOrb />
     </div>
   );
 }

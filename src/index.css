@@ -295,3 +295,8 @@
   --ring: var(--brand-mint);
   --status-active: var(--brand-mint);
 }
+
+/* The rolling orb (RollingOrb.tsx) stands in for the header orb */
+body.orb-traveling header [data-orb-home] {
+  visibility: hidden;
+}
