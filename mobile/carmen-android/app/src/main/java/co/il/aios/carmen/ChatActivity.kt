@@ -3,6 +3,8 @@ package co.il.aios.carmen
 import android.graphics.Outline
 import android.net.Uri
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -13,6 +15,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
@@ -25,6 +28,10 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var input: EditText
     private lateinit var send: ImageButton
 
+    /** Messages typed while Carmen answered: shown faded, sent one by one once she is free. */
+    private val waiting = ArrayDeque<Pair<String, TextView>>()
+    private var typing: TypingRow? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
@@ -34,36 +41,85 @@ class ChatActivity : AppCompatActivity() {
         input = findViewById(R.id.chat_input)
         send = findViewById(R.id.chat_send)
         CarmenLook.showAvatar(findViewById(R.id.chat_avatar))
-        send.setOnClickListener { sendMessage() }
+        send.setOnClickListener { onSendTapped() }
         input.setOnEditorActionListener { _, action, _ ->
-            (action == EditorInfo.IME_ACTION_SEND).also { if (it) sendMessage() }
+            (action == EditorInfo.IME_ACTION_SEND).also { if (it) onSendTapped() }
         }
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) = refreshSendButton()
+        })
         CarmenChat.messages.forEach(::addBubble)
         if (CarmenChat.messages.isEmpty()) addBubble(CarmenChat.Message(CarmenChat.Role.CARMEN, getString(R.string.chat_greeting)))
     }
 
-    private fun sendMessage() {
+    /**
+     * The send button: sends, or while Carmen answers queues the message; with nothing typed
+     * while she answers it stops her (she stops before her next step and says what she did).
+     */
+    private fun onSendTapped() {
         val text = input.text.toString().trim()
-        if (text.isEmpty() || CarmenChat.busy) return
+        if (text.isEmpty()) {
+            if (CarmenChat.busy) stopAnswer()
+            return
+        }
         input.text.clear()
+        if (CarmenChat.busy) {
+            val pending = bubbleView(text, mine = true).apply { alpha = 0.55f }
+            list.addView(pending, rowParams(mine = true))
+            scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
+            waiting.addLast(text to pending)
+            return
+        }
+        sendMessage(text)
+    }
+
+    private fun sendMessage(text: String) {
         val history = CarmenChat.history()
         addBubble(CarmenChat.add(CarmenChat.Role.USER, text))
-        val typing = addTypingRow()
+        val row = addTypingRow().also { typing = it }
         CarmenChat.busy = true
-        send.isEnabled = false
+        refreshSendButton()
         val brain = CarmenChat.brain(this)
         thread(name = "carmen-chat") {
             val answer = brain.ask(text, history) { partial ->
-                if (partial.isNotBlank()) runOnUiThread { typing.bubble.text = partial }
+                if (partial.isNotBlank()) runOnUiThread { row.bubble.text = partial }
             }
             runOnUiThread {
                 CarmenChat.busy = false
-                send.isEnabled = true
-                typing.video?.stopPlayback()
-                list.removeView(typing.row)
+                typing = null
+                row.video?.stopPlayback()
+                list.removeView(row.row)
                 addBubble(CarmenChat.add(CarmenChat.Role.CARMEN, answer))
+                refreshSendButton()
+                sendNextWaiting()
             }
         }
+    }
+
+    /** The oldest message typed while Carmen answered, now that she is free. */
+    private fun sendNextWaiting() {
+        val (text, pending) = waiting.removeFirstOrNull() ?: return
+        list.removeView(pending)
+        sendMessage(text)
+    }
+
+    private fun stopAnswer() {
+        typing?.bubble?.text = getString(R.string.chat_stopping)
+        val brain = CarmenChat.brain(this)
+        thread(name = "carmen-chat-stop") {
+            if (!brain.stop()) {
+                runOnUiThread { Toast.makeText(this, R.string.chat_stop_failed, Toast.LENGTH_SHORT).show() }
+            }
+        }
+    }
+
+    /** Stop while Carmen answers and nothing is typed; send otherwise. */
+    private fun refreshSendButton() {
+        val stopMode = CarmenChat.busy && input.text.isNullOrBlank()
+        send.setImageResource(if (stopMode) R.drawable.ic_stop else R.drawable.ic_send)
+        send.contentDescription = getString(if (stopMode) R.string.chat_stop else R.string.chat_send)
     }
 
     /**

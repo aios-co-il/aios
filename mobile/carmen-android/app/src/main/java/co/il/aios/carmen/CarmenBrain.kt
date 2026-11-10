@@ -16,6 +16,9 @@ class CarmenBrain(private val account: AiosAccount) {
     @Volatile var conversationId: String? = null
         private set
 
+    /** The question being answered now, so the chat's stop button can stop it. */
+    @Volatile private var runId: String? = null
+
     /**
      * Blocking: streams the brain's answer and returns it as text. [history] is the earlier
      * typed conversation (role to text), sent like the web chat sends it. [onPartial] gets the
@@ -34,6 +37,7 @@ class CarmenBrain(private val account: AiosAccount) {
             .put("surface", "internal_chat")
             .put("stream", true)
             .put("conversation_id", conversationId ?: JSONObject.NULL)
+            .put("run_id", java.util.UUID.randomUUID().toString().also { runId = it })
             .put(
                 "conversation_history",
                 JSONArray(history.takeLast(MAX_HISTORY).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
@@ -56,6 +60,24 @@ class CarmenBrain(private val account: AiosAccount) {
                 stream.answer()
             }
         }.getOrElse { "לא הצלחתי לגשת למערכת כרגע: ${it.message.orEmpty().take(120)}" }
+            .also { runId = null }
+    }
+
+    /**
+     * Blocking. Stops the answer in progress: the brain stops before its next step and says what
+     * it already did (`carmen_run_cancellations`). False when nothing runs or the stop failed.
+     */
+    fun stop(): Boolean {
+        val running = runId ?: return false
+        return runCatching {
+            account.restWrite(
+                "POST",
+                "carmen_run_cancellations",
+                JSONObject().put("run_id", running).put("tenant_id", account.session().tenantId),
+                prefer = "return=minimal",
+            )
+            true
+        }.getOrDefault(false)
     }
 
     private companion object {

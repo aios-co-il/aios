@@ -62,6 +62,8 @@ import {
   VOICE_STORAGE_KEY,
 } from "./carmenVoices";
 import { CarmenVoiceOptions } from "./CarmenVoiceOptions";
+import { SendOrStopButton } from "./SendOrStopButton";
+import { useRunControl } from "./useRunControl";
 import {
   type ElevenLabsSession,
   startElevenLabsVoice,
@@ -206,6 +208,12 @@ export const CarmenChatBar = forwardRef<
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  // Read synchronously by sendText, so a message typed mid-answer is queued, not sent in parallel.
+  const isStreamingRef = useRef(false);
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+  const run = useRunControl(tenantId);
   const [liveStreamIds, setLiveStreamIds] = useState<string[]>([]);
   const liveStreamIdsRef = useRef<string[]>([]);
   liveStreamIdsRef.current = liveStreamIds;
@@ -502,6 +510,7 @@ export const CarmenChatBar = forwardRef<
             workshop_artifact_id: workshop?.workshopArtifactId ?? undefined,
             workshop_client_id: workshop?.workshopClientId ?? undefined,
             brain_slug: runBrain || undefined,
+            run_id: run.begin(),
           }),
         },
       );
@@ -667,6 +676,13 @@ export const CarmenChatBar = forwardRef<
       const pendingAttachments = opts?.attachments ?? attachments;
       if ((!trimmed && pendingAttachments.length === 0) || !tenantId) return;
       const activeId = conversationIdRef.current;
+      // Typed while Carmen still answers this chat: send it once she finishes (or is stopped).
+      if (isStreamingRef.current) {
+        run.enqueue({ text: trimmed, attachments: pendingAttachments });
+        setInput("");
+        setAttachments([]);
+        return;
+      }
       if (
         composerLockedForChat({
           conversationId: activeId,
@@ -712,6 +728,7 @@ export const CarmenChatBar = forwardRef<
       ]);
       setInput("");
       setAttachments([]);
+      isStreamingRef.current = true;
       setIsStreaming(true);
       setStreamingText("");
       scrollDown();
@@ -793,7 +810,9 @@ export const CarmenChatBar = forwardRef<
           variant: "destructive",
         });
       } finally {
+        isStreamingRef.current = false;
         setIsStreaming(false);
+        run.end();
         if (boundId)
           setLiveStreamIds((prev) => prev.filter((id) => id !== boundId));
         queryClient.invalidateQueries({
@@ -1795,6 +1814,27 @@ export const CarmenChatBar = forwardRef<
         : brain.status),
   });
   const canSend = !!input.trim() || attachments.length > 0;
+
+  /** The stop button: Carmen stops at her next step and says what she already did. */
+  function stopRun() {
+    run.stop().catch((e: Error) =>
+      toast({
+        title: "לא הצלחתי לעצור",
+        description: e.message,
+        variant: "destructive",
+      }),
+    );
+  }
+
+  // Messages typed while she answered go out one by one once she is free.
+  useEffect(() => {
+    if (thisChatBusy || isStreamingRef.current || run.queue.length === 0) {
+      return;
+    }
+    const [next] = run.queue;
+    run.dequeue();
+    void sendText(next.text, { attachments: next.attachments });
+  }, [thisChatBusy, run, sendText]);
   const composerBusy =
     thisChatBusy ||
     isTranscribeRecording ||
@@ -2188,18 +2228,15 @@ export const CarmenChatBar = forwardRef<
           }
           className="order-2 h-11 min-w-0 flex-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-3 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)] sm:order-none"
         />
-        <button
-          onClick={() => sendText(input)}
-          disabled={!canSend || composerBusy}
-          className="order-5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--cc-accent-dim)] text-white transition-opacity hover:opacity-90 disabled:opacity-40 sm:order-none"
-          title="שליחה"
-        >
-          {thisChatBusy ? (
-            <ThinkingGalaxy size="sm" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </button>
+        <SendOrStopButton
+          busy={thisChatBusy}
+          canSend={canSend}
+          disabled={composerBusy && !thisChatBusy}
+          stopping={run.stopping}
+          queued={run.queue.length}
+          onSend={() => sendText(input)}
+          onStop={stopRun}
+        />
       </div>
     </div>
   );

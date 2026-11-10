@@ -28,4 +28,14 @@ class SpokenApprovalTest {
         )
         assertEquals(SpokenApproval.Answer.NONE, SpokenApproval.parse("מה השעה"))
     }
+
+    @Test
+    fun `calling off a running check is recognised`() {
+        for (cancel in listOf("תבטלי את זה", "עזבי, שיניתי את דעתי", "לא צריך כבר", "עצרי")) {
+            assertEquals(cancel, true, SpokenCancel.matches(cancel))
+        }
+        for (other in listOf("כן", "מה המצב של פסגות", "לא, התכוונתי לאקו")) {
+            assertEquals(other, false, SpokenCancel.matches(other))
+        }
+    }
 }

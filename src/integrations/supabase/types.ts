@@ -4651,6 +4651,35 @@ export type Database = {
           },
         ];
       };
+      carmen_run_cancellations: {
+        Row: {
+          created_at: string;
+          run_id: string;
+          tenant_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          run_id: string;
+          tenant_id: string;
+          user_id?: string;
+        };
+        Update: {
+          created_at?: string;
+          run_id?: string;
+          tenant_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_run_cancellations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_whatsapp_identities: {
         Row: {
           allowed_group_ids: string[] | null;
