@@ -1,5 +1,4 @@
 export const goalsTools = [
-  // GOALS
   {
     name: "create_goal",
     description: "יצירת יעד חדש במערכת היעדים ההיררכית",

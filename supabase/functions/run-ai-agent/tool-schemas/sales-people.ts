@@ -1,5 +1,4 @@
 export const salesPeopleTools = [
-  // SALES PEOPLE
   {
     name: "list_sales_people",
     description: "רשימת אנשי מכירות",

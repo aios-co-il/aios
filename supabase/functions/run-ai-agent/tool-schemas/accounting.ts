@@ -1,5 +1,4 @@
 export const accountingTools = [
-  // Real accounting module (AccountingIntegrations)
   {
     name: "get_accounting_overview",
     description:

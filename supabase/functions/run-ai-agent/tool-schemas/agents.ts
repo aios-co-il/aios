@@ -1,5 +1,4 @@
 export const agentsTools = [
-  // AGENT MANAGEMENT (Carmen building & managing sub-agents)
   {
     name: "list_agents",
     description: "רשימת סוכני AI בטננט (כולל סוכנים תחתיים של כרמן).",

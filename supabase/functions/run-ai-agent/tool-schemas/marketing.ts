@@ -4,7 +4,6 @@ import { PULSE_TARGET_TOOLS } from "../../_shared/carmen/pulse-targets/tool-defs
 import { CARD_DRAFT_TOOLS } from "../card-draft-approval/tool.ts";
 
 export const marketingTools = [
-  // Marketing department (Copy / Creative / SEO pipeline)
   ...VIDEO_DIRECTOR_TOOLS,
   ...CREATIVE_STUDIO_TOOLS,
   ...PULSE_TARGET_TOOLS,

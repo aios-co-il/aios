@@ -1,5 +1,4 @@
 export const integrationsTools = [
-  // INTEGRATIONS MANAGEMENT
   {
     name: "list_integrations",
     description:

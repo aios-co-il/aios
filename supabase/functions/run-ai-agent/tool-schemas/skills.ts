@@ -1,7 +1,4 @@
 export const skillsTools = [
-  // ===========================
-  // HERMES SKILLS SYSTEM (self-improving procedural memory)
-  // ===========================
   {
     name: "get_carmen_skins",
     description:

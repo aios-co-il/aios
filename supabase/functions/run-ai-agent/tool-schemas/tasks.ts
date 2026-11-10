@@ -1,5 +1,4 @@
 export const tasksTools = [
-  // TASKS (team tasks - for campaigners/team members)
   {
     name: "create_task",
     description:

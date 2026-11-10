@@ -1,5 +1,4 @@
 export const suppliersTools = [
-  // SUPPLIERS
   {
     name: "list_suppliers",
     description: "רשימת ספקים",

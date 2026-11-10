@@ -1,7 +1,4 @@
 export const calendarTools = [
-  // ===========================
-  // CALENDAR INVITES
-  // ===========================
   {
     name: "send_calendar_invite",
     description:

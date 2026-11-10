@@ -1,7 +1,4 @@
 export const meetingsTools = [
-  // ===========================
-  // MEETING BOT (Zoom / Meet / Teams)
-  // ===========================
   {
     name: "join_meeting_for_client",
     description:

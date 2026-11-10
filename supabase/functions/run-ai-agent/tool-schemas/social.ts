@@ -1,5 +1,4 @@
 export const socialTools = [
-  // SOCIAL MEDIA
   {
     name: "create_social_post",
     description:

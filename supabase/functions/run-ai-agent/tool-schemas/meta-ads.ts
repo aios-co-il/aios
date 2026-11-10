@@ -1,7 +1,5 @@
 export const metaAdsTools = [
-  // ===========================
-  // META (Facebook + Instagram) ADS — all mutating actions go through approval queue
-  // ===========================
+  // All mutating actions go through the approval queue.
   {
     name: "fb_create_campaign",
     description:

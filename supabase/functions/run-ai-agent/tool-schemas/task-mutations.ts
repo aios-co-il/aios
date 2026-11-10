@@ -1,5 +1,4 @@
 export const taskMutationsTools = [
-  // TASKS - full CRUD
   {
     name: "update_task",
     description:

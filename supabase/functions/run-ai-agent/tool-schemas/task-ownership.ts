@@ -1,5 +1,4 @@
 export const taskOwnershipTools = [
-  // AGENT TASK OWNERSHIP
   {
     name: "take_task",
     description:

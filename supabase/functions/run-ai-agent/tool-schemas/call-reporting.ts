@@ -1,7 +1,6 @@
 import { HEALTH_CARD_ENTRY_ERROR_HINT } from "../carmen-client-card-tools.ts";
 
 export const callReportingTools = [
-  // MASKYOO CALLS REPORTING
   {
     name: "get_maskyoo_calls_report",
     description:

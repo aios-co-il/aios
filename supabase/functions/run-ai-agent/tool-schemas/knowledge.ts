@@ -1,5 +1,4 @@
 export const knowledgeTools = [
-  // KNOWLEDGE BASE (Carmen Memory Pointers + Episodes — ממלכת הידע)
   {
     name: "kb_list_folder",
     description:

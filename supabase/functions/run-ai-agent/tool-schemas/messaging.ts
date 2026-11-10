@@ -1,5 +1,4 @@
 export const messagingTools = [
-  // MESSAGES
   {
     name: "send_message",
     description: "שליחת הודעת WhatsApp ללקוח או ליד",

@@ -1,5 +1,4 @@
 export const facebookAccountsTools = [
-  // FACEBOOK AD ACCOUNTS
   {
     name: "list_facebook_ad_accounts",
     description:

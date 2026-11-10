@@ -1,7 +1,4 @@
 export const broadcastsTools = [
-  // ===========================
-  // BROADCAST (דיוור)
-  // ===========================
   {
     name: "list_broadcasts",
     description:

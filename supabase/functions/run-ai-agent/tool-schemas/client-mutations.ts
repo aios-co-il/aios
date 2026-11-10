@@ -1,7 +1,6 @@
 import { leadMutationTools } from "../lead-tool-schemas.ts";
 
 export const clientMutationsTools = [
-  // CLIENTS - full CRUD
   {
     name: "create_client",
     description: "יצירת לקוח חדש במערכת",

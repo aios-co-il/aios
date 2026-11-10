@@ -2,7 +2,6 @@ import { CARMEN_CLIENT_UPDATE_TYPES } from "../../_shared/client-card/sources.ts
 import { FINDING_DRAFT_TOOLS } from "../finding-draft/tool.ts";
 
 export const clientsTools = [
-  // CLIENTS
   {
     name: "list_clients",
     description:

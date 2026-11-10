@@ -1,5 +1,4 @@
 export const campaignersTools = [
-  // CAMPAIGNERS
   {
     name: "list_campaigners",
     description: "רשימת קמפיינרים בטננט",

@@ -1,5 +1,4 @@
 export const searchTools = [
-  // SEARCH
   {
     name: "search_entities",
     description:

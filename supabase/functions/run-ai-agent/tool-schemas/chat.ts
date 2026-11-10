@@ -1,5 +1,4 @@
 export const chatTools = [
-  // CHAT HISTORY
   {
     name: "get_chat_history",
     description: "שליפת היסטוריית שיחות WhatsApp עם ליד או לקוח",

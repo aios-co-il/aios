@@ -1,5 +1,4 @@
 export const onboardingTools = [
-  // CLIENT ONBOARDING
   {
     name: "create_onboarding",
     description: "יצירת תהליך קליטת לקוח חדש",

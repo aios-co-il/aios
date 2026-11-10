@@ -1,5 +1,4 @@
 export const agenciesTools = [
-  // AGENCIES
   {
     name: "list_agencies",
     description: "רשימת סוכנויות בטננט",

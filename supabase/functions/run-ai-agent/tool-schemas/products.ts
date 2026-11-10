@@ -1,5 +1,4 @@
 export const productsTools = [
-  // PRODUCTS
   {
     name: "list_products",
     description: "רשימת מוצרים/שירותים",

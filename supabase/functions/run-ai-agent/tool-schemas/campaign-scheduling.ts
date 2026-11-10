@@ -1,7 +1,4 @@
 export const campaignSchedulingTools = [
-  // ===========================
-  // SCHEDULED PAUSE/RESUME
-  // ===========================
   {
     name: "schedule_campaign_toggle",
     description:

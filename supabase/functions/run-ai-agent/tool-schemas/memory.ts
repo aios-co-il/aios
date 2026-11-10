@@ -1,5 +1,4 @@
 export const memoryTools = [
-  // MEMORY
   {
     name: "save_memory",
     description: "שמירת מידע לזיכרון מתמשך (העדפות, פרויקטים, הוראות)",

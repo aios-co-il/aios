@@ -1,7 +1,4 @@
 export const subagentsTools = [
-  // ===========================
-  // SUBAGENT DELEGATION (Phase 4) — spawn focused background sub-tasks
-  // ===========================
   {
     name: "delegate_to_subagent",
     description:

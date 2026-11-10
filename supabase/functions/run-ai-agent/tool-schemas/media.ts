@@ -1,7 +1,4 @@
 export const mediaTools = [
-  // ===========================
-  // MEDIA LIBRARY (carmen-media bucket + marketing_media_library)
-  // ===========================
   {
     name: "save_media_from_chat",
     description:

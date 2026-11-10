@@ -1,5 +1,4 @@
 export const automationTools = [
-  // AUTOMATIONS
   {
     name: "list_automations",
     description:

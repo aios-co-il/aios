@@ -1,5 +1,4 @@
 export const delegationTools = [
-  // MANUS AI - Complex task delegation
   {
     name: "delegate_to_manus",
     description:

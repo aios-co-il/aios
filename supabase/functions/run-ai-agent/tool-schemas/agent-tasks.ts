@@ -1,5 +1,4 @@
 export const agentTasksTools = [
-  // AGENT TASKS (for Carmen herself)
   {
     name: "create_agent_task",
     description:

@@ -1,5 +1,4 @@
 export const financeTools = [
-  // FINANCE
   {
     name: "list_finance",
     description:

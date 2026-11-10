@@ -1,7 +1,4 @@
 export const approvalsTools = [
-  // ===========================
-  // APPROVAL FLOW
-  // ===========================
   {
     name: "list_pending_approvals",
     description:

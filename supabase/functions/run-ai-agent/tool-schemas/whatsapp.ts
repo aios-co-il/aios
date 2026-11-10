@@ -1,7 +1,4 @@
 export const whatsappTools = [
-  // GITHUB AGENT DELEGATION (system self-repair)
-
-  // WHATSAPP GATEWAY MANAGEMENT (Manus Gateway)
   {
     name: "create_whatsapp_instance",
     description:

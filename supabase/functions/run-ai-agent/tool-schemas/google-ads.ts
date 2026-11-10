@@ -1,8 +1,5 @@
 export const googleAdsTools = [
   // inspect_facebook_ad / fb_duplicate_ad_variants live next to list_facebook_ads (early in ALL_TOOLS).
-  // ===========================
-  // GOOGLE ADS — pause/resume/budget at campaign level
-  // ===========================
   {
     name: "gads_pause",
     description: "השהיית קמפיין Google Ads. דורש אישור.",
