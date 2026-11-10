@@ -17,7 +17,7 @@ export default function Landing() {
   useSignedInRedirect();
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-clip bg-background text-foreground">
       <LandingNav />
       <main>
         <HeroSection />
