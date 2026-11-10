@@ -80,4 +80,11 @@ class ElevenLabsProtocolTest {
         assertEquals("he", agent.getString("language"))
         assertEquals("v123", override.getJSONObject("tts").getString("voice_id"))
     }
+
+    @Test
+    fun `a background result reaches the agent as a user message`() {
+        val event = ElevenLabsProtocol.userMessage("[תשובה מ-ask_carmen] 14 לידים")
+        assertEquals("user_message", event.getString("type"))
+        assertEquals("[תשובה מ-ask_carmen] 14 לידים", event.getString("text"))
+    }
 }

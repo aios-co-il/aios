@@ -48,8 +48,20 @@ class WhatsAppSend(private val account: AiosAccount) {
             is WhatsAppDrafts.Step.Invalid -> step.reason
             is WhatsAppDrafts.Step.ReadBack -> readBack(step.draft)
             is WhatsAppDrafts.Step.Send -> send(step.draft)
+            is WhatsAppDrafts.Step.AlreadySent -> "ההודעה ל${step.draft.who()} כבר נשלחה."
         }
     }.getOrElse { "השליחה נכשלה: ${it.message.orEmpty().take(120)}" }
+
+    /** Whether a message read back is waiting for the user's yes. */
+    fun hasPending(): Boolean = drafts.pending() != null
+
+    /** Blocking. Sends the message waiting for approval, after a spoken yes; null when none waits. */
+    fun confirmPending(): String? = drafts.takePending()?.let { draft ->
+        runCatching { send(draft) }.getOrElse { "השליחה נכשלה: ${it.message.orEmpty().take(120)}" }
+    }
+
+    /** Drops the message waiting for approval, after a spoken no. */
+    fun cancelPending() = drafts.cancel()
 
     private fun readBack(draft: WhatsAppDraft): String =
         "עוד לא נשלח. הקריאי למשתמש: ל${draft.who()}, מ${draft.line?.spoken}, הנוסח: \"${draft.message}\". " +
@@ -65,6 +77,7 @@ class WhatsAppSend(private val account: AiosAccount) {
             val text = response.body?.string().orEmpty()
             val result = runCatching { JSONObject(text) }.getOrDefault(JSONObject())
             if (response.isSuccessful && result.optBoolean("success", true)) {
+                drafts.markSent(draft)
                 return "נשלח ל${draft.who()} מ${line.spoken}."
             }
             val reason = result.optString("error").ifBlank { "שגיאה ${response.code}" }
@@ -108,16 +121,21 @@ data class WhatsAppDraft(val number: String, val name: String, val message: Stri
 class WhatsAppDrafts {
     private var readBack: WhatsAppDraft? = null
 
+    /** The last message sent, so a late confirmed call for it reports it instead of reading back. */
+    private var sent: WhatsAppDraft? = null
+
     sealed interface Step {
         data class Invalid(val reason: String) : Step
         data class ReadBack(val draft: WhatsAppDraft) : Step
         data class Send(val draft: WhatsAppDraft) : Step
+        data class AlreadySent(val draft: WhatsAppDraft) : Step
     }
 
     /** The next step for this call. A send forgets the draft, so a repeat call cannot send twice. */
     @Synchronized
     fun step(draft: WhatsAppDraft, userConfirmed: Boolean): Step {
         invalid(draft)?.let { return Step.Invalid(it) }
+        sent?.takeIf { userConfirmed && it.sameAs(draft) }?.let { return Step.AlreadySent(it) }
         val pending = readBack
         if (userConfirmed && pending != null && pending.sameAs(draft)) {
             readBack = null
@@ -125,6 +143,24 @@ class WhatsAppDrafts {
         }
         readBack = draft
         return Step.ReadBack(draft)
+    }
+
+    /** The message read back and waiting for the user's yes. */
+    @Synchronized
+    fun pending(): WhatsAppDraft? = readBack
+
+    /** Takes the waiting message to send it (a spoken yes); a second take gets nothing. */
+    @Synchronized
+    fun takePending(): WhatsAppDraft? = readBack.also { readBack = null }
+
+    @Synchronized
+    fun markSent(draft: WhatsAppDraft) {
+        sent = draft
+    }
+
+    @Synchronized
+    fun cancel() {
+        readBack = null
     }
 
     private fun invalid(draft: WhatsAppDraft): String? = when {

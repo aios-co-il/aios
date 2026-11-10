@@ -12,6 +12,7 @@ import java.util.Base64
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 /**
@@ -37,6 +38,14 @@ class ElevenLabsConversation(
     private val transcript = VoiceTranscript()
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val tools = Executors.newSingleThreadExecutor()
+
+    /**
+     * Brain questions run here, one after another, while the conversation goes on: Carmen keeps
+     * listening and answering, and each result reaches her when it is ready. One at a time, so
+     * two answers never race to save the same brain conversation.
+     */
+    private val brainQueue = Executors.newSingleThreadExecutor()
+    private val brainPending = AtomicInteger(0)
     private val audio = ConversationAudio(context, ConversationAudio.ELEVENLABS_SAMPLE_RATE) { pcm -> sendAudio(pcm) }
     @Volatile private var socket: WebSocket? = null
     private var idleTimer: ScheduledFuture<*>? = null
@@ -110,6 +119,7 @@ class ElevenLabsConversation(
             is ElevenLabsEvent.UserSaid -> {
                 transcript.user(event.text)
                 listener.onState(CarmenSession.State.LISTENING)
+                answerPendingSend(event.text)
                 resetIdleTimer()
             }
             ElevenLabsEvent.Interrupted -> {
@@ -177,7 +187,10 @@ class ElevenLabsConversation(
             send(ElevenLabsProtocol.toolResult(call.callId, "הכלי ${call.name} לא קיים באפליקציה.", isError = true))
             return
         }
-        if (call.name == ConversationTools.ASK_CARMEN) listener.onState(CarmenSession.State.THINKING)
+        if (call.name == ConversationTools.ASK_CARMEN) {
+            askInBackground(call)
+            return
+        }
         toolRunning = true
         tools.execute {
             // The call so far, so the brain's conversation starts with what was already said.
@@ -193,6 +206,61 @@ class ElevenLabsConversation(
             send(ElevenLabsProtocol.toolResult(call.callId, result.output.take(MAX_TOOL_OUTPUT)))
             resetIdleTimer()
         }
+    }
+
+    /**
+     * Frees Carmen at once and asks her brain in the background (seen in Production: a 33 s brain
+     * call during which she could not hear the user). The tool answers "checking"; the result
+     * comes back as a message once it is ready and she is quiet.
+     */
+    private fun askInBackground(call: ElevenLabsEvent.ToolCall) {
+        val question = call.args.optString("question")
+        val ahead = brainPending.getAndIncrement()
+        send(ElevenLabsProtocol.toolResult(call.callId, backgroundAck(ahead)))
+        resetIdleTimer()
+        brainQueue.execute {
+            val result = runCatching { toolbox.run(call.name, call.args, transcript.turns()) }
+            brainPending.decrementAndGet()
+            if (ended) return@execute
+            val answer = result.getOrNull()?.output ?: "הבדיקה נכשלה: ${result.exceptionOrNull()?.message.orEmpty().take(120)}"
+            deliver(
+                "[תשובה מ-ask_carmen לשאלה \"${question.take(160)}\"]\n${answer.take(MAX_TOOL_OUTPUT)}\n" +
+                    "מסרי למשתמש עכשיו את השורה התחתונה בקצרה, לפי כללי האורך.",
+            )
+        }
+    }
+
+    /** A spoken yes or no to a WhatsApp message waiting for approval; the app acts on it itself. */
+    private fun answerPendingSend(spoken: String) {
+        if (ended) return
+        tools.execute {
+            val note = runCatching { toolbox.answerPendingSend(spoken) }
+                .onFailure { log.record(EventLog.Event.ERROR, "Spoken approval: ${it.message}") }
+                .getOrNull()
+            if (note != null && !ended) deliver(note)
+        }
+    }
+
+    /**
+     * Hands Carmen a message once she is quiet, so a result does not cut her off mid-sentence;
+     * after [MAX_DELIVER_WAIT_MS] it goes anyway.
+     */
+    private fun deliver(text: String, waitedMs: Long = 0) {
+        if (ended) return
+        val speaking = !audio.isIdle() || System.currentTimeMillis() - lastAudioAt < QUIET_MS
+        if (speaking && waitedMs < MAX_DELIVER_WAIT_MS) {
+            schedule(POLL_MS) { deliver(text, waitedMs + POLL_MS) }
+            return
+        }
+        send(ElevenLabsProtocol.userMessage(text))
+        resetIdleTimer()
+    }
+
+    /** What Carmen hears right after handing a question to her brain. */
+    private fun backgroundAck(ahead: Int): String {
+        val queue = if (ahead > 0) " יש לפניה עוד $ahead בדיקות בתור." else ""
+        return "הבדיקה התחילה ברקע.$queue אמרי במשפט קצר שאת בודקת ושאפשר להמשיך לדבר בינתיים. " +
+            "אל תמסרי נתונים עד שתגיע הודעה שמתחילה ב-[תשובה מ-ask_carmen]."
     }
 
     /**
@@ -234,7 +302,9 @@ class ElevenLabsConversation(
     private fun resetIdleTimer() {
         idleTimer?.cancel(false)
         // A long brain call is not silence: wait for its answer before counting idle time.
-        idleTimer = schedule(IDLE_MS) { if (toolRunning) resetIdleTimer() else end("idle") }
+        idleTimer = schedule(IDLE_MS) {
+            if (toolRunning || brainPending.get() > 0) resetIdleTimer() else end("idle")
+        }
     }
 
     /** Stops without ending the session, so the caller can start the OpenAI conversation instead. */
@@ -244,6 +314,7 @@ class ElevenLabsConversation(
         ended = true
         worker.shutdown()
         tools.shutdownNow()
+        brainQueue.shutdownNow()
         log.record(EventLog.Event.ERROR, "ElevenLabs unavailable ($reason), using OpenAI")
         onUnavailable(reason)
     }
@@ -258,6 +329,7 @@ class ElevenLabsConversation(
         socket?.close(1000, null)
         worker.shutdown()
         tools.shutdownNow()
+        brainQueue.shutdownNow()
         log.record(EventLog.Event.CONVERSATION_ENDED, reason)
         thread(name = "carmen-memory") { memory.save(transcript, toolbox.brain.conversationId) }
         listener.onEnded(reason)
@@ -273,6 +345,7 @@ class ElevenLabsConversation(
         const val MAX_WAIT_FOR_LAST_LINE_MS = 8_000L
         const val PLAYBACK_TAIL_MS = 700L
         const val MAX_TOOL_OUTPUT = 8_000
+        const val MAX_DELIVER_WAIT_MS = 10_000L
         val http: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .pingInterval(20, TimeUnit.SECONDS)
