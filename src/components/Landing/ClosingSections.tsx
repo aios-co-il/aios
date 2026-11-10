@@ -38,7 +38,7 @@ export function AudienceSection() {
 export function ClosingSection() {
   return (
     <section id="contact" className="mx-auto max-w-6xl px-4 py-20 md:px-6">
-      <Reveal className="dark relative overflow-hidden rounded-lg bg-background px-6 py-16 text-center text-foreground md:py-20">
+      <Reveal className="contrast-surface dark relative overflow-hidden rounded-lg bg-background px-6 py-16 text-center text-foreground md:py-20">
         <CarmenOrb className="mx-auto h-20 w-20" />
         <SectionHeading
           kicker="READY FOR WHAT'S NEXT?"

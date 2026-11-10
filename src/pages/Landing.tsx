@@ -11,15 +11,23 @@ import { LandingNav } from "@/components/Landing/LandingNav";
 import { ModulesSection } from "@/components/Landing/ModulesSection";
 import { RollingOrb } from "@/components/Landing/RollingOrb";
 import { ShiftSection } from "@/components/Landing/ShiftSection";
+import { useColorMode } from "@/components/Landing/useColorMode";
 import { useSignedInRedirect } from "@/components/Landing/useSignedInRedirect";
+import { cn } from "@/lib/utils";
 
 /** Public homepage (aios.co.il). Styled only with theme tokens. */
 export default function Landing() {
   useSignedInRedirect();
+  const { mode, toggle } = useColorMode();
 
   return (
-    <div className="theme-mint min-h-screen overflow-x-clip bg-background text-foreground">
-      <LandingNav />
+    <div
+      className={cn(
+        "theme-mint min-h-screen overflow-x-clip bg-background text-foreground",
+        mode === "dark" && "dark",
+      )}
+    >
+      <LandingNav mode={mode} onToggleMode={toggle} />
       <main>
         <HeroSection />
         <ShiftSection />

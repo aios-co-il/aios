@@ -34,7 +34,7 @@ export interface OrbPose {
 }
 
 /** Scroll distance spent falling from the header to the first heading. */
-const FIRST_DROP_SCROLL = 120;
+export const FIRST_DROP_SCROLL = 120;
 /** A heading's screen position (share of viewport height) as a roll starts and ends. */
 const ROLL_FROM = 0.65;
 const ROLL_TO = 0.35;

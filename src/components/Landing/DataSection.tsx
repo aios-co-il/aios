@@ -9,7 +9,7 @@ const BARS = [32, 45, 39, 65, 53, 76, 68, 90, 82];
  */
 export function DataSection() {
   return (
-    <section className="dark bg-background text-foreground">
+    <section className="contrast-surface dark bg-background text-foreground">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 md:grid-cols-2 md:px-6 md:py-28">
         <Reveal>
           <SectionHeading

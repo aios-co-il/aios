@@ -1,6 +1,11 @@
 import { useEffect, useRef } from "react";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
-import { buildPath, poseAt, type TrackLine } from "./rollingOrbPath";
+import {
+  buildPath,
+  FIRST_DROP_SCROLL,
+  poseAt,
+  type TrackLine,
+} from "./rollingOrbPath";
 
 const SIZE = 40;
 
@@ -15,6 +20,7 @@ const SIZE = 40;
  * reduced motion; the header orb stays instead.
  */
 export function RollingOrb() {
+  const originRef = useRef<HTMLDivElement>(null);
   const orbRef = useRef<HTMLDivElement>(null);
   const spinRef = useRef<HTMLSpanElement>(null);
 
@@ -29,14 +35,23 @@ export function RollingOrb() {
       frame = 0;
       const orb = orbRef.current;
       const spin = spinRef.current;
+      const origin = originRef.current?.getBoundingClientRect();
       // Measured every frame: headings shift as sections reveal and resize.
       const path = measurePath();
-      if (!orb || !spin || path.length === 0) {
+      if (!orb || !spin || !origin || path.length === 0) {
         return;
       }
       const pose = poseAt(path, window.scrollY);
       const top = pose.y - window.scrollY;
-      orb.style.transform = `translate3d(${pose.x - SIZE / 2}px, ${top - SIZE / 2}px, 0) scale(${2 - pose.squash}, ${pose.squash})`;
+      // Starts at the header orb's size, so it covers exactly that orb, and
+      // grows to full size during the first drop.
+      const growth = Math.min(window.scrollY / FIRST_DROP_SCROLL, 1);
+      const size = homeScale() + (1 - homeScale()) * growth;
+      // The fixed layer's origin is not always the screen edge (the page
+      // reserves scrollbar space on both sides), so offset by it.
+      const x = pose.x - origin.left - SIZE / 2;
+      const y = top - origin.top - SIZE / 2;
+      orb.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${size * (2 - pose.squash)}, ${size * pose.squash})`;
       orb.style.opacity = "1";
       // Rolling without slipping: turn by distance travelled over the radius.
       spin.style.transform = `rotate(${(pose.x / (SIZE / 2)) * (180 / Math.PI)}deg)`;
@@ -48,12 +63,22 @@ export function RollingOrb() {
       }
     }
 
+    // The logo moves when its web font arrives; re-place the orb then too.
+    const logo = document.querySelector(
+      "header [data-orb-home]",
+    )?.parentElement;
+    const observer = new ResizeObserver(schedule);
+    if (logo) {
+      observer.observe(logo);
+    }
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
-    void document.fonts?.ready.then(schedule);
+    document.fonts?.addEventListener("loadingdone", schedule);
     schedule();
     return () => {
       document.body.classList.remove("orb-traveling");
+      observer.disconnect();
+      document.fonts?.removeEventListener("loadingdone", schedule);
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       cancelAnimationFrame(frame);
@@ -62,19 +87,31 @@ export function RollingOrb() {
 
   return (
     <div
-      ref={orbRef}
+      ref={originRef}
       aria-hidden="true"
-      className="pointer-events-none fixed left-0 top-0 z-[60] opacity-0 will-change-transform"
-      style={{ width: SIZE, height: SIZE }}
+      className="pointer-events-none fixed left-0 top-0 z-[60]"
     >
-      <CarmenOrb className="h-full w-full">
-        <span
-          ref={spinRef}
-          className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_72%_70%,hsl(var(--brand-mint)/0.55),transparent_42%)]"
-        />
-      </CarmenOrb>
+      <div
+        ref={orbRef}
+        className="absolute left-0 top-0 opacity-0 will-change-transform"
+        style={{ width: SIZE, height: SIZE }}
+      >
+        <CarmenOrb className="h-full w-full">
+          <span
+            ref={spinRef}
+            className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_72%_70%,hsl(var(--brand-mint)/0.55),transparent_42%)]"
+          />
+        </CarmenOrb>
+      </div>
     </div>
   );
+}
+
+/** The header orb's size relative to the rolling orb. */
+function homeScale(): number {
+  const home = document.querySelector("header [data-orb-home]");
+  const width = home?.getBoundingClientRect().width;
+  return width ? width / SIZE : 1;
 }
 
 /** Reads the header orb and the marked headings, and builds the path. */

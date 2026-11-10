@@ -4,10 +4,17 @@ import { ArrowUpLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AiosLogo } from "./AiosLogo";
+import { ColorModeToggle } from "./ColorModeToggle";
+import type { ColorMode } from "./useColorMode";
 import { NAV_LINKS, WHATSAPP_URL } from "./landingContent";
 
-/** Sticky frosted-glass header with section links and the two calls to action. */
-export function LandingNav() {
+interface LandingNavProps {
+  mode: ColorMode;
+  onToggleMode: () => void;
+}
+
+/** Sticky frosted-glass header: links, light/dark switch and calls to action. */
+export function LandingNav({ mode, onToggleMode }: LandingNavProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -30,22 +37,30 @@ export function LandingNav() {
             </a>
           ))}
         </nav>
-        <div className="hidden items-center gap-2 md:flex">
-          <Button asChild variant="outline" size="sm">
+        <div className="flex items-center gap-2">
+          <ColorModeToggle mode={mode} onToggle={onToggleMode} />
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="hidden md:flex"
+          >
             <Link to="/auth">התחברות</Link>
           </Button>
-          <TalkButton size="sm" />
+          <span className="hidden md:inline-flex">
+            <TalkButton size="sm" />
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            aria-label={open ? "סגירת תפריט" : "פתיחת תפריט"}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {open ? <X /> : <Menu />}
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          aria-label={open ? "סגירת תפריט" : "פתיחת תפריט"}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <X /> : <Menu />}
-        </Button>
       </div>
       <MobileMenu open={open} onNavigate={() => setOpen(false)} />
     </header>
