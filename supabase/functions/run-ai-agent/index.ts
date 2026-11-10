@@ -1,3 +1,36 @@
+import { executeQuerySystemGraph } from "./executors/query-system-graph.ts";
+import { executeSetCampaignTableActive } from "./executors/set-campaign-table-active.ts";
+import { executeSearchEntities } from "./executors/search-entities.ts";
+import { executeDelegateToManus } from "./executors/delegate-to-manus.ts";
+import { executeSendMessageToManus } from "./executors/send-message-to-manus.ts";
+import { executeListAutomations } from "./executors/list-automations.ts";
+import { executeGetAutomationDetails } from "./executors/get-automation-details.ts";
+import { executeProposeAutomationEdit } from "./executors/propose-automation-edit.ts";
+import { executeInspectMetaLeadForms } from "./executors/inspect-meta-lead-forms.ts";
+import { executeSetAutomationMetaLeadForm } from "./executors/set-automation-meta-lead-form.ts";
+import { executeCreateMetaLeadForm } from "./executors/create-meta-lead-form.ts";
+import { executeListIntegrations } from "./executors/list-integrations.ts";
+import { executeToggleIntegration } from "./executors/toggle-integration.ts";
+import { executeListAgents } from "./executors/list-agents.ts";
+import { executeCreateAgent } from "./executors/create-agent.ts";
+import { executeUpdateAgent } from "./executors/update-agent.ts";
+import { executeDelegateToGithubAgent } from "./executors/delegate-to-github-agent.ts";
+import { executeCreateWhatsappInstance } from "./executors/create-whatsapp-instance.ts";
+import { executeGetWhatsappQrLink } from "./executors/get-whatsapp-qr-link.ts";
+import { executeGetWhatsappStatus } from "./executors/get-whatsapp-status.ts";
+import { executeSendWhatsappViaGateway } from "./executors/send-whatsapp-via-gateway.ts";
+import { executeGetCarmenSkins } from "./executors/get-carmen-skins.ts";
+import { executeRecallSkills } from "./executors/recall-skills.ts";
+import { executeCreateSkill } from "./executors/create-skill.ts";
+import { executeUpdateSkill } from "./executors/update-skill.ts";
+import { executeDelegateToSubagent } from "./executors/delegate-to-subagent.ts";
+import { executeGetSubagentResult } from "./executors/get-subagent-result.ts";
+import { executeDelegateParallel } from "./executors/delegate-parallel.ts";
+import { executeGetBatchResults } from "./executors/get-batch-results.ts";
+import { executeProposeAutomation } from "./executors/propose-automation.ts";
+import { executeListPendingApprovals } from "./executors/list-pending-approvals.ts";
+import { executeExecutePendingApproval } from "./executors/execute-pending-approval.ts";
+import { executeRejectPendingApproval } from "./executors/reject-pending-approval.ts";
 import { executeRecallRecentAction } from "./executors/recall-recent-action.ts";
 import { executeRecordActionEpisode } from "./executors/record-action-episode.ts";
 import { executeSendMessage } from "./executors/send-message.ts";
@@ -97,8 +130,6 @@ import { executeScheduleCampaignToggle } from "./executors/schedule-campaign-tog
 import { executeListCampaignSchedules } from "./executors/list-campaign-schedules.ts";
 import { executeCancelCampaignSchedule } from "./executors/cancel-campaign-schedule.ts";
 
-import { FB_GRAPH_VERSION } from "./executors/meta-api-version.ts";
-
 import { executeCreateTask } from "./executors/create-task.ts";
 import { executeCreateAgentTask } from "./executors/create-agent-task.ts";
 import { executeListMyAgentTasks } from "./executors/list-my-agent-tasks.ts";
@@ -134,9 +165,6 @@ import { executeCompleteTaskStep } from "./executors/complete-task-step.ts";
 import { executePrioritizeTasks } from "./executors/prioritize-tasks.ts";
 import { listClients } from "./executors/client-list.ts";
 import { executeClientRecordTool } from "./executors/client-records.ts";
-import { executeClientAccessTool } from "./executors/client-access.ts";
-
-import { searchClientsBroadly } from "./executors/client-search.ts";
 
 import { executeLeadTool } from "./executors/lead-tools.ts";
 import { prepareToolDispatch } from "./tool-dispatch.ts";
@@ -156,7 +184,7 @@ import {
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveModelId } from "../_shared/models.ts";
-import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
+
 import {
   canStreamCompletion,
   messagesForProvider,
@@ -314,12 +342,7 @@ import {
   isPulseTargetTool,
 } from "../_shared/carmen/pulse-targets/tool-defs.ts";
 import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
-import {
-  spawnSubagent,
-  getSubagentResult,
-  spawnSubagentBatch,
-  getBatchResults,
-} from "../_shared/subagent.ts";
+
 import {
   resolveActiveSkills,
   buildSkillsBlockBySlug,
@@ -361,7 +384,7 @@ import {
   buildApprovalPickPromptRule,
   formatApprovalPickReply,
 } from "./approvals/chat-text.ts";
-import { approvalDisplayCode } from "./approvals/codes.ts";
+
 import {
   approvalDecisionRefusal,
   approvalScopedTools,
@@ -369,15 +392,12 @@ import {
   isAutomationRun,
   runMayDecideApprovals,
 } from "./approvals/decision-scope.ts";
-import {
-  postApprovalDecision,
-  runApprovalExecutor,
-} from "./approvals/executor.ts";
+import { runApprovalExecutor } from "./approvals/executor.ts";
 import { loadApprovalPick } from "./approvals/pick.ts";
 import { parseApprovalReply } from "./approvals/reply.ts";
 import { isDeterministicApprovalPick } from "./approvals/resolve.ts";
 import type { ApprovalPick } from "./approvals/types.ts";
-import { approvalPickToolResult } from "./approvals/tool-result.ts";
+
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
 import { extractMeetingUrl } from "../_shared/meeting-url.ts";
 
@@ -392,13 +412,7 @@ import {
   directDevSendRefusal,
   workshopDevTaskRule,
 } from "./dev-task-send-rules.ts";
-import {
-  appOrigin,
-  carmenSkinEntries,
-  carmenSkinsResult,
-  customSkinPaths,
-  pathsToSign,
-} from "../_shared/carmen/skin-gallery.ts";
+
 import {
   OPENAI_BILLING_REFUSAL_HE,
   buildOpenAiBillingStatus,
@@ -409,28 +423,10 @@ import {
 } from "../_shared/openai-billing.ts";
 import { pulseSurfacePrefersWhatsAppDigest } from "../_shared/campaign-pulse.ts";
 
-import { configuredPages } from "./meta-lead-settings.ts";
-import { metaLeadIntegrations } from "./meta-lead-integrations.ts";
-import {
-  connectMetaFormToAutomation,
-  type MetaLeadForm,
-} from "./meta-form-binding.ts";
 import { errorMessage } from "./error-message.ts";
 import { openaiAdminGet } from "./openai-admin-get.ts";
-import { readMetaResponse } from "./meta-response.ts";
-import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
-import type {
-  AutomationFlowStepRow,
-  MetaLeadQuestion,
-} from "./tool-contracts-marketing.ts";
-import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 
-import { automationStepArg, parallelTaskArgs } from "./tool-contracts-admin.ts";
-
-import { readAutomationStepSummary } from "./tool-storage-contracts.ts";
-
-import type { TablesUpdate } from "../_shared/database.types.ts";
-import type { MetaNode } from "./meta-response.ts";
+import type { AgentDatabaseClient } from "./database-contracts.ts";
 
 /** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
 async function resolveOpenAiAdminKey(
@@ -914,149 +910,6 @@ function estimateLLMCostUSD(
   return +((tokensIn * price[0] + tokensOut * price[1]) / 1e6).toFixed(6);
 }
 
-type MetaLeadPage = {
-  id: string;
-  name: string;
-  access_token: string;
-  integration_id: string;
-};
-
-function metaNameMatches(value: unknown, query: unknown): boolean {
-  const normalize = (input: unknown) =>
-    String(input || "")
-      .trim()
-      .toLocaleLowerCase()
-      .replace(/[\s\-_–—"'׳״()[\]{}]+/g, "");
-  const v = normalize(value);
-  const q = normalize(query);
-  return !!v && !!q && (v === q || v.includes(q));
-}
-
-function assertHttpsUrl(value: unknown, field: string): string {
-  let url: URL;
-  try {
-    url = new URL(String(value || ""));
-  } catch {
-    throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
-  }
-  if (url.protocol !== "https:")
-    throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
-  return url.toString();
-}
-
-async function metaLeadPages(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-): Promise<MetaLeadPage[]> {
-  const integrations = await metaLeadIntegrations(supabase, tenantId);
-  const pages: MetaLeadPage[] = [];
-  for (const integration of integrations) {
-    let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
-    if (sourcePages.length === 0) {
-      let next: string | null =
-        `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
-      while (next) {
-        const response = await fetch(next);
-        const result = await readMetaResponse(response);
-        if (!result.ok)
-          throw new Error(
-            String(result.error.message ?? "Meta pages request failed"),
-          );
-        const json = result.value;
-        if (!response.ok || json?.error)
-          throw new Error(json?.error?.message || "Meta pages request failed");
-        sourcePages = sourcePages.concat(json.data || []);
-        next = json.paging?.next || null;
-      }
-    }
-    for (const page of sourcePages) {
-      if (page?.id && page?.access_token) {
-        pages.push({
-          id: String(page.id),
-          name: String(page.name || page.id),
-          access_token: String(page.access_token),
-          integration_id: integration.id,
-        });
-      }
-    }
-  }
-  return pages;
-}
-
-async function metaLeadFormsForPage(
-  page: MetaLeadPage,
-): Promise<MetaLeadForm[]> {
-  const forms: MetaLeadForm[] = [];
-  let next: string | null =
-    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
-  while (next) {
-    const response = await fetch(next);
-    const result = await readMetaResponse(response);
-    if (!result.ok)
-      throw new Error(
-        String(
-          result.error.message ?? `Meta forms request failed for ${page.name}`,
-        ),
-      );
-    const json = result.value;
-    if (!response.ok || json.error)
-      throw new Error(
-        json.error?.message || `Meta forms request failed for ${page.name}`,
-      );
-    for (const form of json.data || []) {
-      forms.push({
-        id: String(form.id),
-        name: String(form.name || form.id),
-        status: form.status ? String(form.status) : null,
-        fields: (form.questions || []).map((q) => ({
-          key: String(q.key || q.type || ""),
-          label: String(q.label || q.key || q.type || ""),
-          type: String(q.type || ""),
-        })),
-        page_id: page.id,
-        page_name: page.name,
-        integration_id: page.integration_id,
-      });
-    }
-    next = json.paging?.next || null;
-  }
-  return forms;
-}
-
-async function findAutomationForMetaForm(
-  supabase: AgentDatabaseClient,
-  tenantIds: string[],
-  automationId?: unknown,
-  automationName?: unknown,
-) {
-  let query = supabase
-    .from("automations")
-    .select("id, name, active, tenant_id")
-    .in("tenant_id", tenantIds)
-    .eq("is_flow", true);
-  if (automationId) query = query.eq("id", String(automationId));
-  const { data, error } = await query.order("name").limit(100).returns<
-    Array<
-      Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
-        tenant_id: string | null;
-      }
-    >
-  >();
-  if (error) throw error;
-  let matches = data || [];
-  if (automationName)
-    matches = matches.filter((a) => metaNameMatches(a.name, automationName));
-  if (matches.length === 0) throw new Error("לא נמצאה אוטומציה תואמת בארגון");
-  if (matches.length > 1) {
-    throw new Error(
-      `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
-    );
-  }
-  const match = matches[0];
-  if (!match.tenant_id) throw new Error("Automation has no tenant");
-  return { ...match, tenant_id: match.tenant_id };
-}
-
 async function getAccessibleTenantIds(
   supabase: AgentDatabaseClient,
   tenantId: string,
@@ -1340,18 +1193,11 @@ async function executeTool(
   }
   // Preserve legacy argument acceptance; domain modules expose named input contracts.
   switch (name) {
-    case "query_system_graph": {
-      if (!isManagerRole) throw new Error("אין הרשאה לעיין בגרף המערכת");
-      const query = String(args.query || "").trim();
-      if (!query) throw new Error("query is required");
-      const { data, error } = await supabase.rpc("carmen_query_system_graph", {
-        p_query: query,
-        p_depth: Math.min(3, Math.max(0, Number(args.depth ?? 2))),
-        p_limit: Math.min(80, Math.max(1, Number(args.limit ?? 40))),
-      });
-      if (error) throw error;
-      return { count: data?.length || 0, nodes: data || [], read_only: true };
-    }
+    case "query_system_graph":
+      return executeQuerySystemGraph(
+        args as Parameters<typeof executeQuerySystemGraph>[0],
+        toolContext,
+      );
     case "create_lead":
     case "list_leads":
     case "update_lead_status":
@@ -1415,16 +1261,9 @@ async function executeTool(
     case "get_client_info":
     case "add_client_update":
     case "set_campaign_table_active":
-      return executeClientAccessTool(
-        { name, args } as Parameters<typeof executeClientAccessTool>[0],
-        {
-          ...prepared.scope,
-          supabase,
-          tenantId,
-          callerCampaignerId,
-          humanRequesterUserId,
-          surface,
-        },
+      return executeSetCampaignTableActive(
+        args as Parameters<typeof executeSetCampaignTableActive>[0],
+        toolContext,
       );
 
     case "send_message":
@@ -1432,182 +1271,22 @@ async function executeTool(
         args as Parameters<typeof executeSendMessage>[0],
         toolContext,
       );
-    case "search_entities": {
-      const tableMap: Record<string, string> = {
-        agency: "agencies",
-        client: "clients",
-        campaigner: "campaigners",
-        sales_person: "sales_people",
-        lead: "leads",
-      };
-      const nameMap: Record<string, string> = {
-        agency: "name",
-        client: "name",
-        campaigner: "full_name",
-        sales_person: "full_name",
-        lead: "company_name",
-      };
-      const table = tableMap[args.entity_type];
-      const nameField = nameMap[args.entity_type];
+    case "search_entities":
+      return executeSearchEntities(
+        args as Parameters<typeof executeSearchEntities>[0],
+        toolContext,
+      );
+    case "delegate_to_manus":
+      return executeDelegateToManus(
+        args as Parameters<typeof executeDelegateToManus>[0],
+        toolContext,
+      );
 
-      // Clients: broad alias + ad-account + inactive/ended search (Kernelios/Cornelius/קרנליוס…).
-      if (args.entity_type === "client") {
-        let clientIdsFilter: string[] | null = null;
-        if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
-          const { data: links } = await supabase
-            .from("client_team")
-            .select("client_id")
-            .eq("campaigner_id", callerCampaignerId);
-          clientIdsFilter = (links || []).map((l: any) => l.client_id);
-          if (clientIdsFilter.length === 0)
-            return {
-              count: 0,
-              results: [],
-              note: "no clients assigned to you",
-            };
-        }
-        const agencyFilter =
-          args.agency_id ||
-          (isTeamManager && !args.all_scopes && managedAgencyIds.length === 1
-            ? managedAgencyIds[0]
-            : null);
-        const results = await searchClientsBroadly(
-          supabase,
-          accessibleTenantIds,
-          args.search_term,
-          {
-            limit: 20,
-            agencyId: agencyFilter,
-            clientIdsFilter:
-              isTeamManager &&
-              !args.all_scopes &&
-              managedAgencyIds.length > 1 &&
-              !args.agency_id
-                ? null
-                : clientIdsFilter,
-          },
-        );
-        const filtered =
-          isTeamManager &&
-          !args.all_scopes &&
-          managedAgencyIds.length > 0 &&
-          !args.agency_id
-            ? results.filter(
-                (r: any) =>
-                  r.agency_id && managedAgencyIds.includes(r.agency_id),
-              )
-            : results;
-        return {
-          count: filtered.length,
-          results: filtered,
-          note: "includes active+ended/paused, CRM name aliases, and Meta/Google ad-account / report-table name matches",
-        };
-      }
-
-      const selectCols =
-        args.entity_type === "lead"
-          ? `id, ${nameField}, agency_id`
-          : args.entity_type === "campaigner" ||
-              args.entity_type === "sales_person"
-            ? `id, ${nameField}, phone, email`
-            : `id, ${nameField}`;
-      let q = supabase
-        .from(table)
-        .select(selectCols)
-        .in("tenant_id", accessibleTenantIds)
-        .ilike(nameField, `%${args.search_term}%`)
-        .limit(20);
-      if (args.entity_type === "lead" && args.agency_id) {
-        q = q.eq("agency_id", args.agency_id);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, results: data };
-    }
-    case "delegate_to_manus": {
-      // Call the existing manus-api edge function
-      const manusBody: any = {
-        action: "create_task",
-        tenantId,
-        prompt: args.prompt,
-      };
-      if (args.context_data) {
-        manusBody.prompt = `${args.prompt}\n\nנתוני הקשר:\n${args.context_data}`;
-      }
-
-      const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify(manusBody),
-      });
-
-      if (!manusRes.ok) {
-        const errText = await manusRes.text();
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(errText);
-        } catch {
-          /* ignore */
-        }
-        const detail = parsed?.error || errText;
-        // Distinguish between local config errors and real Manus API errors
-        if (
-          manusRes.status === 400 &&
-          /not configured|key not found/i.test(String(detail))
-        ) {
-          throw new Error(
-            `Manus לא מוגדר עבור הטננט הזה: ${detail}. הוסיפי מפתח API בהגדרות אינטגרציות → Manus.`,
-          );
-        }
-        if (manusRes.status === 401) {
-          throw new Error(`Manus auth failed (internal): ${detail}`);
-        }
-        throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
-      }
-
-      const manusData = await manusRes.json();
-      return {
-        success: true,
-        task_id: manusData.task_id,
-        task_url: manusData.task_url,
-        share_url: manusData.share_url,
-        message:
-          "המשימה נשלחה ל-Manus AI ורצה ברקע. תוכל לעקוב אחריה בהגדרות Manus.",
-      };
-    }
-
-    case "send_message_to_manus": {
-      const manusApiUrl = `${SUPABASE_URL}/functions/v1/manus-api`;
-      const msgBody: any = {
-        action: "send_message",
-        tenantId,
-        message: args.message,
-      };
-      if (args.task_id) msgBody.task_id = args.task_id;
-      const msgRes = await fetch(manusApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify(msgBody),
-      });
-      if (!msgRes.ok) {
-        const errText = await msgRes.text();
-        throw new Error(
-          `Manus send_message error [${msgRes.status}]: ${errText}`,
-        );
-      }
-      const msgData = await msgRes.json();
-      return {
-        success: true,
-        task_id: msgData.task_id,
-        message: "ההודעה נשלחה ל-Manus בהצלחה.",
-      };
-    }
+    case "send_message_to_manus":
+      return executeSendMessageToManus(
+        args as Parameters<typeof executeSendMessageToManus>[0],
+        toolContext,
+      );
 
     case "get_facebook_campaign_data":
       return executeGetFacebookCampaignData(
@@ -1892,369 +1571,38 @@ async function executeTool(
         toolContext,
       );
     // AUTOMATIONS
-    case "list_automations": {
-      let q = supabase
-        .from("automations")
-        .select(
-          "id, name, description, active, trigger_type, is_flow, updated_at",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .order("name")
-        .limit(args.limit || 50);
-      if (args.active_only === true) q = q.eq("active", true);
-      if (args.name_search) q = q.ilike("name", `%${args.name_search}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, automations: data };
-    }
-    case "get_automation_details": {
-      let automationId = args.automation_id as string | undefined;
-      if (!automationId && args.name_search) {
-        const { data: found } = await supabase
-          .from("automations")
-          .select("id")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${args.name_search}%`)
-          .limit(1)
-          .maybeSingle();
-        automationId = found?.id;
-      }
-      if (!automationId) return { error: "automation_id או name_search נדרש" };
-      const { data: auto, error } = await supabase
-        .from("automations")
-        .select(
-          "id, name, description, active, trigger_type, configuration, is_flow, created_at, updated_at",
-        )
-        .eq("id", automationId)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (error || !auto) return { error: "אוטומציה לא נמצאה" };
-      const { data: steps } = await supabase
-        .from("automation_flow_steps")
-        .select(
-          "id, step_type, action_type, label, configuration, sort_order, parent_step_id, condition_branch, position_x, position_y",
-        )
-        .eq("automation_id", automationId)
-        .order("sort_order", { ascending: true });
-      const stepRows: AutomationFlowStepRow[] = steps || [];
-      return {
-        automation: auto,
-        steps: stepRows.map((s) => {
-          const configuration = readAutomationStepSummary(s.configuration);
-          return {
-            id: s.id,
-            step_type: s.step_type,
-            action_type: s.action_type,
-            label: s.label,
-            sort_order: s.sort_order,
-            parent_step_id: s.parent_step_id,
-            condition_branch: s.condition_branch,
-            skin_slugs: configuration.skin_slugs || null,
-            step_instruction: configuration.step_instruction || null,
-            agent_id: configuration.agent_id || null,
-            facebook_form_id: configuration.facebook_form_id || null,
-            config_keys: s.configuration ? Object.keys(s.configuration) : [],
-          };
-        }),
-        steps_count: steps?.length || 0,
-      };
-    }
+    case "list_automations":
+      return executeListAutomations(
+        args as Parameters<typeof executeListAutomations>[0],
+        toolContext,
+      );
+    case "get_automation_details":
+      return executeGetAutomationDetails(
+        args as Parameters<typeof executeGetAutomationDetails>[0],
+        toolContext,
+      );
     case "toggle_automation":
     case "delete_automation":
-    case "propose_automation_edit": {
-      if (!args.automation_id) return { error: "automation_id נדרש" };
-      const { data: auto } = await supabase
-        .from("automations")
-        .select("id, name, active")
-        .eq("id", args.automation_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (!auto) return { error: "אוטומציה לא נמצאה" };
-      const autoTitles: Record<string, string> = {
-        toggle_automation: `${args.active ? "הפעלת" : "כיבוי"} אוטומציה: ${auto.name}`,
-        delete_automation: `מחיקת אוטומציה: ${auto.name}`,
-        propose_automation_edit: `עריכת אוטומציה: ${auto.name}`,
-      };
-      const toolName =
-        name === "propose_automation_edit" ? "edit_automation" : name;
-      const { data: aqRow, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: toolName,
-          title: autoTitles[name] || name,
-          description: "פעולת אוטומציה — דורשת אישור משתמש מפורש",
-          tool_name: toolName,
-          tool_input: args,
-          context: {
-            caller_role: callerRole,
-            caller_phone: callerPhone,
-            automation_name: auto.name,
-          },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aqRow.id,
-        action: toolName,
-        summary: autoTitles[name] || name,
-        instruction_for_carmen:
-          'הצג למשתמש מה ישתנה באוטומציה ובקש אישור: "לאשר? (כן/לא)". אל תבצעי עד execute_pending_approval.',
-      };
-    }
-    case "inspect_meta_lead_forms": {
-      const { data: automations, error: automationError } = await supabase
-        .from("automations")
-        .select("id, name, active, tenant_id")
-        .in("tenant_id", accessibleTenantIds)
-        .eq("is_flow", true)
-        .order("name");
-      if (automationError) throw automationError;
-      let matchingAutomations: Pick<
-        AgentRow<"automations">,
-        "id" | "name" | "active" | "tenant_id"
-      >[] = automations || [];
-      if (args.automation_name) {
-        matchingAutomations = matchingAutomations.filter((a) =>
-          metaNameMatches(a.name, args.automation_name),
-        );
-      }
-      const automationIds = matchingAutomations.map((a) => a.id);
-      const { data: triggerSteps, error: triggerError } = automationIds.length
-        ? await supabase
-            .from("automation_flow_steps")
-            .select("automation_id, configuration")
-            .in("automation_id", automationIds)
-            .eq("step_type", "trigger")
-        : { data: [], error: null };
-      if (triggerError) throw triggerError;
-      const triggerRows: Pick<
-        AgentRow<"automation_flow_steps">,
-        "automation_id" | "configuration"
-      >[] = triggerSteps || [];
-      const currentByAutomation = new Map(
-        triggerRows
-          .map(
-            (s) =>
-              [
-                s.automation_id,
-                readAutomationStepSummary(s.configuration),
-              ] as const,
-          )
-          .filter(([, configuration]) => configuration.facebook_form_id),
+    case "propose_automation_edit":
+      return executeProposeAutomationEdit(
+        args as Parameters<typeof executeProposeAutomationEdit>[0],
+        toolContext,
       );
-
-      let pages = await metaLeadPages(supabase, tenantId);
-      if (args.page_name)
-        pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
-      const formsNested = await Promise.all(
-        pages.map((page) => metaLeadFormsForPage(page)),
+    case "inspect_meta_lead_forms":
+      return executeInspectMetaLeadForms(
+        args as Parameters<typeof executeInspectMetaLeadForms>[0],
+        toolContext,
       );
-      let forms = formsNested.flat();
-      if (args.form_name)
-        forms = forms.filter((f) => metaNameMatches(f.name, args.form_name));
-      return {
-        automations: matchingAutomations.map((automation) => {
-          const current = currentByAutomation.get(automation.id);
-          return {
-            id: automation.id,
-            name: automation.name,
-            active: automation.active,
-            connected_form: current
-              ? {
-                  id: current.facebook_form_id,
-                  name: current.facebook_form_name || null,
-                  page_id: current.facebook_page_id || null,
-                  page_name: current.facebook_page_name || null,
-                  integration_id: current.facebook_integration_id || null,
-                }
-              : null,
-          };
-        }),
-        pages: pages.map(({ access_token: _token, ...page }) => page),
-        forms,
-        count: forms.length,
-        live_from_meta: true,
-      };
-    }
-    case "set_automation_meta_lead_form": {
-      if (!args.confirmed)
-        throw new Error("נדרש אישור מפורש לפני החלפת טופס באוטומציה");
-      if (!canManageAutomations)
-        throw new Error(
-          "רק מנהל צוות, בעלים או Super Admin רשאים לשנות טופס באוטומציה",
-        );
-      const automation = await findAutomationForMetaForm(
-        supabase,
-        accessibleTenantIds,
-        args.automation_id,
-        args.automation_name,
+    case "set_automation_meta_lead_form":
+      return executeSetAutomationMetaLeadForm(
+        args as Parameters<typeof executeSetAutomationMetaLeadForm>[0],
+        toolContext,
       );
-      let pages = await metaLeadPages(supabase, automation.tenant_id);
-      if (args.page_name)
-        pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
-      const forms = (
-        await Promise.all(pages.map((page) => metaLeadFormsForPage(page)))
-      )
-        .flat()
-        .filter((form) => metaNameMatches(form.name, args.form_name));
-      if (forms.length === 0)
-        throw new Error(`לא נמצא ב-Meta טופס בשם "${args.form_name}"`);
-      if (forms.length > 1) {
-        throw new Error(
-          `נמצאו כמה טפסים תואמים: ${forms.map((f) => `${f.name} — ${f.page_name} (${f.id})`).join(", ")}. יש לציין גם את שם העמוד`,
-        );
-      }
-      const form = forms[0];
-      const connected = await connectMetaFormToAutomation(
-        supabase,
-        automation,
-        form,
+    case "create_meta_lead_form":
+      return executeCreateMetaLeadForm(
+        args as Parameters<typeof executeCreateMetaLeadForm>[0],
+        toolContext,
       );
-      return { success: true, ...connected, form, sync_registered: true };
-    }
-    case "create_meta_lead_form": {
-      if (!args.confirmed)
-        throw new Error("נדרש אישור מפורש לפני יצירת טופס חדש ב-Meta");
-      if (!canManageAutomations)
-        throw new Error(
-          "רק מנהל צוות, בעלים או Super Admin רשאים ליצור טופס Meta",
-        );
-      const questions: unknown[] = Array.isArray(args.questions)
-        ? args.questions.slice(0, 30)
-        : [];
-      if (questions.length === 0)
-        throw new Error("יש להגדיר לפחות שדה אחד בטופס");
-      const allowedQuestionTypes = new Set([
-        "FULL_NAME",
-        "FIRST_NAME",
-        "LAST_NAME",
-        "EMAIL",
-        "PHONE",
-        "CITY",
-        "STATE",
-        "ZIP",
-        "COUNTRY",
-        "STREET_ADDRESS",
-        "DATE_OF_BIRTH",
-        "GENDER",
-        "MARITAL_STATUS",
-        "RELATIONSHIP_STATUS",
-        "MILITARY_STATUS",
-        "JOB_TITLE",
-        "WORK_PHONE_NUMBER",
-        "WORK_EMAIL",
-        "COMPANY_NAME",
-        "CUSTOM",
-      ]);
-      const normalizedQuestions = questions.map((input): MetaLeadQuestion => {
-        const question = readMetaLeadQuestionInput(input);
-        const type = (question.type || "").trim().toUpperCase();
-        if (!allowedQuestionTypes.has(type))
-          throw new Error(`סוג שדה Meta אינו נתמך: ${type || "ריק"}`);
-        if (type === "CUSTOM" && !(question.label || "").trim()) {
-          throw new Error("שדה CUSTOM חייב לכלול label");
-        }
-        return question.label
-          ? { type, label: question.label.trim() }
-          : { type };
-      });
-      const privacyUrl = assertHttpsUrl(
-        args.privacy_policy_url,
-        "privacy_policy_url",
-      );
-      const followUpUrl = assertHttpsUrl(
-        args.follow_up_action_url,
-        "follow_up_action_url",
-      );
-      const pages = (await metaLeadPages(supabase, tenantId)).filter((page) =>
-        metaNameMatches(page.name, args.page_name),
-      );
-      if (pages.length === 0)
-        throw new Error(`לא נמצא עמוד Meta בשם "${args.page_name}"`);
-      if (pages.length > 1) {
-        throw new Error(
-          `נמצאו כמה עמודים תואמים: ${pages.map((p) => `${p.name} (${p.id})`).join(", ")}. יש לציין שם מדויק יותר`,
-        );
-      }
-      const page = pages[0];
-      const existingForms = await metaLeadFormsForPage(page);
-      if (
-        existingForms.some(
-          (form) =>
-            form.name.trim().toLocaleLowerCase() ===
-            String(args.form_name).trim().toLocaleLowerCase(),
-        )
-      ) {
-        throw new Error(
-          `כבר קיים בעמוד "${page.name}" טופס בשם "${args.form_name}". השתמשי בכלי ההחלפה או בחרי שם חדש`,
-        );
-      }
-      const body = new URLSearchParams({
-        access_token: page.access_token,
-        name: String(args.form_name).trim(),
-        questions: JSON.stringify(normalizedQuestions),
-        privacy_policy: JSON.stringify({
-          url: privacyUrl,
-          link_text: String(args.privacy_policy_link_text || "מדיניות פרטיות"),
-        }),
-        follow_up_action_url: followUpUrl,
-      });
-      const response = await fetch(
-        `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms`,
-        { method: "POST", body },
-      );
-      const json = await response.json();
-      if (!response.ok || json?.error || !json?.id) {
-        throw new Error(json?.error?.message || "Meta לא אפשרה ליצור את הטופס");
-      }
-      const createdForm: MetaLeadForm = {
-        id: String(json.id),
-        name: String(args.form_name).trim(),
-        status: "DRAFT",
-        fields: normalizedQuestions.map((question, index) => ({
-          key:
-            question.type === "CUSTOM"
-              ? `custom_${index + 1}`
-              : question.type.toLocaleLowerCase(),
-          label: question.label || question.type,
-          type: question.type,
-        })),
-        page_id: page.id,
-        page_name: page.name,
-        integration_id: page.integration_id,
-      };
-      let connected: Awaited<
-        ReturnType<typeof connectMetaFormToAutomation>
-      > | null = null;
-      if (args.automation_id || args.automation_name) {
-        const automation = await findAutomationForMetaForm(
-          supabase,
-          accessibleTenantIds,
-          args.automation_id,
-          args.automation_name,
-        );
-        connected = await connectMetaFormToAutomation(
-          supabase,
-          automation,
-          createdForm,
-        );
-      }
-      return {
-        success: true,
-        form: createdForm,
-        connected_automation: connected,
-        note: connected
-          ? "הטופס נוצר וחובר לאוטומציה. יש לפרסם/להפעיל אותו ב-Meta אם נוצר כטיוטה."
-          : "הטופס נוצר. יש לפרסם/להפעיל אותו ב-Meta ולחבר אותו לאוטומציה לפי הצורך.",
-      };
-    }
     // DASHBOARD STATS
     case "get_dashboard_stats":
       return executeGetDashboardStats(
@@ -2519,447 +1867,108 @@ async function executeTool(
         args as Parameters<typeof executeListUnconnectedClients>[0],
         toolContext,
       );
-    case "list_integrations": {
-      const db: AgentDatabaseClient = supabase;
-      let q = db
-        .from("tenant_integrations")
-        .select(
-          "id, integration_type, is_active, settings, last_sync_at, created_at",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (args.type)
-        q = q.in("integration_type", integrationTypesFor(args.type));
-      if (args.only_active) q = q.eq("is_active", true);
-      const { data, error } = await q.order("integration_type");
-      if (error) throw error;
-      return {
-        count: data?.length || 0,
-        integrations: (data || []).map((i) => ({
-          id: i.id,
-          type: i.integration_type,
-          is_active: i.is_active,
-          last_sync_at: i.last_sync_at,
-        })),
-      };
-    }
-    case "toggle_integration": {
-      const { data, error } = await supabase
-        .from("tenant_integrations")
-        .update({ is_active: args.is_active })
-        .eq("id", args.integration_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, integration_type, is_active")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "list_agents": {
-      let q = supabase
-        .from("ai_agents")
-        .select("id, name, talent, engine, active")
-        .in("tenant_id", accessibleTenantIds);
-      if (args.only_active) q = q.eq("active", true);
-      const { data, error } = await q.order("name");
-      if (error) throw error;
-      return { count: data?.length || 0, agents: data };
-    }
-    case "create_agent": {
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .insert({
-          tenant_id: tenantId,
-          name: args.name,
-          talent: args.talent,
-          personality: args.personality || null,
-          soul: args.soul || null,
-          engine: args.engine || "gemini-3-flash",
-          active: true,
-        })
-        .select("id, name")
-        .single();
-      if (error) throw error;
-      return {
-        agent_id: data.id,
-        name: data.name,
-        message: `סוכן ${data.name} נוצר בהצלחה תחת כרמן`,
-      };
-    }
-    case "update_agent": {
-      const updates: TablesUpdate<"ai_agents"> = {};
-      for (const k of [
-        "name",
-        "talent",
-        "personality",
-        "soul",
-        "engine",
-        "active",
-      ] as const) {
-        if (args[k] !== undefined) updates[k] = args[k];
-      }
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .update(updates)
-        .eq("id", args.agent_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, name, active")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "delegate_to_github_agent": {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/github-agent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          action: args.action || "chat_support",
-          tenant_id: tenantId,
-          message: args.message,
-        }),
-      });
-      const txt = await res.text();
-      if (!res.ok)
-        return { error: `github-agent failed [${res.status}]: ${txt}` };
-      try {
-        return JSON.parse(txt);
-      } catch {
-        return { response: txt };
-      }
-    }
-    case "create_whatsapp_instance": {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          action: "create_instance",
-          tenantId,
-          displayName: args.displayName,
-          countryCode: args.countryCode,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return {
-          error: data.error || `create_instance failed [${res.status}]`,
-        };
-      return data;
-    }
-    case "get_whatsapp_qr_link": {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          action: "get_qr_link",
-          integrationId: args.integrationId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `get_qr_link failed [${res.status}]` };
-      return data;
-    }
-    case "get_whatsapp_status": {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          action: "get_status",
-          integrationId: args.integrationId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `get_status failed [${res.status}]` };
-      return data;
-    }
-    case "send_whatsapp_via_gateway": {
-      const integrationId =
-        args.integrationId || (await defaultGatewayLine(supabase, tenantId));
-      if (!integrationId) {
-        return {
-          error:
-            "לארגון אין קו manus_wa פעיל לשליחת וואטסאפ. אפשר לחבר קו בהגדרות האינטגרציות.",
-        };
-      }
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          action: "send_message",
-          integrationId,
-          phone: args.phone,
-          message: args.message,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return {
-          error:
-            data.error || `send_whatsapp_via_gateway failed [${res.status}]`,
-        };
-      return data;
-    }
+    case "list_integrations":
+      return executeListIntegrations(
+        args as Parameters<typeof executeListIntegrations>[0],
+        toolContext,
+      );
+    case "toggle_integration":
+      return executeToggleIntegration(
+        args as Parameters<typeof executeToggleIntegration>[0],
+        toolContext,
+      );
+    case "list_agents":
+      return executeListAgents(
+        args as Parameters<typeof executeListAgents>[0],
+        toolContext,
+      );
+    case "create_agent":
+      return executeCreateAgent(
+        args as Parameters<typeof executeCreateAgent>[0],
+        toolContext,
+      );
+    case "update_agent":
+      return executeUpdateAgent(
+        args as Parameters<typeof executeUpdateAgent>[0],
+        toolContext,
+      );
+    case "delegate_to_github_agent":
+      return executeDelegateToGithubAgent(
+        args as Parameters<typeof executeDelegateToGithubAgent>[0],
+        toolContext,
+      );
+    case "create_whatsapp_instance":
+      return executeCreateWhatsappInstance(
+        args as Parameters<typeof executeCreateWhatsappInstance>[0],
+        toolContext,
+      );
+    case "get_whatsapp_qr_link":
+      return executeGetWhatsappQrLink(
+        args as Parameters<typeof executeGetWhatsappQrLink>[0],
+        toolContext,
+      );
+    case "get_whatsapp_status":
+      return executeGetWhatsappStatus(
+        args as Parameters<typeof executeGetWhatsappStatus>[0],
+        toolContext,
+      );
+    case "send_whatsapp_via_gateway":
+      return executeSendWhatsappViaGateway(
+        args as Parameters<typeof executeSendWhatsappViaGateway>[0],
+        toolContext,
+      );
     // ===========================
     // HERMES SKILLS SYSTEM
     // ===========================
-    case "get_carmen_skins": {
-      // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
-      const { data: carmenAgent } = await supabase
-        .from("ai_agents")
-        .select("metadata")
-        .eq("tenant_id", tenantId)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
-      const signed: Record<string, string> = {};
-      await Promise.all(
-        pathsToSign(paths).map(async (path) => {
-          const { data, error } = await supabase.storage
-            .from("entity-attachments")
-            .createSignedUrl(path, 3600);
-          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
-        }),
+    case "get_carmen_skins":
+      return executeGetCarmenSkins(
+        args as Parameters<typeof executeGetCarmenSkins>[0],
+        toolContext,
       );
-      return carmenSkinsResult(
-        carmenSkinEntries(paths, signed),
-        appOrigin(appLinkOrigin, Deno.env.get("APP_URL")),
+    case "recall_skills":
+      return executeRecallSkills(
+        args as Parameters<typeof executeRecallSkills>[0],
+        toolContext,
       );
-    }
-    case "recall_skills": {
-      const limit = Math.min(args.limit || 5, 20);
-      const q = String(args.query || "").trim();
-      // The tenant's own skills and the global skins every tenant has (scope = 'global').
-      const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
-      // Try FTS first; fall back to ILIKE
-      const { data: matchedSkills, error } = await supabase
-        .from("ai_skills")
-        .select(
-          "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
-        )
-        .or(skillScope)
-        .eq("is_active", true)
-        .textSearch(
-          "search_vector",
-          q.split(/\s+/).filter(Boolean).join(" | "),
-          { type: "websearch", config: "simple" },
-        )
-        .limit(limit);
-      let data = matchedSkills;
-      if (error || !data || data.length === 0) {
-        const { data: fb } = await supabase
-          .from("ai_skills")
-          .select(
-            "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
-          )
-          .or(skillScope)
-          .eq("is_active", true)
-          .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
-          .limit(limit);
-        data = fb || [];
-      }
-      return { count: data?.length || 0, skills: data || [] };
-    }
-    case "create_skill": {
-      const { data, error } = await supabase
-        .from("ai_skills")
-        .insert({
-          tenant_id: tenantId,
-          user_id: userId !== "system" ? userId : null,
-          name: args.name,
-          description: args.description,
-          steps: args.body,
-          trigger_phrases: Array.isArray(args.trigger_phrases)
-            ? args.trigger_phrases
-            : [],
-          created_by_agent: true,
-          is_active: true,
-          version: 1,
-        })
-        .select("id, name, version")
-        .single();
-      if (error) throw error;
-      console.log(
-        `[Hermes] Skill created by Carmen: ${data.name} (id=${data.id})`,
+    case "create_skill":
+      return executeCreateSkill(
+        args as Parameters<typeof executeCreateSkill>[0],
+        toolContext,
       );
-      return {
-        skill_id: data.id,
-        name: data.name,
-        version: data.version,
-        message: "הסקיל נשמר. אשתמש בו אוטומטית במשימות דומות בעתיד.",
-      };
-    }
-    case "update_skill": {
-      const { data: current } = await supabase
-        .from("ai_skills")
-        .select("id, version, name")
-        .eq("id", args.skill_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (!current) return { error: "Skill not found" };
-      const updates: TablesUpdate<"ai_skills"> = {
-        steps: args.body,
-        version: (current.version || 1) + 1,
-        updated_at: new Date().toISOString(),
-      };
-      if (args.description) updates.description = args.description;
-      const { data, error } = await supabase
-        .from("ai_skills")
-        .update(updates)
-        .eq("id", args.skill_id)
-        .eq("tenant_id", tenantId)
-        .select("id, name, version")
-        .single();
-      if (error) throw error;
-      console.log(
-        `[Hermes] Skill updated: ${data.name} v${data.version} - ${args.change_note || ""}`,
+    case "update_skill":
+      return executeUpdateSkill(
+        args as Parameters<typeof executeUpdateSkill>[0],
+        toolContext,
       );
-      return {
-        skill_id: data.id,
-        name: data.name,
-        version: data.version,
-        message: "הסקיל עודכן.",
-      };
-    }
-    case "delegate_to_subagent": {
-      if (!args.title || !args.prompt)
-        throw new Error("title and prompt are required");
-      return await spawnSubagent(supabase, {
-        parentAgentId: agentId || null,
-        tenantId,
-        title: args.title,
-        prompt: args.prompt,
-        taskMode: args.task_mode || "background",
-        taskSkills: Array.isArray(args.task_skills)
-          ? args.task_skills
-          : undefined,
-        priority: typeof args.priority === "number" ? args.priority : undefined,
-        createdBy: userId !== "system" ? userId : null,
-        // When the caller is on WhatsApp, propagate the chat target so the
-        // subagent can deliver its final result back to the same WA chat
-        // instead of dying silently.
-        notify: waNotify && waNotify.surface === "whatsapp" ? waNotify : null,
-      });
-    }
+    case "delegate_to_subagent":
+      return executeDelegateToSubagent(
+        args as Parameters<typeof executeDelegateToSubagent>[0],
+        toolContext,
+      );
 
-    case "get_subagent_result": {
-      if (!args.sub_task_id) throw new Error("sub_task_id is required");
-      return await getSubagentResult(supabase, tenantId, args.sub_task_id);
-    }
-
-    case "delegate_parallel": {
-      const items: unknown[] = Array.isArray(args.tasks) ? args.tasks : [];
-      if (items.length === 0)
-        throw new Error("tasks (array of {title, prompt}) is required");
-      if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
-      const cleaned = parallelTaskArgs(items).map((it) => ({
-        title: it.title,
-        prompt: it.prompt,
-        taskSkills: Array.isArray(it.task_skills) ? it.task_skills : undefined,
-        // Routing: read-only subtasks (side_effects:false) run in parallel;
-        // mutating ones (default) run one-at-a-time in the serial lane.
-        sideEffects:
-          typeof it.side_effects === "boolean" ? it.side_effects : undefined,
-      }));
-      if (cleaned.length === 0)
-        throw new Error("כל תת-משימה חייבת title ו-prompt");
-      const batchId = crypto.randomUUID();
-      return await spawnSubagentBatch(
-        supabase,
-        {
-          parentAgentId: agentId || null,
-          tenantId,
-          taskMode: "background",
-          createdBy: userId !== "system" ? userId : null,
-          notify: waNotify && waNotify.surface === "whatsapp" ? waNotify : null,
-        },
-        cleaned,
-        batchId,
+    case "get_subagent_result":
+      return executeGetSubagentResult(
+        args as Parameters<typeof executeGetSubagentResult>[0],
+        toolContext,
       );
-    }
 
-    case "get_batch_results": {
-      if (!args.batch_id) throw new Error("batch_id is required");
-      return await getBatchResults(supabase, tenantId, args.batch_id);
-    }
+    case "delegate_parallel":
+      return executeDelegateParallel(
+        args as Parameters<typeof executeDelegateParallel>[0],
+        toolContext,
+      );
 
-    case "propose_automation": {
-      if (
-        !args.name ||
-        !args.trigger_type ||
-        !Array.isArray(args.steps) ||
-        args.steps.length === 0
-      ) {
-        throw new Error("name, trigger_type ו-steps (מערך לא ריק) נדרשים");
-      }
-      const stepArgs: unknown[] = args.steps;
-      const spec = {
-        name: String(args.name),
-        description: args.description ? String(args.description) : null,
-        trigger_type: String(args.trigger_type),
-        trigger_config:
-          args.trigger_config && typeof args.trigger_config === "object"
-            ? args.trigger_config
-            : {},
-        steps: stepArgs
-          .slice(0, 20)
-          .map(automationStepArg)
-          .map((s) => ({
-            type: s.type || "agent",
-            skin: s.skin || null,
-            instruction: s.instruction || null,
-            action_type: s.action_type || null,
-            config: s.config && typeof s.config === "object" ? s.config : {},
-            label: s.label || null,
-          })),
-      };
-      const stepSummary = spec.steps
-        .map(
-          (s, i) =>
-            `${i + 1}. ${s.label || s.type}${s.skin ? ` [${s.skin}]` : ""}`,
-        )
-        .join("  ·  ");
-      const { data, error } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "create_automation",
-          title: `בניית אוטומציה: ${spec.name}`,
-          description: `טריגר: ${spec.trigger_type} | שלבים: ${stepSummary}`,
-          tool_name: "create_automation",
-          tool_input: spec,
-          context: { caller_role: callerRole, caller_phone: callerPhone },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return {
-        pending_approval: true,
-        approval_id: data.id,
-        summary: `אוטומציה "${spec.name}" — ${spec.steps.length} שלבים`,
-        instruction_for_carmen:
-          "הצג למשתמש את התכנון (טריגר + שלבים) ובקש אישור. האוטומציה תיווצר כבויה רק לאחר אישור; אל תפעילי אותה — המשתמש יבדוק ויפעיל בעצמו.",
-      };
-    }
+    case "get_batch_results":
+      return executeGetBatchResults(
+        args as Parameters<typeof executeGetBatchResults>[0],
+        toolContext,
+      );
+
+    case "propose_automation":
+      return executeProposeAutomation(
+        args as Parameters<typeof executeProposeAutomation>[0],
+        toolContext,
+      );
 
     // ============ MEDIA LIBRARY ============
     case "save_media_from_chat":
@@ -2974,93 +1983,21 @@ async function executeTool(
       );
 
     // ============ APPROVAL HELPERS ============
-    case "list_pending_approvals": {
-      // Only requests this caller may approve, each with the short code for "כן <קוד>".
-      const pick = await loadApprovalPick(supabase, tenantId, {
-        userId: actorUserId,
-        surface,
-        conversationId,
-        waChatId: waNotify?.chat_id,
-        phone: callerPhone,
-      });
-      const approvals = pick.pickable.slice(0, args.limit || 10).map((r) => ({
-        code: approvalDisplayCode(r, pick.pickable),
-        id: r.id,
-        title: r.title,
-        description: r.description,
-        tool_name: r.tool_name,
-        created_at: r.created_at,
-        requested_by: r.requested_by,
-        mine: r.requested_by === actorUserId,
-      }));
-      const bound = pick.kind === "match" ? pick.row : null;
-      return {
-        count: approvals.length,
-        approvals,
-        bound_approval_id: bound?.id || null,
-        instruction_for_carmen: bound
-          ? `כשהמשתמש מאשר ("כן"/"מאשר") — קראי ל-execute_pending_approval עם approval_id=${bound.id}. אל תיצרי בקשה חדשה.`
-          : 'ל"כן" לבד אין בקשה אחת של המשתמש בשיחה הזו. כדי לאשר בקשה מהרשימה, המשתמש עונה "כן" ואחריו הקוד (למשל "כן 1234").',
-      };
-    }
-    case "execute_pending_approval": {
-      // AIO-230: others' requests are approved by "כן <קוד>" or in the approvals screen.
-      const pick = await loadApprovalPick(supabase, tenantId, {
-        userId: actorUserId,
-        surface,
-        conversationId,
-        waChatId: waNotify?.chat_id,
-        phone: callerPhone,
-      });
-      const wantedId = asUuidOrNull(args.approval_id);
-      if (pick.kind !== "match" || (wantedId && wantedId !== pick.row.id)) {
-        return approvalPickToolResult(pick, { requestedId: wantedId });
-      }
-
-      const exec = await runApprovalExecutor(pick.row.id, actorUserId);
-      return { ...exec, title: pick.row.title || exec.title || null };
-    }
-    case "reject_pending_approval": {
-      // AIO-230: carmen-approval-execute rejects only an undecided row, and only for
-      // its requester or an approver in the row's tenant.
-      const approvalId = asUuidOrNull(args.approval_id);
-      const { data: own, error: ownError } = approvalId
-        ? await supabase
-            .from("agent_approval_queue")
-            .select("id")
-            .eq("id", approvalId)
-            .eq("tenant_id", tenantId)
-            .maybeSingle()
-        : { data: null, error: null };
-      if (ownError) {
-        throw ownError;
-      }
-
-      if (!own) {
-        return {
-          success: false,
-          error: "approval_not_found",
-          approval_id: args.approval_id ?? null,
-        };
-      }
-
-      const r = await postApprovalDecision({
-        approval_id: approvalId,
-        approved_by: actorUserId,
-        decision: "reject",
-        reason: args.reason || null,
-      });
-      if (r.ok && r.json?.success === true) {
-        return { success: true, approval_id: approvalId, status: "rejected" };
-      }
-
-      return {
-        success: false,
-        approval_id: approvalId,
-        error: r.json?.error || `reject_failed_${r.status}`,
-        status: r.json?.status ?? null,
-      };
-    }
+    case "list_pending_approvals":
+      return executeListPendingApprovals(
+        args as Parameters<typeof executeListPendingApprovals>[0],
+        toolContext,
+      );
+    case "execute_pending_approval":
+      return executeExecutePendingApproval(
+        args as Parameters<typeof executeExecutePendingApproval>[0],
+        toolContext,
+      );
+    case "reject_pending_approval":
+      return executeRejectPendingApproval(
+        args as Parameters<typeof executeRejectPendingApproval>[0],
+        toolContext,
+      );
 
     // ============ FB ADS — all create approval rows, return pending ============
 
