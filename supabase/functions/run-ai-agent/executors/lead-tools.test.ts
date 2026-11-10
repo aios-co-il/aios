@@ -1,9 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertObjectMatch,
-  assertRejects,
-} from "jsr:@std/assert@1";
+import { assert, assertEquals, assertObjectMatch } from "jsr:@std/assert@1";
 import { executorClient } from "./executor-client.test-fixture.ts";
 import { executeLeadTool } from "./lead-tools.ts";
 
@@ -114,23 +109,15 @@ Deno.test("lead writes propagate provider errors", async () => {
     [{ message: "write denied", code: "42501" }],
     403,
   );
-  await assertRejects(
-    async () => {
-      try {
-        await executeLeadTool(
-          {
-            name: "update_lead_status",
-            args: { lead_id: "lead", status: "won" },
-          },
-          fixture.context,
-        );
-      } catch (error) {
-        assert(error !== null && typeof error === "object");
-        assertObjectMatch(error, { message: "write denied", code: "42501" });
-        throw new Error("propagated");
-      }
-    },
-    Error,
-    "propagated",
-  );
+  let caught: unknown;
+  try {
+    await executeLeadTool(
+      { name: "update_lead_status", args: { lead_id: "lead", status: "won" } },
+      fixture.context,
+    );
+  } catch (error) {
+    caught = error;
+  }
+  assert(caught !== null && typeof caught === "object");
+  assertObjectMatch(caught, { message: "write denied", code: "42501" });
 });

@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing/bdd";
+import { AccessDeniedError } from "../../_shared/auth-helpers.ts";
 import { executeUpdateTaskStatus } from "./update-task-status.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
 
@@ -23,7 +24,8 @@ describe("executeUpdateTaskStatus", () => {
           { task_id: "task", status: "completed" },
           fixture.context,
         ),
-      Error,
+      AccessDeniedError,
+      "הלקוח אינו באחת הסוכנויות שאתה מנהל",
     );
     assertEquals(
       fixture.calls.map((call) => call.method),
