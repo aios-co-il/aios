@@ -55,7 +55,9 @@ class MainActivity : AppCompatActivity() {
         Notifications.createChannels(this)
         status = findViewById(R.id.home_status)
         listenSwitch = findViewById(R.id.listen_switch)
-        val portraitView = findViewById<android.view.View>(R.id.home_portrait)
+        val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
+        CarmenLook.showPortrait(portraitView)
+        CarmenLook.refresh(this, account) { CarmenLook.showPortrait(portraitView) }
         // Rounded corners (the XML attribute needs API 31; minSdk is 30).
         portraitView.clipToOutline = true
         portrait = CarmenPortrait(portraitView, findViewById(R.id.home_glow))

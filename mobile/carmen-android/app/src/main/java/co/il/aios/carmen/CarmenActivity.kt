@@ -45,12 +45,14 @@ class CarmenActivity : AppCompatActivity() {
         stateText = findViewById(R.id.state_text)
         // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
         findViewById<View>(R.id.call_tile).clipToOutline = true
+        CarmenLook.showPortrait(findViewById(R.id.carmen_portrait))
         face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow), fixedFrame = true)
         findViewById<Chronometer>(R.id.call_timer).apply {
             base = SystemClock.elapsedRealtime()
             start()
         }
-        startVideo()
+        // The listening clip is of the character; the orb style keeps the still.
+        if (CarmenLook.isCharacter(this)) startVideo()
         CarmenSession.observe(render)
         findViewById<ImageButton>(R.id.close_button).setOnClickListener { endCall() }
         findViewById<ImageButton>(R.id.mute_button).setOnClickListener { toggleMute(it as ImageButton) }

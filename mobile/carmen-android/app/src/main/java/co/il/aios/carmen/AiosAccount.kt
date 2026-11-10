@@ -112,6 +112,15 @@ class AiosAccount(context: Context) {
     fun webStorageKey(): String =
         "sb-${BuildConfig.SUPABASE_URL.substringAfter("://").substringBefore('.')}-auth-token"
 
+    /** The organization's Carmen style, [CarmenLook.ORBS] unless it chose the character. */
+    fun carmenAvatarStyle(): String {
+        val tenantId = session().tenantId
+        val rows = restGet(
+            "tenant_settings?tenant_id=eq.$tenantId&setting_key=eq.carmen_avatar_style&select=setting_value",
+        )
+        return CarmenLook.parseStyle(rows)
+    }
+
     fun signOut() {
         prefs.edit { clear() }
     }
