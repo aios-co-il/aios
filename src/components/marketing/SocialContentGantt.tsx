@@ -887,7 +887,7 @@ function ListItemRow({
         {item.status === "approved" && (
           <Button
             size="sm"
-            className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="h-7 px-2.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
             onClick={(e) => {
               e.stopPropagation();
               onPublish(item.id);
@@ -922,7 +922,7 @@ function BulkActionsBar({
       <Button
         size="sm"
         onClick={onApprove}
-        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground"
       >
         <CheckCircle2 className="h-3.5 w-3.5 ml-1" />
         אשר הכל

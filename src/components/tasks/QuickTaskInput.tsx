@@ -504,7 +504,7 @@ export function QuickTaskInput({
           disabled={
             !title.trim() || disabled || (reminderEnabled && !reminderAt)
           }
-          className="h-8 w-8 shrink-0 bg-emerald-600 text-white hover:bg-emerald-500 hover:text-white shadow-sm shadow-emerald-600/30 disabled:bg-emerald-600/45 disabled:text-white/90 disabled:opacity-100"
+          className="h-8 w-8 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-sm shadow-primary/30 disabled:bg-primary/45 disabled:text-primary-foreground/90 disabled:opacity-100"
           aria-label="הוסף משימה"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />

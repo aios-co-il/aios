@@ -174,7 +174,7 @@ export function CopyConceptsPanel({
                       className={cn(
                         "flex h-7 w-7 items-center justify-center rounded-full border transition-colors",
                         concept.approved
-                          ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                          ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
                       )}
                       aria-label={

@@ -160,6 +160,7 @@ import {
   type MenuTabId,
 } from "@/lib/menuStructure";
 import { computeSidebarOverlay } from "@/visual-workspace/hooks/useSitemap";
+import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 
 // Permissions are derived from the menu structure itself — see permissionForMenuKey
 // in @/lib/menuStructure (explicit `permission` field on a module, else
@@ -356,7 +357,7 @@ export function AppSidebar() {
                 className="h-8 w-8 object-contain"
               />
             ) : (
-              <Building2 className="h-8 w-8" />
+              <CarmenOrb className="h-8 w-8" />
             )}
             {/* Tab icons in collapsed mode */}
             {effectiveTabs.map((tab) => {
@@ -450,7 +451,7 @@ export function AppSidebar() {
                   className="h-8 w-8 shrink-0 object-contain"
                 />
               ) : (
-                <Building2 className="h-8 w-8 shrink-0" />
+                <CarmenOrb className="h-8 w-8" />
               )}
             </div>
 
@@ -488,8 +489,8 @@ export function AppSidebar() {
                   onClick={() => setActiveTab("daily")}
                   className={`w-full flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
                     isActive
-                      ? "bg-emerald-500 text-white shadow-sm"
-                      : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-success text-success-foreground hover:bg-success/80"
                   }`}
                 >
                   <DailyIcon className="h-3.5 w-3.5" />

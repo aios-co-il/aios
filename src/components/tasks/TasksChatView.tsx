@@ -85,7 +85,7 @@ const OPEN_CLOSED_TABS: {
     value: "done",
     label: "סגורות",
     icon: CheckCircle2,
-    active: "bg-emerald-500 text-white",
+    active: "bg-primary text-primary-foreground",
     idle: "text-emerald-800 hover:bg-emerald-50",
     countActive: "bg-white/25 text-white",
     countIdle: "bg-emerald-200/80 text-emerald-900",

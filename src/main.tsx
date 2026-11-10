@@ -4,6 +4,7 @@ import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { isChunkLoadError } from "./lib/chunkErrors.ts";
 import { supabase } from "./integrations/supabase/client.ts";
+import { AIOS_BRAND, applyBrandTheme } from "./theme/index.ts";
 
 /** One-shot guard — unguarded reload() here caused infinite "jumping" after deploys. */
 const MAIN_CHUNK_RELOAD_KEY = "aios-main-chunk-reload";
@@ -71,6 +72,10 @@ window.addEventListener("unhandledrejection", (event) => {
     reloadOnceForStaleChunk();
   }
 });
+
+// Paint with the default brand before React mounts; ThemeContext swaps in the
+// tenant's brand once its settings load.
+applyBrandTheme(AIOS_BRAND);
 
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
