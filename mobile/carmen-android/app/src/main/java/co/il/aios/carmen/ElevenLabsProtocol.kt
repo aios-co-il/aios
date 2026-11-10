@@ -86,6 +86,12 @@ object ElevenLabsProtocol {
 
     fun pong(eventId: Int): JSONObject = JSONObject().put("type", "pong").put("event_id", eventId)
 
+    /**
+     * A message to the agent as if the user said it, so she answers it now: how a background
+     * result or an app action reaches her.
+     */
+    fun userMessage(text: String): JSONObject = JSONObject().put("type", "user_message").put("text", text)
+
     fun toolResult(callId: String, result: String, isError: Boolean = false): JSONObject = JSONObject()
         .put("type", "client_tool_result")
         .put("tool_call_id", callId)
