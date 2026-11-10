@@ -97,6 +97,7 @@ export function ChannelSphere({
         >
           {spec.core}
         </span>
+        <span className="sphere-veil" />
       </CarmenOrb>
       {showLabel && (
         <figcaption

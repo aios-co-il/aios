@@ -107,6 +107,7 @@
   /* Sharp specular reflection near the top edge */
   .carmen-orb::before {
     content: "";
+    z-index: 1;
     position: absolute;
     top: 7%;
     left: 22%;
@@ -125,6 +126,7 @@
   /* Light caught on the lower rim */
   .carmen-orb::after {
     content: "";
+    z-index: 1;
     position: absolute;
     inset: 0;
     border-radius: inherit;
@@ -145,6 +147,22 @@
     mix-blend-mode: multiply;
     filter: drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
       drop-shadow(0 0 0.55em hsl(var(--orb-tint) / 0.45));
+  }
+
+  /* Thin milky veil over a sphere's core, so the core reads as inside the
+     glass. Sits under the orb's highlight and rim light. */
+  .sphere-veil {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 50% 45%,
+      hsl(0 0% 100% / 0.22) 0%,
+      hsl(0 0% 100% / 0.14) 55%,
+      hsl(0 0% 100% / 0.06) 100%
+    );
+    backdrop-filter: blur(0.45px);
+    pointer-events: none;
   }
 
   .direction-ltr {
