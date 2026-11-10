@@ -1,6 +1,5 @@
 import { ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AIOS_SPHERE, ChannelSphere } from "./ChannelSphere";
 import { PlanetOrbits } from "./PlanetOrbits";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
@@ -19,12 +18,7 @@ export function HeroSection() {
       className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 md:grid-cols-2 md:px-6 md:pb-28 md:pt-24"
     >
       <div>
-        <ChannelSphere
-          spec={AIOS_SPHERE}
-          showLabel={false}
-          className="w-28 md:w-32"
-        />
-        <h1 className="mt-4 text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
+        <h1 className="text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
           כל השיווק והמכירות
           <br />
           במקום אחד

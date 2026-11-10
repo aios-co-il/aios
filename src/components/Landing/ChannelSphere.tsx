@@ -2,13 +2,12 @@ import type { CSSProperties, ReactNode } from "react";
 import { Mail, Users } from "lucide-react";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { cn } from "@/lib/utils";
-import { AiosLogo } from "./AiosLogo";
 import { FacebookMark, GoogleMark } from "./brandMarks";
 
 export interface SphereSpec {
   id: string;
   label: string;
-  /** HSL channels for the glass glow; omit to follow the tenant accent. */
+  /** HSL channels for the glass glow. */
   tint?: string;
   /** HSL channels for the core (text or icon), a dark shade of the tint. */
   ink?: string;
@@ -17,13 +16,6 @@ export interface SphereSpec {
 
 const ICON = "h-[36%] w-[36%]";
 const WORD = "text-[2.2em] font-extrabold leading-none tracking-tight";
-
-/** The brand sphere: follows the tenant accent. */
-export const AIOS_SPHERE: SphereSpec = {
-  id: "aios",
-  label: "AIOS Marketing",
-  core: <AiosWordmark />,
-};
 
 // Channel colors are fixed and decorative.
 export const CHANNEL_SPHERES: Array<SphereSpec> = [
@@ -115,17 +107,5 @@ export function ChannelSphere({
         </figcaption>
       )}
     </figure>
-  );
-}
-
-/** The AiOs logo and "AI Operating System" set inside the brand sphere. */
-function AiosWordmark() {
-  return (
-    <span className="flex flex-col items-center">
-      <AiosLogo className="text-[2.4em]" />
-      <span className="mt-1.5 whitespace-nowrap text-[0.48em] font-semibold tracking-[0.08em] text-foreground/70">
-        AI Operating System
-      </span>
-    </span>
   );
 }

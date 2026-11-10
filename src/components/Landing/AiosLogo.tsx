@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { cn } from "@/lib/utils";
 
 // Extrusion shades: ink under the dark letters, a deep accent under the mint
@@ -11,12 +12,18 @@ const MINT_EXTRUDE = {
 interface AiosLogoProps {
   /** Show "Marketing" and "AI Operating System" under the letters. */
   tagline?: boolean;
+  /** Lead with the glass orb, as in the brand book lockup. */
+  orb?: boolean;
   /** Size and spacing classes for the letters. */
   className?: string;
 }
 
-/** The "AiOs" logo, optionally with its tagline. */
-export function AiosLogo({ tagline = false, className }: AiosLogoProps) {
+/** The "AiOs" logo, optionally with the orb and the tagline. */
+export function AiosLogo({
+  tagline = false,
+  orb = false,
+  className,
+}: AiosLogoProps) {
   return (
     <span
       dir="ltr"
@@ -26,10 +33,11 @@ export function AiosLogo({ tagline = false, className }: AiosLogoProps) {
     >
       <span
         className={cn(
-          "logo-3d font-extrabold tracking-tight text-foreground",
+          "logo-3d inline-flex items-center font-extrabold tracking-tight text-foreground",
           className,
         )}
       >
+        {orb && <CarmenOrb className="me-[0.25em] h-[1.05em] w-[1.05em]" />}
         <span style={INK_EXTRUDE}>Ai</span>
         <span className="text-brand-mint" style={MINT_EXTRUDE}>
           Os

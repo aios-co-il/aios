@@ -66,7 +66,7 @@ export function LandingFooter() {
   return (
     <footer className="border-t">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground md:flex-row md:px-6">
-        <AiosLogo className="text-2xl" />
+        <AiosLogo orb className="text-2xl" />
         <span>© {new Date().getFullYear()} AIOS</span>
         <nav className="flex items-center gap-2.5" aria-label="מידע משפטי">
           {LEGAL_LINKS.map((link, index) => (
