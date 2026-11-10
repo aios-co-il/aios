@@ -94,9 +94,9 @@
       ),
       radial-gradient(
         circle at 50% 42%,
-        hsl(40 20% 99%) 0%,
-        hsl(220 14% 93%) 68%,
-        hsl(220 12% 84%) 100%
+        hsl(40 20% 99% / 0.78) 0%,
+        hsl(220 14% 93% / 0.76) 68%,
+        hsl(220 12% 84% / 0.85) 100%
       );
     border: 1px solid hsl(0 0% 100% / 0.12);
     box-shadow:
@@ -363,4 +363,19 @@ body.orb-traveling header [data-orb-home] {
     hsl(0 0% 100% / 0.06) 0%,
     transparent 70%
   );
+}
+
+/* Faint grid behind the hero spheres, so their glass reads as see-through.
+   Light mode only: the dark glass already shows the page through it. */
+.orb-grid {
+  background-image:
+    linear-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center;
+  mask-image: radial-gradient(circle at 50% 50%, black 25%, transparent 68%);
+}
+
+.dark .orb-grid {
+  display: none;
 }

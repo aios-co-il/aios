@@ -37,6 +37,7 @@ export function PlanetOrbits() {
       aria-hidden="true"
       className="relative isolate mx-auto aspect-square w-full max-w-xl"
     >
+      <div className="orb-grid absolute inset-0" />
       <div className="absolute left-1/2 top-1/2 h-1/2 w-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-mint/15 blur-3xl" />
       <div
         className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
