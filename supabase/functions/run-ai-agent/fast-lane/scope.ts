@@ -2,7 +2,7 @@ import { jerusalemYmd } from "../../_shared/calendarTimeZone.ts";
 import type { BriefScope } from "../../_shared/carmen/org-brief/brief.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { isActiveAssignment } from "../chat-scope/staff-scope.ts";
-import { MANAGER_ROLES } from "../manager-roles.ts";
+import { MANAGER_ROLES } from "../../_shared/carmen/manager-roles.ts";
 
 /** The person typing, as run-ai-agent resolves them in step 2.6. */
 export type FastLaneCaller = {

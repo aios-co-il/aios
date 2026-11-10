@@ -12,6 +12,7 @@ Deno.test("sessionInstructions", async (t) => {
           pronunciations: [],
           orgBrief: null,
           lastConversation: null,
+          pulseBrief: null,
         },
         userAddressLine("דוד", "male"),
       );
@@ -27,6 +28,7 @@ Deno.test("sessionInstructions", async (t) => {
         pronunciations: [{ term: "כרמן", spoken: "קַרְמֶן" }],
         orgBrief: null,
         lastConversation: null,
+        pulseBrief: null,
       },
       userAddressLine(null, null),
     );
@@ -45,6 +47,7 @@ Deno.test("sessionInstructions", async (t) => {
           updatedAt: "2026-11-08T17:19:09Z",
           turns: [{ role: "user", content: "מה העלות לליד במטא?" }],
         },
+        pulseBrief: null,
       },
       "",
     );
