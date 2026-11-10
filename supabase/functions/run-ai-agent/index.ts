@@ -1,3 +1,32 @@
+import { executeRecallRecentAction } from "./executors/recall-recent-action.ts";
+import { executeRecordActionEpisode } from "./executors/record-action-episode.ts";
+import { executeSendMessage } from "./executors/send-message.ts";
+import { executeSaveMemory } from "./executors/save-memory.ts";
+import { executeRecallMemory } from "./executors/recall-memory.ts";
+import { executeRecallMemoryFts } from "./executors/recall-memory-fts.ts";
+import { executeDeleteMemory } from "./executors/delete-memory.ts";
+import { executeKbListFolder } from "./executors/kb-list-folder.ts";
+import { executeKbSearch } from "./executors/kb-search.ts";
+import { executeKbOpen } from "./executors/kb-open.ts";
+import { executeKbRecallConversation } from "./executors/kb-recall-conversation.ts";
+import { executeKbLearn } from "./executors/kb-learn.ts";
+import { executeSearchConversationHistory } from "./executors/search-conversation-history.ts";
+import { executeListBroadcasts } from "./executors/list-broadcasts.ts";
+import { executeCreateBroadcast } from "./executors/create-broadcast.ts";
+import { executeSendBroadcastNow } from "./executors/send-broadcast-now.ts";
+import { executeScheduleBroadcast } from "./executors/schedule-broadcast.ts";
+import { executeCancelBroadcast } from "./executors/cancel-broadcast.ts";
+import { executeListWaGroups } from "./executors/list-wa-groups.ts";
+import { executeSendCalendarInvite } from "./executors/send-calendar-invite.ts";
+import { executeListCalendarEvents } from "./executors/list-calendar-events.ts";
+import { executeUpdateCalendarInvite } from "./executors/update-calendar-invite.ts";
+import { executeCancelCalendarInvite } from "./executors/cancel-calendar-invite.ts";
+import { executeJoinMeetingForClient } from "./executors/join-meeting-for-client.ts";
+import { executeGetMeetingBotStatus } from "./executors/get-meeting-bot-status.ts";
+import { executeLookupStaffWhatsapp } from "./executors/lookup-staff-whatsapp.ts";
+import { executeSendMessageToCampaigner } from "./executors/send-message-to-campaigner.ts";
+import { executeGetMaskyooCallsReport } from "./executors/get-maskyoo-calls-report.ts";
+import { executeSyncMaskyooCdr } from "./executors/sync-maskyoo-cdr.ts";
 import { executeListSocialPages } from "./executors/list-social-pages.ts";
 import { executeSyncSocialPages } from "./executors/sync-social-pages.ts";
 import { executePublishSocialPost } from "./executors/publish-social-post.ts";
@@ -68,7 +97,6 @@ import { executeScheduleCampaignToggle } from "./executors/schedule-campaign-tog
 import { executeListCampaignSchedules } from "./executors/list-campaign-schedules.ts";
 import { executeCancelCampaignSchedule } from "./executors/cancel-campaign-schedule.ts";
 
-import { scoreNameMatchSafe } from "./executors/name-match.ts";
 import { FB_GRAPH_VERSION } from "./executors/meta-api-version.ts";
 
 import { executeCreateTask } from "./executors/create-task.ts";
@@ -190,15 +218,12 @@ import {
 
 import { MANAGER_ROLES } from "./manager-roles.ts";
 import { assertCallerCanAccessClient } from "../_shared/auth-helpers.ts";
-import { withChatScopeColumns } from "./chat-scope/filters.ts";
+
 import {
   getChatHistory,
   getRecentInboundMessages,
 } from "./chat-scope/readers.ts";
-import { chatScopeMeta } from "./chat-scope/responses.ts";
-import { readScopedChatRows } from "./chat-scope/rows.ts";
-import { scopedChatRead } from "./chat-scope/scoped-read.ts";
-import { sendTargetFor } from "./chat-scope/send-target.ts";
+
 import { asUuidOrNull } from "../_shared/uuid.ts";
 
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
@@ -312,24 +337,9 @@ import {
   shouldLoadMcpConnection,
   shouldUseTokenOptimize,
 } from "../_shared/carmen-token-optimizer.ts";
-import { aiEmbed, aiEmbedBatch, resolveOpenAIKey } from "../_shared/ai.ts";
 
 import { loadDevEscalationTierFromDb } from "../_shared/carmen-access-policy.ts";
-import {
-  applyZoomLinkToEvent,
-  buildMeetConferenceData,
-  collectExtraAttendeeEmails,
-  createZoomMeeting,
-  eventDurationMinutes,
-  extractConferenceUrl,
-  fetchZoomAccessToken,
-  conferenceKindFromUrl,
-  mergeNamedPrimaryAttendee,
-  resolveCarmenAttendeeEmail,
-  resolveRequestedConference,
-  summarizeEventResult,
-  updateExistingCalendarEvent,
-} from "../_shared/calendar-conference.ts";
+
 import {
   buildDevEscalationPromptRule,
   DEV_ESCALATION_REFUSAL_HE,
@@ -370,12 +380,6 @@ import type { ApprovalPick } from "./approvals/types.ts";
 import { approvalPickToolResult } from "./approvals/tool-result.ts";
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
 import { extractMeetingUrl } from "../_shared/meeting-url.ts";
-import {
-  formatStaffContact,
-  normalizeStaffPhone,
-  selectStaffMatch,
-} from "../_shared/staff-whatsapp.ts";
-import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 
 import {
   isExplicitDevTaskApproval,
@@ -417,128 +421,16 @@ import { readMetaResponse } from "./meta-response.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 import type {
   AutomationFlowStepRow,
-  ChatHistorySearchRow,
   MetaLeadQuestion,
 } from "./tool-contracts-marketing.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
-import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
-import {
-  automationStepArg,
-  parallelTaskArgs,
-  providerErrorMessage,
-  readGoogleCalendarEvents,
-} from "./tool-contracts-admin.ts";
+
+import { automationStepArg, parallelTaskArgs } from "./tool-contracts-admin.ts";
 
 import { readAutomationStepSummary } from "./tool-storage-contracts.ts";
 
-import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaNode } from "./meta-response.ts";
-
-/** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
-async function loadStaffWhatsappRoster(
-  supabase: AgentDatabaseClient,
-  accessibleTenantIds: string[],
-  tenantId: string,
-  entityType: string = "auto",
-): Promise<
-  Array<{
-    id: string;
-    full_name: string;
-    phone: string | null;
-    entity_type: string;
-    role?: AgentRow<"campaigners">["role"];
-    email?: string | null;
-  }>
-> {
-  const want = entityType || "auto";
-  const out: Array<{
-    id: string;
-    full_name: string;
-    phone: string | null;
-    entity_type: string;
-    role?: AgentRow<"campaigners">["role"];
-    email?: string | null;
-  }> = [];
-
-  if (want === "auto" || want === "campaigner") {
-    const { data } = await supabase
-      .from("campaigners")
-      .select("id, full_name, phone, email, role")
-      .in("tenant_id", accessibleTenantIds)
-      .order("full_name")
-      .limit(200);
-    for (const r of data || []) {
-      out.push({
-        id: r.id,
-        full_name: r.full_name,
-        phone: r.phone,
-        email: r.email,
-        role: r.role,
-        entity_type: "campaigner",
-      });
-    }
-  }
-
-  if (want === "auto" || want === "sales_person") {
-    const { data } = await supabase
-      .from("sales_people")
-      .select("id, full_name, phone, email")
-      .in("tenant_id", accessibleTenantIds)
-      .order("full_name")
-      .limit(200);
-    for (const r of data || []) {
-      out.push({
-        id: r.id,
-        full_name: r.full_name,
-        phone: r.phone,
-        email: r.email,
-        entity_type: "sales_person",
-      });
-    }
-  }
-
-  if (want === "auto" || want === "team_member") {
-    // Profiles linked to this tenant (team logins). Prefer profile.phone; else linked campaigner/sales phone.
-    const { data: tus } = await supabase
-      .from("tenant_users")
-      .select("user_id")
-      .eq("tenant_id", tenantId)
-      .limit(200);
-    const userIds = (tus || []).map((t) => t.user_id).filter(Boolean);
-    if (userIds.length) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, phone, campaigner_id, sales_person_id, email")
-        .in("id", userIds)
-        .limit(200);
-      for (const p of profiles || []) {
-        let phone = p.phone;
-        if (!normalizeStaffPhone(phone) && p.campaigner_id) {
-          const hit = out.find(
-            (x) => x.entity_type === "campaigner" && x.id === p.campaigner_id,
-          );
-          phone = hit?.phone || phone;
-        }
-        if (!normalizeStaffPhone(phone) && p.sales_person_id) {
-          const hit = out.find(
-            (x) =>
-              x.entity_type === "sales_person" && x.id === p.sales_person_id,
-          );
-          phone = hit?.phone || phone;
-        }
-        out.push({
-          id: p.id,
-          full_name: p.full_name || "Team member",
-          phone,
-          email: p.email,
-          entity_type: "team_member",
-        });
-      }
-    }
-  }
-
-  return out;
-}
 
 /** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
 async function resolveOpenAiAdminKey(
@@ -1022,172 +914,6 @@ function estimateLLMCostUSD(
   return +((tokensIn * price[0] + tokensOut * price[1]) / 1e6).toFixed(6);
 }
 
-// Resolve a usable Google Calendar access token for the tenant: caller's user →
-// explicit user → any campaigner with tokens → tenant owner/admin. Refreshes if
-// expired. Returns { accessToken } or { error } (Hebrew, user-facing).
-async function resolveCalendarAccessToken(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  callerCampaignerId: string | null,
-  userId: string | null,
-): Promise<{ accessToken?: string; error?: string }> {
-  let calTokenUserId: string | null = null;
-  if (callerCampaignerId) {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("campaigner_id", callerCampaignerId)
-      .maybeSingle();
-    if (prof?.id) calTokenUserId = prof.id;
-  }
-  if (!calTokenUserId && userId && userId !== "system") calTokenUserId = userId;
-  if (!calTokenUserId) {
-    const { data: tenantCampaigners } = await supabase
-      .from("campaigners")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .limit(20);
-    for (const c of tenantCampaigners || []) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("campaigner_id", c.id)
-        .maybeSingle();
-      if (!prof?.id) continue;
-      const { data: tok } = await supabase
-        .from("calendar_tokens")
-        .select("user_id")
-        .eq("user_id", prof.id)
-        .maybeSingle();
-      if (tok?.user_id) {
-        calTokenUserId = tok.user_id;
-        break;
-      }
-    }
-  }
-  if (!calTokenUserId) {
-    // Owners (e.g. a second-tenant owner) are tenant_users without a campaigner row.
-    const { data: owners } = await supabase
-      .from("tenant_users")
-      .select("user_id")
-      .eq("tenant_id", tenantId)
-      .in("role", ["owner", "admin"])
-      .limit(10);
-    for (const o of owners || []) {
-      const { data: tok } = await supabase
-        .from("calendar_tokens")
-        .select("user_id")
-        .eq("user_id", o.user_id)
-        .maybeSingle();
-      if (tok?.user_id) {
-        calTokenUserId = o.user_id;
-        break;
-      }
-    }
-  }
-  if (!calTokenUserId)
-    return {
-      error:
-        "לא נמצא חיבור Google Calendar פעיל בטננט. חבר יומן תחת הגדרות אינטגרציות.",
-    };
-
-  const { data: tokenData } = await supabase
-    .from("calendar_tokens")
-    .select("access_token, refresh_token, expires_at")
-    .eq("user_id", calTokenUserId)
-    .maybeSingle();
-  if (!tokenData)
-    return {
-      error: "לא נמצא חיבור Google Calendar. חבר יומן תחת הגדרות אינטגרציות.",
-    };
-  let accessToken: string = tokenData.access_token;
-  if (new Date(tokenData.expires_at) <= new Date()) {
-    const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    if (!clientId || !clientSecret)
-      return { error: "חסרות הגדרות GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET" };
-    const r = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: tokenData.refresh_token,
-        grant_type: "refresh_token",
-      }),
-    });
-    const rd = await r.json();
-    if (!rd.access_token)
-      return { error: `רענון טוקן נכשל: ${rd.error || "unknown"}` };
-    accessToken = rd.access_token;
-    await supabase
-      .from("calendar_tokens")
-      .update({
-        access_token: accessToken,
-        expires_at: new Date(Date.now() + rd.expires_in * 1000).toISOString(),
-      })
-      .eq("user_id", calTokenUserId);
-  }
-  return { accessToken };
-}
-
-async function resolveCalendarConferenceExtras(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  args: Record<string, unknown>,
-) {
-  const extraEmails = collectExtraAttendeeEmails(args);
-  const extraNamed: Array<{ email: string; displayName?: string }> = [];
-  let carmen_attendee: Record<string, unknown> | null = null;
-  if (args.add_carmen === true) {
-    const resolved = await resolveCarmenAttendeeEmail(
-      supabase,
-      tenantId,
-      args.carmen_email,
-    );
-    if (resolved.email) {
-      extraEmails.push(resolved.email);
-      extraNamed.push({ email: resolved.email, displayName: "כרמן" });
-      carmen_attendee = {
-        added: true,
-        email: resolved.email,
-        source: resolved.source,
-      };
-    } else {
-      carmen_attendee = { added: false, error: resolved.error };
-    }
-  }
-  const conferenceType = resolveRequestedConference(args);
-  return {
-    extraEmails: [...new Set(extraEmails)],
-    extraNamed,
-    carmen_attendee,
-    conferenceType,
-  };
-}
-
-async function makeZoomMeetingCreator(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  titleHint?: string,
-) {
-  return async (existing: CalendarEventLike) => {
-    const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
-    if (!zoomAuth.accessToken) {
-      return {
-        error: zoomAuth.error,
-        configured: zoomAuth.configured === true,
-      };
-    }
-    return createZoomMeeting({
-      accessToken: zoomAuth.accessToken,
-      topic: titleHint || existing?.summary || "Meeting",
-      startDateTime: existing?.start?.dateTime || new Date().toISOString(),
-      durationMinutes: eventDurationMinutes(existing),
-    });
-  };
-}
-
 type MetaLeadPage = {
   id: string;
   name: string;
@@ -1652,89 +1378,16 @@ async function executeTool(
         args as Parameters<typeof executeListMyAgentTasks>[0],
         toolContext,
       );
-    case "recall_recent_action": {
-      // Check if Carmen already performed an action recently — used before heavy
-      // operations (pulse_check, campaign_analysis, lead_review) so she doesn't
-      // re-run the same work and can answer "I already did it at HH:MM".
-      const action = String(args.action_type || "").trim();
-      const maxHours = Math.max(
-        1,
-        Math.min(168, Number(args.max_age_hours) || 8),
+    case "recall_recent_action":
+      return executeRecallRecentAction(
+        args as Parameters<typeof executeRecallRecentAction>[0],
+        toolContext,
       );
-      const since = new Date(
-        Date.now() - maxHours * 60 * 60 * 1000,
-      ).toISOString();
-      let q = supabase
-        .from("carmen_memory_episodes")
-        .select(
-          "id, topic, topic_tags, summary, importance, ref_date, created_at",
-        )
-        .eq("tenant_id", tenantId)
-        .gte("ref_date", since)
-        .order("ref_date", { ascending: false })
-        .limit(3);
-      if (action) q = q.or(`topic.ilike.%${action}%,topic_tags.cs.{${action}}`);
-      const { data, error } = await q;
-      if (error) throw error;
-      const fmtIl = (iso: string | null) =>
-        iso
-          ? new Date(iso).toLocaleString("he-IL", {
-              weekday: "short",
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "Asia/Jerusalem",
-            })
-          : null;
-      return {
-        found: data.length > 0,
-        recent_episodes: data.map((e: any) => ({
-          id: e.id,
-          topic: e.topic,
-          topic_tags: e.topic_tags,
-          summary: e.summary,
-          when_israel: fmtIl(e.ref_date || e.created_at),
-          importance: e.importance,
-        })),
-        guidance:
-          data.length > 0
-            ? 'יש פעולה דומה שנעשתה לאחרונה. אסור לחזור עליה מחדש אלא אם המשתמש ביקש "רענני" / "עכשיו" / "בזמן אמת". ענו עם הסיכום הקיים, ציינו את הזמן, ושאלו אם לרענן.'
-            : "אין רישום מ-N השעות האחרונות. אפשר להריץ את הפעולה.",
-      };
-    }
-    case "record_action_episode": {
-      // Persist a heavy-action result into long-term memory so future calls
-      // hit recall_recent_action instead of re-running.
-      const topic = String(args.action_type || args.topic || "").trim();
-      if (!topic) throw new Error("action_type required");
-      const summary = String(args.summary || "").slice(0, 4000);
-      if (!summary) throw new Error("summary required");
-      const tags =
-        Array.isArray(args.topic_tags) && args.topic_tags.length > 0
-          ? args.topic_tags
-          : [topic];
-      const importance = Math.max(
-        1,
-        Math.min(100, Number(args.importance) || 50),
+    case "record_action_episode":
+      return executeRecordActionEpisode(
+        args as Parameters<typeof executeRecordActionEpisode>[0],
+        toolContext,
       );
-      const { data, error } = await supabase
-        .from("carmen_memory_episodes")
-        .insert({
-          tenant_id: tenantId,
-          topic,
-          topic_tags: tags,
-          summary,
-          importance,
-          ref_date: new Date().toISOString(),
-          source_table: "agent_runs",
-          participants: callerPhone ? { caller_phone: callerPhone } : {},
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { episode_id: data.id, recorded: true };
-    }
     case "search_tasks":
       return executeSearchTasks(
         args as Parameters<typeof executeSearchTasks>[0],
@@ -1774,33 +1427,11 @@ async function executeTool(
         },
       );
 
-    case "send_message": {
-      const { phone, contactName } = await sendTargetFor(
-        supabase,
-        args.contact_type,
-        args.contact_id,
-        accessibleTenantIds,
+    case "send_message":
+      return executeSendMessage(
+        args as Parameters<typeof executeSendMessage>[0],
+        toolContext,
       );
-      if (!phone) return { success: false, error: "לא נמצא מספר טלפון" };
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/send-green-api-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            phone,
-            message: args.message_text,
-            tenantId,
-            [`${args.contact_type}_id`]: args.contact_id,
-          }),
-        },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      return { sent_to: contactName, phone };
-    }
     case "search_entities": {
       const tableMap: Record<string, string> = {
         agency: "agencies",
@@ -2631,360 +2262,61 @@ async function executeTool(
         toolContext,
       );
     // MEMORY
-    case "save_memory": {
-      const cat = args.category || "general";
-      const { data, error } = await supabase
-        .from("ai_memory")
-        .upsert(
-          {
-            tenant_id: tenantId,
-            user_id: userId && userId !== "system" ? userId : null,
-            key: args.key,
-            content: args.content,
-            category: cat,
-          },
-          {
-            onConflict: "user_id,tenant_id,category,key",
-            ignoreDuplicates: false,
-          },
-        )
-        .select("key, category")
-        .single();
-      if (error) throw error;
-      // Mirror to agent_memory (Hermes FTS layer) for cross-conversation recall
-      const importanceMap: Record<string, number> = {
-        instructions: 95,
-        preferences: 85,
-        personal: 80,
-        projects: 70,
-        clients: 70,
-        workflows: 65,
-        general: 50,
-      };
-      // executeTool param is agentId — bare `agent_id` was a ReferenceError ("agent_id is not defined").
-      saveAgentMemory({
-        supabase,
-        tenant_id: tenantId,
-        agent_id: agentId || null,
-        category: cat,
-        title: args.key,
-        summary: args.content,
-        importance: importanceMap[cat] ?? 60,
-        metadata: {
-          source: "save_memory",
-          key: args.key,
-          user_id: userId || "system",
-        },
-      }).catch(() => {});
-      return { saved: true, key: data.key, category: data.category };
-    }
-    case "recall_memory": {
-      let query = supabase
-        .from("ai_memory")
-        .select("key, content, category, updated_at")
-        .in("tenant_id", accessibleTenantIds);
-      if (args.category) query = query.eq("category", args.category);
-      if (args.search) query = query.ilike("content", `%${args.search}%`);
-      const { data, error } = await query
-        .order("updated_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return { count: data.length, memories: data };
-    }
-    case "recall_memory_fts": {
-      // Hermes-style FTS recall across agent_memory (cross-session, importance-aware)
-      const items = await recallAgentMemoryFTS(supabase, {
-        tenant_id: tenantId,
-        agent_id: agentId || null,
-        query_text: args.query || "",
-        limit: args.limit || 5,
-        min_importance: args.min_importance || 0,
-      });
-      return { count: items.length, memories: items };
-    }
-    case "delete_memory": {
-      const { error } = await supabase
-        .from("ai_memory")
-        .delete()
-        .in("tenant_id", accessibleTenantIds)
-        .eq("key", args.key);
-      if (error) throw error;
-      return { deleted: true, key: args.key };
-    }
+    case "save_memory":
+      return executeSaveMemory(
+        args as Parameters<typeof executeSaveMemory>[0],
+        toolContext,
+      );
+    case "recall_memory":
+      return executeRecallMemory(
+        args as Parameters<typeof executeRecallMemory>[0],
+        toolContext,
+      );
+    case "recall_memory_fts":
+      return executeRecallMemoryFts(
+        args as Parameters<typeof executeRecallMemoryFts>[0],
+        toolContext,
+      );
+    case "delete_memory":
+      return executeDeleteMemory(
+        args as Parameters<typeof executeDeleteMemory>[0],
+        toolContext,
+      );
     // KNOWLEDGE BASE
-    case "kb_list_folder": {
-      let q = supabase
-        .from("carmen_memory_pointers")
-        .select(
-          "id, category, subcategory, path, entity_type, entity_id, title, summary, ref_date, importance",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (args.category) q = q.eq("category", args.category);
-      if (args.subcategory) q = q.eq("subcategory", args.subcategory);
-      if (args.path_prefix) q = q.like("path", `${args.path_prefix}%`);
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, pointers: data };
-    }
-    case "kb_search": {
-      // Try semantic via embedding; fall back to text ILIKE on title/summary
-      try {
-        const vec = await aiEmbed(args.query);
-        if (vec) {
-          const { data, error } = await supabase.rpc("kb_match_pointers", {
-            p_tenant_id: tenantId,
-            p_query_embedding: vec,
-            p_category: args.category || null,
-            p_since_days: args.since_days || null,
-            p_limit: args.limit || 20,
-          });
-          if (!error && data)
-            return { count: data.length, results: data, mode: "semantic" };
-        }
-      } catch (_) {
-        /* fall through */
-      }
-      // Fallback text search
-      let q = supabase
-        .from("carmen_memory_pointers")
-        .select(
-          "id, category, subcategory, path, entity_type, entity_id, title, summary, ref_date",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .or(`title.ilike.%${args.query}%,summary.ilike.%${args.query}%`);
-      if (args.category) q = q.eq("category", args.category);
-      if (args.since_days)
-        q = q.gte(
-          "ref_date",
-          new Date(Date.now() - args.since_days * 86400000).toISOString(),
-        );
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 20);
-      if (error) throw error;
-      return { count: data.length, results: data, mode: "text" };
-    }
-    case "kb_open": {
-      const { data: ptr, error: pErr } = await supabase
-        .from("carmen_memory_pointers")
-        .select("*")
-        .eq("id", args.pointer_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (pErr) throw pErr;
-      if (!ptr) return { error: "pointer not found" };
-      // Fetch live row from source
-      let live: unknown = null;
-      try {
-        const tableMap: Record<string, string> = {
-          client: "clients",
-          campaigner: "campaigners",
-          task: "tasks",
-          message: "chat_messages",
-          lead: "leads",
-          report: "seo_reports",
-          system: "",
-        };
-        const table = tableMap[ptr.entity_type] ?? ptr.entity_type;
-        if (table) {
-          const { data } = await supabase
-            .from(table)
-            .select("*")
-            .eq("id", ptr.entity_id)
-            .maybeSingle();
-          live = data;
-        }
-      } catch (_) {
-        /* ignore */
-      }
-      // Bump access count async
-      supabase
-        .from("carmen_memory_pointers")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", ptr.id)
-        .then(() => {});
-      return { pointer: ptr, live };
-    }
-    case "kb_recall_conversation": {
-      let q = supabase
-        .from("carmen_memory_episodes")
-        .select(
-          "id, topic, topic_tags, summary, source_table, source_ids, ref_date, importance, retention_score",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (args.topic) q = q.ilike("topic", `%${args.topic}%`);
-      if (args.query)
-        q = q.or(`topic.ilike.%${args.query}%,summary.ilike.%${args.query}%`);
-      if (args.since_days)
-        q = q.gte(
-          "ref_date",
-          new Date(Date.now() - args.since_days * 86400000).toISOString(),
-        );
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      // Bump access count on returned episodes (non-blocking)
-      if (data?.length) {
-        supabase
-          .from("carmen_memory_episodes")
-          .update({ last_accessed_at: new Date().toISOString() })
-          .in(
-            "id",
-            data.map(
-              (d: Pick<AgentRow<"carmen_memory_episodes">, "id">) => d.id,
-            ),
-          )
-          .then(() => {});
-      }
-      return { count: data.length, episodes: data };
-    }
-    case "kb_learn": {
-      // Generate embedding (best-effort)
-      let embedding: number[] | null = null;
-      try {
-        embedding = await aiEmbed(`${args.topic}\n\n${args.summary}`);
-      } catch (_) {
-        /* ignore */
-      }
-      const { data, error } = await supabase
-        .from("carmen_memory_episodes")
-        .insert({
-          tenant_id: tenantId,
-          topic: args.topic,
-          topic_tags: args.topic_tags || [],
-          summary: args.summary,
-          summary_embedding: embedding,
-          source_table: args.source_table || null,
-          source_ids: args.source_ids || [],
-          importance: Math.max(1, Math.min(10, args.importance || 5)),
-          retention_score: 1.0,
-          ref_date: new Date().toISOString(),
-        })
-        .select("id, topic")
-        .single();
-      if (error) throw error;
-      return { learned: true, episode_id: data.id, topic: data.topic };
-    }
+    case "kb_list_folder":
+      return executeKbListFolder(
+        args as Parameters<typeof executeKbListFolder>[0],
+        toolContext,
+      );
+    case "kb_search":
+      return executeKbSearch(
+        args as Parameters<typeof executeKbSearch>[0],
+        toolContext,
+      );
+    case "kb_open":
+      return executeKbOpen(
+        args as Parameters<typeof executeKbOpen>[0],
+        toolContext,
+      );
+    case "kb_recall_conversation":
+      return executeKbRecallConversation(
+        args as Parameters<typeof executeKbRecallConversation>[0],
+        toolContext,
+      );
+    case "kb_learn":
+      return executeKbLearn(
+        args as Parameters<typeof executeKbLearn>[0],
+        toolContext,
+      );
     // CHAT HISTORY
     case "get_chat_history":
       return getChatHistory(chatRead, args);
-    case "search_conversation_history": {
-      const { scope: chatScope, refusal } = await scopedChatRead(
+    case "search_conversation_history":
+      return executeSearchConversationHistory(
+        args as Parameters<typeof executeSearchConversationHistory>[0],
+        toolContext,
         chatRead,
-        null,
       );
-      if (refusal) {
-        return refusal;
-      }
-
-      const rawQuery = String(args.query || "").trim();
-      // AND semantics: every token must appear in the message. Up to 4 tokens.
-      // No query = browse mode: chronological slice of the window, which then
-      // MUST be narrowed (Carmen channel / specific phone) or the whole tenant's
-      // WhatsApp traffic floods the result.
-      const tokens = rawQuery.split(/\s+/).filter(Boolean).slice(0, 4);
-      const browseMode = tokens.length === 0;
-      const daysBack = Math.min(
-        Number(args.days_back) > 0 ? Number(args.days_back) : 180,
-        730,
-      );
-      const since = new Date(
-        Date.now() - daysBack * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const defaultLimit = browseMode ? 40 : 20;
-      let withPhone = String(args.with_phone || "").replace(/\D/g, "");
-      const onlyCarmen =
-        args.only_carmen_chats === true ||
-        (browseMode && args.only_carmen_chats !== false);
-      const browseAll = args.browse_all_chats === true;
-      // Default: stay inside the active WhatsApp chat_id (private or group).
-      let scopeGroupId: string | null = null;
-      let scopeNote = "current_chat";
-      if (!browseAll && waNotify?.chat_id) {
-        const chatId = String(waNotify.chat_id);
-        if (isGroupChat(waNotify)) {
-          const { data: g } = await supabase
-            .from("whatsapp_groups")
-            .select("id")
-            .eq("tenant_id", tenantId)
-            .eq("group_chat_id", chatId)
-            .maybeSingle();
-          scopeGroupId = g?.id || null;
-          if (!scopeGroupId) {
-            return {
-              count: 0,
-              mode: browseMode ? "browse" : "keyword_search",
-              note: "הקבוצה הנוכחית לא נמצאה — נסי browse_all_chats=true אם צריך חיפוש ארגוני.",
-            };
-          }
-        } else if (!withPhone) {
-          withPhone = chatId.split("@")[0].replace(/\D/g, "");
-        }
-      } else if (browseAll) {
-        scopeNote = "all_chats";
-      }
-      let q = supabase
-        .from("chat_messages")
-        .select(
-          withChatScopeColumns(
-            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
-          ),
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .gte("created_at", since)
-        .not("message_text", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(
-          Math.min(
-            Number(args.limit) > 0 ? Number(args.limit) : defaultLimit,
-            60,
-          ),
-        );
-      for (const t of tokens) q = q.ilike("message_text", `%${t}%`);
-      if (onlyCarmen) q = q.eq("provider", "manus_wa");
-      if (scopeGroupId) q = q.eq("group_id", scopeGroupId);
-      else if (withPhone && !browseAll)
-        q = q
-          .is("group_id", null)
-          .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
-      else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const data: ChatHistorySearchRow[] = await readScopedChatRows(
-        supabase,
-        q,
-        chatScope,
-        accessibleTenantIds,
-      );
-      const fmt = (iso: string | null) =>
-        new Date(iso === null ? 0 : iso).toLocaleString("he-IL", {
-          timeZone: "Asia/Jerusalem",
-          dateStyle: "short",
-          timeStyle: "short",
-        });
-      return {
-        count: data.length,
-        mode: browseMode ? "browse" : "keyword_search",
-        scope: scopeNote,
-        chat_id: waNotify?.chat_id || null,
-        note:
-          data.length === 0
-            ? browseMode
-              ? "אין הודעות בחלון הזמן בצ׳אט הנוכחי — נסי days_back גדול יותר או browse_all_chats=true."
-              : "אין תוצאות בצ׳אט הנוכחי — נסי מילת תוכן אחרת או browse_all_chats=true."
-            : undefined,
-        messages: data.reverse().map((m) => ({
-          when_israel: fmt(m.created_at),
-          direction: m.direction,
-          from: m.sender_name || m.sender_phone || "",
-          client: m.clients?.name || null,
-          in_group: !!m.group_id,
-          text: String(m.message_text).slice(0, 400),
-        })),
-        ...chatScopeMeta(chatScope),
-      };
-    }
     case "get_recent_inbound_messages":
       return getRecentInboundMessages(chatRead, args);
     // FINANCE
@@ -3806,576 +3138,74 @@ async function executeTool(
     // ===========================
     // BROADCAST (דיוור)
     // ===========================
-    case "list_broadcasts": {
-      let q = supabase
-        .from("broadcasts")
-        .select(
-          "id, name, channel, status, scheduled_at, stats, created_at, body_text",
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) q = q.eq("status", args.status);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, broadcasts: data };
-    }
-    case "create_broadcast": {
-      // Build audience_filter from source + extra filter
-      const audience_filter: TablesInsert<"broadcasts">["audience_filter"] = {
-        source: args.audience_source,
-        ...(args.audience_filter || {}),
-      };
-      // Determine provider from tenant's default WA integration
-      let provider = "green_api";
-      let integration_id = args.integration_id || null;
-      if (!integration_id) {
-        const { data: integ } = await supabase
-          .from("tenant_integrations")
-          .select("id, integration_type")
-          .eq("tenant_id", tenantId)
-          .in("integration_type", ["green_api", "manus_wa"])
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (integ) {
-          integration_id = integ.id;
-          provider = integ.integration_type;
-        }
-      } else {
-        const { data: integ } = await supabase
-          .from("tenant_integrations")
-          .select("integration_type")
-          .eq("id", integration_id)
-          .maybeSingle();
-        if (integ) provider = integ.integration_type;
-      }
-      const insertData: TablesInsert<"broadcasts"> = {
-        tenant_id: tenantId,
-        created_by: userId && userId !== "system" ? userId : null,
-        name: args.name,
-        channel: "whatsapp",
-        provider,
-        integration_id,
-        body_text: args.body_text,
-        audience_filter,
-        status: "draft",
-      };
-      if (args.scheduled_at) {
-        insertData.scheduled_at = args.scheduled_at;
-        insertData.status = "scheduled";
-      }
-      const { data: bc, error } = await supabase
-        .from("broadcasts")
-        .insert(insertData)
-        .select("id, name, status, scheduled_at")
-        .single();
-      if (error) throw error;
-      return {
-        pending_approval: true,
-        approval_id: null,
-        broadcast_id: bc.id,
-        summary: `דיוור חדש "${bc.name}" נוצר (${bc.status}). קהל: ${args.audience_source}. ${args.scheduled_at ? "מתוזמן ל-" + args.scheduled_at : "טרם נשלח — שאל את המשתמש לאישור ושליחה."}`,
-        instruction_for_carmen:
-          'הצג סיכום של הדיוור (שם, קהל, תוכן) ושאל "לשלוח עכשיו או לתזמן למועד מסוים?". אסור לשלוח בלי אישור מפורש.',
-      };
-    }
-    case "send_broadcast_now": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status, tenant_id")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      if (!["draft", "scheduled"].includes(bc.status))
-        throw new Error(`אי אפשר לשלוח דיוור בסטטוס ${bc.status}`);
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "send_broadcast_now",
-          title: `שליחת דיוור: ${bc.name}`,
-          description: "שליחת דיוור WhatsApp מיידית",
-          tool_name: "send_broadcast_now",
-          tool_input: { broadcast_id: bc.id },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `שליחת דיוור "${bc.name}" מיידית לכל הנמענים.`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "schedule_broadcast": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "schedule_broadcast",
-          title: `תזמון דיוור: ${bc.name}`,
-          description: `תזמון ל-${args.scheduled_at}`,
-          tool_name: "schedule_broadcast",
-          tool_input: { broadcast_id: bc.id, scheduled_at: args.scheduled_at },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `תזמון דיוור "${bc.name}" ל-${args.scheduled_at}.`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "cancel_broadcast": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "cancel_broadcast",
-          title: `ביטול דיוור: ${bc.name}`,
-          description: `ביטול דיוור בסטטוס ${bc.status}`,
-          tool_name: "cancel_broadcast",
-          tool_input: { broadcast_id: bc.id },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `ביטול דיוור "${bc.name}" (${bc.status}).`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "list_wa_groups": {
-      let q = supabase
-        .from("whatsapp_groups")
-        .select("id, group_name, group_chat_id, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("is_blocked", false)
-        .order("group_name", { ascending: true })
-        .limit(args.limit || 50);
-      if (args.name_search) q = q.ilike("group_name", `%${args.name_search}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, groups: data };
-    }
+    case "list_broadcasts":
+      return executeListBroadcasts(
+        args as Parameters<typeof executeListBroadcasts>[0],
+        toolContext,
+      );
+    case "create_broadcast":
+      return executeCreateBroadcast(
+        args as Parameters<typeof executeCreateBroadcast>[0],
+        toolContext,
+      );
+    case "send_broadcast_now":
+      return executeSendBroadcastNow(
+        args as Parameters<typeof executeSendBroadcastNow>[0],
+        toolContext,
+      );
+    case "schedule_broadcast":
+      return executeScheduleBroadcast(
+        args as Parameters<typeof executeScheduleBroadcast>[0],
+        toolContext,
+      );
+    case "cancel_broadcast":
+      return executeCancelBroadcast(
+        args as Parameters<typeof executeCancelBroadcast>[0],
+        toolContext,
+      );
+    case "list_wa_groups":
+      return executeListWaGroups(
+        args as Parameters<typeof executeListWaGroups>[0],
+        toolContext,
+      );
 
     // ============ CALENDAR INVITES ============
-    case "send_calendar_invite": {
-      const {
-        attendee_email,
-        attendee_name,
-        title,
-        date,
-        time,
-        duration_minutes,
-        notes,
-      } = args;
-      if (!attendee_email || !title || !date || !time)
-        return { error: "attendee_email, title, date, time נדרשים" };
-
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const accessToken = cal.accessToken;
-      const extras = await resolveCalendarConferenceExtras(
-        supabase,
-        tenantId,
-        args,
+    case "send_calendar_invite":
+      return executeSendCalendarInvite(
+        args as Parameters<typeof executeSendCalendarInvite>[0],
+        toolContext,
       );
 
-      // Send naive wall-clock times with an explicit timeZone — Google interprets
-      // them in Asia/Jerusalem. toISOString() ('Z') marked Israel wall times as
-      // UTC, landing every event 3 hours late (08:00 request → 11:00 invite).
-      const startNaive = `${date}T${time}:00`;
-      const endNaive = new Date(
-        Date.parse(`${startNaive}Z`) + (duration_minutes || 60) * 60_000,
-      )
-        .toISOString()
-        .slice(0, 19);
-      const attendees = mergeNamedPrimaryAttendee(
-        attendee_email,
-        attendee_name,
-        extras.extraEmails,
-        extras.extraNamed,
+    case "list_calendar_events":
+      return executeListCalendarEvents(
+        args as Parameters<typeof executeListCalendarEvents>[0],
+        toolContext,
       );
 
-      const body: Record<string, unknown> = {
-        summary: title,
-        description: notes || "",
-        start: { dateTime: startNaive, timeZone: "Asia/Jerusalem" },
-        end: { dateTime: endNaive, timeZone: "Asia/Jerusalem" },
-        attendees,
-        guestsCanModify: false,
-      };
-      let zoom_available: boolean | null = null;
-      let zoom_status: string | null | undefined = null;
-      let conference_applied = "none";
-      const qp = new URLSearchParams({
-        sendUpdates: "all",
-        sendNotifications: "true",
-      });
-      if (extras.conferenceType === "zoom") {
-        const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
-        if (zoomAuth.accessToken) {
-          const zoom = await createZoomMeeting({
-            accessToken: zoomAuth.accessToken,
-            topic: title,
-            startDateTime: `${startNaive}+03:00`,
-            durationMinutes: duration_minutes || 60,
-          });
-          if (zoom.join_url) {
-            zoom_available = true;
-            conference_applied = "zoom";
-            Object.assign(
-              body,
-              applyZoomLinkToEvent({ description: notes || "" }, zoom.join_url),
-            );
-          } else {
-            zoom_available = zoomAuth.configured === false ? false : true;
-            zoom_status = zoom.error;
-            body.conferenceData = buildMeetConferenceData();
-            qp.set("conferenceDataVersion", "1");
-            conference_applied = "meet";
-          }
-        } else {
-          zoom_available = false;
-          zoom_status = zoomAuth.error;
-          body.conferenceData = buildMeetConferenceData();
-          qp.set("conferenceDataVersion", "1");
-          conference_applied = "meet";
-        }
-      } else if (extras.conferenceType === "meet") {
-        body.conferenceData = buildMeetConferenceData();
-        qp.set("conferenceDataVersion", "1");
-        conference_applied = "meet";
-      }
-
-      const calResp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${qp}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-        },
-      );
-      const evData = await calResp.json();
-      if (!calResp.ok)
-        return {
-          error: `שגיאת Google Calendar: ${evData?.error?.message || calResp.status}`,
-        };
-      const summary = summarizeEventResult(evData, {
-        attendee_email,
-        attendee_name: attendee_name || null,
-        start_israel: startNaive,
-        duration_minutes: duration_minutes || 60,
-        zoom_available,
-        zoom_status,
-        conference_applied,
-        carmen_attendee: extras.carmen_attendee,
-        carmen_meeting_bot: extractConferenceUrl(evData)
-          ? {
-              tool: "join_meeting_for_client",
-              meeting_url: extractConferenceUrl(evData),
-              note: "לצירוף כרמן כבוט תמלול בזמן הפגישה — קראי ל-join_meeting_for_client עם conference_url.",
-            }
-          : null,
-        message: `זימון נשלח למייל ${attendee_email}${conference_applied !== "none" ? ` — נוסף ${conference_applied === "zoom" ? "Zoom" : "Google Meet"}` : ""}.`,
-      });
-      return summary;
-    }
-
-    case "list_calendar_events": {
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const fromDate = String(
-        args.date_from || new Date().toISOString().slice(0, 10),
-      );
-      const toDate = String(
-        args.date_to ||
-          new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-      );
-      const qp = new URLSearchParams({
-        timeMin: `${fromDate}T00:00:00+03:00`,
-        timeMax: `${toDate}T23:59:59+03:00`,
-        singleEvents: "true",
-        orderBy: "startTime",
-        maxResults: "30",
-      });
-      if (args.search) qp.set("q", String(args.search));
-      const resp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${qp}`,
-        {
-          headers: { Authorization: `Bearer ${cal.accessToken}` },
-        },
-      );
-      const data: unknown = await resp.json();
-      if (!resp.ok)
-        return {
-          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
-        };
-      const calendarItems = readGoogleCalendarEvents(data);
-      return {
-        count: calendarItems.length,
-        events: calendarItems.map((e) => ({
-          event_id: e.id,
-          title: e.summary,
-          start: e.start.dateTime || e.start.date,
-          end: e.end.dateTime || e.end.date,
-          attendees: (e.attendees || []).map((a) => a.email),
-          link: e.htmlLink,
-          conference_url: extractConferenceUrl(e),
-          conference_type: conferenceKindFromUrl(extractConferenceUrl(e)),
-        })),
-      };
-    }
-
-    case "update_calendar_invite": {
-      const { event_id, date, time, duration_minutes, title, notes } = args;
-      if (!event_id)
-        return {
-          error: "event_id נדרש — מצאי אותו קודם עם list_calendar_events",
-        };
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const extras = await resolveCalendarConferenceExtras(
-        supabase,
-        tenantId,
-        args,
+    case "update_calendar_invite":
+      return executeUpdateCalendarInvite(
+        args as Parameters<typeof executeUpdateCalendarInvite>[0],
+        toolContext,
       );
 
-      const fieldPatch: Record<string, unknown> = {};
-      if (title) fieldPatch.summary = title;
-      if (notes) fieldPatch.description = notes;
-      if (date || time) {
-        if (!date || !time)
-          return { error: "לעדכון מועד יש לספק גם date וגם time" };
-        const startNaive = `${date}T${time}:00`;
-        const endNaive = new Date(
-          Date.parse(`${startNaive}Z`) +
-            (Number(duration_minutes) > 0 ? Number(duration_minutes) : 60) *
-              60_000,
-        )
-          .toISOString()
-          .slice(0, 19);
-        fieldPatch.start = {
-          dateTime: startNaive,
-          timeZone: "Asia/Jerusalem",
-        };
-        fieldPatch.end = { dateTime: endNaive, timeZone: "Asia/Jerusalem" };
-      }
-
-      const result = await updateExistingCalendarEvent({
-        accessToken: cal.accessToken,
-        eventId: String(event_id),
-        fieldPatch,
-        conferenceType: extras.conferenceType,
-        extraEmails: extras.extraEmails,
-        extraNamed: extras.extraNamed,
-        createZoomMeetingFn:
-          extras.conferenceType === "zoom"
-            ? await makeZoomMeetingCreator(supabase, tenantId, title)
-            : null,
-      });
-      if (result.error) return result;
-      const conferenceUrl = result.conference_url;
-      return {
-        ...result,
-        carmen_attendee: extras.carmen_attendee,
-        carmen_meeting_bot: conferenceUrl
-          ? {
-              tool: "join_meeting_for_client",
-              meeting_url: conferenceUrl,
-              note: "לצירוף כרמן כבוט תמלול בזמן הפגישה — קראי ל-join_meeting_for_client עם conference_url.",
-            }
-          : null,
-      };
-    }
-
-    case "cancel_calendar_invite": {
-      if (args.confirmed !== true) {
-        return {
-          error: "not_confirmed",
-          message:
-            "אישור משתמש מפורש נדרש. שאלי לפני ביטול ושלחי confirmed=true רק אחרי שהוא אישר.",
-        };
-      }
-      const { event_id } = args;
-      if (!event_id)
-        return {
-          error: "event_id נדרש — מצאי אותו קודם עם list_calendar_events",
-        };
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
+    case "cancel_calendar_invite":
+      return executeCancelCalendarInvite(
+        args as Parameters<typeof executeCancelCalendarInvite>[0],
+        toolContext,
       );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const resp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(String(event_id))}?sendUpdates=all`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${cal.accessToken}` },
-        },
-      );
-      if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
-        const data: unknown = await resp.json().catch(() => ({}));
-        return {
-          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
-        };
-      }
-      return {
-        success: true,
-        message: "האירוע בוטל — המשתתפים קיבלו הודעת ביטול.",
-      };
-    }
 
     // ============ MEETING BOT ============
-    case "join_meeting_for_client": {
-      const {
-        meeting_url,
-        client_id,
-        lead_id,
-        campaigner_ids,
-        agency_id,
-        summary_scope,
-        meeting_topic,
-      } = args;
-      if (!meeting_url?.trim())
-        return { error: "meeting_url נדרש — קישור Zoom / Google Meet / Teams" };
-
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/dispatch-meeting-bot`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            meeting_url: String(meeting_url).trim(),
-            client_id: client_id || null,
-            lead_id: lead_id || null,
-            campaigner_ids: Array.isArray(campaigner_ids) ? campaigner_ids : [],
-            agency_id: agency_id || null,
-            summary_scope: summary_scope || "auto",
-            meeting_topic: meeting_topic || null,
-            tenant_id: tenantId,
-            created_by: userId,
-          }),
-        },
+    case "join_meeting_for_client":
+      return executeJoinMeetingForClient(
+        args as Parameters<typeof executeJoinMeetingForClient>[0],
+        toolContext,
       );
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `שגיאה בשליחת הבוט (${res.status})` };
-      return {
-        success: true,
-        session_id: data.session_id,
-        bot_id: data.bot_id,
-        platform: data.platform_label,
-        message:
-          data.message || "כרמן מצטרפת לפגישה. אשרו אותה בחדר ההמתנה אם נדרש.",
-      };
-    }
 
-    case "get_meeting_bot_status": {
-      const { session_id, bot_id } = args;
-      if (!session_id && !bot_id) return { error: "session_id או bot_id נדרש" };
-
-      let q = supabase
-        .from("meeting_bot_sessions")
-        .select(
-          "id, status, status_detail, platform, meeting_topic, meeting_url, client_id, zoom_recording_id, error, joined_at, ended_at, created_at, external_bot_id",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (session_id) q = q.eq("id", session_id);
-      else q = q.eq("external_bot_id", bot_id);
-
-      const { data: session, error } = await q.maybeSingle();
-      if (error) return { error: error.message };
-      if (!session) return { error: "לא נמצאה פגישת בוט" };
-
-      const statusLabels: Record<string, string> = {
-        scheduled: "מתוזמנת",
-        joining: "מצטרפת",
-        waiting_room: "בחדר המתנה — אשרו את כרמן",
-        in_meeting: "בפגישה ומקליטה",
-        processing: "מעבדת תמלול וסיכום",
-        done: "הסתיימה — סיכום מוכן",
-        failed: "נכשלה",
-        cancelled: "בוטלה",
-      };
-
-      return {
-        session_id: session.id,
-        bot_id: session.external_bot_id,
-        status: session.status,
-        status_label: statusLabels[session.status] || session.status,
-        platform: session.platform,
-        meeting_topic: session.meeting_topic,
-        client_id: session.client_id,
-        recording_id: session.zoom_recording_id,
-        error: session.error,
-        joined_at: session.joined_at,
-        ended_at: session.ended_at,
-      };
-    }
+    case "get_meeting_bot_status":
+      return executeGetMeetingBotStatus(
+        args as Parameters<typeof executeGetMeetingBotStatus>[0],
+        toolContext,
+      );
 
     // ============ OPENAI BILLING (super_admin) ============
     case "get_openai_billing_status": {
@@ -4402,251 +3232,31 @@ async function executeTool(
     }
 
     // ============ STAFF / CAMPAIGNER WHATSAPP ============
-    case "lookup_staff_whatsapp": {
-      const entityType = args.entity_type || "auto";
-      const onlyWithPhone = args.only_with_phone !== false;
-      const limit = Math.min(Math.max(Number(args.limit) || 40, 1), 100);
-      const search = String(args.search || "").trim();
-      const roster = await loadStaffWhatsappRoster(
-        supabase,
-        accessibleTenantIds,
-        tenantId,
-        entityType,
+    case "lookup_staff_whatsapp":
+      return executeLookupStaffWhatsapp(
+        args as Parameters<typeof executeLookupStaffWhatsapp>[0],
+        toolContext,
       );
-      let rows = roster
-        .map(formatStaffContact)
-        .filter((contact) => contact !== null);
-      if (onlyWithPhone) rows = rows.filter((r) => r.has_phone);
-      if (search) {
-        rows = rows
-          .filter((r) => scoreNameMatchSafe(r.full_name, search) > 0)
-          .sort(
-            (a, b) =>
-              scoreNameMatchSafe(b.full_name, search) -
-              scoreNameMatchSafe(a.full_name, search),
-          );
-      }
-      rows = rows.slice(0, limit);
-      return {
-        count: rows.length,
-        staff: rows,
-        note: "השתמשי ב-send_whatsapp_to_staff עם staff_id או name מהרשימה. הטלפון נמשך מה-DB בלבד.",
-      };
-    }
 
     case "send_whatsapp_to_staff":
-    case "send_message_to_campaigner": {
-      const message = String(args.message || args.message_text || "").trim();
-      if (!message) return { error: "message / message_text נדרש" };
-
-      const entityType =
-        name === "send_message_to_campaigner"
-          ? "campaigner"
-          : args.entity_type || "auto";
-      const staffId = args.staff_id || args.campaigner_id || null;
-      const staffName = args.name || null;
-      if (!staffId && !staffName) {
-        return {
-          error:
-            "נדרש staff_id/campaigner_id או name. אפשר קודם lookup_staff_whatsapp / list_campaigners.",
-        };
-      }
-
-      const roster = await loadStaffWhatsappRoster(
-        supabase,
-        accessibleTenantIds,
-        tenantId,
-        entityType,
+    case "send_message_to_campaigner":
+      return executeSendMessageToCampaigner(
+        args as Parameters<typeof executeSendMessageToCampaigner>[0],
+        toolContext,
       );
-      const picked = selectStaffMatch(roster, {
-        id: staffId,
-        name: staffName,
-        entityType,
-      });
-      if (picked.ambiguous?.length) {
-        return {
-          ambiguous: true,
-          matches: picked.ambiguous.map(formatStaffContact),
-          message: "נמצאו כמה אנשי צוות — צייני staff_id או entity_type מדויק",
-        };
-      }
-      if (!picked.match) {
-        return {
-          error: staffId
-            ? "איש צוות לא נמצא לפי id"
-            : `לא נמצא איש צוות בשם "${staffName}"`,
-        };
-      }
-      const contact = formatStaffContact(picked.match);
-      if (!contact?.phone) {
-        return {
-          error: `לא נמצא מספר טלפון עבור ${contact?.full_name || "איש הצוות"} במערכת`,
-        };
-      }
-
-      const sendResult = await sendStaffWhatsappMessage({
-        supabase,
-        supabaseUrl: SUPABASE_URL,
-        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-        tenantId,
-        phone: contact.phone,
-        message,
-        requesterUserId: actorUserId,
-        agentId: agentId || null,
-        conversationId: conversationId || null,
-        recipient: contact,
-      });
-      if (sendResult.error) return sendResult;
-      return {
-        success: true,
-        entity_type: contact.entity_type,
-        staff_id: contact.id,
-        staff_name: contact.full_name,
-        phone: contact.phone,
-        ...sendResult,
-      };
-    }
 
     // ============ MASKYOO CALLS REPORTING ============
-    case "get_maskyoo_calls_report": {
-      const {
-        client_id: argClientId,
-        client_name,
-        period_start,
-        period_end,
-        category,
-        period_compare,
-      } = args;
-
-      // Resolve period — default to current month
-      const now = new Date();
-      const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const defaultEnd = now.toISOString().split("T")[0];
-      const pStart = period_start || defaultStart;
-      const pEnd = period_end || defaultEnd;
-
-      // Resolve client_id by name if not given
-      const db: AgentDatabaseClient = supabase;
-      let resolvedClientId = argClientId;
-      if (!resolvedClientId && client_name) {
-        const { data: found } = await db
-          .from("clients")
-          .select("id, name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${client_name}%`)
-          .limit(5);
-        if (!found?.length)
-          return { error: `לא נמצא לקוח בשם "${client_name}"` };
-        if (found.length > 1)
-          return {
-            ambiguous: true,
-            matches: found.map((c) => ({ id: c.id, name: c.name })),
-            message: "נמצאו מספר לקוחות — ציין client_id",
-          };
-        resolvedClientId = found[0].id;
-      }
-
-      // Query seo_call_snapshots for given period
-      const snapshotQuery = db
-        .from("seo_call_snapshots")
-        .select(
-          "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .gte("period_start", pStart)
-        .lte("period_end", pEnd);
-      if (resolvedClientId) snapshotQuery.eq("client_id", resolvedClientId);
-      if (category && category !== "all")
-        snapshotQuery.eq("category", category);
-
-      const { data: snapshots, error: snapErr } = await snapshotQuery.order(
-        "period_start",
-        { ascending: false },
+    case "get_maskyoo_calls_report":
+      return executeGetMaskyooCallsReport(
+        args as Parameters<typeof executeGetMaskyooCallsReport>[0],
+        toolContext,
       );
-      if (snapErr) return { error: snapErr.message };
 
-      // Enrich with client names
-      const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
-      const clientNames: Record<string, string> = {};
-      if (clientIds.length) {
-        const { data: clients } = await db
-          .from("clients")
-          .select("id, name")
-          .in("id", clientIds);
-        clients?.forEach((c) => {
-          clientNames[c.id] = c.name;
-        });
-      }
-
-      const rows = (snapshots || []).map((s) => ({
-        client_id: s.client_id,
-        client_name: clientNames[s.client_id] || s.client_id,
-        category: s.category,
-        period: `${s.period_start} → ${s.period_end}`,
-        incoming_calls: s.incoming_count,
-        is_manual: s.is_manual,
-        note: s.note,
-        last_sync: s.synced_at,
-      }));
-
-      // Optional: compare with previous period of same length
-      let prevRows: Array<{
-        client_id: string;
-        category: string;
-        incoming_calls: number;
-        period: string;
-      }> = [];
-      if (period_compare) {
-        const startDate = new Date(pStart);
-        const endDate = new Date(pEnd);
-        const diffMs = endDate.getTime() - startDate.getTime();
-        const prevEnd = new Date(startDate.getTime() - 86400000)
-          .toISOString()
-          .split("T")[0];
-        const prevStart = new Date(startDate.getTime() - diffMs - 86400000)
-          .toISOString()
-          .split("T")[0];
-
-        const prevQuery = db
-          .from("seo_call_snapshots")
-          .select("client_id, category, incoming_count")
-          .in("tenant_id", accessibleTenantIds)
-          .gte("period_start", prevStart)
-          .lte("period_end", prevEnd);
-        if (resolvedClientId) prevQuery.eq("client_id", resolvedClientId);
-        if (category && category !== "all") prevQuery.eq("category", category);
-        const { data: prev } = await prevQuery;
-        prevRows = (prev || []).map((p) => ({
-          client_id: p.client_id,
-          category: p.category,
-          incoming_calls: p.incoming_count,
-          period: `${prevStart} → ${prevEnd}`,
-        }));
-      }
-
-      return {
-        period: `${pStart} → ${pEnd}`,
-        total_snapshots: rows.length,
-        results: rows,
-        previous_period: prevRows.length ? prevRows : undefined,
-      };
-    }
-
-    case "sync_maskyoo_cdr": {
-      const { from_date } = args;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/sync-maskyoo-cdr`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({ tenant_id: tenantId, from_date }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `סנכרון נכשל [${res.status}]` };
-      return { success: true, ...data };
-    }
+    case "sync_maskyoo_cdr":
+      return executeSyncMaskyooCdr(
+        args as Parameters<typeof executeSyncMaskyooCdr>[0],
+        toolContext,
+      );
 
     default:
       throw new Error(`Unknown tool: ${name}`);

@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 
 const carmen = readFileSync(new URL("./carmen.ts", import.meta.url), "utf8");
 const agent = readFileSync(
-  new URL("../run-ai-agent/index.ts", import.meta.url),
+  new URL(
+    "../run-ai-agent/executors/search-conversation-history.ts",
+    import.meta.url,
+  ),
   "utf8",
 );
 
