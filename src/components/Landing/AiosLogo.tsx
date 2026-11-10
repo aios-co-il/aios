@@ -9,7 +9,7 @@ const MINT_EXTRUDE = {
 } as CSSProperties;
 
 interface AiosLogoProps {
-  /** Show "Marketing AI Operating System" under the letters. */
+  /** Show "Marketing" and "AI Operating System" under the letters. */
   tagline?: boolean;
   /** Size and spacing classes for the letters. */
   className?: string;
@@ -36,8 +36,11 @@ export function AiosLogo({ tagline = false, className }: AiosLogoProps) {
         </span>
       </span>
       {tagline && (
-        <span className="mt-3 whitespace-nowrap font-[Outfit,Heebo,sans-serif] text-lg font-semibold text-foreground md:text-xl">
-          Marketing AI Operating System
+        <span className="mt-3 flex flex-col items-center whitespace-nowrap font-[Outfit,Heebo,sans-serif] text-foreground">
+          <span className="text-2xl font-semibold md:text-3xl">Marketing</span>
+          <span className="mt-1.5 text-sm font-medium tracking-[0.06em] md:text-base">
+            AI Operating System
+          </span>
         </span>
       )}
     </span>

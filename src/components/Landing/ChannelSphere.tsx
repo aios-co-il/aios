@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Mail, Users } from "lucide-react";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { cn } from "@/lib/utils";
+import { AiosLogo } from "./AiosLogo";
 import { FacebookMark, GoogleMark } from "./brandMarks";
 
 export interface SphereSpec {
@@ -117,17 +118,12 @@ export function ChannelSphere({
   );
 }
 
-/** "AIOS / Marketing / AI Operating System" set inside the brand sphere. */
+/** The AiOs logo and "AI Operating System" set inside the brand sphere. */
 function AiosWordmark() {
   return (
     <span className="flex flex-col items-center">
-      <span className="text-[1.9em] font-extrabold leading-none tracking-tight">
-        AIOS
-      </span>
-      <span className="mt-1 text-[0.62em] font-bold uppercase tracking-[0.32em] opacity-75">
-        Marketing
-      </span>
-      <span className="mt-0.5 text-[0.42em] font-medium tracking-[0.12em] opacity-60">
+      <AiosLogo className="text-[2.4em]" />
+      <span className="mt-1.5 whitespace-nowrap text-[0.48em] font-semibold tracking-[0.08em] text-foreground/70">
         AI Operating System
       </span>
     </span>
