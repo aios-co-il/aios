@@ -6,7 +6,9 @@ import {
   type CarmenAvatarStyle,
   useCarmenAvatarStyle,
 } from "@/hooks/useCarmenAvatarStyle";
+import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
+import type { KeyboardEvent } from "react";
 import { CARMEN_ROLES } from "../../../supabase/functions/_shared/carmen/skin-roles";
 
 const OPTIONS: Array<{
@@ -26,19 +28,36 @@ const OPTIONS: Array<{
   },
 ];
 
-/** Settings card for choosing how Carmen is drawn across the system. */
+const HEADING_ID = "carmen-style-heading";
+
+/**
+ * Settings card for choosing how Carmen is drawn across the system. Only
+ * owners and super admins may save it (`tenant_settings` row-level security).
+ */
 export function CarmenStylePicker() {
   const { style, setStyle, saving } = useCarmenAvatarStyle();
+  const { isOwner, isSuperAdmin } = useUserRole();
+  const canEdit = isOwner || isSuperAdmin;
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold">סגנון כרמן</h2>
+        <h2 id={HEADING_ID} className="text-2xl font-bold">
+          סגנון כרמן
+        </h2>
         <p className="text-muted-foreground">
           איך כרמן והסקינים שלה מופיעים בכל המערכת.
+          {!canEdit && " רק בעלי הארגון יכולים לשנות את הסגנון."}
         </p>
       </div>
-      <div role="radiogroup" className="grid gap-4 md:grid-cols-2">
+      <div
+        role="radiogroup"
+        aria-labelledby={HEADING_ID}
+        onKeyDown={(event) =>
+          canEdit && !saving && selectWithArrows(event, style, setStyle)
+        }
+        className="grid gap-4 md:grid-cols-2"
+      >
         {OPTIONS.map((option) => {
           const selected = option.style === style;
           return (
@@ -47,7 +66,10 @@ export function CarmenStylePicker() {
               type="button"
               role="radio"
               aria-checked={selected}
-              disabled={saving}
+              data-style={option.style}
+              // One Tab stop for the group; arrow keys move between options.
+              tabIndex={selected ? 0 : -1}
+              disabled={saving || !canEdit}
               onClick={() => setStyle(option.style)}
               className="text-start"
             >
@@ -74,6 +96,27 @@ export function CarmenStylePicker() {
       </div>
     </section>
   );
+}
+
+/** Radio-group arrow keys: move to the next or previous style and select it. */
+function selectWithArrows(
+  event: KeyboardEvent<HTMLDivElement>,
+  current: CarmenAvatarStyle,
+  select: (style: CarmenAvatarStyle) => void,
+) {
+  const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[
+    event.key
+  ];
+  if (!step) {
+    return;
+  }
+  event.preventDefault();
+  const index = OPTIONS.findIndex((option) => option.style === current);
+  const next = OPTIONS[(index + step + OPTIONS.length) % OPTIONS.length].style;
+  select(next);
+  event.currentTarget
+    .querySelector<HTMLButtonElement>(`[data-style="${next}"]`)
+    ?.focus();
 }
 
 /** A row of avatars in the given style. */

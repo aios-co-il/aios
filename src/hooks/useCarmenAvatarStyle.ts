@@ -1,5 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { skipToken } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 import { useCurrentTenant } from "./useCurrentTenant";
@@ -19,17 +23,18 @@ export function useCarmenAvatarStyle() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const queryKey = ["carmen-avatar-style", tenantId];
-
   const query = useQuery({
-    queryKey,
+    queryKey: styleQueryKey(tenantId),
     staleTime: 30 * 60 * 1000,
     queryFn: tenantId ? () => fetchStyle(tenantId) : skipToken,
   });
 
+  // The tenant travels with the save, so switching organizations mid-save
+  // cannot write the result into the other organization's cache.
   const mutation = useMutation({
-    mutationFn: (style: CarmenAvatarStyle) => saveStyle(tenantId, style),
-    onSuccess: (_data, style) => queryClient.setQueryData(queryKey, style),
+    mutationFn: (save: StyleSave) => saveStyle(save.tenantId, save.style),
+    onSuccess: (_data, save) =>
+      queryClient.setQueryData(styleQueryKey(save.tenantId), save.style),
     onError: (error) => {
       console.error("Saving Carmen avatar style failed", error);
       toast({
@@ -42,9 +47,20 @@ export function useCarmenAvatarStyle() {
 
   return {
     style: query.data ?? DEFAULT_STYLE,
-    setStyle: mutation.mutate,
+    setStyle: (style: CarmenAvatarStyle) =>
+      mutation.mutate({ tenantId, style }),
     saving: mutation.isPending,
   };
+}
+
+interface StyleSave {
+  tenantId: string | null | undefined;
+  style: CarmenAvatarStyle;
+}
+
+/** One cache entry per organization. */
+function styleQueryKey(tenantId: string | null | undefined) {
+  return ["carmen-avatar-style", tenantId];
 }
 
 /** Reads the stored style; anything unknown falls back to the default. */
