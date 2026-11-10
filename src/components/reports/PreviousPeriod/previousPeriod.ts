@@ -14,7 +14,7 @@ export function previousPeriodRange(
   dateFilter: string,
   customFrom: string | null,
   customTo: string | null,
-  now: Date = new Date(),
+  now: Date = reportToday(),
 ): PeriodRange | null {
   if (dateFilter === "custom" && !(customFrom && customTo)) {
     return null;
@@ -53,6 +53,21 @@ export function periodChange(
   }
   const rose = current > previous;
   return rose === (direction === "higher") ? "better" : "worse";
+}
+
+/**
+ * Today's calendar date in the report's time zone (crm-records counts days in
+ * Asia/Jerusalem), as a local Date, so a browser abroad asks for the same days.
+ */
+export function reportToday(instant: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+  const [year, month, day] = parts.split("-").map(Number);
+  return new Date(year, month - 1, day, 12);
 }
 
 /** Midnight UTC of a yyyy-MM-dd day, so day arithmetic ignores clock changes. */

@@ -72,7 +72,7 @@ export function TrafficCells({
             )}
           </td>
           {prev(
-            (rows) => sumFacebookFollowers(rows).newFollowers ?? 0,
+            (rows) => sumFacebookFollowers(rows).newFollowers,
             formatReportNumber,
             "higher",
           )}
