@@ -11,7 +11,7 @@ export function SphereCarousel() {
   return (
     <div
       aria-hidden="true"
-      className="relative mx-auto aspect-[1/0.62] w-full max-w-xl"
+      className="relative mx-auto -mt-6 aspect-[1/0.62] w-full max-w-xl"
     >
       <div
         className="absolute h-[34%] w-full -translate-x-1/2 -translate-y-1/2 rounded-[50%] border border-white/70 bg-[radial-gradient(ellipse_at_50%_40%,hsl(var(--surface-elevated))_0%,hsl(var(--surface-inset))_65%,hsl(var(--border))_100%)] shadow-elevation-2"

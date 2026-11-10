@@ -1,6 +1,7 @@
 import { ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AiosLogo } from "./AiosLogo";
 import { SphereCarousel } from "./SphereCarousel";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
@@ -56,7 +57,10 @@ export function HeroSection() {
           ))}
         </ul>
       </div>
-      <SphereCarousel />
+      <div className="flex flex-col items-center">
+        <AiosLogo />
+        <SphereCarousel />
+      </div>
     </section>
   );
 }
