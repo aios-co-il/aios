@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowUpLeft, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AiosLogo } from "./AiosLogo";
+import { AiosLogo } from "@/components/brand/AiosLogo";
 import { ColorModeToggle } from "./ColorModeToggle";
 import type { ColorMode } from "./useColorMode";
 import { NAV_LINKS, WHATSAPP_URL } from "./landingContent";

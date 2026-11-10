@@ -1,5 +1,5 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import {
   forwardRef,
@@ -1878,7 +1878,8 @@ export const CarmenChatBar = forwardRef<
             {streamingText && (
               <div ref={answerRef} className="cc-msg-row is-agent">
                 {streamSprite === CARMEN_CHARACTER ? (
-                  <CarmenPortrait
+                  <CarmenAvatar
+                    skin={identity.activeSkin}
                     image={identity.image}
                     name={identity.name}
                     custom={identity.custom}

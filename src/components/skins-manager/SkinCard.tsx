@@ -1,4 +1,5 @@
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
+import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ export function SkinCard({
   onEdit: (s: Skin) => void;
   onClone: (s: Skin) => void;
 }) {
+  const { style } = useCarmenAvatarStyle();
   const isGlobal = skin.scope === "global";
   return (
     <Card className="p-4 space-y-2 text-right">
@@ -48,8 +50,9 @@ export function SkinCard({
           <code className="text-[10px] text-muted-foreground">{skin.slug}</code>
         </div>
         <div className="flex items-center gap-1.5">
-          {avatarUrl ? (
-            <CarmenPortrait
+          {style === "orbs" || avatarUrl ? (
+            <CarmenAvatar
+              skin={skin.slug}
               image={avatarUrl}
               name={skin.name}
               custom
