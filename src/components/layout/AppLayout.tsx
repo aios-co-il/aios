@@ -40,7 +40,8 @@ export function AppLayout() {
           <AppSidebar />
           <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
             <ViewAsBanner />
-            <header className="sticky top-0 z-50 h-14 md:h-16 border-b bg-brand-neutral/30 dark:bg-card flex items-center justify-between px-2 sm:px-4 md:px-6 gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
+            {/* Navy glass in both modes: `dark` flips the tokens inside to light text. */}
+            <header className="dark sticky top-0 z-50 h-14 md:h-16 border-b border-white/10 bg-gradient-to-l from-brand-ink/95 via-brand-ink/85 to-brand-ink/75 backdrop-blur-xl shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08)] text-foreground flex items-center justify-between px-2 sm:px-4 md:px-6 gap-1.5 sm:gap-2 md:gap-4 flex-shrink-0">
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
                 <SidebarTrigger className="shrink-0" />
                 <h1 className="text-sm md:text-xl font-bold bg-gradient-primary bg-clip-text text-transparent truncate hidden sm:inline">
