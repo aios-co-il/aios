@@ -1,7 +1,7 @@
 import { ArrowDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { HeroOrbs } from "./HeroOrbs";
 import { TalkButton } from "./LandingNav";
 import { BrandDot } from "./SectionHeading";
 
@@ -11,7 +11,7 @@ const HERO_POINTS = [
   "מערכת אחת לשיווק ולמכירות",
 ];
 
-/** Headline, calls to action and Carmen's orb with floating UI samples. */
+/** Headline, calls to action and the five-sphere channel scene. */
 export function HeroSection() {
   return (
     <section
@@ -56,52 +56,7 @@ export function HeroSection() {
           ))}
         </ul>
       </div>
-      <HeroVisual />
+      <HeroOrbs />
     </section>
-  );
-}
-
-/** Decorative orb scene; the cards illustrate the UI, not live data. */
-function HeroVisual() {
-  return (
-    <div
-      aria-hidden="true"
-      className="relative mx-auto flex aspect-square w-full max-w-md items-center justify-center"
-    >
-      <div className="absolute bottom-[12%] h-10 w-2/3 rounded-full bg-primary/30 blur-2xl" />
-      <CarmenOrb className="h-[72%] w-[72%] animate-carmen-breathe" />
-      <div className="material-glass absolute right-0 top-[8%] rounded-lg px-4 py-3 shadow-elevation-2">
-        <p className="text-xs text-muted-foreground">כל שלב</p>
-        <p className="text-sm font-bold">בפיקוח אנשי מקצוע.</p>
-      </div>
-      <div className="material-glass absolute bottom-[6%] left-0 flex gap-2 rounded-lg p-2.5 shadow-elevation-2">
-        <Badge variant="draft">טיוטה</Badge>
-        <Badge variant="active">פעיל</Badge>
-        <Badge variant="progress">בתהליך</Badge>
-      </div>
-      <LeadsCard />
-    </div>
-  );
-}
-
-/** Sample KPI card in the brand style. */
-function LeadsCard() {
-  const bars = [35, 55, 70, 100];
-  return (
-    <div className="material-card absolute left-[4%] top-[18%] flex items-end gap-4 rounded-lg px-4 py-3">
-      <div>
-        <p className="text-xs text-muted-foreground">לידים</p>
-        <p className="text-3xl font-extrabold leading-none">128</p>
-      </div>
-      <div className="flex h-10 items-end gap-1">
-        {bars.map((height) => (
-          <span
-            key={height}
-            className="w-1.5 rounded-full bg-primary"
-            style={{ height: `${height}%`, opacity: 0.4 + height / 170 }}
-          />
-        ))}
-      </div>
-    </div>
   );
 }
