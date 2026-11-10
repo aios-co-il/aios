@@ -183,7 +183,7 @@ class AiosAccount(context: Context) {
         http.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                if (grantType == "refresh_token") signOut()
+                if (grantType == "refresh_token" && refreshTokenRejected(response.code)) signOut()
                 throw IOException(authError(text, response.code))
             }
             return JSONObject(text)
@@ -235,6 +235,12 @@ class AiosAccount(context: Context) {
     }
 
     companion object {
+        /**
+         * Whether a failed refresh means the refresh token itself is bad (4xx), so the saved
+         * account must go. A server error or rate limit is temporary and keeps the account.
+         */
+        fun refreshTokenRejected(code: Int): Boolean = code in 400..499 && code != 429
+
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()
         private const val REFRESH_MARGIN_MS = 60_000L
