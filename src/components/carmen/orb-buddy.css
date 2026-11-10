@@ -10,7 +10,10 @@
 .orb-buddy > * {
   position: absolute;
 }
+/* Two classes, so this outranks `.carmen-orb { position: relative }`
+   whatever order the built CSS lands in. */
 .orb-buddy .orb-buddy-body {
+  position: absolute;
   left: 23.7%;
   top: 4%;
   width: 52.6%;
