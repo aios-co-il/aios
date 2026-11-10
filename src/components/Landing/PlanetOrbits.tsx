@@ -2,38 +2,31 @@ import { AiosLogo } from "./AiosLogo";
 import { CHANNEL_SPHERES, ChannelSphere } from "./ChannelSphere";
 import { CENTER_LAYER, type Orbit, usePlanetOrbits } from "./usePlanetOrbits";
 
-// One orbit per channel sphere, in CHANNEL_SPHERES order: each with its own
-// size, speed, direction and tilt, so the planets never move in step.
-const ORBITS: Array<Orbit> = [
-  { radius: 40, period: 20, direction: 1, elevation: 22, tilt: -32, phase: 20 },
-  {
-    radius: 36,
-    period: 16,
-    direction: -1,
-    elevation: 28,
-    tilt: 38,
-    phase: 150,
-  },
-  { radius: 42, period: 26, direction: 1, elevation: 16, tilt: 12, phase: 260 },
-  {
-    radius: 34,
-    period: 14,
-    direction: -1,
-    elevation: 34,
-    tilt: -48,
-    phase: 80,
-  },
-  { radius: 39, period: 23, direction: 1, elevation: 20, tilt: 54, phase: 320 },
-  {
+// One tilted ring with the spheres evenly spaced, moving together at one
+// speed: balanced and orderly, and no two spheres ever collide.
+const LAP_SECONDS = 26;
+
+const ORBITS: Array<Orbit> = ring({ count: 7, tilt: -16, phaseOffset: 90 });
+
+/** Evenly spaced orbits on one shared, tilted ring. */
+function ring({
+  count,
+  tilt,
+  phaseOffset,
+}: {
+  count: number;
+  tilt: number;
+  phaseOffset: number;
+}): Array<Orbit> {
+  return Array.from({ length: count }, (_, index) => ({
     radius: 41,
-    period: 18,
-    direction: -1,
-    elevation: 26,
-    tilt: -18,
-    phase: 200,
-  },
-  { radius: 37, period: 29, direction: 1, elevation: 30, tilt: 26, phase: 110 },
-];
+    period: LAP_SECONDS,
+    direction: 1,
+    elevation: 30,
+    tilt,
+    phase: phaseOffset + (index * 360) / count,
+  }));
+}
 
 /** The AiOs logo with the channel spheres orbiting it like planets. */
 export function PlanetOrbits() {
@@ -46,7 +39,7 @@ export function PlanetOrbits() {
     >
       <div className="absolute left-1/2 top-1/2 h-1/2 w-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-mint/15 blur-3xl" />
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2"
         style={{ zIndex: CENTER_LAYER }}
       >
         <AiosLogo tagline className="text-6xl md:text-7xl" />

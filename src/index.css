@@ -286,3 +286,12 @@
     transform: rotate(1.5deg);
   }
 }
+
+/* Marketing pages use the logo's mint as their action color. Unlayered and
+   with `.dark` included, so it also wins over the generated dark theme. */
+.theme-mint,
+.theme-mint .dark {
+  --primary: var(--brand-mint);
+  --ring: var(--brand-mint);
+  --status-active: var(--brand-mint);
+}
