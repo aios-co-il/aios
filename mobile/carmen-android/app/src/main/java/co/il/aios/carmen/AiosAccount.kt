@@ -183,7 +183,7 @@ class AiosAccount(context: Context) {
         http.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                if (grantType == "refresh_token" && refreshTokenRejected(response.code)) signOut()
+                afterFailedAuth(grantType, response.code) { signOut() }
                 throw IOException(authError(text, response.code))
             }
             return JSONObject(text)
@@ -241,6 +241,11 @@ class AiosAccount(context: Context) {
          * Anything else (timeout, rate limit, server error) is temporary and keeps the account.
          */
         fun refreshTokenRejected(code: Int): Boolean = code == 400 || code == 401
+
+        /** What a failed auth call does to the saved account: a rejected refresh token signs out. */
+        fun afterFailedAuth(grantType: String, code: Int, signOut: () -> Unit) {
+            if (grantType == "refresh_token" && refreshTokenRejected(code)) signOut()
+        }
 
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()

@@ -6,6 +6,7 @@ import { linkedGroupIdsFor } from "./linked-groups.ts";
 import { queryRows } from "./query-rows.ts";
 import { managedAgencyIdsFor } from "./roles.ts";
 import type { ChatScope, LeadScope } from "./types.ts";
+import { isActiveAssignment } from "../../_shared/carmen/client-assignment.ts";
 
 /** Who the staff scope is built for, from resolveChatScope. */
 export interface StaffScopeInput {
@@ -38,15 +39,7 @@ export async function staffScopeFor(
   return { clientIds, leads, linkedGroupIds };
 }
 
-/** A client_team row is active when today is inside its start/end window. */
-export function isActiveAssignment(
-  row: { start_date?: string | null; end_date?: string | null },
-  today: string,
-): boolean {
-  const start = row.start_date?.slice(0, 10) ?? null;
-  const end = row.end_date?.slice(0, 10) ?? null;
-  return (!start || start <= today) && (!end || end >= today);
-}
+export { isActiveAssignment };
 
 /**
  * Campaigners: their active client_team clients. Team managers: the clients

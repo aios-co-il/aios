@@ -8,7 +8,7 @@ import {
 } from "../_shared/auth-helpers.ts";
 import { RECONCILE_RESULT_MAX_AGE_MS } from "../_shared/reconcile/run-status.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { MANAGER_ROLES } from "./manager-roles.ts";
+import { MANAGER_ROLES } from "../_shared/carmen/manager-roles.ts";
 import { getReconciliationStatus } from "./reconciliation-status.ts";
 import { rolesInTenant } from "./status-scope.ts";
 
