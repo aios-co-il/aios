@@ -14,7 +14,7 @@ export interface ChannelShare {
 interface ChannelShareCardProps {
   title: string;
   icon?: LucideIcon;
-  channels: ChannelShare[];
+  channels: Array<ChannelShare>;
   format: (value: number) => string;
 }
 

@@ -15,7 +15,7 @@ import { ReportSection } from "./ReportSection";
 interface ReportTrendChartProps<Row> {
   title: string;
   icon?: LucideIcon;
-  data: Row[];
+  data: Array<Row>;
   xKey: keyof Row & string;
   valueKey: keyof Row & string;
   valueName: string;
