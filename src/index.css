@@ -136,18 +136,15 @@
     pointer-events: none;
   }
 
-  /* AIOS wordmark set inside a glass sphere (ChannelSphere.tsx) */
-  .aios-emboss {
-    background: linear-gradient(
-      180deg,
-      hsl(var(--foreground) / 0.82) 10%,
-      hsl(var(--brand-accent-600) / 0.9) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    filter: drop-shadow(0 0 0.18em hsl(var(--primary) / 0.7))
-      drop-shadow(0 0 0.6em hsl(var(--primary) / 0.35));
+  /* A sphere's core (ChannelSphere.tsx): text or icon in a dark shade of the
+     sphere's color, glowing from inside. It is not positioned, so the
+     orb's highlight and rim light (::before/::after) paint over it. */
+  .sphere-core {
+    --core-ink: var(--brand-accent-800);
+    color: hsl(var(--core-ink) / 0.85);
+    mix-blend-mode: multiply;
+    filter: drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
+      drop-shadow(0 0 0.55em hsl(var(--orb-tint) / 0.45));
   }
 
   .direction-ltr {
