@@ -56,8 +56,6 @@ class MainActivity : AppCompatActivity() {
         status = findViewById(R.id.home_status)
         listenSwitch = findViewById(R.id.listen_switch)
         val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
-        CarmenLook.showPortrait(portraitView)
-        CarmenLook.refresh(this, account) { CarmenLook.showPortrait(portraitView) }
         // Rounded corners (the XML attribute needs API 31; minSdk is 30).
         portraitView.clipToOutline = true
         portrait = CarmenPortrait(portraitView, findViewById(R.id.home_glow))
@@ -82,6 +80,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         WakeWordService.resumeIfEnabled(this)
+        // Re-read Carmen's style on every visit: it may have changed on the web meanwhile.
+        val portraitView = findViewById<android.widget.ImageView>(R.id.home_portrait)
+        CarmenLook.showPortrait(portraitView)
+        CarmenLook.refresh(this, AiosAccount(this)) { CarmenLook.showPortrait(portraitView) }
         portrait.start()
         handler.post(refresh)
     }

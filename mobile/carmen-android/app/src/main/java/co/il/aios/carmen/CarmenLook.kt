@@ -17,6 +17,7 @@ import kotlin.concurrent.thread
  */
 object CarmenLook {
 
+    /** Whether the organization chose the character over the orb, as last read. */
     fun isCharacter(context: Context): Boolean =
         prefs(context).getString(KEY_STYLE, ORBS) == CHARACTER
 
