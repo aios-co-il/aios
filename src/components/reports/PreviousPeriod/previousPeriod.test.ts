@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  periodChange,
-  previousPeriodRange,
-  reportToday,
-} from "./previousPeriod";
+import { periodChange, previousPeriodRange } from "./previousPeriod";
 
 const NOW = new Date(2026, 10, 10, 12);
 
@@ -45,14 +41,17 @@ describe("periodChange", () => {
   });
 });
 
-describe("reportToday", () => {
-  it("is the calendar date in Israel, wherever the browser is", () => {
-    // 23:30 UTC on 9 Nov is already 10 Nov in Jerusalem.
-    const today = reportToday(new Date(Date.UTC(2026, 10, 9, 23, 30)));
-    expect([
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    ]).toStrictEqual([2026, 10, 10]);
+describe("previousPeriodRange in Israel time", () => {
+  it("counts from the date in Israel, wherever the browser is", () => {
+    // 23:30 UTC on 9 Nov is already 10 Nov in Jerusalem: last 7 days are
+    // 3–9 Nov, and the 7 before are 27 Oct – 2 Nov.
+    expect(
+      previousPeriodRange(
+        "last_7_days",
+        null,
+        null,
+        new Date(Date.UTC(2026, 10, 9, 23, 30)),
+      ),
+    ).toStrictEqual({ startDate: "2026-10-27", endDate: "2026-11-02" });
   });
 });
