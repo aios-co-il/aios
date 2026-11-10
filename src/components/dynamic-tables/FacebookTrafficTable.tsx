@@ -1,42 +1,57 @@
+import { Fragment } from "react";
 import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
 import {
-  costPerFollower,
   FOLLOWER_COLUMN_LABELS,
-  formatFollowerCell,
   showsFollowerColumns,
-  sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
-import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
-import type {
-  FacebookReportCampaign,
-  FacebookReportEntry,
-} from "./facebookReportCampaigns";
+import { TrafficCells } from "./FacebookTrafficCells";
+import {
+  type FacebookTablePrevious,
+  previousRowsOf,
+} from "./facebookPreviousPeriod";
+import type { FacebookReportEntry } from "./facebookReportCampaigns";
 
 type Props = {
-  rows: FacebookReportEntry[];
+  rows: Array<FacebookReportEntry>;
   entityHeader: string;
   currency: string;
+  /** The previous period; its columns show while it is set. */
+  previous?: FacebookTablePrevious | null;
 };
 
 /**
  * The report's Facebook traffic campaigns. A click is their result, so the
  * table shows CTR and cost per click, plus leads once a campaign measured any,
  * and new followers and cost per follower once a campaign sends people to a
- * Page or profile.
+ * Page or profile. With the previous period on, clicks, spend, cost per click,
+ * leads and new followers each get its value beside them.
  */
-export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
+export function FacebookTrafficTable({
+  rows,
+  entityHeader,
+  currency,
+  previous,
+}: Props) {
   const campaigns = rows.map(([, campaign]) => campaign);
   const withLeads = campaigns.some((campaign) => campaign.leads > 0);
   const withFollowers = showsFollowerColumns(campaigns);
-  const headers = ["חשיפות", "קליקים", "הוצאה", "CTR", "עלות לקליק"];
+  const compare = !!previous;
+  const headers: Array<{ label: string; compared?: boolean }> = [
+    { label: "חשיפות" },
+    { label: "קליקים", compared: true },
+    { label: "הוצאה", compared: true },
+    { label: "CTR" },
+    { label: "עלות לקליק", compared: true },
+  ];
   if (withLeads) {
-    headers.push("לידים");
+    headers.push({ label: "לידים", compared: true });
   }
   if (withFollowers) {
     headers.push(
-      FOLLOWER_COLUMN_LABELS.newFollowers,
-      FOLLOWER_COLUMN_LABELS.costPerFollower,
+      { label: FOLLOWER_COLUMN_LABELS.newFollowers, compared: true },
+      { label: FOLLOWER_COLUMN_LABELS.costPerFollower },
     );
   }
 
@@ -47,10 +62,11 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="p-2 text-right font-medium">{entityHeader}</th>
-              {headers.map((header) => (
-                <th key={header} className="p-2 text-center font-medium">
-                  {header}
-                </th>
+              {headers.map(({ label, compared }) => (
+                <Fragment key={label}>
+                  <th className="p-2 text-center font-medium">{label}</th>
+                  {compare && compared && <PreviousValueHead />}
+                </Fragment>
               ))}
             </tr>
           </thead>
@@ -66,6 +82,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
                 </td>
                 <TrafficCells
                   campaigns={[campaign]}
+                  previous={previousRowsOf(previous, groupKey)}
                   currency={currency}
                   withLeads={withLeads}
                   withFollowers={withFollowers}
@@ -79,6 +96,7 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
               <td className="p-2 text-right">סה״כ</td>
               <TrafficCells
                 campaigns={campaigns}
+                previous={previousRowsOf(previous, null)}
                 currency={currency}
                 withLeads={withLeads}
                 withFollowers={withFollowers}
@@ -89,66 +107,5 @@ export function FacebookTrafficTable({ rows, entityHeader, currency }: Props) {
         </table>
       </div>
     </Card>
-  );
-}
-
-/** Metric cells of one campaign or, given every campaign, of the total row. */
-function TrafficCells({
-  campaigns,
-  currency,
-  withLeads,
-  withFollowers,
-  isTotal,
-}: {
-  campaigns: FacebookReportCampaign[];
-  currency: string;
-  withLeads: boolean;
-  withFollowers: boolean;
-  isTotal: boolean;
-}) {
-  const sum = (metric: (campaign: FacebookReportCampaign) => number) =>
-    campaigns.reduce((total, campaign) => total + metric(campaign), 0);
-  const impressions = sum((campaign) => campaign.impressions);
-  const clicks = sum((campaign) => campaign.clicks);
-  const spend = sum((campaign) => campaign.spend);
-  return (
-    <>
-      <td className="p-2 text-center">{formatReportNumber(impressions)}</td>
-      <td className={resultCellClass("text-green-600", isTotal)}>
-        {formatReportNumber(clicks)}
-      </td>
-      <td className="p-2 text-center">
-        {currency}
-        {formatReportNumber(spend)}
-      </td>
-      <td className="p-2 text-center">
-        {formatReportNumber(ratio(clicks, impressions) * 100, 2)}%
-      </td>
-      <td className={resultCellClass("text-blue-600", isTotal)}>
-        {currency}
-        {formatReportNumber(ratio(spend, clicks), 2)}
-      </td>
-      {withLeads && (
-        <td className="p-2 text-center">
-          {formatReportNumber(sum((campaign) => campaign.leads))}
-        </td>
-      )}
-      {withFollowers && (
-        <>
-          <td className={resultCellClass("text-green-600", isTotal)}>
-            {formatFollowerCell(
-              sumFacebookFollowers(campaigns).newFollowers,
-              formatReportNumber,
-            )}
-          </td>
-          <td className={resultCellClass("text-blue-600", isTotal)}>
-            {formatFollowerCell(
-              costPerFollower(campaigns),
-              (cost) => `${currency}${formatReportNumber(cost, 2)}`,
-            )}
-          </td>
-        </>
-      )}
-    </>
   );
 }
