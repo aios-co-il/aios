@@ -5,6 +5,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import {
   CARMEN_ROLES,
   activeRoleSlugs,
+  getRoleOrbTint,
 } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
@@ -14,6 +15,7 @@ import { CarmenSessionVideoCard } from "./CarmenSessionVideoCard";
 
 const state = vi.hoisted(() => ({
   tenantId: "tenant-a",
+  avatarStyle: { style: "character" } as { style: string } | undefined,
   identity: {
     displayName: "כרמן",
     skinAvatars: {} as Record<string, { avatarPath: string }>,
@@ -37,35 +39,39 @@ vi.mock("@tanstack/react-query", () => ({
     isLoading: false,
     isSuccess: true,
     data:
-      queryKey[0] === "carmen-skins-agent"
-        ? { id: "agent-a", metadata: {} }
-        : queryKey[0] === "carmen-identity"
-          ? state.identity
-          : queryKey[0] === "carmen-skin-avatar"
-            ? queryKey[2]
-              ? "https://example.com/tenant-portrait.webp"
-              : undefined
-            : queryKey[0] === "carmen-skins-options"
-              ? [
-                  ...CARMEN_ROLES.map((role) => ({
-                    slug: role.slug,
-                    name: role.name,
-                    description: null,
-                  })),
-                  {
-                    slug: "tenant-editor",
-                    name: "עורכת וידאו",
-                    description: null,
-                  },
-                  { slug: "qa", name: "QA", description: null },
-                  { slug: "legal", name: "משפטי", description: null },
-                ]
-              : undefined,
+      queryKey[0] === "carmen-avatar-style"
+        ? state.avatarStyle?.style
+        : queryKey[0] === "carmen-skins-agent"
+          ? { id: "agent-a", metadata: {} }
+          : queryKey[0] === "carmen-identity"
+            ? state.identity
+            : queryKey[0] === "carmen-skin-avatar"
+              ? queryKey[2]
+                ? "https://example.com/tenant-portrait.webp"
+                : undefined
+              : queryKey[0] === "carmen-skins-options"
+                ? [
+                    ...CARMEN_ROLES.map((role) => ({
+                      slug: role.slug,
+                      name: role.name,
+                      description: null,
+                    })),
+                    {
+                      slug: "tenant-editor",
+                      name: "עורכת וידאו",
+                      description: null,
+                    },
+                    { slug: "qa", name: "QA", description: null },
+                    { slug: "legal", name: "משפטי", description: null },
+                  ]
+                : undefined,
   }),
 }));
 
 beforeEach(() => {
   state.tenantId = "tenant-a";
+  // Portrait tests run in the character style; the orb test switches it.
+  state.avatarStyle = { style: "character" };
   state.identity.skinAvatars = {};
   setSessionSkin("tenant-a", null);
   setSessionSkin("tenant-b", null);
@@ -127,6 +133,16 @@ test("a tenant's custom skin portrait wins over the role default in the Zoom win
     "src",
     "https://example.com/tenant-portrait.webp",
   );
+});
+
+test("in the orb style the Zoom window shows the humanised orb in the skin's color", () => {
+  state.avatarStyle = undefined;
+  setSessionSkin("tenant-a", "campaigner");
+  const { container } = render(<Session />);
+  expect(container.querySelector(".carmen-session-character")).toBeNull();
+  expect(container.querySelector(".orb-buddy")).toHaveStyle({
+    "--orb-tint": getRoleOrbTint("campaigner"),
+  });
 });
 
 test("category grouping retains specialists while honoring disabled and pinned skins", () => {

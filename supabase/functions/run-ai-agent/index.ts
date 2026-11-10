@@ -77,7 +77,7 @@ import {
 import { listVerifyTables } from "./verify-tables.ts";
 import { verifyReportVsMeta } from "./verify-report-vs-meta.ts";
 import { reconciliationStatusTool } from "./status-tool.ts";
-import { MANAGER_ROLES } from "./manager-roles.ts";
+import { MANAGER_ROLES } from "../_shared/carmen/manager-roles.ts";
 import {
   assertCallerCanAccessClient,
   assertCallerCanAccessEntityClient,
