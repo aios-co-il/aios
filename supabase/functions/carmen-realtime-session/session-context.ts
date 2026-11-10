@@ -16,7 +16,13 @@ import {
   lastConversationInstructions,
   loadLastConversation,
 } from "./last-conversation.ts";
+import {
+  loadPulseBrief,
+  type PulseBrief,
+  pulseBriefInstructions,
+} from "./pulse-brief.ts";
 import { buildVoiceInstructions } from "./voice-instructions.ts";
+import { voiceBriefScope } from "./voice-scope.ts";
 
 /** Carmen's settings, pronunciations and org brief for the session's tenant. */
 export type SessionContext = {
@@ -25,6 +31,8 @@ export type SessionContext = {
   orgBrief: OrgBrief | null;
   /** The caller's last conversation with Carmen, so a new call continues it. */
   lastConversation: LastConversation | null;
+  /** The latest campaign pulse for the clients the caller may hear about. */
+  pulseBrief: PulseBrief | null;
 };
 
 /** Loads what both voice providers speak from; each part falls back on its own. */
@@ -40,17 +48,22 @@ export async function loadSessionContext(
       pronunciations: [],
       orgBrief: null,
       lastConversation: null,
+      pulseBrief: null,
     };
   }
-  const [pronunciations, orgBrief, lastConversation] = await Promise.all([
-    loadPronunciations(db, agent.tenantId),
-    loadOrgBrief(db, agent.tenantId),
-    loadLastConversation(db, userId, agent.tenantId),
-  ]);
-  return { agent, pronunciations, orgBrief, lastConversation };
+  // The caller hears only the clients the brain would show them (manager: whole org).
+  const scope = await voiceBriefScope(db, userId, agent.tenantId);
+  const [pronunciations, orgBrief, lastConversation, pulseBrief] =
+    await Promise.all([
+      loadPronunciations(db, agent.tenantId),
+      loadOrgBrief(db, agent.tenantId, new Date(), scope),
+      loadLastConversation(db, userId, agent.tenantId),
+      loadPulseBrief(db, agent.tenantId, scope),
+    ]);
+  return { agent, pronunciations, orgBrief, lastConversation, pulseBrief };
 }
 
-/** The session's instructions: persona and voice rules, org brief, last conversation, pronunciations. */
+/** The session's instructions: persona and voice rules, org brief, pulse, last conversation, pronunciations. */
 export function sessionInstructions(
   context: SessionContext,
   addressLine: string,
@@ -58,6 +71,7 @@ export function sessionInstructions(
   return [
     buildVoiceInstructions(context.agent?.profile ?? null, addressLine),
     context.orgBrief ? orgBriefInstructions(context.orgBrief) : "",
+    context.pulseBrief ? pulseBriefInstructions(context.pulseBrief) : "",
     context.lastConversation
       ? lastConversationInstructions(context.lastConversation)
       : "",
