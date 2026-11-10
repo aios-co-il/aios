@@ -236,10 +236,11 @@ class AiosAccount(context: Context) {
 
     companion object {
         /**
-         * Whether a failed refresh means the refresh token itself is bad (4xx), so the saved
-         * account must go. A server error or rate limit is temporary and keeps the account.
+         * Whether a failed refresh means the refresh token itself is bad, so the saved account
+         * must go: Supabase Auth answers an invalid or revoked refresh token with 400 or 401.
+         * Anything else (timeout, rate limit, server error) is temporary and keeps the account.
          */
-        fun refreshTokenRejected(code: Int): Boolean = code in 400..499 && code != 429
+        fun refreshTokenRejected(code: Int): Boolean = code == 400 || code == 401
 
         private val JSON = "application/json".toMediaType()
         private val http = OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build()

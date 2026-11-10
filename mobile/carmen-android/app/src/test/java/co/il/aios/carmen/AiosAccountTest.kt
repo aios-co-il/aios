@@ -14,6 +14,7 @@ class AiosAccountTest {
 
     @Test
     fun temporaryAuthErrorsKeepTheAccount() {
+        assertFalse(AiosAccount.refreshTokenRejected(408))
         assertFalse(AiosAccount.refreshTokenRejected(429))
         assertFalse(AiosAccount.refreshTokenRejected(500))
         assertFalse(AiosAccount.refreshTokenRejected(503))
