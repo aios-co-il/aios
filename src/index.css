@@ -67,30 +67,112 @@
     box-shadow: var(--elevation-1);
   }
 
-  /* Carmen's frosted-glass orb, lit by the tenant accent (CarmenOrb.tsx) */
+  /* Glass orb (CarmenOrb.tsx), after the brand book: a milky white frosted
+     sphere with a soft inner glow in --orb-tint (HSL channels, defaults to
+     the tenant accent). */
   .carmen-orb {
+    --orb-tint: var(--primary);
+    position: relative;
+    /* Keeps the core's blend inside this sphere, not with what is behind */
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 9999px;
     background:
       radial-gradient(
-        circle at 32% 28%,
+        circle at 30% 24%,
         hsl(0 0% 100% / 0.95) 0%,
-        hsl(0 0% 100% / 0.4) 22%,
-        transparent 46%
+        hsl(0 0% 100% / 0.45) 18%,
+        transparent 44%
       ),
       radial-gradient(
-        circle at 66% 72%,
-        hsl(var(--primary) / 0.65) 0%,
+        circle at 70% 76%,
+        hsl(var(--orb-tint) / 0.42) 0%,
+        hsl(var(--orb-tint) / 0.12) 28%,
         transparent 58%
       ),
       radial-gradient(
-        circle at 50% 50%,
-        hsl(var(--surface-elevated)) 0%,
-        hsl(var(--border)) 100%
+        circle at 50% 42%,
+        hsl(40 20% 99% / 0.6) 0%,
+        hsl(220 14% 93% / 0.58) 68%,
+        hsl(220 12% 84% / 0.72) 100%
       );
+    border: 1px solid hsl(0 0% 100% / 0.12);
     box-shadow:
-      inset 0 0 0 1px hsl(0 0% 100% / 0.5),
-      inset 0 -2px 6px hsl(var(--primary) / 0.25),
-      0 4px 14px hsl(var(--primary) / 0.28);
+      inset 0 3px 8px hsl(0 0% 100% / 0.45),
+      inset 0 -12px 26px hsl(var(--orb-tint) / 0.16),
+      0 14px 30px -10px hsl(var(--orb-tint) / 0.3);
+  }
+
+  /* Sharp specular reflection near the top edge */
+  .carmen-orb::before {
+    content: "";
+    z-index: 1;
+    position: absolute;
+    top: 7%;
+    left: 22%;
+    width: 38%;
+    height: 20%;
+    border-radius: 9999px;
+    background: linear-gradient(
+      180deg,
+      hsl(0 0% 100% / 0.9),
+      hsl(0 0% 100% / 0)
+    );
+    transform: rotate(-18deg);
+    pointer-events: none;
+  }
+
+  /* Light caught on the lower rim */
+  .carmen-orb::after {
+    content: "";
+    z-index: 1;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      circle at 50% 108%,
+      hsl(0 0% 100% / 0.55) 0%,
+      transparent 38%
+    );
+    pointer-events: none;
+  }
+
+  /* A sphere's core (ChannelSphere.tsx): text or icon in a dark shade of the
+     sphere's color, glowing from inside. It is not positioned, so the
+     orb's highlight and rim light (::before/::after) paint over it. */
+  .sphere-core {
+    --core-ink: var(--brand-accent-800);
+    color: hsl(var(--core-ink) / 0.85);
+    mix-blend-mode: multiply;
+    filter: blur(0.4px) drop-shadow(0 0 0.12em hsl(var(--orb-tint) / 0.8))
+      drop-shadow(0 0 0.55em hsl(var(--orb-tint) / 0.45));
+  }
+
+  /* Thin milky veil over a sphere's core, so the core reads as inside the
+     glass. Sits under the orb's highlight and rim light. */
+  .sphere-veil {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 50% 45%,
+      hsl(0 0% 100% / 0.22) 0%,
+      hsl(0 0% 100% / 0.14) 55%,
+      hsl(0 0% 100% / 0.06) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* AiOs logo (AiosLogo.tsx): heavy geometric letters with a faint lift.
+     Depth is in em so it scales with the letter size. */
+  .logo-3d {
+    --extrude: var(--foreground);
+    font-family: Outfit, Heebo, sans-serif;
+    text-shadow:
+      0 0.012em 0 hsl(var(--extrude) / 0.18),
+      0 0.08em 0.2em hsl(var(--foreground) / 0.06);
   }
 
   .direction-ltr {
@@ -203,4 +285,97 @@
   75% {
     transform: rotate(1.5deg);
   }
+}
+
+/* Marketing pages use the logo's mint as their action color. Unlayered and
+   with the `.dark` forms, so it also wins over the generated dark theme. */
+.theme-mint,
+.theme-mint.dark,
+.theme-mint .dark {
+  --primary: var(--brand-mint);
+  --ring: var(--brand-mint);
+  --status-active: var(--brand-mint);
+}
+
+/* The rolling orb (RollingOrb.tsx) stands in for the header orb */
+body.orb-traveling header [data-orb-home] {
+  visibility: hidden;
+}
+
+/* Navy contrast surfaces stay distinct when the whole page is dark */
+.dark .contrast-surface {
+  background: hsl(var(--surface-elevated));
+}
+
+/* Glass spheres on dark surfaces: a see-through body that is brighter at
+   the edges (fresnel), a tinted inner glow and a sharp highlight, instead of
+   the milky body used on light surfaces. */
+.dark .carmen-orb {
+  background:
+    radial-gradient(
+      circle at 30% 24%,
+      hsl(0 0% 100% / 0.28) 0%,
+      hsl(0 0% 100% / 0.06) 16%,
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 68% 76%,
+      hsl(var(--orb-tint) / 0.5) 0%,
+      hsl(var(--orb-tint) / 0.14) 30%,
+      transparent 60%
+    ),
+    radial-gradient(
+      circle at 50% 50%,
+      hsl(0 0% 100% / 0.03) 0%,
+      hsl(0 0% 100% / 0.06) 55%,
+      hsl(var(--orb-tint) / 0.18) 88%,
+      hsl(0 0% 100% / 0.12) 100%
+    );
+  border-color: hsl(0 0% 100% / 0.05);
+  box-shadow:
+    inset 0 2px 8px hsl(0 0% 100% / 0.16),
+    inset 0 -10px 24px hsl(var(--orb-tint) / 0.28),
+    0 0 24px -4px hsl(var(--orb-tint) / 0.45);
+}
+
+/* Softer reflections on dark glass */
+.dark .carmen-orb::before {
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.32), transparent);
+}
+
+.dark .carmen-orb::after {
+  background: radial-gradient(
+    circle at 50% 108%,
+    hsl(0 0% 100% / 0.18) 0%,
+    transparent 38%
+  );
+}
+
+/* Cores glow in the sphere's own color from inside the dark glass */
+.dark .sphere-core {
+  color: hsl(var(--orb-tint));
+  mix-blend-mode: normal;
+}
+
+.dark .sphere-veil {
+  background: radial-gradient(
+    circle at 50% 45%,
+    hsl(0 0% 100% / 0.06) 0%,
+    transparent 70%
+  );
+}
+
+/* Faint grid behind the hero spheres, so their glass reads as see-through.
+   Light mode only: the dark glass already shows the page through it. */
+.orb-grid {
+  background-image:
+    linear-gradient(hsl(var(--foreground) / 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center;
+  mask-image: radial-gradient(circle at 50% 50%, black 25%, transparent 68%);
+}
+
+.dark .orb-grid {
+  display: none;
 }

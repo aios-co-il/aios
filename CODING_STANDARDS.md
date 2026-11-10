@@ -38,7 +38,7 @@ Each rule applies to the lines your change adds or edits. Rules for one area liv
 
 8. **Configuration over hard-coding**: phones, allowlists and tenant-specific values live in settings or env secrets.
 9. **Scope CI secrets to the steps that use them.**
-10. **Names and addresses**: the product is "Carmen Marketing OS"; each new public address uses `@aios.co.il`.
+10. **Names and addresses**: the product is "AIOS" and its AI assistant is "Carmen"; each new public address uses `@aios.co.il`.
 11. **Every deferred item, workaround or `FIXME` carries a Linear id** in the code or the PR body.
 12. **Tenant-keyed and private**: every unique and dedupe key in code and migrations includes `tenant_id`, and uploads go to private buckets read through signed URLs.
 13. **A bug fix ships a test that fails on the old code** at the integration point that broke (`.claude/rules/tests.md`).

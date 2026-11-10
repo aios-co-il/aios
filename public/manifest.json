@@ -1,6 +1,6 @@
 {
-  "name": "Carmen Marketing OS",
-  "short_name": "Carmen",
+  "name": "AIOS",
+  "short_name": "AIOS",
   "description": "מערכת שיווק ומכירות מחוברת לעסקים ולסוכנויות — במקום אחד.",
   "start_url": "/",
   "display": "standalone",
@@ -8,17 +8,17 @@
   "dir": "rtl",
   "lang": "he",
   "background_color": "#0A1526",
-  "theme_color": "#A7F5DE",
+  "theme_color": "#0A1526",
   "icons": [
     {
-      "src": "/brand/carmen/symbol-soft.png",
-      "sizes": "1172x1058",
+      "src": "/brand/aios/orb.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/brand/carmen/symbol-soft.png",
-      "sizes": "1172x1058",
+      "src": "/brand/aios/orb.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }

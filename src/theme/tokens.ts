@@ -30,6 +30,10 @@ function brandTokens(brand: BrandColors): ThemeTokens {
     "brand-accent-soft": hslChannels(brand.accentSoft),
     "brand-neutral": hslChannels(brand.neutral),
     "brand-highlight": hslChannels(brand.highlight),
+    // A softer, mint version of the accent for large display type.
+    "brand-mint": hslChannels(
+      mix(mix(brand.accent, brand.neutral, 0.35), brand.ink, 0.1),
+    ),
     ...accentScale(brand),
   };
 }
