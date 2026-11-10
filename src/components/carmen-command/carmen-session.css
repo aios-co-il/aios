@@ -62,22 +62,13 @@
   width: 100%;
   left: 0;
 }
-/* Orb style: the sphere floats in the card; it pulses while Carmen speaks
-   and glows while she listens. */
+/* Orb style: the humanised orb floats in the middle of the card. */
 .carmen-session-orb {
   position: absolute;
-  width: 50%;
-  aspect-ratio: 1;
-  left: 25%;
-  top: 17%;
+  width: 76%;
+  left: 12%;
+  top: 8%;
   pointer-events: none;
-  animation: carmen-orb-float 4s ease-in-out infinite;
-}
-.carmen-session-orb[data-state="speaking"] > .carmen-orb {
-  animation: carmen-orb-speak 0.9s ease-in-out infinite;
-}
-.carmen-session-orb[data-state="listening"] > .carmen-orb {
-  animation: carmen-orb-listen 2.4s ease-in-out infinite;
 }
 .carmen-session-caption {
   position: absolute;
@@ -121,36 +112,6 @@
 .carmen-session-chat .cc-composer-accessory button {
   min-width: 0;
   height: 36px;
-}
-@keyframes carmen-orb-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-7px);
-  }
-}
-@keyframes carmen-orb-speak {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(1.07, 1.04);
-  }
-  65% {
-    transform: scale(0.97, 1.02);
-  }
-}
-@keyframes carmen-orb-listen {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.25) drop-shadow(0 0 14px hsl(var(--orb-tint) / 0.6));
-  }
 }
 @keyframes carmen-breathe {
   0%,
@@ -212,8 +173,6 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .carmen-session-character,
-  .carmen-session-orb,
-  .carmen-session-orb > .carmen-orb,
   .carmen-session-dot {
     animation: none !important;
   }

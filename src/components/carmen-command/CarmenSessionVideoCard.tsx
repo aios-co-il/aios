@@ -3,7 +3,7 @@ import { Maximize2 } from "lucide-react";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
-import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { CarmenOrbBuddy } from "@/components/carmen/CarmenOrbBuddy";
 import { getRoleOrbTint } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import type { useDraggableCard } from "./useDraggableCard";
 import type { CarmenFaceState } from "./CarmenFace";
@@ -60,10 +60,10 @@ export function CarmenSessionVideoCard({
         />
       ) : (
         // `dark` gives the orb the see-through glass look on the navy card.
-        <div className="carmen-session-orb dark" data-state={faceState}>
-          <CarmenOrb
+        <div className="carmen-session-orb dark">
+          <CarmenOrbBuddy
             tint={getRoleOrbTint(identity.activeSkin)}
-            className="h-full w-full"
+            state={faceState}
           />
         </div>
       )}
