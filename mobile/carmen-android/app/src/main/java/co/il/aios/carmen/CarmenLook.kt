@@ -27,7 +27,7 @@ object CarmenLook {
     /** The small round picture beside her name in the chat. */
     fun showAvatar(view: ImageView) =
         view.setImageResource(
-            if (isCharacter(view.context)) R.drawable.carmen_character_icon else R.drawable.ic_launcher_foreground,
+            if (isCharacter(view.context)) R.drawable.carmen_character_icon else R.drawable.carmen_orb_icon,
         )
 
     /** Reads the organization's choice and calls [onChanged] on the main thread if it changed. */
