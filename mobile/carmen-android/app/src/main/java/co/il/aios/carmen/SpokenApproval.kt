@@ -33,3 +33,18 @@ object SpokenApproval {
         }
     }
 }
+
+/**
+ * Whether the user called off the checks Carmen is running ("תבטלי", "עזבי את זה", "שיניתי את
+ * דעתי"). Read only while a brain question runs, so a plain "לא" to something else is not one.
+ */
+object SpokenCancel {
+    private val WORDS = setOf("בטלי", "תבטלי", "ביטול", "עזבי", "תעזבי", "עצרי", "תעצרי", "cancel", "stop")
+    private val PHRASES = listOf("לא צריך", "שיניתי את דעתי", "תשכחי מזה", "לא משנה")
+
+    fun matches(spoken: String): Boolean {
+        val text = spoken.lowercase()
+        val words = text.split(Regex("[^\\p{L}]+")).filter { it.isNotEmpty() }
+        return words.any { it in WORDS } || PHRASES.any { it in text }
+    }
+}

@@ -46,6 +46,9 @@ class ElevenLabsConversation(
      */
     private val brainQueue = Executors.newSingleThreadExecutor()
     private val brainPending = AtomicInteger(0)
+
+    /** Bumped when the user calls off the checks; queued questions from before it are skipped. */
+    private val brainEpoch = AtomicInteger(0)
     private val audio = ConversationAudio(context, ConversationAudio.ELEVENLABS_SAMPLE_RATE) { pcm -> sendAudio(pcm) }
     @Volatile private var socket: WebSocket? = null
     private var idleTimer: ScheduledFuture<*>? = null
@@ -120,6 +123,7 @@ class ElevenLabsConversation(
                 transcript.user(event.text)
                 listener.onState(CarmenSession.State.LISTENING)
                 answerPendingSend(event.text)
+                cancelChecksIfAsked(event.text)
                 resetIdleTimer()
             }
             ElevenLabsEvent.Interrupted -> {
@@ -216,16 +220,38 @@ class ElevenLabsConversation(
     private fun askInBackground(call: ElevenLabsEvent.ToolCall) {
         val question = call.args.optString("question")
         val ahead = brainPending.getAndIncrement()
+        val epoch = brainEpoch.get()
         send(ElevenLabsProtocol.toolResult(call.callId, backgroundAck(ahead)))
         resetIdleTimer()
         brainQueue.execute {
+            if (epoch != brainEpoch.get()) {
+                brainPending.decrementAndGet()
+                return@execute
+            }
             val result = runCatching { toolbox.run(call.name, call.args, transcript.turns()) }
             brainPending.decrementAndGet()
-            if (ended) return@execute
+            if (ended || epoch != brainEpoch.get()) return@execute
             val answer = result.getOrNull()?.output ?: "הבדיקה נכשלה: ${result.exceptionOrNull()?.message.orEmpty().take(120)}"
             deliver(
                 "[תשובה מ-ask_carmen לשאלה \"${question.take(160)}\"]\n${answer.take(MAX_TOOL_OUTPUT)}\n" +
                     "מסרי למשתמש עכשיו את השורה התחתונה בקצרה, לפי כללי האורך.",
+            )
+        }
+    }
+
+    /**
+     * The user called off the checks Carmen is running: queued ones are skipped, the running one
+     * is stopped on the server, and she is told so.
+     */
+    private fun cancelChecksIfAsked(spoken: String) {
+        if (ended || brainPending.get() == 0 || !SpokenCancel.matches(spoken)) return
+        brainEpoch.incrementAndGet()
+        log.record(EventLog.Event.PHONE_TOOL, "brain checks cancelled by voice")
+        tools.execute {
+            runCatching { toolbox.brain.stop() }
+            deliver(
+                "[הודעת מערכת, לא מהמשתמש] הבדיקות שרצו ברקע בוטלו לבקשת המשתמש. " +
+                    "אמרי במשפט אחד שעצרת, ואם משהו כבר בוצע לפני העצירה, אל תמציאי: אמרי שתבדקי.",
             )
         }
     }

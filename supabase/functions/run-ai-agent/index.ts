@@ -10091,6 +10091,7 @@ import type { Surface } from "./surface.ts";
 import { bindRunAgentCaller, runCallerPhone } from "./caller-trust.ts";
 import { runTenantDenied } from "./run-tenant-access.ts";
 import { INSTRUCTION_TRIGGER_RE } from "./instruction-trigger.ts";
+import { runStopCheck, stoppedReply } from "./run-cancel.ts";
 import { type FastLaneChannel, fastLaneFits } from "./fast-lane/eligibility.ts";
 import { fastLaneInstructions } from "./fast-lane/instructions.ts";
 import {
@@ -12355,7 +12356,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     };
     let silentNudges = 0;
     let roundsRun = 0;
+    // The chat's stop button: checked before each round and each tool (run-cancel.ts).
+    const runStopped = runStopCheck(supabase, bodyJson.run_id, callerUserId);
+    let stoppedByUser = false;
     for (let round = 0; round < maxRounds; round++) {
+      if (await runStopped()) {
+        stoppedByUser = true;
+        break;
+      }
       roundsRun = round + 1;
       // Provider failover: try the active provider; on a quota/credit error, advance
       // to the next provider in the chain and retry THIS round (no round consumed).
@@ -12539,6 +12547,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         rebuildToolsForApi();
       }
       for (const tc of msg.tool_calls) {
+        if (await runStopped()) {
+          stoppedByUser = true;
+          break;
+        }
         const toolName = tc.function.name;
         let toolArgs: Record<string, any> = {};
         try {
@@ -12740,6 +12752,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         emitText(finalOutput);
         break;
       }
+    }
+
+    if (stoppedByUser) {
+      const stopped = stoppedReply(toolLog.map((t) => t.tool));
+      finalOutput = [String(finalOutput || "").trim(), stopped]
+        .filter(Boolean)
+        .join("\n\n");
+      if (emit) emit({ type: "token", content: `\n\n${stopped}` });
     }
 
     if (!String(finalOutput || "").trim()) {

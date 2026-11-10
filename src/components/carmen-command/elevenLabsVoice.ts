@@ -23,6 +23,9 @@ const PHONE_ONLY_TOOLS = [
 const PHONE_ONLY_ANSWER =
   "הכלי הזה זמין רק באפליקציה בטלפון. בבקשות כאלה העבירי ל-ask_carmen, או אמרי למשתמש שאפשר לעשות את זה מהאפליקציה.";
 
+const BACKGROUND_ACK =
+  "הבדיקה התחילה ברקע. אמרי במשפט קצר שאת בודקת ושאפשר להמשיך לדבר בינתיים. אל תמסרי נתונים עד שתגיע הודעה שמתחילה ב-[תשובה מ-ask_carmen].";
+
 /** Opens an ElevenLabs conversation with the same callbacks as the OpenAI Realtime client. */
 export async function startElevenLabsVoice(
   session: ElevenLabsSession,
@@ -43,8 +46,19 @@ export async function startElevenLabsVoice(
       tts: { voiceId: session.voice_id },
     },
     clientTools: {
-      ask_carmen: (params: { question?: unknown }) =>
-        cb.onToolCall(text(params?.question)),
+      // Answers at once and asks the brain in the background, so Carmen keeps listening; the
+      // answer reaches her as a message when ready (as in the Android app).
+      ask_carmen: (params: { question?: unknown }) => {
+        const question = text(params?.question);
+        void cb.onToolCall(question).then((answer) => {
+          if (!stopped) {
+            conversation.sendUserMessage(
+              `[תשובה מ-ask_carmen לשאלה "${question.slice(0, 160)}"]\n${answer.slice(0, 8000)}\nמסרי למשתמש עכשיו את השורה התחתונה בקצרה.`,
+            );
+          }
+        });
+        return BACKGROUND_ACK;
+      },
       save_pronunciation: (params: { term?: unknown; spoken?: unknown }) =>
         cb.onSavePronunciation(text(params?.term), text(params?.spoken)),
       ...Object.fromEntries(
