@@ -9,6 +9,8 @@ export interface ChannelShare {
   /** The channel's mark, e.g. the Meta or Google logo. */
   mark: ReactNode;
   value: number;
+  /** A second figure under the value, e.g. the channel's cost per lead. */
+  detail?: ReactNode;
 }
 
 interface ChannelShareCardProps {
@@ -49,8 +51,15 @@ export function ChannelShareCard({
                 style={{ width: `${(channel.value / max) * 100}%` }}
               />
             </span>
-            <span className="w-16 shrink-0 text-end text-sm font-semibold tabular-nums">
-              {format(channel.value)}
+            <span className="w-20 shrink-0 text-end tabular-nums">
+              <span className="block text-sm font-semibold">
+                {format(channel.value)}
+              </span>
+              {channel.detail && (
+                <span className="block text-xs text-muted-foreground">
+                  {channel.detail}
+                </span>
+              )}
             </span>
           </li>
         ))}

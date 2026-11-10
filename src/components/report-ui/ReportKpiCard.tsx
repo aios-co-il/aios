@@ -48,18 +48,19 @@ export function ReportKpiCard({
 
 /**
  * ▲ +14% in the accent when the change is good, in red when it is not, and
- * muted when the direction is neither.
+ * muted when the direction is neither or the change rounds to 0%.
  */
 function KpiTrend({ delta }: { delta: KpiDelta }) {
+  const rounded = Math.round(Math.abs(delta.value) * 100);
   const up = delta.value >= 0;
   const good = up === (delta.goodWhen === "up");
   const tone =
-    delta.goodWhen === "either"
+    delta.goodWhen === "either" || rounded === 0
       ? "text-muted-foreground"
       : good
         ? "text-brand-accent-700 dark:text-brand-accent-400"
         : "text-destructive";
-  const percent = `${up ? "+" : "−"}${Math.round(Math.abs(delta.value) * 100)}%`;
+  const percent = rounded === 0 ? "0%" : `${up ? "+" : "−"}${rounded}%`;
   return (
     <div
       dir="ltr"
@@ -68,7 +69,7 @@ function KpiTrend({ delta }: { delta: KpiDelta }) {
         tone,
       )}
     >
-      <span aria-hidden="true">{up ? "▲" : "▼"}</span>
+      {rounded > 0 && <span aria-hidden="true">{up ? "▲" : "▼"}</span>}
       {percent}
     </div>
   );

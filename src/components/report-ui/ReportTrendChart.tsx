@@ -4,6 +4,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +20,8 @@ interface ReportTrendChartProps<Row> {
   xKey: keyof Row & string;
   valueKey: keyof Row & string;
   valueName: string;
+  /** A second series in the brand's neutral, e.g. spend under revenue. */
+  compare?: { key: keyof Row & string; name: string };
   format?: (value: number) => string;
   height?: number;
 }
@@ -31,6 +34,7 @@ export function ReportTrendChart<Row>({
   xKey,
   valueKey,
   valueName,
+  compare,
   format,
   height = 260,
 }: ReportTrendChartProps<Row>) {
@@ -83,6 +87,18 @@ export function ReportTrendChart<Row>({
             dot={{ r: 3.5, fill: REPORT_CHART.primary, strokeWidth: 0 }}
             activeDot={{ r: 5 }}
           />
+          {compare && <Legend iconType="plainline" />}
+          {compare && (
+            <Area
+              type="monotone"
+              dataKey={compare.key}
+              name={compare.name}
+              stroke={REPORT_CHART.secondary}
+              strokeWidth={2}
+              fill="none"
+              dot={false}
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </ReportSection>
