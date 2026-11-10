@@ -91,7 +91,7 @@ function DraggableBacklogTask({
       style={style}
       className={cn(
         "p-2 rounded-lg border bg-card transition-all",
-        isDragging && "opacity-50 shadow-lg",
+        isDragging && "opacity-50 shadow-elevation-2",
         isCompleted && "opacity-60",
         isOverdue && "border-destructive/50 bg-destructive/5",
       )}
@@ -138,7 +138,7 @@ function DraggableBacklogTask({
                   </span>
                 )}
                 {task.target_date && (
-                  <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-800 dark:text-amber-200">
+                  <span className="inline-flex items-center gap-0.5 rounded bg-status-progress-surface px-1.5 py-0.5 text-status-foreground">
                     יעד{" "}
                     {new Date(task.target_date).toLocaleDateString("he-IL", {
                       day: "numeric",
@@ -413,7 +413,7 @@ export function TaskBacklogPanel({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-xl border transition-all duration-200 shadow-lg",
+        "flex flex-col rounded-xl border transition-all duration-200 shadow-elevation-2",
         overdueCount > 0
           ? "bg-destructive/5 border-destructive/30"
           : "bg-background border-border",

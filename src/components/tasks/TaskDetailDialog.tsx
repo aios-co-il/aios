@@ -98,7 +98,8 @@ import {
 } from "@/lib/taskCollaborators";
 
 const DURATION_OPTIONS = [30, 60, 90, 120, 150, 180] as const;
-const FRAME = "rounded-xl border border-border/60 bg-card shadow-sm text-right";
+const FRAME =
+  "rounded-xl border border-border/60 bg-card shadow-elevation-1 text-right";
 
 /** Identify valid dates while preserving the existing boolean result. */
 function isUsableDate(value: Date | undefined): value is Date {
@@ -752,7 +753,7 @@ export function TaskDetailDialog({
         className="h-7 pr-7 bg-card text-xs"
       />
       {open && options.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-md max-h-40 overflow-y-auto">
+        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-elevation-2 max-h-40 overflow-y-auto">
           {options.slice(0, 10).map((option) => (
             <button
               key={option.id}
@@ -1169,11 +1170,11 @@ export function TaskDetailDialog({
                       const createdAt = parseOptionalDate(update.created_at);
                       const typeIcon =
                         updateType === "agent_action" ? (
-                          <Bot className="h-3.5 w-3.5 text-purple-500" />
+                          <Bot className="h-3.5 w-3.5 text-brand-accent-600 dark:text-brand-accent-400" />
                         ) : updateType === "status_change" ? (
-                          <GitCommit className="h-3.5 w-3.5 text-blue-500" />
+                          <GitCommit className="h-3.5 w-3.5 text-muted-foreground" />
                         ) : updateType === "assignment" ? (
-                          <ArrowRightLeft className="h-3.5 w-3.5 text-orange-500" />
+                          <ArrowRightLeft className="h-3.5 w-3.5 text-muted-foreground" />
                         ) : (
                           <MessageCircle className="h-3.5 w-3.5 text-muted-foreground" />
                         );
@@ -1191,7 +1192,7 @@ export function TaskDetailDialog({
                           className={cn(
                             "p-2 rounded-lg border bg-card text-right",
                             updateType === "agent_action" &&
-                              "bg-purple-50/50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800",
+                              "bg-brand-accent/10 border-brand-accent/30",
                           )}
                         >
                           <div className="flex items-center justify-between mb-0.5 gap-2">

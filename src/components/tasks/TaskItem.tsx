@@ -110,7 +110,7 @@ export function TaskItem({
       style={style}
       className={cn(
         "group flex items-start gap-2 p-2 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-all",
-        isDragging && "opacity-50 shadow-lg",
+        isDragging && "opacity-50 shadow-elevation-2",
         isCompleted && "opacity-60",
       )}
     >
@@ -328,7 +328,7 @@ export function TaskItem({
           {task.assigned_agent && (
             <Badge
               variant="outline"
-              className="text-xs px-1.5 py-0 h-5 gap-0.5 bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-950/30 dark:border-purple-800 dark:text-purple-300"
+              className="text-xs px-1.5 py-0 h-5 gap-0.5 bg-brand-accent/10 border-brand-accent/30 text-foreground"
             >
               <Bot className="h-3 w-3" />
               {task.assigned_agent}
@@ -345,7 +345,7 @@ export function TaskItem({
             >
               <Badge
                 variant="outline"
-                className="text-xs px-1.5 py-0 h-5 gap-0.5 bg-sky-50 border-sky-200 text-sky-700 dark:bg-sky-950/30 dark:border-sky-800 dark:text-sky-300"
+                className="text-xs px-1.5 py-0 h-5 gap-0.5 bg-brand-ink/5 border-brand-ink/15 text-foreground"
               >
                 <ExternalLink className="h-3 w-3" />
                 Cursor
