@@ -202,6 +202,8 @@ Deno.serve(async (req) => {
       .from("crm_tables")
       .select("*")
       .eq("integration_type", "google_ads")
+      // A switched-off report (an inactive client's) pulls no data.
+      .not("campaign_active", "is", false)
       .order("id");
     if (table_ids && table_ids.length > 0) query = query.in("id", table_ids);
 

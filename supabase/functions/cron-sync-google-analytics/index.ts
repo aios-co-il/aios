@@ -42,6 +42,8 @@ Deno.serve(async (req) => {
       .from("crm_tables")
       .select("id, tenant_id, name, integration_settings, integration_type")
       .eq("integration_type", "google_analytics")
+      // A switched-off report (an inactive client's) pulls no data.
+      .not("campaign_active", "is", false)
       .order("id");
 
     if (tablesError) throw tablesError;

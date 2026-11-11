@@ -70,6 +70,8 @@ Deno.serve(async (req) => {
       .from("crm_tables")
       .select("*")
       .eq("integration_type", "facebook_insights")
+      // A switched-off report (an inactive client's) pulls no data.
+      .not("campaign_active", "is", false)
       .order("id");
 
     if (tableIds && tableIds.length > 0) {

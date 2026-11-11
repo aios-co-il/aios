@@ -19,7 +19,9 @@ Deno.serve(async (req) => {
     const { data: tables, error } = await supabaseAdmin
       .from("crm_tables")
       .select("id, name, tenant_id")
-      .eq("integration_type", "tiktok_content");
+      .eq("integration_type", "tiktok_content")
+      // A switched-off report (an inactive client's) pulls no data.
+      .not("campaign_active", "is", false);
     if (error) throw error;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
