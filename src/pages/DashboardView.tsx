@@ -52,12 +52,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import {
   ArrowRight,
   ExternalLink,
   Facebook,
@@ -80,9 +74,7 @@ import {
 import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { useTenantPath } from "@/hooks/useTenantPath";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { AgencyDashboardContent } from "@/components/dynamic-tables/AgencyDashboardContent";
 import { ShareDashboardDialog } from "@/components/dynamic-tables/ShareDashboardDialog";
@@ -112,6 +104,8 @@ import {
   getReportSyncProblem,
   refetchOnMountIfEmpty,
 } from "@/lib/reportQueryOptions";
+import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
+import { DashboardDateControls } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
   formatCurrency as formatCurrencyAmount,
@@ -120,10 +114,7 @@ import {
   resolveDashboardCurrency,
 } from "@/lib/currency";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
-import {
-  COMBINED_DASHBOARD_DATE_FILTERS,
-  getDashboardDateRange,
-} from "@/lib/dashboardDateFilters";
+import { getDashboardDateRange } from "@/lib/dashboardDateFilters";
 import { formatReportDate, getReportCoverageGap } from "@/lib/reportCoverage";
 import {
   fetchWooDashboardSummary,
@@ -149,8 +140,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-const DATE_FILTERS = COMBINED_DASHBOARD_DATE_FILTERS;
 
 const PLATFORM_CONFIG: Record<
   string,
@@ -258,7 +247,6 @@ export default function DashboardView() {
     from?: Date;
     to?: Date;
   }>({});
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const customFromStr = customDateRange.from
     ? format(customDateRange.from, "yyyy-MM-dd")
     : "";
@@ -271,7 +259,6 @@ export default function DashboardView() {
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const didSetSeoDefaultRef = useRef(false);
-  const isMobile = useIsMobile();
 
   // Fetch dashboard
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
@@ -1441,195 +1428,144 @@ export default function DashboardView() {
 
   return (
     <div className="container mx-auto max-w-full overflow-x-hidden py-4 px-3 sm:py-8 sm:px-4 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(buildPath("/dynamic-tables"))}
-            >
-              <ArrowRight className="ml-2 h-4 w-4" />
-              חזרה
-            </Button>
-            {dashboard.client_id && !isAgencyLikeDashboard && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() =>
-                  navigate(
-                    buildPath(
-                      `/clients?clientId=${dashboard.client_id}&tab=report`,
-                    ),
-                  )
-                }
-              >
-                <User className="h-4 w-4" />
-                כרטיס לקוח
-              </Button>
-            )}
-            {adAccountLinks.map((link) => (
-              <Button
-                key={link.url}
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() =>
-                  window.open(link.url, "_blank", "noopener,noreferrer")
-                }
-              >
-                <ExternalLink className="h-4 w-4" />
-                {adAccountShortcutLabel(link, adAccountLinks.length)}
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl md:text-3xl font-bold">{dashboard.name}</h1>
-            {isAgencyDashboard && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Building2 className="h-3 w-3" />
-                דשבורד סוכנות
-              </Badge>
-            )}
-            {isOrganizationDashboard && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <Building2 className="h-3 w-3" />
-                דשבורד ארגון
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-2 text-muted-foreground">
-            {isAgencyDashboard ? (
-              <>
-                <Building2 className="h-4 w-4" />
-                <span>{(dashboard as any).agencies?.name}</span>
-              </>
-            ) : isOrganizationDashboard ? (
-              <>
-                <Building2 className="h-4 w-4" />
-                <span>{orgAgencies.length} סוכנויות</span>
-              </>
-            ) : (
-              <>
-                <span>{(dashboard as any).clients?.name}</span>
-                {(dashboard as any).agencies?.name && (
-                  <>
-                    <span>•</span>
-                    <span>{(dashboard as any).agencies?.name}</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-          <ReportDataFreshness
-            lastSyncAt={dashboardLastSyncAt}
-            syncProblem={dashboardSyncProblem}
-            dataUpdatedAt={recordsUpdatedAt}
-            isFetching={recordsFetching}
-            className="mt-2"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          {isOrganizationDashboard && (
-            <Select
-              value={selectedOrgAgencyId}
-              onValueChange={setSelectedOrgAgencyId}
-            >
-              <SelectTrigger className="w-full sm:w-[220px]">
-                <SelectValue placeholder="בחר סוכנות" />
-              </SelectTrigger>
-              <SelectContent>
-                {orgAgencies.map((a: any) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {!isAgencyLikeDashboard && currentTenantId && (
-            <ShareDashboardDialog
-              dashboardId={dashboardId!}
-              dashboardName={dashboard.name}
-              tenantId={currentTenantId}
+      <ReportHeader
+        title={dashboard.name}
+        onBack={() => navigate(buildPath("/dynamic-tables"))}
+        badges={
+          (isAgencyDashboard || isOrganizationDashboard) && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              {isAgencyDashboard ? "דשבורד סוכנות" : "דשבורד ארגון"}
+            </Badge>
+          )
+        }
+        meta={
+          <>
+            <span>
+              {isAgencyDashboard
+                ? (dashboard as any).agencies?.name
+                : isOrganizationDashboard
+                  ? `${orgAgencies.length} סוכנויות`
+                  : [
+                      (dashboard as any).clients?.name,
+                      (dashboard as any).agencies?.name,
+                    ]
+                      .filter(Boolean)
+                      .join(" • ")}
+            </span>
+            <ReportDataFreshness
+              lastSyncAt={dashboardLastSyncAt}
+              syncProblem={dashboardSyncProblem}
+              dataUpdatedAt={recordsUpdatedAt}
+              isFetching={recordsFetching}
             />
-          )}
-          {!isAgencyLikeDashboard && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw
-                className={`ml-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              רענן נתונים
-            </Button>
-          )}
-          <Select
-            value={dateFilter}
-            onValueChange={(v) => {
-              setDateFilter(v);
-              if (v === "custom") setCalendarOpen(true);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DATE_FILTERS.map((f) => (
-                <SelectItem key={f.value} value={f.value}>
-                  {f.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {dateFilter === "custom" && (
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <CalendarIcon className="h-4 w-4" />
-                  {customDateRange.from && customDateRange.to ? (
-                    <>
-                      {format(customDateRange.from, "dd/MM/yyyy", {
-                        locale: he,
-                      })}{" "}
-                      -{" "}
-                      {format(customDateRange.to, "dd/MM/yyyy", { locale: he })}
-                    </>
-                  ) : (
-                    "בחר תאריכים"
-                  )}
+          </>
+        }
+        actions={
+          !isAgencyLikeDashboard && (
+            <>
+              {dashboard.client_id && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() =>
+                    navigate(
+                      buildPath(
+                        `/clients?clientId=${dashboard.client_id}&tab=report`,
+                      ),
+                    )
+                  }
+                >
+                  <User className="h-4 w-4" />
+                  כרטיס לקוח
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-auto p-0 pointer-events-auto"
-                align="start"
-              >
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={customDateRange.from}
-                  selected={{
-                    from: customDateRange.from,
-                    to: customDateRange.to,
-                  }}
-                  onSelect={(range: any) => {
-                    setCustomDateRange({ from: range?.from, to: range?.to });
-                    if (range?.from && range?.to) setCalendarOpen(false);
-                  }}
-                  numberOfMonths={isMobile ? 1 : 2}
-                  className="pointer-events-auto"
+              )}
+              {adAccountLinks.map((link) => (
+                <Button
+                  key={link.url}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() =>
+                    window.open(link.url, "_blank", "noopener,noreferrer")
+                  }
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {adAccountShortcutLabel(link, adAccountLinks.length)}
+                </Button>
+              ))}
+              {currentTenantId && dashboardId && (
+                <ShareDashboardDialog
+                  dashboardId={dashboardId}
+                  dashboardName={dashboard.name}
+                  tenantId={currentTenantId}
                 />
-              </PopoverContent>
-            </Popover>
-          )}
-        </div>
-      </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+                רענון
+              </Button>
+            </>
+          )
+        }
+        tabs={
+          !isAgencyLikeDashboard &&
+          availablePlatforms.length > 0 && (
+            <Tabs
+              value={platformFilter}
+              onValueChange={(v) =>
+                setPlatformFilter(v as DashboardPlatformFilter)
+              }
+            >
+              <ResponsiveTabsList
+                items={platformTabItems}
+                value={platformFilter}
+                onValueChange={(v) =>
+                  setPlatformFilter(v as DashboardPlatformFilter)
+                }
+                mobileLabel="בחר פלטפורמה"
+                className="w-auto h-9"
+              />
+            </Tabs>
+          )
+        }
+        controls={
+          <DashboardDateControls
+            dateFilter={dateFilter}
+            onDateFilterChange={setDateFilter}
+            customDateRange={customDateRange}
+            onCustomDateRangeChange={setCustomDateRange}
+            agencyPicker={
+              isOrganizationDashboard && (
+                <Select
+                  value={selectedOrgAgencyId}
+                  onValueChange={setSelectedOrgAgencyId}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="בחר סוכנות" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgAgencies.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
+            }
+          />
+        }
+      />
 
       {adsCoverageGap && platformFilter !== "weekly" && (
         <p className="text-xs text-muted-foreground">
@@ -1668,25 +1604,6 @@ export default function DashboardView() {
         )
       ) : (
         <>
-          {/* Platform Tabs */}
-          {availablePlatforms.length > 0 && (
-            <Tabs
-              value={platformFilter}
-              onValueChange={(v) =>
-                setPlatformFilter(v as DashboardPlatformFilter)
-              }
-            >
-              <ResponsiveTabsList
-                items={platformTabItems}
-                value={platformFilter}
-                onValueChange={(v) =>
-                  setPlatformFilter(v as DashboardPlatformFilter)
-                }
-                mobileLabel="בחר פלטפורמה"
-              />
-            </Tabs>
-          )}
-
           {platformFilter === "site_events" ? (
             <DashboardTrackedEvents
               records={displayAllRecords}
