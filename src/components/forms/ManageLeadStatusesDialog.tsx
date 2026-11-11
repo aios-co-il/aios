@@ -14,11 +14,7 @@ import {
   useLeadStatusMutations,
   LeadStatus,
 } from "@/hooks/useLeadStatuses";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -37,70 +33,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-const PRESET_COLORS = [
-  "#9ca3af", // gray
-  "#fbbf24", // amber
-  "#f97316", // orange
-  "#ef4444", // red
-  "#dc2626", // dark red
-  "#22c55e", // green
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#6366f1", // indigo
-  "#84cc16", // lime
-];
-
-interface ColorPickerProps {
-  color: string;
-  onChange: (color: string) => void;
-}
-
-function ColorPicker({ color, onChange }: ColorPickerProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="w-8 h-8 rounded-md border-2 border-border flex-shrink-0 transition-transform hover:scale-110"
-          style={{ backgroundColor: color }}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
-        <div className="grid grid-cols-6 gap-2">
-          {PRESET_COLORS.map((presetColor) => (
-            <button
-              key={presetColor}
-              className={cn(
-                "w-8 h-8 rounded-md border-2 transition-transform hover:scale-110",
-                color === presetColor
-                  ? "border-primary ring-2 ring-primary/30"
-                  : "border-border",
-              )}
-              style={{ backgroundColor: presetColor }}
-              onClick={() => {
-                onChange(presetColor);
-                setOpen(false);
-              }}
-            />
-          ))}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <Input
-            type="text"
-            value={color}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="#000000"
-            className="h-8 text-sm"
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 interface SortableStatusRowProps {
   status: LeadStatus;
@@ -161,7 +93,7 @@ function SortableStatusRow({
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </button>
 
-      <ColorPicker color={color} onChange={handleColorChange} />
+      <ColorPicker value={color} onChange={handleColorChange} />
 
       <div className="flex-1">
         {isEditing ? (
@@ -346,7 +278,7 @@ export function ManageLeadStatusesDialog({
         </div>
 
         <div className="flex items-center gap-3 pt-4 border-t">
-          <ColorPicker color={newColor} onChange={setNewColor} />
+          <ColorPicker value={newColor} onChange={setNewColor} />
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}

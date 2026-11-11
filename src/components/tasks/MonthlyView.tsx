@@ -8,9 +8,7 @@ import {
   isToday,
   isSameMonth,
 } from "date-fns";
-import { he } from "date-fns/locale";
 import { useDroppable } from "@dnd-kit/core";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -54,17 +52,16 @@ function DayCell({
       ref={setNodeRef}
       onClick={() => onDayClick(date)}
       className={cn(
-        "min-h-[100px] p-2 border-b border-l cursor-pointer transition-colors hover:bg-accent/30",
-        !isCurrentMonth && "bg-muted/50 text-muted-foreground",
-        today && "bg-primary/10 ring-2 ring-primary/50",
-        isOver && "bg-accent/50",
+        "min-h-[100px] p-2 border-b border-s border-border/60 cursor-pointer transition-colors hover:bg-muted/40",
+        !isCurrentMonth && "bg-muted/30 text-muted-foreground",
+        isOver && "bg-brand-accent-50 dark:bg-brand-accent-950/40",
       )}
     >
       <div className="flex items-center justify-between mb-1">
         <span
           className={cn(
-            "text-sm font-medium",
-            today && "text-primary font-bold",
+            "flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium tabular-nums",
+            today && "bg-brand-accent font-bold text-brand-ink",
           )}
         >
           {format(date, "d")}
@@ -72,17 +69,14 @@ function DayCell({
         {dayTasks.length > 0 && (
           <div className="flex gap-1">
             {pendingCount > 0 && (
-              <Badge variant="secondary" className="text-xs h-5 px-1.5">
+              <span className="rounded-full bg-muted px-1.5 text-xs font-medium leading-5 tabular-nums">
                 {pendingCount}
-              </Badge>
+              </span>
             )}
             {completedCount > 0 && (
-              <Badge
-                variant="outline"
-                className="text-xs h-5 px-1.5 text-muted-foreground"
-              >
+              <span className="rounded-full bg-status-active-surface px-1.5 text-xs font-medium leading-5 tabular-nums text-status-foreground">
                 ✓{completedCount}
-              </Badge>
+              </span>
             )}
           </div>
         )}
@@ -97,14 +91,14 @@ function DayCell({
                 onTaskClick(task);
               }}
               className={cn(
-                "text-xs p-1 rounded truncate cursor-pointer hover:bg-accent",
+                "truncate rounded-e-md border-s-2 px-1.5 py-0.5 text-xs cursor-pointer",
                 task.status === "done"
-                  ? "bg-muted text-muted-foreground line-through"
-                  : "bg-primary/10",
+                  ? "border-s-muted-foreground/40 bg-muted text-muted-foreground line-through"
+                  : "border-s-brand-accent bg-brand-accent-50 hover:bg-brand-accent-100 dark:bg-brand-accent-950/60 dark:hover:bg-brand-accent-900/60",
               )}
             >
               {task.due_time && (
-                <span className="text-muted-foreground mr-1">
+                <span className="text-muted-foreground tabular-nums me-1">
                   {task.due_time.substring(0, 5)}
                 </span>
               )}
@@ -146,20 +140,13 @@ export function MonthlyView({
   }
 
   return (
-    <div className="flex-1 flex flex-col rounded-xl border bg-muted/30 overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b bg-primary/10 text-center">
-        <p className="text-lg font-bold">
-          {format(currentDate, "MMMM yyyy", { locale: he })}
-        </p>
-      </div>
-
+    <div className="flex-1 flex flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 border-b">
+      <div className="grid grid-cols-7 border-b bg-muted/40">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="p-2 text-center text-sm font-medium text-muted-foreground border-l first:border-l-0"
+            className="px-2 py-2.5 text-center text-xs font-semibold text-muted-foreground"
           >
             {day}
           </div>
@@ -182,7 +169,7 @@ export function MonthlyView({
             ) : (
               <div
                 key={`empty-${index}`}
-                className="min-h-[100px] p-2 border-b border-l bg-muted/30"
+                className="min-h-[100px] p-2 border-b border-s border-border/60 bg-muted/30"
               />
             ),
           )}

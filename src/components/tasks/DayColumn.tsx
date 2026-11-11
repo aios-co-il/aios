@@ -7,6 +7,7 @@ import {
 import { format, isToday, isSameDay, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { ResizableTaskItem } from "./ResizableTaskItem";
+import { DayColumnHeader } from "./DayColumnHeader";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import {
@@ -89,13 +90,13 @@ function DraggableCalendarEventBlock({
         onClick?.();
       }}
       className={cn(
-        "absolute left-8 right-1 bg-brand-accent/10 border-r-2 border-brand-accent rounded px-2 py-0.5 text-xs overflow-hidden cursor-pointer hover:bg-brand-accent/20 transition-colors touch-none",
+        "absolute left-8 right-1 overflow-hidden rounded-md border border-s-[3px] border-border border-s-brand-neutral bg-muted px-2 py-0.5 text-xs cursor-pointer transition-colors hover:bg-muted/70 touch-none",
         isDragging && "opacity-50 shadow-elevation-2",
       )}
       style={style}
     >
       <div className="flex items-center gap-1 truncate">
-        <span className="text-muted-foreground text-[10px]">
+        <span className="text-muted-foreground text-[10px] tabular-nums">
           {startHours}:{startMins}-{endHours}:{endMins}
         </span>
         <span className="font-medium truncate">{event.title}</span>
@@ -147,12 +148,13 @@ function TimeSlotDroppable({
       ref={setNodeRef}
       onDoubleClick={() => onSlotDoubleClick?.(date, time)}
       className={cn(
-        "flex items-start gap-1 py-0.5 px-1 border-b border-dashed border-muted cursor-pointer hover:bg-accent/30 transition-colors",
-        isOver && "bg-accent/50",
+        "flex items-start gap-1 py-0.5 px-1 border-b border-border/60 cursor-pointer transition-colors hover:bg-muted/40",
+        time.endsWith(":30") && "border-dashed",
+        isOver && "bg-brand-accent-50 dark:bg-brand-accent-950/40",
       )}
       style={{ minHeight: `${SLOT_HEIGHT}px`, position: "relative" }}
     >
-      <span className="text-[10px] text-muted-foreground w-8 shrink-0 pt-1">
+      <span className="text-[10px] text-muted-foreground/80 tabular-nums w-8 shrink-0 pt-1">
         {time}
       </span>
       <div
@@ -244,20 +246,12 @@ export function DayColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex flex-col rounded-xl border bg-muted/30 min-w-[33vw] flex-1",
-        today && "ring-2 ring-primary/50 bg-primary/5",
-        isOver && "bg-accent/50",
+        "flex flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1 min-w-[33vw] flex-1",
+        today && "border-brand-accent/60",
+        isOver && "ring-2 ring-brand-accent/60",
       )}
     >
-      {/* Header */}
-      <div className={cn("p-3 border-b text-center", today && "bg-primary/10")}>
-        <p className="text-xs text-muted-foreground">
-          {format(date, "EEEE", { locale: he })}
-        </p>
-        <p className={cn("text-lg font-bold", today && "text-primary")}>
-          {format(date, "dd/MM")}
-        </p>
-      </div>
+      <DayColumnHeader date={date} today={today} taskCount={dayTasks.length} />
 
       {/* Time Slots */}
       <div

@@ -1,4 +1,14 @@
-import { KpiCard } from "./KpiCard";
+import {
+  Banknote,
+  Eye,
+  MousePointerClick,
+  ShoppingBag,
+  Tag,
+  Target,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
+import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
 import type {
   GoogleAdsCampaignSummary,
   GoogleAdsFormatters,
@@ -23,49 +33,45 @@ export function GoogleAdsKpiCards({
   const mixed = hasEcommerce && hasLeads;
   return (
     <div
-      className={`grid gap-3 grid-cols-2 md:grid-cols-3 ${mixed ? "lg:grid-cols-4" : "lg:grid-cols-5"} auto-rows-fr`}
+      className={`grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 ${mixed ? "lg:grid-cols-4" : "lg:grid-cols-5"}`}
     >
-      <KpiCard
-        tone="from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
+      <ReportKpiCard
+        icon={Wallet}
         label="הוצאה כוללת"
         value={formatCurrency(totals.spend)}
       />
-      <KpiCard
-        tone="from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
+      <ReportKpiCard
+        icon={Eye}
         label="חשיפות"
         value={formatNumber(totals.impressions)}
       />
-      <KpiCard
-        tone="from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
+      <ReportKpiCard
+        icon={MousePointerClick}
         label="קליקים"
         value={formatNumber(totals.clicks)}
       />
       {hasEcommerce && (
         <>
-          <KpiCard
-            tone="from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
+          <ReportKpiCard
+            icon={ShoppingBag}
             label={hasWoo ? "רכישות (WooCommerce)" : "רכישות"}
             value={formatNumber(store.purchases)}
-            note={
-              store.wooDiffers
-                ? `Google Ads: ${formatNumber(ecommerce.conversions)}`
-                : mixed
-                  ? "קמפייני מכירות"
-                  : null
-            }
+            hint={purchasesHint(store, mixed, () =>
+              formatNumber(ecommerce.conversions),
+            )}
           />
-          <KpiCard
-            tone="from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+          <ReportKpiCard
+            icon={Banknote}
             label={hasWoo ? "הכנסות (WooCommerce)" : "הכנסות"}
             value={formatCurrency(store.revenue)}
-            note={
+            hint={
               store.wooDiffers
                 ? `Google Ads: ${formatCurrency(ecommerce.conversions_value)}`
-                : null
+                : undefined
             }
           />
-          <KpiCard
-            tone="from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
+          <ReportKpiCard
+            icon={TrendingUp}
             label={hasWoo ? "ROAS (WooCommerce)" : "ROAS"}
             value={ecommerce.spend > 0 ? store.roas.toFixed(2) : "-"}
           />
@@ -73,14 +79,14 @@ export function GoogleAdsKpiCards({
       )}
       {hasLeads && (
         <>
-          <KpiCard
-            tone="from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
+          <ReportKpiCard
+            icon={Target}
             label="המרות"
             value={formatNumber(leads.conversions)}
-            note={mixed ? "קמפייני לידים" : null}
+            hint={mixed ? "קמפייני לידים" : undefined}
           />
-          <KpiCard
-            tone="from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
+          <ReportKpiCard
+            icon={Tag}
             label="עלות להמרה"
             value={
               leads.conversions > 0
@@ -92,4 +98,16 @@ export function GoogleAdsKpiCards({
       )}
     </div>
   );
+}
+
+/** What Google Ads reported when WooCommerce replaces it, or which campaigns a mixed account's card counts. */
+function purchasesHint(
+  store: GoogleStoreTotals,
+  mixed: boolean,
+  googleConversions: () => string,
+): string | undefined {
+  if (store.wooDiffers) {
+    return `Google Ads: ${googleConversions()}`;
+  }
+  return mixed ? "קמפייני מכירות" : undefined;
 }

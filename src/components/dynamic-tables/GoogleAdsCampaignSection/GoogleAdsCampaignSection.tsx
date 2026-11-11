@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Card } from "@/components/ui/card";
 import type { WooGoogleAttributionSummary } from "@/lib/wooAttribution";
 import { GoogleAdsCampaignTable } from "./GoogleAdsCampaignTable";
 import { GoogleAdsKpiCards } from "./GoogleAdsKpiCards";
@@ -33,10 +32,10 @@ export function GoogleAdsCampaignSection({
   const ecommerceRows = summary.campaigns.filter((c) => c.goal === "ecommerce");
   const leadRows = summary.campaigns.filter((c) => c.goal === "leads");
   const trafficRows = summary.campaigns.filter((c) => c.goal === "traffic");
-  const tableProps = { store, mixed, icon, ...formats };
+  const tableProps = { store, storeFromWoo: !!woo, mixed, icon, ...formats };
 
   return (
-    <>
+    <div className="space-y-4">
       {woo && store.wooDiffers && (
         <GoogleWooNotice ecommerce={summary.ecommerce} woo={woo} {...formats} />
       )}
@@ -73,11 +72,9 @@ export function GoogleAdsCampaignSection({
       )}
 
       {summary.campaigns.length === 0 && (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground">
-            אין נתוני Google Ads בטווח התאריכים הנבחר
-          </p>
-        </Card>
+        <div className="rounded-2xl border bg-card p-12 text-center text-muted-foreground shadow-elevation-1">
+          אין נתוני Google Ads בטווח התאריכים הנבחר
+        </div>
       )}
       {woo && (
         <p className="text-xs text-muted-foreground px-1">
@@ -85,6 +82,6 @@ export function GoogleAdsCampaignSection({
           (Google ממומן). עמודות לפי קמפיין מציגות את דיווח Google Ads API.
         </p>
       )}
-    </>
+    </div>
   );
 }

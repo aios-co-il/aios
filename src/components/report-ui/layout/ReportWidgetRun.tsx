@@ -107,9 +107,7 @@ function WidgetBlock({
         />
       );
     case "insight":
-      return data.insight ? (
-        <CarmenInsight>{data.insight}</CarmenInsight>
-      ) : null;
+      return <CarmenInsight data={data} />;
   }
 }
 

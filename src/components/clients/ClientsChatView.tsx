@@ -55,7 +55,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -67,7 +66,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { EditClientDialog } from "@/components/forms/EditClientDialog";
 import { ClientConnectionsTab } from "@/components/clients/ClientConnectionsTab";
@@ -99,6 +97,19 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { CarmenWhatsAppAccess } from "@/components/carmen/CarmenWhatsAppAccess";
 import { resolveClientChildTenantId } from "@/lib/clientContactTenant";
 import { permissionForSubpath } from "@/lib/moduleRoutePermissions";
+import { ClientAvatar } from "@/components/clients/ClientAvatar";
+import { ClientMoodChip } from "@/components/clients/ClientChips";
+import {
+  ClientMoodOptions,
+  ClientMoodPicker,
+  ClientStatusOptions,
+  ClientStatusPicker,
+} from "@/components/clients/ClientStatusOptions";
+import { ClientsChatListItem } from "@/components/clients/ClientsChatListItem";
+
+/** A detail tab: an underlined label, the accent marking the open one. */
+const DETAIL_TAB_CLASS =
+  "relative h-11 shrink-0 gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground shadow-none hover:text-foreground data-[state=active]:border-brand-accent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none";
 
 /** What the workshop route asks for, so the link shows only to whoever may open it. */
 const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
@@ -114,20 +125,6 @@ interface ClientsChatViewProps {
   initialTab?: string; // deep-link: open this tab on mount (?tab=recordings)
   onSelectedClientChange?: (clientId: string | null) => void;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  active: { label: "פעיל", color: "hsl(142, 71%, 45%)" },
-  onboarding: { label: "בקליטה", color: "hsl(217, 91%, 60%)" },
-  paused: { label: "מושהה", color: "hsl(45, 93%, 47%)" },
-  ended: { label: "הסתיים", color: "hsl(0, 0%, 60%)" },
-};
-
-const MOOD_CONFIG: Record<string, { emoji: string; text: string }> = {
-  happy: { emoji: "😊", text: "מבסוט" },
-  wavering: { emoji: "😐", text: "מתנדנד" },
-  churn_risk: { emoji: "😟", text: "סכנת נטישה" },
-  not_progressing: { emoji: "😔", text: "לא מתקדם" },
-};
 
 interface ClientTabOption {
   value: string;
@@ -481,10 +478,6 @@ export function ClientsChatView({
     }
   };
 
-  const getStatusInfo = (status: string) =>
-    STATUS_CONFIG[status] || STATUS_CONFIG.active;
-  const getMoodInfo = (mood: string | null) =>
-    MOOD_CONFIG[mood || "happy"] || MOOD_CONFIG.happy;
   const getAgencyName = (agencyId: string) =>
     agencies?.find((a: any) => a.id === agencyId)?.name || "";
 
@@ -686,7 +679,7 @@ export function ClientsChatView({
     return (
       <>
         <h2
-          className="font-bold text-base truncate cursor-pointer group flex items-center gap-1"
+          className="font-bold text-lg leading-tight truncate cursor-pointer group flex items-center gap-1"
           onClick={() => {
             setEditValue(currentName);
             setEditing(true);
@@ -697,7 +690,7 @@ export function ClientsChatView({
         </h2>
         {agencyName && (
           <p
-            className="text-xs text-muted-foreground truncate cursor-pointer hover:text-primary transition-colors"
+            className="mt-0.5 text-xs text-muted-foreground truncate cursor-pointer hover:text-foreground transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setChangeAgencyOpen(true);
@@ -713,8 +706,10 @@ export function ClientsChatView({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 max-h-full overflow-hidden bg-background w-full max-w-full",
-        isMobile ? "border-0 rounded-none" : "border rounded-lg",
+        "flex h-full min-h-0 max-h-full overflow-hidden bg-card w-full max-w-full",
+        isMobile
+          ? "border-0 rounded-none"
+          : "border rounded-2xl shadow-elevation-1",
       )}
       dir="rtl"
     >
@@ -722,7 +717,7 @@ export function ClientsChatView({
       {(!isMobile || !selectedClientId) && (
         <div
           className={cn(
-            "border-s flex flex-col bg-muted/20 overflow-hidden min-h-0",
+            "border-s flex flex-col bg-card overflow-hidden min-h-0",
             isMobile ? "w-full flex-1" : "w-[25%] min-w-[240px] max-w-[25%]",
           )}
           dir="rtl"
@@ -730,7 +725,7 @@ export function ClientsChatView({
           {/* List header with search */}
           <div
             className={cn(
-              "border-b bg-background/80 backdrop-blur-sm shrink-0",
+              "border-b bg-card shrink-0",
               isMobile ? "p-2" : "p-3",
             )}
           >
@@ -741,7 +736,7 @@ export function ClientsChatView({
                   placeholder="חיפוש לקוח..."
                   value={listSearch}
                   onChange={(e) => setListSearch(e.target.value)}
-                  className="pr-9 h-9 text-sm"
+                  className="pr-9 h-9 text-sm bg-surface-inset border-transparent"
                 />
               </div>
               <Button
@@ -756,14 +751,17 @@ export function ClientsChatView({
                 <CheckSquare className="h-4 w-4" />
               </Button>
             </div>
-            <div className="mt-2 text-xs text-muted-foreground text-center">
-              {filteredClients.length} לקוחות
+            <div className="mt-2 flex items-center justify-between px-1 text-xs text-muted-foreground">
+              <span className="font-medium">רשימת לקוחות</span>
+              <span className="tabular-nums">
+                {filteredClients.length} לקוחות
+              </span>
             </div>
           </div>
 
           {/* Multi-select toolbar */}
           {multiSelectMode && (
-            <div className="p-2 border-b bg-primary/5 space-y-2">
+            <div className="p-2 border-b bg-surface-inset space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Button
                   size="sm"
@@ -798,17 +796,7 @@ export function ClientsChatView({
                       <SelectValue placeholder="סטטוס" />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-[100]">
-                      {Object.entries(STATUS_CONFIG).map(
-                        ([key, { label, color }]) => (
-                          <SelectItem
-                            key={key}
-                            value={key}
-                            style={{ backgroundColor: color, color: "#fff" }}
-                          >
-                            {label}
-                          </SelectItem>
-                        ),
-                      )}
+                      <ClientStatusOptions />
                     </SelectContent>
                   </Select>
 
@@ -821,13 +809,7 @@ export function ClientsChatView({
                       <SelectValue placeholder="מצב רוח" />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-[100]">
-                      {Object.entries(MOOD_CONFIG).map(
-                        ([key, { emoji, text }]) => (
-                          <SelectItem key={key} value={key}>
-                            {emoji} {text}
-                          </SelectItem>
-                        ),
-                      )}
+                      <ClientMoodOptions short />
                     </SelectContent>
                   </Select>
 
@@ -883,84 +865,27 @@ export function ClientsChatView({
             className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
             dir="rtl"
           >
-            <div className="divide-y w-full">
-              {visibleClients.map((client) => {
-                const isSelected = client.id === selectedClientId;
-                const isChecked = selectedClientIds.has(client.id);
-                const statusInfo = getStatusInfo(client.status);
-                const moodInfo = getMoodInfo(client.mood_status);
-                const displayName = getClientDisplayName(client);
-
-                return (
-                  <button
-                    key={client.id}
-                    onClick={() => {
-                      if (multiSelectMode) {
-                        toggleClientSelection(client.id);
-                      } else {
-                        setSelectedClientId(client.id);
-                      }
-                    }}
-                    className={cn(
-                      "w-full text-right p-3 hover:bg-muted/50 transition-colors cursor-pointer",
-                      isSelected &&
-                        !multiSelectMode &&
-                        "bg-primary/10 border-e-4 border-e-primary",
-                      isChecked && multiSelectMode && "bg-primary/10",
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      {/* Avatar - right side in RTL */}
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                        style={{ backgroundColor: statusInfo.color }}
-                      >
-                        {(displayName || "?")[0]}
-                      </div>
-                      <div className="flex-1 min-w-0 text-right">
-                        {multiSelectMode && (
-                          <div
-                            className="pt-1 shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Checkbox
-                              checked={isChecked}
-                              onCheckedChange={() =>
-                                toggleClientSelection(client.id)
-                              }
-                            />
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1">
-                          <span
-                            dir="rtl"
-                            className="block font-semibold text-sm truncate flex-1 min-w-0 text-right"
-                          >
-                            {displayName}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-                            {moodInfo.emoji}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 mt-1 justify-end flex-wrap">
-                          {client.agencies?.name && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {client.agencies.name}
-                            </span>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 h-4 border-0 text-white"
-                            style={{ backgroundColor: statusInfo.color }}
-                          >
-                            {statusInfo.label}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="w-full space-y-0.5 p-2">
+              {visibleClients.map((client) => (
+                <ClientsChatListItem
+                  key={client.id}
+                  displayName={getClientDisplayName(client)}
+                  status={client.status}
+                  mood={client.mood_status}
+                  agencyName={client.agencies?.name}
+                  selected={client.id === selectedClientId}
+                  multiSelectMode={multiSelectMode}
+                  checked={selectedClientIds.has(client.id)}
+                  onClick={() => {
+                    if (multiSelectMode) {
+                      toggleClientSelection(client.id);
+                    } else {
+                      setSelectedClientId(client.id);
+                    }
+                  }}
+                  onCheckedChange={() => toggleClientSelection(client.id)}
+                />
+              ))}
               {filteredClients.length === 0 && (
                 <div className="p-8 text-center text-muted-foreground text-sm">
                   לא נמצאו לקוחות
@@ -987,8 +912,8 @@ export function ClientsChatView({
               {/* Toolbar */}
               <div
                 className={cn(
-                  "flex items-center gap-2 border-b bg-background/95 backdrop-blur-sm shrink-0 flex-wrap",
-                  isMobile ? "p-2" : "p-3",
+                  "flex items-center gap-3 border-b bg-card shrink-0 flex-wrap",
+                  isMobile ? "p-2" : "px-5 py-4",
                 )}
               >
                 {isMobile && (
@@ -1002,17 +927,13 @@ export function ClientsChatView({
                     <ArrowRight className="h-5 w-5" />
                   </Button>
                 )}
-                <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
                   {!isMobile && (
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                      style={{
-                        backgroundColor: getStatusInfo(selectedClient.status)
-                          .color,
-                      }}
-                    >
-                      {(selectedClientDisplayName || "?")[0]}
-                    </div>
+                    <ClientAvatar
+                      name={selectedClientDisplayName}
+                      status={selectedClient.status}
+                      size="lg"
+                    />
                   )}
                   <div className="min-w-0 flex-1">
                     <EditableClientName
@@ -1078,58 +999,23 @@ export function ClientsChatView({
                     isMobile ? "hidden" : "flex-wrap",
                   )}
                 >
-                  {/* Status selector */}
-                  <Select
+                  <ClientStatusPicker
                     value={selectedClient.status}
-                    onValueChange={(value) =>
+                    onChange={(value) =>
                       handleStatusChange(selectedClient.id, value)
                     }
-                  >
-                    <SelectTrigger
-                      className="h-8 text-xs w-auto min-w-[100px] border-2 font-medium"
-                      style={{
-                        backgroundColor: getStatusInfo(selectedClient.status)
-                          .color,
-                        color: "#fff",
-                      }}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-[100]">
-                      {Object.entries(STATUS_CONFIG).map(
-                        ([key, { label, color }]) => (
-                          <SelectItem
-                            key={key}
-                            value={key}
-                            style={{ backgroundColor: color, color: "#fff" }}
-                          >
-                            {label}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Mood selector */}
-                  <Select
-                    value={selectedClient.mood_status || "happy"}
-                    onValueChange={(value) =>
+                  />
+                  <ClientMoodPicker
+                    short
+                    value={selectedClient.mood_status}
+                    onChange={(value) =>
                       handleMoodChange(selectedClient.id, value)
                     }
-                  >
-                    <SelectTrigger className="h-8 text-xs w-auto min-w-[100px] border-2 font-medium">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-[100]">
-                      {Object.entries(MOOD_CONFIG).map(
-                        ([key, { emoji, text }]) => (
-                          <SelectItem key={key} value={key}>
-                            {emoji} {text}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
+                  />
+                  <span
+                    className="mx-1 h-6 w-px bg-border"
+                    aria-hidden="true"
+                  />
 
                   {selectedClient.phone && (
                     <>
@@ -1279,55 +1165,21 @@ export function ClientsChatView({
 
                 {isMobile && (
                   <div className="flex items-center gap-1.5 w-full">
-                    <Select
+                    <ClientStatusPicker
+                      className="flex-1"
                       value={selectedClient.status}
-                      onValueChange={(value) =>
+                      onChange={(value) =>
                         handleStatusChange(selectedClient.id, value)
                       }
-                    >
-                      <SelectTrigger
-                        className="h-8 text-xs flex-1 border-2 font-medium"
-                        style={{
-                          backgroundColor: getStatusInfo(selectedClient.status)
-                            .color,
-                          color: "#fff",
-                        }}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-[100]">
-                        {Object.entries(STATUS_CONFIG).map(
-                          ([key, { label, color }]) => (
-                            <SelectItem
-                              key={key}
-                              value={key}
-                              style={{ backgroundColor: color, color: "#fff" }}
-                            >
-                              {label}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={selectedClient.mood_status || "happy"}
-                      onValueChange={(value) =>
+                    />
+                    <ClientMoodPicker
+                      short
+                      className="flex-1"
+                      value={selectedClient.mood_status}
+                      onChange={(value) =>
                         handleMoodChange(selectedClient.id, value)
                       }
-                    >
-                      <SelectTrigger className="h-8 text-xs flex-1 border-2 font-medium">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-[100]">
-                        {Object.entries(MOOD_CONFIG).map(
-                          ([key, { emoji, text }]) => (
-                            <SelectItem key={key} value={key}>
-                              {emoji} {text}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 )}
               </div>
@@ -1406,58 +1258,68 @@ export function ClientsChatView({
               >
                 {!isMobile && (
                   <TabsList
-                    className={cn(
-                      "mx-4 mt-3 grid w-auto max-w-4xl h-9 bg-muted/50 mr-4 ml-auto",
-                      canViewFinance ? "grid-cols-12" : "grid-cols-11",
-                    )}
+                    dir="rtl"
+                    className="h-auto w-full shrink-0 justify-start gap-1 overflow-x-auto rounded-none border-b bg-card px-4 py-0"
                   >
-                    <TabsTrigger value="details" className="text-xs gap-1">
+                    <TabsTrigger value="details" className={DETAIL_TAB_CLASS}>
                       <FileText className="h-3.5 w-3.5" />
                       פרטי לקוח
                     </TabsTrigger>
-                    <TabsTrigger value="connections" className="text-xs gap-1">
+                    <TabsTrigger
+                      value="connections"
+                      className={DETAIL_TAB_CLASS}
+                    >
                       <Link className="h-3.5 w-3.5" />
                       חיבורים
                     </TabsTrigger>
                     {canViewFinance && (
-                      <TabsTrigger value="business" className="text-xs gap-1">
+                      <TabsTrigger
+                        value="business"
+                        className={DETAIL_TAB_CLASS}
+                      >
                         <DollarSign className="h-3.5 w-3.5" />
                         מידע עסקי
                       </TabsTrigger>
                     )}
-                    <TabsTrigger value="docs" className="text-xs gap-1">
+                    <TabsTrigger value="docs" className={DETAIL_TAB_CLASS}>
                       <FolderOpen className="h-3.5 w-3.5" />
                       מסמכים
                     </TabsTrigger>
-                    <TabsTrigger value="credentials" className="text-xs gap-1">
+                    <TabsTrigger
+                      value="credentials"
+                      className={DETAIL_TAB_CLASS}
+                    >
                       <KeyRound className="h-3.5 w-3.5" />
                       ססמאות
                     </TabsTrigger>
-                    <TabsTrigger value="meeting" className="text-xs gap-1">
+                    <TabsTrigger value="meeting" className={DETAIL_TAB_CLASS}>
                       <CalendarIcon className="h-3.5 w-3.5" />
                       פגישה
                     </TabsTrigger>
-                    <TabsTrigger value="recordings" className="text-xs gap-1">
+                    <TabsTrigger
+                      value="recordings"
+                      className={DETAIL_TAB_CLASS}
+                    >
                       <Video className="h-3.5 w-3.5" />
                       הקלטות
                     </TabsTrigger>
-                    <TabsTrigger value="report" className="text-xs gap-1">
+                    <TabsTrigger value="report" className={DETAIL_TAB_CLASS}>
                       <BarChart3 className="h-3.5 w-3.5" />
                       דוחות
                     </TabsTrigger>
-                    <TabsTrigger value="updates" className="text-xs gap-1">
+                    <TabsTrigger value="updates" className={DETAIL_TAB_CLASS}>
                       <MessageSquare className="h-3.5 w-3.5" />
                       עדכונים
                     </TabsTrigger>
-                    <TabsTrigger value="calls" className="text-xs gap-1">
+                    <TabsTrigger value="calls" className={DETAIL_TAB_CLASS}>
                       <Phone className="h-3.5 w-3.5" />
                       שיחות
                     </TabsTrigger>
-                    <TabsTrigger value="wordpress" className="text-xs gap-1">
+                    <TabsTrigger value="wordpress" className={DETAIL_TAB_CLASS}>
                       <Globe className="h-3.5 w-3.5" />
                       אתר
                     </TabsTrigger>
-                    <TabsTrigger value="whatsapp" className="text-xs gap-1">
+                    <TabsTrigger value="whatsapp" className={DETAIL_TAB_CLASS}>
                       <svg
                         className="h-3.5 w-3.5"
                         viewBox="0 0 24 24"
@@ -1472,8 +1334,8 @@ export function ClientsChatView({
 
                 <div
                   className={cn(
-                    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain",
-                    isMobile ? "p-2" : "p-4",
+                    "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-background",
+                    isMobile ? "p-2" : "p-5",
                     (activeTab === "whatsapp" || activeTab === "calls") &&
                       "hidden",
                   )}
@@ -1481,10 +1343,10 @@ export function ClientsChatView({
                   <TabsContent value="details" className="mt-0 space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       {/* Timeline - shown first in DOM but appears on LEFT in RTL layout */}
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
+                      <div className="rounded-2xl border bg-card p-5 space-y-3 text-right shadow-elevation-1">
+                        <h3 className="font-bold text-base flex items-center gap-2 justify-end text-foreground">
                           ציר זמן
-                          <Clock className="h-4 w-4 text-primary" />
+                          <Clock className="h-5 w-5 text-muted-foreground" />
                         </h3>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center justify-end gap-2">
@@ -1522,10 +1384,10 @@ export function ClientsChatView({
                             <span className="text-muted-foreground">:נוצר</span>
                           </div>
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-medium">
-                              {getMoodInfo(selectedClient.mood_status).emoji}{" "}
-                              {getMoodInfo(selectedClient.mood_status).text}
-                            </span>
+                            <ClientMoodChip
+                              mood={selectedClient.mood_status}
+                              short
+                            />
                             <span className="text-muted-foreground">
                               :מצב רוח
                             </span>
@@ -1546,10 +1408,10 @@ export function ClientsChatView({
                       </div>
 
                       {/* Contact info - shown second in DOM but appears on RIGHT in RTL layout */}
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 justify-end text-foreground">
+                      <div className="rounded-2xl border bg-card p-5 space-y-3 text-right shadow-elevation-1">
+                        <h3 className="font-bold text-base flex items-center gap-2 justify-end text-foreground">
                           פרטי קשר ראשי
-                          <User className="h-4 w-4 text-primary" />
+                          <User className="h-5 w-5 text-muted-foreground" />
                         </h3>
                         <div className="space-y-2 text-sm">
                           <EditableField
@@ -1672,7 +1534,7 @@ export function ClientsChatView({
                     </div>
 
                     {/* Additional contacts */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right space-y-3 shadow-sm">
+                    <div className="rounded-2xl border bg-card p-5 text-right space-y-3 shadow-elevation-1">
                       <div className="flex items-center justify-between">
                         <Button
                           variant="outline"
@@ -1683,9 +1545,9 @@ export function ClientsChatView({
                           <UserPlus className="h-3.5 w-3.5" />
                           הוסף איש קשר
                         </Button>
-                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <h3 className="font-bold text-base flex items-center gap-2">
                           אנשי קשר נוספים
-                          <Users className="h-4 w-4 text-primary" />
+                          <Users className="h-5 w-5 text-muted-foreground" />
                         </h3>
                       </div>
 
@@ -2039,10 +1901,10 @@ export function ClientsChatView({
                     </div>
 
                     {/* Team - editable */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-elevation-1">
-                      <h3 className="font-semibold text-sm mb-2 flex items-center gap-2 justify-end">
+                    <div className="rounded-2xl border bg-card p-5 text-right shadow-elevation-1">
+                      <h3 className="font-bold text-base mb-2 flex items-center gap-2 justify-end">
                         קמפיינרים משויכים
-                        <Users className="h-4 w-4 text-primary" />
+                        <Users className="h-5 w-5 text-muted-foreground" />
                       </h3>
                       <div className="flex flex-wrap gap-2 mb-2">
                         {selectedClient.client_team?.map(
@@ -2100,8 +1962,8 @@ export function ClientsChatView({
                     </div>
 
                     {/* Notes */}
-                    <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-elevation-1">
-                      <h3 className="font-semibold text-sm mb-2">הערות</h3>
+                    <div className="rounded-2xl border bg-card p-5 text-right shadow-elevation-1">
+                      <h3 className="font-bold text-base mb-2">הערות</h3>
                       <EditableField
                         label=""
                         value={selectedClient.notes}
@@ -2134,10 +1996,10 @@ export function ClientsChatView({
 
                   {canViewFinance && (
                     <TabsContent value="business" className="mt-0 space-y-6">
-                      <div className="bg-card border border-border/60 rounded-xl p-4 space-y-3 text-right shadow-elevation-1">
-                        <h3 className="font-semibold text-sm flex items-center gap-2 justify-end">
+                      <div className="rounded-2xl border bg-card p-5 space-y-3 text-right shadow-elevation-1">
+                        <h3 className="font-bold text-base flex items-center gap-2 justify-end">
                           מידע עסקי
-                          <DollarSign className="h-4 w-4 text-primary" />
+                          <DollarSign className="h-5 w-5 text-muted-foreground" />
                         </h3>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center justify-end gap-2">

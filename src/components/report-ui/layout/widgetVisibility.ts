@@ -7,13 +7,13 @@ import type { ReportWidget } from "./reportLayout";
  * Whether a widget has anything to show for its scope: KPIs with a metric
  * the scope has a source for, channels and campaigns with rows, charts whose
  * metric (or fallback) the scope can measure, a trend with at least two days
- * of it, and Carmen with an insight. The layout
+ * of it, and Carmen where the report offers her. The layout
  * view leaves the others out, so a stored layout never renders empty cards.
  */
 export function isWidgetVisible(
   widget: ReportWidget,
   scope: ReportScopeData,
-  data: Pick<ReportData, "insight">,
+  data: Pick<ReportData, "askCarmen">,
 ): boolean {
   switch (widget.kind) {
     case "kpis":
@@ -27,7 +27,7 @@ export function isWidgetVisible(
     case "campaigns":
       return scope.campaigns.length > 0;
     case "insight":
-      return Boolean(data.insight);
+      return data.askCarmen;
   }
 }
 

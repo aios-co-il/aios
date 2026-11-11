@@ -1,5 +1,6 @@
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { CalendarDays } from "lucide-react";
+import { ReportSection } from "@/components/report-ui/ReportSection";
+import { StatusChip } from "@/components/report-ui/StatusChip";
 import {
   buildWeeklyCampaignSections,
   formatWeeklyRange,
@@ -50,18 +51,14 @@ export function WeeklyCampaignComparison({
   const showPlatform = sources.size > 1;
 
   if (isLoading) {
-    return (
-      <Card className="p-8 text-center text-sm text-muted-foreground">
-        טוען השוואה שבועית…
-      </Card>
-    );
+    return <div className={EMPTY_CARD}>טוען השוואה שבועית…</div>;
   }
 
   if (weeks.length === 0) {
     return (
-      <Card className="p-8 text-center text-sm text-muted-foreground" dir="rtl">
+      <div className={EMPTY_CARD} dir="rtl">
         אין עדיין נתונים שבועיים להשוואה.
-      </Card>
+      </div>
     );
   }
 
@@ -78,20 +75,20 @@ export function WeeklyCampaignComparison({
       {weeks.map((week) => {
         const multipleGoals = week.groups.length > 1;
         return (
-          <Card key={week.key} className="overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
-              <div>
-                <h3 className="font-semibold">{weekTitle(week)}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {formatWeeklyRange(week.startDate, week.endDate)}
-                </p>
-              </div>
-              {week.isCurrentWeek && (
-                <Badge variant="secondary">שבוע נוכחי · נתונים חלקיים</Badge>
-              )}
-            </div>
-
-            <div className={multipleGoals ? "divide-y" : undefined}>
+          <ReportSection
+            key={week.key}
+            title={weekTitle(week)}
+            icon={CalendarDays}
+            description={formatWeeklyRange(week.startDate, week.endDate)}
+            actions={
+              week.isCurrentWeek && (
+                <StatusChip tone="progress">
+                  שבוע נוכחי · נתונים חלקיים
+                </StatusChip>
+              )
+            }
+          >
+            <div className="space-y-6">
               {week.groups.map((group) => (
                 <WeeklyGoalTable
                   key={group.kind}
@@ -108,15 +105,19 @@ export function WeeklyCampaignComparison({
                 label="הוצאה כוללת בשבוע (כל היעדים)"
                 currency={currency}
                 spend={week.totals.spend}
-                className="px-4"
+                className="mt-4 rounded-xl px-3"
               />
             )}
-          </Card>
+          </ReportSection>
         );
       })}
     </div>
   );
 }
+
+/** The loading and empty states, in the report card style. */
+const EMPTY_CARD =
+  "rounded-2xl border bg-card p-8 text-center text-sm text-muted-foreground shadow-elevation-1";
 
 /** Heading of a week: this week, last week, or how many weeks ago. */
 function weekTitle(week: WeeklyCampaignSection) {

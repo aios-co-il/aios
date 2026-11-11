@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Tag, Settings, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
+import { softColorChipStyle } from "./softColorChip";
 
 interface ChatTag {
   id: string;
@@ -170,9 +171,9 @@ export function LeadTagSelector({
       <Popover open={isOpen} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             title="תגיות"
           >
             <Tag className="h-4 w-4" />
@@ -269,13 +270,14 @@ export function LeadTagBadges({ allTags, tagIds }: LeadTagBadgesProps) {
         <Badge
           key={tag.id}
           variant="outline"
-          className="text-[10px] px-1.5 py-0 h-4"
-          style={{
-            backgroundColor: `${tag.color}20`,
-            borderColor: tag.color,
-            color: tag.color,
-          }}
+          className="h-5 gap-1 rounded-full px-2 py-0 text-[11px] font-medium text-foreground"
+          style={softColorChipStyle(tag.color)}
         >
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: tag.color }}
+            aria-hidden="true"
+          />
           {tag.name}
         </Badge>
       ))}

@@ -141,6 +141,44 @@
   animation: orb-buddy-talk 0.32s ease-in-out infinite alternate;
 }
 
+/* Eyes blink now and then (open eyes only; listening keeps the soft eyes). */
+.orb-buddy-eyes.is-open ellipse {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: orb-buddy-blink 3.7s ease-in-out infinite;
+}
+
+/* Working (AIO-543): eyes glance up to the side and the hands tap, as the
+   phone app draws it (OrbBuddyView.kt). */
+.orb-buddy-eyes.is-open {
+  transition: transform 0.6s ease;
+}
+.orb-buddy[data-state="working"] .orb-buddy-eyes.is-open {
+  transform: translate(2.6px, -2.4px);
+}
+.orb-buddy[data-state="working"] .orb-buddy-hand {
+  animation:
+    orb-buddy-bob 3.2s ease-in-out infinite,
+    orb-buddy-tap 0.42s ease-in-out infinite alternate;
+}
+.orb-buddy[data-state="working"] .orb-buddy-hand.is-end {
+  animation-delay:
+    -0.9s,
+    -0.21s;
+}
+
+/* Speaking: the hands lift and turn in small, slow gestures. */
+.orb-buddy[data-state="speaking"] .orb-buddy-hand.is-start {
+  animation:
+    orb-buddy-bob 3.2s ease-in-out infinite,
+    orb-buddy-gesture-start 1.4s ease-in-out infinite alternate;
+}
+.orb-buddy[data-state="speaking"] .orb-buddy-hand.is-end {
+  animation:
+    orb-buddy-bob 3.2s ease-in-out infinite,
+    orb-buddy-gesture-end 1.4s ease-in-out -0.7s infinite alternate;
+}
+
 /* On dark surfaces the glass is see-through and the face turns light. */
 .dark .orb-buddy-limb {
   background:
@@ -196,6 +234,40 @@
   }
   to {
     scale: 1 1;
+  }
+}
+@keyframes orb-buddy-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes orb-buddy-tap {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1.8cqw);
+  }
+}
+@keyframes orb-buddy-gesture-start {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate(2cqw, -3.5cqw) rotate(22deg);
+  }
+}
+@keyframes orb-buddy-gesture-end {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate(-2cqw, -3.5cqw) rotate(-22deg);
   }
 }
 @media (prefers-reduced-motion: reduce) {
