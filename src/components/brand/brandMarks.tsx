@@ -1,5 +1,5 @@
-// Single-color brand marks, drawn in `currentColor` so a sphere can set them
-// in its own core color. Used only to show the integrations.
+// Single-color brand marks, drawn in `currentColor` so the place that shows
+// them sets the color (a sphere's core, a report's channel row).
 
 /** Google "G" mark. */
 export function GoogleMark({ className }: { className?: string }) {

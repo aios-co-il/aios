@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { Mail, Users } from "lucide-react";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { cn } from "@/lib/utils";
-import { FacebookMark, GoogleMark } from "./brandMarks";
+import { FacebookMark, GoogleMark } from "@/components/brand/brandMarks";
 
 export interface SphereSpec {
   id: string;
