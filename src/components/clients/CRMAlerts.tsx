@@ -142,14 +142,11 @@ export function CRMAlerts() {
   ).length;
 
   return (
-    <Card
-      className="border-orange-200 bg-orange-50/30 dark:bg-orange-950/10"
-      dir="rtl"
-    >
+    <Card className="border-brand-highlight/60" dir="rtl">
       <CardHeader className="pb-2 pt-3 px-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertTriangle className="h-4 w-4 text-status-progress" />
             התראות CRM
             <div className="flex gap-1">
               {redCount > 0 && (
@@ -160,7 +157,7 @@ export function CRMAlerts() {
               {yellowCount > 0 && (
                 <Badge
                   variant="outline"
-                  className="text-xs h-5 px-1.5 bg-yellow-100 text-yellow-800 border-yellow-300"
+                  className="text-xs h-5 px-1.5 bg-status-progress-surface text-status-foreground border-brand-highlight/60"
                 >
                   🟡 {yellowCount}
                 </Badge>
@@ -190,8 +187,8 @@ export function CRMAlerts() {
                 key={client.id}
                 className={`flex items-start justify-between gap-2 p-2 rounded-md border text-sm ${
                   client.overallStatus === "red"
-                    ? "bg-red-50 border-red-200"
-                    : "bg-yellow-50 border-yellow-200"
+                    ? "bg-surface-status-red border-destructive"
+                    : "bg-surface-status-yellow border-brand-highlight/60"
                 }`}
               >
                 <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -211,8 +208,8 @@ export function CRMAlerts() {
                         variant="outline"
                         className={`text-xs h-4 px-1 ${
                           client.overallStatus === "red"
-                            ? "bg-red-100 text-red-700 border-red-300"
-                            : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                            ? "bg-surface-status-red text-destructive border-destructive"
+                            : "bg-status-progress-surface text-status-foreground border-brand-highlight/60"
                         }`}
                       >
                         {client.score}

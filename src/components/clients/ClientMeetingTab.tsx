@@ -157,7 +157,9 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
                     <SelectItem
                       key={time}
                       value={time}
-                      className={!available ? "text-amber-600 font-medium" : ""}
+                      className={
+                        !available ? "bg-surface-status-yellow font-medium" : ""
+                      }
                     >
                       {time} {!available && "⚠️ (תפוס ביומן)"}
                     </SelectItem>
@@ -194,7 +196,9 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
                     <SelectItem
                       key={`end-${time}`}
                       value={time}
-                      className={!available ? "text-amber-600 font-medium" : ""}
+                      className={
+                        !available ? "bg-surface-status-yellow font-medium" : ""
+                      }
                     >
                       {time} {!available && "⚠️ (תפוס ביומן)"}
                     </SelectItem>
@@ -205,7 +209,7 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
           </div>
 
           {hasConflict && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700 rounded-lg p-3 text-sm text-amber-800 dark:text-amber-200">
+            <div className="bg-surface-status-yellow border border-brand-highlight/60 rounded-lg p-3 text-sm text-status-foreground">
               ⚠️ יש לך כבר אירוע ביומן בשעה הזו — הזימון ייקבע במקביל.
             </div>
           )}

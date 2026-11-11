@@ -192,9 +192,9 @@ export function SeoUpdateModal({
   });
 
   const statusIcon = {
-    up: <TrendingUp className="h-4 w-4 text-green-600" />,
-    stable: <Minus className="h-4 w-4 text-blue-600" />,
-    down: <TrendingDown className="h-4 w-4 text-red-600" />,
+    up: <TrendingUp className="h-4 w-4 text-status-active" />,
+    stable: <Minus className="h-4 w-4 text-muted-foreground" />,
+    down: <TrendingDown className="h-4 w-4 text-destructive" />,
   };
 
   return (
@@ -238,19 +238,19 @@ export function SeoUpdateModal({
             >
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="up" />
-                <span className="flex items-center gap-1 text-sm text-green-700 font-medium">
+                <span className="flex items-center gap-1 text-sm text-brand-accent-700 dark:text-brand-accent-400 font-medium">
                   {statusIcon.up} עלייה ↑
                 </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="stable" />
-                <span className="flex items-center gap-1 text-sm text-blue-700 font-medium">
+                <span className="flex items-center gap-1 text-sm text-foreground font-medium">
                   {statusIcon.stable} יציב →
                 </span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <RadioGroupItem value="down" />
-                <span className="flex items-center gap-1 text-sm text-red-700 font-medium">
+                <span className="flex items-center gap-1 text-sm text-destructive font-medium">
                   {statusIcon.down} ירידה ↓
                 </span>
               </label>
