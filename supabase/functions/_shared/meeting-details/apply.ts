@@ -18,8 +18,9 @@ export interface MeetingDetailsOutcome {
 type Recording = RecordingAssignment & { id: string; meeting_id: string };
 
 /**
- * Reads the summary, then writes the meeting name and client per
- * planMeetingDetailsUpdate. With `dryRun` it only reports what it would write.
+ * Reads the summary, then writes the meeting name and, with `assignClient`, the
+ * client per planMeetingDetailsUpdate. With `dryRun` it only reports what it
+ * would write.
  */
 export async function applyMeetingDetailsFromSummary(
   admin: Pick<DbClient, "from">,
@@ -28,13 +29,17 @@ export async function applyMeetingDetailsFromSummary(
     recordingId: string;
     summary: string;
     keys: MeetingDetailsKeys;
+    /** False keeps the recording's assignment and only names the meeting. */
+    assignClient: boolean;
     dryRun?: boolean;
   },
 ): Promise<MeetingDetailsOutcome> {
   const recording = await loadRecording(admin, opts.tenantId, opts.recordingId);
   const clients = await loadClients(admin, opts.tenantId);
   const details = await extractMeetingDetails(opts.summary, clients, opts.keys);
-  const update = planMeetingDetailsUpdate(recording, details, clients);
+  const update = planMeetingDetailsUpdate(recording, details, clients, {
+    assignClient: opts.assignClient,
+  });
   if (!opts.dryRun) {
     await writeUpdate(admin, opts.tenantId, recording.meeting_id, update);
   }

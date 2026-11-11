@@ -180,9 +180,8 @@ export async function finalizeMeetingBotSession(
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
-  const topic =
-    session.meeting_topic ||
-    `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
+  const defaultTopic = `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
+  const topic = session.meeting_topic || defaultTopic;
 
   const row: Record<string, unknown> = {
     tenant_id: session.tenant_id,
@@ -193,6 +192,8 @@ export async function finalizeMeetingBotSession(
     summary_scope: session.summary_scope,
     meeting_id: botId,
     meeting_topic: topic,
+    // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
+    topic_set_manually: topic !== defaultTopic,
     start_time:
       session.joined_at || session.scheduled_start || new Date().toISOString(),
     duration: durationMin,

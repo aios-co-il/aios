@@ -93,6 +93,8 @@ export interface MeetingSummaryJob {
   created_by: string | null;
   client_id: string | null;
   brief_source: string;
+  /** The recording was unrecognized, so its summary may assign a client (AIO-563). */
+  assign_client_from_summary: boolean;
 }
 
 const SUMMARY_TARGET_TYPES = new Set<MeetingSummaryTargetType>([
@@ -127,6 +129,7 @@ export function meetingSummaryJobFromMetadata(
     brief_source: meta.brief_source
       ? String(meta.brief_source)
       : "zoom_meeting",
+    assign_client_from_summary: meta.assign_client_from_summary === true,
   };
 }
 

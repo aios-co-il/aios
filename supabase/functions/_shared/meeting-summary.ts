@@ -132,6 +132,12 @@ export interface SaveSummaryOptions {
   summary: string;
   recording_id?: string | null;
   created_by?: string | null;
+  /**
+   * The recording was unrecognized (automatic scope), so the summary may assign
+   * its client. A person's choice of target, including agency, is never
+   * reclassified (AIO-563).
+   */
+  assign_client_from_summary?: boolean;
 }
 
 export async function saveSummaryForTarget(
@@ -147,6 +153,7 @@ export async function saveSummaryForTarget(
     summary,
     recording_id,
     created_by,
+    assign_client_from_summary,
   } = opts;
 
   const dateStr = new Date().toLocaleDateString("he-IL");
@@ -225,11 +232,17 @@ export async function saveSummaryForTarget(
         summary_md: summary,
         summary_generated_at: new Date().toISOString(),
       } as any)
+      .eq("tenant_id", tenant_id)
       .eq("id", recording_id);
   }
 
   if (recording_id) {
-    await nameMeetingFromSummary(admin, tenant_id, recording_id, summary);
+    await nameMeetingFromSummary(admin, {
+      tenantId: tenant_id,
+      recordingId: recording_id,
+      summary,
+      assignClient: !!assign_client_from_summary,
+    });
   }
 
   return { fileUrl, fileName: newAttachment.name };
@@ -584,21 +597,27 @@ export function buildDocx(
 }
 
 /**
- * Names the meeting and assigns its client from the saved summary. A failure is
- * logged and never fails the summary, which is already saved.
+ * Names the meeting from the saved summary, and assigns its client only when
+ * `assignClient` says the recording was unrecognized. A failure is logged and
+ * never fails the summary, which is already saved.
  */
 async function nameMeetingFromSummary(
   // deno-lint-ignore no-explicit-any
   admin: any,
-  tenantId: string,
-  recordingId: string,
-  summary: string,
+  opts: {
+    tenantId: string;
+    recordingId: string;
+    summary: string;
+    assignClient: boolean;
+  },
 ): Promise<void> {
+  const { tenantId, recordingId, summary, assignClient } = opts;
   try {
     const outcome = await applyMeetingDetailsFromSummary(admin, {
       tenantId,
       recordingId,
       summary,
+      assignClient,
       keys: { openRouterKey: await tenantSummaryKey(admin, tenantId) },
     });
     console.log("[meeting-summary] meeting details", recordingId, outcome);

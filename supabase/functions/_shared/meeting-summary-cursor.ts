@@ -53,6 +53,8 @@ export async function dispatchMeetingSummaryToCursor(
     createdBy?: string | null;
     /** A person asked again. Automatic ingest stays one send per recording. */
     manual?: boolean;
+    /** The recording was unrecognized, so its summary may assign a client. */
+    assignClientFromSummary?: boolean;
   },
 ): Promise<SummaryDispatch> {
   if (!cursorApiKey()) return { ok: false, reason: "not_configured" };
@@ -90,6 +92,7 @@ export async function dispatchMeetingSummaryToCursor(
     client_id:
       args.clientId ?? (args.targetType === "client" ? args.targetId : null),
     brief_source: args.briefSource || "zoom_meeting",
+    assign_client_from_summary: !!args.assignClientFromSummary,
   };
 
   const claimKey = meetingSummaryIdempotencyKey(
@@ -223,6 +226,7 @@ export async function persistMeetingSummaryReply(
     summary,
     recording_id: job.recording_id,
     created_by: job.created_by,
+    assign_client_from_summary: job.assign_client_from_summary,
   });
 
   const { data: recording } = await admin
