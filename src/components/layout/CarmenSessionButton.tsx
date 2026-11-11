@@ -44,7 +44,7 @@ export function CarmenSessionButton() {
         <CarmenOrbBuddy
           tint={getRoleOrbTint(identity.activeSkin)}
           label={identity.name}
-          className="orb-navy w-12 md:w-14"
+          className="orb-deep w-12 md:w-14"
         />
       )}
     </button>
