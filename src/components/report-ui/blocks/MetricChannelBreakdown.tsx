@@ -44,7 +44,7 @@ export function MetricChannelBreakdown({
         key: channel,
         label: REPORT_CHANNEL_LABELS[channel].name,
         mark: REPORT_CHANNEL_LABELS[channel].mark,
-        value: main.compute(figures) ?? 0,
+        value: main.compute(figures),
         // The title names the detail metric; the row shows its value only.
         detail: detail ? readMetric(detail, figures, currency).text : undefined,
       }))}

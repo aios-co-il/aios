@@ -30,7 +30,10 @@ export function MetricTrendChart({
   currency,
 }: MetricTrendChartProps) {
   const main = REPORT_METRICS[metric];
-  const second = compare ? REPORT_METRICS[compare] : null;
+  // The chart has one axis and one formatter, so a second line must share
+  // the metric's unit (revenue against spend, not against clicks).
+  const candidate = compare ? REPORT_METRICS[compare] : null;
+  const second = candidate?.format === main.format ? candidate : null;
   const days = scope.daily.filter(({ figures }) =>
     isMetricAvailable(metric, figures),
   );

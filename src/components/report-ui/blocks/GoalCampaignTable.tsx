@@ -10,7 +10,11 @@ import { CampaignStatusSwitch } from "../CampaignStatusSwitch";
 import { ReportSection } from "../ReportSection";
 import { ShowOffRowsToggle } from "../ShowOffRowsToggle";
 import type { ReportScopeData } from "../data/reportData";
-import type { ReportFigures } from "../metrics/reportFigures";
+import {
+  addAdsFigures,
+  emptyReportFigures,
+  type ReportFigures,
+} from "../metrics/reportFigures";
 import {
   isMetricAvailable,
   readMetric,
@@ -32,7 +36,7 @@ const CELL = "px-2 py-2.5 text-start tabular-nums whitespace-nowrap";
 /**
  * A goal's campaigns with that goal's columns, the platform's on/off state
  * and a filter for the switched-off ones. The total row adds the campaigns as
- * the platforms report them, so it matches the rows above it.
+ * the platforms report them, so it matches the rows shown above it.
  */
 export function GoalCampaignTable({
   goal,
@@ -45,11 +49,11 @@ export function GoalCampaignTable({
     return null;
   }
   const rows = scope.campaigns.filter((row) => showOff || row.on !== false);
-  const total: ReportFigures = {
-    ...scope.figures,
-    store: null,
-    analytics: null,
-  };
+  // Added up from the rows shown, so hiding the off campaigns updates it.
+  const total: ReportFigures = rows.reduce(
+    (sum, row) => addAdsFigures(sum, row.figures),
+    emptyReportFigures(),
+  );
   return (
     <ReportSection
       title={CAMPAIGN_GOAL_TITLES[goal]}

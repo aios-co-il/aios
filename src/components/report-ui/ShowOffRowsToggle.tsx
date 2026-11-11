@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { Switch } from "@/components/ui/switch";
 import {
   ADS_ENTITY_LEVEL_LABELS,
@@ -16,7 +17,8 @@ export function ShowOffRowsToggle({
   checked,
   onCheckedChange,
 }: ShowOffRowsToggleProps) {
-  const id = `show-off-${level}`;
+  // Per instance: a report can show several tables with the same level.
+  const id = useId();
   return (
     <label htmlFor={id} className="flex items-center gap-2 text-sm">
       <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
