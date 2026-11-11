@@ -1,3 +1,4 @@
+import { REPORT_POSITIVE } from "@/components/report-ui/ReportTable";
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
 import {
   FOLLOWER_COLUMN_LABELS,
@@ -54,7 +55,7 @@ const spend: WeeklyGoalColumn = {
 const results = (label: string): WeeklyGoalColumn => ({
   label,
   value: (m) => formatReportNumber(m.results, 1),
-  className: "font-medium text-green-600",
+  className: REPORT_POSITIVE,
 });
 /** Spend per result; a dash when the goal had no results. */
 const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
@@ -63,7 +64,7 @@ const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
     m.results > 0
       ? `${currency}${formatReportNumber(m.costPerResult, digits)}`
       : "—",
-  className: "font-medium text-blue-600",
+  className: "font-medium",
 });
 
 /** Each goal shows only its own metrics: no revenue or ROAS outside sales. */
@@ -94,7 +95,7 @@ const WEEKLY_GOAL_COLUMNS: Record<ReportCampaignGoal, WeeklyGoalColumn[]> = {
   // A traffic campaign's result is the click itself.
   traffic: [
     impressions,
-    { ...clicks, className: "font-medium text-green-600" },
+    { ...clicks, className: REPORT_POSITIVE },
     spend,
     costPerResult("עלות לקליק", 2),
   ],
@@ -109,7 +110,7 @@ const newFollowersColumn: WeeklyGoalColumn = {
   label: FOLLOWER_COLUMN_LABELS.newFollowers,
   value: (m) =>
     formatFollowerCell(m.followers.newFollowers, formatReportNumber),
-  className: "font-medium text-green-600",
+  className: REPORT_POSITIVE,
 };
 /** Spend per new follower; a dash when the campaigns gained none. */
 const costPerFollowerColumn: WeeklyGoalColumn = {
@@ -119,5 +120,5 @@ const costPerFollowerColumn: WeeklyGoalColumn = {
       m.costPerFollower,
       (cost) => `${currency}${formatReportNumber(cost, 2)}`,
     ),
-  className: "font-medium text-blue-600",
+  className: "font-medium",
 };
