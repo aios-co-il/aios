@@ -23,6 +23,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
+import { GoalReportOverview } from "@/components/report-ui/dashboard/GoalReportOverview";
+import {
+  dashboardRecordTables,
+  dashboardReportInput,
+} from "@/components/report-ui/dashboard/dashboardReportInput";
+import { usePreviousReportPeriod } from "@/components/report-ui/dashboard/usePreviousReportPeriod";
 import { Badge } from "@/components/ui/badge";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { Tabs } from "@/components/ui/tabs";
@@ -427,33 +433,7 @@ export default function DashboardView() {
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Deduplicate Facebook tables: if both facebook_insights AND facebook_ecommerce exist,
-      // skip facebook_insights to avoid double-counting spend/impressions/clicks
-      const hasFbEcommerce = tables.some(
-        (t: any) => t.integration_type === "facebook_ecommerce",
-      );
-      const hasFbInsights = tables.some(
-        (t: any) => t.integration_type === "facebook_insights",
-      );
-      const skipFbInsights = hasFbEcommerce && hasFbInsights;
-
-      // SEO (ahrefs) / Search Console tables are rendered from ahrefs_reports +
-      // dedicated SEO tabs — not from crm_records. Pulling their keyword rows
-      // here made client dashboards with SEO hang on "loading" and look empty.
-      const DASHBOARD_RECORD_TYPES = new Set([
-        "facebook_insights",
-        "facebook_ecommerce",
-        "google_ads",
-        "google_analytics",
-        "tiktok",
-      ]);
-
-      const tablesToFetch = tables.filter((t: any) => {
-        if (!DASHBOARD_RECORD_TYPES.has(t.integration_type)) return false;
-        if (skipFbInsights && t.integration_type === "facebook_insights")
-          return false;
-        return true;
-      });
+      const tablesToFetch = dashboardRecordTables(tables);
 
       const recordsPromises = tablesToFetch.map(async (table: any) => {
         const records = await queryClient.fetchQuery({
@@ -615,6 +595,28 @@ export default function DashboardView() {
       });
     },
     enabled: !!dashboard?.client_id && hasWooCommerce,
+  });
+
+  // The per-goal report on the overview: this range, and the one before it.
+  const reportCurrent = useMemo(
+    () =>
+      dashboardReportInput({
+        records: displayAllRecords,
+        tables,
+        woo: hasWooCommerce
+          ? { revenue: wooSummary.revenue, orders: wooSummary.orders }
+          : null,
+      }),
+    [displayAllRecords, tables, hasWooCommerce, wooSummary],
+  );
+  const reportPrevious = usePreviousReportPeriod({
+    tables,
+    dateFilter,
+    customFrom: customFromStr,
+    customTo: customToStr,
+    clientId: dashboard?.client_id,
+    hasWooCommerce,
+    enabled: platformFilter === "all" && isCustomReady,
   });
 
   // Available platforms for tab rendering
@@ -1773,6 +1775,13 @@ export default function DashboardView() {
             />
           ) : (
             <>
+              {platformFilter === "all" && (
+                <GoalReportOverview
+                  current={reportCurrent}
+                  previous={reportPrevious}
+                  currency={dashboardCurrency}
+                />
+              )}
               {/* Summary Cards - only show in All and Analytics tabs */}
               {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
                 <DashboardGoalOverview

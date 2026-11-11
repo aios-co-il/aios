@@ -19,6 +19,8 @@ import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
+import { GoalReportOverview } from "@/components/report-ui/dashboard/GoalReportOverview";
+import { dashboardReportInput } from "@/components/report-ui/dashboard/dashboardReportInput";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -742,6 +744,21 @@ export default function SharedDashboard({
   const hasWooData =
     hasWooCommerce && (wooSummary.revenue > 0 || wooSummary.orderCount > 0);
 
+  // The per-goal report on the overview. public-dashboard takes presets only
+  // and caps each table's rows newest-first, so a wider preset would cut the
+  // earlier period short: the shared report shows no previous-period change.
+  const reportCurrent = useMemo(
+    () =>
+      dashboardReportInput({
+        records,
+        tables,
+        woo: hasWooCommerce
+          ? { revenue: wooSummary.revenue, orders: wooSummary.orderCount }
+          : null,
+      }),
+    [records, tables, hasWooCommerce, wooSummary],
+  );
+
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
     if (!hasVisibleAnalyticsData) return [];
@@ -1235,6 +1252,13 @@ export default function SharedDashboard({
         </Tabs>
       ) : (
         <>
+          {platformFilter === "all" && (
+            <GoalReportOverview
+              current={reportCurrent}
+              previous={null}
+              currency={dashboardCurrency}
+            />
+          )}
           {/* Summary Cards - "All" tab: 7 KPI cards like DashboardView */}
           {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
             <DashboardGoalOverview
