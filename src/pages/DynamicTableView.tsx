@@ -151,6 +151,7 @@ import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 
 /** A client table as the ads-account links read it. */
 type AdAccountTable = NonNullable<Parameters<typeof getAdAccountUrl>[0]>;
+import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import { ReportDataTrust } from "@/components/reports/ReportDataTrust";
 import { AdsEntityLevelTabs } from "@/components/reports/AdsEntityLevelTabs";
@@ -2163,980 +2164,993 @@ export default function DynamicTableView({
         )}
 
       {!isEmbed && (
-        <div className="flex flex-col gap-4 mb-6">
-          {/* Title Row */}
-          <div className="text-center md:text-right">
-            <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-bold">{table.name}</h1>
-              {hasFacebook && (
-                <Badge variant="secondary" className="gap-1">
-                  <Facebook className="h-3 w-3 text-blue-600" />
-                  Facebook
-                </Badge>
-              )}
-              {hasGoogleAds && (
-                <Badge variant="secondary" className="gap-1">
-                  <GoogleAdsIcon className="h-3 w-3" />
-                  Google Ads
-                </Badge>
-              )}
-              {hasGoogleAnalytics && (
-                <Badge variant="secondary" className="gap-1">
-                  <BarChart3 className="h-3 w-3 text-orange-500" />
-                  Google Analytics
-                </Badge>
-              )}
-              {hasGoogleSearchConsole && (
-                <Badge variant="secondary" className="gap-1">
-                  <Search className="h-3 w-3 text-green-600" />
-                  Search Console
-                </Badge>
-              )}
-              {hasAhrefs && (
-                <Badge variant="secondary" className="gap-1">
-                  <TrendingUp className="h-3 w-3" />
-                  Ahrefs
-                </Badge>
-              )}
-            </div>
-            {table.description && (
-              <p className="text-muted-foreground mt-1">{table.description}</p>
-            )}
-            <ReportDataFreshness
-              lastSyncAt={getReportLastSyncAt(table)}
-              syncProblem={getReportSyncProblem([table])}
-              dataUpdatedAt={recordsUpdatedAt}
-              isFetching={recordsFetching}
-              className="mt-1"
-            />
-            <ReportDataTrust
-              tableId={table.id}
-              integrationType={table.integration_type}
-              className="mt-0.5"
-            />
-          </div>
-
-          {/* Controls Row */}
-          <div className="flex flex-col md:flex-row items-center md:justify-between gap-3">
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate(buildPath("/dynamic-tables"))}
-                className="flex-1 md:flex-none"
-              >
-                <ArrowRight className="ml-2 h-4 w-4" />
-                חזור
-              </Button>
-              {reportClientId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 flex-1 md:flex-none"
-                  onClick={() =>
-                    navigate(
-                      buildPath(
-                        `/clients?clientId=${reportClientId}&tab=report`,
-                      ),
-                    )
-                  }
-                >
-                  <User className="h-4 w-4" />
-                  כרטיס לקוח
-                </Button>
-              )}
-              {adAccountLinks.map((link) => (
-                <Button
-                  key={link.url}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 flex-1 md:flex-none"
-                  onClick={() =>
-                    window.open(link.url, "_blank", "noopener,noreferrer")
-                  }
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {adAccountShortcutLabel(link, adAccountLinks.length)}
-                </Button>
-              ))}
-              {!table.client_id && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowLinkClientDialog(true)}
-                  className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
-                >
-                  <Link className="h-4 w-4" />
-                  שייך ללקוח
-                </Button>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => setShowLinkClientDialog(true)}
-                  >
-                    <Link className="ml-2 h-4 w-4" />
-                    {table.client_id ? "שנה שיוך לקוח" : "שייך ללקוח"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => setShowDeleteTableDialog(true)}
-                  >
-                    <Trash2 className="ml-2 h-4 w-4" />
-                    מחק טבלה
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {/* Facebook Insights Sync Controls */}
-            {hasFacebook && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => syncFacebookMutation.mutate()}
-                  disabled={syncFacebookMutation.isPending}
-                  className="flex-1 md:flex-none gap-2"
-                >
-                  <Facebook className="h-4 w-4 text-blue-600" />
-                  <RefreshCw
-                    className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncFacebookMutation.isPending
-                    ? "מסנכרן Facebook..."
-                    : "סנכרן Facebook"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedAdAccount(
-                      table.integration_settings?.ad_account_id || "",
-                    );
-                    setSelectedSyncDateRange(
-                      table.integration_settings?.date_range || "last_30_days",
-                    );
-                    setSelectedCurrency(
-                      normalizeCurrencyCode(
-                        table.integration_settings?.currency,
-                      ),
-                    );
-                    setShowSettingsDialog(true);
-                  }}
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setShowAlertsDialog(true)}
-                  title="הגדרות התראות"
-                >
-                  <Bell className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* Facebook Ecommerce Sync Controls */}
-            {hasFacebookEcommerce && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => syncFacebookMutation.mutate()}
-                  disabled={syncFacebookMutation.isPending}
-                  className="flex-1 md:flex-none gap-2"
-                >
-                  <ShoppingCart className="h-4 w-4 text-green-600" />
-                  <RefreshCw
-                    className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncFacebookMutation.isPending
-                    ? "מסנכרן מכירות..."
-                    : "סנכרן מכירות"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedAdAccount(
-                      table.integration_settings?.ad_account_id || "",
-                    );
-                    setSelectedSyncDateRange(
-                      table.integration_settings?.date_range || "last_30_days",
-                    );
-                    setSelectedCurrency(
-                      normalizeCurrencyCode(
-                        table.integration_settings?.currency,
-                      ),
-                    );
-                    setShowSettingsDialog(true);
-                  }}
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  title="השווה ל-Facebook (Debug)"
-                  onClick={async () => {
-                    setDebugLoading(true);
-                    setDebugDialogOpen(true);
-                    setDebugData(null);
-                    try {
-                      const { data, error } = await supabase.functions.invoke(
-                        "debug-facebook-ecommerce",
-                        {
-                          method: "POST",
-                          body: { table_id: table.id },
-                        },
-                      );
-                      if (error) throw error;
-                      setDebugData(data);
-                    } catch (e: any) {
-                      toast.error("שגיאה בדיבאג: " + e.message);
-                      setDebugDialogOpen(false);
-                    } finally {
-                      setDebugLoading(false);
-                    }
-                  }}
-                >
-                  <Info className="h-4 w-4" />
-                  Debug
-                </Button>
-              </div>
-            )}
-
-            {/* Google Ads Sync Controls */}
-            {hasGoogleAds && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                {isGoogleAdsMakeTable ? (
-                  // For Make.com tables, show automatic sync button
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => syncMakeGoogleAdsMutation.mutate()}
-                      disabled={syncMakeGoogleAdsMutation.isPending}
-                      className="flex-1 md:flex-none gap-2"
-                    >
-                      <GoogleAdsIcon className="h-4 w-4" />
-                      <RefreshCw
-                        className={`h-4 w-4 ${syncMakeGoogleAdsMutation.isPending ? "animate-spin" : ""}`}
-                      />
-                      {syncMakeGoogleAdsMutation.isPending
-                        ? "מסנכרן..."
-                        : "סנכרן Google Ads"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowMakeWebhookDialog(true)}
-                      title="הגדרות Make.com"
-                    >
-                      <Link className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : (
-                  // For Direct API tables, show sync button
+        <div className="mb-4">
+          <ReportHeader
+            title={table.name}
+            onBack={() => navigate(buildPath("/dynamic-tables"))}
+            badges={
+              <>
+                {hasFacebook && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Facebook className="h-3 w-3 text-blue-600" />
+                    Facebook
+                  </Badge>
+                )}
+                {hasGoogleAds && (
+                  <Badge variant="secondary" className="gap-1">
+                    <GoogleAdsIcon className="h-3 w-3" />
+                    Google Ads
+                  </Badge>
+                )}
+                {hasGoogleAnalytics && (
+                  <Badge variant="secondary" className="gap-1">
+                    <BarChart3 className="h-3 w-3 text-orange-500" />
+                    Google Analytics
+                  </Badge>
+                )}
+                {hasGoogleSearchConsole && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Search className="h-3 w-3 text-green-600" />
+                    Search Console
+                  </Badge>
+                )}
+                {hasAhrefs && (
+                  <Badge variant="secondary" className="gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    Ahrefs
+                  </Badge>
+                )}
+              </>
+            }
+            meta={
+              <>
+                {table.description && <span>{table.description}</span>}
+                <ReportDataFreshness
+                  lastSyncAt={getReportLastSyncAt(table)}
+                  syncProblem={getReportSyncProblem([table])}
+                  dataUpdatedAt={recordsUpdatedAt}
+                  isFetching={recordsFetching}
+                />
+                <ReportDataTrust
+                  tableId={table.id}
+                  integrationType={table.integration_type}
+                />
+              </>
+            }
+            actions={
+              <>
+                {reportClientId && (
                   <Button
                     variant="outline"
-                    onClick={() => syncGoogleAdsMutation.mutate()}
-                    disabled={syncGoogleAdsMutation.isPending}
-                    className="flex-1 md:flex-none gap-2"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() =>
+                      navigate(
+                        buildPath(
+                          `/clients?clientId=${reportClientId}&tab=report`,
+                        ),
+                      )
+                    }
                   >
-                    <GoogleAdsIcon className="h-4 w-4" />
-                    <RefreshCw
-                      className={`h-4 w-4 ${syncGoogleAdsMutation.isPending ? "animate-spin" : ""}`}
-                    />
-                    {syncGoogleAdsMutation.isPending
-                      ? "מסנכרן Google Ads..."
-                      : "סנכרן Google Ads"}
+                    <User className="h-4 w-4" />
+                    כרטיס לקוח
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedGoogleAccount(
-                      table.integration_settings?.customer_id || "",
-                    );
-                    setSelectedSyncDateRange(
-                      table.integration_settings?.date_range || "last_30_days",
-                    );
-                    setSelectedCurrency(
-                      normalizeCurrencyCode(
-                        table.integration_settings?.currency,
-                      ),
-                    );
-                    setShowGoogleSettingsDialog(true);
-                  }}
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-
-            {/* Google Analytics Sync Controls */}
-            {hasGoogleAnalytics && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => syncGoogleAnalyticsMutation.mutate()}
-                  disabled={
-                    syncGoogleAnalyticsMutation.isPending ||
-                    !isDateRangeReadyForSync
-                  }
-                  className="flex-1 md:flex-none gap-2"
-                >
-                  <BarChart3 className="h-4 w-4 text-orange-500" />
-                  <RefreshCw
-                    className={`h-4 w-4 ${syncGoogleAnalyticsMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncGoogleAnalyticsMutation.isPending
-                    ? "מסנכרן Analytics..."
-                    : "סנכרן Analytics לפי הטווח שנבחר"}
-                </Button>
-              </div>
-            )}
-
-            {/* Google Search Console Sync Controls */}
-            {hasGoogleSearchConsole && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center flex-wrap">
-                <Button
-                  variant="outline"
-                  onClick={() => syncGoogleSearchConsoleMutation.mutate()}
-                  disabled={
-                    syncGoogleSearchConsoleMutation.isPending ||
-                    !isDateRangeReadyForSync
-                  }
-                  className="flex-1 md:flex-none gap-2"
-                >
-                  <Search className="h-4 w-4 text-green-600" />
-                  <RefreshCw
-                    className={`h-4 w-4 ${syncGoogleSearchConsoleMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncGoogleSearchConsoleMutation.isPending
-                    ? "מסנכרן..."
-                    : "סנכרן Search Console לפי הטווח שנבחר"}
-                </Button>
-              </div>
-            )}
-            {hasAhrefs && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                <Button
-                  variant="outline"
-                  onClick={() => syncAhrefsMutation.mutate()}
-                  disabled={syncAhrefsMutation.isPending}
-                  className="flex-1 md:flex-none gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  <RefreshCw
-                    className={`h-4 w-4 ${syncAhrefsMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncAhrefsMutation.isPending
-                    ? "מסנכרן..."
-                    : isSeoReportSource(
-                          table?.integration_settings?.data_source,
-                        )
-                      ? "סנכרן מדוחות SEO"
-                      : "סנכרן Ahrefs"}
-                </Button>
-              </div>
-            )}
-
-            {/* Campaign Search Filter - Only for Facebook/Google Ads tables */}
-            {(hasAnyFacebook || hasGoogleAds) && (
-              <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-                <div className="relative">
-                  <SearchIcon className="h-4 w-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <Input
-                    type="text"
-                    placeholder={ADS_ENTITY_SEARCH_PLACEHOLDERS[adsEntityLevel]}
-                    value={campaignSearch}
-                    onChange={(e) => setCampaignSearch(e.target.value)}
-                    className="w-full md:w-[200px] pr-9 h-9"
-                  />
-                  {campaignSearch && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                      onClick={() => setCampaignSearch("")}
-                    >
-                      <X className="h-3 w-3" />
+                {adAccountLinks.map((link) => (
+                  <Button
+                    key={link.url}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() =>
+                      window.open(link.url, "_blank", "noopener,noreferrer")
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {adAccountShortcutLabel(link, adAccountLinks.length)}
+                  </Button>
+                ))}
+                {!table.client_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowLinkClientDialog(true)}
+                    className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
+                  >
+                    <Link className="h-4 w-4" />
+                    שייך ללקוח
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreVertical className="h-4 w-4" />
                     </Button>
-                  )}
-                </div>
-              </div>
-            )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => setShowLinkClientDialog(true)}
+                    >
+                      <Link className="ml-2 h-4 w-4" />
+                      {table.client_id ? "שנה שיוך לקוח" : "שייך ללקוח"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setShowDeleteTableDialog(true)}
+                    >
+                      <Trash2 className="ml-2 h-4 w-4" />
+                      מחק טבלה
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Facebook Insights Sync Controls */}
+                {hasFacebook && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => syncFacebookMutation.mutate()}
+                      disabled={syncFacebookMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      <Facebook className="h-4 w-4 text-blue-600" />
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {syncFacebookMutation.isPending
+                        ? "מסנכרן Facebook..."
+                        : "סנכרן Facebook"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedAdAccount(
+                          table.integration_settings?.ad_account_id || "",
+                        );
+                        setSelectedSyncDateRange(
+                          table.integration_settings?.date_range ||
+                            "last_30_days",
+                        );
+                        setSelectedCurrency(
+                          normalizeCurrencyCode(
+                            table.integration_settings?.currency,
+                          ),
+                        );
+                        setShowSettingsDialog(true);
+                      }}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowAlertsDialog(true)}
+                      title="הגדרות התראות"
+                    >
+                      <Bell className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
 
-            {/* Main date filter (controls both displayed data and sync range) */}
-            <div className="flex items-center gap-2 w-full md:w-auto justify-center">
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-              <Select
-                value={dateFilter}
-                onValueChange={(val) => {
-                  if (val === "custom") {
-                    setShowCustomDatePicker(true);
-                  } else {
-                    setDateFilter(val);
+                {/* Facebook Ecommerce Sync Controls */}
+                {hasFacebookEcommerce && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => syncFacebookMutation.mutate()}
+                      disabled={syncFacebookMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      <ShoppingCart className="h-4 w-4 text-green-600" />
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {syncFacebookMutation.isPending
+                        ? "מסנכרן מכירות..."
+                        : "סנכרן מכירות"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedAdAccount(
+                          table.integration_settings?.ad_account_id || "",
+                        );
+                        setSelectedSyncDateRange(
+                          table.integration_settings?.date_range ||
+                            "last_30_days",
+                        );
+                        setSelectedCurrency(
+                          normalizeCurrencyCode(
+                            table.integration_settings?.currency,
+                          ),
+                        );
+                        setShowSettingsDialog(true);
+                      }}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="השווה ל-Facebook (Debug)"
+                      onClick={async () => {
+                        setDebugLoading(true);
+                        setDebugDialogOpen(true);
+                        setDebugData(null);
+                        try {
+                          const { data, error } =
+                            await supabase.functions.invoke(
+                              "debug-facebook-ecommerce",
+                              {
+                                method: "POST",
+                                body: { table_id: table.id },
+                              },
+                            );
+                          if (error) throw error;
+                          setDebugData(data);
+                        } catch (e: any) {
+                          toast.error("שגיאה בדיבאג: " + e.message);
+                          setDebugDialogOpen(false);
+                        } finally {
+                          setDebugLoading(false);
+                        }
+                      }}
+                    >
+                      <Info className="h-4 w-4" />
+                      Debug
+                    </Button>
+                  </div>
+                )}
+
+                {/* Google Ads Sync Controls */}
+                {hasGoogleAds && (
+                  <div className="flex items-center gap-2">
+                    {isGoogleAdsMakeTable ? (
+                      // For Make.com tables, show automatic sync button
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => syncMakeGoogleAdsMutation.mutate()}
+                          disabled={syncMakeGoogleAdsMutation.isPending}
+                          className="gap-1.5"
+                        >
+                          <GoogleAdsIcon className="h-4 w-4" />
+                          <RefreshCw
+                            className={`h-4 w-4 ${syncMakeGoogleAdsMutation.isPending ? "animate-spin" : ""}`}
+                          />
+                          {syncMakeGoogleAdsMutation.isPending
+                            ? "מסנכרן..."
+                            : "סנכרן Google Ads"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowMakeWebhookDialog(true)}
+                          title="הגדרות Make.com"
+                        >
+                          <Link className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      // For Direct API tables, show sync button
+                      <Button
+                        variant="outline"
+                        onClick={() => syncGoogleAdsMutation.mutate()}
+                        disabled={syncGoogleAdsMutation.isPending}
+                        className="gap-1.5"
+                      >
+                        <GoogleAdsIcon className="h-4 w-4" />
+                        <RefreshCw
+                          className={`h-4 w-4 ${syncGoogleAdsMutation.isPending ? "animate-spin" : ""}`}
+                        />
+                        {syncGoogleAdsMutation.isPending
+                          ? "מסנכרן Google Ads..."
+                          : "סנכרן Google Ads"}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedGoogleAccount(
+                          table.integration_settings?.customer_id || "",
+                        );
+                        setSelectedSyncDateRange(
+                          table.integration_settings?.date_range ||
+                            "last_30_days",
+                        );
+                        setSelectedCurrency(
+                          normalizeCurrencyCode(
+                            table.integration_settings?.currency,
+                          ),
+                        );
+                        setShowGoogleSettingsDialog(true);
+                      }}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Google Analytics Sync Controls */}
+                {hasGoogleAnalytics && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => syncGoogleAnalyticsMutation.mutate()}
+                      disabled={
+                        syncGoogleAnalyticsMutation.isPending ||
+                        !isDateRangeReadyForSync
+                      }
+                      className="gap-1.5"
+                    >
+                      <BarChart3 className="h-4 w-4 text-orange-500" />
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncGoogleAnalyticsMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {syncGoogleAnalyticsMutation.isPending
+                        ? "מסנכרן Analytics..."
+                        : "סנכרן Analytics"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Google Search Console Sync Controls */}
+                {hasGoogleSearchConsole && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => syncGoogleSearchConsoleMutation.mutate()}
+                      disabled={
+                        syncGoogleSearchConsoleMutation.isPending ||
+                        !isDateRangeReadyForSync
+                      }
+                      className="gap-1.5"
+                    >
+                      <Search className="h-4 w-4 text-green-600" />
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncGoogleSearchConsoleMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {syncGoogleSearchConsoleMutation.isPending
+                        ? "מסנכרן..."
+                        : "סנכרן Search Console"}
+                    </Button>
+                  </div>
+                )}
+                {hasAhrefs && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => syncAhrefsMutation.mutate()}
+                      disabled={syncAhrefsMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      <RefreshCw
+                        className={`h-4 w-4 ${syncAhrefsMutation.isPending ? "animate-spin" : ""}`}
+                      />
+                      {syncAhrefsMutation.isPending
+                        ? "מסנכרן..."
+                        : isSeoReportSource(
+                              table?.integration_settings?.data_source,
+                            )
+                          ? "סנכרן מדוחות SEO"
+                          : "סנכרן Ahrefs"}
+                    </Button>
+                  </div>
+                )}
+
+                {table?.id && table?.tenant_id && (
+                  <ShareTableDialog
+                    tableId={table.id}
+                    tableName={table.name}
+                    tenantId={table.tenant_id}
+                    clientId={
+                      table.client_id ||
+                      table.integration_settings?.clientId ||
+                      null
+                    }
+                  />
+                )}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleSendReport}
+                      disabled={isCapturingScreenshot}
+                    >
+                      <Send className="ml-2 h-4 w-4" />
+                      {isCapturingScreenshot ? "מצלם..." : "שלח עדכון ללקוח"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setShowEditTableDialog(true)}
+                    >
+                      <Settings className="ml-2 h-4 w-4" />
+                      ערוך טבלה (חיבור, לקוח וסוכנות)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+            tabs={
+              isAdsReportTable && (
+                <Tabs
+                  value={adsReportView}
+                  onValueChange={(value) =>
+                    setAdsReportView(value as AdsReportView)
                   }
-                }}
-              >
-                <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue>
-                    {dateFilter === "custom" &&
-                    customDateRange.from &&
-                    customDateRange.to
-                      ? `${format(customDateRange.from, "dd/MM/yy")} - ${format(customDateRange.to, "dd/MM/yy")}`
-                      : dateFilterOptions.find((o) => o.value === dateFilter)
-                          ?.label || "בחר תאריך"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {dateFilterOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {isAdsReportTable && adsReportView === "summary" && (
-              <PreviousPeriodToggle
-                on={comparePrevious}
-                onChange={setComparePrevious}
-                range={previousPeriod.range}
-                loading={previousPeriod.isPending}
-              />
-            )}
-
-            {/* Custom Date Range Picker Dialog */}
-            <Dialog
-              open={showCustomDatePicker}
-              onOpenChange={setShowCustomDatePicker}
-            >
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>בחר טווח תאריכים</DialogTitle>
-                  <DialogDescription>
-                    בחר תאריך התחלה וסיום לסינון הנתונים
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>מתאריך</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !customDateRange.from && "text-muted-foreground",
-                            )}
-                          >
-                            <CalendarIcon className="ml-2 h-4 w-4" />
-                            {customDateRange.from
-                              ? format(customDateRange.from, "dd/MM/yyyy")
-                              : "בחר תאריך"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={customDateRange.from}
-                            onSelect={(date) =>
-                              setCustomDateRange((prev) => ({
-                                ...prev,
-                                from: date,
-                              }))
-                            }
-                            initialFocus
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <Label>עד תאריך</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !customDateRange.to && "text-muted-foreground",
-                            )}
-                          >
-                            <CalendarIcon className="ml-2 h-4 w-4" />
-                            {customDateRange.to
-                              ? format(customDateRange.to, "dd/MM/yyyy")
-                              : "בחר תאריך"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={customDateRange.to}
-                            onSelect={(date) =>
-                              setCustomDateRange((prev) => ({
-                                ...prev,
-                                to: date,
-                              }))
-                            }
-                            initialFocus
-                            className="p-3 pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
+                >
+                  <TabsList dir="rtl" className="h-9">
+                    <TabsTrigger value="summary">הדוח</TabsTrigger>
+                    <TabsTrigger value="weekly">השוואה שבועית</TabsTrigger>
+                    {hasContinentsTab && (
+                      <TabsTrigger value="continents">לפי יבשות</TabsTrigger>
+                    )}
+                  </TabsList>
+                </Tabs>
+              )
+            }
+            controls={
+              <>
+                {/* Campaign Search Filter - Only for Facebook/Google Ads tables */}
+                {(hasAnyFacebook || hasGoogleAds) && (
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <SearchIcon className="h-4 w-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Input
+                        type="text"
+                        placeholder={
+                          ADS_ENTITY_SEARCH_PLACEHOLDERS[adsEntityLevel]
+                        }
+                        value={campaignSearch}
+                        onChange={(e) => setCampaignSearch(e.target.value)}
+                        className="w-full md:w-[200px] pr-9 h-9"
+                      />
+                      {campaignSearch && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                          onClick={() => setCampaignSearch("")}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <Button
-                    onClick={() => {
-                      if (customDateRange.from && customDateRange.to) {
-                        setDateFilter("custom");
-                        setShowCustomDatePicker(false);
+                )}
+
+                {/* Main date filter (controls both displayed data and sync range) */}
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <Select
+                    value={dateFilter}
+                    onValueChange={(val) => {
+                      if (val === "custom") {
+                        setShowCustomDatePicker(true);
                       } else {
-                        toast.error("יש לבחור תאריך התחלה וסיום");
+                        setDateFilter(val);
                       }
                     }}
-                    className="w-full"
-                    disabled={!customDateRange.from || !customDateRange.to}
                   >
-                    החל סינון
-                  </Button>
+                    <SelectTrigger className="w-full md:w-[180px]">
+                      <SelectValue>
+                        {dateFilter === "custom" &&
+                        customDateRange.from &&
+                        customDateRange.to
+                          ? `${format(customDateRange.from, "dd/MM/yy")} - ${format(customDateRange.to, "dd/MM/yy")}`
+                          : dateFilterOptions.find(
+                              (o) => o.value === dateFilter,
+                            )?.label || "בחר תאריך"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dateFilterOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </DialogContent>
-            </Dialog>
 
-            {table && (
-              <SendReportDialog
-                open={showSendReportDialog}
-                onOpenChange={setShowSendReportDialog}
-                screenshotBlob={reportScreenshotBlob}
-                tableName={table.name}
-                tableId={table.id}
-                clientId={
-                  table.integration_settings?.clientId ||
-                  table.integration_settings?.client_id ||
-                  table.client_id
-                }
-                tenantId={table.tenant_id}
-              />
-            )}
-
-            {/* Debug Dialog for Facebook Ecommerce raw data */}
-            <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
-              <DialogContent
-                className="max-w-4xl max-h-[80vh] overflow-y-auto"
-                dir="ltr"
-              >
-                <DialogHeader>
-                  <DialogTitle>Facebook Raw Data — Debug</DialogTitle>
-                  <DialogDescription>
-                    השווה את ה-action_types הגולמיים שפייסבוק מחזיר עם מה שאתה
-                    רואה ב-Ads Manager UI. שלוש קריאות עם attribution windows
-                    שונים.
-                  </DialogDescription>
-                </DialogHeader>
-                {debugLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : (
-                  <pre
-                    className="text-xs bg-muted p-4 rounded overflow-x-auto whitespace-pre-wrap"
-                    style={{ direction: "ltr" }}
-                  >
-                    {debugData ? JSON.stringify(debugData, null, 2) : "No data"}
-                  </pre>
+                {isAdsReportTable && adsReportView === "summary" && (
+                  <PreviousPeriodToggle
+                    on={comparePrevious}
+                    onChange={setComparePrevious}
+                    range={previousPeriod.range}
+                    loading={previousPeriod.isPending}
+                  />
                 )}
-              </DialogContent>
-            </Dialog>
-
-            {/* Settings Dialog for Facebook Insights */}
-            <Dialog
-              open={showSettingsDialog}
-              onOpenChange={(open) => {
-                setShowSettingsDialog(open);
-                if (!open) setAdAccountSearch("");
-              }}
-            >
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>הגדרות טבלה</DialogTitle>
-                  <DialogDescription>
-                    שנה את חשבון המודעות המסונכרן
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
+              </>
+            }
+          />
+          {/* Custom Date Range Picker Dialog */}
+          <Dialog
+            open={showCustomDatePicker}
+            onOpenChange={setShowCustomDatePicker}
+          >
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>בחר טווח תאריכים</DialogTitle>
+                <DialogDescription>
+                  בחר תאריך התחלה וסיום לסינון הנתונים
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>חשבון מודעות</Label>
-                    {adAccountsLoading ? (
-                      <Skeleton className="h-10 w-full" />
-                    ) : (
-                      <>
-                        <Input
-                          placeholder="חפש חשבון מודעות..."
-                          value={adAccountSearch}
-                          onChange={(e) => setAdAccountSearch(e.target.value)}
-                          className="mb-2"
-                        />
-                        <Select
-                          value={selectedAdAccount}
-                          onValueChange={setSelectedAdAccount}
+                    <Label>מתאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !customDateRange.from && "text-muted-foreground",
+                          )}
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="בחר חשבון מודעות" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(Array.isArray(adAccounts) ? adAccounts : [])
-                              .filter((account: any) => {
-                                const searchTerm = adAccountSearch
-                                  .trim()
-                                  .toLowerCase();
-                                if (!searchTerm) return true;
-
-                                const normalizedSearchTerm = searchTerm.replace(
-                                  /\D/g,
-                                  "",
-                                );
-                                const formattedAccountId = String(
-                                  account.id || "",
-                                ).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
-
-                                return (
-                                  account.name
-                                    ?.toLowerCase()
-                                    .includes(searchTerm) ||
-                                  formattedAccountId.includes(searchTerm) ||
-                                  String(account.id || "").includes(
-                                    normalizedSearchTerm,
-                                  )
-                                );
-                              })
-                              .map((account: any) => {
-                                const formattedAccountId = String(
-                                  account.id || "",
-                                ).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
-
-                                return (
-                                  <SelectItem
-                                    key={account.id}
-                                    value={account.id}
-                                  >
-                                    {account.name} ({formattedAccountId})
-                                  </SelectItem>
-                                );
-                              })}
-                          </SelectContent>
-                        </Select>
-                      </>
-                    )}
+                          <CalendarIcon className="ml-2 h-4 w-4" />
+                          {customDateRange.from
+                            ? format(customDateRange.from, "dd/MM/yyyy")
+                            : "בחר תאריך"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange.from}
+                          onSelect={(date) =>
+                            setCustomDateRange((prev) => ({
+                              ...prev,
+                              from: date,
+                            }))
+                          }
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
-                    <Label>טווח סנכרון</Label>
-                    <Select
-                      value={selectedSyncDateRange}
-                      onValueChange={setSelectedSyncDateRange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר טווח זמן" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {syncDateRangeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>עד תאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !customDateRange.to && "text-muted-foreground",
+                          )}
+                        >
+                          <CalendarIcon className="ml-2 h-4 w-4" />
+                          {customDateRange.to
+                            ? format(customDateRange.to, "dd/MM/yyyy")
+                            : "בחר תאריך"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange.to}
+                          onSelect={(date) =>
+                            setCustomDateRange((prev) => ({
+                              ...prev,
+                              to: date,
+                            }))
+                          }
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <div>
-                    <Label>מטבע תצוגה</Label>
-                    <Select
-                      value={selectedCurrency}
-                      onValueChange={(v) =>
-                        setSelectedCurrency(normalizeCurrencyCode(v))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר מטבע" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CURRENCY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      משנה רק את סמל המטבע המוצג. אין המרת ערכים.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() =>
-                      updateTableSettingsMutation.mutate(selectedAdAccount)
-                    }
-                    disabled={
-                      updateTableSettingsMutation.isPending ||
-                      !selectedAdAccount
-                    }
-                    className="w-full"
-                  >
-                    {updateTableSettingsMutation.isPending
-                      ? "שומר..."
-                      : "שמור שינויים"}
-                  </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
+                <Button
+                  onClick={() => {
+                    if (customDateRange.from && customDateRange.to) {
+                      setDateFilter("custom");
+                      setShowCustomDatePicker(false);
+                    } else {
+                      toast.error("יש לבחור תאריך התחלה וסיום");
+                    }
+                  }}
+                  className="w-full"
+                  disabled={!customDateRange.from || !customDateRange.to}
+                >
+                  החל סינון
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-            {/* Google Ads Settings Dialog */}
-            <Dialog
-              open={showGoogleSettingsDialog}
-              onOpenChange={setShowGoogleSettingsDialog}
+          {table && (
+            <SendReportDialog
+              open={showSendReportDialog}
+              onOpenChange={setShowSendReportDialog}
+              screenshotBlob={reportScreenshotBlob}
+              tableName={table.name}
+              tableId={table.id}
+              clientId={
+                table.integration_settings?.clientId ||
+                table.integration_settings?.client_id ||
+                table.client_id
+              }
+              tenantId={table.tenant_id}
+            />
+          )}
+
+          {/* Debug Dialog for Facebook Ecommerce raw data */}
+          <Dialog open={debugDialogOpen} onOpenChange={setDebugDialogOpen}>
+            <DialogContent
+              className="max-w-4xl max-h-[80vh] overflow-y-auto"
+              dir="ltr"
             >
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>הגדרות Google Ads</DialogTitle>
-                  <DialogDescription>
-                    שנה את חשבון Google Ads המסונכרן
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label>חשבון Google Ads</Label>
-                    {googleAccountsLoading ? (
-                      <Skeleton className="h-10 w-full" />
-                    ) : (
+              <DialogHeader>
+                <DialogTitle>Facebook Raw Data — Debug</DialogTitle>
+                <DialogDescription>
+                  השווה את ה-action_types הגולמיים שפייסבוק מחזיר עם מה שאתה
+                  רואה ב-Ads Manager UI. שלוש קריאות עם attribution windows
+                  שונים.
+                </DialogDescription>
+              </DialogHeader>
+              {debugLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <pre
+                  className="text-xs bg-muted p-4 rounded overflow-x-auto whitespace-pre-wrap"
+                  style={{ direction: "ltr" }}
+                >
+                  {debugData ? JSON.stringify(debugData, null, 2) : "No data"}
+                </pre>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Settings Dialog for Facebook Insights */}
+          <Dialog
+            open={showSettingsDialog}
+            onOpenChange={(open) => {
+              setShowSettingsDialog(open);
+              if (!open) setAdAccountSearch("");
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>הגדרות טבלה</DialogTitle>
+                <DialogDescription>
+                  שנה את חשבון המודעות המסונכרן
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>חשבון מודעות</Label>
+                  {adAccountsLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <>
+                      <Input
+                        placeholder="חפש חשבון מודעות..."
+                        value={adAccountSearch}
+                        onChange={(e) => setAdAccountSearch(e.target.value)}
+                        className="mb-2"
+                      />
                       <Select
-                        value={selectedGoogleAccount}
-                        onValueChange={setSelectedGoogleAccount}
+                        value={selectedAdAccount}
+                        onValueChange={setSelectedAdAccount}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="בחר חשבון Google Ads" />
+                          <SelectValue placeholder="בחר חשבון מודעות" />
                         </SelectTrigger>
                         <SelectContent>
-                          {(Array.isArray(googleAdsAccounts)
-                            ? googleAdsAccounts
-                            : []
-                          ).map((account) => (
-                            <SelectItem
-                              key={account.id}
-                              value={account.id}
-                              disabled={account.manager}
-                            >
-                              {account.name} ({account.id})
-                              {account.manager
-                                ? MANAGER_ACCOUNT_OPTION_NOTE
-                                : ""}
-                            </SelectItem>
-                          ))}
+                          {(Array.isArray(adAccounts) ? adAccounts : [])
+                            .filter((account: any) => {
+                              const searchTerm = adAccountSearch
+                                .trim()
+                                .toLowerCase();
+                              if (!searchTerm) return true;
+
+                              const normalizedSearchTerm = searchTerm.replace(
+                                /\D/g,
+                                "",
+                              );
+                              const formattedAccountId = String(
+                                account.id || "",
+                              ).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+
+                              return (
+                                account.name
+                                  ?.toLowerCase()
+                                  .includes(searchTerm) ||
+                                formattedAccountId.includes(searchTerm) ||
+                                String(account.id || "").includes(
+                                  normalizedSearchTerm,
+                                )
+                              );
+                            })
+                            .map((account: any) => {
+                              const formattedAccountId = String(
+                                account.id || "",
+                              ).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
+
+                              return (
+                                <SelectItem key={account.id} value={account.id}>
+                                  {account.name} ({formattedAccountId})
+                                </SelectItem>
+                              );
+                            })}
                         </SelectContent>
                       </Select>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {MANAGER_ACCOUNT_HINT}
-                    </p>
-                  </div>
-                  <div>
-                    <Label>טווח סנכרון</Label>
-                    <Select
-                      value={selectedSyncDateRange}
-                      onValueChange={setSelectedSyncDateRange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר טווח זמן" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {syncDateRangeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>מזהה חשבון נוכחי</Label>
-                    <Input
-                      value={selectedGoogleAccount}
-                      onChange={(e) => setSelectedGoogleAccount(e.target.value)}
-                      placeholder="הזן מזהה חשבון Google Ads"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ניתן להזין ידנית או לבחור מהרשימה למעלה
-                    </p>
-                  </div>
-                  <div>
-                    <Label>מטבע תצוגה</Label>
-                    <Select
-                      value={selectedCurrency}
-                      onValueChange={(v) =>
-                        setSelectedCurrency(normalizeCurrencyCode(v))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחר מטבע" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CURRENCY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      משנה רק את סמל המטבע המוצג. אין המרת ערכים.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      if (!table?.id || !selectedGoogleAccount) return;
-                      const cleanId = selectedGoogleAccount.replace(/\D/g, "");
-                      const currency = normalizeCurrencyCode(selectedCurrency);
-                      const chosenAccount = googleAdsAccounts?.find(
-                        (account) => account.id === cleanId,
-                      );
-                      if (chosenAccount?.manager) {
-                        toast.error(MANAGER_ACCOUNT_REFUSAL);
-                        return;
-                      }
-                      const accountSettings = {
-                        customer_id: cleanId,
-                        date_range: selectedSyncDateRange,
-                        currency,
-                        ...managerIdSetting(
-                          chosenAccount,
-                          table.integration_settings?.customer_id,
-                        ),
-                      };
-                      try {
-                        // Merge-only patch so sync metadata (last_sync_at, manager_id, diag)
-                        // is not wiped by a stale full settings blob from the UI.
-                        const { error: tableError } =
-                          await supabase.functions.invoke("crm-tables", {
-                            method: "PATCH",
-                            body: {
-                              table_id: table.id,
-                              integration_settings: accountSettings,
-                            },
-                          });
-                        if (tableError) throw tableError;
-
-                        // Also link the account to the client card so syncs/refresh work
-                        const linkedClientId =
-                          table.client_id ||
-                          table.integration_settings?.clientId;
-                        if (linkedClientId) {
-                          const { error: clientError } = await supabase
-                            .from("clients")
-                            .update({ google_ads_account_id: cleanId })
-                            .eq("id", linkedClientId);
-                          if (clientError) {
-                            console.error(
-                              "Failed to link account to client:",
-                              clientError,
-                            );
-                            toast.warning(
-                              "הטבלה עודכנה, אך השיוך ללקוח נכשל: " +
-                                clientError.message,
-                            );
-                          }
-                        }
-
-                        queryClient.setQueryData(
-                          ["crm-tables", tenantId, tableSlug],
-                          (old: CrmTable | null | undefined) => {
-                            if (!old) return old;
-                            return {
-                              ...old,
-                              integration_settings: {
-                                ...(old.integration_settings || {}),
-                                ...accountSettings,
-                              },
-                            };
-                          },
-                        );
-                        setSelectedCurrency(currency);
-                        queryClient.invalidateQueries({
-                          queryKey: ["crm-tables", tenantId],
-                        });
-                        queryClient.invalidateQueries({
-                          queryKey: ["clients", tenantId],
-                        });
-                        setShowGoogleSettingsDialog(false);
-                        toast.success(
-                          linkedClientId
-                            ? "הגדרות נשמרו ושויכו ללקוח"
-                            : "הגדרות Google Ads עודכנו בהצלחה",
-                        );
-                      } catch (err: any) {
-                        toast.error(
-                          "שגיאה בעדכון: " + (err?.message || String(err)),
-                        );
-                      }
-                    }}
-                    disabled={!selectedGoogleAccount}
-                    className="w-full"
-                  >
-                    שמור שינויים
-                  </Button>
+                    </>
+                  )}
                 </div>
-              </DialogContent>
-            </Dialog>
-
-            {table?.id && table?.tenant_id && (
-              <ShareTableDialog
-                tableId={table.id}
-                tableName={table.name}
-                tenantId={table.tenant_id}
-                clientId={
-                  table.client_id ||
-                  table.integration_settings?.clientId ||
-                  null
-                }
-              />
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={handleSendReport}
-                  disabled={isCapturingScreenshot}
+                <div>
+                  <Label>טווח סנכרון</Label>
+                  <Select
+                    value={selectedSyncDateRange}
+                    onValueChange={setSelectedSyncDateRange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר טווח זמן" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {syncDateRangeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>מטבע תצוגה</Label>
+                  <Select
+                    value={selectedCurrency}
+                    onValueChange={(v) =>
+                      setSelectedCurrency(normalizeCurrencyCode(v))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר מטבע" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    משנה רק את סמל המטבע המוצג. אין המרת ערכים.
+                  </p>
+                </div>
+                <Button
+                  onClick={() =>
+                    updateTableSettingsMutation.mutate(selectedAdAccount)
+                  }
+                  disabled={
+                    updateTableSettingsMutation.isPending || !selectedAdAccount
+                  }
+                  className="w-full"
                 >
-                  <Send className="ml-2 h-4 w-4" />
-                  {isCapturingScreenshot ? "מצלם..." : "שלח עדכון ללקוח"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowEditTableDialog(true)}>
-                  <Settings className="ml-2 h-4 w-4" />
-                  ערוך טבלה (חיבור, לקוח וסוכנות)
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  {updateTableSettingsMutation.isPending
+                    ? "שומר..."
+                    : "שמור שינויים"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
-            {table && (
-              <EditTableDialog
-                open={showEditTableDialog}
-                onOpenChange={setShowEditTableDialog}
-                table={table}
-                tenantId={table.tenant_id}
-              />
-            )}
-          </div>
+          {/* Google Ads Settings Dialog */}
+          <Dialog
+            open={showGoogleSettingsDialog}
+            onOpenChange={setShowGoogleSettingsDialog}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>הגדרות Google Ads</DialogTitle>
+                <DialogDescription>
+                  שנה את חשבון Google Ads המסונכרן
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>חשבון Google Ads</Label>
+                  {googleAccountsLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <Select
+                      value={selectedGoogleAccount}
+                      onValueChange={setSelectedGoogleAccount}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="בחר חשבון Google Ads" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Array.isArray(googleAdsAccounts)
+                          ? googleAdsAccounts
+                          : []
+                        ).map((account) => (
+                          <SelectItem
+                            key={account.id}
+                            value={account.id}
+                            disabled={account.manager}
+                          >
+                            {account.name} ({account.id})
+                            {account.manager ? MANAGER_ACCOUNT_OPTION_NOTE : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {MANAGER_ACCOUNT_HINT}
+                  </p>
+                </div>
+                <div>
+                  <Label>טווח סנכרון</Label>
+                  <Select
+                    value={selectedSyncDateRange}
+                    onValueChange={setSelectedSyncDateRange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר טווח זמן" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {syncDateRangeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>מזהה חשבון נוכחי</Label>
+                  <Input
+                    value={selectedGoogleAccount}
+                    onChange={(e) => setSelectedGoogleAccount(e.target.value)}
+                    placeholder="הזן מזהה חשבון Google Ads"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ניתן להזין ידנית או לבחור מהרשימה למעלה
+                  </p>
+                </div>
+                <div>
+                  <Label>מטבע תצוגה</Label>
+                  <Select
+                    value={selectedCurrency}
+                    onValueChange={(v) =>
+                      setSelectedCurrency(normalizeCurrencyCode(v))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר מטבע" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    משנה רק את סמל המטבע המוצג. אין המרת ערכים.
+                  </p>
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!table?.id || !selectedGoogleAccount) return;
+                    const cleanId = selectedGoogleAccount.replace(/\D/g, "");
+                    const currency = normalizeCurrencyCode(selectedCurrency);
+                    const chosenAccount = googleAdsAccounts?.find(
+                      (account) => account.id === cleanId,
+                    );
+                    if (chosenAccount?.manager) {
+                      toast.error(MANAGER_ACCOUNT_REFUSAL);
+                      return;
+                    }
+                    const accountSettings = {
+                      customer_id: cleanId,
+                      date_range: selectedSyncDateRange,
+                      currency,
+                      ...managerIdSetting(
+                        chosenAccount,
+                        table.integration_settings?.customer_id,
+                      ),
+                    };
+                    try {
+                      // Merge-only patch so sync metadata (last_sync_at, manager_id, diag)
+                      // is not wiped by a stale full settings blob from the UI.
+                      const { error: tableError } =
+                        await supabase.functions.invoke("crm-tables", {
+                          method: "PATCH",
+                          body: {
+                            table_id: table.id,
+                            integration_settings: accountSettings,
+                          },
+                        });
+                      if (tableError) throw tableError;
+
+                      // Also link the account to the client card so syncs/refresh work
+                      const linkedClientId =
+                        table.client_id || table.integration_settings?.clientId;
+                      if (linkedClientId) {
+                        const { error: clientError } = await supabase
+                          .from("clients")
+                          .update({ google_ads_account_id: cleanId })
+                          .eq("id", linkedClientId);
+                        if (clientError) {
+                          console.error(
+                            "Failed to link account to client:",
+                            clientError,
+                          );
+                          toast.warning(
+                            "הטבלה עודכנה, אך השיוך ללקוח נכשל: " +
+                              clientError.message,
+                          );
+                        }
+                      }
+
+                      queryClient.setQueryData(
+                        ["crm-tables", tenantId, tableSlug],
+                        (old: CrmTable | null | undefined) => {
+                          if (!old) return old;
+                          return {
+                            ...old,
+                            integration_settings: {
+                              ...(old.integration_settings || {}),
+                              ...accountSettings,
+                            },
+                          };
+                        },
+                      );
+                      setSelectedCurrency(currency);
+                      queryClient.invalidateQueries({
+                        queryKey: ["crm-tables", tenantId],
+                      });
+                      queryClient.invalidateQueries({
+                        queryKey: ["clients", tenantId],
+                      });
+                      setShowGoogleSettingsDialog(false);
+                      toast.success(
+                        linkedClientId
+                          ? "הגדרות נשמרו ושויכו ללקוח"
+                          : "הגדרות Google Ads עודכנו בהצלחה",
+                      );
+                    } catch (err: any) {
+                      toast.error(
+                        "שגיאה בעדכון: " + (err?.message || String(err)),
+                      );
+                    }
+                  }}
+                  disabled={!selectedGoogleAccount}
+                  className="w-full"
+                >
+                  שמור שינויים
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {table && (
+            <EditTableDialog
+              open={showEditTableDialog}
+              onOpenChange={setShowEditTableDialog}
+              table={table}
+              tenantId={table.tenant_id}
+            />
+          )}
         </div>
       )}
 
@@ -3156,22 +3170,6 @@ export default function DynamicTableView({
           onOpenChange={setShowAlertsDialog}
           tableId={table.id}
         />
-      )}
-
-      {isAdsReportTable && (
-        <Tabs
-          value={adsReportView}
-          onValueChange={(value) => setAdsReportView(value as AdsReportView)}
-          className="mb-4"
-        >
-          <TabsList dir="rtl">
-            <TabsTrigger value="summary">הדוח</TabsTrigger>
-            <TabsTrigger value="weekly">השוואה שבועית</TabsTrigger>
-            {hasContinentsTab && (
-              <TabsTrigger value="continents">לפי יבשות</TabsTrigger>
-            )}
-          </TabsList>
-        </Tabs>
       )}
 
       {hasContinentsTab && adsReportView === "continents" && table && (
