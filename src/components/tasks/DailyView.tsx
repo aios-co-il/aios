@@ -1,16 +1,12 @@
 import type { Task } from "./taskTypes";
-import { format } from "date-fns";
+import { format, isToday } from "date-fns";
 import { he } from "date-fns/locale";
 import { useDroppable } from "@dnd-kit/core";
-import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
+import { Clock } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { embedCount } from "@/lib/embedCount";
 import { generateWorkdayTimeSlots } from "@/lib/taskWorkdayHours";
+import { DailyTaskCard } from "./DailyTaskCard";
 
 interface DailyViewProps {
   date: Date;
@@ -22,82 +18,81 @@ interface DailyViewProps {
 
 const TIME_SLOTS = generateWorkdayTimeSlots();
 
-function DraggableTask({
-  task,
+/** One day as a white card: its date, untimed tasks, then the hour grid. */
+export function DailyView({
+  date,
+  tasks,
   onToggleComplete,
-  onClick,
-}: {
-  task: Task;
-  onToggleComplete: (taskId: string, completed: boolean) => void;
-  onClick: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({
-      id: task.id,
-      data: { task },
-    });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-  };
-
-  const isCompleted = task.status === "done";
+  onTaskClick,
+}: DailyViewProps) {
+  // Tasks without a specific time
+  const untimedTasks = tasks.filter((t) => !t.due_time);
+  const today = isToday(date);
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "p-2 rounded-lg border bg-card cursor-grab active:cursor-grabbing transition-all",
-        isDragging && "opacity-50 shadow-elevation-2",
-        isCompleted && "opacity-60",
-      )}
-    >
-      <div className="flex items-start gap-2">
-        <div onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            checked={isCompleted}
-            onCheckedChange={(checked) =>
-              onToggleComplete(task.id, checked as boolean)
-            }
-          />
-        </div>
-        <div className="flex-1 min-w-0" onClick={onClick}>
-          <p
-            className={cn(
-              "text-sm font-medium truncate",
-              isCompleted && "line-through text-muted-foreground",
-            )}
-          >
-            {task.title}
-          </p>
-          {task.clients?.name && (
-            <p className="text-xs text-muted-foreground truncate">
-              {task.clients.name}
-            </p>
+    <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
+      <div
+        className={cn(
+          "flex items-center gap-3 border-b px-5 py-4",
+          today && "bg-brand-accent-50 dark:bg-brand-accent-950/40",
+        )}
+      >
+        <span
+          className={cn(
+            "flex h-11 w-11 items-center justify-center rounded-full text-lg font-bold tabular-nums",
+            today ? "bg-brand-accent text-brand-ink" : "bg-muted",
           )}
-          <div className="flex items-center gap-1 mt-1">
-            {embedCount(task.task_updates) > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                <MessageSquare className="h-3 w-3 mr-1" />
-                {embedCount(task.task_updates)}
-              </Badge>
-            )}
-            {embedCount(task.task_collaborators) > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                <Users className="h-3 w-3 mr-1" />
-                {embedCount(task.task_collaborators)}
-              </Badge>
-            )}
-          </div>
+        >
+          {format(date, "d")}
+        </span>
+        <div className="leading-tight">
+          <p className="text-lg font-bold">
+            {format(date, "EEEE", { locale: he })}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {format(date, "d בMMMM yyyy", { locale: he })}
+          </p>
         </div>
       </div>
+
+      {untimedTasks.length > 0 && (
+        <div className="space-y-2 border-b bg-muted/40 p-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <Clock className="h-3.5 w-3.5" />
+            ללא שעה · {untimedTasks.length}
+          </p>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {untimedTasks.map((task) => (
+              <DailyTaskCard
+                key={task.id}
+                task={task}
+                onToggleComplete={onToggleComplete}
+                onClick={() => onTaskClick(task)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <ScrollArea className="flex-1">
+        <div>
+          {TIME_SLOTS.map((time) => (
+            <TimeSlot
+              key={time}
+              time={time}
+              tasks={tasks}
+              date={date}
+              onToggleComplete={onToggleComplete}
+              onTaskClick={onTaskClick}
+            />
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 }
 
+/** One hour row of the day: its time and the tasks dropped into it. */
 function TimeSlot({
   time,
   tasks,
@@ -127,16 +122,17 @@ function TimeSlot({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex border-b min-h-[50px] transition-colors",
-        isOver && "bg-accent/50",
+        "flex min-h-[52px] border-b border-border/60 transition-colors",
+        time.endsWith(":30") && "border-dashed",
+        isOver && "bg-brand-accent-50 dark:bg-brand-accent-950/40",
       )}
     >
-      <div className="w-16 flex-shrink-0 p-2 border-l text-xs text-muted-foreground font-medium">
+      <div className="w-16 flex-shrink-0 p-2 text-xs font-medium tabular-nums text-muted-foreground">
         {time}
       </div>
-      <div className="flex-1 p-1 space-y-1">
+      <div className="flex-1 space-y-1.5 p-1.5">
         {slotTasks.map((task) => (
-          <DraggableTask
+          <DailyTaskCard
             key={task.id}
             task={task}
             onToggleComplete={onToggleComplete}
@@ -144,65 +140,6 @@ function TimeSlot({
           />
         ))}
       </div>
-    </div>
-  );
-}
-
-export function DailyView({
-  date,
-  tasks,
-  onToggleComplete,
-  onTaskClick,
-}: DailyViewProps) {
-  // Tasks without a specific time
-  const untimedTasks = tasks.filter((t) => !t.due_time);
-
-  return (
-    <div className="flex-1 flex flex-col rounded-xl border bg-muted/30 overflow-hidden">
-      {/* Header */}
-      <div className="p-4 border-b bg-primary/10 text-center">
-        <p className="text-lg font-bold">
-          {format(date, "EEEE", { locale: he })}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {format(date, "dd/MM/yyyy")}
-        </p>
-      </div>
-
-      {/* Untimed tasks section */}
-      {untimedTasks.length > 0 && (
-        <div className="p-3 border-b bg-muted/50">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
-            ללא שעה ({untimedTasks.length})
-          </p>
-          <div className="space-y-2">
-            {untimedTasks.map((task) => (
-              <DraggableTask
-                key={task.id}
-                task={task}
-                onToggleComplete={onToggleComplete}
-                onClick={() => onTaskClick(task)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Time slots */}
-      <ScrollArea className="flex-1">
-        <div>
-          {TIME_SLOTS.map((time) => (
-            <TimeSlot
-              key={time}
-              time={time}
-              tasks={tasks}
-              date={date}
-              onToggleComplete={onToggleComplete}
-              onTaskClick={onTaskClick}
-            />
-          ))}
-        </div>
-      </ScrollArea>
     </div>
   );
 }

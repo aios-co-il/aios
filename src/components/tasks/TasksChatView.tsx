@@ -1,67 +1,33 @@
 import type { Task } from "./taskTypes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  CalendarDays,
   CheckCircle2,
   CircleDot,
-  Clock,
   LayoutList,
-  MessageSquare,
   Repeat,
   Search,
-  UserRound,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { TaskDetailDialog } from "./TaskDetailDialog";
 import { QuickTaskInput, type QuickTaskPayload } from "./QuickTaskInput";
-import { isTaskOverdue } from "@/lib/taskDeadline";
-import { embedCount } from "@/lib/embedCount";
+import { ChatTaskRow } from "./ChatTaskRow";
 import {
   filterTasksForChatSearch,
   sortTasksForChatList,
 } from "@/lib/taskBoardQuery";
 import type { OpenClosedFilter } from "@/lib/taskFilters";
-import { describeRecurrence } from "@/lib/taskRecurrence";
-
-function formatDueShort(value: string): string | null {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return format(parsed, "dd/MM", { locale: he });
-}
-
-function formatCreatedShort(value?: string | null): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const sameYear = parsed.getFullYear() === new Date().getFullYear();
-  return format(parsed, sameYear ? "dd/MM" : "dd/MM/yy", { locale: he });
-}
-
-function priorityClass(priority: number) {
-  if (priority >= 8) {
-    return "text-destructive border-destructive/40 bg-destructive/10";
-  }
-  if (priority >= 6) {
-    return "text-status-foreground border-brand-highlight/60 bg-status-progress-surface";
-  }
-  return "text-muted-foreground";
-}
 
 export type ChatTask = Task;
 
 // Tabs share one brand style; the icon and label tell them apart, not hue.
 const TAB_STYLE = {
-  active: "bg-primary text-primary-foreground",
-  idle: "text-foreground hover:bg-muted",
-  countActive: "bg-background text-foreground",
-  countIdle: "bg-muted text-muted-foreground",
+  active: "bg-card text-foreground shadow-elevation-1",
+  idle: "text-muted-foreground hover:text-foreground",
+  countActive:
+    "bg-brand-accent-100 text-brand-accent-800 dark:bg-brand-accent-900 dark:text-brand-accent-200",
+  countIdle: "bg-background/60 text-muted-foreground",
 };
 
 const OPEN_CLOSED_TABS: Array<{
@@ -200,14 +166,16 @@ export function TasksChatView({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 max-h-full overflow-hidden bg-background w-full",
-        isMobile ? "border-0 rounded-none" : "border rounded-lg",
+        "flex h-full min-h-0 max-h-full overflow-hidden bg-card w-full",
+        isMobile
+          ? "border-0 rounded-none"
+          : "border rounded-2xl shadow-elevation-1",
       )}
       dir="rtl"
     >
       <div
         className={cn(
-          "flex flex-col bg-muted/20 overflow-hidden min-h-0",
+          "flex flex-col bg-card overflow-hidden min-h-0",
           isMobile
             ? "w-full flex-1"
             : "w-[28%] min-w-[260px] max-w-[28%] border-s",
@@ -216,8 +184,8 @@ export function TasksChatView({
       >
         <div
           className={cn(
-            "border-b bg-card shrink-0 space-y-1.5",
-            isMobile ? "p-1.5" : "px-2 py-1.5",
+            "border-b bg-card shrink-0 space-y-2",
+            isMobile ? "p-1.5" : "p-3",
           )}
         >
           {!hideListSearch && (
@@ -227,7 +195,7 @@ export function TasksChatView({
               className="w-full"
             />
           )}
-          <div className="flex items-center gap-1 min-w-0">
+          <div className="flex items-center gap-0.5 min-w-0 rounded-xl bg-muted p-1">
             {OPEN_CLOSED_TABS.map((tab) => {
               const active = openClosedFilter === tab.value;
               const Icon = tab.icon;
@@ -237,7 +205,7 @@ export function TasksChatView({
                   type="button"
                   onClick={() => setOpenClosedFilter(tab.value)}
                   className={cn(
-                    "h-7 flex-1 rounded-md text-[11px] font-semibold transition-colors inline-flex items-center justify-center gap-0.5 px-1 min-w-0",
+                    "h-7 flex-1 rounded-lg text-[11px] font-semibold transition-colors inline-flex items-center justify-center gap-0.5 px-1 min-w-0",
                     active ? TAB_STYLE.active : TAB_STYLE.idle,
                   )}
                 >
@@ -287,134 +255,16 @@ export function TasksChatView({
           dir="rtl"
         >
           <div className="divide-y" dir="rtl">
-            {filteredTasks.map((task) => {
-              const isSelected = task.id === selectedTaskId;
-              const overdue = isTaskOverdue(task, today);
-              const updatesCount = embedCount(task.task_updates);
-              const dueLabel = task.due_date
-                ? formatDueShort(task.due_date)
-                : null;
-              const createdLabel = formatCreatedShort(task.created_at);
-
-              return (
-                <button
-                  key={task.id}
-                  type="button"
-                  onClick={() => handleSelect(task)}
-                  className={cn(
-                    "w-full text-right p-3 hover:bg-muted/50 transition-colors",
-                    isSelected && "bg-primary/10 border-e-4 border-e-primary",
-                    overdue && !isSelected && "bg-destructive/5",
-                  )}
-                >
-                  <div className="flex items-start gap-2">
-                    <div
-                      className="pt-0.5"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Checkbox
-                        checked={task.status === "done"}
-                        onCheckedChange={(checked) =>
-                          onToggleComplete(task.id, Boolean(checked))
-                        }
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0 text-right">
-                      <div className="flex items-start gap-2">
-                        <p
-                          className={cn(
-                            "text-sm font-semibold whitespace-normal break-words flex-1",
-                            task.status === "done" &&
-                              "line-through text-muted-foreground",
-                          )}
-                        >
-                          {task.title}
-                        </p>
-                        {overdue && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 mt-1.5 flex-wrap justify-end">
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] h-4 px-1.5",
-                            priorityClass(task.priority),
-                          )}
-                        >
-                          דחיפות {task.priority}
-                        </Badge>
-                        {task.recurrence_frequency && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] h-4 gap-0.5 px-1.5 border-brand-ink/15 text-muted-foreground"
-                          >
-                            <Repeat className="h-2.5 w-2.5" />
-                            {describeRecurrence({
-                              frequency: task.recurrence_frequency,
-                              weekday: task.recurrence_weekday,
-                              monthday: task.recurrence_monthday,
-                              time: task.due_time,
-                            }) || "חוזרת"}
-                          </Badge>
-                        )}
-                        {(task.clients?.name ||
-                          task.leads?.company_name ||
-                          task.leads?.contact_name) && (
-                          <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
-                            {task.clients?.name ||
-                              task.leads?.company_name ||
-                              task.leads?.contact_name}
-                          </span>
-                        )}
-                        {task.campaigners?.full_name && (
-                          <span className="text-[11px] text-muted-foreground truncate max-w-[100px]">
-                            {task.campaigners.full_name}
-                          </span>
-                        )}
-                        {createdLabel && (
-                          <span
-                            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground"
-                            title="נוצרה"
-                          >
-                            <Clock className="h-3 w-3" />
-                            {createdLabel}
-                          </span>
-                        )}
-                        {dueLabel && (
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-0.5 text-[10px]",
-                              overdue
-                                ? "text-destructive"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            <CalendarDays className="h-3 w-3" />
-                            {dueLabel}
-                            {task.due_time
-                              ? ` ${String(task.due_time).substring(0, 5)}`
-                              : ""}
-                          </span>
-                        )}
-                        {updatesCount > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <MessageSquare className="h-3 w-3" />
-                            {updatesCount}
-                          </span>
-                        )}
-                        {task.creator_name && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <UserRound className="h-3 w-3" />
-                            {task.creator_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            {filteredTasks.map((task) => (
+              <ChatTaskRow
+                key={task.id}
+                task={task}
+                isSelected={task.id === selectedTaskId}
+                today={today}
+                onSelect={() => handleSelect(task)}
+                onToggleComplete={onToggleComplete}
+              />
+            ))}
             {filteredTasks.length === 0 && (
               <div className="p-8 text-center text-muted-foreground text-sm">
                 {isLoading ? "טוען משימות..." : "לא נמצאו משימות"}
@@ -426,7 +276,7 @@ export function TasksChatView({
 
       {!isMobile && (
         <div
-          className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0 bg-muted/20"
+          className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0 bg-muted/30"
           dir="rtl"
         >
           <TaskDetailDialog
