@@ -196,15 +196,12 @@ export function ResizableTable({
   };
 
   return (
-    <div
-      className="relative w-full h-full overflow-auto border rounded-md"
-      ref={tableRef}
-    >
+    <div className="relative h-full w-full overflow-auto" ref={tableRef}>
       <table className="w-full table-fixed border-collapse">
-        <thead className="sticky top-0 z-20 bg-card">
+        <thead className="sticky top-0 z-20 bg-muted">
           <tr className="border-b">
             {checkboxColumn && (
-              <th className="sticky right-0 z-30 bg-card border-l px-2 py-1.5 text-center w-[50px]">
+              <th className="sticky right-0 z-30 w-[50px] border-l border-border/60 bg-muted px-2 py-2 text-center">
                 <Checkbox
                   checked={checkboxColumn.checked.every(Boolean)}
                   onCheckedChange={checkboxColumn.onSelectAll}
@@ -216,7 +213,7 @@ export function ResizableTable({
               return (
                 <th
                   key={column.id}
-                  className="sticky z-20 bg-card border-l px-2 py-1.5 text-right relative group overflow-hidden"
+                  className="group relative sticky z-20 overflow-hidden border-l border-border/60 bg-muted px-3 py-2 text-right"
                   style={{
                     width: column.width,
                     minWidth: column.minWidth || 80,
@@ -225,7 +222,9 @@ export function ResizableTable({
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{column.label}</span>
+                    <span className="truncate text-xs font-semibold text-muted-foreground">
+                      {column.label}
+                    </span>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-5 w-5">
@@ -256,11 +255,13 @@ export function ResizableTable({
             {regularColumns.map((column) => (
               <th
                 key={column.id}
-                className="bg-card border-l px-2 py-1.5 text-right relative group"
+                className="group relative border-l border-border/60 bg-muted px-3 py-2 text-right"
                 style={{ width: column.width }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{column.label}</span>
+                  <span className="truncate text-xs font-semibold text-muted-foreground">
+                    {column.label}
+                  </span>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -306,11 +307,11 @@ export function ResizableTable({
             return (
               <tr
                 key={rowIndex}
-                className={`border-b hover:bg-muted/30 ${rowClassName}`}
+                className={`group border-b border-border/60 transition-colors hover:bg-muted ${rowClassName}`}
               >
                 {checkboxColumn && (
                   <td
-                    className={`sticky right-0 z-10 border-l px-2 py-1.5 text-center ${stickyCellClassName}`}
+                    className={`sticky right-0 z-10 px-2 py-2 text-center ${stickyCellClassName}`}
                   >
                     <Checkbox
                       checked={checkboxColumn.checked[rowIndex]}
@@ -328,7 +329,7 @@ export function ResizableTable({
                   return (
                     <td
                       key={column.id}
-                      className={`sticky z-10 border-l px-2 py-1.5 overflow-hidden ${stickyCellClassName}`}
+                      className={`sticky z-10 overflow-hidden border-l border-border/60 px-3 py-2 ${stickyCellClassName}`}
                       style={{
                         width: column.width,
                         minWidth: column.minWidth || 80,
@@ -343,7 +344,7 @@ export function ResizableTable({
                 {regularColumns.map((column) => (
                   <td
                     key={column.id}
-                    className="border-l px-2 py-1.5"
+                    className="px-3 py-2 text-sm"
                     style={{ width: column.width }}
                   >
                     {column.render(row)}

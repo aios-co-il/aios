@@ -45,22 +45,34 @@ export function LeadViewModeToggle({
     <div className="flex items-center gap-1">
       <div
         className={cn(
-          "flex gap-0.5 border rounded-md",
+          "flex gap-0.5 rounded-xl bg-muted",
           compact ? "p-0.5" : "p-1",
         )}
       >
         {LEAD_VIEW_MODES.map((mode) => {
           const Icon = VIEW_ICONS[mode];
+          const active = viewMode === mode;
           return (
             <Button
               key={mode}
-              variant={viewMode === mode ? "default" : "ghost"}
+              variant="ghost"
               size="sm"
               onClick={() => onViewModeChange(mode)}
-              className={compact ? "h-7 w-7 p-0" : undefined}
+              className={cn(
+                "gap-1.5 rounded-lg text-muted-foreground hover:bg-card/70 hover:text-foreground",
+                compact ? "h-7 w-7 p-0" : "h-7 px-2.5",
+                active &&
+                  "bg-card text-foreground shadow-elevation-1 hover:bg-card",
+              )}
               title={LEAD_VIEW_MODE_LABELS[mode]}
+              aria-pressed={active}
             >
               <Icon className="h-4 w-4" />
+              {!compact && (
+                <span className="hidden text-xs font-medium lg:inline">
+                  {LEAD_VIEW_MODE_LABELS[mode]}
+                </span>
+              )}
             </Button>
           );
         })}
@@ -69,9 +81,9 @@ export function LeadViewModeToggle({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9 rounded-xl text-muted-foreground"
               title="תצוגת ברירת מחדל"
             >
               <Star
