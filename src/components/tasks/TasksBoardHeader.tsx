@@ -19,6 +19,8 @@ interface TasksBoardHeaderProps {
   toolbarFilters: ReactNode;
   activeFiltersCount: number;
   onOpenFilters: () => void;
+  /** The headline figures, as chips before the calendar action. */
+  summary: ReactNode;
   calendar: {
     connected: boolean;
     syncing: boolean;
@@ -29,8 +31,8 @@ interface TasksBoardHeaderProps {
 }
 
 /**
- * The desktop head of the Tasks screen: title, period and view switcher on
- * top, then one white toolbar with navigation, filters and calendar sync.
+ * The desktop head of the Tasks screen as one white bar: title and period,
+ * navigation, filters, the headline figures, calendar sync and the views.
  */
 export function TasksBoardHeader({
   viewMode,
@@ -43,53 +45,48 @@ export function TasksBoardHeader({
   toolbarFilters,
   activeFiltersCount,
   onOpenFilters,
+  summary,
   calendar,
 }: TasksBoardHeaderProps) {
   const isCalendarView = viewMode !== "chat";
   return (
-    <div className="hidden shrink-0 flex-col gap-3 md:flex">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-accent-100 text-brand-accent-800 dark:bg-brand-accent-900 dark:text-brand-accent-200">
-            <ListChecks className="h-5 w-5" aria-hidden="true" />
+    <div className="hidden shrink-0 flex-wrap items-center gap-2 rounded-2xl border bg-card px-3 py-2 shadow-elevation-1 md:flex">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-accent-100 text-brand-accent-800 dark:bg-brand-accent-900 dark:text-brand-accent-200">
+          <ListChecks className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <h1 className="text-base font-bold leading-none">משימות</h1>
+        {isCalendarView && (
+          <span className="whitespace-nowrap text-xs text-muted-foreground">
+            {tasksPeriodLabel(viewMode, currentDate)}
           </span>
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight">משימות</h1>
-            {isCalendarView && (
-              <p className="truncate text-sm text-muted-foreground">
-                {tasksPeriodLabel(viewMode, currentDate)}
-              </p>
-            )}
-          </div>
-        </div>
-        <TasksViewSwitcher value={viewMode} onChange={onViewModeChange} />
-      </div>
-
-      <div className="flex items-center gap-2 overflow-x-auto rounded-2xl border bg-card px-3 py-2 shadow-elevation-1">
-        {isCalendarView ? (
-          <TasksPeriodNav onPrev={onPrev} onNext={onNext} onToday={onToday} />
-        ) : (
-          chatSearch
         )}
-        <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {toolbarFilters}
-          <Button
-            variant="ghost"
-            className="relative h-8 shrink-0 gap-1.5 px-2 text-xs"
-            onClick={onOpenFilters}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            מתקדם
-            {activeFiltersCount > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-accent px-1 text-[10px] font-bold text-brand-ink">
-                {activeFiltersCount}
-              </span>
-            )}
-          </Button>
-        </div>
-        {isCalendarView && <CalendarAction {...calendar} />}
       </div>
+      <span className="mx-1 h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      {isCalendarView ? (
+        <TasksPeriodNav onPrev={onPrev} onNext={onNext} onToday={onToday} />
+      ) : (
+        chatSearch
+      )}
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {toolbarFilters}
+        <Button
+          variant="ghost"
+          className="relative h-8 shrink-0 gap-1.5 px-2 text-xs"
+          onClick={onOpenFilters}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          מתקדם
+          {activeFiltersCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-accent px-1 text-[10px] font-bold text-brand-ink">
+              {activeFiltersCount}
+            </span>
+          )}
+        </Button>
+      </div>
+      {summary}
+      {isCalendarView && <CalendarAction {...calendar} />}
+      <TasksViewSwitcher value={viewMode} onChange={onViewModeChange} />
     </div>
   );
 }

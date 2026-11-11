@@ -52,7 +52,7 @@ import { TasksChatView, TasksChatSearchInput } from "./TasksChatView";
 import { TasksToolbarFilters } from "./TasksToolbarFilters";
 import { TasksBoardHeader } from "./TasksBoardHeader";
 import { TasksCalendarNotice } from "./TasksCalendarNotice";
-import { TasksSummaryStrip } from "./TasksSummaryStrip";
+import { TasksSummaryChips } from "./TasksSummaryChips";
 import { TasksViewSwitcher } from "./TasksViewSwitcher";
 import { TasksPeriodNav } from "./TasksPeriodNav";
 import { summarizeTasks } from "./taskSummary";
@@ -1911,6 +1911,11 @@ export function WeeklyTaskBoard() {
           toolbarFilters={toolbarFilters}
           activeFiltersCount={activeFiltersCount}
           onOpenFilters={() => openFiltersDialog(false)}
+          summary={
+            <TasksSummaryChips
+              summary={summarizeTasks({ tasks, backlogTasks, today })}
+            />
+          }
           calendar={{
             connected: calendarConnected,
             syncing: syncToCalendar.isPending,
@@ -1919,11 +1924,6 @@ export function WeeklyTaskBoard() {
             onConnect: () => void handleConnectCalendar(),
           }}
         />
-        <div className="hidden md:block">
-          <TasksSummaryStrip
-            summary={summarizeTasks({ tasks, backlogTasks, today })}
-          />
-        </div>
         {viewMode !== "chat" && calendarStatus && !calendarConnected && (
           <TasksCalendarNotice
             connecting={connectingCalendar}
