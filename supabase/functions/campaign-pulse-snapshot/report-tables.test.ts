@@ -4,7 +4,8 @@
  * the last 3 full days is read.
  */
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import type { RecordsClient } from "../_shared/ads-sync/campaign-records.ts";
+import { recordsClient } from "../_shared/ads-sync/campaign-records.test-fixture.ts";
+import { createFakeDb } from "../_shared/ads-sync/tests/fake-postgrest.ts";
 import {
   loadOffReportSpend,
   type PulseReportTable,
@@ -24,48 +25,11 @@ type Row = { id: string; table_id: string; data: Record<string, unknown> };
 
 /** crm_records in memory; records every table list and date bound it is asked for. */
 function fakeRecords(rows: Array<Row>, failing = false) {
-  const calls: Array<{ tableIds: unknown; since: unknown }> = [];
-  const client: RecordsClient = {
-    from: () => ({
-      select: () => {
-        const filters: Array<(row: Row) => boolean> = [];
-        const call: { tableIds: unknown; since: unknown } = {
-          tableIds: null,
-          since: null,
-        };
-        calls.push(call);
-        const query = {
-          eq: () => query,
-          in: (_column: string, values: ReadonlyArray<string>) => {
-            call.tableIds = values;
-            filters.push((row) => values.includes(row.table_id));
-            return query;
-          },
-          or: () => query,
-          gte: (_column: string, value: string) => {
-            call.since = value;
-            filters.push((row) => String(row.data.date) >= value);
-            return query;
-          },
-          lte: () => query,
-          order: () => query,
-          range: (from: number, to: number) =>
-            Promise.resolve(
-              failing
-                ? { data: null, error: { message: "connection reset" } }
-                : {
-                    data: rows
-                      .filter((row) => filters.every((keep) => keep(row)))
-                      .slice(from, to + 1),
-                    error: null,
-                  },
-            ),
-        };
-        return query;
-      },
-    }),
-  };
-  return { client, calls };
+  const db = createFakeDb({ crm_records: rows });
+  if (failing) {
+    db.failures["crm_records:select"] = "connection reset";
+  }
+  return { client: recordsClient(db), calls: db.calls };
 }
 
 Deno.test("splitReportTables", async (t) => {
@@ -125,7 +89,11 @@ Deno.test("loadOffReportSpend", async (t) => {
           window_end: "2026-11-06",
         },
       ]);
-      assertEquals(calls, [{ tableIds: ["t-off"], since: "2026-11-04" }]);
+      assertEquals(calls[0].filters.includes("table_id=in.(t-off)"), true);
+      assertEquals(
+        calls[0].filters.includes("data->>date=gte.2026-11-04"),
+        true,
+      );
     },
   );
 

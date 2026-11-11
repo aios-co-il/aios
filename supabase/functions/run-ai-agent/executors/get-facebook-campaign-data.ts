@@ -3,10 +3,7 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
 import { fbLiveCampaignInsights } from "./meta-live-insights.ts";
-import {
-  fetchCampaignLevelRecords,
-  type RecordsClient,
-} from "../../_shared/ads-sync/campaign-records.ts";
+import { fetchCampaignLevelRecords } from "../../_shared/ads-sync/campaign-records.ts";
 import { readCampaignGoalTables } from "../goal-tables.ts";
 import { storedCampaignRows } from "../campaign-rows.ts";
 
@@ -78,7 +75,7 @@ export async function executeGetFacebookCampaignData(
   }
 
   // Campaign-level rows only, as the reports count them, paged past 1000 rows.
-  const records = await fetchCampaignLevelRecords(supabase as RecordsClient, {
+  const records = await fetchCampaignLevelRecords(supabase, {
     tableIds,
     sinceYmd: sinceDateStr,
     tenantIds: accessibleTenantIds,
