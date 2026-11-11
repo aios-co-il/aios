@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { BrainRouteType } from "../../supabase/functions/_shared/carmen/brain-connections/types.ts";
 
 export type { BrainRouteType };
@@ -10,8 +11,16 @@ export type BrainProvider =
   | "codex"
   | "parliament"
   | "model";
-export type ConversationChannelStatus =
-  "idle" | "streaming" | "waiting_external" | "debating" | "error";
+export const conversationChannelStatusSchema = z.enum([
+  "idle",
+  "streaming",
+  "waiting_external",
+  "debating",
+  "error",
+]);
+export type ConversationChannelStatus = z.infer<
+  typeof conversationChannelStatusSchema
+>;
 
 export type BrainRoute = {
   id: string;

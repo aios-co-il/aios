@@ -37,7 +37,7 @@ type CarmenAutomationRow = {
   hasCarmenTrigger: boolean;
 };
 
-type StepConfig = Record<string, any>;
+type StepConfig = Record<string, unknown>;
 
 function asConfig(value: unknown): StepConfig {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -235,7 +235,7 @@ export function CarmenAutomationsList({
       invalidateLists();
       toast.success(active ? "האוטומציה הופעלה" : "האוטומציה הושהתה");
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast.error("שגיאה בעדכון האוטומציה", { description: err?.message });
     },
   });
@@ -260,7 +260,7 @@ export function CarmenAutomationsList({
             end_keyword: "סיימנו כרמן",
           },
           is_flow: true,
-        } as any)
+        })
         .select()
         .single();
       if (error) throw error;
@@ -274,7 +274,7 @@ export function CarmenAutomationsList({
       });
       setEditingId(data.id);
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast.error("שגיאה ביצירת האוטומציה", { description: err?.message });
     },
   });

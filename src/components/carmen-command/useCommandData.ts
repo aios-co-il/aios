@@ -1,15 +1,34 @@
+import { requireTenantId } from "@/lib/requireTenantId";
+import {
+  readOpenAiBillingStatus,
+  type OpenAiBillingStatus,
+} from "./billingStatus";
+export type { OpenAiBillingStatus } from "./billingStatus";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { asJsonObject } from "@/lib/response";
 import { MANAGER_ROUND_RUN_KIND } from "../../../supabase/functions/_shared/manager-round/run-kind.ts";
-
-// Several ops tables (heartbeat_logs, integration_alerts_log, agent_action_log…)
-// are not in the generated Database types yet.
-const sb = supabase as any;
 
 const daysAgo = (n: number) =>
   new Date(Date.now() - n * 86400000).toISOString();
 const todayStr = () => new Date().toISOString().slice(0, 10);
+
+/** Query failures must remain visible to React Query instead of becoming empty metrics. */
+const safeRows = async <T>(
+  query: PromiseLike<{ data: Array<T> | null; error?: unknown }>,
+) => {
+  const result = await query;
+  if (result.error) {
+    throw result.error;
+  }
+  return result.data ?? [];
+};
+
+const probeStatusSchema = z.enum(["ok", "warn", "down"]);
+type ProbeStatus = z.infer<typeof probeStatusSchema>;
 
 export type Severity = "info" | "warning" | "critical";
 
@@ -49,43 +68,58 @@ export function useCoreOverview(tenantId: string | null) {
         inToday,
         outToday,
       ] = await Promise.all([
-        sb
+        supabase
           .from("ai_agents")
           .select("id, name, mood, voice, engine")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .limit(1)
           .maybeSingle(),
-        sb
-          .rpc("get_carmen_memory_counts", { p_tenant_id: tenantId })
+        supabase
+          .rpc("get_carmen_memory_counts", {
+            p_tenant_id: requireTenantId(tenantId),
+          })
           .maybeSingle(),
-        sb
+        supabase
           .from("carmen_whatsapp_sessions")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("status", "active"),
-        sb
+        supabase
           .from("tenant_integrations")
           .select("id, is_active")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("integration_type", "llm")
           .maybeSingle(),
-        sb
+        supabase
           .from("ai_agents")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId),
-        sb
+          .eq("tenant_id", requireTenantId(tenantId)),
+        supabase
           .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("direction", "inbound")
           .gte("created_at", todayStart),
-        sb
+        supabase
           .from("chat_messages")
           .select("id", { count: "exact", head: true })
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("direction", "outbound")
           .gte("created_at", todayStart),
       ]);
+      for (const result of [
+        agentRes,
+        memRes,
+        sessRes,
+        llmRes,
+        agentsCount,
+        inToday,
+        outToday,
+      ]) {
+        if (result.error) {
+          throw result.error;
+        }
+      }
       return {
         inboundToday: inToday.count ?? 0,
         outboundToday: outToday.count ?? 0,
@@ -114,47 +148,40 @@ export function useIntelFeed(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 45000,
     queryFn: async (): Promise<FeedItem[]> => {
-      const safe = async (p: Promise<{ data: any[] | null }>) => {
-        try {
-          return (await p).data ?? [];
-        } catch {
-          return [];
-        }
-      };
       const [campaign, integr, anomalies, overdue] = await Promise.all([
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("campaign_alerts")
             .select("id, alert_type, severity, campaign_name, created_at")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .is("resolved_at", null)
             .order("created_at", { ascending: false })
             .limit(10),
         ),
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("integration_alerts_log")
             .select("id, provider, alert_type, reason, fired_at")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("fired_at", daysAgo(7))
             .order("fired_at", { ascending: false })
             .limit(10),
         ),
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("agent_tasks")
             .select("id, title, created_at")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .eq("task_mode", "anomaly_alert")
             .gte("created_at", daysAgo(1))
             .order("created_at", { ascending: false })
             .limit(10),
         ),
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("tasks")
             .select("id, title, due_date")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .neq("status", "done")
             .lt("due_date", todayStr())
             .order("due_date", { ascending: true })
@@ -163,14 +190,14 @@ export function useIntelFeed(tenantId: string | null) {
       ]);
 
       const items: FeedItem[] = [
-        ...campaign.map((a: any): FeedItem => ({
+        ...campaign.map((a): FeedItem => ({
           id: `ca-${a.id}`,
           severity: a.severity === "critical" ? "critical" : "warning",
           source: "קמפיינים",
           title: `${alertTypeLabel(a.alert_type)}${a.campaign_name ? ` — ${a.campaign_name}` : ""}`,
           time: a.created_at,
         })),
-        ...integr.map((a: any): FeedItem => {
+        ...integr.map((a): FeedItem => {
           const map: Record<string, { sev: Severity; title: string }> = {
             reconnected: {
               sev: "info",
@@ -205,14 +232,14 @@ export function useIntelFeed(tenantId: string | null) {
             time: a.fired_at,
           };
         }),
-        ...anomalies.map((a: any): FeedItem => ({
+        ...anomalies.map((a): FeedItem => ({
           id: `an-${a.id}`,
           severity: "warning",
           source: "אנומליות",
           title: a.title,
           time: a.created_at,
         })),
-        ...overdue.map((t: any): FeedItem => ({
+        ...overdue.map((t): FeedItem => ({
           id: `od-${t.id}`,
           severity: "warning",
           source: "משימות",
@@ -252,31 +279,31 @@ export function useHealth(tenantId: string | null) {
     }> => {
       // DB probe — round-trip latency of a minimal query
       const t0 = performance.now();
-      const dbRes = await sb.from("tenants").select("id").limit(1);
+      const dbRes = await supabase.from("tenants").select("id").limit(1);
       const dbLatency = Math.round(performance.now() - t0);
 
       const [waRes, hbRes, ihRes, probeRes] = await Promise.all([
-        sb
+        supabase
           .from("tenant_integrations")
           .select("is_active, settings")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("integration_type", "manus_wa")
           .maybeSingle(),
-        sb
+        supabase
           .from("heartbeat_logs")
           .select("triggered_at, summary")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .neq("run_kind", MANAGER_ROUND_RUN_KIND)
           .order("triggered_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        sb
+        supabase
           .from("integration_health")
           .select(
             "provider, consecutive_failures, is_circuit_open, last_success_at",
           )
-          .eq("tenant_id", tenantId),
-        sb
+          .eq("tenant_id", requireTenantId(tenantId)),
+        supabase
           .from("service_health_checks")
           .select("service, status, latency_ms, detail, checked_at, tenant_id")
           .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
@@ -286,21 +313,28 @@ export function useHealth(tenantId: string | null) {
       ]);
 
       // Group probe history per logical service (both mcp_* rows fold into "mcp")
-      const probeRows: any[] = probeRes.error ? [] : (probeRes.data ?? []);
+      const probeRows = probeRes.error ? [] : (probeRes.data ?? []);
       const logical = (svc: string) => (svc.startsWith("mcp_") ? "mcp" : svc);
       const histories = new Map<
         string,
         {
-          status: "ok" | "warn" | "down";
+          status: ProbeStatus;
           latency_ms: number | null;
           detail: string;
           checked_at: string;
         }[]
       >();
       for (const r of probeRows) {
+        const status = probeStatusSchema.safeParse(r.status);
+        if (!status.success) continue;
         const key = logical(r.service);
         if (!histories.has(key)) histories.set(key, []);
-        histories.get(key)!.push(r);
+        histories.get(key)!.push({
+          status: status.data,
+          latency_ms: r.latency_ms,
+          detail: r.detail ?? "",
+          checked_at: r.checked_at,
+        });
       }
       const latestOf = (key: string) => histories.get(key)?.[0];
       const historyOf = (key: string) =>
@@ -310,7 +344,7 @@ export function useHealth(tenantId: string | null) {
           .reverse()
           .map((r) => r.status);
 
-      const waSettings = waRes.data?.settings ?? {};
+      const waSettings = asJsonObject(waRes.data?.settings) ?? {};
       const waStatus: ServiceHealth["status"] = waRes.error
         ? "unknown"
         : !waRes.data
@@ -324,9 +358,7 @@ export function useHealth(tenantId: string | null) {
                 ? "warn"
                 : "ok";
 
-      const openCircuits = (ihRes.data ?? []).filter(
-        (r: any) => r.is_circuit_open,
-      );
+      const openCircuits = (ihRes.data ?? []).filter((r) => r.is_circuit_open);
 
       const waProbe = latestOf("whatsapp");
       const mcpProbe = latestOf("mcp");
@@ -464,42 +496,6 @@ export interface OpenAiBillingDay {
   num_model_requests?: number;
 }
 
-export interface OpenAiBillingStatus {
-  ok: boolean;
-  admin_available: boolean;
-  error?: string;
-  period?: string;
-  currency?: string;
-  current_month_usage_cost?: number | null;
-  current_month_usage_tokens?: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    num_model_requests: number;
-  } | null;
-  line_items?: Array<{ name: string; value: number }>;
-  daily_costs?: Array<{
-    date: string;
-    cost: number;
-    line_items?: Record<string, number>;
-  }>;
-  daily_usage?: Array<{
-    date: string;
-    total_tokens: number;
-    num_model_requests: number;
-  }>;
-  remaining_credit_available?: boolean;
-  remaining_credit_reason?: string;
-  limits?: { available: boolean; reason?: string; raw?: unknown };
-  apis_used?: Record<string, string | null>;
-  unavailable_fields?: Record<string, string | null>;
-  errors?: {
-    costs?: string | null;
-    usage?: string | null;
-    spend_limits?: string | null;
-  };
-}
-
 const BILLING_FN = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/openai-billing-status`;
 
 export function useOpenAiBilling(tenantId: string | null) {
@@ -519,17 +515,22 @@ export function useOpenAiBilling(tenantId: string | null) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ tenant_id: tenantId, include_tokens: true }),
+        body: JSON.stringify({
+          tenant_id: requireTenantId(tenantId),
+          include_tokens: true,
+        }),
       });
-      const json = await res.json().catch(() => ({}));
+      const json: unknown = await res.json();
       if (!res.ok) {
         return {
           ok: false,
           admin_available: false,
-          error: json.error || `HTTP ${res.status}`,
+          error:
+            z.object({ error: z.string() }).safeParse(json).data?.error ||
+            `HTTP ${res.status}`,
         };
       }
-      return json as OpenAiBillingStatus;
+      return readOpenAiBillingStatus(json);
     },
   });
 }
@@ -540,47 +541,46 @@ export function useUsage(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 120000,
     queryFn: async () => {
+      const tid = tenantId;
+      if (!tid) {
+        throw new Error("Missing tenant");
+      }
       const since = daysAgo(30);
-      const safe = async (p: Promise<{ data: any[] | null }>) => {
-        try {
-          return (await p).data ?? [];
-        } catch {
-          return [];
-        }
-      };
       const [actions, marketing, aiUsage, llmRow] = await Promise.all([
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("agent_action_log")
             .select("created_at, tokens_in, tokens_out, cost_usd")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("created_at", since)
             .limit(5000),
         ),
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("marketing_runs")
             .select("created_at, tokens_in, tokens_out, cost_usd")
-            .eq("tenant_id", tenantId)
+            .eq("tenant_id", requireTenantId(tenantId))
             .gte("created_at", since)
             .limit(5000),
         ),
-        safe(
-          sb
+        safeRows(
+          supabase
             .from("ai_usage_log")
             .select("created_at, tokens_in, tokens_out, cost_usd")
             .gte("created_at", since)
             .limit(10000),
         ),
-        sb
-          .from("tenant_integrations")
-          .select("settings")
-          .eq("integration_type", "llm")
-          .eq("is_active", true)
-          .limit(1)
-          .maybeSingle()
-          .then((r: any) => r.data)
-          .catch(() => null),
+        (async () => {
+          const r = await supabase
+            .from("tenant_integrations")
+            .select("settings")
+            .eq("tenant_id", tid)
+            .eq("integration_type", "llm")
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle();
+          return r.data;
+        })().catch(() => null),
       ]);
 
       const byDay = new Map<string, UsageDay>();
@@ -590,9 +590,14 @@ export function useUsage(tenantId: string | null) {
           .slice(0, 10);
         byDay.set(d, { date: d, tokens: 0, cost: 0, calls: 0 });
       }
-      const add = (rows: any[]) => {
+      const add = (
+        rows: Pick<
+          Tables<"ai_usage_log">,
+          "created_at" | "tokens_in" | "tokens_out" | "cost_usd"
+        >[],
+      ) => {
         for (const r of rows) {
-          const d = (r.created_at as string).slice(0, 10);
+          const d = r.created_at.slice(0, 10);
           const day = byDay.get(d);
           if (!day) continue;
           day.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
@@ -620,9 +625,10 @@ export function useUsage(tenantId: string | null) {
           .filter((d) => d.date >= mtdKey)
           .reduce((s, d) => s + d.cost, 0),
         monthlyBudget:
-          Number(llmRow?.settings?.monthly_budget_usd ?? 0) || null,
+          Number(asJsonObject(llmRow?.settings)?.monthly_budget_usd ?? 0) ||
+          null,
         tracked:
-          actions.some((r: any) => r.tokens_in) ||
+          actions.some((r) => r.tokens_in) ||
           marketing.length > 0 ||
           aiUsage.length > 0,
       };
@@ -647,10 +653,10 @@ export function useCcTasks(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 60000,
     queryFn: async (): Promise<CcTask[]> => {
-      const { data, error } = await sb
+      const { data, error } = await supabase
         .from("tasks")
         .select("id, title, status, due_date, due_time, priority")
-        .eq("tenant_id", tenantId)
+        .eq("tenant_id", requireTenantId(tenantId))
         .neq("status", "done")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
@@ -664,7 +670,7 @@ export function useMarkTaskDone(tenantId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (taskId: string) => {
-      const { error } = await sb
+      const { error } = await supabase
         .from("tasks")
         .update({ status: "done" })
         .eq("id", taskId);
@@ -695,29 +701,29 @@ export function useTimeline(tenantId: string | null) {
     queryFn: async (): Promise<TimelineEvent[]> => {
       const today = todayStr();
       const [tasksRes, agentRes] = await Promise.all([
-        sb
+        supabase
           .from("tasks")
           .select("id, title, due_time, status")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .eq("due_date", today)
           .order("due_time", { ascending: true, nullsFirst: false }),
-        sb
+        supabase
           .from("agent_tasks")
           .select("id, title, scheduled_at, status")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", requireTenantId(tenantId))
           .gte("scheduled_at", `${today}T00:00:00Z`)
           .lt("scheduled_at", `${today}T23:59:59Z`)
           .order("scheduled_at", { ascending: true }),
       ]);
       const events: TimelineEvent[] = [
-        ...(tasksRes.data ?? []).map((t: any): TimelineEvent => ({
+        ...(tasksRes.data ?? []).map((t): TimelineEvent => ({
           id: `t-${t.id}`,
           time: t.due_time ? t.due_time.slice(0, 5) : null,
           title: t.title,
           kind: "task",
           done: t.status === "done",
         })),
-        ...(agentRes.data ?? []).map((a: any): TimelineEvent => ({
+        ...(agentRes.data ?? []).map((a): TimelineEvent => ({
           id: `a-${a.id}`,
           time: a.scheduled_at
             ? new Date(a.scheduled_at).toLocaleTimeString("he-IL", {
@@ -762,7 +768,7 @@ export function useCommandRealtime(
           qc.invalidateQueries({ queryKey: ["cc-feed", tenantId] });
         },
       )
-      .on(
+      .on<Tables<"campaign_alerts">>(
         "postgres_changes",
         {
           event: "INSERT",
@@ -770,7 +776,7 @@ export function useCommandRealtime(
           table: "campaign_alerts",
           filter: `tenant_id=eq.${tenantId}`,
         },
-        (payload: any) => {
+        (payload) => {
           qc.invalidateQueries({ queryKey: ["cc-feed", tenantId] });
           if (payload.new?.severity === "critical") onCritical();
         },

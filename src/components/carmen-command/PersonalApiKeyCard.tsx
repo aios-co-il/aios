@@ -7,8 +7,6 @@ import { KeyRound, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const sb = supabase as any; // user_api_keys is not in the generated types yet
-
 /**
  * Bring-your-own-key card (MyProfile): a user who saves a personal OpenAI key
  * gets access to the Carmen Command Center, billed on their own key.
@@ -22,7 +20,7 @@ export function PersonalApiKeyCard() {
   const { data: hasKey, isLoading } = useQuery({
     queryKey: ["user-api-key"],
     queryFn: async () => {
-      const { data } = await sb
+      const { data } = await supabase
         .from("user_api_keys")
         .select("user_id")
         .limit(1)
@@ -54,7 +52,7 @@ export function PersonalApiKeyCard() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("לא מחובר");
-      const { error } = await sb.from("user_api_keys").upsert({
+      const { error } = await supabase.from("user_api_keys").upsert({
         user_id: user.id,
         provider: "openai",
         api_key: key,
@@ -86,11 +84,24 @@ export function PersonalApiKeyCard() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      await sb.from("user_api_keys").delete().eq("user_id", user.id);
+      const { error } = await supabase
+        .from("user_api_keys")
+        .delete()
+        .eq("user_id", user.id);
+      if (error) {
+        throw error;
+      }
       qc.invalidateQueries({ queryKey: ["user-api-key"] });
       toast({
         title: "המפתח הוסר",
         description: "הגישה לכרמן דרך המפתח האישי בוטלה",
+      });
+    } catch (error) {
+      toast({
+        title: "שגיאה",
+        description:
+          error instanceof Error ? error.message : "מחיקת המפתח נכשלה",
+        variant: "destructive",
       });
     } finally {
       setBusy(false);

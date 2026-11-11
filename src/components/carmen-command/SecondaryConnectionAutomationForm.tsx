@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-const db = supabase as any;
-
 /**
  * Quick create: a Carmen WhatsApp-session automation pinned to one
  * (secondary) connection, with its own trigger words and instructions.
@@ -45,7 +43,7 @@ export function SecondaryConnectionAutomationForm({
         .map((p) => p.replace(/\D/g, ""))
         .filter((p) => p.length >= 9);
 
-      const { data: automation, error } = await db
+      const { data: automation, error } = await supabase
         .from("automations")
         .insert({
           name: name.trim() || "כרמן בחיבור משני",
@@ -61,7 +59,7 @@ export function SecondaryConnectionAutomationForm({
         .single();
       if (error) throw error;
 
-      const { error: stepError } = await db
+      const { error: stepError } = await supabase
         .from("automation_flow_steps")
         .insert({
           automation_id: automation.id,
@@ -82,7 +80,7 @@ export function SecondaryConnectionAutomationForm({
           },
         });
       if (stepError) {
-        await db.from("automations").delete().eq("id", automation.id);
+        await supabase.from("automations").delete().eq("id", automation.id);
         throw stepError;
       }
     },
@@ -91,7 +89,7 @@ export function SecondaryConnectionAutomationForm({
       toast.success("האוטומציה נוצרה ומוצמדת לחיבור");
       onDone();
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   return (

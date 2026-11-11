@@ -40,9 +40,15 @@ function StatTile({
   );
 }
 
-function UsageTooltip({ active, payload }: any) {
+type ChartTooltipProps<T> = {
+  active?: boolean;
+  payload?: { payload: T }[];
+};
+
+/** Render usage tooltip from its typed view data. */
+function UsageTooltip({ active, payload }: ChartTooltipProps<UsageDay>) {
   if (!active || !payload?.length) return null;
-  const d: UsageDay = payload[0].payload;
+  const d = payload[0].payload;
   return (
     <div dir="rtl" className="cc-panel p-2 text-xs">
       <p className="font-medium">
@@ -67,9 +73,13 @@ function UsageTooltip({ active, payload }: any) {
   );
 }
 
-function AdminCostTooltip({ active, payload }: any) {
+/** Render admin cost tooltip from its typed view data. */
+function AdminCostTooltip({
+  active,
+  payload,
+}: ChartTooltipProps<OpenAiBillingDay>) {
   if (!active || !payload?.length) return null;
-  const d: OpenAiBillingDay = payload[0].payload;
+  const d = payload[0].payload;
   return (
     <div dir="rtl" className="cc-panel p-2 text-xs">
       <p className="font-medium">

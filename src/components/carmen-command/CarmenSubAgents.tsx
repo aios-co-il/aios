@@ -69,11 +69,11 @@ export function CarmenSubAgents({
       toast.success("הסוכן נוצר");
       onNavigate(`settings/agents/${data.id}`);
     },
-    onError: (e: any) => toast.error(e?.message ?? String(e)),
+    onError: (e) => toast.error(e?.message ?? String(e)),
   });
 
   if (agentId) {
-    const agent = agents.find((a: any) => a.id === agentId);
+    const agent = agents.find((a) => a.id === agentId);
     if (isLoading)
       return <p className="text-sm text-muted-foreground">טוען…</p>;
     if (!agent)
@@ -90,7 +90,7 @@ export function CarmenSubAgents({
     );
   }
 
-  const subAgents = agents.filter((a: any) => !isCarmenName(a.name));
+  const subAgents = agents.filter((a) => !isCarmenName(a.name));
 
   return (
     <div className="space-y-3" dir="rtl">
@@ -100,7 +100,7 @@ export function CarmenSubAgents({
       </p>
       {isLoading && <p className="text-sm text-muted-foreground">טוען…</p>}
       <ul className="space-y-1.5">
-        {subAgents.map((a: any) => (
+        {subAgents.map((a) => (
           <li key={a.id}>
             <button
               type="button"
