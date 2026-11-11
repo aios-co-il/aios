@@ -16817,6 +16817,7 @@ export type Database = {
           summary_scope: string | null;
           tenant_id: string;
           thumbnail_path: string | null;
+          topic_set_manually: boolean;
           transcription: string | null;
           transcription_error: string | null;
           transcription_status: string | null;
@@ -16853,6 +16854,7 @@ export type Database = {
           summary_scope?: string | null;
           tenant_id: string;
           thumbnail_path?: string | null;
+          topic_set_manually?: boolean;
           transcription?: string | null;
           transcription_error?: string | null;
           transcription_status?: string | null;
@@ -16889,6 +16891,7 @@ export type Database = {
           summary_scope?: string | null;
           tenant_id?: string;
           thumbnail_path?: string | null;
+          topic_set_manually?: boolean;
           transcription?: string | null;
           transcription_error?: string | null;
           transcription_status?: string | null;
