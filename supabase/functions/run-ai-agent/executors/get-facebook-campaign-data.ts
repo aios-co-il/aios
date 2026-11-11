@@ -1,4 +1,3 @@
-import { asRecordsClient } from "../../_shared/ads-sync/records-client.ts";
 import type { GetFacebookCampaignDataArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
@@ -76,7 +75,7 @@ export async function executeGetFacebookCampaignData(
   }
 
   // Campaign-level rows only, as the reports count them, paged past 1000 rows.
-  const records = await fetchCampaignLevelRecords(asRecordsClient(supabase), {
+  const records = await fetchCampaignLevelRecords(supabase, {
     tableIds,
     sinceYmd: sinceDateStr,
     tenantIds: accessibleTenantIds,
