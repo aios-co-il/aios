@@ -3,6 +3,7 @@ import type { WooGoogleAttributionSummary } from "@/lib/wooAttribution";
 import { GoogleAdsCampaignTable } from "./GoogleAdsCampaignTable";
 import { GoogleAdsKpiCards } from "./GoogleAdsKpiCards";
 import { GoogleWooNotice } from "./GoogleWooNotice";
+import { googleTablePrevious } from "./googleAdsCompare";
 import { googleStoreTotals } from "./googleAdsTotals";
 import type { GoogleAdsCampaignSummary, GoogleAdsFormatters } from "./types";
 
@@ -11,6 +12,8 @@ type Props = GoogleAdsFormatters & {
   icon: ReactNode;
   /** WooCommerce attribution replaces the ecommerce purchases/revenue totals. */
   woo?: WooGoogleAttributionSummary | null;
+  /** The previous period's summary; the tables compare with it while set. */
+  previous?: GoogleAdsCampaignSummary | null;
 };
 
 /**
@@ -23,6 +26,7 @@ export function GoogleAdsCampaignSection({
   summary,
   icon,
   woo,
+  previous,
   ...formats
 }: Props) {
   const store = googleStoreTotals(summary.ecommerce, woo);
@@ -51,6 +55,11 @@ export function GoogleAdsCampaignSection({
           rows={ecommerceRows}
           goal="ecommerce"
           groupTotals={summary.ecommerce}
+          previous={
+            previous
+              ? googleTablePrevious(previous.campaigns, previous.ecommerce)
+              : null
+          }
           {...tableProps}
         />
       )}
@@ -59,6 +68,11 @@ export function GoogleAdsCampaignSection({
           rows={leadRows}
           goal="leads"
           groupTotals={summary.leads}
+          previous={
+            previous
+              ? googleTablePrevious(previous.campaigns, previous.leads)
+              : null
+          }
           {...tableProps}
         />
       )}
@@ -67,6 +81,11 @@ export function GoogleAdsCampaignSection({
           rows={trafficRows}
           goal="traffic"
           groupTotals={summary.traffic}
+          previous={
+            previous
+              ? googleTablePrevious(previous.campaigns, previous.traffic)
+              : null
+          }
           {...tableProps}
         />
       )}

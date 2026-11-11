@@ -1,5 +1,5 @@
 import { Megaphone } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   CAMPAIGN_GOAL_TITLES,
   CAMPAIGN_GOAL_TOTAL_LABELS,
@@ -8,6 +8,7 @@ import {
 import type { CurrencyCode } from "@/lib/currency";
 import { ReportSection } from "../ReportSection";
 import { ShowOffRowsToggle } from "../ShowOffRowsToggle";
+import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { ReportScopeData } from "../data/reportData";
 import { REPORT_METRICS } from "../metrics/reportMetrics";
 import type { ReportMetricKey } from "../metrics/reportMetricTypes";
@@ -39,6 +40,13 @@ export function GoalCampaignTable({
   currency,
 }: GoalCampaignTableProps) {
   const [showOff, setShowOff] = useState(true);
+  const previous = useMemo(
+    () =>
+      scope.previousCampaigns
+        ? new Map(scope.previousCampaigns.map((row) => [row.key, row]))
+        : undefined,
+    [scope.previousCampaigns],
+  );
   if (scope.campaigns.length === 0) {
     return null;
   }
@@ -64,9 +72,12 @@ export function GoalCampaignTable({
             <tr className="border-b">
               <th className={`${CELL} font-medium`}>קמפיין</th>
               {metrics.map((key) => (
-                <th key={key} className={`${CELL} font-medium`}>
-                  {REPORT_METRICS[key].label}
-                </th>
+                <Fragment key={key}>
+                  <th className={`${CELL} font-medium`}>
+                    {REPORT_METRICS[key].label}
+                  </th>
+                  {previous && <PreviousValueHead cellClassName={CELL} />}
+                </Fragment>
               ))}
             </tr>
           </thead>
@@ -78,6 +89,7 @@ export function GoalCampaignTable({
                 labelled={groups.length > 1}
                 metrics={metrics}
                 currency={currency}
+                previous={previous}
               />
             ))}
           </tbody>
@@ -90,6 +102,11 @@ export function GoalCampaignTable({
                 metrics={metrics}
                 figures={total}
                 currency={currency}
+                previous={
+                  scope.previousCampaigns
+                    ? sumFigures(scope.previousCampaigns)
+                    : undefined
+                }
               />
             </tr>
           </tfoot>

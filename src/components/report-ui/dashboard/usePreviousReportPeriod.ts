@@ -67,13 +67,34 @@ export function usePreviousReportPeriod({
   );
 }
 
+/**
+ * The dashboard's record rows in the period before its range, for the
+ * platform tabs' comparison columns. Undefined while they load or when the
+ * filter has no previous period.
+ */
+export function usePreviousDashboardRecords({
+  tables,
+  dateFilter,
+  customFrom,
+  customTo,
+  enabled,
+}: Omit<UsePreviousReportPeriodOptions, "clientId" | "hasWooCommerce">):
+  Array<DashboardReportRecord> | undefined {
+  const previous = enabled
+    ? previousPeriodOf(
+        getDashboardDateRange(dateFilter, new Date(), customFrom, customTo),
+      )
+    : null;
+  return usePreviousRecords(dashboardRecordTables(tables), previous);
+}
+
 /** Each record table's rows in the previous period. */
 function usePreviousRecords(
   tables: Array<DashboardReportTable>,
   previous: CalendarRange | null,
 ): Array<DashboardReportRecord> | undefined {
   const queryClient = useQueryClient();
-  const { data } = useQuery({
+  const { data, isPlaceholderData } = useQuery({
     queryKey: [
       "crm-records-dashboard",
       tables.map((table) => table.id).join(","),
@@ -90,7 +111,9 @@ function usePreviousRecords(
         : skipToken,
     ...reportQueryOptions<Array<DashboardReportRecord>>(),
   });
-  return data;
+  // The shared options keep the last range's rows while a new one loads;
+  // those belong to another period, so they are never compared.
+  return isPlaceholderData ? undefined : data;
 }
 
 /** Loads every table's rows in the range through the shared per-table cache. */

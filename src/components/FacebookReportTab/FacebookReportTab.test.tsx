@@ -32,20 +32,25 @@ const TABLES = [
 ];
 
 /** Renders the tab as a dashboard builds it from these records. */
-function renderTab(records: Array<DayRecord>) {
-  const campaigns = dashboardFacebookCampaigns(
-    records,
-    dashboardRecordGoalOf(records, TABLES),
-  );
+function renderTab(records: Array<DayRecord>, previous?: Array<DayRecord>) {
   render(
     <FacebookReportTab
-      campaigns={campaigns}
+      campaigns={campaignsOf(records)}
       records={records}
       tables={TABLES}
+      previous={previous ? campaignsOf(previous) : null}
       formatCurrency={(value) => formatCurrency(value, "ILS")}
       formatUnitCost={(value) => formatUnitCost(value, "ILS")}
       formatNumber={(value) => String(Math.round(value))}
     />,
+  );
+}
+
+/** The tab's campaigns by goal, as the dashboard groups them. */
+function campaignsOf(records: Array<DayRecord>) {
+  return dashboardFacebookCampaigns(
+    records,
+    dashboardRecordGoalOf(records, TABLES),
   );
 }
 
@@ -153,5 +158,34 @@ describe("FacebookReportTab", () => {
     await user.click(screen.getByRole("switch"));
     expect(within(table).queryByText("Off")).toBeNull();
     expect(within(table).getByText("On")).toBeTruthy();
+  });
+
+  it("compares each campaign and the total with the previous period", () => {
+    renderTab(
+      [
+        day("Leads", { campaign_type: "leads", spend: 100, leads: 10 }),
+        day("New", { campaign_type: "leads", spend: 50, leads: 1 }),
+      ],
+      [day("Leads", { campaign_type: "leads", spend: 100, leads: 5 })],
+    );
+    const table = tableOf("קמפיינים לידים - Facebook");
+    expect(heads(table)).toStrictEqual([
+      "קמפיין",
+      "חשיפות",
+      "קליקים",
+      "תקופה קודמת",
+      "לידים",
+      "תקופה קודמת",
+      "הוצאה",
+      "תקופה קודמת",
+      "עלות לליד",
+      "תקופה קודמת",
+    ]);
+    // Leads went up from 5 and cost per lead down from 20: both good news.
+    const leads = figures(table, "Leads");
+    expect(leads[4]).toBe("▲ 5");
+    expect(leads[8]).toBe("▼ 20 ₪");
+    // A campaign that did not run then has no previous value.
+    expect(figures(table, "New")[4]).toBe("—");
   });
 });

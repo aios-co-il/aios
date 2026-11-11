@@ -35,6 +35,8 @@ export type ReportPeriod = {
 /** One scope as a report shows it: this period, against the previous one. */
 export type ReportScopeData = ReportPeriodScope & {
   previous: ReportFigures | null;
+  /** The previous period's campaigns, for the campaign tables; null when off. */
+  previousCampaigns: Array<ReportCampaignRow> | null;
 };
 
 /** Everything a report layout renders from. */
@@ -46,7 +48,7 @@ export type ReportData = {
   askCarmen: boolean;
 };
 
-/** The current period's scopes, each with the previous period's totals. */
+/** The current period's scopes, each with the previous period's totals and campaigns. */
 export function reportDataOf(input: {
   current: ReportPeriod;
   previous: ReportPeriod | null;
@@ -58,6 +60,9 @@ export function reportDataOf(input: {
     scopes[scope] = {
       ...data,
       previous: input.previous?.scopes[scope]?.figures ?? null,
+      previousCampaigns: input.previous
+        ? (input.previous.scopes[scope]?.campaigns ?? [])
+        : null,
     };
   }
   return {
