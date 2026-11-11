@@ -496,7 +496,7 @@ function TaskCard({
 
   return (
     <div
-      className={`bg-white rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow ${!task.enabled && isRecurring ? "opacity-60" : ""}`}
+      className={`bg-card rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow ${!task.enabled && isRecurring ? "opacity-60" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -1239,7 +1239,7 @@ export default function AgentTasksPage() {
                   {agentStats.map((agent) => (
                     <div
                       key={agent.id}
-                      className="bg-white rounded-xl border p-4 shadow-sm"
+                      className="bg-card rounded-xl border p-4 shadow-sm"
                     >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="relative">

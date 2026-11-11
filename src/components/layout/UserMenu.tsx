@@ -1,4 +1,4 @@
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, Moon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAccessibleMenuModules } from "@/hooks/useAccessibleMenuModules";
 import { useTenantPath } from "@/hooks/useTenantPath";
+import { Switch } from "@/components/ui/switch";
+import { useAppColorMode } from "@/theme/appColorMode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,13 +16,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/** Header menu: the system settings (the menu's admin tab) and logout. */
+/** Header menu: the system settings (the menu's admin tab), dark mode and logout. */
 export function UserMenu() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { buildPath } = useTenantPath();
   const { groups } = useAccessibleMenuModules();
   const settings = groups.find((group) => group.id === "admin")?.modules ?? [];
+  const colorMode = useAppColorMode();
 
   const logout = useMutation({
     mutationFn: async () => {
@@ -81,6 +84,26 @@ export function UserMenu() {
           );
         })}
         {settings.length > 0 && <DropdownMenuSeparator />}
+        <DropdownMenuItem
+          role="menuitemcheckbox"
+          aria-checked={colorMode.mode === "dark"}
+          // Keep the menu open so the switch is seen flipping.
+          onSelect={(event) => {
+            event.preventDefault();
+            colorMode.toggle();
+          }}
+          className="gap-2"
+        >
+          <Moon className="h-4 w-4" />
+          מצב כהה
+          <Switch
+            checked={colorMode.mode === "dark"}
+            tabIndex={-1}
+            aria-hidden
+            className="pointer-events-none ms-auto"
+          />
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => logout.mutate()} className="gap-2">
           <LogOut className="h-4 w-4" />
           התנתק

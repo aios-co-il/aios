@@ -47,7 +47,7 @@ export function CarmenSkinSwitcher({
       <SelectTrigger
         aria-label="בחירת סקין"
         title="סקין — התפקיד והדמות של כרמן"
-        className={`rounded-lg border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] shadow-none ring-0 focus:ring-0 ${className}`}
+        className={`rounded-lg border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 text-xs text-[var(--cc-text)] shadow-none ring-0 focus:ring-0 ${className}`}
       >
         <span className="flex min-w-0 items-center gap-1.5">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
@@ -56,7 +56,7 @@ export function CarmenSkinSwitcher({
           </span>
         </span>
       </SelectTrigger>
-      <SelectContent className="cc-root cc-menu z-[90] max-h-80 border-[var(--cc-line-strong)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]">
+      <SelectContent className="cc-root cc-menu z-[90] max-h-80 border-[var(--cc-line-strong)] bg-[rgba(var(--cc-surface-rgb),0.98)] text-[var(--cc-text)]">
         {skins.map((s) => (
           <SelectItem
             key={s.slug}

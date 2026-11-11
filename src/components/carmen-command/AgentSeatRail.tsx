@@ -130,7 +130,7 @@ export function AgentSeatSelect({
     >
       <SelectTrigger
         aria-label="בחירת סוכן"
-        className={`cc-seat-select-trigger border-[var(--cc-line)] bg-[rgba(8,16,34,0.85)] text-[var(--cc-text)] shadow-none ring-0 ring-offset-0 focus:ring-0 focus:ring-offset-0${className ? ` ${className}` : ""}`}
+        className={`cc-seat-select-trigger border-[var(--cc-line)] bg-[rgba(var(--cc-surface-rgb),0.85)] text-[var(--cc-text)] shadow-none ring-0 ring-offset-0 focus:ring-0 focus:ring-offset-0${className ? ` ${className}` : ""}`}
       >
         <span className="cc-seat-select-value flex min-w-0 items-center gap-2">
           {extra ? (
@@ -143,7 +143,7 @@ export function AgentSeatSelect({
           </span>
         </span>
       </SelectTrigger>
-      <SelectContent className="cc-seat-select-content border-[var(--cc-line-strong)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]">
+      <SelectContent className="cc-seat-select-content border-[var(--cc-line-strong)] bg-[rgba(var(--cc-surface-rgb),0.98)] text-[var(--cc-text)]">
         {seats.map((key) => (
           <SelectItem
             key={key}

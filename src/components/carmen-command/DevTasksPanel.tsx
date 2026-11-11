@@ -152,7 +152,7 @@ function DevTaskCard({
   const [showPr, setShowPr] = useState(false);
 
   return (
-    <li className="rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.45)] p-3 text-xs">
+    <li className="rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.45)] p-3 text-xs">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-[var(--cc-text)]">{task.title}</p>

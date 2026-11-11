@@ -46,7 +46,7 @@ export function CarmenSessionVideoCard({
             navigate(buildPath("command-center"));
             onClose?.();
           }}
-          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-slate-950/60 text-white backdrop-blur-sm transition-colors hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 disabled:opacity-40"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card/70 text-foreground backdrop-blur-sm transition-colors hover:bg-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40 dark:border-white/20 dark:bg-slate-950/60 dark:text-white dark:hover:bg-slate-800"
         >
           <Maximize2 className="h-4 w-4" />
         </button>
@@ -59,8 +59,8 @@ export function CarmenSessionVideoCard({
           className={`carmen-session-character ${identity.custom ? "is-custom" : ""}`}
         />
       ) : (
-        // `dark` gives the orb the see-through glass look on the navy card.
-        <div className="carmen-session-orb dark">
+        // Deep green glass on the light card; dark mode turns it see-through.
+        <div className="carmen-session-orb orb-deep">
           <CarmenOrbBuddy
             tint={getRoleOrbTint(identity.activeSkin)}
             state={faceState}

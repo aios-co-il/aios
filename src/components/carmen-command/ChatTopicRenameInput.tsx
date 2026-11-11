@@ -29,7 +29,7 @@ export function ChatTopicRenameInput({
             onCancel();
           }
         }}
-        className="h-8 w-full rounded-md border border-[var(--cc-line-strong)] bg-[rgba(5,10,22,0.6)] px-2 text-right text-[13px] text-[var(--cc-text)] outline-none"
+        className="h-8 w-full rounded-md border border-[var(--cc-line-strong)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 text-right text-[13px] text-[var(--cc-text)] outline-none"
       />
     </div>
   );

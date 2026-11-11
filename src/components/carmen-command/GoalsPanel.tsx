@@ -264,7 +264,7 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
               <button
                 type="button"
                 onClick={() => setSelectedId(g.id)}
-                className={`w-full rounded border p-2 text-right text-xs transition-colors ${selectedId === g.id ? "border-[var(--cc-accent)] bg-[rgba(76,195,255,0.08)]" : "border-[var(--cc-line)] hover:border-[var(--cc-line-strong)]"}`}
+                className={`w-full rounded border p-2 text-right text-xs transition-colors ${selectedId === g.id ? "border-[var(--cc-accent)] bg-[rgba(var(--cc-accent-rgb),0.08)]" : "border-[var(--cc-line)] hover:border-[var(--cc-line-strong)]"}`}
               >
                 <p className="font-semibold text-[var(--cc-text)]">{g.title}</p>
                 <p className="text-[var(--cc-text-dim)]">
@@ -565,9 +565,9 @@ function GoalDetailView({
                 <span
                   className={
                     c.status === "PASS"
-                      ? " text-green-400"
+                      ? " text-[var(--cc-ok)]"
                       : c.status === "FAIL"
-                        ? " text-red-400"
+                        ? " text-[var(--cc-crit)]"
                         : ""
                   }
                 >
@@ -578,7 +578,9 @@ function GoalDetailView({
             ))}
           </ul>
           {engine.completion_gate?.complete && (
-            <p className="mt-1 text-green-400">✓ כל הקריטריונים עברו — הושלם</p>
+            <p className="mt-1 text-[var(--cc-ok)]">
+              ✓ כל הקריטריונים עברו — הושלם
+            </p>
           )}
         </section>
       ) : null}

@@ -83,7 +83,7 @@ export function ParliamentBoard({
         </p>
       )}
       <div className="flex items-center justify-center gap-3">
-        <div className="flex h-14 w-14 flex-col items-center justify-center rounded-full border border-[var(--cc-line-strong)] bg-[rgba(76,195,255,0.12)] text-[10px] font-bold text-[var(--cc-accent)]">
+        <div className="flex h-14 w-14 flex-col items-center justify-center rounded-full border border-[var(--cc-line-strong)] bg-[rgba(var(--cc-accent-rgb),0.12)] text-[10px] font-bold text-[var(--cc-accent)]">
           כרמן
         </div>
         {seats.map((seat) => (
@@ -94,7 +94,7 @@ export function ParliamentBoard({
             title={seat.preview || seat.label}
             className={`flex h-14 w-14 flex-col items-center justify-center rounded-full border text-[10px] ${
               selectedProvider === seat.provider
-                ? "border-[var(--cc-accent)] bg-[rgba(76,195,255,0.12)]"
+                ? "border-[var(--cc-accent)] bg-[rgba(var(--cc-accent-rgb),0.12)]"
                 : ""
             } ${
               seat.state === "failed"
@@ -112,7 +112,7 @@ export function ParliamentBoard({
         ))}
       </div>
       {selected?.preview && (
-        <div className="mt-2 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.45)] p-2 text-xs">
+        <div className="mt-2 rounded-md border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.45)] p-2 text-xs">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[var(--cc-accent)]">{selected.label}</span>
             {debating && onClarify && (

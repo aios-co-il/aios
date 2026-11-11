@@ -13,6 +13,7 @@ import { CommandCenterSidecarShell } from "@/components/carmen-command/CommandCe
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { CarmenRouteProgress } from "@/components/shared/CarmenRouteProgress";
 import { useCarmenContentFade } from "@/hooks/useCarmenContentFade";
+import { useApplyAppColorMode } from "@/theme/appColorMode";
 import { AgencySelector } from "./AgencySelector";
 import { CarmenSessionButton } from "./CarmenSessionButton";
 import { UserMenu } from "./UserMenu";
@@ -29,6 +30,7 @@ export function AppLayout() {
   const contentFadeRef = useCarmenContentFade<HTMLDivElement>();
   const { userTenants, handleTenantChange } = useUserTenants(userId);
   useProcessPendingInvitation(userId);
+  useApplyAppColorMode();
 
   return (
     <ViewAsProvider>
