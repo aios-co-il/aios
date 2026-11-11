@@ -42,6 +42,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import {
   autoDetectLeadImportField,
   classifyLeadImportStatus,
@@ -1453,17 +1454,13 @@ export function ImportLeadsWithMapping() {
                       key={status.value}
                       className="flex items-center gap-2 bg-background p-2 rounded border"
                     >
-                      <input
-                        type="color"
+                      <ColorPicker
                         value={status.color}
-                        onChange={(e) =>
-                          updateNewValueColor(
-                            status.value,
-                            "status",
-                            e.target.value,
-                          )
+                        onChange={(color) =>
+                          updateNewValueColor(status.value, "status", color)
                         }
-                        className="w-6 h-6 rounded cursor-pointer border-0"
+                        label={`צבע הסטטוס ${status.value}`}
+                        className="h-6 w-6 rounded border"
                       />
                       <span className="text-sm">{status.value}</span>
                     </div>
@@ -1487,13 +1484,13 @@ export function ImportLeadsWithMapping() {
                       key={tag.value}
                       className="flex items-center gap-2 bg-background p-2 rounded border"
                     >
-                      <input
-                        type="color"
+                      <ColorPicker
                         value={tag.color}
-                        onChange={(e) =>
-                          updateNewValueColor(tag.value, "tag", e.target.value)
+                        onChange={(color) =>
+                          updateNewValueColor(tag.value, "tag", color)
                         }
-                        className="w-6 h-6 rounded cursor-pointer border-0"
+                        label={`צבע התגית ${tag.value}`}
+                        className="h-6 w-6 rounded border"
                       />
                       <span className="text-sm">{tag.value}</span>
                     </div>

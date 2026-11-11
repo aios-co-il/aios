@@ -1,3 +1,4 @@
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -74,12 +75,12 @@ export function ModelBrainProfileFields({ f, set }: FormFieldsProps) {
       </div>
       <div className="flex items-center gap-2">
         <Label htmlFor="brain-color">צבע בבורר</Label>
-        <input
+        <ColorPicker
           id="brain-color"
-          type="color"
           value={f.color}
-          onChange={(e) => set("color", e.target.value)}
-          className="h-8 w-12 cursor-pointer rounded border bg-transparent"
+          onChange={(color) => set("color", color)}
+          label="צבע בבורר"
+          className="h-8 w-12 rounded border"
         />
       </div>
     </div>
