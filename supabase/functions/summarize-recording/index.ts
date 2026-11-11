@@ -9,6 +9,7 @@ import {
 } from "../_shared/meeting-summary.ts";
 import { dispatchMeetingSummaryToCursor } from "../_shared/meeting-summary-cursor.ts";
 import { resolveOpenAIKey } from "../_shared/ai.ts";
+import { cursorSummaryResponse } from "./cursor-outcome.ts";
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
@@ -169,28 +170,8 @@ serve(async (req) => {
           manual: true,
         })
       : { ok: false as const, reason: "not_configured" as const };
-    if (dispatched.ok) {
-      return new Response(
-        JSON.stringify({
-          success: true,
-          pending: true,
-          channel: "cursor",
-          conversation_id: dispatched.conversation_id,
-          external_url: dispatched.external_url,
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-    if (dispatched.reason !== "not_configured") {
-      const message =
-        dispatched.reason === "busy"
-          ? "קרסר ישיר עסוק כרגע. נסה שוב בעוד דקה."
-          : "לא הצלחתי לשלוח את הסיכום לקרסר ישיר.";
-      return new Response(JSON.stringify({ error: message }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const cursorResponse = cursorSummaryResponse(dispatched, corsHeaders);
+    if (cursorResponse) return cursorResponse;
 
     const OPENAI_API_KEY = await resolveOpenAIKey();
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
