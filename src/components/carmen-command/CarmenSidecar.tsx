@@ -300,7 +300,7 @@ export function CarmenSidecar({
             rows={2}
             placeholder="הודעה עם הקשר המסך…"
             disabled={isStreaming}
-            className="min-h-[44px] flex-1 resize-none rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-3 py-2 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)]"
+            className="min-h-[44px] flex-1 resize-none rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-3 py-2 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)]"
           />
           <button
             type="button"

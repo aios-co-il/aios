@@ -162,12 +162,12 @@ export function HudMenu({
           align="start"
           side="bottom"
           sideOffset={6}
-          className="cc-root z-[110] min-w-[10rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
+          className="cc-root z-[110] min-w-[10rem] border-[var(--cc-line)] bg-[rgba(var(--cc-surface-rgb),0.98)] text-[var(--cc-text)]"
         >
           {HUD_ITEMS.map((item) => (
             <DropdownMenuItem
               key={item.id}
-              className="cursor-pointer text-right text-[var(--cc-text)] focus:bg-[rgba(76,195,255,0.12)] focus:text-[var(--cc-accent)]"
+              className="cursor-pointer text-right text-[var(--cc-text)] focus:bg-[rgba(var(--cc-accent-rgb),0.12)] focus:text-[var(--cc-accent)]"
               onSelect={() => setOpen(item.id)}
             >
               {item.label}

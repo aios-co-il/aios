@@ -5,7 +5,11 @@ import {
   type QuickReplyGroup,
 } from "@/lib/quickReplies";
 import { QuickReplyOther } from "./QuickReplyOther";
-import { QUICK_REPLY_OPTION, QUICK_REPLY_PICKED } from "./quickReplyStyles";
+import {
+  QUICK_REPLY_OPTION,
+  QUICK_REPLY_PICKED,
+  QUICK_REPLY_SUBMIT,
+} from "./quickReplyStyles";
 
 /**
  * Tap-to-answer buttons under Carmen's question. One question answers on the tap; several
@@ -88,7 +92,7 @@ export function QuickReplies({
         <button
           type="button"
           disabled={disabled || Object.keys(picked).length === 0}
-          className={`${QUICK_REPLY_OPTION} !bg-teal-300/30`}
+          className={`${QUICK_REPLY_OPTION} ${QUICK_REPLY_SUBMIT}`}
           onClick={() => send(picked)}
         >
           שלחי תשובות

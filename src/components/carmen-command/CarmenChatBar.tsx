@@ -1961,7 +1961,7 @@ export const CarmenChatBar = forwardRef<
           {attachments.map((att, idx) => (
             <div
               key={`${att.url}-${idx}`}
-              className="inline-flex max-w-full items-center gap-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.5)] px-2 py-1 text-xs text-[var(--cc-text)]"
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.5)] px-2 py-1 text-xs text-[var(--cc-text)]"
             >
               {att.type === "image" ? (
                 <ImageIcon className="h-3.5 w-3.5 shrink-0" />
@@ -2012,7 +2012,7 @@ export const CarmenChatBar = forwardRef<
           <DropdownMenuContent
             align="start"
             side="top"
-            className="cc-root z-[120] w-[min(18rem,calc(100vw-1.5rem))] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] p-3 text-[var(--cc-text)]"
+            className="cc-root z-[120] w-[min(18rem,calc(100vw-1.5rem))] border-[var(--cc-line)] bg-[rgba(var(--cc-surface-rgb),0.98)] p-3 text-[var(--cc-text)]"
           >
             {/* The menu renders in a portal outside the page's rtl root. */}
             <div dir="rtl">
@@ -2041,7 +2041,7 @@ export const CarmenChatBar = forwardRef<
                     selectMicCaptureMode(e.target.value as MicCaptureMode)
                   }
                   title="מצב מיקרופון"
-                  className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                  className="mt-1 h-10 w-full rounded-md border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
                   disabled={
                     isConvMode || isTranscribeRecording || isTranscribing
                   }
@@ -2063,7 +2063,7 @@ export const CarmenChatBar = forwardRef<
                     value={selectedVoice ?? ""}
                     onChange={(e) => selectVoice(toCarmenVoice(e.target.value))}
                     title="קול"
-                    className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
+                    className="h-10 min-w-0 flex-1 rounded-md border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 text-sm text-[var(--cc-text)] outline-none"
                   >
                     <CarmenVoiceOptions />
                   </select>
@@ -2103,7 +2103,7 @@ export const CarmenChatBar = forwardRef<
           )}
         </button>
         <div
-          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 ${inlineVoiceSelects}`}
         >
           <select
             value={micCaptureMode}
@@ -2124,7 +2124,7 @@ export const CarmenChatBar = forwardRef<
           </select>
         </div>
         <div
-          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 ${inlineVoiceSelects}`}
+          className={`h-11 shrink-0 items-center gap-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 ${inlineVoiceSelects}`}
         >
           <Headphones className="h-4 w-4 text-[var(--cc-accent)]" />
           <select
@@ -2165,7 +2165,7 @@ export const CarmenChatBar = forwardRef<
               ? "border-[var(--cc-crit)] bg-[rgba(248,113,113,0.15)] text-[var(--cc-crit)]"
               : isTranscribing
                 ? "border-[var(--cc-line)] opacity-60"
-                : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(76,195,255,0.15)]"
+                : "border-[var(--cc-line-strong)] text-[var(--cc-accent)] hover:bg-[rgba(var(--cc-accent-rgb),0.15)]"
           }`}
         >
           {isTranscribing ? (
@@ -2226,7 +2226,7 @@ export const CarmenChatBar = forwardRef<
             // A live call owns the conversation: typing would start a parallel brain request.
             isConvMode
           }
-          className="order-2 h-11 min-w-0 flex-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-3 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)] sm:order-none"
+          className="order-2 h-11 min-w-0 flex-1 rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-3 text-sm outline-none placeholder:text-[var(--cc-text-dim)] focus:border-[var(--cc-line-strong)] sm:order-none"
         />
         <SendOrStopButton
           busy={thisChatBusy}

@@ -1,7 +1,11 @@
 import { useId, useState, type KeyboardEvent } from "react";
 import { MAX_ANSWER } from "@functions/_shared/workshop/brief-answers.ts";
 import { OTHER_OPTION, freeAnswer } from "@/lib/quickReplies";
-import { QUICK_REPLY_OPTION, QUICK_REPLY_PICKED } from "./quickReplyStyles";
+import {
+  QUICK_REPLY_OPTION,
+  QUICK_REPLY_PICKED,
+  QUICK_REPLY_SUBMIT,
+} from "./quickReplyStyles";
 
 /**
  * The "אחר…" button of one group and, once tapped, a one-line field for an answer in the user's
@@ -78,14 +82,14 @@ export function QuickReplyOther({
             maxLength={MAX_ANSWER}
             aria-label={`תשובה משלך: ${label}`}
             placeholder="כתבי תשובה משלך"
-            className="min-w-0 flex-1 rounded-full border border-teal-300/40 bg-black/20 px-3 py-1 text-xs text-teal-50 placeholder:text-teal-50/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-teal-200"
+            className="min-w-0 flex-1 rounded-full border border-teal-600/40 bg-white/70 px-3 py-1 text-xs text-teal-900 placeholder:text-teal-900/50 focus:outline-none focus-visible:ring-1 focus-visible:ring-teal-600 dark:border-teal-300/40 dark:bg-black/20 dark:text-teal-50 dark:placeholder:text-teal-50/50 dark:focus-visible:ring-teal-200"
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
           <button
             type="submit"
             disabled={!ready}
-            className={`${QUICK_REPLY_OPTION} !bg-teal-300/30`}
+            className={`${QUICK_REPLY_OPTION} ${QUICK_REPLY_SUBMIT}`}
           >
             {single ? "שלחי" : "אישור"}
           </button>

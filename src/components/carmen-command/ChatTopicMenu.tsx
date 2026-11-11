@@ -21,14 +21,14 @@ export function ChatTopicMenu({ onRename, onDelete }: ChatTopicMenuProps) {
           type="button"
           aria-label="אפשרויות לשיחה"
           title="אפשרויות"
-          className="absolute left-1 top-2 flex h-6 w-6 items-center justify-center rounded-md text-[var(--cc-text-dim)] opacity-70 hover:bg-[rgba(76,195,255,0.12)] hover:text-[var(--cc-accent)] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
+          className="absolute left-1 top-2 flex h-6 w-6 items-center justify-center rounded-md text-[var(--cc-text-dim)] opacity-70 hover:bg-[rgba(var(--cc-accent-rgb),0.12)] hover:text-[var(--cc-accent)] hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
         >
           <MoreVertical className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="cc-root cc-menu z-[90] min-w-[9rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
+        className="cc-root cc-menu z-[90] min-w-[9rem] border-[var(--cc-line)] bg-[rgba(var(--cc-surface-rgb),0.98)] text-[var(--cc-text)]"
       >
         {onRename && (
           <DropdownMenuItem
