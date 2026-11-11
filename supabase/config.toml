@@ -338,9 +338,6 @@ verify_jwt = true
 [functions.sync-tasks-to-calendar]
 verify_jwt = true
 
-[functions.analyze-campaign-data]
-verify_jwt = true
-
 [functions.merge-duplicate-leads]
 verify_jwt = true
 

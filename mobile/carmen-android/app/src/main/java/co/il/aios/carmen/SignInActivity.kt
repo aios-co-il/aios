@@ -9,7 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 
-/** Carmen Marketing OS sign-in, styled like the web app's `/auth`: email and password, or Google. */
+/** AIOS sign-in, styled like the web app's `/auth`: email and password, or Google. */
 class SignInActivity : AppCompatActivity() {
 
     private lateinit var account: AiosAccount
@@ -23,6 +23,7 @@ class SignInActivity : AppCompatActivity() {
         account = AiosAccount(this)
         status = findViewById(R.id.sign_in_status)
         findViewById<View>(R.id.sign_in_portrait).clipToOutline = true
+        CarmenLook.showPortrait(findViewById(R.id.sign_in_portrait))
         signInButton = findViewById(R.id.sign_in_button)
         findViewById<TextView>(R.id.sign_in_env).text = getString(R.string.env_label, BuildConfig.APP_ENV)
         signInButton.setOnClickListener { signInWithPassword() }

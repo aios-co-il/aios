@@ -13,6 +13,7 @@ import {
   type CarmenConnectionRole,
 } from "./carmen-connection-role.ts";
 import {
+  type CarmenWaNotify,
   originChatsMatch,
   replyDestinationIsConsistent,
   requireOriginChatId,
@@ -1128,15 +1129,7 @@ export async function sendCarmenReplyViaActionStep(args: {
   }
 }
 
-export interface CarmenWaNotify {
-  surface: "whatsapp";
-  tenant_id: string;
-  automation_id: string | null;
-  connection_user_id: string | null;
-  chat_id: string;
-  phone_number: string | null;
-  is_group: boolean;
-}
+export type { CarmenWaNotify } from "./carmen-session-identity.ts";
 
 export async function runCarmenAI(
   supabase: DbClient,

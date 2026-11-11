@@ -5,7 +5,7 @@ import {
   isDevEscalationTool,
   isDevEscalationToolAllowed,
 } from "../_shared/dev-escalation-auth.ts";
-import { MANAGER_ROLES } from "./manager-roles.ts";
+import { MANAGER_ROLES } from "../_shared/carmen/manager-roles.ts";
 import type {
   ToolCaller,
   ToolDispatchDependencies,

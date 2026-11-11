@@ -1,6 +1,6 @@
 import { workshopToolLabel } from "@/lib/workshopBridge";
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -116,7 +116,8 @@ export function ChatMessageRow({
     >
       {!isUser &&
         (sprite === CARMEN_CHARACTER ? (
-          <CarmenPortrait
+          <CarmenAvatar
+            skin={identity.activeSkin}
             image={identity.image}
             name={identity.name}
             custom={identity.custom}

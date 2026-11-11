@@ -20,7 +20,19 @@ class WhatsAppSendTest {
         drafts.step(draft, userConfirmed = false)
         val sameNumberOtherFormat = draft.copy(number = "+972521234567")
         assertEquals(WhatsAppDrafts.Step.Send(draft), drafts.step(sameNumberOtherFormat, userConfirmed = true))
-        assertEquals(WhatsAppDrafts.Step.ReadBack(draft), drafts.step(draft, userConfirmed = true))
+        drafts.markSent(draft)
+        assertEquals(WhatsAppDrafts.Step.AlreadySent(draft), drafts.step(draft, userConfirmed = true))
+    }
+
+    @Test
+    fun `a spoken yes takes the waiting message once, and a no drops it`() {
+        val drafts = WhatsAppDrafts()
+        drafts.step(draft, userConfirmed = false)
+        assertEquals(draft, drafts.takePending())
+        assertNull(drafts.takePending())
+        drafts.step(draft, userConfirmed = false)
+        drafts.cancel()
+        assertNull(drafts.pending())
     }
 
     @Test

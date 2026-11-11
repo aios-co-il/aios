@@ -257,7 +257,7 @@ export function NotesWithAttachments({
                   <FileText
                     className={cn(
                       largeThumbs ? "h-8 w-8" : "h-6 w-6",
-                      "text-red-500",
+                      "text-muted-foreground",
                     )}
                   />
                 )}
@@ -302,7 +302,7 @@ export function NotesWithAttachments({
   const notesCube = (
     <div
       className={cn(
-        "rounded-xl border border-border/60 bg-card p-3 flex flex-col shadow-sm text-right",
+        "rounded-xl border border-border/60 bg-card p-3 flex flex-col shadow-elevation-1 text-right",
         fillHeight ? "flex-1 h-full min-h-[200px]" : "min-h-[180px] h-full",
         notesWrapperClassName,
       )}
@@ -367,7 +367,7 @@ export function NotesWithAttachments({
       }}
       onPaste={handlePaste}
       className={cn(
-        "rounded-xl border border-border/60 bg-card p-3 flex flex-col shadow-sm text-right",
+        "rounded-xl border border-border/60 bg-card p-3 flex flex-col shadow-elevation-1 text-right",
         largeThumbs ? "min-h-[200px]" : "min-h-[180px]",
         dragOver && "border-primary bg-primary/5",
       )}

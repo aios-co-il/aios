@@ -34,9 +34,13 @@ function priorityBadge(priority: number) {
 }
 
 function priorityTone(priority: number) {
-  if (priority >= 8) return "bg-red-50 border-red-200 text-red-700";
-  if (priority >= 4) return "bg-yellow-50 border-yellow-200 text-yellow-700";
-  return "bg-green-50 border-green-200 text-green-700";
+  if (priority >= 8) {
+    return "bg-surface-status-red border-destructive text-destructive";
+  }
+  if (priority >= 4) {
+    return "bg-status-progress-surface border-brand-highlight/60 text-status-foreground";
+  }
+  return "bg-status-draft-surface border-border text-status-foreground";
 }
 
 export function EntityTaskCard({
@@ -62,7 +66,7 @@ export function EntityTaskCard({
   return (
     <Card
       className={cn(
-        "cursor-pointer hover:shadow-md transition-shadow",
+        "cursor-pointer hover:shadow-elevation-2 transition-shadow",
         tintByPriority && priorityTone(task.priority),
       )}
       onClick={onEdit}
@@ -75,7 +79,7 @@ export function EntityTaskCard({
               <Badge
                 variant="outline"
                 className={cn(
-                  "bg-green-100 text-green-700 border-green-300",
+                  "bg-status-active-surface text-status-foreground border-transparent",
                   compact && "text-xs",
                 )}
               >
@@ -87,7 +91,7 @@ export function EntityTaskCard({
                 variant="outline"
                 className={cn(
                   compact
-                    ? "bg-blue-100 text-blue-700 border-blue-300 text-xs"
+                    ? "bg-brand-ink/5 text-foreground border-brand-ink/15 text-xs"
                     : undefined,
                 )}
               >

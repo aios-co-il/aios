@@ -22,15 +22,21 @@
             android:adjustViewBounds="true"
             android:contentDescription="@string/app_name"
             android:scaleType="fitCenter"
-            android:src="@drawable/carmen_call" />
+            android:src="@drawable/carmen_orb_call" />
 
-        <!-- The looping clip of Carmen listening; the still above shows until it is ready. -->
-        <VideoView
-            android:id="@+id/carmen_video"
+        <!-- The character's clip for her state (CarmenClips); the still above shows until one is ready. -->
+        <FrameLayout
+            android:id="@+id/carmen_clips"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="center"
-            android:visibility="invisible" />
+            android:layout_gravity="center" />
+
+        <!-- The orb style: the glass orb drawn live, moving with her state (OrbBuddyView). -->
+        <co.il.aios.carmen.OrbBuddyView
+            android:id="@+id/carmen_orb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
 
         <!-- Active-speaker frame: glows while Carmen talks, as video calls mark who is speaking. -->
         <View

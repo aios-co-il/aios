@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="brand_name">Carmen Marketing OS</string>
+    <string name="brand_name">AiOs</string>
     <string name="brand_tagline">מנהלת השיווק של העסק שלך</string>
     <string name="email_label">אימייל</string>
     <string name="password_label">סיסמה</string>
@@ -22,6 +22,9 @@
     <string name="chat_send">שליחה</string>
     <string name="chat_typing">כרמן כותבת…</string>
     <string name="chat_greeting">היי, כאן כרמן. במה אפשר לעזור?</string>
+    <string name="chat_stop">עצירה</string>
+    <string name="chat_stopping">עוצרת…</string>
+    <string name="chat_stop_failed">לא הצלחתי לעצור</string>
     <string name="call_name">שיחה עם כרמן</string>
     <string name="call_tile_name">כרמן · מנהלת השיווק</string>
     <string name="mute">השתקת המיקרופון</string>
@@ -53,11 +56,11 @@
     <string name="privacy_note">זיהוי \"היי כרמן\" מתבצע בטלפון בלבד. אודיו נשלח לענן רק במהלך שיחה עם כרמן, אחרי מילת ההפעלה.</string>
     <string name="listening_title">כרמן מאזינה</string>
     <string name="listening_text">אמרו \"היי כרמן\"</string>
-    <string name="carmen_listening">כן, אני מקשיבה</string>
+    <string name="carmen_listening">אני כבר איתך</string>
     <string name="close">סגור</string>
     <string name="false_activation">זו הפעלת שווא</string>
     <string name="false_activation_recorded">הפעלת השווא נרשמה ביומן</string>
-    <string name="state_acknowledging">כן, אני מקשיבה</string>
+    <string name="state_acknowledging">אני כבר איתך</string>
     <string name="state_connecting">מתחברת למערכת…</string>
     <string name="state_listening">מקשיבה…</string>
     <string name="state_thinking">בודקת במערכת…</string>

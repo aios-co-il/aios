@@ -183,7 +183,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
           <Card key={site.id}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 py-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+                <div className="p-2 rounded-lg bg-brand-ink/5 text-muted-foreground">
                   <Globe className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
@@ -258,25 +258,25 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
               icon={ShoppingCart}
               label="סה״כ הזמנות"
               value={String(orders.length)}
-              color="text-blue-600"
+              color="text-brand-accent-600 dark:text-brand-accent-400"
             />
             <StatCard
               icon={ShoppingCart}
               label="הזמנות שהושלמו"
               value={String(completedOrders)}
-              color="text-green-600"
+              color="text-status-active"
             />
             <StatCard
               icon={Package}
               label="מוצרים"
               value={String(products.length)}
-              color="text-purple-600"
+              color="text-brand-accent-600 dark:text-brand-accent-400"
             />
             <StatCard
               icon={Users}
               label="לקוחות"
               value={String(customers.length)}
-              color="text-orange-600"
+              color="text-brand-accent-600 dark:text-brand-accent-400"
             />
           </div>
 

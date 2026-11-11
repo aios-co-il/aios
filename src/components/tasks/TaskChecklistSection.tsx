@@ -114,7 +114,7 @@ export function TaskChecklistSection({
   return (
     <section
       className={cn(
-        "rounded-xl border border-border/60 bg-card shadow-sm p-3 space-y-2 text-right",
+        "rounded-xl border border-border/60 bg-card shadow-elevation-1 p-3 space-y-2 text-right",
         className,
       )}
     >

@@ -1,5 +1,8 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
-import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
+import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
+import { CarmenOrbBuddy } from "@/components/carmen/CarmenOrbBuddy";
+import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
+import { getRoleOrbTint } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
 import { useCarmenUnreadReply } from "@/components/carmen-command/useCarmenUnreadReply";
 import { useCommandCenterSidecar } from "@/contexts/CommandCenterSidecarContext";
@@ -11,6 +14,7 @@ export function CarmenSessionButton() {
   const access = useCommandCenterAccess();
   const sidecar = useCommandCenterSidecar();
   const unread = useCarmenUnreadReply(sidecar.open);
+  const { style } = useCarmenAvatarStyle();
   if (!access.allowed) return null;
   return (
     <button
@@ -29,11 +33,20 @@ export function CarmenSessionButton() {
           aria-hidden
         />
       )}
-      <CarmenPortrait
-        image={identity.image}
-        name={identity.name}
-        custom={identity.custom}
-      />
+      {style === "character" ? (
+        <CarmenAvatar
+          skin={identity.activeSkin}
+          image={identity.image}
+          name={identity.name}
+          custom={identity.custom}
+        />
+      ) : (
+        <CarmenOrbBuddy
+          tint={getRoleOrbTint(identity.activeSkin)}
+          label={identity.name}
+          className="orb-navy w-12 md:w-14"
+        />
+      )}
     </button>
   );
 }

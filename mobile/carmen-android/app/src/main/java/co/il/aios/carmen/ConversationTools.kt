@@ -44,6 +44,27 @@ class ConversationTools(context: Context, account: AiosAccount, private val log:
         }
     }
 
+    /**
+     * Blocking. The user's spoken answer to a WhatsApp message read back for approval: a clear yes
+     * sends it here, a no drops it. Returns the note for Carmen to confirm the send, or null.
+     */
+    fun answerPendingSend(spoken: String): String? {
+        if (!whatsApp.hasPending()) return null
+        return when (SpokenApproval.parse(spoken)) {
+            SpokenApproval.Answer.YES -> {
+                log.record(EventLog.Event.PHONE_TOOL, "${WhatsAppSend.TOOL} spoken yes")
+                val result = whatsApp.confirmPending() ?: return null
+                "[הודעת מערכת, לא מהמשתמש] המשתמש אישר בקול, והאפליקציה טיפלה בשליחה: $result " +
+                    "אמרי לו את זה במשפט אחד, ואל תקראי שוב ל-${WhatsAppSend.TOOL}."
+            }
+            SpokenApproval.Answer.NO -> {
+                whatsApp.cancelPending()
+                null
+            }
+            SpokenApproval.Answer.NONE -> null
+        }
+    }
+
     companion object {
         const val ASK_CARMEN = "ask_carmen"
     }

@@ -174,8 +174,8 @@ export function ClientFollowUpDatePicker({
           size="icon"
           className={cn(
             "h-8 w-8 relative shrink-0",
-            isToday && "text-green-600 bg-green-100",
-            isOverdue && "text-destructive bg-destructive/10",
+            isToday && "text-status-foreground bg-status-active-surface",
+            isOverdue && "text-destructive bg-surface-status-red",
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -195,9 +195,10 @@ export function ClientFollowUpDatePicker({
           <span
             className={cn(
               "text-sm font-medium whitespace-nowrap",
-              isToday && "text-green-600 bg-green-100 px-2 py-0.5 rounded-md",
+              isToday &&
+                "text-status-foreground bg-status-active-surface px-2 py-0.5 rounded-md",
               isOverdue &&
-                "text-destructive bg-destructive/10 px-2 py-0.5 rounded-md",
+                "text-destructive bg-surface-status-red px-2 py-0.5 rounded-md",
             )}
           >
             {isOverdue

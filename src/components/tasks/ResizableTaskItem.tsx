@@ -160,9 +160,9 @@ export function ResizableTaskItem({
         style={style}
         className={cn(
           "group flex items-start gap-1 px-1 py-0.5 rounded border bg-card hover:bg-accent/50 cursor-pointer transition-colors text-[11px]",
-          isDragging && "opacity-50 shadow-lg",
+          isDragging && "opacity-50 shadow-elevation-2",
           isCompleted && "opacity-60",
-          isResizing && "shadow-lg ring-2 ring-primary",
+          isResizing && "shadow-elevation-2 ring-2 ring-primary",
           durationMinutes > 30 && "flex-col",
         )}
       >
@@ -249,7 +249,7 @@ export function ResizableTaskItem({
       }}
       className={cn(
         "group flex items-start gap-2 p-2 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-all",
-        isDragging && "opacity-50 shadow-lg z-50",
+        isDragging && "opacity-50 shadow-elevation-2 z-50",
         isCompleted && "opacity-60",
       )}
     >

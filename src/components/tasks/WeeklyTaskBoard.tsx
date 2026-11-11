@@ -2033,8 +2033,8 @@ export function WeeklyTaskBoard() {
       </div>
 
       {viewMode !== "chat" && calendarStatus && !calendarConnected && (
-        <div className="mb-2 rounded-md border border-emerald-500/30 bg-emerald-50 px-3 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-emerald-950">
+        <div className="mb-2 rounded-md border border-brand-accent/30 bg-brand-accent/10 px-3 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-foreground">
             היומן לא מחובר. חבר Google Calendar מכאן כדי לראות אירועים ליד
             המשימות.
           </span>
@@ -2479,7 +2479,7 @@ export function WeeklyTaskBoard() {
             </div>
             <DragOverlay>
               {activeTask ? (
-                <div className="p-2 rounded-lg border bg-card shadow-lg">
+                <div className="p-2 rounded-lg border bg-card shadow-elevation-2">
                   <p className="text-sm font-medium">{activeTask.title}</p>
                 </div>
               ) : null}

@@ -1,8 +1,5 @@
 package co.il.aios.carmen
 
-import android.media.AudioManager
-import androidx.core.net.toUri
-import androidx.core.view.isVisible
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -11,21 +8,25 @@ import android.widget.Chronometer
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
-import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
  * The call screen shown on activation, over the lock screen when needed: Carmen's video tile in
- * her office, as on a video call, with a call timer, her latest words as captions, mute and end.
+ * her office, as on a video call, moving with her state (CarmenClips or OrbBuddyView), with a
+ * call timer, her latest words as captions, mute and end.
  */
 class CarmenActivity : AppCompatActivity() {
 
     private var face: CarmenPortrait? = null
+    private var clips: CarmenClips? = null
+    private var orb: OrbBuddyView? = null
     private lateinit var stateText: TextView
     private val closeAfterEnd = Runnable { if (!isFinishing) finish() }
 
     private val render: (CarmenSession.Snapshot) -> Unit = { snapshot ->
         face?.state = snapshot.state
+        clips?.setState(snapshot.state)
+        orb?.state = snapshot.state
         stateText.setText(stateLabel(snapshot.state))
         // The session is over: leave the lock screen so the display can turn off again.
         stateText.removeCallbacks(closeAfterEnd)
@@ -45,12 +46,18 @@ class CarmenActivity : AppCompatActivity() {
         stateText = findViewById(R.id.state_text)
         // Rounded tile corners (the XML attribute needs API 31; minSdk is 30).
         findViewById<View>(R.id.call_tile).clipToOutline = true
+        CarmenLook.showPortrait(findViewById(R.id.carmen_portrait))
         face = CarmenPortrait(findViewById(R.id.carmen_portrait), findViewById(R.id.portrait_glow), fixedFrame = true)
         findViewById<Chronometer>(R.id.call_timer).apply {
             base = SystemClock.elapsedRealtime()
             start()
         }
-        startVideo()
+        // The organization's style moves with her state: the character's clips, or the live orb.
+        if (CarmenLook.isCharacter(this)) {
+            clips = CarmenClips(findViewById(R.id.carmen_clips))
+        } else {
+            orb = findViewById<OrbBuddyView>(R.id.carmen_orb).apply { visibility = View.VISIBLE }
+        }
         CarmenSession.observe(render)
         findViewById<ImageButton>(R.id.close_button).setOnClickListener { endCall() }
         findViewById<ImageButton>(R.id.mute_button).setOnClickListener { toggleMute(it as ImageButton) }
@@ -69,25 +76,6 @@ class CarmenActivity : AppCompatActivity() {
     private fun endCall() {
         WakeWordService.send(this, WakeWordService.ACTION_SESSION_ENDED)
         finish()
-    }
-
-    /** Loops the silent clip of Carmen listening; it must never take audio focus from the call. */
-    private fun startVideo() {
-        // Looked up by name so the screen works with the still alone until the clip ships.
-        @Suppress("DiscouragedApi")
-        val clip = resources.getIdentifier("carmen_idle", "raw", packageName)
-        if (clip == 0) return
-        val video = findViewById<VideoView>(R.id.carmen_video)
-        video.setAudioFocusRequest(AudioManager.AUDIOFOCUS_NONE)
-        video.setVideoURI("android.resource://$packageName/$clip".toUri())
-        video.setOnPreparedListener { player ->
-            player.isLooping = true
-            player.setVolume(0f, 0f)
-            video.visibility = View.VISIBLE
-            video.start()
-        }
-        // Without the clip the still image stays, which is fine.
-        video.setOnErrorListener { _, _, _ -> true }
     }
 
     private fun toggleMute(button: ImageButton) {
@@ -114,17 +102,21 @@ class CarmenActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         face?.start()
-        findViewById<VideoView>(R.id.carmen_video).takeIf { it.isVisible }?.start()
+        clips?.resume()
+        orb?.start()
     }
 
     override fun onPause() {
         face?.stop()
+        clips?.pause()
+        orb?.stop()
         super.onPause()
     }
 
     override fun onDestroy() {
         stateText.removeCallbacks(closeAfterEnd)
         CarmenSession.unobserve(render)
+        clips?.release()
         if (isFinishing) WakeWordService.send(this, WakeWordService.ACTION_SESSION_ENDED)
         super.onDestroy()
     }

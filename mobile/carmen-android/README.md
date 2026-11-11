@@ -1,12 +1,13 @@
 # Carmen Mobile — Android app
 
-A small native Kotlin app: say "היי כרמן" on the phone, hear "כן, אני מקשיבה", then talk live
+A small native Kotlin app: say "היי כרמן" on the phone, hear typing and "אני כבר איתך", then talk live
 with Carmen. Phase 1 (AIO-348) is the wake word; phase 2 (AIO-352) connects it to Carmen's brain
-through the same Realtime session the web Command Center uses. The home screen is Carmen herself:
-her approved character, **דברו עם כרמן** for a live conversation by tap, and the "היי כרמן"
+through the same Realtime session the web Command Center uses. The home screen is Carmen herself, in
+the organization's style (the glass orb by default, or her approved character, set on the web under
+Settings → Branding → סגנון כרמן), **דברו עם כרמן** for a live conversation by tap, and the "היי כרמן"
 listening switch. The system's Command Center (chat and live conversation) opens from there in a
-web view. Sign-in (email or Google) and settings use the Carmen
-Marketing OS look of the web app's `/auth`. Test report and Go/No-Go:
+web view. Sign-in (email or Google) and settings use the AIOS
+look of the web app's `/auth`. Test report and Go/No-Go:
 [`docs/wake-word-test-report.md`](docs/wake-word-test-report.md).
 
 ## Get the APK
@@ -40,7 +41,7 @@ the Production app needs one uninstall first.
    the first time, and the **האזנה ל"היי כרמן"** switch turns it on or off.
 4. In **הגדרות**, tap **הגדרות חיסכון בסוללה** and set Carmen to _Unrestricted_, and on Android
    14+ allow full-screen notifications, so the Carmen screen opens over the lock screen.
-5. Say "היי כרמן" or tap **דברו עם כרמן**: Carmen says "כן, אני מקשיבה" and listens. Tap **סגור**
+5. Say "היי כרמן" or tap **דברו עם כרמן**: Carmen says "אני כבר איתך", greets once connected, and listens. Tap **סגור**
    to end the conversation, or **זו הפעלת שווא** to record a false activation; 45 seconds of
    silence also ends it. **כתבו לכרמן** opens a typed chat, and **מרכז הפיקוד** the system's
    Command Center.

@@ -35,7 +35,6 @@ import {
   TrendingUp,
   Bell,
   SearchIcon,
-  Sparkles,
   Info,
   Copy,
   Loader2,
@@ -45,7 +44,6 @@ import {
   ExternalLink,
   User,
 } from "lucide-react";
-import { AIAnalysisDialog } from "@/components/dynamic-tables/AIAnalysisDialog";
 import { format, subDays } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -128,6 +126,7 @@ import { FacebookSalesTable } from "@/components/dynamic-tables/FacebookSalesTab
 import { FacebookTrafficTable } from "@/components/dynamic-tables/FacebookTrafficTable";
 import { facebookPreviousPeriod } from "@/components/dynamic-tables/facebookPreviousPeriod";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { previousReportRecords } from "@/components/reports/PreviousPeriod/previousReportRecords";
 import { usePreviousPeriodRecords } from "@/components/reports/PreviousPeriod/usePreviousPeriodRecords";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { ManualROICard } from "@/components/dynamic-tables/ManualROICard";
@@ -560,6 +559,7 @@ export default function DynamicTableView({
     data: records,
     isPending: recordsPending,
     isFetching: recordsFetching,
+    isPlaceholderData: recordsPlaceholder,
     dataUpdatedAt: recordsUpdatedAt,
   } = useQuery({
     ...reportRecordsQueryOptions(
@@ -623,28 +623,18 @@ export default function DynamicTableView({
   });
   // The previous period's records at the same level and search as the report.
   const previousFilteredRecords = useMemo(() => {
-    if (!previousPeriod.records) {
+    // Both windows must be loaded: the shared report options keep the last
+    // window's rows while a new one loads, and those cannot be compared.
+    if (!previousPeriod.records || recordsPlaceholder) {
       return undefined;
     }
-    const levelRecords = filterRecordsByEntityLevel(
-      previousPeriod.records,
-      adsEntityLevel,
-    );
-    if (!debouncedCampaignSearch.trim()) {
-      return levelRecords;
-    }
-    // Keep the history of the entities the search shows now, by their stable
-    // key: a campaign renamed since then still compares with its old rows.
-    const shownKeys = new Set(
-      filteredRecords.map((record) =>
-        getEntityGroupKey(record.data, adsEntityLevel),
-      ),
-    );
-    return levelRecords.filter((record) =>
-      shownKeys.has(getEntityGroupKey(record.data, adsEntityLevel)),
-    );
+    return previousReportRecords(previousPeriod.records, adsEntityLevel, {
+      searching: !!debouncedCampaignSearch.trim(),
+      shown: filteredRecords,
+    });
   }, [
     previousPeriod.records,
+    recordsPlaceholder,
     adsEntityLevel,
     debouncedCampaignSearch,
     filteredRecords,
@@ -2580,15 +2570,6 @@ export default function DynamicTableView({
                     </Button>
                   )}
                 </div>
-
-                {/* AI Analysis Button */}
-                {table && (
-                  <AIAnalysisDialog
-                    tableId={table.id}
-                    tableName={table.name}
-                    campaignFilter={debouncedCampaignSearch || undefined}
-                  />
-                )}
               </div>
             )}
 

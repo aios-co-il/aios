@@ -18,6 +18,9 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
+import { GoalReportOverview } from "@/components/report-ui/dashboard/GoalReportOverview";
+import { dashboardReportInput } from "@/components/report-ui/dashboard/dashboardReportInput";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +55,13 @@ import {
   ShoppingCart,
   Search,
   FileText,
+  Activity,
+  Banknote,
+  Eye,
+  ShoppingBag,
+  Tag,
+  Users,
+  Wallet,
 } from "lucide-react";
 import { PublicSeoView } from "@/components/dynamic-tables/PublicSeoView";
 import { PublicGscView } from "@/components/dynamic-tables/PublicGscView";
@@ -734,6 +744,21 @@ export default function SharedDashboard({
   const hasWooData =
     hasWooCommerce && (wooSummary.revenue > 0 || wooSummary.orderCount > 0);
 
+  // The per-goal report on the overview. public-dashboard takes presets only
+  // and caps each table's rows newest-first, so a wider preset would cut the
+  // earlier period short: the shared report shows no previous-period change.
+  const reportCurrent = useMemo(
+    () =>
+      dashboardReportInput({
+        records,
+        tables,
+        woo: hasWooCommerce
+          ? { revenue: wooSummary.revenue, orders: wooSummary.orderCount }
+          : null,
+      }),
+    [records, tables, hasWooCommerce, wooSummary],
+  );
+
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
     if (!hasVisibleAnalyticsData) return [];
@@ -1227,6 +1252,13 @@ export default function SharedDashboard({
         </Tabs>
       ) : (
         <>
+          {platformFilter === "all" && (
+            <GoalReportOverview
+              current={reportCurrent}
+              previous={null}
+              currency={dashboardCurrency}
+            />
+          )}
           {/* Summary Cards - "All" tab: 7 KPI cards like DashboardView */}
           {platformFilter === "all" && hasSeveralGoals(dashboardGoals) && (
             <DashboardGoalOverview
@@ -1244,116 +1276,80 @@ export default function SharedDashboard({
           {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 auto-rows-fr">
               {(showAdsCards || showAnalyticsCards) && (
-                <Card className="h-full bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-                  <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                    <p className="text-sm text-muted-foreground">הוצאה כוללת</p>
-                    <p className="text-3xl font-bold mt-2">
-                      {formatCurrency(totalSummary.spend)}
-                    </p>
-                  </CardContent>
-                </Card>
+                <ReportKpiCard
+                  icon={Wallet}
+                  label="הוצאה כוללת"
+                  value={formatCurrency(totalSummary.spend)}
+                />
               )}
 
               {dashboardCampaignType === "ecommerce" ? (
                 <>
                   {showAdsCards && (
-                    <Card className="h-full bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          סה״כ חשיפות
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(totalSummary.impressions)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Eye}
+                      label="סה״כ חשיפות"
+                      value={formatNumber(totalSummary.impressions)}
+                    />
                   )}
                   {showAdsCards && (
-                    <Card className="h-full bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          סה״כ קליקים
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(totalSummary.clicks)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={MousePointerClick}
+                      label="סה״כ קליקים"
+                      value={formatNumber(totalSummary.clicks)}
+                    />
                   )}
                   {showAdsCards && combinedLeads.leads > 0 && (
-                    <Card className="h-full bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">לידים</p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(combinedLeads.leads)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Users}
+                      label="לידים"
+                      value={formatNumber(combinedLeads.leads)}
+                    />
                   )}
                   {showAdsCards && combinedLeads.leads > 0 && (
-                    <Card className="h-full bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          עלות לליד (CPL)
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatCurrency(combinedLeads.cpl)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Tag}
+                      label="עלות לליד (CPL)"
+                      value={formatCurrency(combinedLeads.cpl)}
+                    />
                   )}
                   {showRevenueCards && (
-                    <Card className="h-full bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          {hasWooData
-                            ? "סה״כ הכנסות (WooCommerce)"
-                            : "סה״כ הכנסות"}
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatCurrency(
-                            hasWooData
-                              ? wooSummary.revenue
-                              : totalSummary.revenue,
-                          )}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Banknote}
+                      label={
+                        hasWooData ? "סה״כ הכנסות (WooCommerce)" : "סה״כ הכנסות"
+                      }
+                      value={formatCurrency(
+                        hasWooData ? wooSummary.revenue : totalSummary.revenue,
+                      )}
+                    />
                   )}
                   {showRevenueCards &&
                     ((hasWooData && wooSummary.orderCount > 0) ||
                       totalSummary.analyticsPurchases > 0 ||
                       dashboardGoals.goals.ecommerce.purchases > 0) && (
-                      <Card className="h-full bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-                        <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                          <p className="text-sm text-muted-foreground">
-                            {hasWooData
-                              ? "רכישות (WooCommerce)"
-                              : "רכישות (Analytics)"}
-                          </p>
-                          <p className="text-3xl font-bold mt-2">
-                            {formatNumber(
-                              hasWooData
-                                ? wooSummary.orderCount
-                                : totalSummary.analyticsPurchases ||
-                                    dashboardGoals.goals.ecommerce.purchases,
-                            )}
-                          </p>
-                        </CardContent>
-                      </Card>
+                      <ReportKpiCard
+                        icon={ShoppingBag}
+                        label={
+                          hasWooData
+                            ? "רכישות (WooCommerce)"
+                            : "רכישות (Analytics)"
+                        }
+                        value={formatNumber(
+                          hasWooData
+                            ? wooSummary.orderCount
+                            : totalSummary.analyticsPurchases ||
+                                dashboardGoals.goals.ecommerce.purchases,
+                        )}
+                      />
                     )}
                   {showAnalyticsCards &&
                     totalSummary.analyticsAddToCart > 0 && (
-                      <Card className="h-full bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900">
-                        <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                          <p className="text-sm text-muted-foreground">
-                            הוספה לעגלה (ATC)
-                          </p>
-                          <p className="text-3xl font-bold mt-2">
-                            {formatNumber(totalSummary.analyticsAddToCart)}
-                          </p>
-                        </CardContent>
-                      </Card>
+                      <ReportKpiCard
+                        icon={ShoppingCart}
+                        label="הוספה לעגלה (ATC)"
+                        value={formatNumber(totalSummary.analyticsAddToCart)}
+                      />
                     )}
                   {(platformFilter === "all" ||
                     platformFilter === "google_analytics" ||
@@ -1367,48 +1363,32 @@ export default function SharedDashboard({
               ) : (
                 <>
                   {showAdsCards && (
-                    <Card className="h-full bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">לידים</p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(combinedLeads.leads)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Users}
+                      label="לידים"
+                      value={formatNumber(combinedLeads.leads)}
+                    />
                   )}
                   {showAdsCards && (
-                    <Card className="h-full bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">קליקים</p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(totalSummary.clicks)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={MousePointerClick}
+                      label="קליקים"
+                      value={formatNumber(totalSummary.clicks)}
+                    />
                   )}
                   {showAdsCards && (
-                    <Card className="h-full bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          עלות לליד (CPL)
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatCurrency(combinedLeads.cpl)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Tag}
+                      label="עלות לליד (CPL)"
+                      value={formatCurrency(combinedLeads.cpl)}
+                    />
                   )}
                   {showAnalyticsCards && (
-                    <Card className="h-full bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900">
-                      <CardContent className="p-6 flex flex-col items-center justify-center h-full text-center">
-                        <p className="text-sm text-muted-foreground">
-                          סשנים (Analytics)
-                        </p>
-                        <p className="text-3xl font-bold mt-2">
-                          {formatNumber(totalSummary.analyticsSessions)}
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <ReportKpiCard
+                      icon={Activity}
+                      label="סשנים (Analytics)"
+                      value={formatNumber(totalSummary.analyticsSessions)}
+                    />
                   )}
                 </>
               )}
