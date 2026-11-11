@@ -14,7 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-export interface Attachment {
+export type Attachment = {
   name: string;
   path?: string;
   url?: string;
@@ -23,7 +23,7 @@ export interface Attachment {
   uploaded_at?: string;
   created_at?: string;
   created_by?: string;
-}
+};
 
 interface AttachmentsFieldProps {
   attachments: Attachment[];

@@ -49,14 +49,19 @@ export const CLIENT_LIST_COLUMNS = [
   "ahrefs_domain",
 ] as const;
 
-export const CLIENT_LIST_SELECT = `
-  ${CLIENT_LIST_COLUMNS.join(", ")},
+type JoinedColumns<T extends ReadonlyArray<string>> = T extends readonly [
+  infer First extends string,
+  ...infer Rest extends Array<string>,
+]
+  ? Rest extends []
+    ? First
+    : `${First}, ${JoinedColumns<Rest>}`
+  : "";
+// Array.join preserves this tuple's order, which also gives PostgREST its literal select type.
+const clientColumnSelect = CLIENT_LIST_COLUMNS.join(", ") as JoinedColumns<
+  typeof CLIENT_LIST_COLUMNS
+>;
+export const CLIENT_LIST_SELECT = `${clientColumnSelect},
   agencies (name),
-  client_team (
-    campaigner_id,
-    campaigners!inner (
-      id,
-      full_name
-    )
-  )
-`;
+  client_team (campaigner_id, campaigners!inner (id, full_name))
+` as const;

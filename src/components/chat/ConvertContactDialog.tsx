@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { errorMessageOf } from "@/lib/errorMessage";
 import {
   convertClientSchema,
   convertLeadSchema,
@@ -232,10 +233,10 @@ export function ConvertContactDialog({
       onOpenChange(false);
       onSuccess(result.id, result.type);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Failed to create contact:", error);
       toast.error(
-        error.message ||
+        errorMessageOf(error) ||
           `שגיאה ביצירת ${type === "client" ? terms?.client?.singular || "לקוח" : terms?.lead?.singular || "ליד"}`,
       );
     },
@@ -246,6 +247,14 @@ export function ConvertContactDialog({
   ) => {
     createMutation.mutate(values);
   };
+
+  const fieldError = (
+    name: "group_name" | "name" | "agency_id" | "company_name",
+  ) => form.getFieldState(name, form.formState).error;
+  const groupNameError = fieldError("group_name");
+  const nameError = fieldError("name");
+  const agencyIdError = fieldError("agency_id");
+  const companyNameError = fieldError("company_name");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -272,9 +281,9 @@ export function ConvertContactDialog({
               <div>
                 <Label htmlFor="group_name">שם הקבוצה *</Label>
                 <Input id="group_name" {...form.register("group_name")} />
-                {(form.formState.errors as any).group_name && (
+                {groupNameError && (
                   <p className="text-sm text-destructive mt-1">
-                    {(form.formState.errors as any).group_name.message}
+                    {groupNameError.message}
                   </p>
                 )}
               </div>
@@ -308,9 +317,9 @@ export function ConvertContactDialog({
               <div>
                 <Label htmlFor="name">שם *</Label>
                 <Input id="name" {...form.register("name")} />
-                {(form.formState.errors as any).name && (
+                {nameError && (
                   <p className="text-sm text-destructive mt-1">
-                    {(form.formState.errors as any).name.message}
+                    {nameError.message}
                   </p>
                 )}
               </div>
@@ -332,9 +341,9 @@ export function ConvertContactDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {(form.formState.errors as any).agency_id && (
+                {agencyIdError && (
                   <p className="text-sm text-destructive mt-1">
-                    {(form.formState.errors as any).agency_id.message}
+                    {agencyIdError.message}
                   </p>
                 )}
               </div>
@@ -344,9 +353,9 @@ export function ConvertContactDialog({
               <div>
                 <Label htmlFor="company_name">שם החברה *</Label>
                 <Input id="company_name" {...form.register("company_name")} />
-                {(form.formState.errors as any).company_name && (
+                {companyNameError && (
                   <p className="text-sm text-destructive mt-1">
-                    {(form.formState.errors as any).company_name.message}
+                    {companyNameError.message}
                   </p>
                 )}
               </div>

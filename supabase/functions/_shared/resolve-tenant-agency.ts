@@ -1,10 +1,6 @@
 /** Resolve the agency a tenant should stamp on new leads / tasks. */
 
-type AgencyLookupClient = {
-  from: (table: string) => {
-    select: (columns: string) => any;
-  };
-};
+import type { DbClient } from "./supabase-clients.ts";
 
 /**
  * Home agency for a tenant: owned default → first owned → first agency
@@ -12,7 +8,7 @@ type AgencyLookupClient = {
  * Keep the priority in sync with src/lib/resolveTenantAgency.ts.
  */
 export async function resolveTenantHomeAgencyId(
-  supabase: AgencyLookupClient,
+  supabase: DbClient,
   tenantId: string | null | undefined,
 ): Promise<string | null> {
   if (!tenantId) return null;

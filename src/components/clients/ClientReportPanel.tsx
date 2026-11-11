@@ -55,9 +55,11 @@ import {
   buildDefaultReportRecipientEmails,
   buildReportEmailOptions,
 } from "@/lib/defaultReportEmailRecipients";
+import type { CrmTableSummary } from "@/lib/crmTableSummary";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 interface ClientReportPanelProps {
-  table: any;
+  table: CrmTableSummary;
   clientId: string;
   tenantId: string;
 }
@@ -225,15 +227,19 @@ export function ClientReportPanel({
           "role_on_account, campaigners:campaigner_id (id, full_name, email, active)",
         )
         .eq("client_id", clientId);
-      return (data || [])
-        .filter((t: any) => t.campaigners && t.campaigners.active !== false)
-        .map((t: any) => ({
-          role_on_account: t.role_on_account,
-          campaigners: {
-            full_name: t.campaigners.full_name,
-            email: t.campaigners.email || "",
-          },
-        }));
+      return (data || []).flatMap((t) =>
+        t.campaigners && t.campaigners.active !== false
+          ? [
+              {
+                role_on_account: t.role_on_account,
+                campaigners: {
+                  full_name: t.campaigners.full_name,
+                  email: t.campaigners.email || "",
+                },
+              },
+            ]
+          : [],
+      );
     },
     enabled: !!clientId,
   });
@@ -243,15 +249,14 @@ export function ClientReportPanel({
     queryKey: ["table-share-link", table.id],
     queryFn: async () => {
       const { data } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .select("share_token, is_active")
         .eq("table_id", table.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const shareData = data as any;
-      if (shareData?.share_token && shareData.is_active) {
-        return `https://aios.co.il/shared/table/${shareData.share_token}`;
+      if (data?.share_token && data.is_active) {
+        return `https://aios.co.il/shared/table/${data.share_token}`;
       }
       return null;
     },
@@ -447,20 +452,20 @@ export function ClientReportPanel({
 
       // Check for ANY existing share row (active or inactive) to avoid duplicates
       const { data: existing } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .select("share_token, is_active")
         .eq("table_id", table.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      const existingRow = existing as any;
+      const existingRow = existing;
       if (existingRow?.share_token) {
         // Reactivate if inactive
         if (!existingRow.is_active) {
           await supabase
-            .from("table_shares" as any)
-            .update({ is_active: true } as any)
+            .from("table_shares")
+            .update({ is_active: true })
             .eq("table_id", table.id)
             .eq("share_token", existingRow.share_token);
         }
@@ -474,18 +479,18 @@ export function ClientReportPanel({
       // No existing row — create new
       const newToken = generateReadableToken(table.name);
       const { data, error } = await supabase
-        .from("table_shares" as any)
+        .from("table_shares")
         .insert({
           table_id: table.id,
           tenant_id: tenantId,
           created_by: user.id,
           allowed_emails: [],
           share_token: newToken,
-        } as any)
+        })
         .select("share_token")
         .single();
       if (error) throw error;
-      const token = (data as any)?.share_token;
+      const token = data?.share_token;
       if (!token) return null;
       const url = `https://aios.co.il/shared/table/${token}`;
       queryClient.invalidateQueries({
@@ -634,9 +639,9 @@ export function ClientReportPanel({
         sentChannels.push("email");
         toast.success("הדוח נשלח באימייל בהצלחה");
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending report:", error);
-      const msg = String(error?.message || "");
+      const msg = String(errorMessageOf(error) || "");
       const isGmailAuthIssue =
         msg.includes("Token refresh failed") ||
         msg.includes("Gmail not connected") ||
@@ -939,7 +944,7 @@ export function ClientReportPanel({
                   "ahrefs",
                   "google_analytics",
                   "google_search_console",
-                ].includes(table.integration_type)
+                ].includes(table.integration_type ?? "")
                   ? false
                   : true
               }

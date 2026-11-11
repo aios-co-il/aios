@@ -1,5 +1,35 @@
 /** Idempotency for Facebook Instant Form → automation WhatsApp sends. */
 
+type DedupError = { code?: string; message?: string; details?: string } | null;
+type EventKey = { tenant_id: string; source: string; external_id: string };
+type LookupFilter =
+  | EventKey
+  | { tenant_id: string; facebook_leadgen_id?: string }
+  | { automation_id: string; step_type: string; action_type: string };
+
+interface IdLookup {
+  match(filter: LookupFilter): IdLookup;
+  ilike(column: "notes", pattern: string): IdLookup;
+  limit(count: number): IdLookup;
+  maybeSingle(): PromiseLike<{ data: { id: string } | null }>;
+}
+
+export interface LeadEventsTable {
+  insert(
+    values: EventKey & { form_id?: string | null; client_id?: string | null },
+  ): PromiseLike<{ error: DedupError }>;
+  select(columns: "id"): IdLookup;
+  delete(): { match(filter: EventKey): PromiseLike<{ error: DedupError }> };
+}
+
+/** Only the builder calls these helpers make; the generated-schema client satisfies it. */
+export interface FacebookLeadDedupDb {
+  from(table: "lead_notification_events"): LeadEventsTable;
+  from(table: "leads" | "automation_flow_steps"): {
+    select(columns: "id"): IdLookup;
+  };
+}
+
 const asId = (value: unknown): string => String(value ?? "").trim();
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -60,8 +90,9 @@ function isUniqueViolation(
   );
 }
 
+/** Claim the lead intake dedupe key before processing the event. */
 export async function claimFacebookLeadIntake(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown; formId?: unknown },
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
@@ -81,9 +112,11 @@ export async function claimFacebookLeadIntake(
     const { data } = await supabase
       .from("lead_notification_events")
       .select("id")
-      .eq("tenant_id", params.tenantId)
-      .eq("source", facebookIntakeEventSource())
-      .eq("external_id", leadgenId)
+      .match({
+        tenant_id: params.tenantId,
+        source: facebookIntakeEventSource(),
+        external_id: leadgenId,
+      })
       .maybeSingle();
     if (data?.id) return { duplicate: true, inserted: false };
     return { duplicate: false, inserted: false };
@@ -91,8 +124,9 @@ export async function claimFacebookLeadIntake(
   return { duplicate: false, inserted: true };
 }
 
+/** Check whether the Facebook lead intake was already claimed. */
 export async function wasFacebookLeadIntakeClaimed(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
@@ -101,16 +135,19 @@ export async function wasFacebookLeadIntakeClaimed(
   const { data } = await supabase
     .from("lead_notification_events")
     .select("id")
-    .eq("tenant_id", params.tenantId)
-    .eq("source", facebookIntakeEventSource())
-    .eq("external_id", leadgenId)
+    .match({
+      tenant_id: params.tenantId,
+      source: facebookIntakeEventSource(),
+      external_id: leadgenId,
+    })
     .maybeSingle();
 
   return Boolean(data?.id);
 }
 
+/** Claim the dedupe key for a Facebook lead automation run. */
 export async function claimFacebookLeadAutomationRun(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: {
     tenantId: string;
     automationId: string;
@@ -142,8 +179,9 @@ export async function claimFacebookLeadAutomationRun(
   return { duplicate: false, inserted: true };
 }
 
+/** Claim a Facebook lead WhatsApp delivery before sending. */
 export async function claimFacebookLeadWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
@@ -166,9 +204,11 @@ export async function claimFacebookLeadWhatsAppSend(
     const { data } = await supabase
       .from("lead_notification_events")
       .select("id")
-      .eq("tenant_id", params.tenantId)
-      .eq("source", facebookWhatsAppSendSource(chatId))
-      .eq("external_id", leadgenId)
+      .match({
+        tenant_id: params.tenantId,
+        source: facebookWhatsAppSendSource(chatId),
+        external_id: leadgenId,
+      })
       .maybeSingle();
     if (data?.id) return { duplicate: true, inserted: false };
     return { duplicate: false, inserted: false };
@@ -176,8 +216,9 @@ export async function claimFacebookLeadWhatsAppSend(
   return { duplicate: false, inserted: true };
 }
 
+/** Claim an identical WhatsApp message before delivering it again. */
 export async function claimIdenticalWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: {
     tenantId: string;
     chatId: string;
@@ -208,9 +249,11 @@ export async function claimIdenticalWhatsAppSend(
     const { data } = await supabase
       .from("lead_notification_events")
       .select("id")
-      .eq("tenant_id", params.tenantId)
-      .eq("source", whatsAppBodyEventSource(chatId))
-      .eq("external_id", bodyHash)
+      .match({
+        tenant_id: params.tenantId,
+        source: whatsAppBodyEventSource(chatId),
+        external_id: bodyHash,
+      })
       .maybeSingle();
     if (data?.id) return { duplicate: true, inserted: false };
     return { duplicate: false, inserted: false };
@@ -218,8 +261,9 @@ export async function claimIdenticalWhatsAppSend(
   return { duplicate: false, inserted: true };
 }
 
+/** Release a failed Facebook lead delivery claim so it can retry. */
 export async function releaseFacebookLeadWhatsAppSend(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; chatId: string; leadgenId: unknown },
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
@@ -229,9 +273,11 @@ export async function releaseFacebookLeadWhatsAppSend(
   const { error } = await supabase
     .from("lead_notification_events")
     .delete()
-    .eq("tenant_id", params.tenantId)
-    .eq("source", facebookWhatsAppSendSource(chatId))
-    .eq("external_id", leadgenId);
+    .match({
+      tenant_id: params.tenantId,
+      source: facebookWhatsAppSendSource(chatId),
+      external_id: leadgenId,
+    });
 
   if (error) {
     console.error(
@@ -241,8 +287,9 @@ export async function releaseFacebookLeadWhatsAppSend(
   }
 }
 
+/** Release the automation claim after a failed attempt. */
 export async function releaseFacebookLeadAutomationRun(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
@@ -251,17 +298,20 @@ export async function releaseFacebookLeadAutomationRun(
   const { error } = await supabase
     .from("lead_notification_events")
     .delete()
-    .eq("tenant_id", params.tenantId)
-    .eq("source", facebookFlowEventSource(params.automationId))
-    .eq("external_id", leadgenId);
+    .match({
+      tenant_id: params.tenantId,
+      source: facebookFlowEventSource(params.automationId),
+      external_id: leadgenId,
+    });
 
   if (error) {
     console.error("[facebook-lead-dedup] claim release failed:", error.message);
   }
 }
 
+/** Check the existing claim for a Facebook lead automation. */
 export async function wasFacebookLeadAutomationClaimed(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
@@ -270,9 +320,11 @@ export async function wasFacebookLeadAutomationClaimed(
   const { data } = await supabase
     .from("lead_notification_events")
     .select("id")
-    .eq("tenant_id", params.tenantId)
-    .eq("source", facebookFlowEventSource(params.automationId))
-    .eq("external_id", leadgenId)
+    .match({
+      tenant_id: params.tenantId,
+      source: facebookFlowEventSource(params.automationId),
+      external_id: leadgenId,
+    })
     .maybeSingle();
 
   return Boolean(data?.id);
@@ -291,8 +343,9 @@ export function facebookTriggerAutomationSucceeded(body: unknown): boolean {
   );
 }
 
+/** Find the CRM lead that already represents this provider event. */
 export async function findExistingFacebookLead(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<{ id: string } | null> {
   const leadgenId = asId(params.leadgenId);
@@ -301,8 +354,7 @@ export async function findExistingFacebookLead(
   const { data: byColumn } = await supabase
     .from("leads")
     .select("id")
-    .eq("tenant_id", params.tenantId)
-    .eq("facebook_leadgen_id", leadgenId)
+    .match({ tenant_id: params.tenantId, facebook_leadgen_id: leadgenId })
     .limit(1)
     .maybeSingle();
   if (byColumn?.id) return byColumn;
@@ -310,7 +362,7 @@ export async function findExistingFacebookLead(
   const { data: byNotes } = await supabase
     .from("leads")
     .select("id")
-    .eq("tenant_id", params.tenantId)
+    .match({ tenant_id: params.tenantId })
     .ilike("notes", `%${leadgenId}%`)
     .limit(1)
     .maybeSingle();
@@ -338,18 +390,28 @@ export function shouldCreateCrmLeadForFacebookFlowConfig(
   return hasCreateLeadActionStep;
 }
 
+/** Decide whether the Facebook flow needs a CRM lead record. */
 export async function shouldCreateCrmLeadForFacebookFlow(
-  supabase: { from: (table: string) => any },
+  supabase: FacebookLeadDedupDb,
   automationId: string,
   triggerConfig: unknown,
   triggerActionType: string | null | undefined,
 ): Promise<boolean> {
+  if (!automationId) {
+    return shouldCreateCrmLeadForFacebookFlowConfig(
+      triggerConfig,
+      triggerActionType,
+      false,
+    );
+  }
   const { data: createLeadStep } = await supabase
     .from("automation_flow_steps")
     .select("id")
-    .eq("automation_id", automationId)
-    .eq("step_type", "action")
-    .eq("action_type", "create_lead")
+    .match({
+      automation_id: automationId,
+      step_type: "action",
+      action_type: "create_lead",
+    })
     .limit(1)
     .maybeSingle();
 

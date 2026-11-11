@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 const linkSchema = z.object({
   type: z.enum(["client", "lead", "group"]),
@@ -119,7 +120,7 @@ export function LinkContactDialog({
       if (!tenantId) return [];
       let query = supabase
         .from("whatsapp_groups")
-        .select("id, group_name, group_id")
+        .select("id, group_name")
         .eq("tenant_id", tenantId)
         .order("group_name");
 
@@ -172,9 +173,9 @@ export function LinkContactDialog({
       onOpenChange(false);
       form.reset();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Link error:", error);
-      toast.error(error.message || "שגיאה בשיוך איש הקשר");
+      toast.error(errorMessageOf(error) || "שגיאה בשיוך איש הקשר");
     },
   });
 
@@ -183,12 +184,21 @@ export function LinkContactDialog({
   };
 
   const isLoading = clientsLoading || leadsLoading || groupsLoading;
-  const contactList =
+  const contactList: { id: string; label: string | null }[] =
     selectedType === "client"
-      ? clients
+      ? clients.map((contact) => ({
+          id: contact.id,
+          label: `${contact.name}${contact.phone ? ` • ${contact.phone}` : ""}${contact.agencies?.name ? ` • ${contact.agencies.name}` : ""}`,
+        }))
       : selectedType === "lead"
-        ? leads
-        : groups;
+        ? leads.map((contact) => ({
+            id: contact.id,
+            label: `${contact.company_name}${contact.contact_name ? ` • ${contact.contact_name}` : ""}${contact.phone ? ` • ${contact.phone}` : ""}`,
+          }))
+        : groups.map((contact) => ({
+            id: contact.id,
+            label: contact.group_name,
+          }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,9 +215,11 @@ export function LinkContactDialog({
             <Label>סוג איש קשר</Label>
             <Select
               value={selectedType}
-              onValueChange={(value: any) => {
-                setSelectedType(value);
-                form.setValue("type", value);
+              onValueChange={(value) => {
+                const contactType = linkSchema.shape.type.safeParse(value);
+                if (!contactType.success) return;
+                setSelectedType(contactType.data);
+                form.setValue("type", contactType.data);
                 form.setValue("contact_id", "");
               }}
             >
@@ -259,16 +271,12 @@ export function LinkContactDialog({
                       לא נמצאו תוצאות
                     </div>
                   ) : (
-                    contactList.map((contact: any) => (
+                    contactList.map((contact) => (
                       <SelectItem
                         key={contact.id}
                         value={contact.id || `temp-${Math.random()}`}
                       >
-                        {selectedType === "client"
-                          ? `${contact.name}${contact.phone ? ` • ${contact.phone}` : ""}${contact.agencies?.name ? ` • ${contact.agencies.name}` : ""}`
-                          : selectedType === "lead"
-                            ? `${contact.company_name}${contact.contact_name ? ` • ${contact.contact_name}` : ""}${contact.phone ? ` • ${contact.phone}` : ""}`
-                            : contact.group_name}
+                        {contact.label}
                       </SelectItem>
                     ))
                   )}

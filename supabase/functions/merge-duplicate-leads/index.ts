@@ -1,5 +1,7 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import type { Database, Tables } from "../_shared/database.types.ts";
 import { requireAuth } from "../_shared/security.ts";
 import { userClient } from "../_shared/supabase-clients.ts";
 import { authorizeMergeRequest } from "./caller-access.ts";
@@ -10,6 +12,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+type PhoneLead = Pick<
+  Tables<"leads">,
+  | "id"
+  | "company_name"
+  | "phone"
+  | "status"
+  | "response_status"
+  | "created_at"
+  | "updated_at"
+>;
 
 interface DuplicateGroup {
   normalized_phone: string;
@@ -57,7 +70,7 @@ serve(async (req: Request) => {
       throw new Error("Missing Supabase environment variables");
     }
 
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+    const supabase = createClient<Database>(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
@@ -74,7 +87,7 @@ serve(async (req: Request) => {
     }
 
     // Manual query to find duplicates - need to paginate to get all leads
-    let allLeads: any[] = [];
+    let allLeads: PhoneLead[] = [];
     let from = 0;
     const pageSize = 1000;
 
@@ -104,7 +117,7 @@ serve(async (req: Request) => {
     if (leadsError) throw leadsError;
 
     // Normalize phones and group duplicates
-    const phoneGroups: Map<string, any[]> = new Map();
+    const phoneGroups: Map<string, PhoneLead[]> = new Map();
 
     for (const lead of allLeads || []) {
       const normalized = lead.phone?.replace(/[^0-9]/g, "") || "";
@@ -174,7 +187,7 @@ serve(async (req: Request) => {
       tasks_transferred: 0,
       messages_transferred: 0,
       statuses_updated: 0,
-      details: [] as any[],
+      details: [] as unknown[],
     };
 
     // Process each duplicate group
@@ -306,9 +319,9 @@ serve(async (req: Request) => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in merge-duplicate-leads:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: thrownMessage(error) }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

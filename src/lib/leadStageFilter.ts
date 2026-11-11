@@ -98,12 +98,21 @@ export function responseFilterNeedsClient(
   return selected.includes("none");
 }
 
-export function applyLeadStageQuery(
-  query: any,
+/** The PostgREST filter calls the stage and response filters need. */
+export interface LeadValueFilterQuery<Q> {
+  in(column: string, values: readonly string[]): Q;
+  is(column: string, value: null): Q;
+  not(column: string, operator: string, value: string | null): Q;
+  or(filters: string): Q;
+}
+
+/** Apply the selected lead-stage predicates to a query. */
+export function applyLeadStageQuery<Q extends LeadValueFilterQuery<Q>>(
+  query: Q,
   selected: readonly string[],
   mode: LeadValueFilterMode = "show",
   allStageIds?: readonly string[],
-): any {
+): Q {
   const ids = normalizeLeadStageIds(selected);
   if (ids.length === 0) return query;
   if (normalizeLeadValueFilterMode(mode) === "show") {
@@ -124,11 +133,11 @@ export function applyLeadStageQuery(
  * stays unfiltered here and is applied on the client.
  * Hide drops the chosen values and, unless "none" is chosen, keeps nulls.
  */
-export function applyResponseStatusFilter(
-  query: any,
+export function applyResponseStatusFilter<Q extends LeadValueFilterQuery<Q>>(
+  query: Q,
   selected: readonly string[],
   mode: LeadValueFilterMode = "show",
-): any {
+): Q {
   if (selected.length === 0) return query;
   const keys = selected.filter((status) => status && status !== "none");
   const hasNone = selected.includes("none");

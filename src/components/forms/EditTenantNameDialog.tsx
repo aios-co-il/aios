@@ -108,7 +108,7 @@ export function EditTenantNameDialog({
         window.location.href = `${nextPath}${search}${hash}`;
       }
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה",
         description: error.message || "שגיאה בעדכון הארגון",

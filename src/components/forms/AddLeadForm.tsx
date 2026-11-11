@@ -4,6 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import { isLeadSource } from "@/lib/crmEnums";
+import { toJson } from "@/lib/json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -228,14 +231,17 @@ export function AddLeadForm() {
         pickTenantHomeAgencyId(tenantId, agencies) ||
         (await fetchTenantHomeAgencyId(tenantId));
 
-      const submitData: any = {
+      const source = inferLeadSource(values.source || "paid_ads");
+      if (!isLeadSource(source))
+        throw new Error(`Invalid lead source: ${source}`);
+      const submitData: TablesInsert<"leads"> = {
         company_name: companyName,
         contact_name: values.contact_name || null,
         email: values.email || null,
         phone: values.phone || null,
-        source: inferLeadSource(values.source || "paid_ads") as any,
+        source,
         campaign_name: (values.campaign_name || "").trim() || null,
-        status: (values.status as any) || "new",
+        status: values.status || "new",
         response_status:
           values.response_status && values.response_status !== "none"
             ? resolveResponseStatusKey(values.response_status, leadStatuses) ||
@@ -253,13 +259,11 @@ export function AddLeadForm() {
             : null,
         agency_id: resolvedAgencyId,
         folder_link: values.folder_link || null,
-        created_at: values.created_at || new Date(),
+        created_at: (values.created_at || new Date()).toISOString(),
         ...(customFields.length > 0
           ? {
-              form_data: mergeLeadCustomFieldValues(
-                {},
-                customFields,
-                customFieldValues,
+              form_data: toJson(
+                mergeLeadCustomFieldValues({}, customFields, customFieldValues),
               ),
             }
           : {}),
@@ -347,7 +351,7 @@ export function AddLeadForm() {
       setSelectedTags([]);
       setCustomFieldValues({});
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "שגיאה בהוספת ליד",
         description: error.message,

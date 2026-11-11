@@ -1,11 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { asObject, type UnknownObject } from "../_shared/lead-json.ts";
+import {
+  nonEmptyStringOrNull,
+  salesPersonIdsOf,
+} from "../_shared/lead-form-mapping.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
+
+type LeadRecordValue = string | null | Record<string, string>;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -124,7 +131,7 @@ serve(async (req) => {
 
     for (const integration of integrations) {
       let accessToken = integration.api_key;
-      const settings = integration.settings as any;
+      const settings = asObject(integration.settings);
 
       // Check for shared connection
       if (integration.shared_from_integration_id) {
@@ -144,11 +151,12 @@ serve(async (req) => {
         continue;
       }
 
-      const formMappings = settings?.form_mappings || {};
+      const formMappings: UnknownObject =
+        asObject(settings?.form_mappings) ?? {};
 
       // Build the list of forms to sync.
       // If form_id explicitly provided, sync only it (even if not in mappings — use empty mapping).
-      let formsToProcess: Array<[string, any]>;
+      let formsToProcess: Array<[string, unknown]>;
       if (form_id) {
         formsToProcess = [[form_id, formMappings[form_id] || {}]];
       } else {
@@ -158,7 +166,7 @@ serve(async (req) => {
 
       // Process each form
       for (const [formId, mapping] of formsToProcess) {
-        const formMapping = mapping as any;
+        const formMapping: UnknownObject = asObject(mapping) ?? {};
 
         try {
           // Fetch leads from Facebook using computed since
@@ -257,16 +265,12 @@ serve(async (req) => {
             // Map fields based on form mapping (fieldData already parsed above)
 
             // Map fields based on form mapping
-            const fieldMappings = formMapping.fields || {};
+            const fieldMappings = asObject(formMapping.fields) ?? {};
 
             // Support both legacy single and new multi-select salesperson
-            const salesPersonIds: string[] =
-              formMapping.sales_person_ids ||
-              (formMapping.sales_person_id
-                ? [formMapping.sales_person_id]
-                : []);
+            const salesPersonIds = salesPersonIdsOf(formMapping);
 
-            const leadRecord: Record<string, any> = {
+            const leadRecord: Record<string, LeadRecordValue> = {
               company_name:
                 fieldData.company ||
                 fieldData.full_name ||
@@ -275,7 +279,7 @@ serve(async (req) => {
               source: "paid_ads",
               status: "new",
               tenant_id: integration.tenant_id,
-              agency_id: formMapping.agency_id || null,
+              agency_id: nonEmptyStringOrNull(formMapping.agency_id),
               sales_person_id:
                 salesPersonIds.length > 0 ? salesPersonIds[0] : null, // Primary for backwards compatibility
               facebook_form_id: formId,
@@ -297,6 +301,7 @@ serve(async (req) => {
             for (const [fbField, systemField] of Object.entries(
               fieldMappings,
             )) {
+              if (typeof systemField !== "string") continue;
               if (systemField === "skip" || !systemField) continue;
 
               const value = fieldData[fbField];
@@ -305,7 +310,7 @@ serve(async (req) => {
                   leadRecord.notes =
                     (leadRecord.notes || "") + `\n${fbField}: ${value}`;
                 } else {
-                  leadRecord[systemField as string] = value;
+                  leadRecord[systemField] = value;
                 }
               }
             }

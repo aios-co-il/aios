@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import type { Database, TablesInsert } from "../_shared/database.types.ts";
+import { asJsonObject } from "../_shared/lead-json.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +16,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey);
 
   try {
     const { page_id, form_id, tenant_id } = await req.json();
@@ -41,7 +43,7 @@ serve(async (req) => {
     }
 
     integrations?.forEach((i, idx) => {
-      const settings = i.settings as any;
+      const settings = asJsonObject(i.settings);
       console.log("Integration:", {
         id: i.id,
         tenant_id: i.tenant_id,
@@ -53,7 +55,7 @@ serve(async (req) => {
 
     // Find matching integration by page_id
     let integration = integrations?.find((i) => {
-      const settings = i.settings as any;
+      const settings = asJsonObject(i.settings);
       return settings?.page_id === page_id?.toString();
     });
 
@@ -70,7 +72,7 @@ serve(async (req) => {
           available_integrations: integrations?.map((i) => ({
             id: i.id,
             tenant_id: i.tenant_id,
-            page_id: (i.settings as any)?.page_id,
+            page_id: asJsonObject(i.settings)?.page_id,
           })),
         }),
         {
@@ -81,10 +83,10 @@ serve(async (req) => {
     }
 
     let accessToken = integration.api_key;
-    const settings = integration.settings as any;
+    const settings = asJsonObject(integration.settings);
 
     // Check for shared connection
-    if ((integration as any).shared_from_integration_id && !accessToken) {
+    if (integration.shared_from_integration_id && !accessToken) {
       const { data: sourceIntegration } = await supabase
         .from("tenant_integrations")
         .select("api_key")
@@ -108,9 +110,12 @@ serve(async (req) => {
     }
 
     // Step 2: Check form mappings
-    const formMappings = settings?.form_mappings || {};
+    const formMappings = asJsonObject(settings?.form_mappings) ?? {};
 
-    const specificFormMapping = form_id ? formMappings[form_id] : null;
+    const specificFormMapping = form_id
+      ? asJsonObject(formMappings[form_id])
+      : null;
+    const mappedAgencyId = specificFormMapping?.agency_id;
 
     // Step 3: Create a fake lead record
     // IMPORTANT: Use the tenant_id from the request, not from the integration
@@ -118,7 +123,7 @@ serve(async (req) => {
     const targetTenantId = tenant_id || integration.tenant_id;
 
     const fakeLeadgenId = `test_${Date.now()}`;
-    const leadRecord: Record<string, any> = {
+    const leadRecord: TablesInsert<"leads"> = {
       company_name: `Test Lead ${new Date().toLocaleTimeString()}`,
       contact_name: "Test Contact",
       email: "test@example.com",
@@ -126,7 +131,10 @@ serve(async (req) => {
       source: "paid_ads",
       status: "new",
       tenant_id: targetTenantId,
-      agency_id: specificFormMapping?.agency_id || null,
+      agency_id:
+        typeof mappedAgencyId === "string" && mappedAgencyId
+          ? mappedAgencyId
+          : null,
       notes: `Test Facebook Lead\nFake Leadgen ID: ${fakeLeadgenId}\nForm ID: ${form_id || "not specified"}`,
     };
 

@@ -26,6 +26,7 @@ import {
   type PulseSnapshotRow,
 } from "@/lib/pulseDashboard";
 import { isClientCallUpdate } from "@/lib/clientUpdateType";
+import { errorMessageOf } from "@/lib/errorMessage";
 import { CONTACT_COUNTING_SOURCES } from "../../../supabase/functions/_shared/client-card/sources.ts";
 
 export type PulseClientCallTarget = {
@@ -89,7 +90,7 @@ export function PulseClientCallDialog({
         .limit(30);
       if (error) throw error;
       // Same rule as the pulse (get_latest_client_call_updates).
-      return (data ?? []).filter((row: any) =>
+      return (data ?? []).filter((row) =>
         isClientCallUpdate(row.update_type, row.source, row.counts_as_contact),
       );
     },
@@ -120,7 +121,7 @@ export function PulseClientCallDialog({
           user_id: user.id,
           content: trimmed,
           update_type: "call",
-        } as any)
+        })
         .select("id, created_at")
         .single();
       if (error) throw error;
@@ -138,8 +139,8 @@ export function PulseClientCallDialog({
       });
       toast.success("השיחה תועדה");
       onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err?.message || "שגיאה בשמירה");
+    } catch (err) {
+      toast.error(errorMessageOf(err) || "שגיאה בשמירה");
     } finally {
       setSaving(false);
     }
@@ -185,7 +186,7 @@ export function PulseClientCallDialog({
               </p>
             ) : (
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                {callUpdates.map((update: any) => (
+                {callUpdates.map((update) => (
                   <Card key={update.id} className="bg-muted/50">
                     <CardContent className="p-3">
                       <p className="text-sm whitespace-pre-wrap">

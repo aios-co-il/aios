@@ -1,4 +1,6 @@
+import { thrownMessage } from "../_shared/lead-json.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import type { Database, TablesInsert } from "../_shared/database.types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,7 +35,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     // Verify user
-    const userClient = createClient(supabaseUrl, anonKey, {
+    const userClient = createClient<Database>(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: userRes, error: userErr } = await userClient.auth.getUser();
@@ -65,7 +67,7 @@ Deno.serve(async (req) => {
 
     // Use service role for the duplication (bypasses RLS for cross-table writes,
     // but we already verified the user can read the source via RLS check below)
-    const admin = createClient(supabaseUrl, serviceKey);
+    const admin = createClient<Database>(supabaseUrl, serviceKey);
 
     // Verify the user can read the source client (respects RLS)
     const { data: source, error: srcErr } = await userClient
@@ -92,9 +94,9 @@ Deno.serve(async (req) => {
       whatsapp_group_id: _wg,
       whatsapp_avatar_url: _wa,
       ...rest
-    } = source as any;
+    } = source;
 
-    const newRow: any = {
+    const newRow: TablesInsert<"clients"> = {
       ...rest,
       name: newName.trim(),
       manychat_subscriber_id: null,
@@ -129,8 +131,9 @@ Deno.serve(async (req) => {
         .from("client_contacts")
         .select("contact_name, email, phone, role, is_primary")
         .eq("client_id", clientId);
-      if (contacts && contacts.length > 0) {
-        const rows = contacts.map((c: any) => ({
+      // tenant_id is NOT NULL on client_contacts, so a null tenant cannot insert
+      if (contacts && contacts.length > 0 && newTenantId) {
+        const rows = contacts.map((c) => ({
           ...c,
           client_id: newClientId,
           tenant_id: newTenantId,
@@ -149,7 +152,7 @@ Deno.serve(async (req) => {
         )
         .eq("client_id", clientId);
       if (team && team.length > 0) {
-        const rows = team.map((t: any) => ({ ...t, client_id: newClientId }));
+        const rows = team.map((t) => ({ ...t, client_id: newClientId }));
         const { error } = await admin.from("client_team").insert(rows);
         if (!error) stats.team = rows.length;
       }
@@ -161,8 +164,9 @@ Deno.serve(async (req) => {
         .from("client_credentials")
         .select("service_name, username, password, url, notes")
         .eq("client_id", clientId);
-      if (creds && creds.length > 0) {
-        const rows = creds.map((c: any) => ({
+      // tenant_id is NOT NULL on client_credentials, so a null tenant cannot insert
+      if (creds && creds.length > 0 && newTenantId) {
+        const rows = creds.map((c) => ({
           ...c,
           client_id: newClientId,
           tenant_id: newTenantId,
@@ -175,10 +179,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true, newClientId, stats }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error("duplicate-client error:", e);
     return new Response(
-      JSON.stringify({ error: e?.message || "Unknown error" }),
+      JSON.stringify({ error: thrownMessage(e) || "Unknown error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -5,6 +5,9 @@ import {
 
 /** When an inbound lead matches an existing phone/email, reopen the card at the top. */
 
+import type { TablesUpdate } from "./database.types.ts";
+import type { DbClient } from "./supabase-clients.ts";
+
 export type LeadOriginRow = {
   created_at?: string | null;
   first_created_at?: string | null;
@@ -39,8 +42,8 @@ export function applyRepeatInboundReopen(
 
 /** Drop reopen/archive columns so a retry works before those migrations land. */
 export function withoutNewLeadOriginColumns(
-  updates: Record<string, unknown>,
-): Record<string, unknown> {
+  updates: TablesUpdate<"leads">,
+): TablesUpdate<"leads"> {
   const next = { ...updates };
   delete next.first_created_at;
   delete next.first_source;
@@ -50,10 +53,11 @@ export function withoutNewLeadOriginColumns(
   return next;
 }
 
+/** Apply the lead update together with repeat-intake reopening rules. */
 export async function updateLeadWithRepeatReopen(
-  supabase: { from: (table: string) => any },
+  supabase: DbClient,
   leadId: string,
-  updates: Record<string, unknown>,
+  updates: TablesUpdate<"leads">,
 ): Promise<{ error: { message?: string } | null }> {
   const { error } = await supabase
     .from("leads")

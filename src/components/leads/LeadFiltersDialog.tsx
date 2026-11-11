@@ -31,6 +31,7 @@ import {
   normalizeLeadValueFilterMode,
   type LeadValueFilterMode,
 } from "@/lib/leadStageFilter";
+import { errorMessageOf } from "@/lib/errorMessage";
 
 export interface FilterState {
   searchQuery: string;
@@ -274,10 +275,10 @@ export function LeadFiltersDialog({
       });
       onPresetUpdated?.();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה בעדכון פריסט",
-        description: error.message,
+        description: errorMessageOf(error),
         variant: "destructive",
       });
     } finally {
