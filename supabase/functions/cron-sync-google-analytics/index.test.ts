@@ -21,7 +21,7 @@ function gaTable(id: string, integrationId: string) {
 
 /** One cron run over these tables and connections; sync-google-analytics-data answers `syncStatus`. */
 async function runCron(
-  tables: Array<ReturnType<typeof gaTable>>,
+  tables: Array<ReturnType<typeof gaTable> & { campaign_active?: boolean }>,
   integrations: Array<Record<string, unknown>>,
   syncStatus = 200,
 ) {
@@ -94,6 +94,23 @@ Deno.test({
         assertEquals(
           [body.success, body.tables_synced, body.tables_failed],
           [true, 1, 1],
+        );
+      },
+    );
+
+    await t.step(
+      "a switched-off report (an inactive client's) is not synced",
+      async () => {
+        const { body } = await runCron(
+          [
+            { ...gaTable("ga-1", "int-1"), campaign_active: false },
+            gaTable("ga-2", "int-1"),
+          ],
+          [{ id: "int-1", is_active: true, settings: {} }],
+        );
+        assertEquals(
+          body.results.map((row: { tableId: string }) => row.tableId),
+          ["ga-2"],
         );
       },
     );
