@@ -13,6 +13,10 @@ const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const DEFAULT_MEETING_SUMMARY_MODEL = "anthropic/claude-opus-5.5";
 // Hebrew takes many tokens per word: 8,000 cut every detailed summary short.
 const MAX_SUMMARY_TOKENS = 16_000;
+// A summary longer than one reply continues in the next one, up to this many replies.
+const MAX_SUMMARY_PARTS = 4;
+const CONTINUE_PROMPT =
+  "המשך את הסיכום בדיוק מהמקום שבו נעצרת, בלי לחזור על מה שכבר כתבת ובלי הקדמה.";
 
 export interface OpenRouterSummaryInput {
   apiKey: string;
@@ -22,12 +26,58 @@ export interface OpenRouterSummaryInput {
   focusPrompt: string;
 }
 
-/** One summary of the full transcript; throws with the provider's status on failure. */
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+interface SummaryPart {
+  content: string;
+  stoppedAtCap: boolean;
+}
+
+/**
+ * The full summary of the full transcript. When a reply stops at the token cap,
+ * the model is asked to continue from where it stopped and the parts are joined,
+ * so the saved summary is never cut off. Throws on a provider error.
+ */
 export async function summarizeWithOpenRouter(
   input: OpenRouterSummaryInput,
   fetchImpl: typeof fetch = fetch,
 ): Promise<string> {
   const model = meetingSummaryModel();
+  const messages: Array<ChatMessage> = [
+    { role: "system", content: MEETING_SUMMARY_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: buildSummaryUserPrompt(
+        input.transcript,
+        input.recordingInfo,
+        input.focusPrompt,
+      ),
+    },
+  ];
+  const parts: Array<string> = [];
+  for (let round = 0; round < MAX_SUMMARY_PARTS; round++) {
+    const part = await requestSummaryPart(input, model, messages, fetchImpl);
+    parts.push(part.content);
+    if (!part.stoppedAtCap) {
+      return parts.join("");
+    }
+    messages.push(
+      { role: "assistant", content: part.content },
+      { role: "user", content: CONTINUE_PROMPT },
+    );
+  }
+  throw new Error(
+    `OpenRouter ${model} did not finish the summary in ${MAX_SUMMARY_PARTS} replies`,
+  );
+}
+
+/** One reply from OpenRouter, with its usage logged; throws on a provider error. */
+async function requestSummaryPart(
+  input: OpenRouterSummaryInput,
+  model: string,
+  messages: Array<ChatMessage>,
+  fetchImpl: typeof fetch,
+): Promise<SummaryPart> {
   const res = await fetchImpl(OPENROUTER_CHAT_URL, {
     method: "POST",
     headers: {
@@ -39,17 +89,7 @@ export async function summarizeWithOpenRouter(
       model,
       temperature: 0.1,
       max_tokens: MAX_SUMMARY_TOKENS,
-      messages: [
-        { role: "system", content: MEETING_SUMMARY_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: buildSummaryUserPrompt(
-            input.transcript,
-            input.recordingInfo,
-            input.focusPrompt,
-          ),
-        },
-      ],
+      messages,
     }),
   });
   if (!res.ok) {
@@ -70,13 +110,7 @@ export async function summarizeWithOpenRouter(
     cost_usd: typeof data?.usage?.cost === "number" ? data.usage.cost : null,
     tenant_id: input.tenantId,
   });
-  // A summary that hit the cap ends mid-sentence; the caller falls back instead.
-  if (choice?.finish_reason === "length") {
-    throw new Error(
-      `OpenRouter ${model} stopped at ${MAX_SUMMARY_TOKENS} tokens; summary is incomplete`,
-    );
-  }
-  return content;
+  return { content, stoppedAtCap: choice?.finish_reason === "length" };
 }
 
 /** The `MEETING_SUMMARY_MODEL` secret when set, otherwise the default model. */
