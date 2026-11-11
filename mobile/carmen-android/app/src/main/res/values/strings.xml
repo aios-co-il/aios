@@ -56,11 +56,11 @@
     <string name="privacy_note">זיהוי \"היי כרמן\" מתבצע בטלפון בלבד. אודיו נשלח לענן רק במהלך שיחה עם כרמן, אחרי מילת ההפעלה.</string>
     <string name="listening_title">כרמן מאזינה</string>
     <string name="listening_text">אמרו \"היי כרמן\"</string>
-    <string name="carmen_listening">כן, אני מקשיבה</string>
+    <string name="carmen_listening">אני כבר איתך</string>
     <string name="close">סגור</string>
     <string name="false_activation">זו הפעלת שווא</string>
     <string name="false_activation_recorded">הפעלת השווא נרשמה ביומן</string>
-    <string name="state_acknowledging">כן, אני מקשיבה</string>
+    <string name="state_acknowledging">אני כבר איתך</string>
     <string name="state_connecting">מתחברת למערכת…</string>
     <string name="state_listening">מקשיבה…</string>
     <string name="state_thinking">בודקת במערכת…</string>

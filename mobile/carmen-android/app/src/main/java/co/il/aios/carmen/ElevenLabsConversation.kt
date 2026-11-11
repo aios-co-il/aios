@@ -168,9 +168,13 @@ class ElevenLabsConversation(
     private fun listenWhenQuiet() {
         quietTimer?.cancel(false)
         quietTimer = schedule(QUIET_MS) {
-            if (audio.isIdle() && !toolRunning) listener.onState(CarmenSession.State.LISTENING) else listenWhenQuiet()
+            if (audio.isIdle() && !toolRunning) listener.onState(quietState()) else listenWhenQuiet()
         }
     }
+
+    /** While brain checks run in the background she is shown working, else listening (AIO-543). */
+    private fun quietState() =
+        if (brainPending.get() > 0) CarmenSession.State.THINKING else CarmenSession.State.LISTENING
 
     private fun onCarmenSaid(text: String) {
         // Only Carmen's words are shown; the user's words are kept for memory, not displayed.
@@ -230,7 +234,9 @@ class ElevenLabsConversation(
             }
             val result = runCatching { toolbox.run(call.name, call.args, transcript.turns()) }
             brainPending.decrementAndGet()
-            if (ended || epoch != brainEpoch.get()) return@execute
+            if (ended) return@execute
+            if (audio.isIdle()) listener.onState(quietState())
+            if (epoch != brainEpoch.get()) return@execute
             val answer = result.getOrNull()?.output ?: "הבדיקה נכשלה: ${result.exceptionOrNull()?.message.orEmpty().take(120)}"
             deliver(
                 "[תשובה מ-ask_carmen לשאלה \"${question.take(160)}\"]\n${answer.take(MAX_TOOL_OUTPUT)}\n" +

@@ -46,6 +46,9 @@ class RealtimeConversation(
     @Volatile private var afterConversation: (() -> Unit)? = null
     @Volatile private var finishAfterNextResponse = false
 
+    /** The server's opening line for this call (AIO-543); an older server sends none. */
+    @Volatile private var greeting = FALLBACK_GREETING
+
     override fun start() {
         listener.onState(CarmenSession.State.CONNECTING)
         worker.execute {
@@ -71,6 +74,7 @@ class RealtimeConversation(
             if (!response.isSuccessful) {
                 throw IOException(json.optString("message").ifEmpty { json.optString("error", "HTTP ${response.code}") })
             }
+            greeting = json.optString("greeting").ifBlank { FALLBACK_GREETING }
             json.getString("client_secret") to json.optString("model", "gpt-realtime")
         }
 
@@ -209,7 +213,7 @@ class RealtimeConversation(
         send(
             JSONObject().put("type", "response.create").put(
                 "response",
-                JSONObject().put("instructions", "Say exactly \"כן, אני מקשיבה\" in Hebrew, nothing else, then wait."),
+                JSONObject().put("instructions", "Say exactly \"$greeting\" in Hebrew, nothing else, then wait."),
             ),
         )
     }
@@ -254,6 +258,7 @@ class RealtimeConversation(
         const val MAX_LAST_LINE_MS = 6_000L
         const val PLAYBACK_TAIL_MS = 700L
         const val MAX_TOOL_OUTPUT = 8_000
+        const val FALLBACK_GREETING = "כן, אני איתך."
         val http: OkHttpClient = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .pingInterval(20, TimeUnit.SECONDS)
