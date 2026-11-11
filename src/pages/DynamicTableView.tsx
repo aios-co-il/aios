@@ -142,6 +142,7 @@ import {
   getReportLastSyncAt,
   getReportSyncProblem,
 } from "@/lib/reportQueryOptions";
+import { invalidateReportTables } from "@/lib/invalidateReportTables";
 import {
   adAccountShortcutLabel,
   getAdAccountLinks,
@@ -917,7 +918,7 @@ export default function DynamicTableView({
     },
     onSuccess: () => {
       toast.success("הטבלה נמחקה בהצלחה");
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       navigate(buildPath("/dynamic-tables"));
     },
     onError: (error: any) => {
@@ -944,7 +945,7 @@ export default function DynamicTableView({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       const typeLabel =
         table?.integration_type === "facebook_ecommerce"
           ? "נתוני מכירות מפייסבוק"
@@ -1227,7 +1228,7 @@ export default function DynamicTableView({
           queryClient.invalidateQueries({
             queryKey: ["crm-records", table?.id],
           });
-          queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+          void invalidateReportTables(queryClient, tenantId);
         }, 5000);
       } else {
         toast.info(data?.message || "הסנכרון הופעל");
@@ -1268,7 +1269,7 @@ export default function DynamicTableView({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       toast.success(
         `נתוני Google Ads סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
@@ -1303,7 +1304,7 @@ export default function DynamicTableView({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       toast.success(
         `נתוני Google Analytics סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
@@ -1331,7 +1332,7 @@ export default function DynamicTableView({
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       toast.success(
         `נתוני Search Console סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
@@ -1587,7 +1588,7 @@ export default function DynamicTableView({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
       queryClient.invalidateQueries({ queryKey: ["crm-fields", table?.id] });
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       queryClient.invalidateQueries({ queryKey: ["ahrefs-reports"] });
       queryClient.invalidateQueries({ queryKey: ["ahrefs-reports", tenantId] });
       const tracked = data?.trackedCount;
@@ -1684,7 +1685,7 @@ export default function DynamicTableView({
           };
         },
       );
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
       setShowSettingsDialog(false);
       toast.success("הגדרות הטבלה עודכנו בהצלחה");
     },
@@ -1827,7 +1828,7 @@ export default function DynamicTableView({
     },
     onSuccess: () => {
       toast.success("הסנריו שוכפל וחובר לטבלה בהצלחה! כעת ניתן לסנכרן נתונים.");
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -1866,7 +1867,7 @@ export default function DynamicTableView({
     },
     onSuccess: () => {
       toast.success("הסנריו הופעל בהצלחה! כעת ניתן לסנכרן נתונים.");
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -1948,7 +1949,7 @@ export default function DynamicTableView({
     },
     onSuccess: () => {
       toast.success("הסנריו תוקן! כעת ניתן להריץ סנכרון.");
-      queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
+      void invalidateReportTables(queryClient, tenantId);
     },
     onError: (err: Error) => {
       toast.error(err.message);
