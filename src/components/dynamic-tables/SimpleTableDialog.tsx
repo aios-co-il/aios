@@ -112,7 +112,7 @@ export function SimpleTableDialog({
       handleClose();
       navigate(buildPath(`/table/${data.slug}`));
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה ביצירת הטבלה: " + error.message);
     },
   });

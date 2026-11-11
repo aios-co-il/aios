@@ -1,6 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { syncClientCardFromReportTable } from "../_shared/client-report-sync.ts";
+import type { Tables, TablesUpdate } from "../_shared/database.types.ts";
+import {
+  type DbClient,
+  serviceClient,
+  userClient,
+} from "../_shared/supabase-clients.ts";
+import {
+  asJsonObject,
+  isJsonObject,
+  type JsonObject,
+} from "../_shared/crm-json.ts";
+
+type CrmTableRow = Tables<"crm_tables">;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,7 +27,11 @@ interface CampaignerScope {
   clientIds: Set<string>;
 }
 
-async function userHasSeoScope(admin: any, userId: string): Promise<boolean> {
+/** Check the caller scope used by SEO table access. */
+async function userHasSeoScope(
+  admin: DbClient,
+  userId: string,
+): Promise<boolean> {
   const { data: hasScope, error } = await admin.rpc("user_has_seo_scope", {
     _user_id: userId,
   });
@@ -49,8 +65,9 @@ async function userHasSeoScope(admin: any, userId: string): Promise<boolean> {
   return tags.includes("SEO");
 }
 
+/** Resolve the clients visible through the caller SEO scope. */
 async function getSeoClientIds(
-  admin: any,
+  admin: DbClient,
   userId: string,
 ): Promise<Set<string> | null> {
   if (!(await userHasSeoScope(admin, userId))) return null;
@@ -65,8 +82,9 @@ async function getSeoClientIds(
 // + the clients they're on (client_team). crm_tables has no INSERT/UPDATE RLS
 // policies for campaigners, so the service-role fallbacks below authorize
 // against this scope explicitly instead of widening RLS.
+/** Resolve the campaigner client and agency scope. */
 async function getCampaignerScope(
-  admin: any,
+  admin: DbClient,
   userId: string,
 ): Promise<CampaignerScope | null> {
   const [{ data: campaignerRole }, { data: profileRow }] = await Promise.all([
@@ -97,13 +115,14 @@ async function getCampaignerScope(
   ]);
   return {
     campaignerId: profileRow.campaigner_id,
-    agencyIds: new Set((agencyRows || []).map((r: any) => r.agency_id)),
-    clientIds: new Set((teamRows || []).map((r: any) => r.client_id)),
+    agencyIds: new Set((agencyRows || []).map((r) => r.agency_id)),
+    clientIds: new Set((teamRows || []).map((r) => r.client_id)),
   };
 }
 
+/** Check whether a client belongs to the resolved campaigner scope. */
 async function isClientInCampaignerScope(
-  admin: any,
+  admin: DbClient,
   clientId: string,
   scope: CampaignerScope,
 ): Promise<boolean> {
@@ -116,38 +135,40 @@ async function isClientInCampaignerScope(
   return !!clientRow?.agency_id && scope.agencyIds.has(clientRow.agency_id);
 }
 
-function serviceRoleClient() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
-}
-
 /** Match crm_tables.client_id and legacy integration_settings.clientId. */
-function applyClientIdFilter(query: any, clientIdFilter: string) {
+function applyClientIdFilter<Q extends { or(filters: string): Q }>(
+  query: Q,
+  clientIdFilter: string,
+): Q {
   return query.or(
     `client_id.eq.${clientIdFilter},integration_settings->>clientId.eq.${clientIdFilter}`,
   );
 }
 
-function tableMatchesClientFilter(table: any, clientIdFilter: string): boolean {
+/** Apply the requested client filter to a table summary. */
+function tableMatchesClientFilter(
+  table: CrmTableRow,
+  clientIdFilter: string,
+): boolean {
   if (!clientIdFilter) return true;
-  const settings = (table?.integration_settings || {}) as Record<
-    string,
-    unknown
-  >;
+  const settings = asJsonObject(table?.integration_settings);
   const settingsClientId = settings.clientId ?? settings.client_id;
   return (
     table?.client_id === clientIdFilter || settingsClientId === clientIdFilter
   );
 }
 
+/** Synchronize the client card after a table association changes. */
 async function syncClientCardAfterTableChange(
-  tableRow: Record<string, unknown> | null | undefined,
+  tableRow: CrmTableRow | null | undefined,
 ) {
   if (!tableRow?.client_id || !tableRow?.integration_type) return;
+  const settings = tableRow.integration_settings;
   try {
-    await syncClientCardFromReportTable(serviceRoleClient(), tableRow as any);
+    await syncClientCardFromReportTable(serviceClient(), {
+      ...tableRow,
+      integration_settings: isJsonObject(settings) ? settings : null,
+    });
   } catch (err) {
     console.error("[crm-tables] client card sync failed:", err);
   }
@@ -159,15 +180,7 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      },
-    );
+    const supabase = userClient(req.headers.get("Authorization") ?? "");
 
     const {
       data: { user },
@@ -209,12 +222,20 @@ serve(async (req) => {
           );
           tenantId = fallbackTenantId;
         }
+        if (!tenantId) {
+          console.warn("[crm-tables] caller has no tenant");
+          return new Response(JSON.stringify({ error: "Tenant not found" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const tenantFilter = tenantId;
 
         // Foreign agencies shared into our tenant
         const { data: sharedAgencies } = await supabase
           .from("agency_tenant_access")
           .select("agency_id")
-          .eq("accessing_tenant_id", tenantId);
+          .eq("accessing_tenant_id", tenantFilter);
         const sharedAgencyIds = sharedAgencies?.map((sa) => sa.agency_id) || [];
 
         // Agencies OWNED by our tenant (to catch tables created in another tenant
@@ -223,16 +244,16 @@ serve(async (req) => {
         const { data: ownedAgencies } = await supabase
           .from("agencies")
           .select("id")
-          .eq("tenant_id", tenantId);
+          .eq("tenant_id", tenantFilter);
         const ownedAgencyIds = ownedAgencies?.map((a) => a.id) || [];
 
-        let allTables: any[] = [];
+        let allTables: CrmTableRow[] = [];
 
         // 1) Tables from user's own tenant
         let ownQuery = supabase
           .from("crm_tables")
           .select("*")
-          .eq("tenant_id", tenantId)
+          .eq("tenant_id", tenantFilter)
           .order("category", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: false });
 
@@ -254,7 +275,7 @@ serve(async (req) => {
           let sharedQuery = supabase
             .from("crm_tables")
             .select("*")
-            .neq("tenant_id", tenantId)
+            .neq("tenant_id", tenantFilter)
             .in("agency_id", sharedAgencyIds)
             .order("category", { ascending: true, nullsFirst: false })
             .order("created_at", { ascending: false });
@@ -279,7 +300,7 @@ serve(async (req) => {
           let ownedForeignQuery = supabase
             .from("crm_tables")
             .select("*")
-            .neq("tenant_id", tenantId)
+            .neq("tenant_id", tenantFilter)
             .in("agency_id", ownedAgencyIds)
             .order("category", { ascending: true, nullsFirst: false })
             .order("created_at", { ascending: false });
@@ -327,12 +348,12 @@ serve(async (req) => {
               clientsErr,
             );
           } else {
-            const clientIds = (relevantClients || []).map((c: any) => c.id);
+            const clientIds = (relevantClients || []).map((c) => c.id);
             if (clientIds.length > 0) {
               let foreignByClientQuery = supabase
                 .from("crm_tables")
                 .select("*")
-                .neq("tenant_id", tenantId)
+                .neq("tenant_id", tenantFilter)
                 .in("client_id", clientIds)
                 .order("category", { ascending: true, nullsFirst: false })
                 .order("created_at", { ascending: false });
@@ -472,7 +493,7 @@ serve(async (req) => {
         // RLS blocked the insert (crm_tables has no INSERT policy for campaigners).
         // A campaigner or SEO user may still create a table for clients in scope —
         // verify explicitly and insert with the service role.
-        const admin = serviceRoleClient();
+        const admin = serviceClient();
         const scope = await getCampaignerScope(admin, user.id);
         const seoClientIds = scope
           ? null
@@ -534,7 +555,9 @@ serve(async (req) => {
           });
         }
 
-        const updateData: any = { updated_at: new Date().toISOString() };
+        const updateData: TablesUpdate<"crm_tables"> = {
+          updated_at: new Date().toISOString(),
+        };
         if (name) updateData.name = name;
         if (slug) updateData.slug = slug;
         if (description !== undefined) updateData.description = description;
@@ -544,20 +567,19 @@ serve(async (req) => {
         if (client_id !== undefined) updateData.client_id = client_id || null;
         if (campaign_active !== undefined)
           updateData.campaign_active = !!campaign_active;
-        let existingSettings: Record<string, unknown> = {};
+        let existingSettings: JsonObject = {};
         if (integration_settings !== undefined || client_id !== undefined) {
           const { data: existingTable } = await supabase
             .from("crm_tables")
             .select("integration_settings")
             .eq("id", table_id)
             .single();
-          existingSettings =
-            (existingTable?.integration_settings as Record<string, unknown>) ||
-            {};
+          existingSettings = asJsonObject(existingTable?.integration_settings);
         }
 
+        let nextSettings: JsonObject | undefined;
         if (integration_settings !== undefined) {
-          updateData.integration_settings = {
+          nextSettings = {
             ...existingSettings,
             ...integration_settings,
           };
@@ -565,19 +587,19 @@ serve(async (req) => {
 
         // Keep client_id column and integration_settings.clientId in sync.
         if (client_id !== undefined && client_id) {
-          updateData.integration_settings = {
-            ...(updateData.integration_settings || existingSettings),
+          nextSettings = {
+            ...(nextSettings || existingSettings),
             clientId: client_id,
           };
-        } else if (client_id === undefined && updateData.integration_settings) {
+        } else if (client_id === undefined && nextSettings) {
           const settingsClientId =
-            (updateData.integration_settings as Record<string, unknown>)
-              .clientId ??
-            (updateData.integration_settings as Record<string, unknown>)
-              .client_id;
+            nextSettings.clientId ?? nextSettings.client_id;
           if (typeof settingsClientId === "string" && settingsClientId) {
             updateData.client_id = settingsClientId;
           }
+        }
+        if (nextSettings) {
+          updateData.integration_settings = nextSettings;
         }
 
         const { data: table, error } = await supabase
@@ -620,7 +642,7 @@ serve(async (req) => {
           return forbidden("אין לך הרשאה לעדכן את הטבלה הזו");
         }
 
-        const admin = serviceRoleClient();
+        const admin = serviceClient();
 
         const { data: tableRow, error: tableErr } = await admin
           .from("crm_tables")

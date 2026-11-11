@@ -1,3 +1,5 @@
+import type { Tables } from "../_shared/database.types.ts";
+import { jsonField } from "../_shared/crm-json.ts";
 /**
  * The GA sync writes one row per event per day (`report_type: event_total`)
  * and per event, day and source (`event_source`), which can pass the shared
@@ -9,11 +11,10 @@
 export const EVENT_REPORT_TYPES = ["event_total", "event_source"];
 
 /** A crm_records row as the shared link reads it. */
-export type SharedRecordRow = {
-  id: string;
-  data: Record<string, unknown> | null;
-  created_at: string;
-};
+export type SharedRecordRow = Pick<
+  Tables<"crm_records">,
+  "id" | "data" | "created_at"
+>;
 
 /** Reads one page of a table's event rows in a date window. */
 export type LoadEventTotalsPage = (
@@ -66,7 +67,9 @@ export function withFullEventTotals(
   return [
     ...capped.filter(
       (row) =>
-        !EVENT_REPORT_TYPES.includes(String(row.data?.report_type ?? "")),
+        !EVENT_REPORT_TYPES.includes(
+          String(jsonField(row.data, "report_type") ?? ""),
+        ),
     ),
     ...eventTotals,
   ];

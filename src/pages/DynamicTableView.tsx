@@ -174,6 +174,21 @@ import {
   recordMatchesEntitySearch,
   type AdsEntityLevel,
 } from "@/lib/adsEntityLevel";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
+import {
+  asJsonObject,
+  errorMessage,
+  type JsonObject,
+  readField,
+} from "@/lib/jsonReaders";
+import {
+  readFacebookAdAccounts,
+  readGoogleAdsAccounts,
+} from "@/lib/adAccountLists";
+import {
+  type CrmTableIntegrationSettings,
+  readMakeApiSettings,
+} from "@/lib/dynamicTableTypes";
 
 // Google Ads icon component
 const GoogleAdsIcon = ({ className = "h-4 w-4" }: { className?: string }) => (
@@ -190,9 +205,9 @@ interface CrmTable {
   tenant_id: string;
   client_id: string | null;
   integration_type: string | null;
-  integration_settings: any;
+  integration_settings: CrmTableIntegrationSettings | null;
   secondary_integration_type?: string | null;
-  secondary_integration_settings?: any;
+  secondary_integration_settings?: CrmTableIntegrationSettings | null;
   campaign_active?: boolean | null;
   category?: string | null;
 }
@@ -235,7 +250,7 @@ export default function DynamicTableView({
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showEditTableDialog, setShowEditTableDialog] = useState(false);
   const [debugDialogOpen, setDebugDialogOpen] = useState(false);
-  const [debugData, setDebugData] = useState<any>(null);
+  const [debugData, setDebugData] = useState<unknown>(null);
   const [debugLoading, setDebugLoading] = useState(false);
   const [selectedAdAccount, setSelectedAdAccount] = useState<string>("");
   const [adAccountSearch, setAdAccountSearch] = useState("");
@@ -523,9 +538,7 @@ export default function DynamicTableView({
         },
       );
       if (response.error) throw response.error;
-      // Ensure we always return an array
-      const accounts = response.data?.ad_accounts;
-      return Array.isArray(accounts) ? accounts : [];
+      return readFacebookAdAccounts(response.data);
     },
     enabled:
       showSettingsDialog &&
@@ -548,7 +561,7 @@ export default function DynamicTableView({
         },
       );
       if (response.error) throw response.error;
-      const fields = (response.data as any)?.fields || [];
+      const fields = response.data?.fields || [];
       return (fields as CrmField[]).sort((a, b) => a.position - b.position);
     },
     enabled: !!table?.id,
@@ -672,7 +685,7 @@ export default function DynamicTableView({
       setNewColumnName("");
       toast.success("עמודה נוספה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בהוספת עמודה: " + error.message);
     },
   });
@@ -715,7 +728,7 @@ export default function DynamicTableView({
       setEditingFieldId(null);
       toast.success("שם העמודה עודכן בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בעדכון שם עמודה: " + error.message);
     },
   });
@@ -751,7 +764,7 @@ export default function DynamicTableView({
       queryClient.invalidateQueries({ queryKey: ["crm-fields", table?.id] });
       toast.success("עמודה נמחקה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה במחיקת עמודה: " + error.message);
     },
   });
@@ -764,7 +777,7 @@ export default function DynamicTableView({
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const emptyData: Record<string, any> = {};
+      const emptyData: Record<string, string> = {};
       fields?.forEach((field) => {
         emptyData[field.key] = "";
       });
@@ -783,7 +796,7 @@ export default function DynamicTableView({
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
       toast.success("שורה נוספה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בהוספת שורה: " + error.message);
     },
   });
@@ -819,7 +832,7 @@ export default function DynamicTableView({
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
       toast.success("שורה נמחקה בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה במחיקת שורה: " + error.message);
     },
   });
@@ -832,7 +845,7 @@ export default function DynamicTableView({
     }: {
       recordId: string;
       key: string;
-      value: any;
+      value: string;
     }) => {
       const {
         data: { session },
@@ -870,7 +883,7 @@ export default function DynamicTableView({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בעדכון תא: " + error.message);
     },
   });
@@ -921,7 +934,7 @@ export default function DynamicTableView({
       queryClient.invalidateQueries({ queryKey: ["crm-tables", tenantId] });
       navigate(buildPath("/dynamic-tables"));
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה במחיקת טבלה: " + error.message);
     },
   });
@@ -963,7 +976,7 @@ export default function DynamicTableView({
         );
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בסנכרון מפייסבוק: " + error.message);
     },
   });
@@ -1003,7 +1016,7 @@ export default function DynamicTableView({
       }
 
       const integrationSettings = table.integration_settings || {};
-      const settings = (makeSettings?.settings as Record<string, any>) || {};
+      const settings = readMakeApiSettings(makeSettings?.settings);
       const makeApiToken = settings.api_token;
       const makeTeamId = settings.team_id;
       const makeRegion = settings.region || "eu1";
@@ -1024,13 +1037,13 @@ export default function DynamicTableView({
 
         if (displayRecords.length > 0) {
           const dates = displayRecords
-            .map((r: any) => r.data?.date)
+            .map((r) => r.data?.date)
             .filter(Boolean)
             .sort();
           const latestDate = dates[dates.length - 1];
           if (latestDate) {
             // Start from the latest date we have (will upsert, so no true duplicates)
-            startDate = latestDate;
+            startDate = String(latestDate);
           } else {
             // Fallback to 30 days ago
             const thirtyDaysAgo = new Date(now);
@@ -1234,7 +1247,7 @@ export default function DynamicTableView({
         toast.info(data?.message || "הסנכרון הופעל");
       }
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error("Make sync error:", error);
       toast.error(error.message || "שגיאה בסנכרון דרך Make.com");
       // If automatic sync fails, show the manual setup dialog
@@ -1274,7 +1287,7 @@ export default function DynamicTableView({
         `נתוני Google Ads סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message === "USE_MAKE_SYNC") {
         // This shouldn't happen now, but just in case
         syncMakeGoogleAdsMutation.mutate();
@@ -1309,7 +1322,7 @@ export default function DynamicTableView({
         `נתוני Google Analytics סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בסנכרון מ-Google Analytics: " + error.message);
     },
   });
@@ -1337,7 +1350,7 @@ export default function DynamicTableView({
         `נתוני Search Console סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
       );
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בסנכרון מ-Search Console: " + error.message);
     },
   });
@@ -1375,8 +1388,10 @@ export default function DynamicTableView({
             },
           });
         if (fetchError) throw fetchError;
-        if ((fetchData as any)?.error)
-          throw new Error((fetchData as any).error);
+        const ahrefsFetchError = readField(fetchData, "error");
+        if (ahrefsFetchError) {
+          throw new Error(String(ahrefsFetchError));
+        }
 
         // Step 2: pull ALL reports for this client (all months) and rebuild
         const { data: reports, error } = await supabase
@@ -1391,13 +1406,12 @@ export default function DynamicTableView({
           throw new Error("לא נמצאו דוחות SEO עבור לקוח זה");
 
         // Build records from ALL reports, each tagged with report_date
-        const allRecordsToInsert: any[] = [];
+        const allRecordsToInsert: TablesInsert<"crm_records">[] = [];
 
         for (const report of reports) {
-          const rd = ((report as any).report_data as any) || {};
-          const snapshot = rd.snapshot || {};
-          const reportDate =
-            (report as any).report_date || (report as any).received_at;
+          const rd = asJsonObject(report.report_data);
+          const snapshot = asJsonObject(rd.snapshot);
+          const reportDate = report.report_date || report.received_at;
           const organicKeywords = Array.isArray(rd.organic_keywords)
             ? rd.organic_keywords
             : [];
@@ -1407,7 +1421,8 @@ export default function DynamicTableView({
           const allKeywords = [...organicKeywords, ...trackedKeywords];
 
           if (allKeywords.length > 0) {
-            for (const kw of allKeywords) {
+            for (const keywordRow of allKeywords) {
+              const kw = asJsonObject(keywordRow);
               allRecordsToInsert.push({
                 table_id: table.id,
                 tenant_id: table.tenant_id,
@@ -1417,7 +1432,7 @@ export default function DynamicTableView({
                   position_prev_month: kw.position_prev_month ?? null,
                   position_change:
                     kw.position_prev_month != null && kw.position != null
-                      ? kw.position_prev_month - kw.position
+                      ? Number(kw.position_prev_month) - Number(kw.position)
                       : null,
                   traffic: kw.traffic ?? 0,
                   traffic_prev_month: kw.traffic_prev_month ?? 0,
@@ -1425,7 +1440,7 @@ export default function DynamicTableView({
                   kd: kw.kd ?? null,
                   cpc: kw.cpc ?? null,
                   url: kw.url ?? "",
-                  domain: (report as any).domain,
+                  domain: report.domain,
                   dr: snapshot.dr,
                   report_date: reportDate,
                 },
@@ -1436,7 +1451,7 @@ export default function DynamicTableView({
               table_id: table.id,
               tenant_id: table.tenant_id,
               data: {
-                domain: (report as any).domain,
+                domain: report.domain,
                 dr: snapshot.dr,
                 org_traffic: snapshot.org_traffic,
                 org_keywords_top3: snapshot.org_keywords_top3,
@@ -1458,7 +1473,7 @@ export default function DynamicTableView({
 
         const { error: insertError } = await supabase
           .from("crm_records")
-          .insert(recordsToInsert as any[]);
+          .insert(recordsToInsert);
         if (insertError) throw insertError;
 
         // Auto-create fields if none exist
@@ -1466,10 +1481,15 @@ export default function DynamicTableView({
           `crm-fields?table_id=${table.id}`,
           { method: "GET" },
         );
-        const fieldsList = (existingFields as any)?.fields || [];
+        const existingFieldList = readField(existingFields, "fields");
+        const fieldsList = Array.isArray(existingFieldList)
+          ? existingFieldList
+          : [];
 
         if (fieldsList.length === 0) {
-          const hasKeywords = recordsToInsert.some((r: any) => r.data?.keyword);
+          const hasKeywords = recordsToInsert.some((r) =>
+            readField(r.data, "keyword"),
+          );
           const seoFields = hasKeywords
             ? [
                 { key: "keyword", label: "מילת מפתח", type: "text" },
@@ -1537,8 +1557,8 @@ export default function DynamicTableView({
 
         return {
           recordsCount: recordsToInsert.length,
-          trackedCount: (fetchData as any)?.tracked_count ?? null,
-          organicCount: (fetchData as any)?.keywords_count ?? null,
+          trackedCount: readField(fetchData, "tracked_count") ?? null,
+          organicCount: readField(fetchData, "keywords_count") ?? null,
         };
       }
 
@@ -1606,7 +1626,7 @@ export default function DynamicTableView({
           : `נתוני SEO סונכרנו בהצלחה (${detail})`,
       );
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בסנכרון: " + (error?.message || "Unknown error"));
     },
   });
@@ -1624,9 +1644,7 @@ export default function DynamicTableView({
           body: { action: "get_accounts" },
         });
         if (response.error) throw response.error;
-        return Array.isArray(response.data?.accounts)
-          ? response.data.accounts
-          : [];
+        return readGoogleAdsAccounts(response.data);
       },
       enabled:
         showGoogleSettingsDialog &&
@@ -1643,9 +1661,7 @@ export default function DynamicTableView({
       if (!session) throw new Error("Not authenticated");
 
       // Find the selected ad account to get its currency (only as a fallback)
-      const selectedAccount = adAccounts?.find(
-        (acc: any) => acc.id === adAccountId,
-      );
+      const selectedAccount = adAccounts?.find((acc) => acc.id === adAccountId);
       // User's manual choice wins over the ad-account currency
       const currency = normalizeCurrencyCode(
         selectedCurrency || selectedAccount?.currency || "ILS",
@@ -1689,7 +1705,7 @@ export default function DynamicTableView({
       setShowSettingsDialog(false);
       toast.success("הגדרות הטבלה עודכנו בהצלחה");
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error("שגיאה בעדכון הגדרות: " + error.message);
     },
   });
@@ -1775,7 +1791,7 @@ export default function DynamicTableView({
     mutationFn: async () => {
       if (!table?.id) throw new Error("No table");
 
-      const settings = (makeSettings?.settings as Record<string, any>) || {};
+      const settings = readMakeApiSettings(makeSettings?.settings);
       const templateId = settings.google_ads_template_scenario_id;
 
       if (!templateId) {
@@ -1838,7 +1854,7 @@ export default function DynamicTableView({
   // Activate scenario mutation for scenarios that exist but aren't activated
   const activateScenarioMutation = useMutation({
     mutationFn: async () => {
-      const settings = (makeSettings?.settings as Record<string, any>) || {};
+      const settings = readMakeApiSettings(makeSettings?.settings);
       const scenarioId = table?.integration_settings?.make_scenario_id;
 
       if (!scenarioId) {
@@ -1877,7 +1893,7 @@ export default function DynamicTableView({
   // Patch scenario blueprint mutation - fixes table_id mismatch in existing scenarios
   const patchScenarioBlueprintMutation = useMutation({
     mutationFn: async () => {
-      const settings = (makeSettings?.settings as Record<string, any>) || {};
+      const settings = readMakeApiSettings(makeSettings?.settings);
       const scenarioId = table?.integration_settings?.make_scenario_id;
 
       if (!scenarioId) {
@@ -1894,8 +1910,7 @@ export default function DynamicTableView({
 
       const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-google-ads-sync`;
 
-      const integrationSettings =
-        (table?.integration_settings as Record<string, any>) || {};
+      const integrationSettings = table?.integration_settings || {};
 
       // Calculate date range from latest existing record
       const now = new Date();
@@ -1903,12 +1918,12 @@ export default function DynamicTableView({
 
       if (displayRecords.length > 0) {
         const dates = displayRecords
-          .map((r: any) => r.data?.date)
+          .map((r) => r.data?.date)
           .filter(Boolean)
           .sort();
         const latestDate = dates[dates.length - 1];
         startDate =
-          latestDate ||
+          (latestDate ? String(latestDate) : "") ||
           (() => {
             const d = new Date(now);
             d.setDate(d.getDate() - 30);
@@ -1983,7 +1998,7 @@ export default function DynamicTableView({
             להתנתק ולהתחבר מחדש.
           </p>
           <p className="text-xs text-muted-foreground mb-4">
-            {(tablesError as any)?.message || String(tablesError)}
+            {errorMessage(tablesError) || String(tablesError)}
           </p>
           <div className="flex gap-2 justify-center">
             <Button
@@ -2080,7 +2095,7 @@ export default function DynamicTableView({
           <AlertDescription className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
             <span className="text-orange-700 dark:text-orange-300">
               יש לשכפל סנריו מ-Make.com כדי לאפשר סנכרון נתונים.
-              {!(makeSettings?.settings as Record<string, any>)
+              {!readMakeApiSettings(makeSettings?.settings)
                 ?.google_ads_template_scenario_id && (
                 <span className="block text-sm mt-1">
                   ⚠️ תחילה הגדר Template Scenario ב-
@@ -2097,7 +2112,7 @@ export default function DynamicTableView({
               onClick={() => cloneScenarioMutation.mutate()}
               disabled={
                 cloneScenarioMutation.isPending ||
-                !(makeSettings?.settings as Record<string, any>)
+                !readMakeApiSettings(makeSettings?.settings)
                   ?.google_ads_template_scenario_id
               }
               size="sm"
@@ -2398,8 +2413,8 @@ export default function DynamicTableView({
                       );
                       if (error) throw error;
                       setDebugData(data);
-                    } catch (e: any) {
-                      toast.error("שגיאה בדיבאג: " + e.message);
+                    } catch (e) {
+                      toast.error("שגיאה בדיבאג: " + errorMessage(e));
                       setDebugDialogOpen(false);
                     } finally {
                       setDebugLoading(false);
@@ -2807,7 +2822,7 @@ export default function DynamicTableView({
                           </SelectTrigger>
                           <SelectContent>
                             {(Array.isArray(adAccounts) ? adAccounts : [])
-                              .filter((account: any) => {
+                              .filter((account) => {
                                 const searchTerm = adAccountSearch
                                   .trim()
                                   .toLowerCase();
@@ -2831,7 +2846,7 @@ export default function DynamicTableView({
                                   )
                                 );
                               })
-                              .map((account: any) => {
+                              .map((account) => {
                                 const formattedAccountId = String(
                                   account.id || "",
                                 ).replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3");
@@ -3090,9 +3105,9 @@ export default function DynamicTableView({
                             ? "הגדרות נשמרו ושויכו ללקוח"
                             : "הגדרות Google Ads עודכנו בהצלחה",
                         );
-                      } catch (err: any) {
+                      } catch (err) {
                         toast.error(
-                          "שגיאה בעדכון: " + (err?.message || String(err)),
+                          "שגיאה בעדכון: " + (errorMessage(err) || String(err)),
                         );
                       }
                     }}
@@ -3750,7 +3765,8 @@ export default function DynamicTableView({
                 clientId={
                   table.integration_settings?.clientId ||
                   table.integration_settings?.client_id ||
-                  table.client_id
+                  table.client_id ||
+                  ""
                 }
               />
             )}
@@ -3918,7 +3934,7 @@ export default function DynamicTableView({
 
                       // Format display value
                       const formatDisplayValue = (
-                        value: any,
+                        value: unknown,
                         fieldType: string,
                         fieldKey: string,
                       ): string => {
@@ -3932,7 +3948,11 @@ export default function DynamicTableView({
                         // Format date fields
                         if (fieldType === "date" || fieldKey === "date") {
                           try {
-                            const date = new Date(value);
+                            const date =
+                              typeof value === "string" ||
+                              typeof value === "number"
+                                ? new Date(value)
+                                : new Date(NaN);
                             if (!isNaN(date.getTime())) {
                               return date.toLocaleDateString("he-IL", {
                                 day: "2-digit",
@@ -3953,7 +3973,7 @@ export default function DynamicTableView({
                           const num =
                             typeof value === "number"
                               ? value
-                              : parseFloat(value);
+                              : parseFloat(String(value));
                           if (!isNaN(num)) {
                             // Check if it has decimals
                             if (num % 1 !== 0) {

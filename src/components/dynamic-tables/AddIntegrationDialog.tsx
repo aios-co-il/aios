@@ -12,6 +12,14 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
+import type { Json } from "@/integrations/supabase/types";
+import {
+  asJsonArray,
+  asJsonObject,
+  errorMessage,
+  jsonObjects,
+  readField,
+} from "@/lib/jsonReaders";
 import {
   Loader2,
   Facebook,
@@ -57,6 +65,16 @@ type IntegrationType =
   | "google_search_console"
   | "ahrefs"
   | "unified";
+
+interface ResourceOption {
+  id: string;
+  name: string;
+}
+
+const toResourceOption = (
+  id: Json | undefined,
+  name: Json | undefined,
+): ResourceOption => ({ id: String(id ?? ""), name: String(name ?? "") });
 
 interface PlatformConfig {
   type: IntegrationType;
@@ -176,7 +194,7 @@ export function AddIntegrationDialog({
   // Fetch resources based on platform type
   const { data: resources, isLoading: resourcesLoading } = useQuery({
     queryKey: ["platform-resources", selectedPlatform, integration?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ResourceOption[]> => {
       if (!integration || !selectedPlatform) return [];
 
       switch (selectedPlatform) {
@@ -187,20 +205,15 @@ export function AddIntegrationDialog({
               body: { integrationId: integration.id },
             },
           );
-          return (
-            data?.adAccounts?.map((a: any) => ({ id: a.id, name: a.name })) ||
-            []
+          return jsonObjects(data?.adAccounts).map((a) =>
+            toResourceOption(a.id, a.name),
           );
         }
         case "google_ads": {
-          const settings = integration.settings as any;
-          if (settings?.customers) {
-            return settings.customers.map((c: any) => ({
-              id: c.id,
-              name: c.descriptiveName || c.id,
-            }));
-          }
-          return [];
+          const customers = readField(integration.settings, "customers");
+          return jsonObjects(customers).map((c) =>
+            toResourceOption(c.id, c.descriptiveName || c.id),
+          );
         }
         case "google_analytics": {
           const { data } = await supabase.functions.invoke(
@@ -209,11 +222,8 @@ export function AddIntegrationDialog({
               body: { action: "get_properties", integrationId: integration.id },
             },
           );
-          return (
-            data?.properties?.map((p: any) => ({
-              id: p.propertyId,
-              name: p.displayName,
-            })) || []
+          return jsonObjects(data?.properties).map((p) =>
+            toResourceOption(p.propertyId, p.displayName),
           );
         }
         case "google_search_console": {
@@ -223,11 +233,8 @@ export function AddIntegrationDialog({
               body: { action: "get_sites", integrationId: integration.id },
             },
           );
-          return (
-            data?.sites?.map((s: any) => ({
-              id: s.siteUrl,
-              name: s.siteUrl,
-            })) || []
+          return jsonObjects(data?.sites).map((s) =>
+            toResourceOption(s.siteUrl, s.siteUrl),
           );
         }
         case "ahrefs": {
@@ -241,11 +248,11 @@ export function AddIntegrationDialog({
               body: { action: "list", tenant_id: activeTenantId },
             },
           );
-          return (
-            unifiedData?.connections?.map((c: any) => ({
-              id: c.id,
-              name: c.settings?.integration_name || c.integration_type,
-            })) || []
+          return jsonObjects(unifiedData?.connections).map((c) =>
+            toResourceOption(
+              c.id,
+              asJsonObject(c.settings).integration_name || c.integration_type,
+            ),
           );
         }
         default:
@@ -272,8 +279,8 @@ export function AddIntegrationDialog({
 
       if (fetchError) throw fetchError;
 
-      const currentIntegrations = (table?.integrations as any[]) || [];
-      const resource = resources?.find((r: any) => r.id === selectedResource);
+      const currentIntegrations = asJsonArray(table?.integrations);
+      const resource = resources?.find((r) => r.id === selectedResource);
 
       const newIntegration = {
         type: selectedPlatform,
@@ -305,10 +312,10 @@ export function AddIntegrationDialog({
       onOpenChange(false);
       setSelectedPlatform(null);
       setSelectedResource("");
-    } catch (error: any) {
+    } catch (error) {
       toast({
         title: "שגיאה בהוספת החיבור",
-        description: error.message,
+        description: errorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -402,7 +409,7 @@ export function AddIntegrationDialog({
                         <SelectValue placeholder="בחר..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {resources.map((resource: any) => (
+                        {resources.map((resource) => (
                           <SelectItem key={resource.id} value={resource.id}>
                             {resource.name}
                           </SelectItem>

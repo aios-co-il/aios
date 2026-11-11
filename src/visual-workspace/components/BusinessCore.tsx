@@ -8,6 +8,7 @@ import {
   TrendingUp,
   ShieldAlert,
   Flame,
+  type LucideIcon,
 } from "lucide-react";
 
 interface Props {
@@ -98,13 +99,14 @@ export function BusinessCore({ data, width, height }: Props) {
   );
 }
 
+/** Render core stat from its typed view data. */
 function CoreStat({
   icon: Icon,
   label,
   value,
   tone,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   value: number;
   tone?: "warn" | "danger";
