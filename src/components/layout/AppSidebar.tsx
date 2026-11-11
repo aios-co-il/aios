@@ -336,7 +336,7 @@ export function AppSidebar() {
       <Sidebar
         collapsible="icon"
         side="right"
-        className="dark text-sidebar-foreground"
+        className="text-sidebar-foreground"
       >
         <SidebarHeader className="border-b border-sidebar-border p-4">
           <div className="h-8 w-32 bg-muted animate-pulse rounded" />
@@ -354,7 +354,7 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       side="right"
-      className="dark text-sidebar-foreground"
+      className="text-sidebar-foreground"
     >
       {/* ── Header ── */}
       <SidebarHeader className="border-b border-sidebar-border">
