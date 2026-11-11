@@ -62,19 +62,21 @@ describe("chartMetrics", () => {
 });
 
 describe("isWidgetVisible", () => {
-  it("hides a sessions trend without Analytics and Carmen without an insight", () => {
+  it("hides a sessions trend without Analytics and Carmen where the report does not offer her", () => {
     const scope = scopeOf(figures({ spend: 10 }));
     const sessions: ReportWidget = {
       id: "s",
       kind: "trend",
       metric: "sessions",
     };
-    expect(isWidgetVisible(sessions, scope, { insight: null })).toBe(false);
+    expect(isWidgetVisible(sessions, scope, { askCarmen: false })).toBe(false);
     expect(
-      isWidgetVisible({ id: "c", kind: "insight" }, scope, { insight: null }),
+      isWidgetVisible({ id: "c", kind: "insight" }, scope, {
+        askCarmen: false,
+      }),
     ).toBe(false);
     expect(
-      isWidgetVisible({ id: "c", kind: "insight" }, scope, { insight: "x" }),
+      isWidgetVisible({ id: "c", kind: "insight" }, scope, { askCarmen: true }),
     ).toBe(true);
   });
 });
