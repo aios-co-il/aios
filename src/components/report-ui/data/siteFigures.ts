@@ -1,8 +1,9 @@
 import type { CampaignGoalRecord } from "@/lib/campaignGoals";
 import { dashboardStore } from "@/lib/dashboardCombinedFigures";
-import type {
-  ReportAnalyticsFigures,
-  ReportFigures,
+import {
+  emptyReportFigures,
+  type ReportAnalyticsFigures,
+  type ReportFigures,
 } from "../metrics/reportFigures";
 import type { ReportScope } from "../metrics/reportMetricTypes";
 import {
@@ -65,6 +66,15 @@ export function attachSite(
     store: sells ? site.store : null,
     analytics: measuresSite ? sumAnalytics(site.analyticsDays) : null,
   };
+  if (measuresSite) {
+    // Days Analytics measured without any ads row still belong on the
+    // sessions and Analytics revenue trends.
+    for (const date of site.analyticsDays.keys()) {
+      if (!acc.days.has(date)) {
+        acc.days.set(date, emptyReportFigures());
+      }
+    }
+  }
   for (const [date, figures] of acc.days) {
     const day = measuresSite ? (site.analyticsDays.get(date) ?? null) : null;
     acc.days.set(date, {

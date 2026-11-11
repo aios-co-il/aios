@@ -48,6 +48,17 @@ describe("chartMetrics", () => {
     const scope = scopeOf(figures({ spend: 10, purchases: 2 }));
     expect(chartMetrics(SALES_TREND, scope)).toEqual({ metric: "purchases" });
   });
+
+  it("falls back to purchases when the only valued day had no purchases", () => {
+    const scope: ReportScopeData = {
+      ...scopeOf(figures({ spend: 10, purchases: 2 })),
+      daily: [
+        { date: "2026-11-01", figures: figures({ spend: 5 }) },
+        { date: "2026-11-02", figures: figures({ spend: 5, purchases: 2 }) },
+      ],
+    };
+    expect(chartMetrics(SALES_TREND, scope)).toEqual({ metric: "purchases" });
+  });
 });
 
 describe("isWidgetVisible", () => {

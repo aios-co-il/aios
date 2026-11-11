@@ -112,6 +112,28 @@ describe("buildReportPeriod", () => {
     ]);
   });
 
+  it("keeps a day only Analytics measured on the site trends", () => {
+    const withGaDay = buildReportPeriod({
+      records: [
+        ...records,
+        {
+          table_id: "ga",
+          data: { report_type: "daily", date: "2026-11-03", sessions: 120 },
+        },
+      ],
+      tables: [META, GA],
+      woo: null,
+    });
+    const day = withGaDay.scopes.all?.daily.find(
+      ({ date }) => date === "2026-11-03",
+    );
+    expect(day?.figures.analytics?.sessions).toBe(120);
+    expect(day?.figures.spend).toBe(0);
+    expect(
+      withGaDay.scopes.leads?.daily.some(({ date }) => date === "2026-11-03"),
+    ).toBe(false);
+  });
+
   it("adds a sales scope for a store without sales campaigns", () => {
     const traffic = buildReportPeriod({
       records: [

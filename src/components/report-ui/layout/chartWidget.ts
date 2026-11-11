@@ -46,7 +46,7 @@ function fallbackMetrics(
 }
 
 /**
- * Whether any row the chart draws can measure the metric: a channel for a
+ * Whether any row the chart draws measures the metric above zero: a channel for a
  * channel split, a day for a trend. The scope's totals can differ (a store's
  * revenue where each channel's purchases carry no value).
  */
@@ -56,7 +56,10 @@ function measurable(
   scope: ReportScopeData,
 ): boolean {
   const rows = widget.kind === "channels" ? scope.channels : scope.daily;
-  return rows.some(
-    ({ figures }) => REPORT_METRICS[key].compute(figures) !== null,
-  );
+  // A zero, such as a day without purchases, says nothing about whether the
+  // days with purchases carry a value, so it does not count.
+  return rows.some(({ figures }) => {
+    const value = REPORT_METRICS[key].compute(figures);
+    return value !== null && value > 0;
+  });
 }

@@ -8,7 +8,8 @@ export interface ChannelShare {
   label: string;
   /** The channel's mark, e.g. the Meta or Google logo. */
   mark: ReactNode;
-  value: number;
+  /** Null when the channel cannot measure the figure: a dash, no bar. */
+  value: number | null;
   /** A second figure under the value, e.g. the channel's cost per lead. */
   detail?: ReactNode;
 }
@@ -27,8 +28,10 @@ export function ChannelShareCard({
   channels,
   format,
 }: ChannelShareCardProps) {
-  const sorted = [...channels].sort((a, b) => b.value - a.value);
-  const max = Math.max(...sorted.map((channel) => channel.value), 1);
+  const sorted = [...channels].sort(
+    (a, b) => (b.value ?? -1) - (a.value ?? -1),
+  );
+  const max = Math.max(...sorted.map((channel) => channel.value ?? 0), 1);
   return (
     <ReportSection title={title} icon={icon}>
       <ul className="space-y-4">
@@ -48,12 +51,12 @@ export function ChannelShareCard({
                     ? "bg-gradient-to-l from-brand-accent to-brand-accent/60"
                     : "bg-brand-neutral",
                 )}
-                style={{ width: `${(channel.value / max) * 100}%` }}
+                style={{ width: `${((channel.value ?? 0) / max) * 100}%` }}
               />
             </span>
             <span className="w-20 shrink-0 text-end tabular-nums">
               <span className="block text-sm font-semibold">
-                {format(channel.value)}
+                {channel.value === null ? "—" : format(channel.value)}
               </span>
               {channel.detail && (
                 <span className="block text-xs text-muted-foreground">
