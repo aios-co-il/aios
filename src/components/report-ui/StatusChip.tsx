@@ -1,15 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-
-/** The brand book's status chips; each tone follows the theme in light and dark. */
-export type StatusTone = "active" | "progress" | "draft" | "danger";
-
-const TONE_CLASS: Record<StatusTone, string> = {
-  active: "bg-status-active-surface text-status-foreground",
-  progress: "bg-status-progress-surface text-status-foreground",
-  draft: "bg-status-draft-surface text-status-foreground",
-  danger: "bg-surface-status-red text-destructive",
-};
+import { STATUS_TONE_CLASS, type StatusTone } from "./statusTone";
 
 /** A small rounded status label, e.g. "פעיל" on a campaign row. */
 export function StatusChip({
@@ -23,7 +14,7 @@ export function StatusChip({
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-        TONE_CLASS[tone],
+        STATUS_TONE_CLASS[tone],
       )}
     >
       {children}

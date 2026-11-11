@@ -7,7 +7,8 @@ import {
   ReportTh,
   ReportTr,
 } from "@/components/report-ui/ReportTable";
-import { StatusChip, type StatusTone } from "@/components/report-ui/StatusChip";
+import { StatusChip } from "@/components/report-ui/StatusChip";
+import type { StatusTone } from "@/components/report-ui/statusTone";
 import type { WooReportFormatters, WooReportOrder } from "./wooReportTypes";
 
 /** How many of the period's orders the table lists. */

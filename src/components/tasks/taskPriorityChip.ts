@@ -1,4 +1,4 @@
-import type { StatusTone } from "@/components/report-ui/StatusChip";
+import type { StatusTone } from "@/components/report-ui/statusTone";
 
 /** How a task's urgency reads on a card: a chip tone and its label. */
 export interface TaskPriorityChip {
