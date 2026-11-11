@@ -191,6 +191,9 @@ verify_jwt = true
 [functions.meta-whatsapp-webhook]
 verify_jwt = false
 
+[functions.carmen-report-insight]
+verify_jwt = true
+
 [functions.carmen-speak]
 verify_jwt = true
 
