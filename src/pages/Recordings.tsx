@@ -216,7 +216,8 @@ export default function Recordings() {
     }) => {
       const { error } = await supabase
         .from("zoom_recordings")
-        .update({ meeting_topic: name.trim() })
+        // A typed name is kept: the summary never renames it (AIO-563).
+        .update({ meeting_topic: name.trim(), topic_set_manually: true })
         .in("id", recordingIds);
       if (error) throw error;
     },
