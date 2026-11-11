@@ -77,21 +77,24 @@ export function requireOriginChatId(
   return { ok: true, chatId: normalized, isGroup: isGroupChatId(normalized) };
 }
 
+export interface CarmenWaNotify {
+  surface: "whatsapp";
+  tenant_id: string;
+  automation_id: string | null;
+  connection_user_id: string | null;
+  chat_id: string;
+  phone_number: string | null;
+  is_group: boolean;
+}
+
+/** Build delivery metadata bound to the verified originating WhatsApp chat. */
 export function buildWaNotifyFromOrigin(args: {
   tenantId: string;
   automationId: string | null;
   connectionUserId: string;
   chatId: string;
   speakerPhone?: string | null;
-}): {
-  surface: "whatsapp";
-  tenant_id: string;
-  automation_id: string | null;
-  connection_user_id: string;
-  chat_id: string;
-  phone_number: string | null;
-  is_group: boolean;
-} | null {
+}): (CarmenWaNotify & { connection_user_id: string }) | null {
   const origin = requireOriginChatId(args.chatId);
   if (!origin.ok) return null;
   return {

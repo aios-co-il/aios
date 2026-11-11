@@ -1,5 +1,46 @@
+import { executeCreateTask } from "./executors/create-task.ts";
+import { executeCreateAgentTask } from "./executors/create-agent-task.ts";
+import { executeListMyAgentTasks } from "./executors/list-my-agent-tasks.ts";
+import { executeSearchTasks } from "./executors/search-tasks.ts";
+import { executeListTasks } from "./executors/list-tasks.ts";
+import { executeUpdateTaskStatus } from "./executors/update-task-status.ts";
+import { executeUpdateTask } from "./executors/update-task.ts";
+import { executeDeleteTask } from "./executors/delete-task.ts";
+import { executeAddTaskUpdate } from "./executors/add-task-update.ts";
+import { executeManageTaskCollaborators } from "./executors/manage-task-collaborators.ts";
+import { executeCreateOnboarding } from "./executors/create-onboarding.ts";
+import { executeListOnboarding } from "./executors/list-onboarding.ts";
+import { executeUpdateOnboardingStatus } from "./executors/update-onboarding-status.ts";
+import { executeCreateGoal } from "./executors/create-goal.ts";
+import { executeListGoals } from "./executors/list-goals.ts";
+import { executeFindExecutionGoalDuplicates } from "./executors/find-execution-goal-duplicates.ts";
+import { executeCreateExecutionGoal } from "./executors/create-execution-goal.ts";
+import { executeGetExecutionGoalReport } from "./executors/get-execution-goal-report.ts";
+import { executeAddGoalMilestone } from "./executors/add-goal-milestone.ts";
+import { executeAddGoalBlocker } from "./executors/add-goal-blocker.ts";
+import { executeLinkTaskToExecutionGoal } from "./executors/link-task-to-execution-goal.ts";
+import { executeGetAutonomousGoalStatus } from "./executors/get-autonomous-goal-status.ts";
+import { executeTakeTask } from "./executors/take-task.ts";
+import { executeAssignTaskToCursor } from "./executors/assign-task-to-cursor.ts";
+import { executeFindDevTaskDuplicates } from "./executors/find-dev-task-duplicates.ts";
+import { executeCreateDevTask } from "./executors/create-dev-task.ts";
+import { executeApproveDevTask } from "./executors/approve-dev-task.ts";
+import { executeDispatchDevTask } from "./executors/dispatch-dev-task.ts";
+import { executeListDevTasks } from "./executors/list-dev-tasks.ts";
+import { executeUpdateDevTask } from "./executors/update-dev-task.ts";
+import { executeAttachDevTaskSession } from "./executors/attach-dev-task-session.ts";
+import { executeCompleteTaskStep } from "./executors/complete-task-step.ts";
+import { executePrioritizeTasks } from "./executors/prioritize-tasks.ts";
+import { listClients } from "./executors/client-list.ts";
+import { executeClientRecordTool } from "./executors/client-records.ts";
+import { executeClientAccessTool } from "./executors/client-access.ts";
+
+import { searchClientsBroadly } from "./executors/client-search.ts";
+import { resolveClientTenantId } from "./executors/client-tenant.ts";
+
+import { executeLeadTool } from "./executors/lead-tools.ts";
 import { prepareToolDispatch } from "./tool-dispatch.ts";
-import type { ToolApproval } from "./tool-context.ts";
+import type { ToolApproval, ToolExecutionContext } from "./tool-context.ts";
 import { ALL_TOOLS } from "./tool-catalog.ts";
 // redeploy trigger (restore #5): a Grok-driven session replaced this file — in git AND in prod (v81) — with a
 // literal "REPLACE_WITH_FIXED_VERSION" placeholder, so the deployed function had no code at all and every Carmen
@@ -94,10 +135,7 @@ import { sendTargetFor } from "./chat-scope/send-target.ts";
 import { asUuidOrNull } from "../_shared/uuid.ts";
 import { recordClientCardEntry } from "../_shared/client-card/entry.ts";
 
-import {
-  addClientUpdateFromCarmen,
-  recordHealthCardEntryAfterUpdate,
-} from "./carmen-client-card-tools.ts";
+import { recordHealthCardEntryAfterUpdate } from "./carmen-client-card-tools.ts";
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
 import { setClientMoodStatus } from "./client-health-status.ts";
 import { listUpdates } from "./list-updates.ts";
@@ -212,7 +250,7 @@ import {
   shouldUseTokenOptimize,
 } from "../_shared/carmen-token-optimizer.ts";
 import { aiEmbed, aiEmbedBatch, resolveOpenAIKey } from "../_shared/ai.ts";
-import { fireTaskPeerNotification } from "../_shared/notify-task-peers.ts";
+
 import {
   normalizeAdCopyVariants,
   summarizeSourceAd,
@@ -243,7 +281,6 @@ import {
   isDevEscalationToolAllowed,
   isBugfixEscalationSkill,
   NATIVE_DEV_TASK_TOOLS,
-  resolveDevTaskActorUserId,
 } from "../_shared/dev-escalation-auth.ts";
 import {
   formatApprovalExecutionReply,
@@ -290,16 +327,7 @@ import {
   syncClientCardFromReportTable,
   validateMetaAdPlatform,
 } from "../_shared/client-report-sync.ts";
-import {
-  approveDevTask,
-  attachDevTaskSession,
-  createDevTask,
-  DevTaskNotApprovedError,
-  dispatchDevTask,
-  findDuplicateDevTasks,
-  logDevTaskEvent,
-} from "../_shared/dev-tasks.ts";
-import { devTaskApprovalDecision } from "../_shared/dev-task-approval.ts";
+
 import {
   isExplicitDevTaskApproval,
   isExplicitDevTaskDecline,
@@ -318,15 +346,6 @@ import {
   customSkinPaths,
   pathsToSign,
 } from "../_shared/carmen/skin-gallery.ts";
-import {
-  addGoalBlocker,
-  addGoalMilestone,
-  createUnifiedGoal,
-  findDuplicateGoals,
-  getGoalExecutionReport,
-  linkTaskToGoal,
-  logGoalEvent,
-} from "../_shared/goal-execution.ts";
 import {
   OPENAI_BILLING_REFUSAL_HE,
   buildOpenAiBillingStatus,
@@ -394,8 +413,6 @@ import type {
   MarketingWorkItemListRow,
   MetaLeadQuestion,
   OneTimeIncomeRow,
-  OnboardingListRow,
-  PrioritizedTaskRow,
 } from "./tool-contracts-marketing.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
 import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
@@ -418,7 +435,6 @@ import type { AdAccountHealthIssue } from "./tool-contracts-admin.ts";
 import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaAction, MetaNode } from "./meta-response.ts";
 import type {
-  SearchClient,
   MetaAdMetrics,
   AccountInsights,
   ConnectedClient,
@@ -427,15 +443,6 @@ import type {
 
 function scoreNameMatchSafe(fullName: string, query: string): number {
   return scoreNameMatch(fullName, query);
-}
-
-/** DB enum task_status is open|in_progress|done. Carmen tools historically used `completed`. */
-function mapHumanTaskStatus(status: string): "open" | "in_progress" | "done" {
-  const value = (status || "").trim().toLowerCase();
-  if (value === "completed" || value === "done") return "done";
-  if (value === "in_progress") return "in_progress";
-  if (value === "open") return "open";
-  throw new Error(`סטטוס משימה לא תקין: ${status}`);
 }
 
 /** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
@@ -1277,194 +1284,6 @@ async function fbResolveClientMetaReport(
   return null;
 }
 
-/** Resolve which tenant owns a client (for FB token / shared integrations). */
-async function resolveClientTenantId(
-  supabase: AgentDatabaseClient,
-  clientId: string,
-  fallbackTenantId: string,
-): Promise<string> {
-  const { data } = await supabase
-    .from("clients")
-    .select("tenant_id")
-    .eq("id", clientId)
-    .maybeSingle();
-  return data?.tenant_id || fallbackTenantId;
-}
-
-/** Expand Hebrew/English aliases so "קרנליוס" / Cornelius / Kernelios all match. */
-function expandClientSearchTerms(raw: string): string[] {
-  const term = String(raw || "").trim();
-  if (!term) return [];
-  const terms = new Set<string>([term]);
-  const lower = term.toLocaleLowerCase("he");
-  const aliasGroups = [
-    [
-      "kernelios",
-      "kernel",
-      "cornelius",
-      "קרנליוס",
-      "קרניליוס",
-      "yael kernelios",
-      "edvard kernelios",
-      "KERNELIOS",
-    ],
-  ];
-  for (const group of aliasGroups) {
-    if (
-      group.some(
-        (alias) =>
-          lower.includes(alias.toLocaleLowerCase("he")) ||
-          alias.toLocaleLowerCase("he").includes(lower),
-      )
-    ) {
-      for (const alias of group) terms.add(alias);
-    }
-  }
-  // Common Hebrew typo: קרנליוס ↔ קרניליוס
-  if (/קרנל/.test(term)) {
-    terms.add("קרנליוס");
-    terms.add("קרניליוס");
-    terms.add("KERNELIOS");
-    terms.add("Cornelius");
-  }
-  return Array.from(terms);
-}
-
-/**
- * Broad client lookup: CRM name/contact, crm_tables name, Meta ad account names,
- * all statuses (including ended). Used by search_entities / list_clients name search.
- */
-async function searchClientsBroadly(
-  supabase: AgentDatabaseClient,
-  accessibleTenantIds: string[],
-  searchTerm: string,
-  opts: {
-    limit?: number;
-    agencyId?: string | null;
-    clientIdsFilter?: string[] | null;
-  } = {},
-) {
-  const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
-  const terms = expandClientSearchTerms(searchTerm);
-  if (!terms.length || !accessibleTenantIds.length) return [];
-
-  const orName = terms
-    .map((t) => t.replace(/[%_,]/g, ""))
-    .filter(Boolean)
-    .flatMap((t) => [`name.ilike.%${t}%`, `contact_name.ilike.%${t}%`])
-    .join(",");
-
-  let clientQ = supabase
-    .from("clients")
-    .select(
-      "id, name, contact_name, phone, status, agency_id, tenant_id, meta_ads_account_id, agencies(name)",
-    )
-    .in("tenant_id", accessibleTenantIds)
-    .or(orName)
-    .limit(limit);
-  if (opts.agencyId) clientQ = clientQ.eq("agency_id", opts.agencyId);
-  if (opts.clientIdsFilter?.length)
-    clientQ = clientQ.in("id", opts.clientIdsFilter);
-  const { data: byName, error: nameErr } = await clientQ;
-  if (nameErr) throw nameErr;
-
-  // Also match Facebook report tables / ad account names (e.g. "Yael Kernelios LTD").
-  const tableOr = terms
-    .map((t) => t.replace(/[%_,]/g, ""))
-    .filter(Boolean)
-    .flatMap((t) => [
-      `name.ilike.%${t}%`,
-      `integration_settings->>ad_account_name.ilike.%${t}%`,
-    ])
-    .join(",");
-  let tablesQ = supabase
-    .from("crm_tables")
-    .select(
-      "id, name, client_id, integration_type, integration_settings, clients(id, name, contact_name, phone, status, agency_id, tenant_id, meta_ads_account_id, agencies(name))",
-    )
-    .in("tenant_id", accessibleTenantIds)
-    .in("integration_type", [
-      "facebook_insights",
-      "facebook_ecommerce",
-      "google_ads",
-    ])
-    .or(tableOr)
-    .limit(limit);
-  if (opts.clientIdsFilter?.length)
-    tablesQ = tablesQ.in("client_id", opts.clientIdsFilter);
-  const { data: byTable } = await tablesQ;
-
-  const byId = new Map<string, SearchClient>();
-  for (const c of byName || []) {
-    byId.set(c.id, {
-      id: c.id,
-      name: c.name,
-      contact_name: c.contact_name,
-      phone: c.phone,
-      status: c.status,
-      agency_id: c.agency_id,
-      agency_name: c.agencies?.name ?? null,
-      tenant_id: c.tenant_id,
-      meta_ads_account_id: c.meta_ads_account_id,
-      matched_via: ["client_name"],
-      ad_accounts: [],
-    });
-  }
-  for (const t of byTable || []) {
-    const c = t.clients;
-    if (!c?.id) continue;
-    if (opts.agencyId && c.agency_id !== opts.agencyId) continue;
-    const settings = readReportSettings(t.integration_settings);
-    const adAccount = {
-      table_id: t.id,
-      table_name: t.name,
-      integration_type: t.integration_type,
-      ad_account_id: settings.ad_account_id || settings.account_id || null,
-      ad_account_name: settings.ad_account_name || null,
-      account_status: settings.account_status || null,
-    };
-    const existing = byId.get(c.id);
-    if (existing) {
-      existing.matched_via = Array.from(
-        new Set([
-          ...(existing.matched_via || []),
-          "ad_account_or_report_table",
-        ]),
-      );
-      existing.ad_accounts.push(adAccount);
-    } else {
-      byId.set(c.id, {
-        id: c.id,
-        name: c.name,
-        contact_name: c.contact_name,
-        phone: c.phone,
-        status: c.status,
-        agency_id: c.agency_id,
-        agency_name: c.agencies?.name ?? null,
-        tenant_id: c.tenant_id,
-        meta_ads_account_id: c.meta_ads_account_id,
-        matched_via: ["ad_account_or_report_table"],
-        ad_accounts: [adAccount],
-      });
-    }
-  }
-
-  // Prefer active, then onboarding, then ended/paused — but always return duplicates.
-  const statusRank: Record<string, number> = {
-    active: 0,
-    onboarding: 1,
-    paused: 2,
-    ended: 3,
-  };
-  return Array.from(byId.values())
-    .sort(
-      (a, b) =>
-        (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) ||
-        String(a.name).localeCompare(String(b.name), "he"),
-    )
-    .slice(0, limit);
-}
-
 /** Deep single-campaign analysis + ad-level CPL (inline Graph; no edge-fn dependency). */
 async function fbAnalyzeCampaignInline(
   supabase: AgentDatabaseClient,
@@ -2157,152 +1976,6 @@ async function getAccessibleTenantIds(
   }
 }
 
-// Auto-create a Google Calendar event for a newly created task.
-// Silently no-ops when the campaigner's user has no connected calendar.
-async function tryCreateCalendarEventForTask(
-  supabase: AgentDatabaseClient,
-  taskId: string,
-  title: string,
-  dueDate: string,
-  dueTime: string,
-  durationMinutes: number | null,
-  campaignerId: string,
-): Promise<void> {
-  try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("campaigner_id", campaignerId)
-      .maybeSingle();
-    if (!profile?.id) return;
-
-    const { data: tokenData } = await supabase
-      .from("calendar_tokens")
-      .select("access_token, refresh_token, expires_at")
-      .eq("user_id", profile.id)
-      .maybeSingle();
-    if (!tokenData) return;
-
-    let accessToken = tokenData.access_token;
-    if (new Date(tokenData.expires_at) <= new Date()) {
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-      if (!clientId || !clientSecret) return;
-      const r = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          refresh_token: tokenData.refresh_token,
-          grant_type: "refresh_token",
-        }),
-      });
-      const rd = await r.json();
-      if (!rd.access_token) return;
-      accessToken = rd.access_token;
-      await supabase
-        .from("calendar_tokens")
-        .update({
-          access_token: accessToken,
-          expires_at: new Date(Date.now() + rd.expires_in * 1000).toISOString(),
-        })
-        .eq("user_id", profile.id);
-    }
-
-    const start = new Date(`${dueDate}T${dueTime}`);
-    const end = new Date(start.getTime() + (durationMinutes || 30) * 60_000);
-    const calResp = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          summary: title,
-          description: "משימה ממערכת AIOS",
-          start: { dateTime: start.toISOString(), timeZone: "Asia/Jerusalem" },
-          end: { dateTime: end.toISOString(), timeZone: "Asia/Jerusalem" },
-        }),
-      },
-    );
-    if (calResp.ok) {
-      const ev = await calResp.json();
-      if (ev.id)
-        await supabase
-          .from("tasks")
-          .update({ google_calendar_event_id: ev.id })
-          .eq("id", taskId);
-    } else {
-      const e = await calResp.json().catch(() => ({}));
-      console.warn(
-        "[create_task] calendar event failed:",
-        calResp.status,
-        e?.error?.message,
-      );
-    }
-  } catch (e) {
-    console.warn("[create_task] calendar sync error:", errorMessage(e));
-  }
-}
-
-/**
- * Why approve_dev_task / dispatch_dev_task may not act on this task now, in any chat (the user's
- * yes in an AIOS chat must answer Carmen's previous message, which offered this task), or null
- * when it may. A call with no user turn (a service or out-of-band call) is never a yes.
- */
-async function devTaskApprovalRefusal(
-  supabase: any,
-  tenantId: string,
-  taskId: string,
-  conversationId: string | null,
-  turn:
-    | { turnStartedAt: string; appChatUser: boolean; lastAssistantText: string }
-    | null
-    | undefined,
-  userText: string | null,
-  approver: { id: string | null; tier: "full" | "bugfix" | null },
-): Promise<{ error: string; message: string } | null> {
-  const gate = turn ?? {
-    turnStartedAt: "",
-    appChatUser: false,
-    lastAssistantText: "",
-  };
-  const { data: task } = await supabase
-    .from("dev_tasks")
-    .select(
-      "id, status, created_at, assigned_agent, requested_by_user_id, source_conversation_id",
-    )
-    .eq("id", taskId)
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  const offered = conversationId
-    ? await findOfferedDevTask(supabase, {
-        tenantId,
-        conversationId,
-        turnStartedAt: gate.turnStartedAt,
-      })
-    : null;
-  const decision = devTaskApprovalDecision({
-    task: task ?? null,
-    appChatUser: gate.appChatUser,
-    userText,
-    turnStartedAt: gate.turnStartedAt,
-    conversationId,
-    lastAssistantText: gate.lastAssistantText,
-    offeredTaskId: offered?.id ?? null,
-    approver,
-  });
-  return decision.ok
-    ? null
-    : {
-        error: `dev_task_approval_${decision.reason}`,
-        message: decision.message,
-      };
-}
-
 /**
  * Execute a named tool after escalation checks and caller-scope preparation.
  * Preserve approval context and handler ordering for normal and direct calls.
@@ -2360,6 +2033,27 @@ async function executeTool(
     canManageAutomations,
     callerScope,
   } = prepared.scope;
+  const toolContext: ToolExecutionContext = {
+    ...prepared.scope,
+    supabase,
+    tenantId,
+    userId,
+    name,
+    waNotify,
+    callerCampaignerId,
+    agentId,
+    callerRole,
+    callerManagedAgencyIds,
+    callerPhone,
+    surface,
+    conversationId,
+    approval,
+    appLinkOrigin,
+    humanRequesterUserId,
+    findingDraftReply,
+    SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY,
+  };
   if (isWorkshopTool(name)) {
     return executeWorkshopTool(
       supabase,
@@ -2551,6 +2245,7 @@ async function executeTool(
       args,
     );
   }
+  // Preserve legacy argument acceptance; domain modules expose named input contracts.
   switch (name) {
     case "query_system_graph": {
       if (!isManagerRole) throw new Error("אין הרשאה לעיין בגרף המערכת");
@@ -2564,317 +2259,32 @@ async function executeTool(
       if (error) throw error;
       return { count: data?.length || 0, nodes: data || [], read_only: true };
     }
-    case "create_lead": {
-      const { data: agency } = await supabase
-        .from("agencies")
-        .select("id")
-        .in("tenant_id", accessibleTenantIds)
-        .limit(1)
-        .single();
-      const { data, error } = await supabase
-        .from("leads")
-        .insert({
-          ...args,
-          status: "new",
-          agency_id: agency?.id,
-          tenant_id: tenantId,
-          company_name: args.company_name || args.contact_name,
-        })
-        .select("id, company_name, contact_name, status")
-        .single();
-      if (error) throw error;
-      return {
-        lead_id: data.id,
-        company_name: data.company_name,
-        status: data.status,
-      };
-    }
-    case "list_leads": {
-      let query = supabase
-        .from("leads")
-        .select(
-          "id, company_name, contact_name, phone, status, source, created_at",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) query = query.eq("status", args.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return { count: data.length, leads: data };
-    }
-    case "update_lead_status": {
-      const { data, error } = await supabase
-        .from("leads")
-        .update({ status: args.status })
-        .eq("id", args.lead_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, company_name, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "add_lead_update": {
-      const { data, error } = await supabase
-        .from("lead_updates")
-        .insert({
-          lead_id: args.lead_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { update_id: data.id };
-    }
-    case "create_task": {
-      let campaignerId = args.campaigner_id;
-      let agencyId = null;
-      // Priority: 1) explicit arg, 2) caller identity (from WhatsApp phone), 3) user profile, 4) tenant owner
-      if (!campaignerId && callerCampaignerId) {
-        campaignerId = callerCampaignerId;
-      }
-      if (!campaignerId && userId && userId !== "system") {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("campaigner_id")
-          .eq("id", userId)
-          .single();
-        campaignerId = profile?.campaigner_id;
-      }
-      // Fallback for system/WhatsApp without phone match: assign to tenant owner
-      if (!campaignerId) {
-        const { data: ownerRole } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "owner")
-          .limit(1)
-          .maybeSingle();
-        if (ownerRole?.user_id) {
-          const { data: ownerProfile } = await supabase
-            .from("profiles")
-            .select("campaigner_id")
-            .eq("id", ownerRole.user_id)
-            .maybeSingle();
-          campaignerId = ownerProfile?.campaigner_id;
-        }
-      }
-      // A task for a client belongs to that client's agency — the campaigner's
-      // own agency would file it under the wrong one on the tasks board.
-      if (args.client_id) {
-        const { data: taskClient } = await supabase
-          .from("clients")
-          .select("agency_id")
-          .eq("id", args.client_id)
-          .maybeSingle();
-        agencyId = taskClient?.agency_id || null;
-      }
-      if (!agencyId && campaignerId) {
-        const { data: campAgency } = await supabase
-          .from("campaigner_agencies")
-          .select("agency_id")
-          .eq("campaigner_id", campaignerId)
-          .limit(1)
-          .single();
-        agencyId = campAgency?.agency_id;
-      }
-      if (!agencyId) {
-        const { data: defaultAgency } = await supabase
-          .from("agencies")
-          .select("id")
-          .in("tenant_id", accessibleTenantIds)
-          .eq("is_default", true)
-          .limit(1)
-          .maybeSingle();
-        if (defaultAgency) {
-          agencyId = defaultAgency.id;
-        } else {
-          const { data: fallbackAgency } = await supabase
-            .from("agencies")
-            .select("id")
-            .in("tenant_id", accessibleTenantIds)
-            .order("created_at", { ascending: true })
-            .limit(1)
-            .single();
-          agencyId = fallbackAgency?.id;
-        }
-      }
-      // The authenticated/WhatsApp caller is the person who gave the task.
-      // Service-role inserts do not receive the tasks.created_by auth.uid()
-      // default, so persist it explicitly for attribution and notifications.
-      const taskCreatorId = userId && userId !== "system" ? userId : null;
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert({
-          title: args.title,
-          agency_id: agencyId,
-          campaigner_id: campaignerId,
-          tenant_id: tenantId,
-          priority: args.priority || 5,
-          status: "open",
-          task_type: "other",
-          client_id: args.client_id || null,
-          lead_id: args.lead_id || null,
-          due_date: args.due_date,
-          due_time: args.due_time,
-          notes: args.notes,
-          duration_minutes: args.duration_minutes || null,
-          created_by: taskCreatorId,
-        })
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      // Auto-sync to Google Calendar — fire-and-forget; never fails the create_task call
-      if (data?.id && args.due_date && args.due_time && campaignerId) {
-        tryCreateCalendarEventForTask(
-          supabase,
-          data.id,
-          args.title,
-          args.due_date,
-          args.due_time,
-          args.duration_minutes ?? null,
-          campaignerId,
-        ).catch((e) =>
-          console.warn("[create_task] calendar sync uncaught:", e?.message),
-        );
-      }
-      return { task_id: data.id, title: data.title, status: data.status };
-    }
-    case "create_agent_task": {
-      // Create task in agent_tasks table (for Carmen herself)
-      // If this looks like a reminder and we know the caller's WhatsApp phone,
-      // inject explicit reminder-delivery instructions so when the dispatcher
-      // fires the task, the agent knows where to send the reminder.
-      const skillsArr: string[] = Array.isArray(args.task_skills)
-        ? args.task_skills
-        : [];
-      const titleStr = String(args.title || "");
-      const descStr = String(args.description || "");
-      const looksLikeReminder =
-        skillsArr.includes("reminder") ||
-        /תזכור|reminder|להזכיר|תזכר/i.test(titleStr + " " + descStr);
-      const { buildCampaignShutdownJobFromBrief } =
-        await import("../_shared/client-campaign-shutdown.ts");
-      const shutdownJob = buildCampaignShutdownJobFromBrief(titleStr, descStr);
-      let finalDescription = descStr || null;
-      if (looksLikeReminder && callerPhone) {
-        const reminderText = descStr || titleStr;
-        const instruction = `\n\n[הוראת ביצוע אוטומטית לזמן ההפעלה]\nכשמשימה זו רצה, חובה לשלוח עכשיו הודעת WhatsApp תזכורת לטלפון ${callerPhone} עם הטקסט בעברית, בקצרה ובחום:\n"${reminderText}"\nהשתמשי בכלי send_whatsapp_via_gateway (אם יש integrationId זמין) או send_message (אם phone=${callerPhone} שייך ל-lead/client). אם אף כלי לא זמין — השתמשי בכל כלי WhatsApp אחר שיש לך. אסור לסיים את המשימה בלי לשלוח בפועל. אל תיצרי משימת agent חדשה.`;
-        finalDescription = (descStr ? descStr : titleStr) + instruction;
-      }
-      const taskData: any = {
-        agent_id: agentId || args.agent_id,
-        tenant_id: tenantId,
-        title: args.title,
-        description: finalDescription,
-        priority: args.priority || 5,
-        status: "pending",
-        schedule_type: args.schedule_type || "once",
-        scheduled_at: args.scheduled_at || null,
-        cron_expression: args.cron_expression || null,
-        task_skills: args.task_skills ? JSON.stringify(args.task_skills) : null,
-        task_mode: "agent",
-        enabled: true,
-        created_by: actorUserId,
-        // WhatsApp reminders must retain the exact originating destination.
-        // run-agent-task consumes this metadata deterministically at execution
-        // time, so a group reminder is sent back to the group rather than
-        // asking the model to infer a recipient (or create another reminder).
-        result: (() => {
-          if (looksLikeReminder && waNotify) {
-            return {
-              notify: waNotify,
-              reminder_delivery: { message: descStr || titleStr },
-            };
-          }
-          if (shutdownJob) {
-            return {
-              campaign_shutdown_job: {
-                ...shutdownJob,
-                scope: shutdownJob.scope ?? { mode: "all_client_campaigns" },
-                notify_david: shutdownJob.notify_david !== false,
-              },
-            };
-          }
-          return null;
-        })(),
-      };
-      const { data, error } = await supabase
-        .from("agent_tasks")
-        .insert(taskData)
-        .select("id, title, status, schedule_type, scheduled_at")
-        .single();
-      if (error) throw error;
-      const scheduledIl = data.scheduled_at
-        ? new Date(data.scheduled_at).toLocaleString("he-IL", {
-            weekday: "long",
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            timeZone: "Asia/Jerusalem",
-          })
-        : null;
-      return {
-        agent_task_id: data.id,
-        title: data.title,
-        status: data.status,
-        schedule_type: data.schedule_type,
-        scheduled_at_utc: data.scheduled_at,
-        scheduled_at_israel: scheduledIl,
-        reminder_phone: looksLikeReminder ? callerPhone : null,
-        note: scheduledIl
-          ? `המשימה תוזמנה ל-${scheduledIl} (שעון ישראל). השיבי למשתמש את הזמן בשעון ישראל בלבד.`
-          : "נשמר ללא תזמון.",
-      };
-    }
-    case "list_my_agent_tasks": {
-      let q = supabase
-        .from("agent_tasks")
-        .select(
-          "id, title, description, status, schedule_type, scheduled_at, last_run, run_count, result, created_at",
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 10);
-      if (agentId) q = q.eq("agent_id", agentId);
-      if (args.status) q = q.eq("status", args.status);
-      const { data, error } = await q;
-      if (error) throw error;
-      const fmtIl = (iso: string | null) =>
-        iso
-          ? new Date(iso).toLocaleString("he-IL", {
-              weekday: "short",
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "Asia/Jerusalem",
-            })
-          : null;
-      return {
-        count: data.length,
-        tasks: data.map((t: any) => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          schedule_type: t.schedule_type,
-          scheduled_at_israel: fmtIl(t.scheduled_at),
-          last_run_israel: fmtIl(t.last_run),
-          run_count: t.run_count || 0,
-          last_output: t.result?.last_output
-            ? String(t.result.last_output).slice(0, 200)
-            : t.result?.error
-              ? `שגיאה: ${String(t.result.error).slice(0, 200)}`
-              : null,
-          description_preview: t.description
-            ? String(t.description).slice(0, 120)
-            : null,
-        })),
-      };
-    }
+    case "create_lead":
+    case "list_leads":
+    case "update_lead_status":
+    case "add_lead_update":
+    case "update_lead":
+    case "delete_lead":
+      return executeLeadTool(
+        { name, args } as Parameters<typeof executeLeadTool>[0],
+        { supabase, tenantId, userId, accessibleTenantIds },
+      );
+
+    case "create_task":
+      return executeCreateTask(
+        args as Parameters<typeof executeCreateTask>[0],
+        toolContext,
+      );
+    case "create_agent_task":
+      return executeCreateAgentTask(
+        args as Parameters<typeof executeCreateAgentTask>[0],
+        toolContext,
+      );
+    case "list_my_agent_tasks":
+      return executeListMyAgentTasks(
+        args as Parameters<typeof executeListMyAgentTasks>[0],
+        toolContext,
+      );
     case "recall_recent_action": {
       // Check if Carmen already performed an action recently — used before heavy
       // operations (pulse_check, campaign_analysis, lead_review) so she doesn't
@@ -2958,300 +2368,45 @@ async function executeTool(
       if (error) throw error;
       return { episode_id: data.id, recorded: true };
     }
-    case "search_tasks": {
-      let query = supabase
-        .from("tasks")
-        .select(
-          "id, title, status, priority, due_date, due_time, notes, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .ilike("title", `%${args.search_term}%`)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      if (args.status) query = query.eq("status", args.status);
-      if (args.client_id) query = query.eq("client_id", args.client_id);
-      const { data, error } = await query;
-      if (error) throw error;
-      return {
-        count: data.length,
-        tasks: data.map((t: any) => ({
-          ...t,
-          client_name: t.clients?.name,
-          lead_name: t.leads?.company_name,
-          campaigner_name: t.campaigners?.full_name,
-        })),
-      };
-    }
-    case "list_tasks": {
-      let query = supabase
-        .from("tasks")
-        .select(
-          "id, title, status, priority, due_date, due_time, duration_minutes, clients(name), leads(company_name), campaigners(full_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .order("priority", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) query = query.eq("status", args.status);
-      if (args.client_id) {
-        if (callerCampaignerId && !bypassCampaignerScope)
-          await assertCallerCanAccessClient(
-            supabase,
-            args.client_id,
-            callerScope,
-          );
-        query = query.eq("client_id", args.client_id);
-      } else if (callerCampaignerId && !bypassCampaignerScope) {
-        const { data: links } = await supabase
-          .from("client_team")
-          .select("client_id")
-          .eq("campaigner_id", callerCampaignerId);
-        const ids = (links || []).map((l: any) => l.client_id);
-        query =
-          ids.length > 0
-            ? query.or(`client_id.is.null,client_id.in.(${ids.join(",")})`)
-            : query.is("client_id", null);
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return {
-        count: data.length,
-        tasks: data.map((t: any) => ({
-          ...t,
-          client_name: t.clients?.name,
-          lead_name: t.leads?.company_name,
-          campaigner_name: t.campaigners?.full_name,
-        })),
-      };
-    }
-    case "update_task_status": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "tasks",
-        args.task_id,
-        callerScope,
+    case "search_tasks":
+      return executeSearchTasks(
+        args as Parameters<typeof executeSearchTasks>[0],
+        toolContext,
       );
-      const status = mapHumanTaskStatus(args.status);
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({ status })
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "list_clients": {
-      // --- Scoping rules ---
-      // 1. agency_id / agency_name → resolve to agency UUIDs (must be in accessible tenants)
-      let agencyIdsFilter: string[] | null = null;
-      if (args.agency_id) {
-        agencyIdsFilter = [args.agency_id];
-      } else if (args.agency_name) {
-        const { data: ags } = await supabase
-          .from("agencies")
-          .select("id, name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${args.agency_name}%`);
-        agencyIdsFilter = (ags || []).map((a: any) => a.id);
-        if (agencyIdsFilter.length === 0) {
-          return {
-            count: 0,
-            clients: [],
-            note: `no agency matched "${args.agency_name}"`,
-          };
-        }
-      }
-
-      // 2. campaigner filter (explicit OR auto-scope to caller)
-      let campaignerIds: string[] | null = null;
-      const explicitCampaigner = !!(args.campaigner_id || args.campaigner_name);
-      if (args.campaigner_id) {
-        campaignerIds = [args.campaigner_id];
-      } else if (args.campaigner_name) {
-        const { data: camps } = await supabase
-          .from("campaigners")
-          .select("id, full_name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("full_name", `%${args.campaigner_name}%`);
-        campaignerIds = (camps || []).map((c: any) => c.id);
-        if (campaignerIds.length === 0) {
-          return {
-            count: 0,
-            clients: [],
-            note: `no campaigner matched "${args.campaigner_name}"`,
-          };
-        }
-      } else if (
-        callerCampaignerId &&
-        !args.all_scopes &&
-        !agencyIdsFilter &&
-        !bypassCampaignerScope
-      ) {
-        // Auto-scope: a campaigner asking via WhatsApp should only see their own clients
-        campaignerIds = [callerCampaignerId];
-      } else if (
-        isTeamManager &&
-        !args.all_scopes &&
-        !agencyIdsFilter &&
-        managedAgencyIds.length > 0
-      ) {
-        // Team manager scope: limit to clients within agencies they manage
-        agencyIdsFilter = managedAgencyIds;
-      }
-
-      let clientIdsFilter: string[] | null = null;
-      if (campaignerIds) {
-        const { data: links, error: linkErr } = await supabase
-          .from("client_team")
-          .select("client_id")
-          .in("campaigner_id", campaignerIds);
-        if (linkErr) throw linkErr;
-        clientIdsFilter = Array.from(
-          new Set((links || []).map((l: any) => l.client_id)),
-        );
-        if (clientIdsFilter.length === 0) {
-          const who = explicitCampaigner ? "this campaigner" : "you";
-          return {
-            count: 0,
-            clients: [],
-            note: `no clients assigned to ${who}`,
-          };
-        }
-      }
-
-      let query = supabase
-        .from("clients")
-        .select(
-          "id, name, contact_name, phone, status, agency_id, agencies(name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .order("name")
-        .limit(args.limit || 50);
-
-      // Default status for auto-scoped campaigner queries: active + onboarding only
-      if (args.status) {
-        query = query.eq("status", args.status);
-      } else if (
-        callerCampaignerId &&
-        !args.all_scopes &&
-        !explicitCampaigner
-      ) {
-        query = query.in("status", ["active", "onboarding"]);
-      }
-
-      if (agencyIdsFilter) query = query.in("agency_id", agencyIdsFilter);
-      if (clientIdsFilter) query = query.in("id", clientIdsFilter);
-      if (args.name_search) {
-        // Broad search: aliases, ad-account names, ended duplicates — not active-only.
-        const broadRaw = await searchClientsBroadly(
-          supabase,
-          accessibleTenantIds,
-          args.name_search,
-          {
-            limit: Math.max(args.limit || 50, 50),
-            agencyId: agencyIdsFilter?.length === 1 ? agencyIdsFilter[0] : null,
-            clientIdsFilter,
-          },
-        );
-        const broad =
-          agencyIdsFilter && agencyIdsFilter.length > 1
-            ? broadRaw.filter(
-                (c: any) =>
-                  c.agency_id && agencyIdsFilter.includes(c.agency_id),
-              )
-            : broadRaw;
-        const scope_note =
-          callerCampaignerId &&
-          !args.all_scopes &&
-          !explicitCampaigner &&
-          !agencyIdsFilter
-            ? "auto-scoped to caller campaigner. name_search includes ended/paused + Meta ad account aliases."
-            : "name_search includes ended/paused clients and Meta/Google report / ad-account name matches.";
-        return {
-          count: broad.length,
-          clients: broad.slice(0, args.limit || 50).map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            contact_name: c.contact_name,
-            phone: c.phone,
-            status: c.status,
-            agency_id: c.agency_id,
-            agency_name: c.agency_name,
-            matched_via: c.matched_via,
-            ad_accounts: c.ad_accounts,
-          })),
-          scope_note,
-        };
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      const enriched = (data || []).map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        contact_name: c.contact_name,
-        phone: c.phone,
-        status: c.status,
-        agency_id: c.agency_id,
-        agency_name: c.agencies?.name ?? null,
-      }));
-      const scope_note =
-        callerCampaignerId &&
-        !args.all_scopes &&
-        !explicitCampaigner &&
-        !agencyIdsFilter
-          ? "auto-scoped to caller campaigner (active+onboarding only). pass all_scopes=true or explicit campaigner_name/agency_name to widen."
-          : undefined;
-      return { count: enriched.length, clients: enriched, scope_note };
-    }
-    case "get_client_info": {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*, agencies(name)")
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds)
-        .single();
-      if (error) throw error;
-      // Enforce caller-campaigner scope: campaigner only; managers bypass.
-      if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
-        const { data: link } = await supabase
-          .from("client_team")
-          .select("client_id")
-          .eq("client_id", args.client_id)
-          .eq("campaigner_id", callerCampaignerId)
-          .maybeSingle();
-        if (!link) {
-          return {
-            error: "access_denied",
-            note: "הלקוח הזה לא משוייך אליך. אם נדרשת גישה — בקש מהמנהל לשייך אותך לצוות הלקוח.",
-          };
-        }
-      } else if (
-        isTeamManager &&
-        !args.all_scopes &&
-        managedAgencyIds.length > 0
-      ) {
-        if (!data?.agency_id || !managedAgencyIds.includes(data.agency_id)) {
-          return {
-            error: "access_denied",
-            note: "הלקוח לא בסוכנויות שאת מנהלת.",
-          };
-        }
-      }
-      return data;
-    }
-    case "add_client_update": {
-      await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      // Tenant check, attribution and dedupe happen in record_client_card_entry.
-      return await addClientUpdateFromCarmen(supabase, {
+    case "list_tasks":
+      return executeListTasks(
+        args as Parameters<typeof executeListTasks>[0],
+        toolContext,
+      );
+    case "update_task_status":
+      return executeUpdateTaskStatus(
+        args as Parameters<typeof executeUpdateTaskStatus>[0],
+        toolContext,
+      );
+    case "list_clients":
+      return listClients(args, {
+        ...prepared.scope,
+        supabase,
         tenantId,
-        clientId: args.client_id,
-        content: args.content,
-        updateType: args.update_type,
+        callerCampaignerId,
         humanRequesterUserId,
         surface,
       });
-    }
+    case "get_client_info":
+    case "add_client_update":
+    case "set_campaign_table_active":
+      return executeClientAccessTool(
+        { name, args } as Parameters<typeof executeClientAccessTool>[0],
+        {
+          ...prepared.scope,
+          supabase,
+          tenantId,
+          callerCampaignerId,
+          humanRequesterUserId,
+          surface,
+        },
+      );
+
     case "send_message": {
       const { phone, contactName } = await sendTargetFor(
         supabase,
@@ -5278,359 +4433,60 @@ async function executeTool(
       return await makeAdImage(supabase, tenantId, args);
     }
     // CLIENTS - full CRUD
-    case "create_client": {
-      const { data: defaultAgency } = await supabase
-        .from("agencies")
-        .select("id")
-        .in("tenant_id", accessibleTenantIds)
-        .limit(1)
-        .single();
-      const { data, error } = await supabase
-        .from("clients")
-        .insert({
-          name: args.name,
-          contact_name: args.contact_name || null,
-          phone: args.phone || null,
-          email: args.email || null,
-          notes: args.notes || null,
-          tenant_id: tenantId,
-          agency_id: args.agency_id || defaultAgency?.id,
-          status: "active",
-        })
-        .select("id, name, status")
-        .single();
-      if (error) throw error;
-      return { client_id: data.id, name: data.name, status: data.status };
-    }
-    case "update_client": {
-      await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const updates: TablesUpdate<"clients"> = {};
-      if (args.name) updates.name = args.name;
-      if (args.contact_name !== undefined)
-        updates.contact_name = args.contact_name;
-      if (args.phone !== undefined) updates.phone = args.phone;
-      if (args.email !== undefined) updates.email = args.email;
-      if (args.status) updates.status = args.status;
-      if (args.notes !== undefined) updates.notes = args.notes;
-      if (args.follow_up_date !== undefined)
-        updates.follow_up_date = args.follow_up_date;
-      const { data, error } = await supabase
-        .from("clients")
-        .update(updates)
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, name, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "update_client_status": {
-      await assertCallerCanAccessClient(supabase, args.client_id, callerScope);
-      const { data, error } = await supabase
-        .from("clients")
-        .update({ status: args.status })
-        .eq("id", args.client_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, name, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "set_campaign_table_active": {
-      if (!args.table_id && !args.client_id && !args.table_name)
-        throw new Error("נדרש client_id, table_id או table_name");
-      if (args.client_id)
-        await assertCallerCanAccessClient(
+    case "create_client":
+    case "update_client":
+    case "update_client_status":
+      return executeClientRecordTool(
+        { name, args } as Parameters<typeof executeClientRecordTool>[0],
+        {
+          ...prepared.scope,
           supabase,
-          args.client_id,
-          callerScope,
-        );
-      let q = supabase
-        .from("crm_tables")
-        .update({ campaign_active: !!args.active })
-        .in("tenant_id", accessibleTenantIds);
-      if (args.table_id) q = q.eq("id", args.table_id);
-      if (args.client_id) q = q.eq("client_id", args.client_id);
-      if (args.table_name)
-        q = q.or(
-          `name.ilike.%${String(args.table_name).replace(/[%,]/g, "")}%,slug.ilike.%${String(args.table_name).replace(/[%,]/g, "")}%`,
-        );
-      const { data, error } = await q.select(
-        "id, name, client_id, campaign_active",
-      );
-      if (error) throw error;
-      if (!data?.length) throw new Error("לא נמצאה טבלת קמפיין תואמת");
-      return {
-        updated: data.length,
-        campaign_active: !!args.active,
-        tables: data.map((t: Pick<AgentRow<"crm_tables">, "name">) => t.name),
-      };
-    }
-    // LEADS - full CRUD
-    case "update_lead": {
-      const updates: TablesUpdate<"leads"> = {};
-      if (args.company_name) updates.company_name = args.company_name;
-      if (args.contact_name !== undefined)
-        updates.contact_name = args.contact_name;
-      if (args.phone !== undefined) updates.phone = args.phone;
-      if (args.email !== undefined) updates.email = args.email;
-      if (args.source !== undefined) updates.source = args.source;
-      if (args.notes !== undefined) updates.notes = args.notes;
-      if (args.follow_up_date !== undefined)
-        updates.follow_up_date = args.follow_up_date;
-      const { data, error } = await supabase
-        .from("leads")
-        .update(updates)
-        .eq("id", args.lead_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, company_name, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    case "delete_lead": {
-      const { data, error } = await supabase
-        .from("leads")
-        .update({ archived_at: new Date().toISOString(), archived_by: null })
-        .eq("id", args.lead_id)
-        .in("tenant_id", accessibleTenantIds)
-        .is("archived_at", null)
-        .select("id")
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) throw new Error("הליד לא נמצא או כבר בארכיון");
-      return { success: true, archived_id: args.lead_id };
-    }
-    // TASKS - full CRUD
-    case "update_task": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "tasks",
-        args.task_id,
-        callerScope,
-      );
-      const { data: before } = await supabase
-        .from("tasks")
-        .select(
-          "id, title, due_date, due_time, duration_minutes, campaigner_id, google_calendar_event_id",
-        )
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      const updates: TablesUpdate<"tasks"> = {};
-      if (args.title) updates.title = args.title;
-      if (args.due_date !== undefined) updates.due_date = args.due_date;
-      if (args.due_time !== undefined) updates.due_time = args.due_time;
-      if (args.priority !== undefined) updates.priority = args.priority;
-      if (args.notes !== undefined) updates.notes = args.notes;
-      if (args.client_id !== undefined) {
-        updates.client_id = args.client_id;
-        // Keep the agency stamp on the client the task now belongs to.
-        if (args.client_id) {
-          const { data: movedClient } = await supabase
-            .from("clients")
-            .select("agency_id")
-            .eq("id", args.client_id)
-            .maybeSingle();
-          if (movedClient?.agency_id) updates.agency_id = movedClient.agency_id;
-        }
-      }
-      if (args.lead_id !== undefined) updates.lead_id = args.lead_id;
-      if (args.campaigner_id !== undefined)
-        updates.campaigner_id = args.campaigner_id;
-      if (args.duration_minutes !== undefined)
-        updates.duration_minutes = args.duration_minutes;
-      if (args.status) updates.status = mapHumanTaskStatus(args.status);
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(updates)
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select(
-          "id, title, status, due_date, due_time, campaigner_id, google_calendar_event_id, duration_minutes",
-        )
-        .single();
-      if (error) throw error;
-
-      // Sync Google Calendar when schedule fields change
-      const dateChanged =
-        args.due_date !== undefined || args.due_time !== undefined;
-      if (dateChanged && data) {
-        const dueDate = data.due_date;
-        const dueTime = data.due_time;
-        const campaignerId = data.campaigner_id;
-        if (
-          dueDate &&
-          dueTime &&
-          campaignerId &&
-          !data.google_calendar_event_id
-        ) {
-          tryCreateCalendarEventForTask(
-            supabase,
-            data.id,
-            data.title,
-            dueDate,
-            dueTime,
-            data.duration_minutes,
-            campaignerId,
-          ).catch(() => {});
-        } else if (
-          dueDate &&
-          dueTime &&
-          data.google_calendar_event_id &&
-          campaignerId
-        ) {
-          // Best-effort PATCH of existing calendar event via helper path (recreate if patch unavailable)
-          try {
-            await tryCreateCalendarEventForTask(
-              supabase,
-              data.id,
-              args.title || data.title || before?.title || "משימה",
-              dueDate,
-              dueTime,
-              data.duration_minutes,
-              campaignerId,
-            );
-          } catch (_e) {
-            /* non-fatal */
-          }
-        }
-      }
-      return data;
-    }
-    case "delete_task": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "tasks",
-        args.task_id,
-        callerScope,
-      );
-      const { error } = await supabase
-        .from("tasks")
-        .delete()
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds);
-      if (error) throw error;
-      return { success: true, deleted_id: args.task_id };
-    }
-    case "add_task_update": {
-      await assertCallerCanAccessEntityClient(
-        supabase,
-        "tasks",
-        args.task_id,
-        callerScope,
-      );
-      const { data, error } = await supabase
-        .from("task_updates")
-        .insert({
-          task_id: args.task_id,
-          user_id: userId,
-          tenant_id: tenantId,
-          content: args.content,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      void fireTaskPeerNotification({
-        supabaseUrl: SUPABASE_URL,
-        serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-        triggerType: "task_update_added",
-        data: {
-          task_id: args.task_id,
-          user_id: userId,
-          update_content: args.content,
+          tenantId,
+          callerCampaignerId,
+          humanRequesterUserId,
+          surface,
         },
-      });
-      return { update_id: data.id };
-    }
-    case "manage_task_collaborators": {
-      if (args.action === "add") {
-        const { data: taskRow, error: taskErr } = await supabase
-          .from("tasks")
-          .select("tenant_id")
-          .eq("id", args.task_id)
-          .in("tenant_id", accessibleTenantIds)
-          .maybeSingle();
-        if (taskErr) throw taskErr;
-        if (!taskRow?.tenant_id) throw new Error("משימה לא נמצאה");
-        const { data, error } = await supabase
-          .from("task_collaborators")
-          .insert({
-            task_id: args.task_id,
-            campaigner_id: args.campaigner_id,
-            tenant_id: taskRow.tenant_id,
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        void fireTaskPeerNotification({
-          supabaseUrl: SUPABASE_URL,
-          serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-          triggerType: "task_collaborator_added",
-          data: {
-            task_id: args.task_id,
-            notify_campaigner_id: args.campaigner_id,
-            user_id: userId,
-          },
-        });
-        return { success: true, action: "added", collaborator_id: data.id };
-      } else {
-        const { error } = await supabase
-          .from("task_collaborators")
-          .delete()
-          .eq("task_id", args.task_id)
-          .eq("campaigner_id", args.campaigner_id)
-          .in("tenant_id", accessibleTenantIds);
-        if (error) throw error;
-        return { success: true, action: "removed" };
-      }
-    }
+      );
+
+    // LEADS - full CRUD
+
+    // TASKS - full CRUD
+    case "update_task":
+      return executeUpdateTask(
+        args as Parameters<typeof executeUpdateTask>[0],
+        toolContext,
+      );
+    case "delete_task":
+      return executeDeleteTask(
+        args as Parameters<typeof executeDeleteTask>[0],
+        toolContext,
+      );
+    case "add_task_update":
+      return executeAddTaskUpdate(
+        args as Parameters<typeof executeAddTaskUpdate>[0],
+        toolContext,
+      );
+    case "manage_task_collaborators":
+      return executeManageTaskCollaborators(
+        args as Parameters<typeof executeManageTaskCollaborators>[0],
+        toolContext,
+      );
     // CLIENT ONBOARDING
-    case "create_onboarding": {
-      const { data, error } = await supabase
-        .from("client_onboarding")
-        .insert({
-          title: args.title,
-          client_id: args.client_id,
-          campaigner_id: args.campaigner_id || null,
-          notes: args.notes || null,
-          tenant_id: tenantId,
-          status: "pending",
-        })
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      return { onboarding_id: data.id, title: data.title, status: data.status };
-    }
-    case "list_onboarding": {
-      let query = supabase
-        .from("client_onboarding")
-        .select("id, title, status, clients(name)")
-        .in("tenant_id", accessibleTenantIds)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) query = query.eq("status", args.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return {
-        count: data.length,
-        onboarding: data.map((o: OnboardingListRow) => ({
-          ...o,
-          client_name: o.clients?.name,
-        })),
-      };
-    }
-    case "update_onboarding_status": {
-      const { data, error } = await supabase
-        .from("client_onboarding")
-        .update({ status: args.status })
-        .eq("id", args.onboarding_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      return data;
-    }
+    case "create_onboarding":
+      return executeCreateOnboarding(
+        args as Parameters<typeof executeCreateOnboarding>[0],
+        toolContext,
+      );
+    case "list_onboarding":
+      return executeListOnboarding(
+        args as Parameters<typeof executeListOnboarding>[0],
+        toolContext,
+      );
+    case "update_onboarding_status":
+      return executeUpdateOnboardingStatus(
+        args as Parameters<typeof executeUpdateOnboardingStatus>[0],
+        toolContext,
+      );
     // CAMPAIGNERS
     case "list_campaigners": {
       const { data, error } = await supabase
@@ -6973,453 +5829,109 @@ async function executeTool(
       });
     }
     // GOALS
-    case "create_goal": {
-      const { data, error } = await supabase
-        .from("goals")
-        .insert({
-          tenant_id: tenantId,
-          title: args.title,
-          description: args.description || null,
-          parent_goal_id: args.parent_goal_id || null,
-          due_date: args.due_date || null,
-          owner_type: args.owner_type || "agent",
-          owner_id: args.owner_id || null,
-          status: "active",
-          progress_percent: 0,
-        })
-        .select("id, title, status")
-        .single();
-      if (error) throw error;
-      return { goal_id: data.id, title: data.title, status: data.status };
-    }
-    case "list_goals": {
-      let query = supabase
-        .from("goals")
-        .select(
-          "id, title, description, status, progress_percent, parent_goal_id, due_date, owner_type, owner_id, created_at",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) query = query.eq("status", args.status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return { count: data.length, goals: data };
-    }
-    case "find_execution_goal_duplicates": {
-      const title = String(args.title || "").trim();
-      if (!title) return { duplicates: [] };
-      const duplicates = await findDuplicateGoals(supabase, tenantId, title);
-      return {
-        duplicates: duplicates.map((d) => ({
-          id: d.goal.id,
-          title: d.goal.title,
-          status: d.goal.status,
-          score: d.score,
-        })),
-      };
-    }
+    case "create_goal":
+      return executeCreateGoal(
+        args as Parameters<typeof executeCreateGoal>[0],
+        toolContext,
+      );
+    case "list_goals":
+      return executeListGoals(
+        args as Parameters<typeof executeListGoals>[0],
+        toolContext,
+      );
+    case "find_execution_goal_duplicates":
+      return executeFindExecutionGoalDuplicates(
+        args as Parameters<typeof executeFindExecutionGoalDuplicates>[0],
+        toolContext,
+      );
+
     case "create_execution_goal":
-    case "create_autonomous_goal": {
-      const title = String(args.title || "").trim();
-      if (!title) throw new Error("title required");
-      const autonomous = name === "create_autonomous_goal" || !!args.autonomous;
-      const duplicates = await findDuplicateGoals(supabase, tenantId, title);
-      const { goal, criteria } = await createUnifiedGoal(supabase, {
-        tenantId,
-        title,
-        description: args.description,
-        dueDate: args.due_date,
-        priority: args.priority,
-        completionCriteria: args.completion_criteria,
-        nextAction: args.next_action,
-        ownerUserId: actorUserId,
-        actorUserId,
-        autonomous,
-        objective: args.objective,
-        constraints: args.constraints,
-        scope: args.scope,
-        riskLevel: args.risk_level,
-        successCriteria: args.success_criteria,
-      });
-      if (!autonomous && Array.isArray(args.milestones)) {
-        for (const [i, m] of args.milestones.entries()) {
-          if (m?.title) {
-            await addGoalMilestone(supabase, {
-              tenantId,
-              goalId: goal.id,
-              title: String(m.title),
-              description: m.description,
-              dueDate: m.due_date,
-              sortOrder: i,
-              actorUserId,
-            });
-          }
-        }
-      }
-      return { goal, criteria, possible_duplicates: duplicates.slice(0, 5) };
-    }
-    case "get_execution_goal_report": {
-      const report = await getGoalExecutionReport(
-        supabase,
-        tenantId,
-        String(args.goal_id),
-        Number(args.since_hours) || 24,
+    case "create_autonomous_goal":
+      return executeCreateExecutionGoal(
+        args as Parameters<typeof executeCreateExecutionGoal>[0],
+        toolContext,
       );
-      return { report };
-    }
-    case "add_goal_milestone": {
-      const milestone = await addGoalMilestone(supabase, {
-        tenantId,
-        goalId: String(args.goal_id),
-        title: String(args.title),
-        description: args.description,
-        dueDate: args.due_date,
-        actorUserId,
-      });
-      return { milestone };
-    }
-    case "add_goal_blocker": {
-      const blocker = await addGoalBlocker(supabase, {
-        tenantId,
-        goalId: String(args.goal_id),
-        title: String(args.title),
-        description: args.description,
-        actorUserId,
-      });
-      return { blocker };
-    }
-    case "link_task_to_execution_goal": {
-      const task = await linkTaskToGoal(supabase, {
-        tenantId,
-        goalId: String(args.goal_id),
-        taskId: String(args.task_id),
-        actorUserId,
-      });
-      return { task };
-    }
-    case "get_autonomous_goal_status": {
-      const report = await getGoalExecutionReport(
-        supabase,
-        tenantId,
-        String(args.goal_id),
+    case "get_execution_goal_report":
+      return executeGetExecutionGoalReport(
+        args as Parameters<typeof executeGetExecutionGoalReport>[0],
+        toolContext,
       );
-      if (!report?.goal) throw new Error("goal not found");
-      return { report };
-    }
+    case "add_goal_milestone":
+      return executeAddGoalMilestone(
+        args as Parameters<typeof executeAddGoalMilestone>[0],
+        toolContext,
+      );
+    case "add_goal_blocker":
+      return executeAddGoalBlocker(
+        args as Parameters<typeof executeAddGoalBlocker>[0],
+        toolContext,
+      );
+    case "link_task_to_execution_goal":
+      return executeLinkTaskToExecutionGoal(
+        args as Parameters<typeof executeLinkTaskToExecutionGoal>[0],
+        toolContext,
+      );
+    case "get_autonomous_goal_status":
+      return executeGetAutonomousGoalStatus(
+        args as Parameters<typeof executeGetAutonomousGoalStatus>[0],
+        toolContext,
+      );
     // AGENT TASK OWNERSHIP
-    case "take_task": {
-      const agentName = args.agent_name || "carmen";
-      const isCursor = String(agentName).toLowerCase().includes("cursor");
-      const { data, error } = await supabase
-        .from("tasks")
-        .update({
-          assigned_agent: agentName,
-          status: isCursor ? "open" : "in_progress",
-        })
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, title, status, assigned_agent")
-        .single();
-      if (error) throw error;
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: `הסוכן ${agentName} לקח בעלות על המשימה`,
-        update_type: "agent_action",
-      });
-      if (isCursor) {
-        fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/dispatch-cursor-tasks`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({ tenant_id: tenantId }),
-          },
-        ).catch((e) =>
-          console.warn("[take_task] dispatch-cursor-tasks:", e?.message),
-        );
-      }
-      return { success: true, task: data };
-    }
-    case "assign_task_to_cursor": {
-      const patch: Record<string, unknown> = {
-        assigned_agent: "Cursor",
-        status: "open",
-      };
-      if (args.notes) patch.notes = String(args.notes);
-      const { data, error } = await supabase
-        .from("tasks")
-        .update(patch)
-        .eq("id", args.task_id)
-        .in("tenant_id", accessibleTenantIds)
-        .select("id, title, status, assigned_agent")
-        .single();
-      if (error) throw error;
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: "המשימה הוקצתה ל-Cursor — תור dispatch אוטומטי",
-        update_type: "agent_action",
-      });
-      let dispatched: unknown = null;
-      try {
-        const resp = await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/dispatch-cursor-tasks`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({ tenant_id: tenantId }),
-          },
-        );
-        dispatched = await resp.json();
-      } catch (e) {
-        console.warn(
-          "[assign_task_to_cursor] dispatch failed:",
-          errorMessage(e),
-        );
-      }
-      return { success: true, task: data, dispatch: dispatched };
-    }
-    case "find_dev_task_duplicates": {
-      const title = String(args.title || "").trim();
-      if (!title) return { duplicates: [] };
-      const duplicates = await findDuplicateDevTasks(supabase, tenantId, title);
-      return {
-        duplicates: duplicates.map((d) => ({
-          id: d.task.id,
-          title: d.task.title,
-          status: d.task.status,
-          score: d.score,
-          cursor_session_url: d.task.cursor_session_url,
-        })),
-      };
-    }
-    case "create_dev_task": {
-      const brief = {
-        title: String(args.title || "").trim(),
-        problem: args.problem,
-        expected_behavior: args.expected_behavior,
-        current_behavior: args.current_behavior,
-        scope: args.scope,
-        affected_areas: args.affected_areas,
-        constraints: args.constraints,
-        acceptance_criteria: args.acceptance_criteria,
-        base_branch: args.base_branch || "develop",
-        environment: args.environment || "staging",
-        requested_by: args.requested_by,
-      };
-      if (!brief.title) throw new Error("title required");
-      const devActorId =
-        actorUserId ||
-        (await resolveDevTaskActorUserId(supabase, {
-          tenantId,
-          userId: actorUserId,
-          campaignerId: callerCampaignerId || null,
-          phone: callerPhone || null,
-          devEscalationTier,
-        }));
-      const duplicates = await findDuplicateDevTasks(
-        supabase,
-        tenantId,
-        brief.title,
+    case "take_task":
+      return executeTakeTask(
+        args as Parameters<typeof executeTakeTask>[0],
+        toolContext,
       );
-      const task = await createDevTask(supabase, {
-        tenantId,
-        brief,
-        priority: args.priority,
-        assignedAgent: args.assigned_agent || "cursor",
-        requestedByUserId: devActorId,
-        // In an AIOS chat a task belongs to this chat: only a yes here may approve it.
-        sourceConversationId: approval.devTaskTurn?.appChatUser
-          ? conversationId || null
-          : args.source_conversation_id || conversationId || null,
-        sourceMessage: args.source_message,
-        dedupOf: args.dedup_of || null,
-        actorUserId: devActorId,
-        goalId: args.goal_id || null,
-      });
-      return { task, possible_duplicates: duplicates.slice(0, 5) };
-    }
-    case "approve_dev_task": {
-      const approverId =
-        actorUserId ||
-        (await resolveDevTaskActorUserId(supabase, {
-          tenantId,
-          userId: actorUserId,
-          campaignerId: callerCampaignerId || null,
-          phone: callerPhone || null,
-          devEscalationTier,
-        }));
-      const refusal = await devTaskApprovalRefusal(
-        supabase,
-        tenantId,
-        String(args.dev_task_id),
-        conversationId ?? null,
-        approval.devTaskTurn,
-        approval.userText ?? null,
-        { id: approverId, tier: devEscalationTier },
+    case "assign_task_to_cursor":
+      return executeAssignTaskToCursor(
+        args as Parameters<typeof executeAssignTaskToCursor>[0],
+        toolContext,
       );
-      if (refusal) return refusal;
-      if (!approverId) throw new Error("user auth required");
-      const task = await approveDevTask(
-        supabase,
-        tenantId,
-        String(args.dev_task_id),
-        approverId,
+    case "find_dev_task_duplicates":
+      return executeFindDevTaskDuplicates(
+        args as Parameters<typeof executeFindDevTaskDuplicates>[0],
+        toolContext,
       );
-      return { task };
-    }
-    case "dispatch_dev_task": {
-      const refusal = await devTaskApprovalRefusal(
-        supabase,
-        tenantId,
-        String(args.dev_task_id),
-        conversationId ?? null,
-        approval.devTaskTurn,
-        approval.userText ?? null,
-        { id: actorUserId, tier: devEscalationTier },
+    case "create_dev_task":
+      return executeCreateDevTask(
+        args as Parameters<typeof executeCreateDevTask>[0],
+        toolContext,
       );
-      if (refusal) return refusal;
-      try {
-        return await dispatchDevTask(supabase, {
-          tenantId,
-          taskId: String(args.dev_task_id),
-          actorUserId,
-        });
-      } catch (e) {
-        if (e instanceof DevTaskNotApprovedError)
-          return { error: e.code, message: e.message };
-        throw e;
-      }
-    }
-    case "list_dev_tasks": {
-      let q = supabase
-        .from("dev_tasks")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("updated_at", { ascending: false });
-      if (args.status) q = q.eq("status", args.status);
-      if (args.priority) q = q.eq("priority", args.priority);
-      const limit = Math.min(Number(args.limit) || 30, 80);
-      const { data, error } = await q.limit(limit);
-      if (error) throw error;
-      return { count: data?.length || 0, tasks: data || [] };
-    }
-    case "update_dev_task": {
-      const id = String(args.dev_task_id || "");
-      const patch: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      for (const key of [
-        "pr_url",
-        "status",
-        "priority",
-        "problem",
-        "acceptance_criteria",
-        "title",
-      ]) {
-        if (args[key] !== undefined) patch[key] = args[key];
-      }
-      const { data, error } = await supabase
-        .from("dev_tasks")
-        .update(patch)
-        .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .select("*")
-        .single();
-      if (error) throw error;
-      await logDevTaskEvent(supabase, {
-        devTaskId: id,
-        tenantId,
-        eventType: "updated",
-        actorUserId,
-        detail: patch,
-      });
-      return { task: data };
-    }
-    case "attach_dev_task_session": {
-      const task = await attachDevTaskSession(supabase, {
-        tenantId,
-        taskId: String(args.dev_task_id),
-        cursorSessionId: String(args.cursor_session_id),
-        cursorSessionUrl: args.cursor_session_url,
-        actorUserId,
-      });
-      return { task };
-    }
-    case "complete_task_step": {
-      // Add agent_action update
-      await supabase.from("task_updates").insert({
-        task_id: args.task_id,
-        user_id: userId,
-        tenant_id: tenantId,
-        content: args.step_description,
-        update_type: "agent_action",
-      });
-      // Optionally mark as complete
-      if (args.mark_complete) {
-        await supabase
-          .from("tasks")
-          .update({ status: "done", assigned_agent: null })
-          .eq("id", args.task_id)
-          .in("tenant_id", accessibleTenantIds);
-      }
-      return {
-        success: true,
-        task_id: args.task_id,
-        completed: !!args.mark_complete,
-      };
-    }
-    case "prioritize_tasks": {
-      // Fetch open tasks with their goals
-      const { data: openTasks, error } = await supabase
-        .from("tasks")
-        .select(
-          "id, title, status, priority, due_date, due_time, assigned_agent, goal_id, clients(name), leads(company_name), campaigners(full_name)",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .in("status", ["open", "in_progress"])
-        .order("priority", { ascending: false })
-        .limit(args.limit || 30);
-      if (error) throw error;
-      // Score each task
-      const now = new Date();
-      const taskRows: PrioritizedTaskRow[] = openTasks || [];
-      const scored = taskRows
-        .map((t) => {
-          let score = t.priority || 5;
-          if (t.due_date) {
-            const due = new Date(t.due_date);
-            const daysLeft =
-              (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysLeft < 0)
-              score += 10; // overdue
-            else if (daysLeft < 1) score += 7;
-            else if (daysLeft < 3) score += 4;
-            else if (daysLeft < 7) score += 2;
-          }
-          if (t.goal_id) score += 2; // goal-linked tasks get a boost
-          if (t.assigned_agent) score -= 3; // already being worked on
-          return {
-            ...t,
-            urgency_score: score,
-            client_name: t.clients?.name,
-            lead_name: t.leads?.company_name,
-            campaigner_name: t.campaigners?.full_name,
-          };
-        })
-        .sort((a, b) => b.urgency_score - a.urgency_score);
-      return { count: scored.length, prioritized_tasks: scored };
-    }
+    case "approve_dev_task":
+      return executeApproveDevTask(
+        args as Parameters<typeof executeApproveDevTask>[0],
+        toolContext,
+      );
+    case "dispatch_dev_task":
+      return executeDispatchDevTask(
+        args as Parameters<typeof executeDispatchDevTask>[0],
+        toolContext,
+      );
+    case "list_dev_tasks":
+      return executeListDevTasks(
+        args as Parameters<typeof executeListDevTasks>[0],
+        toolContext,
+      );
+    case "update_dev_task":
+      return executeUpdateDevTask(
+        args as Parameters<typeof executeUpdateDevTask>[0],
+        toolContext,
+      );
+    case "attach_dev_task_session":
+      return executeAttachDevTaskSession(
+        args as Parameters<typeof executeAttachDevTaskSession>[0],
+        toolContext,
+      );
+    case "complete_task_step":
+      return executeCompleteTaskStep(
+        args as Parameters<typeof executeCompleteTaskStep>[0],
+        toolContext,
+      );
+    case "prioritize_tasks":
+      return executePrioritizeTasks(
+        args as Parameters<typeof executePrioritizeTasks>[0],
+        toolContext,
+      );
     // FACEBOOK AD ACCOUNTS
     case "list_facebook_ad_accounts": {
       // Get Facebook access token from tenant_integrations (including shared)
