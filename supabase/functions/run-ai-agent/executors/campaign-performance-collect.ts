@@ -1,4 +1,3 @@
-import { asRecordsClient } from "../../_shared/ads-sync/records-client.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type {
   CampaignTableMatch,
@@ -49,7 +48,7 @@ export async function collectCampaignPerformance(
     // rows repeat the campaign's spend and results), paged past 1000 rows.
     let records: Array<CampaignGoalRecord>;
     try {
-      records = await fetchCampaignLevelRecords(asRecordsClient(supabase), {
+      records = await fetchCampaignLevelRecords(supabase, {
         tableIds,
         sinceYmd: d30Str,
         tenantIds: accessibleTenantIds,
