@@ -140,7 +140,7 @@ export function MonthlyView({
   }
 
   return (
-    <div className="flex min-w-[640px] flex-1 flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
+    <div className="flex flex-1 md:min-w-[640px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b bg-muted/40">
         {WEEKDAYS.map((day) => (
