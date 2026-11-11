@@ -15,7 +15,11 @@ const VIEW_OPTIONS: ReadonlyArray<{
   { value: "table", label: "טבלה", icon: TableIcon },
 ];
 
-/** A segmented control for the list layout; labels collapse to icons on small screens. */
+/**
+ * A segmented control for the list layout; labels collapse to icons on small
+ * screens. Toggle buttons (aria-pressed), so Tab and Enter work as for any
+ * button without radio-group arrow keys.
+ */
 export function ClientsViewToggle({
   value,
   onChange,
@@ -25,7 +29,7 @@ export function ClientsViewToggle({
 }) {
   return (
     <div
-      role="radiogroup"
+      role="group"
       aria-label="תצוגה"
       className="flex shrink-0 items-center gap-0.5 rounded-xl bg-surface-inset p-1"
     >
@@ -35,8 +39,7 @@ export function ClientsViewToggle({
           <button
             key={mode}
             type="button"
-            role="radio"
-            aria-checked={selected}
+            aria-pressed={selected}
             title={label}
             onClick={() => onChange(mode)}
             className={cn(

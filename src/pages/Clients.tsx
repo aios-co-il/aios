@@ -519,7 +519,11 @@ export default function Clients() {
       {showKpis && (
         <ClientsKpiStrip
           clients={filteredClients ?? []}
-          className={cn(viewMode === "chat" && "hidden md:grid")}
+          // Short screens drop the strip so the list keeps its height.
+          className={cn(
+            viewMode === "chat" && "hidden md:grid",
+            "[@media(max-height:640px)]:!hidden",
+          )}
         />
       )}
 
