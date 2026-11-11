@@ -2218,7 +2218,7 @@ export function WeeklyTaskBoard() {
               <div
                 className={cn(
                   "flex gap-3 pb-4 min-h-0",
-                  viewMode === "weekly" ? "w-fit" : "w-full",
+                  viewMode === "weekly" ? "w-fit" : "w-full min-w-fit",
                 )}
               >
                 {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
