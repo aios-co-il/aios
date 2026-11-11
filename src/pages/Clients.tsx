@@ -54,8 +54,8 @@ import {
   applyClientFilters,
   type ClientFilters,
 } from "@/components/ClientsPage/clientFilters";
-import { ClientsPageHeader } from "@/components/ClientsPage/ClientsPageHeader";
-import { ClientsKpiStrip } from "@/components/ClientsPage/ClientsKpiStrip";
+import { ClientsTitle } from "@/components/ClientsPage/ClientsTitle";
+import { ClientsKpiChips } from "@/components/ClientsPage/ClientsKpiChips";
 import { ClientsToolbar } from "@/components/ClientsPage/ClientsToolbar";
 import { ClientsFiltersDialog } from "@/components/ClientsPage/ClientsFiltersDialog";
 import {
@@ -66,7 +66,6 @@ import { ClientsImportExportMenu } from "@/components/ClientsPage/ClientsImportE
 import { ClientGridCard } from "@/components/ClientsPage/ClientGridCard";
 import { ClientsTable } from "@/components/ClientsPage/ClientsTable";
 import { useClientRowMutations } from "@/components/ClientsPage/useClientRowMutations";
-import { cn } from "@/lib/utils";
 
 export default function Clients() {
   const { selectedAgency } = useAgency();
@@ -497,9 +496,23 @@ export default function Clients() {
 
   return (
     <div className="flex h-full min-h-0 max-h-full flex-col gap-4 overflow-hidden p-4">
-      <ClientsPageHeader
-        shownCount={clientsResolving ? undefined : visibleClients?.length}
+      <ClientsToolbar
+        filters={filters}
+        onFilterChange={setFilter}
+        campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
+        showSearch={viewMode !== "chat"}
+        activeFilterCount={activeFilterCount}
+        onOpenFilters={() => setShowFiltersDialog(true)}
+        leading={
+          <>
+            <ClientsTitle
+              shownCount={clientsResolving ? undefined : visibleClients?.length}
+            />
+            {showKpis && <ClientsKpiChips clients={filteredClients ?? []} />}
+          </>
+        }
       >
+        <ClientsViewToggle value={viewMode} onChange={setViewMode} />
         <ClientsImportExportMenu
           onExport={handleExportToExcel}
           onImportCsv={() => setShowImportCSV(true)}
@@ -514,28 +527,6 @@ export default function Clients() {
           }
         />
         <AddClientForm />
-      </ClientsPageHeader>
-
-      {showKpis && (
-        <ClientsKpiStrip
-          clients={filteredClients ?? []}
-          // Short screens drop the strip so the list keeps its height.
-          className={cn(
-            viewMode === "chat" && "hidden md:grid",
-            "[@media(max-height:640px)]:!hidden",
-          )}
-        />
-      )}
-
-      <ClientsToolbar
-        filters={filters}
-        onFilterChange={setFilter}
-        campaigners={canFilterByCampaigner ? (campaigners ?? []) : null}
-        showSearch={viewMode !== "chat"}
-        activeFilterCount={activeFilterCount}
-        onOpenFilters={() => setShowFiltersDialog(true)}
-      >
-        <ClientsViewToggle value={viewMode} onChange={setViewMode} />
       </ClientsToolbar>
 
       {/* Import dialogs opened from the import / export menu */}
