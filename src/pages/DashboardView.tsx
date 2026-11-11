@@ -29,6 +29,7 @@ import {
   dashboardReportInput,
 } from "@/components/report-ui/dashboard/dashboardReportInput";
 import { usePreviousReportPeriod } from "@/components/report-ui/dashboard/usePreviousReportPeriod";
+import { previousPeriodOf } from "@/components/report-ui/dashboard/previousPeriod";
 import { Badge } from "@/components/ui/badge";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
 import { Tabs } from "@/components/ui/tabs";
@@ -609,6 +610,8 @@ export default function DashboardView() {
       }),
     [displayAllRecords, tables, hasWooCommerce, wooSummary],
   );
+  // Off by default, like the platform reports' "השוואה לתקופה קודמת".
+  const [comparePrevious, setComparePrevious] = useState(false);
   const reportPrevious = usePreviousReportPeriod({
     tables,
     dateFilter,
@@ -616,8 +619,11 @@ export default function DashboardView() {
     customTo: customToStr,
     clientId: dashboard?.client_id,
     hasWooCommerce,
-    enabled: platformFilter === "all" && isCustomReady,
+    enabled: comparePrevious && platformFilter === "all" && isCustomReady,
   });
+  const reportPreviousRange = previousPeriodOf(
+    getDashboardDateRange(dateFilter, new Date(), customFromStr, customToStr),
+  );
 
   // Available platforms for tab rendering
   const availablePlatforms = useMemo(() => {
@@ -1778,8 +1784,14 @@ export default function DashboardView() {
               {platformFilter === "all" && (
                 <GoalReportOverview
                   current={reportCurrent}
-                  previous={reportPrevious}
+                  previous={comparePrevious ? reportPrevious : null}
                   currency={dashboardCurrency}
+                  comparison={{
+                    on: comparePrevious,
+                    onChange: setComparePrevious,
+                    range: reportPreviousRange,
+                    loading: comparePrevious && reportPrevious === null,
+                  }}
                 />
               )}
               {/* Summary Cards - only show in All and Analytics tabs */}
