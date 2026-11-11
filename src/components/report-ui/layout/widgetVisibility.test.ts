@@ -18,6 +18,7 @@ function scopeOf(f: ReportFigures): ReportScopeData {
   return {
     figures: f,
     previous: null,
+    previousCampaigns: null,
     channels: [{ channel: "facebook", figures: f }],
     daily: [
       { date: "2026-11-01", figures: f },

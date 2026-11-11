@@ -12,6 +12,11 @@ import {
   GoogleAdsHeadCells,
 } from "./GoogleAdsCampaignCells";
 import { GoogleAdsCampaignTotalsRow } from "./GoogleAdsCampaignTotalsRow";
+import {
+  googleCampaignKey,
+  googleComparedMetrics,
+  type GoogleAdsTablePrevious,
+} from "./googleAdsCompare";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import { addTotals, emptyTotals, googleStoreTotals } from "./googleAdsTotals";
 import type {
@@ -32,6 +37,8 @@ type Props = GoogleAdsFormatters & {
   icon: ReactNode;
   /** Replaces the goal title, as the continents tab names each table by its continent. */
   title?: string;
+  /** The previous period; its columns show while it is set. */
+  previous?: GoogleAdsTablePrevious | null;
 };
 
 /**
@@ -49,8 +56,10 @@ export function GoogleAdsCampaignTable({
   mixed,
   icon,
   title: titleOverride,
+  previous,
   ...formats
 }: Props) {
+  const compared = previous ? googleComparedMetrics(goal, formats) : null;
   const [showOff, setShowOff] = useState(true);
   const isEcommerce = goal === "ecommerce";
   const isTraffic = goal === "traffic";
@@ -75,13 +84,22 @@ export function GoogleAdsCampaignTable({
       }
     >
       <ReportTable
-        head={<GoogleAdsHeadCells goal={goal} showLeads={showLeads} />}
+        head={
+          <GoogleAdsHeadCells
+            goal={goal}
+            showLeads={showLeads}
+            compared={compared}
+          />
+        }
         foot={
           <GoogleAdsCampaignTotalsRow
             goal={goal}
             showLeads={showLeads}
             groupTotals={totals}
             store={shownStore}
+            compared={compared}
+            previous={previous?.totals}
+            storeFromWoo={storeFromWoo}
             {...formats}
           />
         }
@@ -93,6 +111,12 @@ export function GoogleAdsCampaignTable({
               row={row}
               goal={goal}
               showLeads={showLeads}
+              compared={compared}
+              previous={
+                previous
+                  ? (previous.byKey.get(googleCampaignKey(row)) ?? null)
+                  : undefined
+              }
               {...formats}
             />
           </ReportTr>

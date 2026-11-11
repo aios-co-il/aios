@@ -1,5 +1,4 @@
-import { useMemo, type ComponentProps } from "react";
-import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { useMemo } from "react";
 import type { CurrencyCode } from "@/lib/currency";
 import {
   buildReportPeriod,
@@ -14,8 +13,6 @@ interface GoalReportOverviewProps {
   /** The period of equal length before; null shows the report without changes. */
   previous: ReportPeriodInput | null;
   currency: CurrencyCode;
-  /** The "השוואה לתקופה קודמת" toggle; omitted where no previous period loads. */
-  comparison?: ComponentProps<typeof PreviousPeriodToggle>;
   /** Offer "בקש תובנה מכרמן"; left off on shared reports. */
   askCarmen?: boolean;
 }
@@ -30,7 +27,6 @@ export function GoalReportOverview({
   current,
   previous,
   currency,
-  comparison,
   askCarmen = false,
 }: GoalReportOverviewProps) {
   const currentPeriod = useMemo(() => buildReportPeriod(current), [current]);
@@ -57,11 +53,6 @@ export function GoalReportOverview({
   }
   return (
     <div className="space-y-6">
-      {comparison && (
-        <div className="flex justify-end">
-          <PreviousPeriodToggle {...comparison} />
-        </div>
-      )}
       <ReportLayoutView layout={layout} data={data} />
       <h3 className="border-t pt-6 text-lg font-bold">פירוט נוסף</h3>
     </div>

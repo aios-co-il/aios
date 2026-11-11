@@ -112,4 +112,44 @@ describe("GoogleAdsCampaignSection", () => {
     // The lead table keeps its own conversions columns.
     expect(within(leadsTable).queryAllByText("לידים")).toHaveLength(0);
   });
+
+  it("compares each campaign and the total with the previous period", () => {
+    const previous = [
+      row({
+        campaign_id: "shop",
+        campaign_name: "PMax חנות",
+        conversion_goal: "ecommerce",
+        cost: 100,
+        conversions: 1,
+        conversions_value: 200,
+      }),
+    ];
+    render(
+      <GoogleAdsCampaignSection
+        summary={summarizeGoogleAdsCampaigns(records, [table])}
+        previous={summarizeGoogleAdsCampaigns(previous, [table])}
+        icon={null}
+        formatCurrency={format}
+        formatNumber={format}
+        formatUnitCost={format}
+      />,
+    );
+    const [salesTable, leadsTable] = screen.getAllByRole("table");
+    const heads = within(salesTable)
+      .getAllByRole("columnheader")
+      .map((cell) => cell.textContent);
+    expect(heads.filter((head) => head === "תקופה קודמת")).toHaveLength(4);
+    const shop = cellTexts(within(salesTable).getByText("PMax חנות"));
+    // Purchases 2 against 1, revenue 500 against 200: both up.
+    expect(shop.slice(8, 12)).toStrictEqual(["2", "▲ 1", "500", "▲ 200"]);
+    // The lead campaign did not run then.
+    const lead = cellTexts(within(leadsTable).getByText("PMax לידים"));
+    expect(lead.filter((text) => text === "—")).toHaveLength(4);
+  });
 });
+
+/** The texts of the cells in the row of this name cell. */
+function cellTexts(name: HTMLElement): Array<string> {
+  const cells = name.closest("tr")?.children ?? [];
+  return [...cells].map((cell) => cell.textContent ?? "");
+}

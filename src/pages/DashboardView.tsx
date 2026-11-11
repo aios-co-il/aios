@@ -105,6 +105,8 @@ import {
   refetchOnMountIfEmpty,
 } from "@/lib/reportQueryOptions";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
+import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { usePreviousPlatformTabs } from "@/components/report-ui/dashboard/usePreviousPlatformTabs";
 import { DashboardDateControls } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
@@ -608,9 +610,24 @@ export default function DashboardView() {
     hasWooCommerce,
     enabled: comparePrevious && platformFilter === "all" && isCustomReady,
   });
+  // The Facebook and Google tabs compare their campaign tables the same way.
+  const previousTabs = usePreviousPlatformTabs({
+    tables,
+    dateFilter,
+    customFrom: customFromStr,
+    customTo: customToStr,
+    tab: platformFilter,
+    enabled: comparePrevious && isCustomReady,
+  });
   const reportPreviousRange = previousPeriodOf(
     getDashboardDateRange(dateFilter, new Date(), customFromStr, customToStr),
   );
+  const previousTabLoading =
+    platformFilter === "facebook"
+      ? previousTabs.facebook === null
+      : platformFilter === "google_ads"
+        ? previousTabs.google === null
+        : reportPrevious === null;
 
   // Available platforms for tab rendering
   const availablePlatforms = useMemo(() => {
@@ -1569,7 +1586,16 @@ export default function DashboardView() {
                 </Select>
               )
             }
-          />
+          >
+            {!isAgencyLikeDashboard && showsPreviousToggle(platformFilter) && (
+              <PreviousPeriodToggle
+                on={comparePrevious}
+                onChange={setComparePrevious}
+                range={reportPreviousRange}
+                loading={comparePrevious && previousTabLoading}
+              />
+            )}
+          </DashboardDateControls>
         }
       />
 
@@ -1708,12 +1734,6 @@ export default function DashboardView() {
                   current={reportCurrent}
                   previous={comparePrevious ? reportPrevious : null}
                   currency={dashboardCurrency}
-                  comparison={{
-                    on: comparePrevious,
-                    onChange: setComparePrevious,
-                    range: reportPreviousRange,
-                    loading: comparePrevious && reportPrevious === null,
-                  }}
                   askCarmen
                 />
               )}
@@ -1879,6 +1899,7 @@ export default function DashboardView() {
                   campaigns={facebookCampaignGroups}
                   records={filteredRecords}
                   tables={tables}
+                  previous={comparePrevious ? previousTabs.facebook : null}
                   formatCurrency={formatCurrency}
                   formatNumber={formatNumber}
                   formatUnitCost={formatUnitCost}
@@ -1893,6 +1914,7 @@ export default function DashboardView() {
                   formatNumber={formatNumber}
                   formatUnitCost={formatUnitCost}
                   woo={useGoogleWooOverlay ? googleWooAttribution : null}
+                  previous={comparePrevious ? previousTabs.google : null}
                 />
               )}
 
@@ -2352,4 +2374,9 @@ export default function DashboardView() {
       )}
     </div>
   );
+}
+
+/** The tabs whose figures compare with the previous period. */
+function showsPreviousToggle(tab: string): boolean {
+  return tab === "all" || tab === "facebook" || tab === "google_ads";
 }

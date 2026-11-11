@@ -26,6 +26,8 @@ type Props = FacebookTabFormatters & {
   records: Array<FacebookTabRecord>;
   /** The dashboard's report tables, whose switch and status mark campaigns off. */
   tables: Array<CampaignOffTable>;
+  /** The previous period's campaigns; the tables compare with it while set. */
+  previous?: DashboardFacebookCampaigns | null;
 };
 
 /**
@@ -37,6 +39,7 @@ export function FacebookReportTab({
   campaigns,
   records,
   tables,
+  previous,
   ...formats
 }: Props) {
   const metaRecords = useMemo(
@@ -48,6 +51,14 @@ export function FacebookReportTab({
     () => facebookCampaignOnOf(metaRecords, tables),
     [metaRecords, tables],
   );
+  const byName = useMemo(
+    () => new Map((previous?.all ?? []).map((row) => [row.name, row])),
+    [previous],
+  );
+  /** A goal table's previous period, or null while there is none to show. */
+  function previousOf(goal: "ecommerce" | "leads" | "traffic") {
+    return previous ? { byName, campaigns: previous[goal] } : null;
+  }
   const { ecommerce, leads, traffic, all } = campaigns;
   if (all.length === 0) {
     return null;
@@ -90,6 +101,7 @@ export function FacebookReportTab({
           campaigns={ecommerce}
           columns={salesColumns(ecommerce, formats)}
           onOf={onOf}
+          previous={previousOf("ecommerce")}
         />
       )}
       {leads.length > 0 && (
@@ -98,6 +110,7 @@ export function FacebookReportTab({
           campaigns={leads}
           columns={leadsColumns(formats)}
           onOf={onOf}
+          previous={previousOf("leads")}
         />
       )}
       {traffic.length > 0 && (
@@ -106,6 +119,7 @@ export function FacebookReportTab({
           campaigns={traffic}
           columns={trafficColumns(traffic, formats)}
           onOf={onOf}
+          previous={previousOf("traffic")}
           withTotal
         />
       )}

@@ -13,6 +13,7 @@ import {
 export function previousCellsFor<T>(
   current: T,
   previous: T | null | undefined,
+  cellClassName?: string,
 ) {
   return function previousCell(
     value: (data: T) => number | null,
@@ -27,6 +28,7 @@ export function previousCellsFor<T>(
           previous={before ?? undefined}
           format={format}
           direction={direction}
+          cellClassName={cellClassName}
         />
       )
     );

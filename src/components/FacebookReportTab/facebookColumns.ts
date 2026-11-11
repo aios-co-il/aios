@@ -9,6 +9,8 @@ import {
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
 import { ratio } from "@/lib/reportNumber";
+import { facebookCompare } from "./facebookCompare";
+import { deliveryColumns, spendColumn } from "./facebookSharedColumns";
 import type { FacebookColumn } from "./FacebookGoalTable";
 import { roasText, roasTone } from "./facebookRoas";
 import { facebookTabTotals } from "./facebookTabFigures";
@@ -30,8 +32,10 @@ export type FacebookTabFormatters = {
  */
 export function salesColumns(
   campaigns: Array<FacebookCampaignRow>,
-  { formatCurrency, formatNumber }: FacebookTabFormatters,
+  formats: FacebookTabFormatters,
 ): Array<FacebookColumn> {
+  const { formatCurrency, formatNumber } = formats;
+  const cmp = facebookCompare(formats);
   const valued = campaigns.some((campaign) => campaign.purchase_value > 0);
   const value: Array<FacebookColumn> = valued
     ? [
@@ -39,6 +43,7 @@ export function salesColumns(
           label: "ערך רכישות",
           value: (rows) => formatCurrency(sum(rows).purchase_value),
           tone: (rows) => positive(sum(rows).purchase_value),
+          compare: cmp.purchaseValue,
         },
         { label: "ROAS", value: roasText, tone: roasTone },
       ]
@@ -49,11 +54,12 @@ export function salesColumns(
             const cost = costPerPurchase(sum(rows));
             return cost === null ? "-" : formatCurrency(cost);
           },
+          compare: cmp.costPerPurchase,
         },
       ];
   return [
-    ...deliveryColumns(formatNumber),
-    { label: "הוצאה", value: (rows) => formatCurrency(sum(rows).spend) },
+    ...deliveryColumns(formatNumber, cmp),
+    spendColumn(formatCurrency, cmp),
     {
       label: "הוספות לעגלה",
       value: (rows) => formatNumber(sum(rows).add_to_cart),
@@ -63,30 +69,34 @@ export function salesColumns(
       label: "רכישות",
       value: (rows) => formatNumber(sum(rows).purchases),
       tone: (rows) => positive(sum(rows).purchases),
+      compare: cmp.purchases,
     },
     ...value,
   ];
 }
 
 /** The leads table's columns, as the dashboards showed them. */
-export function leadsColumns({
-  formatCurrency,
-  formatNumber,
-}: FacebookTabFormatters): Array<FacebookColumn> {
+export function leadsColumns(
+  formats: FacebookTabFormatters,
+): Array<FacebookColumn> {
+  const { formatCurrency, formatNumber } = formats;
+  const cmp = facebookCompare(formats);
   return [
-    ...deliveryColumns(formatNumber),
+    ...deliveryColumns(formatNumber, cmp),
     {
       label: "לידים",
       value: (rows) => formatNumber(sum(rows).leads),
       tone: (rows) => positive(sum(rows).leads),
+      compare: cmp.leads,
     },
-    { label: "הוצאה", value: (rows) => formatCurrency(sum(rows).spend) },
+    spendColumn(formatCurrency, cmp),
     {
       label: "עלות לליד",
       value: (rows) => {
         const cpl = ratio(sum(rows).spend, sum(rows).leads);
         return cpl > 0 ? formatCurrency(cpl) : "-";
       },
+      compare: cmp.costPerLead,
     },
   ];
 }
@@ -98,25 +108,30 @@ export function leadsColumns({
  */
 export function trafficColumns(
   campaigns: Array<FacebookCampaignRow>,
-  { formatCurrency, formatNumber, formatUnitCost }: FacebookTabFormatters,
+  formats: FacebookTabFormatters,
 ): Array<FacebookColumn> {
+  const { formatCurrency, formatNumber, formatUnitCost } = formats;
+  const cmp = facebookCompare(formats);
   const columns: Array<FacebookColumn> = [
-    { label: "הוצאה", value: (rows) => formatCurrency(sum(rows).spend) },
-    ...deliveryColumns(formatNumber),
+    spendColumn(formatCurrency, cmp),
+    ...deliveryColumns(formatNumber, cmp),
     {
       label: "CTR",
       value: (rows) =>
         `${(ratio(sum(rows).clicks, sum(rows).impressions) * 100).toFixed(2)}%`,
+      compare: cmp.ctr,
     },
     {
       label: "עלות לקליק",
       value: (rows) => formatUnitCost(ratio(sum(rows).spend, sum(rows).clicks)),
+      compare: cmp.costPerClick,
     },
   ];
   if (campaigns.some((campaign) => campaign.leads > 0)) {
     columns.push({
       label: "לידים",
       value: (rows) => formatNumber(sum(rows).leads),
+      compare: cmp.leads,
     });
   }
   if (showsFollowerColumns(campaigns)) {
@@ -137,16 +152,6 @@ export function trafficColumns(
     );
   }
   return columns;
-}
-
-/** Impressions and clicks. */
-function deliveryColumns(
-  formatNumber: (value: number) => string,
-): Array<FacebookColumn> {
-  return [
-    { label: "חשיפות", value: (rows) => formatNumber(sum(rows).impressions) },
-    { label: "קליקים", value: (rows) => formatNumber(sum(rows).clicks) },
-  ];
 }
 
 /** The campaigns' figures added up. */
