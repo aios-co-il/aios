@@ -45,51 +45,33 @@ function formatCreatedShort(value?: string | null): string | null {
 }
 
 function priorityClass(priority: number) {
-  if (priority >= 8)
+  if (priority >= 8) {
     return "text-destructive border-destructive/40 bg-destructive/10";
-  if (priority >= 6)
-    return "text-amber-800 dark:text-amber-200 border-amber-500/40 bg-amber-500/10";
+  }
+  if (priority >= 6) {
+    return "text-status-foreground border-brand-highlight/60 bg-status-progress-surface";
+  }
   return "text-muted-foreground";
 }
 
 export type ChatTask = Task;
 
-const OPEN_CLOSED_TABS: {
+// Tabs share one brand style; the icon and label tell them apart, not hue.
+const TAB_STYLE = {
+  active: "bg-primary text-primary-foreground",
+  idle: "text-foreground hover:bg-muted",
+  countActive: "bg-background text-foreground",
+  countIdle: "bg-muted text-muted-foreground",
+};
+
+const OPEN_CLOSED_TABS: Array<{
   value: OpenClosedFilter;
   label: string;
   icon: typeof LayoutList;
-  active: string;
-  idle: string;
-  countActive: string;
-  countIdle: string;
-}[] = [
-  {
-    value: "all",
-    label: "הכל",
-    icon: LayoutList,
-    active: "bg-violet-600 text-white",
-    idle: "text-violet-800 hover:bg-violet-50",
-    countActive: "bg-white/25 text-white",
-    countIdle: "bg-violet-200/80 text-violet-900",
-  },
-  {
-    value: "open",
-    label: "פתוחות",
-    icon: CircleDot,
-    active: "bg-sky-500 text-white",
-    idle: "text-sky-800 hover:bg-sky-50",
-    countActive: "bg-white/25 text-white",
-    countIdle: "bg-sky-200/80 text-sky-900",
-  },
-  {
-    value: "done",
-    label: "סגורות",
-    icon: CheckCircle2,
-    active: "bg-primary text-primary-foreground",
-    idle: "text-emerald-800 hover:bg-emerald-50",
-    countActive: "bg-white/25 text-white",
-    countIdle: "bg-emerald-200/80 text-emerald-900",
-  },
+}> = [
+  { value: "all", label: "הכל", icon: LayoutList },
+  { value: "open", label: "פתוחות", icon: CircleDot },
+  { value: "done", label: "סגורות", icon: CheckCircle2 },
 ];
 
 export function TasksChatSearchInput({
@@ -256,7 +238,7 @@ export function TasksChatView({
                   onClick={() => setOpenClosedFilter(tab.value)}
                   className={cn(
                     "h-7 flex-1 rounded-md text-[11px] font-semibold transition-colors inline-flex items-center justify-center gap-0.5 px-1 min-w-0",
-                    active ? tab.active : tab.idle,
+                    active ? TAB_STYLE.active : TAB_STYLE.idle,
                   )}
                 >
                   <Icon className="h-3 w-3 shrink-0" />
@@ -264,7 +246,7 @@ export function TasksChatView({
                   <span
                     className={cn(
                       "min-w-4 rounded-full px-1 text-[10px] leading-4 font-bold",
-                      active ? tab.countActive : tab.countIdle,
+                      active ? TAB_STYLE.countActive : TAB_STYLE.countIdle,
                     )}
                   >
                     {tabCounts[tab.value]}
@@ -280,7 +262,7 @@ export function TasksChatView({
               className={cn(
                 "w-full h-7 rounded-md text-[11px] font-semibold transition-colors inline-flex items-center justify-center gap-1 px-2",
                 showAllRecurring
-                  ? "bg-violet-100 text-violet-900 border border-violet-300"
+                  ? "bg-brand-accent/10 text-foreground border border-brand-accent/30"
                   : "text-muted-foreground hover:bg-muted/60 border border-transparent",
               )}
               title="הצג משימות חוזרות גם לפני מועד הביצוע"
@@ -365,7 +347,7 @@ export function TasksChatView({
                         {task.recurrence_frequency && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] h-4 gap-0.5 px-1.5 border-violet-300 text-violet-700"
+                            className="text-[10px] h-4 gap-0.5 px-1.5 border-brand-ink/15 text-muted-foreground"
                           >
                             <Repeat className="h-2.5 w-2.5" />
                             {describeRecurrence({

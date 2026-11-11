@@ -138,11 +138,11 @@ export function GoalTree() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-status-active" />;
       case "paused":
-        return <Pause className="h-4 w-4 text-yellow-500" />;
+        return <Pause className="h-4 w-4 text-status-progress" />;
       case "cancelled":
-        return <X className="h-4 w-4 text-red-500" />;
+        return <X className="h-4 w-4 text-destructive" />;
       default:
         return <Target className="h-4 w-4 text-primary" />;
     }
@@ -214,7 +214,7 @@ export function GoalTree() {
                     })
                   }
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-status-active" />
                 </Button>
               )}
               {goal.status === "completed" && (

@@ -346,7 +346,7 @@ export function QuickTaskInput({
           size="sm"
           className={cn(
             "h-8 gap-1 text-xs min-w-0 max-w-[130px]",
-            targetDate && "border-amber-500/40 bg-amber-500/5",
+            targetDate && "border-brand-highlight/60 bg-surface-status-yellow",
           )}
         >
           <Flag className="h-3.5 w-3.5 shrink-0" />

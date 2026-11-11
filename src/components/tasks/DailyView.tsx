@@ -51,7 +51,7 @@ function DraggableTask({
       {...attributes}
       className={cn(
         "p-2 rounded-lg border bg-card cursor-grab active:cursor-grabbing transition-all",
-        isDragging && "opacity-50 shadow-lg",
+        isDragging && "opacity-50 shadow-elevation-2",
         isCompleted && "opacity-60",
       )}
     >
