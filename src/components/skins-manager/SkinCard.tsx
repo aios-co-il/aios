@@ -50,7 +50,7 @@ export function SkinCard({
           <code className="text-[10px] text-muted-foreground">{skin.slug}</code>
         </div>
         <div className="flex items-center gap-1.5">
-          {style === "orbs" || avatarUrl ? (
+          {style !== "character" || avatarUrl ? (
             <CarmenAvatar
               skin={skin.slug}
               image={avatarUrl}

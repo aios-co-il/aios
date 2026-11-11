@@ -4,6 +4,7 @@ import { useTenantPath } from "@/hooks/useTenantPath";
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { CarmenOrbBuddy } from "@/components/carmen/CarmenOrbBuddy";
+import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
 import { getRoleOrbTint } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import type { useDraggableCard } from "./useDraggableCard";
 import type { CarmenFaceState } from "./CarmenFace";
@@ -58,13 +59,17 @@ export function CarmenSessionVideoCard({
           alt=""
           className={`carmen-session-character ${identity.custom ? "is-custom" : ""}`}
         />
-      ) : (
+      ) : style === "orbs" ? (
         // Deep green glass on the light card; dark mode turns it see-through.
         <div className="carmen-session-orb orb-deep">
           <CarmenOrbBuddy
             tint={getRoleOrbTint(identity.activeSkin)}
             state={faceState}
           />
+        </div>
+      ) : (
+        <div className="carmen-session-orb">
+          <MiniMe skin={identity.activeSkin} state={faceState} />
         </div>
       )}
       <div className="carmen-session-caption">

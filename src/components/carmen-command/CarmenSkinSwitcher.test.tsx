@@ -135,8 +135,17 @@ test("a tenant's custom skin portrait wins over the role default in the Zoom win
   );
 });
 
-test("in the orb style the Zoom window shows the humanised orb in the skin's color", () => {
+test("by default the Zoom window shows the Mini Me", () => {
   state.avatarStyle = undefined;
+  setSessionSkin("tenant-a", "campaigner");
+  const { container } = render(<Session />);
+  expect(container.querySelector(".carmen-session-character")).toBeNull();
+  expect(container.querySelector(".orb-buddy")).toBeNull();
+  expect(container.querySelector("svg.mini-me")).not.toBeNull();
+});
+
+test("in the orb style the Zoom window shows the humanised orb in the skin's color", () => {
+  state.avatarStyle = { style: "orbs" };
   setSessionSkin("tenant-a", "campaigner");
   const { container } = render(<Session />);
   expect(container.querySelector(".carmen-session-character")).toBeNull();

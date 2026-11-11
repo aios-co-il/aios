@@ -9,14 +9,18 @@ import { useToast } from "./use-toast";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useOptionalTenant } from "@/contexts/TenantContext";
 
-/** How Carmen is drawn: glass orbs (default) or the illustrated character. */
-export type CarmenAvatarStyle = "orbs" | "character";
+/**
+ * How Carmen is drawn: the Mini Me (default), glass orbs, or the
+ * illustrated character.
+ */
+export type CarmenAvatarStyle = "minime" | "orbs" | "character";
 
 export const CARMEN_AVATAR_STYLES: Array<CarmenAvatarStyle> = [
+  "minime",
   "orbs",
   "character",
 ];
-const DEFAULT_STYLE: CarmenAvatarStyle = "orbs";
+const DEFAULT_STYLE: CarmenAvatarStyle = "minime";
 const SETTING_KEY = "carmen_avatar_style";
 
 /** The organization's Carmen avatar style, and a way to change it. */

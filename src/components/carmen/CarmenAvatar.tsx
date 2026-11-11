@@ -1,4 +1,5 @@
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,8 @@ interface CarmenAvatarProps {
 }
 
 /**
- * Carmen as the organization chose to show her: a glass orb in the skin's
- * color (default), or the illustrated character portrait.
+ * Carmen as the organization chose to show her: the Mini Me (default), a
+ * glass orb in the skin's color, or the illustrated character portrait.
  */
 export function CarmenAvatar({
   skin,
@@ -36,6 +37,13 @@ export function CarmenAvatar({
         custom={custom}
         className={className}
       />
+    );
+  }
+  if (style === "minime") {
+    return (
+      <span className={cn("inline-block h-11 w-11 align-middle", className)}>
+        <MiniMe skin={skin} label={name} className="h-full w-full" />
+      </span>
     );
   }
   return (
