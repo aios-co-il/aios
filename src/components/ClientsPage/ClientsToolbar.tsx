@@ -28,11 +28,16 @@ interface ClientsToolbarProps {
   showSearch: boolean;
   activeFilterCount: number;
   onOpenFilters: () => void;
-  /** The view toggle, at the end of the bar. */
+  /** The title and the headline figures, at the start of the bar. */
+  leading: ReactNode;
+  /** The view toggle and page actions, at the end of the bar. */
   children: ReactNode;
 }
 
-/** The white bar above the list: search, quick filters, more filters and the view toggle. */
+/**
+ * The one white bar above the list: title and figures, search, quick filters,
+ * more filters, then the view toggle and page actions.
+ */
 export function ClientsToolbar({
   filters,
   onFilterChange,
@@ -40,10 +45,12 @@ export function ClientsToolbar({
   showSearch,
   activeFilterCount,
   onOpenFilters,
+  leading,
   children,
 }: ClientsToolbarProps) {
   return (
     <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border bg-card p-2 shadow-elevation-1">
+      {leading}
       {showSearch && (
         <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
           <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -100,7 +107,7 @@ export function ClientsToolbar({
           </span>
         )}
       </Button>
-      <div className="ms-auto">{children}</div>
+      <div className="ms-auto flex items-center gap-2">{children}</div>
     </div>
   );
 }

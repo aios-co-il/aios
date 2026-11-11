@@ -25,6 +25,7 @@ import {
   isProfileTraffic,
 } from "./fb-insights/followers.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./ads-sync/levels.ts";
+import { fetchInsightsInChunks } from "./fb-insights/insightsChunks.ts";
 import {
   customConversionLeads,
   fetchLeadCustomConversionIds,
@@ -1032,7 +1033,10 @@ export function buildInsightRecord(
 const FB_INSIGHTS_BASE_FIELDS =
   "impressions,reach,frequency,clicks,inline_link_clicks,cpm,ctr,actions,action_values,conversions,cost_per_action_type,cost_per_conversion,spend";
 
-/** Paginate Facebook account insights for one hierarchy level. */
+/**
+ * Facebook account insights for one hierarchy level, read in date chunks so a
+ * large account's long first sync does not overload Meta (insightsChunks).
+ */
 export async function fetchFacebookInsightsAtLevel(
   adAccountId: string,
   level: AdsEntityLevel,
@@ -1045,23 +1049,15 @@ export async function fetchFacebookInsightsAtLevel(
     adset: `campaign_id,campaign_name,adset_id,adset_name,${FB_INSIGHTS_BASE_FIELDS}`,
     ad: `campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,${FB_INSIGHTS_BASE_FIELDS}`,
   };
-  const firstUrl =
-    `https://graph.facebook.com/v21.0/${adAccountId}/insights?level=${level}` +
-    `&fields=${levelFields[level]}` +
-    `&time_range={"since":"${sinceStr}","until":"${untilStr}"}` +
-    "&time_increment=1&use_unified_attribution_setting=true&limit=500" +
-    `&access_token=${accessToken}`;
-
-  const rows: any[] = [];
-  let next: string | null = firstUrl;
-  while (next) {
-    const r = await fetch(next);
-    const d: any = await r.json();
-    if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
-    if (Array.isArray(d.data)) rows.push(...d.data);
-    next = d.paging?.next || null;
-  }
-  return rows;
+  return await fetchInsightsInChunks(
+    { since: sinceStr, until: untilStr },
+    (chunk) =>
+      `https://graph.facebook.com/v21.0/${adAccountId}/insights?level=${level}` +
+      `&fields=${levelFields[level]}` +
+      `&time_range={"since":"${chunk.since}","until":"${chunk.until}"}` +
+      "&time_increment=1&use_unified_attribution_setting=true&limit=500" +
+      `&access_token=${accessToken}`,
+  );
 }
 
 /** Build CRM insight rows for campaign + ad set + ad levels (shared by manual + cron sync). */

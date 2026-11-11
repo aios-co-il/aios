@@ -154,8 +154,11 @@ export async function runRecordingPipeline(
   }
 
   // An unrecognized recording is still valuable: keep it as a general agency
-  // meeting instead of dropping out after transcription.
-  if (!clientId && campaignerIds.length === 0 && summaryScope === "auto") {
+  // meeting instead of dropping out after transcription. Its summary may then
+  // assign the client (AIO-563); a chosen agency scope never is.
+  const unrecognized =
+    !clientId && campaignerIds.length === 0 && summaryScope === "auto";
+  if (unrecognized) {
     summaryScope = "agency";
   }
 
@@ -251,6 +254,7 @@ export async function runRecordingPipeline(
     clientId,
     briefSource,
     createdBy: createdByUserId,
+    assignClientFromSummary: unrecognized,
   });
   if (dispatched.ok) {
     console.log(
@@ -286,6 +290,7 @@ export async function runRecordingPipeline(
     summary,
     recording_id,
     created_by: createdByUserId ?? null,
+    assign_client_from_summary: unrecognized,
   });
 
   if (clientId) {

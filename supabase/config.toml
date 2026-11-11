@@ -507,6 +507,10 @@ verify_jwt = false
 [functions.match-recordings-calendar]
 verify_jwt = true
 
+# Names old meetings and assigns clients from their summaries (AIO-563).
+[functions.backfill-meeting-details]
+verify_jwt = true
+
 [functions.publishing-feed]
 verify_jwt = false
 

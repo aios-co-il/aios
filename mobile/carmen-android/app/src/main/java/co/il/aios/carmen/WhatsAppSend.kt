@@ -5,9 +5,11 @@ import org.json.JSONObject
 
 /**
  * Sends a WhatsApp message to a phone contact during a call, from the user's own line or from
- * Carmen's, as the signed-in user. Every send takes two calls: the first only prepares the
- * message for Carmen to read back, and only a second call with the user's yes for the same
- * number, line and text sends it.
+ * Carmen's, as the signed-in user. Every send needs the user's yes to the exact text: normally
+ * the first call only prepares the message for Carmen to read back, and a second call with the
+ * user's yes sends it. A confirmed first call also sends when Carmen had just read that text
+ * aloud and the user's last words were a clear yes (AIO-566: in Production she read it back,
+ * the user said "כן, תשלחי", and her first call only prepared it).
  */
 class WhatsAppSend(private val account: AiosAccount) {
     private val drafts = WhatsAppDrafts()
@@ -21,7 +23,8 @@ class WhatsAppSend(private val account: AiosAccount) {
             "שליחת הודעת וואטסאפ לאיש קשר מהטלפון. קודם find_contact למספר. " +
                 "via=me שולח מהוואטסאפ של המשתמש, via=carmen מהמספר שלך; אם המשתמש לא אמר, שאלי. " +
                 "הקריאה הראשונה רק מכינה את ההודעה: הקריאי למשתמש למי, לאיזה מספר, מאיזה קו ואת הנוסח, " +
-                "וקראי שוב עם user_confirmed=true ובדיוק אותם פרטים רק אחרי שאמר כן.",
+                "וקראי שוב עם user_confirmed=true ובדיוק אותם פרטים רק אחרי שאמר כן. " +
+                "אל תאמרי שנשלח אלא אם הכלי החזיר עכשיו שנשלח.",
         )
         .put(
             "parameters",
@@ -36,15 +39,20 @@ class WhatsAppSend(private val account: AiosAccount) {
             ).put("required", JSONArray(listOf("phone_number", "message", "via", "user_confirmed"))),
         )
 
-    /** Blocking. Returns the line handed back to the voice model; never throws. */
-    fun run(args: JSONObject): String = runCatching {
+    /**
+     * Blocking. Returns the line handed back to the voice model; never throws. [turns] is the
+     * call so far, to see whether the user already said yes to this exact text.
+     */
+    fun run(args: JSONObject, turns: List<Pair<String, String>> = emptyList()): String = runCatching {
         val draft = WhatsAppDraft(
             number = args.optString("phone_number").trim(),
             name = args.optString("contact_name").trim(),
             message = args.optString("message").trim(),
             line = WhatsAppLine.fromApiName(args.optString("via")),
         )
-        when (val step = drafts.step(draft, args.optBoolean("user_confirmed", false))) {
+        val confirmed = args.optBoolean("user_confirmed", false)
+        val confirmedAloud = confirmed && WhatsAppDrafts.yesToReadBack(draft, turns)
+        when (val step = drafts.step(draft, confirmed, confirmedAloud)) {
             is WhatsAppDrafts.Step.Invalid -> step.reason
             is WhatsAppDrafts.Step.ReadBack -> readBack(step.draft)
             is WhatsAppDrafts.Step.Send -> send(step.draft)
@@ -64,7 +72,7 @@ class WhatsAppSend(private val account: AiosAccount) {
     fun cancelPending() = drafts.cancel()
 
     private fun readBack(draft: WhatsAppDraft): String =
-        "עוד לא נשלח. הקריאי למשתמש: ל${draft.who()}, מ${draft.line?.spoken}, הנוסח: \"${draft.message}\". " +
+        "עוד לא נשלח, ואסור לומר שנשלח. הקריאי למשתמש: ל${draft.who()}, מ${draft.line?.spoken}, הנוסח: \"${draft.message}\". " +
             "שלחי רק אחרי שאמר כן, בקריאה חוזרת עם user_confirmed=true ובדיוק אותם פרטים."
 
     private fun send(draft: WhatsAppDraft): String {
@@ -131,15 +139,22 @@ class WhatsAppDrafts {
         data class AlreadySent(val draft: WhatsAppDraft) : Step
     }
 
-    /** The next step for this call. A send forgets the draft, so a repeat call cannot send twice. */
+    /**
+     * The next step for this call. A send forgets the draft, so a repeat call cannot send twice.
+     * [confirmedAloud]: the user already said yes to this exact text read aloud ([yesToReadBack]).
+     */
     @Synchronized
-    fun step(draft: WhatsAppDraft, userConfirmed: Boolean): Step {
+    fun step(draft: WhatsAppDraft, userConfirmed: Boolean, confirmedAloud: Boolean = false): Step {
         invalid(draft)?.let { return Step.Invalid(it) }
         sent?.takeIf { userConfirmed && it.sameAs(draft) }?.let { return Step.AlreadySent(it) }
         val pending = readBack
         if (userConfirmed && pending != null && pending.sameAs(draft)) {
             readBack = null
             return Step.Send(pending)
+        }
+        if (userConfirmed && confirmedAloud) {
+            readBack = null
+            return Step.Send(draft)
         }
         readBack = draft
         return Step.ReadBack(draft)
@@ -161,6 +176,23 @@ class WhatsAppDrafts {
     @Synchronized
     fun cancel() {
         readBack = null
+    }
+
+    companion object {
+        /**
+         * Whether the user's last words were a clear yes ([SpokenApproval]) to Carmen's line just
+         * before them, and that line contained the whole message text.
+         */
+        fun yesToReadBack(draft: WhatsAppDraft, turns: List<Pair<String, String>>): Boolean {
+            val lastUser = turns.indexOfLast { it.first == "user" }
+            if (lastUser < 1 || SpokenApproval.parse(turns[lastUser].second) != SpokenApproval.Answer.YES) return false
+            val readBack = turns.subList(0, lastUser).lastOrNull { it.first == "assistant" }?.second ?: return false
+            val message = letters(draft.message)
+            return message.isNotEmpty() && message in letters(readBack)
+        }
+
+        /** Letters and digits only, so punctuation and spacing in her speech do not matter. */
+        private fun letters(text: String): String = text.lowercase().filter { it.isLetterOrDigit() }
     }
 
     private fun invalid(draft: WhatsAppDraft): String? = when {

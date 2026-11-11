@@ -7,7 +7,11 @@ import {
   MEETING_SUMMARY_SYSTEM_PROMPT,
   prepareDetailedSummarySource,
 } from "./meeting-summary-prompts.ts";
-import { summarizeWithOpenRouter } from "./meeting-summary-openrouter.ts";
+import {
+  summarizeWithOpenRouter,
+  tenantSummaryKey,
+} from "./meeting-summary-openrouter.ts";
+import { applyMeetingDetailsFromSummary } from "./meeting-details/apply.ts";
 
 export class AiHttpError extends Error {
   status: number;
@@ -56,7 +60,9 @@ async function requestMeetingCompletion(
 
   const aiData = await aiResponse.json();
   const content = aiData.choices?.[0]?.message?.content;
-  if (!content) throw new Error("לא התקבל סיכום מה-AI");
+  if (!content) {
+    throw new Error("לא התקבל סיכום מה-AI");
+  }
   return content;
 }
 
@@ -126,6 +132,12 @@ export interface SaveSummaryOptions {
   summary: string;
   recording_id?: string | null;
   created_by?: string | null;
+  /**
+   * The recording was unrecognized (automatic scope), so the summary may assign
+   * its client. A person's choice of target, including agency, is never
+   * reclassified (AIO-563).
+   */
+  assign_client_from_summary?: boolean;
 }
 
 export async function saveSummaryForTarget(
@@ -141,6 +153,7 @@ export async function saveSummaryForTarget(
     summary,
     recording_id,
     created_by,
+    assign_client_from_summary,
   } = opts;
 
   const dateStr = new Date().toLocaleDateString("he-IL");
@@ -170,10 +183,11 @@ export async function saveSummaryForTarget(
   const { data: urlData, error: urlError } = await admin.storage
     .from("recordings")
     .createSignedUrl(fileName, 60 * 60 * 24 * 365 * 10);
-  if (urlError || !urlData)
+  if (urlError || !urlData) {
     throw new Error(
       "Failed to sign recording URL: " + (urlError?.message ?? ""),
     );
+  }
   const fileUrl = urlData.signedUrl;
 
   const newAttachment = {
@@ -196,7 +210,7 @@ export async function saveSummaryForTarget(
       .maybeSingle();
 
     // deno-lint-ignore no-explicit-any
-    const currentAttachments = (targetData?.attachments as any[]) || [];
+    const currentAttachments = (targetData?.attachments as Array<any>) || [];
     const { error: updateError } = await admin
       .from(table)
       .update({ attachments: [...currentAttachments, newAttachment] })
@@ -218,7 +232,17 @@ export async function saveSummaryForTarget(
         summary_md: summary,
         summary_generated_at: new Date().toISOString(),
       } as any)
+      .eq("tenant_id", tenant_id)
       .eq("id", recording_id);
+  }
+
+  if (recording_id) {
+    await nameMeetingFromSummary(admin, {
+      tenantId: tenant_id,
+      recordingId: recording_id,
+      summary,
+      assignClient: !!assign_client_from_summary,
+    });
   }
 
   return { fileUrl, fileName: newAttachment.name };
@@ -277,7 +301,7 @@ export async function maybeCreateMarketingBrief(
               .map((track: unknown) => String(track))
               .filter((track: string) => validTracks.has(track)),
           ),
-        ) as string[];
+        ) as Array<string>;
         const tracks =
           detectedTracks.length > 0 ? detectedTracks : ["campaigns"];
         let firstWorkItemId: string | null = null;
@@ -325,7 +349,9 @@ export async function maybeCreateMarketingBrief(
             .eq("pipeline_id", pipeline.id)
             .eq("stage_type", "strategy")
             .maybeSingle();
-          if (!briefStage) continue;
+          if (!briefStage) {
+            continue;
+          }
 
           const { data: workItem } = await admin
             .from("marketing_work_items")
@@ -384,7 +410,9 @@ function markdownToDocxParagraphs(md: string): string {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
+    if (!trimmed) {
+      continue;
+    }
 
     // Heading 1
     if (/^# (.+)$/.test(trimmed)) {
@@ -566,4 +594,38 @@ export function buildDocx(
   });
 
   return zipped;
+}
+
+/**
+ * Names the meeting from the saved summary, and assigns its client only when
+ * `assignClient` says the recording was unrecognized. A failure is logged and
+ * never fails the summary, which is already saved.
+ */
+async function nameMeetingFromSummary(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  opts: {
+    tenantId: string;
+    recordingId: string;
+    summary: string;
+    assignClient: boolean;
+  },
+): Promise<void> {
+  const { tenantId, recordingId, summary, assignClient } = opts;
+  try {
+    const outcome = await applyMeetingDetailsFromSummary(admin, {
+      tenantId,
+      recordingId,
+      summary,
+      assignClient,
+      keys: { openRouterKey: await tenantSummaryKey(admin, tenantId) },
+    });
+    console.log("[meeting-summary] meeting details", recordingId, outcome);
+  } catch (err) {
+    console.error(
+      "[meeting-summary] meeting details failed",
+      recordingId,
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
