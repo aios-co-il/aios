@@ -125,6 +125,7 @@ import {
   getDashboardDateRange,
 } from "@/lib/dashboardDateFilters";
 import { formatReportDate, getReportCoverageGap } from "@/lib/reportCoverage";
+import { dashboardTablesQueryKey } from "@/lib/invalidateReportTables";
 import {
   fetchWooDashboardSummary,
   getWooDashboardDateRangeIso,
@@ -336,7 +337,7 @@ export default function DashboardView() {
 
   // Fetch tables for the client
   const { data: tables = [], isPending: tablesPending } = useQuery<any[]>({
-    queryKey: ["crm-tables-for-dashboard", dashboard?.client_id],
+    queryKey: dashboardTablesQueryKey(dashboard?.client_id),
     queryFn: async () => {
       if (!dashboard?.client_id) return [];
       const {
@@ -1234,6 +1235,11 @@ export default function DashboardView() {
           }),
         ),
       );
+      // The tables carry each report's sync outcome: reload them too, or the
+      // last failure's warning stays up after this sync succeeds.
+      await queryClient.invalidateQueries({
+        queryKey: dashboardTablesQueryKey(dashboard?.client_id),
+      });
       return refetchRecords();
     };
     try {
