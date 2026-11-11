@@ -36,18 +36,29 @@ export async function executeAssignTaskToCursor(
   });
   let dispatched: unknown = null;
   try {
-    const resp = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/dispatch-cursor-tasks`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ tenant_id: tenantId }),
-      },
-    );
-    dispatched = await resp.json();
+    const {
+      data: result,
+      error,
+      response,
+    } = await supabase.functions.invoke<unknown>("dispatch-cursor-tasks", {
+      body: { tenant_id: tenantId },
+    });
+    // Preserve the original JSON payload even for non-2xx dispatch responses.
+    if (error) {
+      if (!response) {
+        throw error;
+      }
+      dispatched = await response.json();
+    } else {
+      const contentType = response?.headers
+        .get("Content-Type")
+        ?.split(";")[0]
+        .trim();
+      dispatched =
+        contentType !== "application/json" && typeof result === "string"
+          ? JSON.parse(result)
+          : result;
+    }
   } catch (e) {
     console.warn("[assign_task_to_cursor] dispatch failed:", errorMessage(e));
   }
