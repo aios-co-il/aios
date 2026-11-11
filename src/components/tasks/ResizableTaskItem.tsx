@@ -13,12 +13,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { embedCount } from "@/lib/embedCount";
+import { gridBlockTone } from "./gridBlockTone";
 
 interface ResizableTaskItemProps {
   task: TaskRelations & {
     id: string;
     title: string;
     status: string;
+    priority: number;
     client_id: string | null;
     duration_minutes?: number | null;
     creator_name?: string | null;
@@ -159,10 +161,11 @@ export function ResizableTaskItem({
         }}
         style={style}
         className={cn(
-          "group flex items-start gap-1 px-1 py-0.5 rounded border bg-card hover:bg-accent/50 cursor-pointer transition-colors text-[11px]",
+          "group flex items-start gap-1 px-1 py-0.5 rounded-md border border-s-[3px] cursor-pointer transition-colors text-[11px]",
+          gridBlockTone(task.priority, isCompleted),
           isDragging && "opacity-50 shadow-elevation-2",
           isCompleted && "opacity-60",
-          isResizing && "shadow-elevation-2 ring-2 ring-primary",
+          isResizing && "shadow-elevation-2 ring-2 ring-brand-accent",
           durationMinutes > 30 && "flex-col",
         )}
       >
@@ -229,7 +232,7 @@ export function ResizableTaskItem({
           className={cn(
             "absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize flex items-center justify-center",
             "opacity-0 group-hover:opacity-100 transition-opacity",
-            "hover:bg-primary/20 rounded-b",
+            "hover:bg-brand-accent/20 rounded-b",
           )}
           onClick={(e) => e.stopPropagation()}
         >
