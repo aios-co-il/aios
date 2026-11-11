@@ -52,7 +52,7 @@ function DayCell({
       ref={setNodeRef}
       onClick={() => onDayClick(date)}
       className={cn(
-        "min-h-[100px] p-2 border-b border-s border-border/60 cursor-pointer transition-colors hover:bg-muted/40",
+        "min-h-[132px] p-2 border-b border-s border-border/60 cursor-pointer transition-colors hover:bg-muted/40",
         !isCurrentMonth && "bg-muted/30 text-muted-foreground",
         isOver && "bg-brand-accent-50 dark:bg-brand-accent-950/40",
       )}
@@ -81,7 +81,7 @@ function DayCell({
           </div>
         )}
       </div>
-      <ScrollArea className="h-[60px]">
+      <ScrollArea className="h-[92px]">
         <div className="space-y-1">
           {dayTasks.slice(0, 3).map((task) => (
             <div
@@ -140,7 +140,7 @@ export function MonthlyView({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
+    <div className="flex min-w-[640px] flex-1 flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b bg-muted/40">
         {WEEKDAYS.map((day) => (
@@ -169,7 +169,7 @@ export function MonthlyView({
             ) : (
               <div
                 key={`empty-${index}`}
-                className="min-h-[100px] p-2 border-b border-s border-border/60 bg-muted/30"
+                className="min-h-[132px] p-2 border-b border-s border-border/60 bg-muted/30"
               />
             ),
           )}
