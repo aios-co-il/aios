@@ -42,8 +42,8 @@ export type ReportData = {
   currency: CurrencyCode;
   goals: Array<ReportCampaignGoal>;
   scopes: Partial<Record<ReportScope, ReportScopeData>>;
-  /** Carmen's read of the report; none hides her block. */
-  insight: string | null;
+  /** Whether the report offers "בקש תובנה מכרמן"; shared reports do not. */
+  askCarmen: boolean;
 };
 
 /** The current period's scopes, each with the previous period's totals. */
@@ -51,7 +51,7 @@ export function reportDataOf(input: {
   current: ReportPeriod;
   previous: ReportPeriod | null;
   currency: CurrencyCode;
-  insight?: string | null;
+  askCarmen?: boolean;
 }): ReportData {
   const scopes: Partial<Record<ReportScope, ReportScopeData>> = {};
   for (const [scope, data] of scopeEntries(input.current)) {
@@ -64,7 +64,7 @@ export function reportDataOf(input: {
     currency: input.currency,
     goals: input.current.goals,
     scopes,
-    insight: input.insight ?? null,
+    askCarmen: input.askCarmen ?? false,
   };
 }
 

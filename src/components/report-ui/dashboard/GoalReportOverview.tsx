@@ -16,6 +16,8 @@ interface GoalReportOverviewProps {
   currency: CurrencyCode;
   /** The "השוואה לתקופה קודמת" toggle; omitted where no previous period loads. */
   comparison?: ComponentProps<typeof PreviousPeriodToggle>;
+  /** Offer "בקש תובנה מכרמן"; left off on shared reports. */
+  askCarmen?: boolean;
 }
 
 /**
@@ -29,6 +31,7 @@ export function GoalReportOverview({
   previous,
   currency,
   comparison,
+  askCarmen = false,
 }: GoalReportOverviewProps) {
   const currentPeriod = useMemo(() => buildReportPeriod(current), [current]);
   const previousPeriod = useMemo(
@@ -41,8 +44,9 @@ export function GoalReportOverview({
         current: currentPeriod,
         previous: previousPeriod,
         currency,
+        askCarmen,
       }),
-    [currentPeriod, previousPeriod, currency],
+    [currentPeriod, previousPeriod, currency, askCarmen],
   );
   const layout = useMemo(
     () => defaultReportLayout(currentPeriod.goals),

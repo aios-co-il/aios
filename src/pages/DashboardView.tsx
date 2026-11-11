@@ -1791,6 +1791,7 @@ export default function DashboardView() {
                     range: reportPreviousRange,
                     loading: comparePrevious && reportPrevious === null,
                   }}
+                  askCarmen
                 />
               )}
               {/* Summary Cards - only show in All and Analytics tabs */}
