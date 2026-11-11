@@ -57,7 +57,7 @@ export function CarmenWorkingScene({
   );
 }
 
-/** The glass orb at work on the same navy card: eyes aside, hands tapping. */
+/** The glass orb at work on a card that follows light or dark mode. */
 function OrbWorkingScene({
   size,
   className,
@@ -67,9 +67,9 @@ function OrbWorkingScene({
 }) {
   return (
     <div className={cn("relative", SCENE_WIDTH[size], className)}>
-      {/* `dark` gives the orb the see-through glass look on the navy card. */}
-      <div className="dark relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-[#0b1020] shadow-[0_18px_45px_-20px_rgba(15,23,42,0.75)]">
-        <CarmenOrbBuddy state="working" className="w-[62%]" />
+      {/* Deep green glass on the light card; dark mode turns it see-through. */}
+      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-[radial-gradient(ellipse_at_55%_40%,hsl(var(--brand-accent-100)),hsl(var(--card))_80%)] shadow-elevation-2 dark:bg-[#0b1020] dark:bg-none dark:shadow-[0_18px_45px_-20px_rgba(15,23,42,0.75)]">
+        <CarmenOrbBuddy state="working" className="orb-deep w-[62%]" />
       </div>
     </div>
   );

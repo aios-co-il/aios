@@ -68,7 +68,7 @@ export function BrainRouteSelector({
                     .join(" · ")
                 : "בורר מוח — משנה את נתיב השליחה"
             }
-            className={`flex ${compact ? "h-9 min-w-0" : "h-11 min-w-[11rem]"} w-full items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(5,10,22,0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50`}
+            className={`flex ${compact ? "h-9 min-w-0" : "h-11 min-w-[11rem]"} w-full items-center gap-1.5 rounded-lg border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.6)] px-2 text-xs text-[var(--cc-text)] outline-none hover:border-[var(--cc-line-strong)] disabled:opacity-50`}
           >
             <RouteIcon
               type={current?.route_type || "internal"}
@@ -84,7 +84,7 @@ export function BrainRouteSelector({
           align="start"
           side={compact ? "top" : "bottom"}
           collisionPadding={8}
-          className="cc-root cc-menu z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(8,16,34,0.98)] text-[var(--cc-text)]"
+          className="cc-root cc-menu z-[90] min-w-[16rem] border-[var(--cc-line)] bg-[rgba(var(--cc-surface-rgb),0.98)] text-[var(--cc-text)]"
         >
           {groups.map((type, i) => (
             <div key={type}>

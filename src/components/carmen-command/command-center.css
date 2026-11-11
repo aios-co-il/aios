@@ -1,6 +1,8 @@
 /* Carmen Command Center — HUD design language, v3 ("electric hologram").
-   Signature color: electric cyan-blue. Chart series colors are validated
-   for CVD-safety on the dark navy surface (#060B18): #3B82F6 / #0EA5A0. */
+   Signature color: electric cyan-blue. Light mode (the default) uses the app
+   theme surfaces with a deeper cyan; html.dark restores the navy hologram.
+   Chart series (--cc-series-*) are a blue/green pair that keeps ≥3:1 against
+   its surface in each mode and stays distinct under red-green CVD. */
 
 html:has(.cc-root) {
   --cc-banner-h: 0px;
@@ -16,24 +18,38 @@ html:has(.cc-root) body {
   height: calc(100dvh - var(--cc-banner-h, 0px));
   max-height: calc(100dvh - var(--cc-banner-h, 0px));
   overflow: hidden;
-  --cc-bg: #050a16;
-  --cc-bg-2: #081226;
-  --cc-panel: rgba(9, 16, 34, 0.68);
-  --cc-line: rgba(76, 195, 255, 0.16);
-  --cc-line-strong: rgba(76, 195, 255, 0.55);
-  --cc-accent: #4cc3ff;
-  --cc-accent-dim: #3b82f6;
-  --cc-blue: #3b82f6;
-  --cc-ok: #34d399;
-  --cc-warn: #fbbf24;
-  --cc-crit: #f87171;
-  --cc-text: #e3ecfa;
-  --cc-text-dim: #8fa3c4;
+  /* Light palette: app theme surfaces, cyan deep enough for text on white. */
+  --cc-bg: hsl(var(--background));
+  --cc-bg-2: hsl(var(--surface-inset));
+  --cc-panel: hsl(var(--card) / 0.92);
+  --cc-line: hsl(var(--border));
+  --cc-line-strong: rgba(2, 132, 199, 0.45);
+  --cc-accent: #0369a1;
+  --cc-accent-dim: #0369a1;
+  --cc-accent-rgb: 2, 132, 199;
+  --cc-blue: #2563eb;
+  --cc-ok: #047857;
+  --cc-warn: #b45309;
+  --cc-crit: #b91c1c;
+  --cc-text: hsl(var(--foreground));
+  --cc-text-dim: hsl(var(--muted-foreground));
+  /* Surface channels used as rgba(var(--cc-*-rgb), alpha) for HUD fills. */
+  --cc-deep-rgb: 255, 255, 255;
+  --cc-surface-rgb: 255, 255, 255;
+  --cc-chip-bg: hsl(var(--card) / 0.9);
+  --cc-bubble-bg: hsl(var(--card));
+  --cc-table-bg: hsl(var(--card));
+  --cc-series-blue: #2563eb;
+  --cc-series-green: #15803d;
+  /* Multipliers: neon glows and drop shadows fade on light surfaces. */
+  --cc-glow: 0.4;
+  --cc-text-glow: 0;
+  --cc-shadow: 0.3;
   background-color: var(--cc-bg);
   background-image:
     radial-gradient(
       ellipse 70% 45% at 50% -8%,
-      rgba(76, 195, 255, 0.12),
+      rgba(var(--cc-accent-rgb), 0.12),
       transparent
     ),
     radial-gradient(
@@ -43,10 +59,10 @@ html:has(.cc-root) body {
     ),
     repeating-linear-gradient(
       0deg,
-      rgba(76, 195, 255, 0.025) 0 1px,
+      rgba(var(--cc-accent-rgb), 0.025) 0 1px,
       transparent 1px 3px
     ),
-    radial-gradient(rgba(76, 195, 255, 0.09) 1px, transparent 1px);
+    radial-gradient(rgba(var(--cc-accent-rgb), 0.09) 1px, transparent 1px);
   background-size:
     auto,
     auto,
@@ -55,19 +71,48 @@ html:has(.cc-root) body {
   color: var(--cc-text);
 }
 
+/* Dark mode: the navy "electric hologram" palette. Portaled menus carry
+   .cc-root too, so html.dark reaches them in <body>. */
+.dark .cc-root {
+  --cc-bg: #050a16;
+  --cc-bg-2: #081226;
+  --cc-panel: rgba(9, 16, 34, 0.68);
+  --cc-line: rgba(76, 195, 255, 0.16);
+  --cc-line-strong: rgba(76, 195, 255, 0.55);
+  --cc-accent: #4cc3ff;
+  --cc-accent-dim: #3b82f6;
+  --cc-accent-rgb: 76, 195, 255;
+  --cc-blue: #3b82f6;
+  --cc-ok: #34d399;
+  --cc-warn: #fbbf24;
+  --cc-crit: #f87171;
+  --cc-text: #e3ecfa;
+  --cc-text-dim: #8fa3c4;
+  --cc-deep-rgb: 5, 10, 22;
+  --cc-surface-rgb: 8, 16, 34;
+  --cc-chip-bg: rgba(9, 16, 34, 0.8);
+  --cc-bubble-bg: rgba(14, 20, 40, 0.85);
+  --cc-table-bg: rgba(6, 12, 28, 0.55);
+  --cc-series-blue: #3b82f6;
+  --cc-series-green: #22c55e;
+  --cc-glow: 1;
+  --cc-text-glow: 1;
+  --cc-shadow: 1;
+}
+
 /* ---------- Panels: glow frame + HUD corner brackets ---------- */
 
 .cc-panel {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(76, 195, 255, 0.06), transparent 32%),
+    linear-gradient(180deg, rgba(var(--cc-accent-rgb), 0.06), transparent 32%),
     var(--cc-panel);
   border: 1px solid var(--cc-line);
   border-radius: 0.625rem;
   box-shadow:
-    0 0 18px rgba(76, 195, 255, 0.07),
-    inset 0 1px 0 rgba(76, 195, 255, 0.12),
-    inset 0 0 32px rgba(76, 195, 255, 0.03);
+    0 0 18px rgba(var(--cc-accent-rgb), calc(0.07 * var(--cc-glow))),
+    inset 0 1px 0 rgba(var(--cc-accent-rgb), 0.12),
+    inset 0 0 32px rgba(var(--cc-accent-rgb), 0.03);
   backdrop-filter: blur(7px);
 }
 
@@ -88,7 +133,9 @@ html:has(.cc-root) body {
   border-top-width: 2px;
   border-right-width: 2px;
   border-top-right-radius: 0.625rem;
-  filter: drop-shadow(0 0 4px rgba(76, 195, 255, 0.6));
+  filter: drop-shadow(
+    0 0 4px rgba(var(--cc-accent-rgb), calc(0.6 * var(--cc-glow)))
+  );
 }
 .cc-panel::after {
   bottom: 0;
@@ -96,7 +143,9 @@ html:has(.cc-root) body {
   border-bottom-width: 2px;
   border-left-width: 2px;
   border-bottom-left-radius: 0.625rem;
-  filter: drop-shadow(0 0 4px rgba(76, 195, 255, 0.6));
+  filter: drop-shadow(
+    0 0 4px rgba(var(--cc-accent-rgb), calc(0.6 * var(--cc-glow)))
+  );
 }
 
 .cc-panel-title {
@@ -105,7 +154,8 @@ html:has(.cc-root) body {
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  text-shadow: 0 0 10px rgba(76, 195, 255, 0.55);
+  text-shadow: 0 0 10px
+    rgba(var(--cc-accent-rgb), calc(0.55 * var(--cc-text-glow)));
   white-space: nowrap;
 }
 
@@ -117,7 +167,7 @@ html:has(.cc-root) body {
   background: linear-gradient(
     to left,
     var(--cc-line-strong),
-    rgba(76, 195, 255, 0.03)
+    rgba(var(--cc-accent-rgb), 0.03)
   );
   position: relative;
 }
@@ -138,8 +188,8 @@ html:has(.cc-root) body {
 .cc-title {
   letter-spacing: 0.3em;
   text-shadow:
-    0 0 14px rgba(76, 195, 255, 0.8),
-    0 0 40px rgba(76, 195, 255, 0.35);
+    0 0 14px rgba(var(--cc-accent-rgb), calc(0.8 * var(--cc-text-glow))),
+    0 0 40px rgba(var(--cc-accent-rgb), calc(0.35 * var(--cc-text-glow)));
 }
 
 .cc-chip {
@@ -147,7 +197,7 @@ html:has(.cc-root) body {
   align-items: center;
   gap: 0.4rem;
   border: 1px solid var(--cc-line);
-  background: rgba(9, 16, 34, 0.8);
+  background: var(--cc-chip-bg);
   clip-path: polygon(
     8px 0,
     100% 0,
@@ -191,9 +241,9 @@ html:has(.cc-root) body {
 .cc-talkbar {
   border-color: var(--cc-line-strong);
   box-shadow:
-    0 0 24px rgba(76, 195, 255, 0.14),
-    inset 0 1px 0 rgba(76, 195, 255, 0.15),
-    inset 0 0 40px rgba(76, 195, 255, 0.04);
+    0 0 24px rgba(var(--cc-accent-rgb), calc(0.14 * var(--cc-glow))),
+    inset 0 1px 0 rgba(var(--cc-accent-rgb), 0.15),
+    inset 0 0 40px rgba(var(--cc-accent-rgb), 0.04);
 }
 
 .cc-talkbar-shell {
@@ -235,7 +285,7 @@ html:has(.cc-root) body {
 .cc-header-stack {
   flex-shrink: 0;
   border-bottom: 1px solid var(--cc-line);
-  background: rgba(5, 10, 22, 0.92);
+  background: rgba(var(--cc-deep-rgb), 0.92);
   backdrop-filter: blur(8px);
 }
 
@@ -246,7 +296,7 @@ html:has(.cc-root) body {
   min-height: 56px;
   padding: 4px 10px;
   border-bottom: 1px solid var(--cc-line);
-  background: rgba(5, 10, 22, 0.92);
+  background: rgba(var(--cc-deep-rgb), 0.92);
   backdrop-filter: blur(8px);
 }
 .cc-header-bar__brand {
@@ -286,22 +336,22 @@ html:has(.cc-root) body {
   height: 40px;
   border-color: var(--cc-line) !important;
   background:
-    linear-gradient(180deg, rgba(76, 195, 255, 0.06), transparent 40%),
-    rgba(8, 16, 34, 0.92) !important;
+    linear-gradient(180deg, rgba(var(--cc-accent-rgb), 0.06), transparent 40%),
+    rgba(var(--cc-surface-rgb), 0.92) !important;
   color: var(--cc-text) !important;
   font-size: 0.8125rem;
   padding-inline: 0.65rem;
   box-shadow:
-    0 0 12px rgba(76, 195, 255, 0.08),
-    inset 0 1px 0 rgba(76, 195, 255, 0.1);
+    0 0 12px rgba(var(--cc-accent-rgb), calc(0.08 * var(--cc-glow))),
+    inset 0 1px 0 rgba(var(--cc-accent-rgb), 0.1);
 }
 .cc-root .cc-seat-select-trigger:hover,
 .cc-root .cc-seat-select-trigger:focus,
 .cc-root .cc-seat-select-trigger[data-state="open"] {
   border-color: var(--cc-line-strong) !important;
   box-shadow:
-    0 0 16px rgba(76, 195, 255, 0.18),
-    inset 0 1px 0 rgba(76, 195, 255, 0.14);
+    0 0 16px rgba(var(--cc-accent-rgb), calc(0.18 * var(--cc-glow))),
+    inset 0 1px 0 rgba(var(--cc-accent-rgb), 0.14);
 }
 .cc-root .cc-seat-select-trigger svg {
   color: var(--cc-text-dim);
@@ -317,7 +367,9 @@ html:has(.cc-root) body {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
-  filter: drop-shadow(0 0 4px rgba(76, 195, 255, 0.25));
+  filter: drop-shadow(
+    0 0 4px rgba(var(--cc-accent-rgb), calc(0.25 * var(--cc-glow)))
+  );
 }
 .cc-seat-select-trigger .cc-seat-cluster {
   width: 32px;
@@ -329,18 +381,18 @@ html:has(.cc-root) body {
 }
 .cc-root .cc-seat-select-content {
   border-color: var(--cc-line-strong) !important;
-  background: rgba(8, 16, 34, 0.98) !important;
+  background: rgba(var(--cc-surface-rgb), 0.98) !important;
   color: var(--cc-text) !important;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.45),
-    0 0 24px rgba(76, 195, 255, 0.12);
+    0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--cc-shadow))),
+    0 0 24px rgba(var(--cc-accent-rgb), calc(0.12 * var(--cc-glow)));
 }
 .cc-root .cc-seat-select-item {
   color: var(--cc-text) !important;
 }
 .cc-root .cc-seat-select-item:focus,
 .cc-root .cc-seat-select-item[data-highlighted] {
-  background: rgba(76, 195, 255, 0.12) !important;
+  background: rgba(var(--cc-accent-rgb), 0.12) !important;
   color: var(--cc-text) !important;
 }
 .cc-seat-buttons {
@@ -360,7 +412,7 @@ html:has(.cc-root) body {
   width: 100%;
   border-radius: 0.375rem;
   border: 1px solid var(--cc-line);
-  background: rgba(8, 16, 34, 0.92);
+  background: rgba(var(--cc-surface-rgb), 0.92);
   color: var(--cc-text);
   padding: 0.375rem 0.5rem;
   font-size: 0.875rem;
@@ -374,7 +426,7 @@ html:has(.cc-root) body {
 .cc-root .cc-form-input:focus {
   outline: none;
   border-color: var(--cc-line-strong);
-  box-shadow: 0 0 0 1px rgba(76, 195, 255, 0.25);
+  box-shadow: 0 0 0 1px rgba(var(--cc-accent-rgb), 0.25);
 }
 .cc-root .cc-form-textarea {
   resize: vertical;
@@ -383,7 +435,7 @@ html:has(.cc-root) body {
 
 .cc-seat-status {
   border-bottom: 1px solid var(--cc-line);
-  background: rgba(5, 10, 22, 0.65);
+  background: rgba(var(--cc-deep-rgb), 0.65);
 }
 
 .cc-seat-rail {
@@ -404,7 +456,7 @@ html:has(.cc-root) body {
   justify-content: center;
   border-radius: 12px;
   border: 1px solid var(--cc-line);
-  background: rgba(8, 16, 34, 0.75);
+  background: rgba(var(--cc-surface-rgb), 0.75);
   padding: 0;
   cursor: pointer;
   transition:
@@ -418,7 +470,7 @@ html:has(.cc-root) body {
 }
 .cc-seat-btn.is-active {
   border-color: var(--cc-accent);
-  box-shadow: 0 0 16px rgba(76, 195, 255, 0.35);
+  box-shadow: 0 0 16px rgba(var(--cc-accent-rgb), calc(0.35 * var(--cc-glow)));
 }
 .cc-seat-btn.is-shared.is-active {
   border-color: rgba(251, 191, 36, 0.65);
@@ -432,7 +484,9 @@ html:has(.cc-root) body {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
-  filter: drop-shadow(0 0 4px rgba(76, 195, 255, 0.2));
+  filter: drop-shadow(
+    0 0 4px rgba(var(--cc-accent-rgb), calc(0.2 * var(--cc-glow)))
+  );
   opacity: 0.72;
   transition:
     opacity 0.15s ease,
@@ -440,7 +494,9 @@ html:has(.cc-root) body {
 }
 .cc-seat-btn.is-active .cc-seat-sprite {
   opacity: 1;
-  filter: drop-shadow(0 0 8px rgba(76, 195, 255, 0.65));
+  filter: drop-shadow(
+    0 0 8px rgba(var(--cc-accent-rgb), calc(0.65 * var(--cc-glow)))
+  );
 }
 
 .cc-seat-cluster {
@@ -497,7 +553,9 @@ html:has(.cc-root) body {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
-  filter: drop-shadow(0 0 4px rgba(76, 195, 255, 0.25));
+  filter: drop-shadow(
+    0 0 4px rgba(var(--cc-accent-rgb), calc(0.25 * var(--cc-glow)))
+  );
 }
 .cc-msg-avatar.is-user {
   display: flex;
@@ -506,7 +564,7 @@ html:has(.cc-root) body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(76, 195, 255, 0.2);
+  background: rgba(var(--cc-accent-rgb), 0.2);
   font-size: 9px;
   font-weight: 700;
   color: var(--cc-accent);
@@ -518,7 +576,7 @@ html:has(.cc-root) body {
   flex: 1;
   border-radius: 10px;
   border: 1px solid var(--cc-line);
-  background: rgba(14, 20, 40, 0.85);
+  background: var(--cc-bubble-bg);
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -526,7 +584,7 @@ html:has(.cc-root) body {
 .cc-msg-bubble.is-user,
 .cc-msg-row.is-user .cc-msg-bubble {
   border-color: transparent;
-  background: rgba(76, 195, 255, 0.18);
+  background: rgba(var(--cc-accent-rgb), 0.18);
 }
 
 .cc-chat-pane {
@@ -568,10 +626,10 @@ html:has(.cc-root) body {
   overflow: hidden;
   border: 1px solid var(--cc-line-strong);
   border-radius: 0.625rem;
-  background: rgba(8, 16, 34, 0.98);
+  background: rgba(var(--cc-surface-rgb), 0.98);
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.45),
-    0 0 24px rgba(76, 195, 255, 0.12);
+    0 12px 40px rgba(0, 0, 0, calc(0.45 * var(--cc-shadow))),
+    0 0 24px rgba(var(--cc-accent-rgb), calc(0.12 * var(--cc-glow)));
   padding: 0.7rem 0.75rem;
   color: var(--cc-text);
 }
@@ -614,7 +672,7 @@ html:has(.cc-root) body {
   overflow: hidden;
   border-inline-end: 1px solid var(--cc-line);
   padding: 8px 8px 6px;
-  background: rgba(5, 10, 22, 0.35);
+  background: rgba(var(--cc-deep-rgb), 0.35);
 }
 .cc-chat-rail.is-overlay {
   position: absolute;
@@ -626,8 +684,8 @@ html:has(.cc-root) body {
   flex: none;
   max-height: none;
   border-inline-end: 1px solid var(--cc-line);
-  background: rgba(5, 10, 22, 0.94);
-  box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+  background: rgba(var(--cc-deep-rgb), 0.94);
+  box-shadow: 8px 0 24px rgba(0, 0, 0, calc(0.35 * var(--cc-shadow)));
 }
 .cc-chat-rail-list {
   min-height: 0;
@@ -648,10 +706,10 @@ html:has(.cc-root) body {
   color: var(--cc-text);
 }
 .cc-chat-topic:hover {
-  background: rgba(76, 195, 255, 0.08);
+  background: rgba(var(--cc-accent-rgb), 0.08);
 }
 .cc-chat-topic.is-active {
-  background: rgba(76, 195, 255, 0.14);
+  background: rgba(var(--cc-accent-rgb), 0.14);
 }
 .cc-chat-topic-agent-wrap {
   position: relative;
@@ -666,7 +724,7 @@ html:has(.cc-root) body {
   border-radius: 0.45rem;
   object-fit: cover;
   border: 1px solid var(--cc-line);
-  background: rgba(5, 10, 22, 0.6);
+  background: rgba(var(--cc-deep-rgb), 0.6);
 }
 
 .cc-chat-topic-dot {
@@ -677,7 +735,7 @@ html:has(.cc-root) body {
   height: 7px;
   border-radius: 50%;
   background: rgba(143, 163, 196, 0.45);
-  border: 1px solid rgba(5, 10, 22, 0.9);
+  border: 1px solid rgba(var(--cc-deep-rgb), 0.9);
 }
 .cc-chat-topic-dot.is-live {
   background: var(--cc-ok);
@@ -700,13 +758,13 @@ html:has(.cc-root) body {
   0%,
   100% {
     box-shadow:
-      0 0 0 0 rgba(76, 195, 255, 0.35),
-      0 0 12px rgba(76, 195, 255, 0.4);
+      0 0 0 0 rgba(var(--cc-accent-rgb), calc(0.35 * var(--cc-glow))),
+      0 0 12px rgba(var(--cc-accent-rgb), calc(0.4 * var(--cc-glow)));
   }
   50% {
     box-shadow:
-      0 0 0 7px rgba(76, 195, 255, 0),
-      0 0 18px rgba(76, 195, 255, 0.6);
+      0 0 0 7px rgba(var(--cc-accent-rgb), calc(0 * var(--cc-glow))),
+      0 0 18px rgba(var(--cc-accent-rgb), calc(0.6 * var(--cc-glow)));
   }
 }
 .cc-mic {
@@ -735,7 +793,7 @@ html:has(.cc-root) body {
   height: 6px;
 }
 .cc-scroll::-webkit-scrollbar-thumb {
-  background: rgba(76, 195, 255, 0.25);
+  background: rgba(var(--cc-accent-rgb), 0.25);
   border-radius: 3px;
 }
 .cc-scroll::-webkit-scrollbar-track {
@@ -755,14 +813,14 @@ html:has(.cc-root) body {
   margin: 0.5rem 0;
   font-size: 0.8rem;
   border: 1px solid var(--cc-line-strong);
-  background: rgba(6, 12, 28, 0.55);
+  background: var(--cc-table-bg);
 }
 .cc-md thead th {
   color: var(--cc-accent);
   font-weight: 600;
   text-align: right;
   letter-spacing: 0.02em;
-  background: rgba(76, 195, 255, 0.08);
+  background: rgba(var(--cc-accent-rgb), 0.08);
   border-bottom: 1px solid var(--cc-line-strong);
   padding: 0.4rem 0.6rem;
   white-space: nowrap;
@@ -776,10 +834,10 @@ html:has(.cc-root) body {
   border-bottom: none;
 }
 .cc-md tbody tr:nth-child(even) {
-  background: rgba(76, 195, 255, 0.04);
+  background: rgba(var(--cc-accent-rgb), 0.04);
 }
 .cc-md tbody tr:hover {
-  background: rgba(76, 195, 255, 0.09);
+  background: rgba(var(--cc-accent-rgb), 0.09);
 }
 
 /* ---------- Knights of the Round Table — orb council ---------- */
@@ -964,7 +1022,7 @@ html:has(.cc-root) body {
   border-radius: 50%;
   background: radial-gradient(
     ellipse,
-    rgba(76, 195, 255, 0.28) 0%,
+    rgba(var(--cc-accent-rgb), 0.28) 0%,
     transparent 72%
   );
   filter: blur(5px);
@@ -984,7 +1042,8 @@ html:has(.cc-root) body {
   font-weight: 800;
   letter-spacing: 0.08em;
   color: var(--cc-accent);
-  text-shadow: 0 0 10px rgba(76, 195, 255, 0.65);
+  text-shadow: 0 0 10px
+    rgba(var(--cc-accent-rgb), calc(0.65 * var(--cc-text-glow)));
 }
 .cc-orb-chair-role {
   font-size: 9px;
@@ -1345,7 +1404,9 @@ html:has(.cc-root) body {
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center bottom;
-  filter: drop-shadow(0 0 6px rgba(76, 195, 255, 0.22));
+  filter: drop-shadow(
+    0 0 6px rgba(var(--cc-accent-rgb), calc(0.22 * var(--cc-glow)))
+  );
   opacity: 0.62;
   animation: cc-ghost-float 3.6s ease-in-out infinite;
   transition:
@@ -1373,20 +1434,20 @@ html:has(.cc-root) body {
   margin-top: 2px;
   padding: 2px 4px 4px;
   border-radius: 8px;
-  background: rgba(5, 10, 22, 0.72);
+  background: rgba(var(--cc-deep-rgb), 0.72);
   opacity: 0.96;
 }
 .cc-ghost-north .cc-ghost-body {
   order: -1;
   margin-top: 0;
   margin-bottom: 4px;
-  background: rgba(5, 10, 22, 0.82);
+  background: rgba(var(--cc-deep-rgb), 0.82);
 }
 .cc-ghost-name {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  text-shadow: 0 1px 4px #050a16;
+  text-shadow: 0 1px 4px rgb(var(--cc-deep-rgb));
 }
 .cc-ghost-role {
   font-size: 9px;
@@ -1394,8 +1455,10 @@ html:has(.cc-root) body {
 }
 .cc-ghost.is-selected .cc-ghost-sprite {
   opacity: 1;
-  filter: drop-shadow(0 0 10px rgba(76, 195, 255, 0.95))
-    drop-shadow(0 0 24px rgba(76, 195, 255, 0.7));
+  filter: drop-shadow(
+      0 0 10px rgba(var(--cc-accent-rgb), calc(0.95 * var(--cc-glow)))
+    )
+    drop-shadow(0 0 24px rgba(var(--cc-accent-rgb), calc(0.7 * var(--cc-glow))));
 }
 .cc-ghost-orbit.is-selected {
   transform: translate(-50%, -50%) scale(1.08);
@@ -1418,7 +1481,8 @@ html:has(.cc-root) body {
 }
 .cc-ghost.is-selected .cc-ghost-name {
   color: var(--cc-accent);
-  text-shadow: 0 0 10px rgba(76, 195, 255, 0.8);
+  text-shadow: 0 0 10px
+    rgba(var(--cc-accent-rgb), calc(0.8 * var(--cc-text-glow)));
 }
 .cc-ghost.is-thinking .cc-ghost-sprite,
 .cc-ghost.is-reviewing .cc-ghost-sprite {
@@ -1434,7 +1498,7 @@ html:has(.cc-root) body {
   width: 150px;
   padding: 6px 8px;
   border-radius: 8px;
-  background: rgba(5, 10, 22, 0.88);
+  background: rgba(var(--cc-deep-rgb), 0.88);
   border: 1px solid var(--cc-line);
   font-size: 10px;
   line-height: 1.35;
@@ -1516,8 +1580,12 @@ html:has(.cc-root) body {
   height: min(46%, 320px);
   max-height: calc(100% - 48px);
   opacity: 1;
-  filter: drop-shadow(0 0 14px rgba(76, 195, 255, 0.7))
-    drop-shadow(0 0 28px rgba(76, 195, 255, 0.35));
+  filter: drop-shadow(
+      0 0 14px rgba(var(--cc-accent-rgb), calc(0.7 * var(--cc-glow)))
+    )
+    drop-shadow(
+      0 0 28px rgba(var(--cc-accent-rgb), calc(0.35 * var(--cc-glow)))
+    );
 }
 .cc-ghost-solo .cc-ghost-aura {
   inset: auto 18% 12%;
@@ -1588,19 +1656,22 @@ html:has(.cc-root) body {
 /* ---------- Command Center sidecar (system-fix chat alongside live screen) ---------- */
 
 .cc-sidecar {
-  --cc-bg: #050a16;
   background-color: var(--cc-bg);
   color: var(--cc-text);
 }
 
 .cc-sidecar-header {
-  background: linear-gradient(180deg, rgba(76, 195, 255, 0.08), transparent);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--cc-accent-rgb), 0.08),
+    transparent
+  );
 }
 
 .cc-sidecar-sheet {
-  background-color: #050a16 !important;
-  color: #e3ecfa;
-  border-color: rgba(76, 195, 255, 0.16) !important;
+  background-color: var(--cc-bg) !important;
+  color: var(--cc-text);
+  border-color: var(--cc-line) !important;
 }
 
 .cc-sidecar .cc-talkbar-row {

@@ -72,7 +72,7 @@ function AttachmentStrip({
             href={att.url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cc-line)] bg-[rgba(5,10,22,0.35)] px-2 py-1 text-xs text-[var(--cc-accent)] hover:underline"
+            className="inline-flex items-center gap-1.5 rounded-md border border-[var(--cc-line)] bg-[rgba(var(--cc-deep-rgb),0.35)] px-2 py-1 text-xs text-[var(--cc-accent)] hover:underline"
           >
             <FileIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{att.name}</span>

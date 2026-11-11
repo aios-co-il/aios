@@ -435,7 +435,7 @@ export function TasksPanel({
           return (
             <li
               key={t.id}
-              className="group flex items-center gap-2 rounded-md p-1.5 text-sm hover:bg-[rgba(76,195,255,0.08)]"
+              className="group flex items-center gap-2 rounded-md p-1.5 text-sm hover:bg-[rgba(var(--cc-accent-rgb),0.08)]"
             >
               <button
                 onClick={() => markDone.mutate(t.id)}
@@ -524,7 +524,7 @@ export function QuickCommandsPanel({
   className?: string;
 }) {
   const btn =
-    "flex items-center gap-2 rounded-lg border border-[var(--cc-line)] px-3 py-2 text-sm transition-colors hover:border-[var(--cc-line-strong)] hover:bg-[rgba(76,195,255,0.1)]";
+    "flex items-center gap-2 rounded-lg border border-[var(--cc-line)] px-3 py-2 text-sm transition-colors hover:border-[var(--cc-line-strong)] hover:bg-[rgba(var(--cc-accent-rgb),0.1)]";
   return (
     <HudPanel
       title="פקודות מהירות"

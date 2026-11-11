@@ -19,8 +19,8 @@ import {
 } from "./useCommandData";
 import { CursorSessionsPanel } from "./CursorSessionsPanel";
 
-const SERIES_BLUE = "#3B82F6";
-const SERIES_GREEN = "#22C55E";
+const SERIES_BLUE = "var(--cc-series-blue)";
+const SERIES_GREEN = "var(--cc-series-green)";
 
 function StatTile({
   label,
@@ -205,12 +205,12 @@ export function UsagePanel({
                 >
                   <CartesianGrid
                     vertical={false}
-                    stroke="rgba(76,195,255,0.12)"
+                    stroke="rgba(var(--cc-accent-rgb),0.12)"
                   />
                   <XAxis
                     dataKey="date"
                     tick={{
-                      fill: "#8fa3c4",
+                      fill: "var(--cc-text-dim)",
                       fontSize: 9,
                       fontFamily: "JetBrains Mono, monospace",
                     }}
@@ -223,7 +223,7 @@ export function UsagePanel({
                   />
                   <YAxis
                     tick={{
-                      fill: "#8fa3c4",
+                      fill: "var(--cc-text-dim)",
                       fontSize: 9,
                       fontFamily: "JetBrains Mono, monospace",
                     }}
@@ -345,12 +345,12 @@ export function UsagePanel({
               >
                 <CartesianGrid
                   vertical={false}
-                  stroke="rgba(76,195,255,0.12)"
+                  stroke="rgba(var(--cc-accent-rgb),0.12)"
                 />
                 <XAxis
                   dataKey="date"
                   tick={{
-                    fill: "#8fa3c4",
+                    fill: "var(--cc-text-dim)",
                     fontSize: 10,
                     fontFamily: "JetBrains Mono, monospace",
                   }}
@@ -363,7 +363,7 @@ export function UsagePanel({
                 />
                 <YAxis
                   tick={{
-                    fill: "#8fa3c4",
+                    fill: "var(--cc-text-dim)",
                     fontSize: 10,
                     fontFamily: "JetBrains Mono, monospace",
                   }}
@@ -376,7 +376,7 @@ export function UsagePanel({
                 />
                 <Tooltip
                   content={<UsageTooltip />}
-                  cursor={{ fill: "rgba(76,195,255,0.08)" }}
+                  cursor={{ fill: "rgba(var(--cc-accent-rgb),0.08)" }}
                 />
                 <Bar
                   dataKey="tokens"

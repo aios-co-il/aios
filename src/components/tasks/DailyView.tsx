@@ -30,7 +30,7 @@ export function DailyView({
   const today = isToday(date);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
+    <div className="flex flex-1 md:min-w-[420px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-elevation-1">
       <div
         className={cn(
           "flex items-center gap-3 border-b px-5 py-4",

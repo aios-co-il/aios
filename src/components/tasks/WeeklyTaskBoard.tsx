@@ -46,6 +46,7 @@ import {
 import { CalendarDays, Filter, Plus, MessageSquare } from "lucide-react";
 import { DayColumn } from "./DayColumn";
 import { DailyView } from "./DailyView";
+import { cn } from "@/lib/utils";
 import { MonthlyView } from "./MonthlyView";
 import { TaskDetailDialog } from "./TaskDetailDialog";
 import { TasksChatView, TasksChatSearchInput } from "./TasksChatView";
@@ -2212,7 +2213,14 @@ export function WeeklyTaskBoard() {
 
             {/* Desktop: Side by side with sticky panel */}
             <div className="hidden md:flex md:flex-col flex-1 relative min-h-0 overflow-x-auto overflow-y-auto overscroll-contain">
-              <div className="flex gap-3 pb-4 min-h-0 w-fit">
+              {/* Day and month fill the width beside the backlog; the week
+                  keeps its column widths and scrolls sideways. */}
+              <div
+                className={cn(
+                  "flex gap-3 pb-4 min-h-0",
+                  viewMode === "weekly" ? "w-fit" : "w-full min-w-fit",
+                )}
+              >
                 {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
                 <div className="sticky right-0 top-0 z-20 shrink-0 self-start bg-background">
                   <TaskBacklogPanel

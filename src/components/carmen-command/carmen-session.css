@@ -22,7 +22,12 @@
   flex: 0 0 auto;
   width: clamp(320px, 30vw, 440px);
   min-height: 0;
-  border-inline-end: 1px solid rgb(136 193 255 / 26%);
+  --carmen-session-line: hsl(var(--border));
+  border-inline-end: 1px solid var(--carmen-session-line);
+  background: hsl(var(--background));
+}
+.dark .carmen-session {
+  --carmen-session-line: rgb(136 193 255 / 26%);
   background: #0a1526;
 }
 .carmen-session .carmen-session-panel {
@@ -30,17 +35,22 @@
   min-height: 0;
   height: 100%;
 }
-/* Carmen's picture: a floating video-call card the user can drag anywhere. */
+/* Carmen's picture: a floating video-call card the user can drag anywhere.
+   Light by default; dark mode keeps the navy card. */
 .carmen-session-video {
   position: fixed;
   z-index: 70;
   width: 236px;
   aspect-ratio: 1;
   overflow: hidden;
-  border: 1px solid rgb(136 193 255 / 26%);
+  border: 1px solid hsl(var(--border));
   border-radius: 16px;
-  background: radial-gradient(ellipse at 55% 40%, #254c69, #0a1526 80%);
-  box-shadow: 0 20px 60px #02091855;
+  background: radial-gradient(
+    ellipse at 55% 40%,
+    hsl(var(--brand-accent-100)),
+    hsl(var(--card)) 80%
+  );
+  box-shadow: 0 20px 50px hsl(var(--brand-ink) / 0.18);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -78,20 +88,35 @@
   align-items: center;
   gap: 8px;
   padding: 22px 14px 12px;
-  background: linear-gradient(transparent, #081323e6);
-  color: #f2f7ff;
+  background: linear-gradient(transparent, hsl(var(--card) / 0.92));
+  color: hsl(var(--foreground));
   font-size: 13px;
 }
 .carmen-session-caption > span:last-child {
   margin-inline-start: auto;
-  color: #b9d6eb;
+  color: hsl(var(--muted-foreground));
   font-size: 11px;
 }
 .carmen-session-dot {
   width: 6px;
   height: 6px;
-  background: #a7f5de;
+  background: hsl(var(--brand-accent));
   border-radius: 50%;
+}
+.dark .carmen-session-video {
+  border-color: rgb(136 193 255 / 26%);
+  background: radial-gradient(ellipse at 55% 40%, #254c69, #0a1526 80%);
+  box-shadow: 0 20px 60px #02091855;
+}
+.dark .carmen-session-caption {
+  background: linear-gradient(transparent, #081323e6);
+  color: #f2f7ff;
+}
+.dark .carmen-session-caption > span:last-child {
+  color: #b9d6eb;
+}
+.dark .carmen-session-dot {
+  background: #a7f5de;
 }
 .carmen-session-panel[data-face-state="speaking"] .carmen-session-dot {
   animation: carmen-speaking 1s ease-in-out infinite;
@@ -100,6 +125,9 @@
   padding: 0;
 }
 .carmen-session-chat .cc-talkbar {
+  background: hsl(var(--card) / 96%);
+}
+.dark .carmen-session-chat .cc-talkbar {
   background: rgb(10 21 38 / 96%);
 }
 .carmen-session-chat .cc-chat-scroll > p {
@@ -124,7 +152,7 @@
 }
 @keyframes carmen-speaking {
   50% {
-    box-shadow: 0 0 0 5px #a7f5de22;
+    box-shadow: 0 0 0 5px hsl(var(--brand-accent) / 0.2);
   }
 }
 /* Phones: no room for a side column, so the session takes the screen. */
@@ -154,7 +182,7 @@
     width: 100%;
     height: clamp(240px, 42dvh, 380px);
     border: 0;
-    border-top: 1px solid rgb(136 193 255 / 26%);
+    border-top: 1px solid var(--carmen-session-line);
     padding-bottom: env(safe-area-inset-bottom);
   }
   .carmen-session-layout.is-workshop > .carmen-session-content {
