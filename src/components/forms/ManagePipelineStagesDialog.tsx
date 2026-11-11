@@ -9,11 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Settings2, GripVertical, Plus, Trash2, Search } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ColorPicker } from "@/components/ui/color-picker";
 import {
   useLeadPipelineStages,
   useLeadPipelineStageMutations,
@@ -37,69 +33,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-const PRESET_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#eab308",
-  "#84cc16",
-  "#22c55e",
-  "#10b981",
-  "#14b8a6",
-  "#06b6d4",
-  "#0ea5e9",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#d946ef",
-  "#ec4899",
-  "#f43f5e",
-  "#6b7280",
-  "#374151",
-  "#111827",
-];
-
-function ColorPicker({
-  color,
-  onChange,
-}: {
-  color: string;
-  onChange: (c: string) => void;
-}) {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="w-6 h-6 rounded border border-border shrink-0"
-          style={{ backgroundColor: color }}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-2" align="start">
-        <div className="grid grid-cols-5 gap-1">
-          {PRESET_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className="w-6 h-6 rounded border border-border hover:scale-110 transition-transform"
-              style={{ backgroundColor: c }}
-              onClick={() => onChange(c)}
-            />
-          ))}
-        </div>
-        <Input
-          type="text"
-          value={color}
-          onChange={(e) => onChange(e.target.value)}
-          className="mt-2 h-8 text-xs"
-          placeholder="#hexcode"
-        />
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function SortableStageRow({
   stage,
@@ -154,8 +87,9 @@ function SortableStageRow({
         <GripVertical className="w-4 h-4" />
       </button>
       <ColorPicker
-        color={stage.color}
+        value={stage.color}
         onChange={(color) => onUpdate({ color })}
+        className="h-6 w-6 rounded border"
       />
       <Input
         value={label}
@@ -313,7 +247,11 @@ export function ManagePipelineStagesDialog({
         </div>
 
         <div className="flex items-center gap-2 pt-4 border-t border-border">
-          <ColorPicker color={newColor} onChange={setNewColor} />
+          <ColorPicker
+            value={newColor}
+            onChange={setNewColor}
+            className="h-6 w-6 rounded border"
+          />
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}

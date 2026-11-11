@@ -12,11 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Tags, Plus, Trash2, GripVertical, Search } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -42,78 +38,6 @@ interface ChatTag {
   name: string;
   color: string;
   sort_order: number;
-}
-
-const PRESET_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#14b8a6",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-  "#6b7280",
-  "#1f2937",
-  "#78716c",
-  "#0ea5e9",
-];
-
-interface ColorPickerProps {
-  color: string;
-  onChange: (color: string) => void;
-}
-
-function ColorPicker({ color, onChange }: ColorPickerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const handleColorSelect = (newColor: string) => {
-    onChange(newColor);
-    setIsOpen(false);
-  };
-
-  return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className="w-6 h-6 rounded-md border border-border shrink-0 cursor-pointer hover:scale-110 transition-transform"
-          style={{ backgroundColor: color }}
-        />
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start">
-        <div className="grid grid-cols-6 gap-2">
-          {PRESET_COLORS.map((presetColor) => (
-            <button
-              key={presetColor}
-              className={`w-6 h-6 rounded-md cursor-pointer hover:scale-110 transition-transform ${
-                color === presetColor ? "ring-2 ring-primary ring-offset-2" : ""
-              }`}
-              style={{ backgroundColor: presetColor }}
-              onClick={() => handleColorSelect(presetColor)}
-            />
-          ))}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <Input
-            type="color"
-            value={color}
-            onChange={(e) => handleColorSelect(e.target.value)}
-            className="w-8 h-8 p-0 border-0 cursor-pointer"
-          />
-          <Input
-            type="text"
-            value={color}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") setIsOpen(false);
-            }}
-            className="flex-1 h-8 text-xs"
-            placeholder="#000000"
-          />
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 interface SortableTagRowProps {
@@ -186,8 +110,9 @@ function SortableTagRow({
       />
 
       <ColorPicker
-        color={tag.color}
+        value={tag.color}
         onChange={(newColor) => onUpdate(tag.id, tag.name, newColor)}
+        className="h-6 w-6 border"
       />
 
       <Input
@@ -433,7 +358,11 @@ export function ChatTagsManager({
       <div className="space-y-4">
         {/* Add new tag */}
         <div className="flex items-center gap-2 p-3 rounded-lg border border-dashed border-border">
-          <ColorPicker color={newTagColor} onChange={setNewTagColor} />
+          <ColorPicker
+            value={newTagColor}
+            onChange={setNewTagColor}
+            className="h-6 w-6 border"
+          />
           <Input
             placeholder="שם התגית החדשה..."
             value={newTagName}
