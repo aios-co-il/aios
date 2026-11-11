@@ -5,7 +5,14 @@ import { cn } from "@/lib/utils";
  * only shows the state: it follows each sync and does not change the
  * campaign on the platform. Null when the platform reports no state.
  */
-export function CampaignStatusSwitch({ on }: { on: boolean | null }) {
+export function CampaignStatusSwitch({
+  on,
+  compact = false,
+}: {
+  on: boolean | null;
+  /** Only the switch, without the "פעיל"/"כבוי" word (the title still says it). */
+  compact?: boolean;
+}) {
   if (on === null) {
     return <span className="text-muted-foreground">—</span>;
   }
@@ -31,7 +38,9 @@ export function CampaignStatusSwitch({ on }: { on: boolean | null }) {
           )}
         />
       </span>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      {!compact && (
+        <span className="text-xs text-muted-foreground">{label}</span>
+      )}
     </span>
   );
 }

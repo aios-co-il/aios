@@ -71,7 +71,6 @@ export function GoalCampaignTable({
           <thead className="text-muted-foreground">
             <tr className="border-b">
               <th className={`${CELL} font-medium`}>קמפיין</th>
-              <th className={`${CELL} font-medium`}>סטטוס</th>
               {metrics.map((key) => (
                 <th key={key} className={`${CELL} font-medium`}>
                   {REPORT_METRICS[key].label}
@@ -84,6 +83,8 @@ export function GoalCampaignTable({
               <tr key={row.key} className="border-b last:border-0">
                 <td className="max-w-[18rem] px-2 py-2.5">
                   <span className="flex items-center gap-2">
+                    {/* The platform's on/off state, at the start of the row. */}
+                    <CampaignStatusSwitch on={row.on} compact />
                     <span className="shrink-0">
                       {REPORT_CHANNEL_LABELS[row.channel].mark}
                     </span>
@@ -91,9 +92,6 @@ export function GoalCampaignTable({
                       {row.name}
                     </span>
                   </span>
-                </td>
-                <td className={CELL}>
-                  <CampaignStatusSwitch on={row.on} />
                 </td>
                 <MetricCells
                   metrics={metrics}
@@ -105,7 +103,7 @@ export function GoalCampaignTable({
           </tbody>
           <tfoot>
             <tr className="border-t-2 font-semibold">
-              <td className="px-2 py-2.5" colSpan={2}>
+              <td className="px-2 py-2.5">
                 {CAMPAIGN_GOAL_TOTAL_LABELS[goal]}
               </td>
               <MetricCells

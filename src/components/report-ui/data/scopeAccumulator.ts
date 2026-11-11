@@ -21,8 +21,6 @@ export type ScopeAccumulator = {
   channels: Map<ReportChannel, ReportFigures>;
   days: Map<string, ReportFigures>;
   campaigns: Map<string, ReportCampaignRow>;
-  /** Each campaign's latest day so far: its status is that day's. */
-  lastDates: Map<string, string>;
 };
 
 /** One campaign-level ads row, its goal and channel. */
@@ -31,6 +29,8 @@ export type GoalAdsRow = {
   data: Record<string, unknown>;
   goal: ReportCampaignGoal;
   channel: ReportChannel;
+  /** Whether the campaign is off, by the reports' on/off rule (campaignOffKeys). */
+  off: boolean;
 };
 
 /** An empty accumulator. */
@@ -40,7 +40,6 @@ export function newScopeAccumulator(): ScopeAccumulator {
     channels: new Map(),
     days: new Map(),
     campaigns: new Map(),
-    lastDates: new Map(),
   };
 }
 
@@ -60,7 +59,7 @@ export function accumulateAdsRow(acc: ScopeAccumulator, row: GoalAdsRow) {
     date,
     addAdsFigures(acc.days.get(date) ?? emptyReportFigures(), figures),
   );
-  addToCampaign(acc, row, figures, date);
+  addToCampaign(acc, row, figures);
 }
 
 /** The accumulator as a period scope: channels and campaigns by spend. */
@@ -101,33 +100,28 @@ function adsRowFigures(
   };
 }
 
-/** Adds the row to its campaign; the latest day's status wins. */
+/** Adds the row to its campaign, marked on or off by the reports' rule. */
 function addToCampaign(
   acc: ScopeAccumulator,
   row: GoalAdsRow,
   figures: ReportFigures,
-  date: string,
 ) {
-  const key = `${row.tableId}:${reportCampaignKey(row.data)}`;
+  const key = reportCampaignRowKey(row.tableId, row.data);
   const campaign = acc.campaigns.get(key) ?? {
     key,
     name: String(row.data.campaign_name || reportCampaignKey(row.data)),
     channel: row.channel,
-    on: null,
+    on: !row.off,
     figures: emptyReportFigures(),
   };
   campaign.figures = addAdsFigures(campaign.figures, figures);
-  if (date >= (acc.lastDates.get(key) ?? "")) {
-    acc.lastDates.set(key, date);
-    campaign.on = platformStatusOn(row.data.effective_status);
-  }
   acc.campaigns.set(key, campaign);
 }
 
-/** Meta's effective_status as on or off; null when the row reports none. */
-function platformStatusOn(status: unknown): boolean | null {
-  if (typeof status !== "string" || status === "") {
-    return null;
-  }
-  return status.toUpperCase() === "ACTIVE";
+/** A campaign's key in the report: its table and campaign. */
+export function reportCampaignRowKey(
+  tableId: string,
+  data: Record<string, unknown>,
+): string {
+  return `${tableId}:${reportCampaignKey(data)}`;
 }

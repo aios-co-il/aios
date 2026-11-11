@@ -5,12 +5,18 @@ import {
   type CampaignGoalRecord,
   type CampaignGoalTable,
 } from "@/lib/campaignGoals";
+import {
+  campaignOffKeys,
+  reportOffLookup,
+  type CampaignOffTable,
+} from "@/lib/campaignOffState";
 import type { ReportScope } from "../metrics/reportMetricTypes";
 import type { ReportChannel, ReportPeriod } from "./reportData";
 import {
   accumulateAdsRow,
   finishScope,
   newScopeAccumulator,
+  reportCampaignRowKey,
   type GoalAdsRow,
   type ScopeAccumulator,
 } from "./scopeAccumulator";
@@ -19,7 +25,8 @@ import { attachSite, siteContext } from "./siteFigures";
 /** A period's dashboard records, the tables they belong to and the store's sales. */
 export type ReportPeriodInput = {
   records: Array<CampaignGoalRecord>;
-  tables: Array<CampaignGoalTable>;
+  /** With the switch and status fields the campaign on/off rule reads. */
+  tables: Array<CampaignGoalTable & CampaignOffTable>;
   /** WooCommerce in the period (fetchWooDashboardSummary); null without a store. */
   woo: { revenue: number; orders: number } | null;
 };
@@ -72,6 +79,13 @@ function goalAdsRows(input: ReportPeriodInput): Array<GoalAdsRow> {
     );
   });
   const goalOf = reportCampaignGoalOf(records, input.tables);
+  // The same on/off rule as the platform reports: the platform's status, or
+  // for Google (no status on its rows) the report's operational check.
+  const offKeys = campaignOffKeys(
+    records,
+    (data, record) => reportCampaignRowKey(record.table_id, data),
+    reportOffLookup(input.tables),
+  );
   return records.flatMap((record) => {
     const verdict = goalOf(record);
     const type = typeOf.get(record.table_id) ?? "";
@@ -82,6 +96,9 @@ function goalAdsRows(input: ReportPeriodInput): Array<GoalAdsRow> {
             data: record.data ?? {},
             goal: verdict.goal,
             channel: CHANNEL_OF[type],
+            off: offKeys.has(
+              reportCampaignRowKey(record.table_id, record.data ?? {}),
+            ),
           },
         ]
       : [];
