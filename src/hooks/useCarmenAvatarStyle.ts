@@ -7,6 +7,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 import { useCurrentTenant } from "./useCurrentTenant";
+import { useOptionalTenant } from "@/contexts/TenantContext";
 
 /** How Carmen is drawn: glass orbs (default) or the illustrated character. */
 export type CarmenAvatarStyle = "orbs" | "character";
@@ -51,6 +52,20 @@ export function useCarmenAvatarStyle() {
       mutation.mutate({ tenantId, style }),
     saving: mutation.isPending,
   };
+}
+
+/**
+ * The style for screens that may render outside an organization, such as the
+ * loading screen: the default style until an organization and its setting are known.
+ */
+export function useKnownCarmenAvatarStyle(): CarmenAvatarStyle {
+  const tenantId = useOptionalTenant()?.currentTenantId;
+  const query = useQuery({
+    queryKey: styleQueryKey(tenantId),
+    staleTime: 30 * 60 * 1000,
+    queryFn: tenantId ? () => fetchStyle(tenantId) : skipToken,
+  });
+  return query.data ?? DEFAULT_STYLE;
 }
 
 interface StyleSave {

@@ -3,11 +3,14 @@ import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import type { CarmenFaceState } from "@/components/carmen-command/CarmenFace";
 import "./orb-buddy.css";
 
+/** Her face states, plus working: eyes glance aside and the hands tap. */
+export type OrbBuddyState = CarmenFaceState | "working";
+
 interface CarmenOrbBuddyProps {
   /** HSL channels for the glass; defaults to the tenant accent. */
   tint?: string;
-  /** Speaking opens the mouth, listening softens the eyes. */
-  state?: CarmenFaceState;
+  /** Speaking opens the mouth and moves the hands, listening softens the eyes. */
+  state?: OrbBuddyState;
   /** Accessible name. */
   label?: string;
   /** Size classes; the figure keeps its own proportions. */
