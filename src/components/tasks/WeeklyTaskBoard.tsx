@@ -43,25 +43,20 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import {
-  ChevronRight,
-  ChevronLeft,
-  CalendarDays,
-  Filter,
-  LayoutGrid,
-  Calendar,
-  List,
-  Plus,
-  RefreshCw,
-  MessageSquare,
-} from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { CalendarDays, Filter, Plus, MessageSquare } from "lucide-react";
 import { DayColumn } from "./DayColumn";
 import { DailyView } from "./DailyView";
 import { MonthlyView } from "./MonthlyView";
 import { TaskDetailDialog } from "./TaskDetailDialog";
 import { TasksChatView, TasksChatSearchInput } from "./TasksChatView";
 import { TasksToolbarFilters } from "./TasksToolbarFilters";
+import { TasksBoardHeader } from "./TasksBoardHeader";
+import { TasksCalendarNotice } from "./TasksCalendarNotice";
+import { TasksSummaryStrip } from "./TasksSummaryStrip";
+import { TasksViewSwitcher } from "./TasksViewSwitcher";
+import { TasksPeriodNav } from "./TasksPeriodNav";
+import { summarizeTasks } from "./taskSummary";
+import { tasksPeriodLabel } from "./tasksPeriodLabel";
 import {
   TaskFiltersDialog,
   TaskFilterState,
@@ -1894,161 +1889,48 @@ export function WeeklyTaskBoard() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {isViewingAs && (
-        <div className="mb-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+        <div className="mb-3 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground">
           מציג משימות של <strong>{viewAsUserName}</strong> בלבד (שלי בלבד)
         </div>
       )}
-      {/* Header - Desktop: view toggles + open filters on one row */}
-      <div className="hidden md:flex md:items-center md:justify-between mb-2 gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <ToggleGroup
-            type="single"
-            value={viewMode}
-            onValueChange={handleViewModeChange}
-            className="border rounded-lg"
-          >
-            <ToggleGroupItem
-              value="chat"
-              aria-label="תצוגת צ'אט"
-              className="gap-1 px-3"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>צ'אט</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="daily"
-              aria-label="תצוגה יומית"
-              className="gap-1 px-3"
-            >
-              <List className="h-4 w-4" />
-              <span>יומי</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="weekly"
-              aria-label="תצוגה שבועית"
-              className="gap-1 px-3"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span>שבועי</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="monthly"
-              aria-label="תצוגה חודשית"
-              className="gap-1 px-3"
-            >
-              <Calendar className="h-4 w-4" />
-              <span>חודשי</span>
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <h2 className="text-lg font-semibold">
-            {viewMode === "chat" && "משימות"}
-            {viewMode === "daily" &&
-              format(currentDate, "EEEE, dd MMMM yyyy", { locale: he })}
-            {viewMode === "weekly" &&
-              format(currentDate, "MMMM yyyy", { locale: he })}
-            {viewMode === "monthly" &&
-              format(currentDate, "MMMM yyyy", { locale: he })}
-          </h2>
-          {viewMode === "chat" && (
+      <div className="mb-3 flex shrink-0 flex-col gap-3">
+        <TasksBoardHeader
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
+          currentDate={currentDate}
+          onPrev={goToPrev}
+          onNext={goToNext}
+          onToday={goToToday}
+          chatSearch={
             <TasksChatSearchInput
               value={chatListSearch}
               onChange={setChatListSearch}
-              className="w-[200px] shrink-0"
+              className="w-[220px] shrink-0"
             />
-          )}
+          }
+          toolbarFilters={toolbarFilters}
+          activeFiltersCount={activeFiltersCount}
+          onOpenFilters={() => openFiltersDialog(false)}
+          calendar={{
+            connected: calendarConnected,
+            syncing: syncToCalendar.isPending,
+            connecting: connectingCalendar,
+            onSync: () => syncToCalendar.mutate(),
+            onConnect: () => void handleConnectCalendar(),
+          }}
+        />
+        <div className="hidden md:block">
+          <TasksSummaryStrip
+            summary={summarizeTasks({ tasks, backlogTasks, today })}
+          />
         </div>
-
-        <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-x-auto">
-          {viewMode !== "chat" && (
-            <>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={goToNext}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={goToPrev}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                onClick={goToToday}
-                className="h-8 gap-1.5 px-2 text-xs shrink-0"
-              >
-                <CalendarDays className="h-3.5 w-3.5" />
-                היום
-              </Button>
-            </>
-          )}
-          {toolbarFilters}
-          <Button
-            variant="outline"
-            className="h-8 gap-1.5 px-2 relative shrink-0 text-xs"
-            onClick={() => openFiltersDialog(false)}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            מתקדם
-            {activeFiltersCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="h-4 w-4 p-0 justify-center text-[10px]"
-              >
-                {activeFiltersCount}
-              </Badge>
-            )}
-          </Button>
-          {viewMode !== "chat" &&
-            (calendarConnected ? (
-              <Button
-                variant="outline"
-                className="h-8 gap-1.5 px-2 text-xs shrink-0"
-                onClick={() => syncToCalendar.mutate()}
-                disabled={syncToCalendar.isPending}
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${syncToCalendar.isPending ? "animate-spin" : ""}`}
-                />
-                סנכרן
-              </Button>
-            ) : (
-              <Button
-                className="h-8 gap-1.5 px-2 text-xs shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={() => void handleConnectCalendar()}
-                disabled={connectingCalendar}
-              >
-                <CalendarDays
-                  className={`h-3.5 w-3.5 ${connectingCalendar ? "animate-pulse" : ""}`}
-                />
-                {connectingCalendar ? "מתחבר..." : "חבר יומן"}
-              </Button>
-            ))}
-        </div>
+        {viewMode !== "chat" && calendarStatus && !calendarConnected && (
+          <TasksCalendarNotice
+            connecting={connectingCalendar}
+            onConnect={() => void handleConnectCalendar()}
+          />
+        )}
       </div>
-
-      {viewMode !== "chat" && calendarStatus && !calendarConnected && (
-        <div className="mb-2 rounded-md border border-brand-accent/30 bg-brand-accent/10 px-3 py-2 text-sm flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-foreground">
-            היומן לא מחובר. חבר Google Calendar מכאן כדי לראות אירועים ליד
-            המשימות.
-          </span>
-          <Button
-            size="sm"
-            className="h-8 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => void handleConnectCalendar()}
-            disabled={connectingCalendar}
-          >
-            <CalendarDays className="h-4 w-4" />
-            {connectingCalendar ? "מתחבר..." : "חבר יומן"}
-          </Button>
-        </div>
-      )}
 
       {/* Board with Overdue Panel */}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -2242,77 +2124,22 @@ export function WeeklyTaskBoard() {
                       יומן משימות
                     </SheetTitle>
                     <div className="flex flex-wrap items-center gap-2 justify-between">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={goToPrev}
-                          aria-label="הקודם"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={goToNext}
-                          aria-label="הבא"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={goToToday}
-                          className="gap-1"
-                        >
-                          <CalendarDays className="h-4 w-4" />
-                          היום
-                        </Button>
-                      </div>
+                      <TasksPeriodNav
+                        onPrev={goToPrev}
+                        onNext={goToNext}
+                        onToday={goToToday}
+                      />
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold truncate">
-                          {viewMode === "daily" &&
-                            format(currentDate, "EEEE, dd/MM", { locale: he })}
-                          {viewMode === "weekly" &&
-                            format(currentDate, "MMMM yyyy", { locale: he })}
-                          {viewMode === "monthly" &&
-                            format(currentDate, "MMMM yyyy", { locale: he })}
+                          {tasksPeriodLabel(viewMode, currentDate, {
+                            short: true,
+                          })}
                         </span>
-                        <ToggleGroup
-                          type="single"
+                        <TasksViewSwitcher
                           value={viewMode}
-                          onValueChange={handleViewModeChange}
-                          className="border rounded-lg"
-                        >
-                          <ToggleGroupItem
-                            value="chat"
-                            aria-label="תצוגת צ'אט"
-                            className="px-2"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                          </ToggleGroupItem>
-                          <ToggleGroupItem
-                            value="daily"
-                            aria-label="תצוגה יומית"
-                            className="px-2"
-                          >
-                            <List className="h-4 w-4" />
-                          </ToggleGroupItem>
-                          <ToggleGroupItem
-                            value="weekly"
-                            aria-label="תצוגה שבועית"
-                            className="px-2"
-                          >
-                            <LayoutGrid className="h-4 w-4" />
-                          </ToggleGroupItem>
-                          <ToggleGroupItem
-                            value="monthly"
-                            aria-label="תצוגה חודשית"
-                            className="px-2"
-                          >
-                            <Calendar className="h-4 w-4" />
-                          </ToggleGroupItem>
-                        </ToggleGroup>
+                          onChange={handleViewModeChange}
+                          iconsOnly
+                        />
                       </div>
                     </div>
                   </SheetHeader>
@@ -2385,7 +2212,7 @@ export function WeeklyTaskBoard() {
 
             {/* Desktop: Side by side with sticky panel */}
             <div className="hidden md:flex md:flex-col flex-1 relative min-h-0 overflow-x-auto overflow-y-auto overscroll-contain">
-              <div className="flex gap-2 pb-4 min-h-0 w-fit">
+              <div className="flex gap-3 pb-4 min-h-0 w-fit">
                 {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
                 <div className="sticky right-0 top-0 z-20 shrink-0 self-start bg-background">
                   <TaskBacklogPanel
@@ -2479,8 +2306,8 @@ export function WeeklyTaskBoard() {
             </div>
             <DragOverlay>
               {activeTask ? (
-                <div className="p-2 rounded-lg border bg-card shadow-elevation-2">
-                  <p className="text-sm font-medium">{activeTask.title}</p>
+                <div className="rounded-xl border border-s-4 border-s-brand-accent bg-card px-3 py-2 shadow-elevation-2">
+                  <p className="text-sm font-semibold">{activeTask.title}</p>
                 </div>
               ) : null}
             </DragOverlay>

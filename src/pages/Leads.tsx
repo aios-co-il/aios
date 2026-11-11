@@ -8,51 +8,23 @@ import { isQueryResolving } from "@/lib/queryUi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Mail,
   Phone,
-  ExternalLink,
   Trash2,
   Building2,
-  DollarSign,
   LayoutGrid,
   GripVertical,
   ChevronDown,
   ChevronUp,
   User,
-  Users,
   Calendar as CalendarIcon,
-  Search,
-  X,
-  Settings2,
   CheckSquare,
   Download,
-  Clock,
-  Tag,
   Filter,
-  FileSpreadsheet,
-  Pencil,
   Archive,
-  Loader2,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AddLeadForm } from "@/components/forms/AddLeadForm";
 import { EditLeadDialog } from "@/components/forms/EditLeadDialog";
 import { ImportLeadsWithMapping } from "@/components/forms/ImportLeadsWithMapping";
@@ -65,10 +37,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useLeadStatuses, LeadStatus } from "@/hooks/useLeadStatuses";
-import {
-  useLeadPipelineStages,
-  LeadPipelineStage,
-} from "@/hooks/useLeadPipelineStages";
+import { useLeadPipelineStages } from "@/hooks/useLeadPipelineStages";
 import {
   LeadFiltersDialog,
   FilterState,
@@ -86,7 +55,6 @@ import {
   DragStartEvent,
   closestCorners,
   defaultDropAnimationSideEffects,
-  useDroppable,
   type DropAnimation,
 } from "@dnd-kit/core";
 import {
@@ -97,17 +65,13 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   useState,
-  ReactNode,
   useCallback,
   useEffect,
   useMemo,
   createContext,
   useContext,
 } from "react";
-import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
   SheetContent,
@@ -119,19 +83,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ResizableTable, ColumnConfig } from "@/components/ResizableTable";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { ResizableTable } from "@/components/ResizableTable";
 import { cn } from "@/lib/utils";
 import AddTaskForm from "@/components/forms/AddTaskForm";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
@@ -139,8 +95,6 @@ import {
   LeadTagSelector,
   LeadTagBadges,
 } from "@/components/leads/LeadTagSelector";
-import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
-import { ImportLeadsSheet } from "@/components/forms/ImportLeadsSheet";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
 import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
 import { LeadRecordingCell } from "@/components/leads/LeadRecordingCell";
@@ -152,6 +106,34 @@ import { useLeadStageScopeDefault } from "@/components/leads/useLeadStageScopeDe
 import { useOpeningStageFilter } from "@/components/leads/useOpeningStageFilter";
 import { type LeadStageScope } from "@/components/leads/leadStageScope";
 import { leadOpenSurface } from "@/lib/leadViewMode";
+import { BulkAssignSalesPeopleDialog } from "@/components/LeadsPage/BulkAssignSalesPeopleDialog";
+import {
+  LeadCompanyCell,
+  LeadNameCell,
+  LeadPhoneCell,
+} from "@/components/LeadsPage/LeadContactCells";
+import { LeadRowActions } from "@/components/LeadsPage/LeadRowActions";
+import type { LeadTableRow } from "@/components/LeadsPage/leadTableTypes";
+import { LeadSourceBadge } from "@/components/LeadsPage/LeadSourceBadge";
+import {
+  LeadResponseStatusCell,
+  LeadStageCell,
+} from "@/components/LeadsPage/LeadStatusCells";
+import { LeadTableLayoutToggle } from "@/components/LeadsPage/LeadTableLayoutToggle";
+import { LeadTagsCell } from "@/components/LeadsPage/LeadTagsCell";
+import { LeadsBulkActionsBar } from "@/components/LeadsPage/LeadsBulkActionsBar";
+import {
+  LeadsEmptyMessage,
+  LeadsEmptyState,
+} from "@/components/LeadsPage/LeadsEmptyState";
+import { LeadsKanbanStage } from "@/components/LeadsPage/LeadsKanbanStage";
+import { LeadsPageHeader } from "@/components/LeadsPage/LeadsPageHeader";
+import { LeadsPaginationBar } from "@/components/LeadsPage/LeadsPaginationBar";
+import { LeadsSearchInput } from "@/components/LeadsPage/LeadsSearchInput";
+import { LeadsSummaryStrip } from "@/components/LeadsPage/LeadsSummaryStrip";
+import { LeadsTableCard } from "@/components/LeadsPage/LeadsTableCard";
+import { LeadsToolbar } from "@/components/LeadsPage/LeadsToolbar";
+import { summarizeLeads } from "@/components/LeadsPage/leadsSummary";
 import { archiveLeads, excludeArchivedLeads } from "@/lib/leadArchive";
 import { leadSearchOrFilter } from "@/lib/leadPhone";
 import {
@@ -167,11 +149,6 @@ import {
   stagesForKanbanQuery,
   type LeadValueFilterMode,
 } from "@/lib/leadStageFilter";
-import {
-  findLeadStatus,
-  responseStatusSelectValue,
-  unmatchedResponseStatusValue,
-} from "@/lib/leadFields";
 import {
   LeadCreatedAtLines,
   LeadSourceLines,
@@ -273,68 +250,6 @@ function getStatusStyle(statusKey: string | null, statuses: LeadStatus[]) {
   const status = statuses.find((s) => s.status_key === statusKey);
   if (!status) return "";
   return `border-2`;
-}
-
-function getStatusColor(statusKey: string | null, statuses: LeadStatus[]) {
-  return findLeadStatus(statusKey, statuses)?.color || undefined;
-}
-
-function DroppableStage({
-  stage,
-  leadCount,
-  children,
-}: {
-  stage: any;
-  leadCount?: number;
-  children: ReactNode;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: stage.id,
-  });
-
-  return (
-    <div className="flex flex-col min-h-[600px]">
-      <div
-        ref={setNodeRef}
-        className={`relative transition-all ${
-          isOver ? "ring-2 ring-primary ring-offset-2 rounded-lg" : ""
-        }`}
-      >
-        <div
-          className="relative p-4 py-3 font-semibold text-center shadow-md overflow-hidden text-white"
-          style={{
-            backgroundColor: stage.hexColor || stage.color,
-            clipPath: "polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%)",
-          }}
-        >
-          {/* negative tail notch on right side */}
-          <div
-            className="absolute inset-y-0 right-0 w-5"
-            style={{
-              background: "hsl(var(--background))",
-              clipPath: "polygon(100% 0, 0 50%, 100% 100%)",
-            }}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 px-6">
-            <span className="min-w-0 truncate">{stage.label}</span>
-            {typeof leadCount === "number" && (
-              <span
-                className="shrink-0 rounded-full bg-black/20 px-1.5 py-0.5 text-xs font-bold tabular-nums leading-none"
-                title={`${leadCount.toLocaleString()} לידים`}
-              >
-                {leadCount.toLocaleString()}
-                <span className="sr-only"> לידים</span>
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="bg-muted/30 rounded-b-lg p-4 flex-1 space-y-3 min-h-[550px]">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // Pure UI component - no drag logic
@@ -474,116 +389,31 @@ function LeadCardContent({
         {lead.created_at && <LeadCreatedAtLines lead={lead} compact />}
         <LeadSourceLines lead={lead} compact />
 
-        {/* Stage/Status Selector */}
+        {/* Stage and response status */}
         <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
-          <Select
-            value={lead.status}
-            onValueChange={(value) => onStatusChange(lead.id, value)}
+          <LeadStageCell
+            status={lead.status}
+            stages={pipelineStages}
+            onChange={(value) => onStatusChange(lead.id, value)}
+            onManage={() => {
+              setStageSelectOpen(false);
+              setManageStagesOpen(true);
+            }}
             open={stageSelectOpen}
             onOpenChange={setStageSelectOpen}
-          >
-            <SelectTrigger
-              className="h-9 text-sm border-2 font-medium"
-              style={{
-                backgroundColor:
-                  pipelineStages.find((s) => s.id === lead.status)?.hexColor ||
-                  undefined,
-                color: lead.status ? "#fff" : undefined,
-              }}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-background z-[100]">
-              {pipelineStages.map((stage) => (
-                <SelectItem
-                  key={stage.id}
-                  value={stage.id}
-                  style={{ backgroundColor: stage.hexColor, color: "#fff" }}
-                >
-                  {stage.label}
-                </SelectItem>
-              ))}
-              <div className="border-t mt-1 pt-1">
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded cursor-pointer"
-                  onClick={() => {
-                    setStageSelectOpen(false);
-                    setManageStagesOpen(true);
-                  }}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  ניהול שלבי משפך
-                </button>
-              </div>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Response Status */}
-        <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
-          <Select
-            value={responseStatusSelectValue(
-              lead.response_status,
-              leadStatuses,
-            )}
-            onValueChange={(value) =>
-              onResponseStatusChange(lead.id, value === "none" ? null : value)
-            }
+          />
+          <LeadResponseStatusCell
+            responseStatus={lead.response_status}
+            leadStatuses={leadStatuses}
+            isLoading={leadStatuses.length === 0}
+            onChange={(value) => onResponseStatusChange(lead.id, value)}
+            onManage={() => {
+              setResponseSelectOpen(false);
+              setManageStatusesOpen(true);
+            }}
             open={responseSelectOpen}
             onOpenChange={setResponseSelectOpen}
-          >
-            <SelectTrigger
-              className="h-9 text-sm border-2 font-medium"
-              style={{
-                backgroundColor:
-                  getStatusColor(lead.response_status, leadStatuses) ||
-                  undefined,
-                color: getStatusColor(lead.response_status, leadStatuses)
-                  ? "#fff"
-                  : undefined,
-              }}
-            >
-              <SelectValue
-                placeholder={
-                  leadStatuses.length === 0 ? "טוען..." : "בחר סטטוס"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent className="bg-background z-[100]">
-              <SelectItem value="none">ללא סטטוס</SelectItem>
-              {unmatchedResponseStatusValue(
-                lead.response_status,
-                leadStatuses,
-              ) && (
-                <SelectItem value={lead.response_status}>
-                  {lead.response_status}
-                </SelectItem>
-              )}
-              {leadStatuses.map((option) => (
-                <SelectItem
-                  key={option.status_key}
-                  value={option.status_key}
-                  style={{ backgroundColor: option.color, color: "#fff" }}
-                >
-                  {option.label}
-                </SelectItem>
-              ))}
-              <div className="border-t mt-1 pt-1">
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded cursor-pointer"
-                  onClick={() => {
-                    setResponseSelectOpen(false);
-                    setManageStatusesOpen(true);
-                  }}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  ניהול סטטוסים
-                </button>
-              </div>
-            </SelectContent>
-          </Select>
+          />
         </div>
 
         {/* Follow-up date row */}
@@ -725,161 +555,6 @@ function SortableLeadCard({
       style={style}
       innerRef={setNodeRef}
     />
-  );
-}
-
-function LeadsGroupTable({
-  label,
-  leads,
-  isOpen,
-  onToggle,
-  emptyMessage,
-  totalLeadsCount,
-  overallTotalCount,
-}: {
-  label: string;
-  leads: any[];
-  isOpen: boolean;
-  onToggle: (open: boolean) => void;
-  emptyMessage: string;
-  totalLeadsCount?: number;
-  overallTotalCount?: number;
-}) {
-  return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={onToggle}
-      className={cn(
-        "flex flex-col",
-        isOpen ? "min-h-0 flex-1 overflow-hidden" : "shrink-0",
-      )}
-    >
-      <Card
-        className={cn(
-          "flex flex-col overflow-hidden border-r-4 border-primary/40 bg-card",
-          isOpen && "min-h-0 flex-1",
-        )}
-      >
-        <CollapsibleTrigger asChild>
-          <CardHeader className="shrink-0 cursor-pointer px-3 py-2 hover:bg-muted/50 transition-colors">
-            <CardTitle className="flex items-center justify-between text-sm font-semibold">
-              <span className="flex items-center gap-2">
-                {label}
-                <Badge variant="secondary" className="text-xs font-normal">
-                  {leads.length}
-                </Badge>
-              </span>
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${isOpen ? "" : "-rotate-90"}`}
-              />
-            </CardTitle>
-          </CardHeader>
-        </CollapsibleTrigger>
-        {isOpen && (
-          <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
-            {leads.length === 0 ? (
-              <p className="text-muted-foreground text-center py-4">
-                {emptyMessage}
-              </p>
-            ) : (
-              <TableWithStickyScroll
-                fillHeight
-                stageLeads={leads}
-                totalLeadsCount={totalLeadsCount}
-                overallTotalCount={overallTotalCount}
-              />
-            )}
-          </CardContent>
-        )}
-      </Card>
-    </Collapsible>
-  );
-}
-
-function LeadTableLayoutToggle({
-  value,
-  onChange,
-}: {
-  value: LeadTableLayout;
-  onChange: (layout: LeadTableLayout) => void;
-}) {
-  return (
-    <div className="flex gap-1 border rounded-md p-1">
-      <Button
-        variant={value === "by_user" ? "default" : "ghost"}
-        size="sm"
-        onClick={() => onChange("by_user")}
-        title="לפי משתמשים במשטח"
-        className="gap-1 h-8"
-      >
-        <Users className="h-4 w-4" />
-        <span className="hidden sm:inline">לפי משתמשים</span>
-      </Button>
-      <Button
-        variant={value === "by_date" ? "default" : "ghost"}
-        size="sm"
-        onClick={() => onChange("by_date")}
-        title="טבלה אחת לפי תאריך"
-        className="gap-1 h-8"
-      >
-        <CalendarIcon className="h-4 w-4" />
-        <span className="hidden sm:inline">לפי תאריך</span>
-      </Button>
-    </div>
-  );
-}
-
-function LeadsPaginationBar({
-  page,
-  totalPages,
-  isFetching,
-  onPageChange,
-  totalLeadsCount,
-}: {
-  page: number;
-  totalPages: number;
-  isFetching: boolean;
-  onPageChange: (nextPage: number) => void;
-  totalLeadsCount?: number;
-}) {
-  if (totalPages <= 1) return null;
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(Math.max(1, page - 1))}
-        disabled={page === 1 || isFetching}
-        className="h-7 px-2 text-xs"
-      >
-        הקודם →
-      </Button>
-      <span className="text-xs text-muted-foreground whitespace-nowrap px-1">
-        עמוד {page} מתוך {totalPages}
-        {isFetching ? (
-          <span className="animate-pulse mr-1">טוען...</span>
-        ) : null}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-        disabled={page === totalPages || isFetching}
-        className="h-7 px-2 text-xs"
-      >
-        ← הבא
-      </Button>
-      {page < totalPages && !isFetching && totalLeadsCount != null && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onPageChange(totalPages)}
-          className="h-7 px-2 text-xs text-muted-foreground"
-        >
-          עמוד אחרון ({totalLeadsCount})
-        </Button>
-      )}
-    </div>
   );
 }
 
@@ -3307,26 +2982,10 @@ export default function Leads() {
                 <SheetTitle>חיפוש וסינון</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-4" dir="rtl">
-                <div className="relative">
-                  <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="חיפוש לפי שם, טלפון או חברה..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-9 pr-10"
-                  />
-                  {searchQuery && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setSearchQuery("")}
-                      className="absolute left-1 top-1/2 h-7 w-7 -translate-y-1/2"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <LeadsSearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                />
                 <LeadFilterPresetTabs
                   activePresetId={activePresetId}
                   onPresetSelect={handlePresetSelect}
@@ -3388,205 +3047,85 @@ export default function Leads() {
           </Sheet>
         </div>
 
-        {/* Desktop Header - Sticky */}
+        {/* Desktop header, summary and toolbar */}
         <div
           className={cn(
             "hidden md:block bg-background",
             viewMode === "table"
-              ? "shrink-0 space-y-2 pb-1.5"
-              : "sticky top-0 z-40 space-y-4 pb-4",
+              ? "shrink-0 space-y-2.5 pb-2.5"
+              : "sticky top-0 z-40 space-y-3 pb-4",
           )}
         >
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1
-                className={
-                  viewMode === "table"
-                    ? "text-xl font-bold"
-                    : "text-3xl font-bold"
-                }
-              >
-                לידים - Pipeline
-              </h1>
-              <Badge
-                variant="secondary"
-                className={
-                  viewMode === "table"
-                    ? "text-sm px-2 py-0.5"
-                    : "text-base px-3 py-1"
-                }
-              >
-                {isFetching ? (
-                  <span className="animate-pulse">טוען...</span>
-                ) : isKanbanView ? (
-                  <>סה"כ: {displayTotalCount.toLocaleString()}</>
-                ) : (
-                  <>
-                    מציג: {filteredLeads?.length || 0}{" "}
-                    {totalPages > 1 && `(מתוך ${totalLeadsCount})`}
-                  </>
-                )}
-              </Badge>
-              {viewMode === "table" && (
-                <LeadsPaginationBar
-                  page={page}
-                  totalPages={totalPages}
-                  isFetching={isFetching}
-                  onPageChange={goToPage}
-                  totalLeadsCount={totalLeadsCount}
-                />
-              )}
-            </div>
-            <div className="flex gap-2 items-center shrink-0">
+          <LeadsPageHeader
+            subtitle={
+              isFetching ? (
+                <span className="animate-pulse">טוען...</span>
+              ) : isKanbanView ? (
+                <>סה"כ {displayTotalCount.toLocaleString()} לידים</>
+              ) : (
+                <>
+                  מציג {filteredLeads?.length || 0}
+                  {totalPages > 1 &&
+                    ` מתוך ${totalLeadsCount.toLocaleString()}`}{" "}
+                  לידים
+                </>
+              )
+            }
+            viewToggle={
               <LeadViewModeToggle
                 viewMode={viewMode}
                 defaultView={defaultView}
                 onViewModeChange={setViewMode}
                 onDefaultViewChange={setDefaultView}
               />
-              {viewMode === "table" && (
+            }
+            onSyncFacebook={() => syncFacebookLeadsMutation.mutate()}
+            isSyncingFacebook={syncFacebookLeadsMutation.isPending}
+          />
+
+          {viewMode !== "chat" && !leadsResolving && leads.length > 0 && (
+            <LeadsSummaryStrip
+              shownCount={filteredLeads?.length || 0}
+              totalCount={displayTotalCount}
+              summary={summarizeLeads(filteredLeads || [])}
+              isPaged={!isKanbanView && totalPages > 1}
+            />
+          )}
+
+          <LeadsToolbar
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            presets={
+              <LeadFilterPresetTabs
+                activePresetId={activePresetId}
+                onPresetSelect={handlePresetSelect}
+                onOpenFiltersDialog={() => {
+                  setEditingPreset(null);
+                  setFiltersDialogOpen(true);
+                }}
+                onEditPreset={handleEditPreset}
+                hasActiveFilters={hasActiveFilters}
+                pipelineStages={PIPELINE_STAGES}
+                activeStageIds={filterStageIds}
+                stageFilterMode={stageFilterMode}
+                onStageSelect={handleStageSelect}
+                stageCounts={stagePresetCounts}
+                defaultStageScope={savedStageScope}
+                onDefaultStageScopeChange={handleDefaultStageScope}
+              />
+            }
+            tableControls={
+              viewMode === "table" ? (
                 <LeadTableLayoutToggle
                   value={tableLayout}
                   onChange={setTableLayout}
                 />
-              )}
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size={viewMode === "table" ? "sm" : "default"}
-                  asChild
-                >
-                  <Link to="archive" className="gap-2">
-                    <Archive className="h-4 w-4" />
-                    ארכיון
-                  </Link>
-                </Button>
-                <Button
-                  variant="outline"
-                  size={viewMode === "table" ? "sm" : "default"}
-                  onClick={() => syncFacebookLeadsMutation.mutate()}
-                  disabled={syncFacebookLeadsMutation.isPending}
-                  className="gap-2"
-                >
-                  <Download
-                    className={`h-4 w-4 ${syncFacebookLeadsMutation.isPending ? "animate-spin" : ""}`}
-                  />
-                  {syncFacebookLeadsMutation.isPending
-                    ? "מסנכרן..."
-                    : "סנכרן מפייסבוק"}
-                </Button>
-                <ImportLeadsWithMapping />
-                {/* <ImportLeadsSheet /> - Hidden temporarily */}
-                <AddLeadForm />
-              </div>
-            </div>
-          </div>
-
-          {/* Search + saved filters + stages — one row */}
-          <div
-            className="grid w-full min-w-0 items-center gap-2"
-            style={{
-              gridTemplateColumns:
-                viewMode === "table"
-                  ? "14rem minmax(0, 1fr) auto"
-                  : "18rem minmax(0, 1fr) auto",
-            }}
-          >
-            <div className="relative min-w-0">
-              <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="חיפוש לפי שם, טלפון או חברה..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={cn(
-                  "pr-12 font-medium shadow-sm border-2 focus:border-primary",
-                  viewMode === "table" ? "h-8 text-sm" : "h-9 text-base",
-                )}
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute left-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-
-            <LeadFilterPresetTabs
-              activePresetId={activePresetId}
-              onPresetSelect={handlePresetSelect}
-              onOpenFiltersDialog={() => {
-                setEditingPreset(null);
-                setFiltersDialogOpen(true);
-              }}
-              onEditPreset={handleEditPreset}
-              hasActiveFilters={hasActiveFilters}
-              pipelineStages={PIPELINE_STAGES}
-              activeStageIds={filterStageIds}
-              stageFilterMode={stageFilterMode}
-              onStageSelect={handleStageSelect}
-              stageCounts={stagePresetCounts}
-              defaultStageScope={savedStageScope}
-              onDefaultStageScopeChange={handleDefaultStageScope}
-            />
-
-            <div className="flex shrink-0 items-center gap-2">
-              {viewMode === "table" && (isOwner || isSuperAdmin) && (
-                <LeadTableColumnsDialog />
-              )}
-              <ManageLeadStatusesDialog
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={cn(
-                      "shrink-0",
-                      viewMode === "table" ? "h-8 w-8" : "h-9 w-9",
-                    )}
-                    title="ניהול סטטוסי לידים"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
-                }
-              />
-              <ChatTagsManager
-                trigger={
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className={cn(
-                      "shrink-0",
-                      viewMode === "table" ? "h-8 w-8" : "h-9 w-9",
-                    )}
-                    title="ניהול תגיות"
-                  >
-                    <Tag className="h-4 w-4" />
-                  </Button>
-                }
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                className={cn(
-                  "shrink-0",
-                  viewMode === "table" ? "h-8 w-8" : "h-9 w-9",
-                )}
-                onClick={handleExportExcel}
-                disabled={isExporting}
-                title="ייצוא כל הלידים לפי הסינון לקובץ Excel"
-              >
-                {isExporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </div>
+              ) : undefined
+            }
+            canManageColumns={viewMode === "table" && (isOwner || isSuperAdmin)}
+            onExport={handleExportExcel}
+            isExporting={isExporting}
+          />
         </div>
 
         {/* Filters Dialog */}
@@ -3616,14 +3155,7 @@ export default function Leads() {
             messages={["כרמן מושכת את הלידים…", "מסדרת לפי שלב בצינור…"]}
           />
         ) : leads?.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">
-                אין עדיין לידים במערכת
-              </p>
-              <AddLeadForm />
-            </CardContent>
-          </Card>
+          <LeadsEmptyState />
         ) : viewMode === "kanban" ? (
           <div className="relative min-h-0 flex-1 overflow-y-auto">
             {/* Mobile Kanban - Single Stage with Floating Button */}
@@ -3666,7 +3198,7 @@ export default function Leads() {
                           </Badge>
                         </h2>
                       </div>
-                      <DroppableStage
+                      <LeadsKanbanStage
                         stage={stage}
                         leadCount={kanbanStageData ? totalInStage : undefined}
                       >
@@ -3713,7 +3245,7 @@ export default function Leads() {
                             />
                           ))}
                         </SortableContext>
-                      </DroppableStage>
+                      </LeadsKanbanStage>
 
                       {/* Mobile Show More Button (shows more from already loaded) */}
                       {hasMoreToShow && (
@@ -3882,7 +3414,7 @@ export default function Leads() {
                         zIndex: KANBAN_STAGES.length - index,
                       }}
                     >
-                      <DroppableStage
+                      <LeadsKanbanStage
                         stage={stage}
                         leadCount={kanbanStageData ? totalInStage : undefined}
                       >
@@ -3995,7 +3527,7 @@ export default function Leads() {
                             </Button>
                           )}
                         </SortableContext>
-                      </DroppableStage>
+                      </LeadsKanbanStage>
                     </div>
                   );
                 })}
@@ -4083,37 +3615,68 @@ export default function Leads() {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {tableLayout === "by_date" ? (
-              dateSortedLeads.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  אין לידים להצגה
-                </p>
-              ) : (
-                <TableWithStickyScroll
-                  fillHeight
-                  stageLeads={dateSortedLeads}
-                  totalLeadsCount={dateSortedLeads.length}
-                  overallTotalCount={totalLeadsCount}
-                />
-              )
+              <LeadsTableCard
+                title="כל הלידים"
+                icon={CalendarIcon}
+                count={dateSortedLeads.length}
+                actions={
+                  <LeadsPaginationBar
+                    page={page}
+                    totalPages={totalPages}
+                    isFetching={isFetching}
+                    onPageChange={goToPage}
+                    totalLeadsCount={totalLeadsCount}
+                  />
+                }
+              >
+                {dateSortedLeads.length === 0 ? (
+                  <LeadsEmptyMessage text="אין לידים להצגה" />
+                ) : (
+                  <TableWithStickyScroll
+                    fillHeight
+                    stageLeads={dateSortedLeads}
+                    totalLeadsCount={dateSortedLeads.length}
+                    overallTotalCount={totalLeadsCount}
+                  />
+                )}
+              </LeadsTableCard>
             ) : tableUserGroups.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                אין לידים להצגה
-              </p>
+              <LeadsEmptyMessage text="אין לידים להצגה" />
             ) : (
-              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+              <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
+                {totalPages > 1 && (
+                  <div className="flex shrink-0 justify-end">
+                    <LeadsPaginationBar
+                      page={page}
+                      totalPages={totalPages}
+                      isFetching={isFetching}
+                      onPageChange={goToPage}
+                      totalLeadsCount={totalLeadsCount}
+                    />
+                  </div>
+                )}
                 {tableUserGroups.map((group) => (
-                  <LeadsGroupTable
+                  <LeadsTableCard
                     key={group.id}
-                    label={group.label}
-                    leads={group.leads}
+                    title={group.label}
+                    icon={User}
+                    count={group.leads.length}
                     isOpen={openTables[group.id] ?? group.leads.length > 0}
                     onToggle={(open) =>
                       setOpenTables((prev) => ({ ...prev, [group.id]: open }))
                     }
-                    emptyMessage="אין לידים למשתמש זה"
-                    totalLeadsCount={group.leads.length}
-                    overallTotalCount={totalLeadsCount}
-                  />
+                  >
+                    {group.leads.length === 0 ? (
+                      <LeadsEmptyMessage text="אין לידים למשתמש זה" />
+                    ) : (
+                      <TableWithStickyScroll
+                        fillHeight
+                        stageLeads={group.leads}
+                        totalLeadsCount={group.leads.length}
+                        overallTotalCount={totalLeadsCount}
+                      />
+                    )}
+                  </LeadsTableCard>
                 ))}
               </div>
             )}
@@ -4805,110 +4368,48 @@ function TableWithStickyScroll({
     <div
       className={cn("relative", fillHeight && "flex h-full min-h-0 flex-col")}
     >
-      {/* Bulk Actions Toolbar */}
       {selectedLeads.length > 0 && (
-        <div className="bg-primary text-primary-foreground p-2 rounded-lg mb-2 flex flex-col gap-2 shrink-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">
-                {selectedLeads.length} לידים נבחרו
-              </span>
-              {selectAllMode === "all" && (
-                <Badge
-                  variant="secondary"
-                  className="bg-primary-foreground/20 text-primary-foreground text-xs"
-                >
-                  כל הלידים
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSelectedLeads([]);
-                  setSelectAllMode(null);
-                  setAllLeadIds(null);
-                }}
-                className="h-7 px-2 hover:bg-primary-foreground/20"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Select
-                onValueChange={(value) =>
-                  bulkUpdateStatus.mutate({
-                    leadIds: selectedLeads,
-                    status: value as
-                      | "new"
-                      | "contacted"
-                      | "follow_up"
-                      | "proposal_sent"
-                      | "transferred_to_onboarding"
-                      | "closed",
-                  })
+        <LeadsBulkActionsBar
+          selectedCount={selectedLeads.length}
+          allSelected={selectAllMode === "all"}
+          stages={PIPELINE_STAGES}
+          onClear={() => {
+            setSelectedLeads([]);
+            setSelectAllMode(null);
+            setAllLeadIds(null);
+          }}
+          onChangeStage={(value) =>
+            bulkUpdateStatus.mutate({
+              leadIds: selectedLeads,
+              status: value as
+                | "new"
+                | "contacted"
+                | "follow_up"
+                | "proposal_sent"
+                | "transferred_to_onboarding"
+                | "closed",
+            })
+          }
+          onAssign={() => setAssignDialogOpen(true)}
+          onArchive={() => {
+            if (
+              confirm(
+                `להעביר ${selectedLeads.length} לידים לארכיון? מחיקה לצמיתות רק מארכיון הלידים.`,
+              )
+            ) {
+              bulkDelete.mutate(selectedLeads);
+            }
+          }}
+          selectAll={
+            showSelectAllButton
+              ? {
+                  totalCount: totalLeadsCount,
+                  isLoading: isLoadingAllIds,
+                  onSelect: handleSelectAllLeads,
                 }
-              >
-                <SelectTrigger className="h-8 w-[180px] bg-background text-foreground">
-                  <SelectValue placeholder="שנה שלב" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  {PIPELINE_STAGES.map((stage) => (
-                    <SelectItem
-                      key={stage.id}
-                      value={stage.id}
-                      className={stage.bgClass}
-                    >
-                      {stage.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAssignDialogOpen(true)}
-                className="h-8 bg-background text-foreground"
-              >
-                <User className="h-4 w-4 mr-1" />
-                שייך לאנשי מכירות
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  if (
-                    confirm(
-                      `להעביר ${selectedLeads.length} לידים לארכיון? מחיקה לצמיתות רק מארכיון הלידים.`,
-                    )
-                  ) {
-                    bulkDelete.mutate(selectedLeads);
-                  }
-                }}
-                className="h-8"
-              >
-                <Archive className="h-4 w-4 mr-1" />
-                לארכיון
-              </Button>
-            </div>
-          </div>
-          {/* Select All Leads Button */}
-          {showSelectAllButton && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleSelectAllLeads}
-              disabled={isLoadingAllIds}
-              className="w-full bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
-            >
-              {isLoadingAllIds ? (
-                <>טוען...</>
-              ) : (
-                <>בחר את כל {totalLeadsCount?.toLocaleString()} הלידים</>
-              )}
-            </Button>
-          )}
-        </div>
+              : null
+          }
+        />
       )}
 
       {/* Resizable Table */}
@@ -4922,18 +4423,13 @@ function TableWithStickyScroll({
             {
               id: "name",
               label: getFieldLabel("contact_name", "שם"),
-              width: 120,
+              width: 170,
               sticky: true,
               render: (lead: any) => (
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 text-right hover:text-primary"
-                  title="פרטי ליד"
-                  onClick={() => openLeadInChat?.(lead.id)}
-                >
-                  <User className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{lead.contact_name || "-"}</span>
-                </button>
+                <LeadNameCell
+                  name={lead.contact_name}
+                  onOpen={() => openLeadInChat?.(lead.id)}
+                />
               ),
             },
             ...(isLeadTableColumnVisible("created_at", isFieldVisible)
@@ -4955,7 +4451,13 @@ function TableWithStickyScroll({
                     label: getFieldLabel("sales_person", "משתמש"),
                     width: 140,
                     render: (lead: any) => (
-                      <span className="truncate">
+                      <span
+                        className={cn(
+                          "truncate",
+                          !lead.sales_people?.full_name &&
+                            "text-muted-foreground",
+                        )}
+                      >
                         {lead.sales_people?.full_name || "ללא שיוך"}
                       </span>
                     ),
@@ -4967,19 +4469,10 @@ function TableWithStickyScroll({
                   {
                     id: "phone",
                     label: getFieldLabel("phone", "טלפון"),
-                    width: 130,
-                    render: (lead: any) =>
-                      lead.phone ? (
-                        <a
-                          href={`tel:${lead.phone}`}
-                          className="hover:underline flex items-center gap-1"
-                        >
-                          <Phone className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{lead.phone}</span>
-                        </a>
-                      ) : (
-                        "-"
-                      ),
+                    width: 150,
+                    render: (lead: LeadTableRow) => (
+                      <LeadPhoneCell phone={lead.phone} />
+                    ),
                   },
                 ]
               : []),
@@ -4990,10 +4483,7 @@ function TableWithStickyScroll({
                     label: getFieldLabel("company_name", "שם חברה"),
                     width: 170,
                     render: (lead: any) => (
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{lead.company_name}</span>
-                      </div>
+                      <LeadCompanyCell company={lead.company_name} />
                     ),
                   },
                 ]
@@ -5021,12 +4511,8 @@ function TableWithStickyScroll({
                     id: "source",
                     label: getFieldLabel("source", "מקור הליד"),
                     width: 140,
-                    render: (lead: any) => (
-                      <LeadSourceLines
-                        lead={lead}
-                        compact
-                        showCampaign={false}
-                      />
+                    render: (lead: LeadTableRow) => (
+                      <LeadSourceBadge lead={lead} />
                     ),
                   },
                 ]
@@ -5037,62 +4523,19 @@ function TableWithStickyScroll({
                     id: "status",
                     label: getFieldLabel("status", "שלב במשפך"),
                     width: 150,
-                    render: (lead: any) => {
-                      const stage = PIPELINE_STAGES.find(
-                        (s) => s.id === lead.status,
-                      );
-                      return (
-                        <Select
-                          value={lead.status as string}
-                          onValueChange={(value) => {
-                            (updateLeadStatus as any).mutate({
-                              leadId: lead.id,
-                              newStatus: value,
-                            });
-                          }}
-                        >
-                          <SelectTrigger
-                            className="h-8 w-full border-2"
-                            style={{
-                              backgroundColor: stage?.hexColor || undefined,
-                              color:
-                                lead.status && stage?.hexColor
-                                  ? "#fff"
-                                  : undefined,
-                            }}
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-background z-50">
-                            {PIPELINE_STAGES.map((s) => (
-                              <SelectItem
-                                key={s.id}
-                                value={s.id}
-                                style={{
-                                  backgroundColor: s.hexColor,
-                                  color: s.hexColor ? "#fff" : undefined,
-                                }}
-                              >
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                            <div className="border-t mt-1 pt-1">
-                              <button
-                                type="button"
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setManageStagesOpen(true);
-                                }}
-                              >
-                                <Settings2 className="h-4 w-4" />
-                                ניהול שלבי משפך
-                              </button>
-                            </div>
-                          </SelectContent>
-                        </Select>
-                      );
-                    },
+                    render: (lead: LeadTableRow) => (
+                      <LeadStageCell
+                        status={lead.status}
+                        stages={PIPELINE_STAGES}
+                        onChange={(value) =>
+                          updateLeadStatus.mutate({
+                            leadId: lead.id,
+                            newStatus: value,
+                          })
+                        }
+                        onManage={() => setManageStagesOpen(true)}
+                      />
+                    ),
                   },
                 ]
               : []),
@@ -5102,85 +4545,20 @@ function TableWithStickyScroll({
                     id: "response_status",
                     label: getFieldLabel("response_status", "סטטוס"),
                     width: 150,
-                    render: (lead: any) => {
-                      const status = findLeadStatus(
-                        lead.response_status,
-                        leadStatuses,
-                      );
-                      const displayLabel =
-                        status?.label ||
-                        (lead.response_status ? lead.response_status : null);
-                      const unmatched = unmatchedResponseStatusValue(
-                        lead.response_status,
-                        leadStatuses,
-                      );
-                      return (
-                        <Select
-                          value={responseStatusSelectValue(
-                            lead.response_status,
-                            leadStatuses,
-                          )}
-                          onValueChange={(value) =>
-                            updateLeadResponseStatus.mutate({
-                              leadId: lead.id,
-                              responseStatus:
-                                value === "none" ? null : (value as any),
-                            })
-                          }
-                        >
-                          <SelectTrigger
-                            className="h-8 w-full border-2"
-                            style={{
-                              backgroundColor: status?.color || undefined,
-                              color: status?.color ? "#fff" : undefined,
-                            }}
-                          >
-                            {lead.response_status && displayLabel ? (
-                              <span className="truncate">{displayLabel}</span>
-                            ) : (
-                              <SelectValue
-                                placeholder={
-                                  isStatusesLoading ? "טוען..." : "ללא סטטוס"
-                                }
-                              />
-                            )}
-                          </SelectTrigger>
-                          <SelectContent className="bg-background z-50">
-                            <SelectItem value="none">ללא סטטוס</SelectItem>
-                            {unmatched && (
-                              <SelectItem value={unmatched}>
-                                {unmatched}
-                              </SelectItem>
-                            )}
-                            {leadStatuses.map((s) => (
-                              <SelectItem
-                                key={s.status_key}
-                                value={s.status_key}
-                                style={{
-                                  backgroundColor: s.color,
-                                  color: "#fff",
-                                }}
-                              >
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                            <div className="border-t mt-1 pt-1">
-                              <button
-                                type="button"
-                                className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-muted rounded cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setManageStatusesOpen(true);
-                                }}
-                              >
-                                <Settings2 className="h-4 w-4" />
-                                ניהול סטטוסים
-                              </button>
-                            </div>
-                          </SelectContent>
-                        </Select>
-                      );
-                    },
+                    render: (lead: LeadTableRow) => (
+                      <LeadResponseStatusCell
+                        responseStatus={lead.response_status}
+                        leadStatuses={leadStatuses}
+                        isLoading={isStatusesLoading}
+                        onChange={(value) =>
+                          updateLeadResponseStatus.mutate({
+                            leadId: lead.id,
+                            responseStatus: value,
+                          })
+                        }
+                        onManage={() => setManageStatusesOpen(true)}
+                      />
+                    ),
                   },
                 ]
               : []),
@@ -5190,30 +4568,13 @@ function TableWithStickyScroll({
                     id: "tags",
                     label: getFieldLabel("tags", "תגיות"),
                     width: 200,
-                    render: (lead: any) => {
-                      const tagIds = leadsTagsMap[lead.id] || [];
-                      const hasAssignedTags = tagIds.length > 0;
-                      return (
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            {hasAssignedTags ? (
-                              <LeadTagBadges
-                                allTags={allTags}
-                                tagIds={tagIds}
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                אין תגיות
-                              </span>
-                            )}
-                          </div>
-                          <LeadTagSelector
-                            leadId={lead.id}
-                            initialTagIds={tagIds}
-                          />
-                        </div>
-                      );
-                    },
+                    render: (lead: LeadTableRow) => (
+                      <LeadTagsCell
+                        leadId={lead.id}
+                        allTags={allTags}
+                        tagIds={leadsTagsMap[lead.id] || []}
+                      />
+                    ),
                   },
                 ]
               : []),
@@ -5307,47 +4668,26 @@ function TableWithStickyScroll({
               label: getFieldLabel("actions", "פעולות"),
               width: 120,
               render: (lead: any) => (
-                <div className="flex justify-center gap-1">
-                  {openLeadInChat ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      title="פרטי ליד"
-                      onClick={() => openLeadInChat(lead.id)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <EditLeadDialog lead={lead} />
-                  )}
-                  <AddTaskForm
-                    leadId={lead.id}
-                    agencyId={lead.agency_id || undefined}
-                    triggerButton={
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="הוסף משימה"
-                      >
-                        <CheckSquare className="h-4 w-4" />
-                      </Button>
-                    }
-                  />
-                </div>
+                <LeadRowActions
+                  lead={lead}
+                  onOpen={
+                    openLeadInChat ? () => openLeadInChat(lead.id) : undefined
+                  }
+                />
               ),
             },
           ]}
           data={stageLeads}
-          getRowClassName={(lead: any, rowIndex: number) => {
-            const stage = PIPELINE_STAGES.find((s) => s.id === lead.status);
-            return (
-              stage?.bgClass ||
-              (rowIndex % 2 === 0 ? "bg-background" : "bg-muted/10")
-            );
-          }}
-          getStickyCellClassName={(lead: any, rowIndex: number) => "bg-card"}
+          getRowClassName={(lead) =>
+            selectedLeads.includes(lead.id)
+              ? "bg-brand-accent-50 dark:bg-brand-accent-950"
+              : "bg-card"
+          }
+          getStickyCellClassName={(lead) =>
+            selectedLeads.includes(lead.id)
+              ? "bg-brand-accent-50 dark:bg-brand-accent-950"
+              : "bg-card group-hover:bg-muted"
+          }
           checkboxColumn={{
             checked: stageLeads.map((lead) => selectedLeads.includes(lead.id)),
             onCheckedChange: (index, checked) =>
@@ -5369,94 +4709,24 @@ function TableWithStickyScroll({
         showTrigger={false}
       />
 
-      {/* Bulk Assign to Sales People Dialog */}
-      <Dialog
+      <BulkAssignSalesPeopleDialog
         open={assignDialogOpen}
         onOpenChange={(open) => {
           setAssignDialogOpen(open);
           if (!open) setSelectedSalesPeople([]);
         }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              שייך {selectedLeads.length} לידים לאנשי מכירות
-            </DialogTitle>
-            <DialogDescription>
-              {selectedSalesPeople.length > 1 ? (
-                <>
-                  הלידים יחולקו שווה בשווה בין {selectedSalesPeople.length} אנשי
-                  המכירות (כ-
-                  {Math.ceil(
-                    selectedLeads.length / selectedSalesPeople.length,
-                  )}{" "}
-                  לידים לכל אחד)
-                </>
-              ) : (
-                "בחר איש מכירות אחד או יותר לשיוך הלידים"
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[300px] overflow-y-auto space-y-2 py-4">
-            {salesPeople.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                אין אנשי מכירות פעילים
-              </p>
-            ) : (
-              salesPeople.map((sp) => (
-                <div
-                  key={sp.id}
-                  className="flex items-center gap-3 p-2 rounded hover:bg-muted/50"
-                >
-                  <Checkbox
-                    id={`sp-${sp.id}`}
-                    checked={selectedSalesPeople.includes(sp.id)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedSalesPeople((prev) => [...prev, sp.id]);
-                      } else {
-                        setSelectedSalesPeople((prev) =>
-                          prev.filter((id) => id !== sp.id),
-                        );
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`sp-${sp.id}`}
-                    className="flex-1 cursor-pointer"
-                  >
-                    {sp.full_name}
-                  </label>
-                </div>
-              ))
-            )}
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setAssignDialogOpen(false)}
-            >
-              ביטול
-            </Button>
-            <Button
-              onClick={() =>
-                bulkAssignSalesPerson.mutate({
-                  leadIds: selectedLeads,
-                  salesPersonIds: selectedSalesPeople,
-                })
-              }
-              disabled={
-                selectedSalesPeople.length === 0 ||
-                bulkAssignSalesPerson.isPending
-              }
-            >
-              {bulkAssignSalesPerson.isPending ? "משייך..." : "שייך"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        leadCount={selectedLeads.length}
+        salesPeople={salesPeople}
+        selectedIds={selectedSalesPeople}
+        onSelectedIdsChange={setSelectedSalesPeople}
+        onAssign={() =>
+          bulkAssignSalesPerson.mutate({
+            leadIds: selectedLeads,
+            salesPersonIds: selectedSalesPeople,
+          })
+        }
+        isAssigning={bulkAssignSalesPerson.isPending}
+      />
     </div>
   );
 }

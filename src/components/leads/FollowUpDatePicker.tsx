@@ -15,12 +15,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CalendarClock, X } from "lucide-react";
-import { format, differenceInCalendarDays, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { followUpDue } from "./followUpDue";
 
 interface FollowUpDatePickerProps {
   leadId: string;
@@ -28,18 +29,6 @@ interface FollowUpDatePickerProps {
   variant?: "icon" | "full";
   onSuccess?: () => void;
   onOptimisticUpdate?: (leadId: string, newDate: string | null) => void;
-}
-
-function getOverdueInfo(dateStr: string | null) {
-  if (!dateStr) return { isOverdue: false, isToday: false, daysLate: 0 };
-  const today = startOfDay(new Date());
-  const followUp = startOfDay(new Date(dateStr));
-  const diff = differenceInCalendarDays(today, followUp);
-  return {
-    isOverdue: diff > 0,
-    isToday: diff === 0,
-    daysLate: diff,
-  };
 }
 
 export function FollowUpDatePicker({
@@ -57,7 +46,7 @@ export function FollowUpDatePicker({
     currentDate ? new Date(currentDate) : undefined,
   );
 
-  const { isOverdue, isToday, daysLate } = getOverdueInfo(currentDate);
+  const { isOverdue, isToday, daysLate } = followUpDue(currentDate);
 
   const updateFollowUpDate = useMutation({
     mutationFn: async (date: Date | null) => {
@@ -209,44 +198,44 @@ export function FollowUpDatePicker({
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-8 w-8 relative shrink-0",
-            isToday && "text-green-600 bg-green-100",
-            isOverdue && "text-destructive bg-destructive/10",
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            setDialogOpen(true);
-          }}
-          title={
-            currentDate
-              ? isOverdue
-                ? `איחור ${daysLate} ימים`
-                : `תאריך לחזרה: ${format(new Date(currentDate), "dd/MM/yyyy", { locale: he })}`
-              : "הגדר תאריך לחזרה"
-          }
-        >
-          <CalendarClock className="h-4 w-4" />
-        </Button>
-        {currentDate && (
-          <span
-            className={cn(
-              "text-sm font-medium whitespace-nowrap",
-              isToday && "text-green-600 bg-green-100 px-2 py-0.5 rounded-md",
-              isOverdue &&
-                "text-destructive bg-destructive/10 px-2 py-0.5 rounded-md",
-            )}
-          >
-            {isOverdue
-              ? `${format(new Date(), "dd/MM", { locale: he })} · איחור ${daysLate} ${daysLate === 1 ? "יום" : "ימים"}`
-              : format(new Date(currentDate), "dd/MM/yyyy", { locale: he })}
-          </span>
+      <button
+        type="button"
+        className={cn(
+          "inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+          !currentDate &&
+            "border-dashed text-muted-foreground hover:border-solid hover:bg-muted",
+          currentDate &&
+            !isToday &&
+            !isOverdue &&
+            "bg-muted/60 text-foreground hover:bg-muted",
+          isToday &&
+            "border-transparent bg-surface-status-yellow text-foreground",
+          isOverdue &&
+            "border-transparent bg-surface-status-red text-destructive",
         )}
-      </div>
+        onClick={(e) => {
+          e.stopPropagation();
+          setDialogOpen(true);
+        }}
+        title={
+          currentDate
+            ? isOverdue
+              ? `איחור ${daysLate} ימים`
+              : `תאריך לחזרה: ${format(new Date(currentDate), "dd/MM/yyyy", { locale: he })}`
+            : "הגדר תאריך לחזרה"
+        }
+      >
+        <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate tabular-nums">
+          {currentDate
+            ? isOverdue
+              ? `${format(new Date(), "dd/MM", { locale: he })} · איחור ${daysLate} ${daysLate === 1 ? "יום" : "ימים"}`
+              : isToday
+                ? "היום"
+                : format(new Date(currentDate), "dd/MM/yyyy", { locale: he })
+            : "קבע חזרה"}
+        </span>
+      </button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[350px]" dir="rtl">
