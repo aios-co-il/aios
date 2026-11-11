@@ -49,7 +49,9 @@ object ContactSearch {
 
     /**
      * How well every spoken word matches some word of the saved name: an exact word beats a
-     * prefix, and a prefix beats a sound-alike spelling (עדווה / אדוה / Adva). 0 = no match.
+     * prefix, a prefix beats a sound-alike in the same script (עדווה / אדוה), and that beats a
+     * sound-alike across scripts (עדווה / Adva). 0 = no match. AIO-566: "עדווה" listed English
+     * names that sound alike first and the wanted "אדוה" fell outside the shown matches.
      */
     private fun nameScore(query: List<String>, name: String): Int {
         val nameWords = words(name)
@@ -66,7 +68,7 @@ object ContactSearch {
     private fun wordScore(spoken: String, saved: String): Int = when {
         spoken == saved -> 4
         saved.startsWith(spoken) && spoken.length >= 2 -> 3
-        sounds(spoken).any { it.isNotEmpty() && it in sounds(saved) } -> 2
+        sounds(spoken).any { it.isNotEmpty() && it in sounds(saved) } -> if (isHebrew(spoken) == isHebrew(saved)) 2 else 1
         else -> 0
     }
 
@@ -79,19 +81,30 @@ object ContactSearch {
             .split(Regex("[^\\p{L}\\p{N}]+"))
             .filter { it.isNotEmpty() }
 
+    private fun isHebrew(word: String): Boolean = word.any { it in 'א'..'ת' }
+
     /**
-     * The consonants of a word as Latin letters, so Hebrew and English spellings meet. ו can be
-     * a vowel (יוסי) or a v (אדוה), so a Hebrew word yields both readings.
+     * The consonants of a word as Latin letters, so Hebrew and English spellings meet. A single
+     * ו can be a vowel (יוסי) or a v (אדוה), so a Hebrew word yields both readings; a doubled וו
+     * is always a v (עדווה).
      */
     private fun sounds(word: String): Set<String> {
-        if (word.any { it in 'א'..'ת' }) {
+        if (isHebrew(word)) {
             return setOf(hebrewSound(word, vavAsV = false), hebrewSound(word, vavAsV = true))
         }
         return setOf(latinSound(word))
     }
 
     private fun hebrewSound(word: String, vavAsV: Boolean): String =
-        collapse(word.map { if (it == 'ו') if (vavAsV) "b" else "" else HEBREW_SOUNDS[it] ?: "" }.joinToString(""))
+        collapse(
+            word.mapIndexed { i, letter ->
+                when {
+                    letter != 'ו' -> HEBREW_SOUNDS[letter] ?: ""
+                    vavAsV || word.getOrNull(i - 1) == 'ו' || word.getOrNull(i + 1) == 'ו' -> "b"
+                    else -> ""
+                }
+            }.joinToString(""),
+        )
 
     private fun latinSound(word: String): String {
         var text = word

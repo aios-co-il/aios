@@ -28,6 +28,18 @@ class ContactSearchTest {
     }
 
     @Test
+    fun `a Hebrew spelling variant ranks above English sound-alikes`() {
+        // Production, AIO-566: "עדווה" listed Adi, Dave and others, and "אדוה יפה שלי" was not shown.
+        val contacts = listOf(
+            contact("Adi Nudelman", "0503202216"), contact("Dave נחמני", "0547311101"),
+            contact("Diana הפקות", "0547294202"), contact("אדוה יפה שלי", "0508717428"),
+        )
+        val found = ContactSearch.find(contacts, "עדווה", 8)
+        assertEquals("אדוה יפה שלי", names(found).first())
+        assertFalse("Adi Nudelman" in names(found))
+    }
+
+    @Test
     fun `an exact name ranks above a sound-alike`() {
         val contacts = listOf(contact("Adva", "1"), contact("אדוה", "2"))
         assertEquals("אדוה", names(ContactSearch.find(contacts, "אדוה", 8)).first())

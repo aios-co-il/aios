@@ -100,3 +100,17 @@ Deno.test(
     assertStringIncludes(unknown, "בלשון רבים או ניטרלית");
   },
 );
+
+Deno.test(
+  "voice never claims a phone send that did not happen and keeps a matter-of-fact tone",
+  () => {
+    const text = buildVoiceInstructions(null, "");
+    assertStringIncludes(
+      text,
+      'אל תאמרי "נשלח" או "שלחתי" אלא אם send_whatsapp החזיר עכשיו שנשלח',
+    );
+    assertStringIncludes(text, "הוא לא רואה שליחות מהטלפון");
+    assertStringIncludes(text, '"המוח שלי"');
+    assertStringIncludes(text, "בלי תגיות רגש או קצב");
+  },
+);

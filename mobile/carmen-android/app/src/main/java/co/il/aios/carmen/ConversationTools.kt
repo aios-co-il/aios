@@ -36,7 +36,7 @@ class ConversationTools(context: Context, account: AiosAccount, private val log:
         }
         WhatsAppSend.TOOL -> {
             log.record(EventLog.Event.PHONE_TOOL, name)
-            PhoneTools.Result(whatsApp.run(args))
+            PhoneTools.Result(whatsApp.run(args, turns))
         }
         else -> {
             log.record(EventLog.Event.PHONE_TOOL, name)
