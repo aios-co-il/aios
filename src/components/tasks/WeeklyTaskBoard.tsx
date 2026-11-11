@@ -2213,12 +2213,12 @@ export function WeeklyTaskBoard() {
 
             {/* Desktop: Side by side with sticky panel */}
             <div className="hidden md:flex md:flex-col flex-1 relative min-h-0 overflow-x-auto overflow-y-auto overscroll-contain">
-              {/* The day view fills the width beside the backlog; week and
-                  month keep their own widths and scroll sideways. */}
+              {/* Day and month fill the width beside the backlog; the week
+                  keeps its column widths and scrolls sideways. */}
               <div
                 className={cn(
                   "flex gap-3 pb-4 min-h-0",
-                  viewMode === "daily" ? "w-full" : "w-fit",
+                  viewMode === "weekly" ? "w-fit" : "w-full",
                 )}
               >
                 {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
