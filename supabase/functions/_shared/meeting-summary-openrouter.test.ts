@@ -126,3 +126,75 @@ Deno.test(
     }
   },
 );
+
+Deno.test(
+  "a summary cut off at the token cap continues and is joined",
+  async () => {
+    const calls: Array<Call> = [];
+    const replies = [
+      { finish_reason: "length", content: "## תקציר מנהלים\nמשפט שנק" },
+      { finish_reason: "stop", content: "טע ונמשך עד הסוף." },
+    ];
+    const summary = await summarizeWithOpenRouter(
+      {
+        apiKey: "or-key",
+        tenantId: "tenant",
+        transcript: "short",
+        recordingInfo: "",
+        focusPrompt: "",
+      },
+      fakeFetch(() => {
+        const reply = replies[calls.length - 1];
+        return Response.json({
+          choices: [
+            {
+              finish_reason: reply.finish_reason,
+              message: { content: reply.content },
+            },
+          ],
+        });
+      }, calls),
+    );
+
+    assertEquals(summary, "## תקציר מנהלים\nמשפט שנקטע ונמשך עד הסוף.");
+    assertEquals(calls.length, 2);
+    const followUp = calls[1].body.messages as Array<{
+      role: string;
+      content: string;
+    }>;
+    assertEquals(followUp.at(-2), {
+      role: "assistant",
+      content: "## תקציר מנהלים\nמשפט שנק",
+    });
+    assertEquals(followUp.at(-1)?.role, "user");
+  },
+);
+
+Deno.test(
+  "a summary that never finishes is an error, not a cut-off save",
+  async () => {
+    await assertRejects(
+      () =>
+        summarizeWithOpenRouter(
+          {
+            apiKey: "or-key",
+            tenantId: "tenant",
+            transcript: "short",
+            recordingInfo: "",
+            focusPrompt: "",
+          },
+          fakeFetch(
+            () =>
+              Response.json({
+                choices: [
+                  { finish_reason: "length", message: { content: "עוד" } },
+                ],
+              }),
+            [],
+          ),
+        ),
+      Error,
+      "did not finish the summary",
+    );
+  },
+);
