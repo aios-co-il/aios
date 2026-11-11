@@ -1,4 +1,4 @@
-import { TableCell, TableRow } from "@/components/ui/table";
+import { REPORT_POSITIVE, ReportTd } from "@/components/report-ui/ReportTable";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import type {
@@ -15,7 +15,10 @@ type Props = GoogleAdsFormatters & {
   store: GoogleStoreTotals;
 };
 
-/** Totals row of one goal's table; the sales columns use the store totals (WooCommerce when it overlays). */
+/**
+ * Total row cells of one goal's table, under the name column; the
+ * sales columns use the store totals (WooCommerce when it overlays).
+ */
 export function GoogleAdsCampaignTotalsRow({
   goal,
   showLeads = false,
@@ -29,41 +32,41 @@ export function GoogleAdsCampaignTotalsRow({
   const totalCpc = ratio(groupTotals.spend, groupTotals.clicks);
   const totalCpa = ratio(groupTotals.spend, groupTotals.conversions);
   return (
-    <TableRow className="bg-muted/50 font-bold border-t-2">
-      <TableCell>סה"כ</TableCell>
-      <TableCell>{formatNumber(groupTotals.impressions)}</TableCell>
-      <TableCell>{formatNumber(groupTotals.clicks)}</TableCell>
-      <TableCell>{totalCtr.toFixed(2)}%</TableCell>
-      <TableCell>{totalCpc > 0 ? formatUnitCost(totalCpc) : "-"}</TableCell>
-      <TableCell>{formatCurrency(groupTotals.spend)}</TableCell>
+    <>
+      <ReportTd>סה"כ</ReportTd>
+      <ReportTd>{formatNumber(groupTotals.impressions)}</ReportTd>
+      <ReportTd>{formatNumber(groupTotals.clicks)}</ReportTd>
+      <ReportTd>{totalCtr.toFixed(2)}%</ReportTd>
+      <ReportTd>{totalCpc > 0 ? formatUnitCost(totalCpc) : "-"}</ReportTd>
+      <ReportTd>{formatCurrency(groupTotals.spend)}</ReportTd>
       {goal === "traffic" ? null : goal === "ecommerce" ? (
         <>
-          <TableCell className="text-green-600">
+          <ReportTd className={REPORT_POSITIVE}>
             {formatNumber(store.purchases)}
-          </TableCell>
-          <TableCell className="text-green-600">
+          </ReportTd>
+          <ReportTd className={REPORT_POSITIVE}>
             {formatCurrency(store.revenue)}
-          </TableCell>
-          <TableCell>
+          </ReportTd>
+          <ReportTd>
             {groupTotals.spend > 0 ? store.roas.toFixed(2) : "-"}
-          </TableCell>
-          <TableCell>
+          </ReportTd>
+          <ReportTd>
             {store.purchases > 0
               ? formatCurrency(store.revenue / store.purchases)
               : "-"}
-          </TableCell>
+          </ReportTd>
           {showLeads && (
-            <TableCell>{formatNumber(groupTotals.leads ?? 0)}</TableCell>
+            <ReportTd>{formatNumber(groupTotals.leads ?? 0)}</ReportTd>
           )}
         </>
       ) : (
         <>
-          <TableCell className="text-green-600">
+          <ReportTd className={REPORT_POSITIVE}>
             {formatNumber(groupTotals.conversions)}
-          </TableCell>
-          <TableCell>{totalCpa > 0 ? formatCurrency(totalCpa) : "-"}</TableCell>
+          </ReportTd>
+          <ReportTd>{totalCpa > 0 ? formatCurrency(totalCpa) : "-"}</ReportTd>
         </>
       )}
-    </TableRow>
+    </>
   );
 }
