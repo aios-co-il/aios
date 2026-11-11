@@ -134,6 +134,37 @@ describe("buildReportPeriod", () => {
     ).toBe(false);
   });
 
+  it("marks a Google campaign off from the report's operational check", () => {
+    const google = buildReportPeriod({
+      records: [
+        {
+          table_id: "gads",
+          data: {
+            entity_level: "campaign",
+            campaign_id: "1",
+            campaign_name: "Pmax",
+            date: "2026-11-01",
+            cost: 40,
+            conversions: 2,
+          },
+        },
+      ],
+      tables: [
+        {
+          id: "gads",
+          integration_type: "google_ads",
+          integration_settings: {
+            report_type: "leads",
+            operational_campaign_states: { "1": { status: "PAUSED" } },
+          },
+        },
+      ],
+      woo: null,
+    });
+    const [campaign] = google.scopes.all?.campaigns ?? [];
+    expect(campaign).toMatchObject({ name: "Pmax", on: false });
+  });
+
   it("adds a sales scope for a store without sales campaigns", () => {
     const traffic = buildReportPeriod({
       records: [

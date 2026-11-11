@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -338,11 +339,11 @@ export default function GmailSettings() {
                   </option>
                 ))}
             </select>
-            <input
-              type="color"
+            <ColorPicker
               value={newCategoryColor}
-              onChange={(e) => setNewCategoryColor(e.target.value)}
-              className="w-10 h-10 rounded border cursor-pointer"
+              onChange={setNewCategoryColor}
+              label="צבע הקטגוריה"
+              className="h-10 w-10 rounded border"
             />
             <Button
               onClick={() => addCategory.mutate()}

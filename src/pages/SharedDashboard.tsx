@@ -11,7 +11,7 @@ import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleA
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
 import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoalOverview/DashboardGoalOverview";
-import { FacebookSalesCampaignsCard } from "@/components/dynamic-tables/FacebookSalesCampaigns/FacebookSalesCampaignsCard";
+import { FacebookReportTab } from "@/components/FacebookReportTab/FacebookReportTab";
 import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
@@ -70,7 +70,6 @@ import { PublicSeoMonthlyWorkView } from "@/components/dynamic-tables/PublicSeoM
 import { GoogleAnalyticsDashboard } from "@/components/dynamic-tables/GoogleAnalyticsDashboard";
 import { PublicWooCommerceView } from "@/components/dynamic-tables/PublicWooCommerceView";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
-import { FacebookDashboardTrafficCard } from "@/components/dynamic-tables/FacebookDashboardTrafficCard";
 import {
   getAddToCartFromData,
   getPurchasesFromData,
@@ -1395,103 +1394,16 @@ export default function SharedDashboard({
             </div>
           )}
 
-          {/* Facebook Campaign Summary Tables */}
-          {platformFilter === "facebook" &&
-            facebookCampaignGroups.all.length > 0 && (
-              <div className="space-y-4">
-                {facebookCampaignGroups.ecommerce.length > 0 && (
-                  <FacebookSalesCampaignsCard
-                    campaigns={facebookCampaignGroups.ecommerce}
-                    formatCurrency={formatCurrency}
-                    formatNumber={formatNumber}
-                  />
-                )}
-                {facebookCampaignGroups.leads.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Facebook className="h-5 w-5 text-blue-600" />
-                        קמפיינים לידים - Facebook
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-right">
-                                קמפיין
-                              </TableHead>
-                              <TableHead className="text-right">
-                                חשיפות
-                              </TableHead>
-                              <TableHead className="text-right">
-                                קליקים
-                              </TableHead>
-                              <TableHead className="text-right">
-                                לידים
-                              </TableHead>
-                              <TableHead className="text-right">
-                                הוצאה
-                              </TableHead>
-                              <TableHead className="text-right">
-                                עלות לליד
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {facebookCampaignGroups.leads.map((c) => {
-                              const cpl = c.leads > 0 ? c.spend / c.leads : 0;
-                              return (
-                                <TableRow key={`leads-${c.name}`}>
-                                  <TableCell className="font-medium max-w-[300px]">
-                                    {c.name}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.impressions)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatNumber(c.clicks)}
-                                  </TableCell>
-                                  <TableCell
-                                    className={
-                                      c.leads > 0
-                                        ? "text-green-600 font-medium"
-                                        : ""
-                                    }
-                                  >
-                                    {formatNumber(c.leads)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {formatCurrency(c.spend)}
-                                  </TableCell>
-                                  <TableCell>
-                                    {cpl > 0 ? formatCurrency(cpl) : "-"}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-                {facebookCampaignGroups.traffic.length > 0 && (
-                  <FacebookDashboardTrafficCard
-                    rows={facebookCampaignGroups.traffic}
-                    formatCurrency={formatCurrency}
-                    formatUnitCost={formatUnitCost}
-                    formatNumber={formatNumber}
-                  />
-                )}
-                <p className="text-xs text-muted-foreground px-1">
-                  * נתוני רכישות וערך רכישות מבוססים על דיווח פייסבוק (כולל
-                  ייחוס צפייה וחלון 7 ימים). ה-ROAS הכללי בשורת הסה"כ מחושב לפי
-                  הכנסות WooCommerce / Analytics בפועל.
-                </p>
-              </div>
-            )}
+          {platformFilter === "facebook" && (
+            <FacebookReportTab
+              campaigns={facebookCampaignGroups}
+              records={filteredRecords}
+              tables={tables}
+              formatCurrency={formatCurrency}
+              formatNumber={formatNumber}
+              formatUnitCost={formatUnitCost}
+            />
+          )}
 
           {platformFilter === "google_ads" && (
             <GoogleAdsCampaignSection

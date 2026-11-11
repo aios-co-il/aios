@@ -14,7 +14,7 @@ export function GoogleWooNotice({
   formatNumber,
 }: Props) {
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+    <div className="rounded-2xl border bg-surface-status-yellow px-4 py-3 text-sm text-foreground">
       רכישות והכנסות בכרטיסים למטה מבוססים על ייחוס WooCommerce (Google ממומן).
       דיווח Google Ads: {formatNumber(ecommerce.conversions)} המרות,{" "}
       {formatCurrency(ecommerce.conversions_value)} ערך המרה.

@@ -1,21 +1,22 @@
 import { useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Route } from "lucide-react";
+import { ReportSection } from "@/components/report-ui/ReportSection";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ReportNameCell,
+  ReportTable,
+  ReportTd,
+  ReportTh,
+  ReportTr,
+} from "@/components/report-ui/ReportTable";
 import { aggregateOrdersByAttribution } from "@/lib/wooAttribution";
 
 type Props = {
-  orders: any[];
+  orders: Parameters<typeof aggregateOrdersByAttribution>[0];
   formatCurrency: (n: number) => string;
   formatNumber: (n: number) => string;
 };
 
+/** WooCommerce orders and revenue by the traffic source each order recorded. */
 export function WooAttributionSection({
   orders,
   formatCurrency,
@@ -26,43 +27,34 @@ export function WooAttributionSection({
     [orders],
   );
 
-  if (bySource.length === 0) return null;
+  if (bySource.length === 0) {
+    return null;
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>רכישות לפי מקור הגעה</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>מקור</TableHead>
-              <TableHead className="text-left">הזמנות</TableHead>
-              <TableHead className="text-left">הכנסות</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {bySource.map((row) => (
-              <TableRow key={row.label}>
-                <TableCell className="font-medium">{row.label}</TableCell>
-                <TableCell className="text-left">
-                  {formatNumber(row.orders)}
-                </TableCell>
-                <TableCell className="text-left">
-                  {formatCurrency(row.revenue)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <p className="text-xs text-muted-foreground mt-3">
-          * מקור הגעה מבוסס על WooCommerce Order Attribution (UTM / referrer
-          בשעת הרכישה). הזמנות ללא נתוני attribution מסווגות כ&quot;לא
-          ידוע&quot;.
-        </p>
-      </CardContent>
-    </Card>
+    <ReportSection title="רכישות לפי מקור הגעה" icon={Route}>
+      <ReportTable
+        head={
+          <>
+            <ReportTh>מקור</ReportTh>
+            <ReportTh>הזמנות</ReportTh>
+            <ReportTh>הכנסות</ReportTh>
+          </>
+        }
+      >
+        {bySource.map((row) => (
+          <ReportTr key={row.label}>
+            <ReportNameCell name={row.label} />
+            <ReportTd>{formatNumber(row.orders)}</ReportTd>
+            <ReportTd>{formatCurrency(row.revenue)}</ReportTd>
+          </ReportTr>
+        ))}
+      </ReportTable>
+      <p className="mt-3 text-xs text-muted-foreground">
+        * מקור הגעה מבוסס על WooCommerce Order Attribution (UTM / referrer בשעת
+        הרכישה). הזמנות ללא נתוני attribution מסווגות כ&quot;לא ידוע&quot;.
+      </p>
+    </ReportSection>
   );
 }
 

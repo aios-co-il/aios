@@ -7,6 +7,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -329,17 +330,6 @@ function CreateChannelDialog({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const colors = [
-    "#3B82F6",
-    "#EF4444",
-    "#10B981",
-    "#F59E0B",
-    "#8B5CF6",
-    "#EC4899",
-    "#06B6D4",
-    "#F97316",
-  ];
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -370,20 +360,12 @@ function CreateChannelDialog({
           </div>
           <div>
             <Label>צבע</Label>
-            <div className="flex gap-2 mt-1">
-              {colors.map((c) => (
-                <button
-                  key={c}
-                  className={cn(
-                    "h-7 w-7 rounded-full border-2 transition-all",
-                    color === c
-                      ? "border-foreground scale-110"
-                      : "border-transparent",
-                  )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setColor(c)}
-                />
-              ))}
+            <div className="mt-1">
+              <ColorPicker
+                value={color}
+                onChange={setColor}
+                className="h-7 w-7 rounded-full"
+              />
             </div>
           </div>
 
@@ -3157,17 +3139,6 @@ function EditChannelDialog({
     }
   }, [open, channel]);
 
-  const colors = [
-    "#3B82F6",
-    "#EF4444",
-    "#10B981",
-    "#F59E0B",
-    "#8B5CF6",
-    "#EC4899",
-    "#06B6D4",
-    "#F97316",
-  ];
-
   // Fetch WhatsApp groups in tenant
   const { data: waGroups = [] } = useQuery({
     queryKey: ["wa-groups-for-link", tenantId],
@@ -3340,20 +3311,12 @@ function EditChannelDialog({
             </div>
             <div>
               <Label>צבע</Label>
-              <div className="flex gap-2 mt-1">
-                {colors.map((c) => (
-                  <button
-                    key={c}
-                    className={cn(
-                      "h-7 w-7 rounded-full border-2 transition-all",
-                      color === c
-                        ? "border-foreground scale-110"
-                        : "border-transparent",
-                    )}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setColor(c)}
-                  />
-                ))}
+              <div className="mt-1">
+                <ColorPicker
+                  value={color}
+                  onChange={setColor}
+                  className="h-7 w-7 rounded-full"
+                />
               </div>
             </div>
 
