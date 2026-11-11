@@ -11,7 +11,8 @@ import {
 
 const OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions";
 export const DEFAULT_MEETING_SUMMARY_MODEL = "anthropic/claude-opus-5.5";
-const MAX_SUMMARY_TOKENS = 8_000;
+// Hebrew takes many tokens per word: 8,000 cut every detailed summary short.
+const MAX_SUMMARY_TOKENS = 16_000;
 
 export interface OpenRouterSummaryInput {
   apiKey: string;
@@ -56,7 +57,8 @@ export async function summarizeWithOpenRouter(
     throw new Error(`OpenRouter ${model} returned ${res.status}: ${detail}`);
   }
   const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
+  const choice = data?.choices?.[0];
+  const content = choice?.message?.content;
   if (typeof content !== "string" || !content.trim()) {
     throw new Error(`OpenRouter ${model} returned no summary`);
   }
@@ -68,6 +70,12 @@ export async function summarizeWithOpenRouter(
     cost_usd: typeof data?.usage?.cost === "number" ? data.usage.cost : null,
     tenant_id: input.tenantId,
   });
+  // A summary that hit the cap ends mid-sentence; the caller falls back instead.
+  if (choice?.finish_reason === "length") {
+    throw new Error(
+      `OpenRouter ${model} stopped at ${MAX_SUMMARY_TOKENS} tokens; summary is incomplete`,
+    );
+  }
   return content;
 }
 

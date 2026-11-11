@@ -126,3 +126,32 @@ Deno.test(
     }
   },
 );
+
+Deno.test("a summary cut off at the token cap is rejected", async () => {
+  await assertRejects(
+    () =>
+      summarizeWithOpenRouter(
+        {
+          apiKey: "or-key",
+          tenantId: "tenant",
+          transcript: "short",
+          recordingInfo: "",
+          focusPrompt: "",
+        },
+        fakeFetch(
+          () =>
+            Response.json({
+              choices: [
+                {
+                  finish_reason: "length",
+                  message: { content: "## תקציר מנהלים\nמשפט שנקטע באמצע" },
+                },
+              ],
+            }),
+          [],
+        ),
+      ),
+    Error,
+    "summary is incomplete",
+  );
+});
