@@ -10,7 +10,7 @@ import {
   type FacebookTabFormatters,
 } from "./facebookColumns";
 import { FacebookGoalTable } from "./FacebookGoalTable";
-import { FacebookKpiStrip } from "./FacebookKpiStrip";
+import { FacebookKpiStrip, type FacebookKpiFigures } from "./FacebookKpiStrip";
 import {
   facebookCampaignRecords,
   facebookCampaignOnOf,
@@ -26,6 +26,8 @@ type Props = FacebookTabFormatters & {
   records: Array<FacebookTabRecord>;
   /** The dashboard's report tables, whose switch and status mark campaigns off. */
   tables: Array<CampaignOffTable>;
+  /** The previous period's campaigns; the headline cards show the change. */
+  previous?: DashboardFacebookCampaigns | null;
 };
 
 /**
@@ -37,6 +39,7 @@ export function FacebookReportTab({
   campaigns,
   records,
   tables,
+  previous,
   ...formats
 }: Props) {
   const metaRecords = useMemo(
@@ -55,11 +58,8 @@ export function FacebookReportTab({
   return (
     <div className="space-y-4">
       <FacebookKpiStrip
-        totals={facebookTabTotals(all)}
-        goals={{
-          sales: ecommerce.length > 0 ? facebookTabTotals(ecommerce) : null,
-          leads: leads.length > 0 ? facebookTabTotals(leads) : null,
-        }}
+        {...kpiFiguresOf(campaigns)}
+        previous={previous ? kpiFiguresOf(previous) : null}
         {...formats}
       />
       {days.length > 1 && (
@@ -116,4 +116,18 @@ export function FacebookReportTab({
       </p>
     </div>
   );
+}
+
+/** The headline figures of a period's campaigns, overall and per goal. */
+function kpiFiguresOf(
+  campaigns: DashboardFacebookCampaigns,
+): FacebookKpiFigures {
+  const { ecommerce, leads, all } = campaigns;
+  return {
+    totals: facebookTabTotals(all),
+    goals: {
+      sales: ecommerce.length > 0 ? facebookTabTotals(ecommerce) : null,
+      leads: leads.length > 0 ? facebookTabTotals(leads) : null,
+    },
+  };
 }

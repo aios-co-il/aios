@@ -34,6 +34,7 @@ describe("reportInsightRequestOf", () => {
             analytics: { sessions: 30, revenue: 0, purchases: 0, addToCart: 0 },
           }),
           previous: figures({ spend: 80, leads: 2 }),
+          previousCampaigns: null,
           channels: [],
           daily: [],
           campaigns: [campaign("א", 100)],
@@ -75,6 +76,7 @@ describe("reportInsightRequestOf", () => {
         traffic: {
           figures: figures({}),
           previous: null,
+          previousCampaigns: null,
           channels: [],
           daily: [],
           campaigns,

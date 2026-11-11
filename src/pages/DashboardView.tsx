@@ -7,6 +7,11 @@ import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
+import {
+  previousFacebookCampaigns,
+  previousGoogleAdsSummary,
+} from "@/components/report-ui/dashboard/previousPlatformTabs";
+import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
 import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoalOverview/DashboardGoalOverview";
@@ -598,17 +603,43 @@ export default function DashboardView() {
   );
   // Off by default, like the platform reports' "השוואה לתקופה קודמת".
   const [comparePrevious, setComparePrevious] = useState(false);
-  const reportPrevious = usePreviousReportPeriod({
+  // The comparison covers the overview and the Facebook and Google Ads tabs.
+  const comparisonTab =
+    platformFilter === "all" ||
+    platformFilter === "facebook" ||
+    platformFilter === "google_ads";
+  const previousPeriod = usePreviousReportPeriod({
     tables,
     dateFilter,
     customFrom: customFromStr,
     customTo: customToStr,
     clientId: dashboard?.client_id,
     hasWooCommerce,
-    enabled: comparePrevious && platformFilter === "all" && isCustomReady,
+    enabled: comparePrevious && comparisonTab && isCustomReady,
   });
-  const reportPreviousRange = previousPeriodOf(
-    getDashboardDateRange(dateFilter, new Date(), customFromStr, customToStr),
+  const reportPrevious = previousPeriod.period;
+  const comparisonToggle = {
+    on: comparePrevious,
+    onChange: setComparePrevious,
+    range: previousPeriodOf(
+      getDashboardDateRange(dateFilter, new Date(), customFromStr, customToStr),
+    ),
+    loading: comparePrevious && reportPrevious === null,
+  };
+  // The previous period of the Facebook and Google Ads tabs' headline cards.
+  const previousFacebook = useMemo(
+    () =>
+      comparePrevious && platformFilter === "facebook"
+        ? previousFacebookCampaigns(previousPeriod.records, tables)
+        : null,
+    [comparePrevious, platformFilter, previousPeriod.records, tables],
+  );
+  const previousGoogleAds = useMemo(
+    () =>
+      comparePrevious && platformFilter === "google_ads"
+        ? previousGoogleAdsSummary(previousPeriod.records, tables)
+        : null,
+    [comparePrevious, platformFilter, previousPeriod.records, tables],
   );
 
   // Available platforms for tab rendering
@@ -1702,12 +1733,7 @@ export default function DashboardView() {
                   current={reportCurrent}
                   previous={comparePrevious ? reportPrevious : null}
                   currency={dashboardCurrency}
-                  comparison={{
-                    on: comparePrevious,
-                    onChange: setComparePrevious,
-                    range: reportPreviousRange,
-                    loading: comparePrevious && reportPrevious === null,
-                  }}
+                  comparison={comparisonToggle}
                   askCarmen
                 />
               )}
@@ -1868,11 +1894,19 @@ export default function DashboardView() {
                 </div>
               )}
 
+              {(platformFilter === "facebook" ||
+                platformFilter === "google_ads") && (
+                <div className="flex justify-end">
+                  <PreviousPeriodToggle {...comparisonToggle} />
+                </div>
+              )}
+
               {platformFilter === "facebook" && (
                 <FacebookReportTab
                   campaigns={facebookCampaignGroups}
                   records={filteredRecords}
                   tables={tables}
+                  previous={previousFacebook}
                   formatCurrency={formatCurrency}
                   formatNumber={formatNumber}
                   formatUnitCost={formatUnitCost}
@@ -1887,6 +1921,7 @@ export default function DashboardView() {
                   formatNumber={formatNumber}
                   formatUnitCost={formatUnitCost}
                   woo={useGoogleWooOverlay ? googleWooAttribution : null}
+                  previous={previousGoogleAds}
                 />
               )}
 

@@ -11,6 +11,8 @@ type Props = GoogleAdsFormatters & {
   icon: ReactNode;
   /** WooCommerce attribution replaces the ecommerce purchases/revenue totals. */
   woo?: WooGoogleAttributionSummary | null;
+  /** The previous period; the headline cards show each figure's change. */
+  previous?: GoogleAdsCampaignSummary | null;
 };
 
 /**
@@ -23,6 +25,7 @@ export function GoogleAdsCampaignSection({
   summary,
   icon,
   woo,
+  previous,
   ...formats
 }: Props) {
   const store = googleStoreTotals(summary.ecommerce, woo);
@@ -43,6 +46,7 @@ export function GoogleAdsCampaignSection({
         summary={summary}
         store={store}
         hasWoo={!!woo}
+        previous={previous}
         {...formats}
       />
 

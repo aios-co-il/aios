@@ -21,6 +21,7 @@ import {
   REPORT_METRICS,
 } from "../metrics/reportMetrics";
 import type { ReportMetricKey } from "../metrics/reportMetricTypes";
+import { PreviousMetricLine } from "./PreviousMetricLine";
 import { REPORT_CHANNEL_LABELS } from "./reportChannels";
 
 interface GoalCampaignTableProps {
@@ -36,7 +37,8 @@ const CELL = "px-2 py-2.5 text-start tabular-nums whitespace-nowrap";
 /**
  * A goal's campaigns with that goal's columns, the platform's on/off state
  * and a filter for the switched-off ones. The total row adds the campaigns as
- * the platforms report them, so it matches the rows shown above it.
+ * the platforms report them, so it matches the rows shown above it. With the
+ * previous-period comparison on, each cell shows the previous value under it.
  */
 export function GoalCampaignTable({
   goal,
@@ -54,6 +56,14 @@ export function GoalCampaignTable({
     (sum, row) => addAdsFigures(sum, row.figures),
     emptyReportFigures(),
   );
+  const previousOf = scope.previousCampaigns;
+  const previousTotal =
+    previousOf &&
+    rows.reduce(
+      (sum, row) =>
+        addAdsFigures(sum, previousOf.get(row.key) ?? emptyReportFigures()),
+      emptyReportFigures(),
+    );
   return (
     <ReportSection
       title={CAMPAIGN_GOAL_TITLES[goal]}
@@ -96,6 +106,9 @@ export function GoalCampaignTable({
                 <MetricCells
                   metrics={metrics}
                   figures={row.figures}
+                  previous={
+                    previousOf ? (previousOf.get(row.key) ?? null) : undefined
+                  }
                   currency={currency}
                 />
               </tr>
@@ -109,6 +122,7 @@ export function GoalCampaignTable({
               <MetricCells
                 metrics={metrics}
                 figures={total}
+                previous={previousTotal ?? undefined}
                 currency={currency}
               />
             </tr>
@@ -119,14 +133,19 @@ export function GoalCampaignTable({
   );
 }
 
-/** A cell per metric; a dash where the row cannot measure it. */
+/**
+ * A cell per metric; a dash where the row cannot measure it. `previous` is
+ * undefined while the comparison is off and null when the row did not run.
+ */
 function MetricCells({
   metrics,
   figures,
+  previous,
   currency,
 }: {
   metrics: Array<ReportMetricKey>;
   figures: ReportFigures;
+  previous: ReportFigures | null | undefined;
   currency: CurrencyCode;
 }) {
   return metrics.map((key) => (
@@ -134,6 +153,14 @@ function MetricCells({
       {isMetricAvailable(key, figures)
         ? readMetric(key, figures, currency).text
         : "—"}
+      {previous !== undefined && (
+        <PreviousMetricLine
+          metric={key}
+          current={figures}
+          previous={previous}
+          currency={currency}
+        />
+      )}
     </td>
   ));
 }

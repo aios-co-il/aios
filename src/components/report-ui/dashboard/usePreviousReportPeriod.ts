@@ -29,11 +29,18 @@ interface UsePreviousReportPeriodOptions {
   enabled: boolean;
 }
 
+/** The previous period, as the report reads it and as raw tagged records. */
+export type PreviousReportPeriod = {
+  /** The report's input; null while it loads or without a previous period. */
+  period: ReportPeriodInput | null;
+  /** Each table's rows, tagged with `_source` like the dashboard's own. */
+  records: Array<DashboardReportRecord> | undefined;
+};
+
 /**
  * The period of equal length before the dashboard's range, loaded the way the
  * current one is (crm-records per table, WooCommerce summary), so the report
- * can show each figure's change. Null while it loads or when the filter has
- * no previous period.
+ * and the platform tabs can show each figure's change.
  */
 export function usePreviousReportPeriod({
   tables,
@@ -43,7 +50,7 @@ export function usePreviousReportPeriod({
   clientId,
   hasWooCommerce,
   enabled,
-}: UsePreviousReportPeriodOptions): ReportPeriodInput | null {
+}: UsePreviousReportPeriodOptions): PreviousReportPeriod {
   const previous = enabled
     ? previousPeriodOf(
         getDashboardDateRange(dateFilter, new Date(), customFrom, customTo),
@@ -54,7 +61,7 @@ export function usePreviousReportPeriod({
   const woo = usePreviousWoo(hasWooCommerce ? clientId : null, previous);
   const wooReady = !hasWooCommerce || woo !== undefined;
   // Memoized so the report builds the previous period once per load.
-  return useMemo(
+  const period = useMemo(
     () =>
       records && wooReady
         ? dashboardReportInput({
@@ -65,6 +72,7 @@ export function usePreviousReportPeriod({
         : null,
     [records, tables, woo, wooReady],
   );
+  return { period, records };
 }
 
 /** Each record table's rows in the previous period. */
@@ -112,7 +120,11 @@ async function fetchPeriodRecords(
           range.endDate,
         ),
       );
-      return rows.map((row) => ({ _tableId: table.id, data: row.data }));
+      return rows.map((row) => ({
+        _tableId: table.id,
+        _source: table.integration_type ?? undefined,
+        data: row.data,
+      }));
     }),
   );
   return perTable.flat();

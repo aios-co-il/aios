@@ -32,21 +32,39 @@ const TABLES = [
 ];
 
 /** Renders the tab as a dashboard builds it from these records. */
-function renderTab(records: Array<DayRecord>) {
+function renderTab(
+  records: Array<DayRecord>,
+  previousRecords?: Array<DayRecord>,
+) {
   const campaigns = dashboardFacebookCampaigns(
     records,
     dashboardRecordGoalOf(records, TABLES),
   );
+  const previous = previousRecords
+    ? dashboardFacebookCampaigns(
+        previousRecords,
+        dashboardRecordGoalOf(previousRecords, TABLES),
+      )
+    : null;
   render(
     <FacebookReportTab
       campaigns={campaigns}
       records={records}
       tables={TABLES}
+      previous={previous}
       formatCurrency={(value) => formatCurrency(value, "ILS")}
       formatUnitCost={(value) => formatUnitCost(value, "ILS")}
       formatNumber={(value) => String(Math.round(value))}
     />,
   );
+}
+
+/** A headline card by its label (tables reuse some labels as headers). */
+function kpiCard(label: string): HTMLElement {
+  const title = screen
+    .getAllByText(label)
+    .find((element) => element.tagName === "SPAN");
+  return title?.closest("div")?.parentElement as HTMLElement;
 }
 
 /** A table by its section title. */
@@ -153,5 +171,20 @@ describe("FacebookReportTab", () => {
     await user.click(screen.getByRole("switch"));
     expect(within(table).queryByText("Off")).toBeNull();
     expect(within(table).getByText("On")).toBeTruthy();
+  });
+
+  it("shows each headline figure's change against the previous period", () => {
+    renderTab(
+      [day("A", { spend: 120, clicks: 60 })],
+      [day("A", { spend: 100, clicks: 50 })],
+    );
+    expect(within(kpiCard("הוצאה כוללת")).getByText("+20%")).toBeVisible();
+    // Impressions held at 1000 in both periods.
+    expect(within(kpiCard("חשיפות")).getByText("0%")).toBeVisible();
+  });
+
+  it("shows no change while the comparison is off", () => {
+    renderTab([day("A", { spend: 120 })]);
+    expect(screen.queryByText(/^[+−]\d+%$/)).toBeNull();
   });
 });

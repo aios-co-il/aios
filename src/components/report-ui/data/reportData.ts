@@ -35,6 +35,11 @@ export type ReportPeriod = {
 /** One scope as a report shows it: this period, against the previous one. */
 export type ReportScopeData = ReportPeriodScope & {
   previous: ReportFigures | null;
+  /**
+   * Each campaign's figures in the previous period, by row key; null while
+   * the comparison is off. A campaign missing from it did not run then.
+   */
+  previousCampaigns: ReadonlyMap<string, ReportFigures> | null;
 };
 
 /** Everything a report layout renders from. */
@@ -55,9 +60,18 @@ export function reportDataOf(input: {
 }): ReportData {
   const scopes: Partial<Record<ReportScope, ReportScopeData>> = {};
   for (const [scope, data] of scopeEntries(input.current)) {
+    const previousScope = input.previous?.scopes[scope];
     scopes[scope] = {
       ...data,
-      previous: input.previous?.scopes[scope]?.figures ?? null,
+      previous: previousScope?.figures ?? null,
+      previousCampaigns: input.previous
+        ? new Map(
+            (previousScope?.campaigns ?? []).map((row) => [
+              row.key,
+              row.figures,
+            ]),
+          )
+        : null,
     };
   }
   return {

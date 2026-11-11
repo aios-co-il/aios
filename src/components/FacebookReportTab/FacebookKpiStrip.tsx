@@ -1,25 +1,29 @@
 import {
-  Banknote,
   Eye,
   MousePointerClick,
   Percent,
-  ShoppingBag,
-  ShoppingCart,
   Tag,
-  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
+import { kpiChange } from "@/components/report-ui/kpiChange";
 import { ratio } from "@/lib/reportNumber";
 import type { FacebookTabFormatters } from "./facebookColumns";
-import type { FacebookTabTotals } from "./facebookTabFigures";
+import { FacebookSalesCards } from "./FacebookSalesCards";
+import { costPer, type FacebookTabTotals } from "./facebookTabFigures";
 
-type Props = FacebookTabFormatters & {
+/** The tab's figures: every campaign's, and each goal's that has campaigns. */
+export type FacebookKpiFigures = {
   totals: FacebookTabTotals;
-  /** The goal tables the tab shows; each adds its result cards. */
   goals: { sales: FacebookTabTotals | null; leads: FacebookTabTotals | null };
 };
+
+type Props = FacebookTabFormatters &
+  FacebookKpiFigures & {
+    /** The previous period's figures; each card shows its change while set. */
+    previous?: FacebookKpiFigures | null;
+  };
 
 /**
  * The tab's headline figures: spend and delivery over every campaign, then
@@ -29,37 +33,53 @@ type Props = FacebookTabFormatters & {
 export function FacebookKpiStrip({
   totals,
   goals,
+  previous,
   formatCurrency,
   formatNumber,
   formatUnitCost,
 }: Props) {
   const { sales, leads } = goals;
+  const before = previous?.totals;
+  const leadsBefore = previous?.goals.leads;
   return (
     <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
       <ReportKpiCard
         icon={Wallet}
         label="הוצאה כוללת"
         value={formatCurrency(totals.spend)}
+        delta={kpiChange(totals.spend, before?.spend, "either")}
       />
       <ReportKpiCard
         icon={Eye}
         label="חשיפות"
         value={formatNumber(totals.impressions)}
+        delta={kpiChange(totals.impressions, before?.impressions, "up")}
       />
       <ReportKpiCard
         icon={MousePointerClick}
         label="קליקים"
         value={formatNumber(totals.clicks)}
+        delta={kpiChange(totals.clicks, before?.clicks, "up")}
       />
       <ReportKpiCard
         icon={Percent}
         label="CTR"
         value={`${(ratio(totals.clicks, totals.impressions) * 100).toFixed(2)}%`}
+        delta={kpiChange(
+          ratio(totals.clicks, totals.impressions),
+          before && ratio(before.clicks, before.impressions),
+          "up",
+        )}
       />
       <ReportKpiCard
         icon={Tag}
         label="עלות לקליק"
         value={formatUnitCost(ratio(totals.spend, totals.clicks))}
+        delta={kpiChange(
+          ratio(totals.spend, totals.clicks),
+          before && ratio(before.spend, before.clicks),
+          "down",
+        )}
       />
       {leads && (
         <>
@@ -68,6 +88,7 @@ export function FacebookKpiStrip({
             label="לידים"
             value={formatNumber(leads.leads)}
             hint="קמפייני לידים"
+            delta={kpiChange(leads.leads, leadsBefore?.leads, "up")}
           />
           <ReportKpiCard
             icon={Tag}
@@ -75,63 +96,21 @@ export function FacebookKpiStrip({
             value={
               leads.leads > 0 ? formatCurrency(leads.spend / leads.leads) : "-"
             }
+            delta={kpiChange(
+              costPer(leads.spend, leads.leads),
+              leadsBefore && costPer(leadsBefore.spend, leadsBefore.leads),
+              "down",
+            )}
           />
         </>
       )}
       {sales && (
-        <SalesCards sales={sales} {...{ formatCurrency, formatNumber }} />
-      )}
-    </div>
-  );
-}
-
-/** Purchases, purchase value, ROAS and add-to-cart of the sales campaigns, as Facebook reports them. */
-function SalesCards({
-  sales,
-  formatCurrency,
-  formatNumber,
-}: Pick<FacebookTabFormatters, "formatCurrency" | "formatNumber"> & {
-  sales: FacebookTabTotals;
-}) {
-  const valued = sales.purchase_value > 0;
-  return (
-    <>
-      <ReportKpiCard
-        icon={ShoppingBag}
-        label="רכישות"
-        value={formatNumber(sales.purchases)}
-        hint="לפי דיווח Facebook"
-      />
-      {valued ? (
-        <>
-          <ReportKpiCard
-            icon={Banknote}
-            label="ערך רכישות"
-            value={formatCurrency(sales.purchase_value)}
-            hint="לפי דיווח Facebook"
-          />
-          <ReportKpiCard
-            icon={TrendingUp}
-            label="ROAS"
-            value={`${ratio(sales.purchase_value, sales.spend).toFixed(2)}x`}
-          />
-        </>
-      ) : (
-        <ReportKpiCard
-          icon={Tag}
-          label="עלות לרכישה"
-          value={
-            sales.purchases > 0 && sales.spend > 0
-              ? formatCurrency(sales.spend / sales.purchases)
-              : "-"
-          }
+        <FacebookSalesCards
+          sales={sales}
+          before={previous?.goals.sales ?? null}
+          {...{ formatCurrency, formatNumber }}
         />
       )}
-      <ReportKpiCard
-        icon={ShoppingCart}
-        label="הוספות לעגלה"
-        value={formatNumber(sales.add_to_cart)}
-      />
-    </>
+    </div>
   );
 }

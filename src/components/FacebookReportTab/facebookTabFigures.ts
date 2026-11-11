@@ -122,3 +122,8 @@ export function facebookCampaignOnOf(
   );
   return (name) => !offKeys.has(name);
 }
+
+/** Spend per result; null without results, so no change is shown. */
+export function costPer(spend: number, results: number): number | null {
+  return results > 0 ? spend / results : null;
+}

@@ -4,6 +4,8 @@ import type { ReportPeriodInput } from "../data/buildReportPeriod";
 /** A record as the dashboards hold it: its table under `_tableId`. */
 export type DashboardReportRecord = {
   _tableId?: string;
+  /** The table's integration type, as the dashboard tags its records. */
+  _source?: string;
   data?: Record<string, unknown> | null;
 };
 
