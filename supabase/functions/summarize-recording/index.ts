@@ -10,7 +10,7 @@ import {
 import { dispatchMeetingSummaryToCursor } from "../_shared/meeting-summary-cursor.ts";
 import { resolveOpenAIKey } from "../_shared/ai.ts";
 import { cursorSummaryResponse } from "./cursor-outcome.ts";
-import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import { callerMayUseTenant } from "./caller-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
 
@@ -50,6 +50,17 @@ serve(async (req) => {
       target_id,
       tenant_id,
     } = await req.json();
+
+    if (!(await callerMayUseTenant(serviceClient(), tenant_id, user.id))) {
+      console.warn("[summarize-recording] caller outside tenant", {
+        userId: user.id,
+        tenantId: tenant_id,
+      });
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!transcript || !transcript.trim()) {
       throw new Error("נא להזין תמלול או הערות מהפגישה");
@@ -181,7 +192,7 @@ serve(async (req) => {
       summary = await generateMeetingSummary(
         {
           openaiKey: OPENAI_API_KEY,
-          openRouterKey: await callerTenantSummaryKey(tenant_id, user.id),
+          openRouterKey: await tenantSummaryKey(serviceClient(), tenant_id),
           tenantId: tenant_id,
         },
         transcript,
@@ -244,6 +255,7 @@ serve(async (req) => {
       await admin
         .from("zoom_recordings")
         .update(association)
+        .eq("tenant_id", tenant_id)
         .eq("id", recording_id);
     }
 
@@ -287,25 +299,3 @@ serve(async (req) => {
     );
   }
 });
-
-/**
- * The tenant's OpenRouter key, only when the caller belongs to the tenant named
- * in the body: the key is billed to that tenant.
- */
-async function callerTenantSummaryKey(
-  tenantId: string,
-  userId: string,
-): Promise<string> {
-  const admin = serviceClient();
-  try {
-    const access = await tenantUserAccess(admin, tenantId, userId);
-    if (!access.member && !access.superAdmin) return "";
-  } catch (err) {
-    console.error(
-      "[summarize-recording] tenant access check failed",
-      err instanceof Error ? err.message : err,
-    );
-    return "";
-  }
-  return await tenantSummaryKey(admin, tenantId);
-}

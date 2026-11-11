@@ -25,12 +25,15 @@ export interface RecordingAssignment {
 
 /**
  * What to write for these details: the name unless a person typed one, and the
- * client only on a recording with no client, lead or team-member assignment.
+ * client only when the caller says the recording was unrecognized
+ * (`assignClient`) and it has no client, lead or team-member assignment. An
+ * agency scope a person chose is never reclassified as a client meeting.
  */
 export function planMeetingDetailsUpdate(
   recording: RecordingAssignment,
   details: MeetingDetails,
   clients: Array<ClientOption>,
+  { assignClient }: { assignClient: boolean },
 ): {
   topic: string | null;
   client: {
@@ -48,6 +51,7 @@ export function planMeetingDetailsUpdate(
 
   const client = clients.find((c) => c.id === details.clientId) ?? null;
   const unassigned =
+    assignClient &&
     !recording.client_id &&
     !recording.lead_id &&
     !recording.campaigner_ids?.length &&

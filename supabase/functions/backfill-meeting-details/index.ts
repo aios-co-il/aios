@@ -1,9 +1,9 @@
 // Names old meetings and assigns their clients from their saved summaries
 // (AIO-563). Defaults to dry_run=true; pass dry_run=false to write. Callers:
-// the service role, or a member of the tenant.
+// the service role, a super admin, or the tenant's owner.
 import { applyMeetingDetailsFromSummary } from "../_shared/meeting-details/apply.ts";
 import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
-import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import { userMayRunBackfill } from "./caller.ts";
 import {
   isGatewayServiceRoleRequest,
   projectServiceRoleKeys,
@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
           recordingId: rec.id,
           summary: rec.summary_md,
           keys,
+          assignClient: true,
           dryRun: params.dryRun,
         });
         results.push({ id: rec.id, before: rec.meeting_topic, ...outcome });
@@ -97,7 +98,7 @@ function parseParams(body: Record<string, unknown>): BackfillParams | null {
   };
 }
 
-/** The service role, or a signed-in member (or super admin) of the tenant. */
+/** The service role, a super admin, or the tenant's owner. */
 async function callerMayRun(req: Request, tenantId: string): Promise<boolean> {
   const authorization = req.headers.get("Authorization");
   if (!authorization) {
@@ -117,8 +118,7 @@ async function callerMayRun(req: Request, tenantId: string): Promise<boolean> {
   if (!user) {
     return false;
   }
-  const access = await tenantUserAccess(serviceClient(), tenantId, user.id);
-  return access.member || access.superAdmin;
+  return await userMayRunBackfill(serviceClient(), tenantId, user.id);
 }
 
 /** One summarized recording per meeting, newest first, for this page. */

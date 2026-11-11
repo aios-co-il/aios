@@ -20,6 +20,9 @@ const UNASSIGNED: RecordingAssignment = {
   summary_scope: "agency",
 };
 
+/** The automatic pipeline found no client, so the summary may assign one. */
+const AUTO = { assignClient: true };
+
 Deno.test(
   "a generic name is replaced and an unassigned meeting gets its client",
   () => {
@@ -27,6 +30,7 @@ Deno.test(
       UNASSIGNED,
       { title: "בילבי — תוכנית קמפיין לנובמבר", clientId: "c-bilbi" },
       CLIENTS,
+      AUTO,
     );
     assertEquals(plan.topic, "בילבי — תוכנית קמפיין לנובמבר");
     assertEquals(plan.client, {
@@ -43,6 +47,7 @@ Deno.test("a name a person typed is never replaced", () => {
     { ...UNASSIGNED, meeting_topic: "השם שלי", topic_set_manually: true },
     { title: "שם מהסיכום", clientId: null },
     CLIENTS,
+    AUTO,
   );
   assertEquals(plan.topic, null);
 });
@@ -60,9 +65,24 @@ Deno.test(
         { ...UNASSIGNED, ...assigned },
         details,
         CLIENTS,
+        AUTO,
       );
       assertEquals(plan.client, null);
     }
+  },
+);
+
+Deno.test(
+  "a target a person chose, agency included, keeps its assignment and only gets the name",
+  () => {
+    const plan = planMeetingDetailsUpdate(
+      UNASSIGNED,
+      { title: "בילבי — תוכנית קמפיין", clientId: "c-bilbi" },
+      CLIENTS,
+      { assignClient: false },
+    );
+    assertEquals(plan.client, null);
+    assertEquals(plan.topic, "בילבי — תוכנית קמפיין");
   },
 );
 
