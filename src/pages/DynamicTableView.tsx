@@ -35,7 +35,6 @@ import {
   TrendingUp,
   Bell,
   SearchIcon,
-  Sparkles,
   Info,
   Copy,
   Loader2,
@@ -45,7 +44,6 @@ import {
   ExternalLink,
   User,
 } from "lucide-react";
-import { AIAnalysisDialog } from "@/components/dynamic-tables/AIAnalysisDialog";
 import { format, subDays } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -2572,15 +2570,6 @@ export default function DynamicTableView({
                     </Button>
                   )}
                 </div>
-
-                {/* AI Analysis Button */}
-                {table && (
-                  <AIAnalysisDialog
-                    tableId={table.id}
-                    tableName={table.name}
-                    campaignFilter={debouncedCampaignSearch || undefined}
-                  />
-                )}
               </div>
             )}
 
