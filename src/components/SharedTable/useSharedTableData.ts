@@ -64,7 +64,8 @@ export function useSharedTableData(
   return {
     data,
     isLoading: core.isLoading,
-    isFetching: core.isFetching,
+    // Either part refetching (stale or invalidated) means the shown figures may be old.
+    isFetching: core.isFetching || gsc.isFetching,
     error: core.error,
     gscLoading: gsc.isLoading,
     isSeoShare,

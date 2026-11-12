@@ -36,6 +36,7 @@ vi.mock("@/hooks/useTenantPath", () => ({
 vi.mock("../ClientReportCard/useClientSendContacts", () => ({
   useClientSendContacts: () => ({
     client: {
+      id: "client-1",
       name: "לקוח",
       phone: "0501234567",
       email: null,
@@ -43,13 +44,16 @@ vi.mock("../ClientReportCard/useClientSendContacts", () => ({
     },
     groups: [],
     teamMembers: [],
+    loaded: true,
+    failed: false,
   }),
 }));
 vi.mock("./dashboardShareToken", () => ({
   dashboardShareSource: (dashboard: { id: string }) => ({
     queryKey: ["dashboard-share-link", dashboard.id],
+    label: "test",
     readActive: async () => "dash-token",
-    ensure: async () => "dash-token",
+    create: async () => "dash-token",
   }),
 }));
 vi.mock("./useDashboardSync", () => ({
