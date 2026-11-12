@@ -1,6 +1,8 @@
 import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
+import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
+import { MiniMeGenderPicker } from "@/components/carmen/MiniMe/MiniMeGenderPicker";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import {
   type CarmenAvatarStyle,
@@ -20,6 +22,12 @@ const OPTIONS: Array<{
     style: "orbs",
     title: "ספירות",
     description: "ספירת זכוכית בצבע של כל סקין. ברירת המחדל של המערכת.",
+  },
+  {
+    style: "minime",
+    title: "Mini Me",
+    description:
+      "דמות זכוכית עם עיניים גדולות וזרת בפה, בצבע ובאביזר של כל סקין, בסט זכר או נקבה.",
   },
   {
     style: "character",
@@ -56,7 +64,7 @@ export function CarmenStylePicker() {
         onKeyDown={(event) =>
           canEdit && !saving && selectWithArrows(event, style, setStyle)
         }
-        className="grid gap-4 md:grid-cols-2"
+        className="grid gap-4 md:grid-cols-3"
       >
         {OPTIONS.map((option) => {
           const selected = option.style === style;
@@ -97,6 +105,7 @@ export function CarmenStylePicker() {
           );
         })}
       </div>
+      {style === "minime" && <MiniMeGenderPicker />}
     </section>
   );
 }
@@ -128,6 +137,15 @@ function StylePreview({ style }: { style: CarmenAvatarStyle }) {
     return (
       <div className="flex h-14 items-center gap-2">
         <CarmenPortrait />
+      </div>
+    );
+  }
+  if (style === "minime") {
+    return (
+      <div className="flex h-14 items-center gap-1" aria-hidden="true">
+        {CARMEN_ROLES.slice(0, 6).map((role) => (
+          <MiniMe key={role.slug} skin={role.slug} className="w-11" />
+        ))}
       </div>
     );
   }
