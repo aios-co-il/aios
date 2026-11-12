@@ -10918,6 +10918,7 @@ export type Database = {
           gender: string | null;
           id: string;
           leads_default_view: string | null;
+          minime_gender: string | null;
           notification_group_link: string | null;
           phone: string | null;
           sales_person_id: string | null;
@@ -10936,6 +10937,7 @@ export type Database = {
           gender?: string | null;
           id: string;
           leads_default_view?: string | null;
+          minime_gender?: string | null;
           notification_group_link?: string | null;
           phone?: string | null;
           sales_person_id?: string | null;
@@ -10954,6 +10956,7 @@ export type Database = {
           gender?: string | null;
           id?: string;
           leads_default_view?: string | null;
+          minime_gender?: string | null;
           notification_group_link?: string | null;
           phone?: string | null;
           sales_person_id?: string | null;

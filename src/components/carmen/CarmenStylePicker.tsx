@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CarmenOrb } from "@/components/carmen/CarmenOrb";
 import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
+import { MiniMeGenderPicker } from "@/components/carmen/MiniMe/MiniMeGenderPicker";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import {
   type CarmenAvatarStyle,
@@ -104,6 +105,7 @@ export function CarmenStylePicker() {
           );
         })}
       </div>
+      {style === "minime" && <MiniMeGenderPicker />}
     </section>
   );
 }

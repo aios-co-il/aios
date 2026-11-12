@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MiniMe } from "./MiniMe";
+import { MiniMeGenderContext, resolveMiniMeGender } from "./miniMeGender";
 
 describe("MiniMe", () => {
   it("tints the glass with the skin's color and adds its prop", () => {
@@ -34,5 +35,38 @@ describe("MiniMe", () => {
       (gradient) => gradient.id,
     );
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("draws the male set by default and the female touches when asked", () => {
+    const male = render(<MiniMe skin="cfo" />).container;
+    expect(male.querySelector(".mini-me-female")).toBeNull();
+    const female = render(<MiniMe skin="cfo" gender="female" />).container;
+    expect(female.querySelector(".mini-me-female")).not.toBeNull();
+    expect(female.querySelector("svg")).toHaveAttribute(
+      "data-gender",
+      "female",
+    );
+  });
+
+  it("follows the signed-in user's set from context unless a gender is passed", () => {
+    const { container } = render(
+      <MiniMeGenderContext.Provider value="female">
+        <MiniMe />
+        <MiniMe gender="male" />
+      </MiniMeGenderContext.Provider>,
+    );
+    const genders = [...container.querySelectorAll("svg.mini-me")].map((svg) =>
+      svg.getAttribute("data-gender"),
+    );
+    expect(genders).toEqual(["female", "male"]);
+  });
+});
+
+describe("resolveMiniMeGender", () => {
+  it("prefers the user's choice, then their address gender, then male", () => {
+    expect(resolveMiniMeGender("male", "female")).toBe("male");
+    expect(resolveMiniMeGender(null, "female")).toBe("female");
+    expect(resolveMiniMeGender(null, null)).toBe("male");
+    expect(resolveMiniMeGender("other", "male")).toBe("male");
   });
 });

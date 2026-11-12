@@ -1,9 +1,11 @@
-import { useId } from "react";
+import { useContext, useId } from "react";
 import { cn } from "@/lib/utils";
 import type { OrbBuddyState } from "../CarmenOrbBuddy";
 import { getCarmenRole } from "../../../../supabase/functions/_shared/carmen/skin-roles";
 import { miniMePalette } from "./miniMePalette";
 import { MINI_ME_PROPS } from "./miniMeProps";
+import { MiniMeFemaleTouches } from "./MiniMeFemaleTouches";
+import { type MiniMeGender, MiniMeGenderContext } from "./miniMeGender";
 import { PinkyHand } from "./MiniMePinkyHand";
 import "./mini-me.css";
 
@@ -17,6 +19,8 @@ interface MiniMeProps {
   tint?: string;
   /** Speaking moves the mouth, listening tilts, working glances aside. */
   state?: OrbBuddyState;
+  /** The male or female set; defaults to the signed-in user's choice. */
+  gender?: MiniMeGender;
   /** Accessible name; without one the figure is decorative. */
   label?: string;
   /** Size classes; the figure keeps its proportions (width sets the size). */
@@ -26,16 +30,19 @@ interface MiniMeProps {
 /**
  * Carmen's default look, the Mini Me: a glass body that is not quite round,
  * big eyes, and a pinky at the corner of the mouth. Each skin tints the
- * glass and adds its prop.
+ * glass and adds its prop; the female set adds lashes, cheeks and a bow.
  */
 export function MiniMe({
   skin,
   tint,
   state = "idle",
+  gender,
   label,
   className,
 }: MiniMeProps) {
   const id = useId().replace(/:/g, "");
+  const userGender = useContext(MiniMeGenderContext);
+  const female = (gender ?? userGender) === "female";
   const role = getCarmenRole(skin);
   const palette = miniMePalette(tint ?? role?.orbTint);
   const props = role ? MINI_ME_PROPS[role.slug] : undefined;
@@ -49,6 +56,7 @@ export function MiniMe({
       aria-label={label}
       aria-hidden={label ? undefined : true}
       data-state={state}
+      data-gender={female ? "female" : "male"}
       className={cn("mini-me", className)}
     >
       <defs>
@@ -119,10 +127,11 @@ export function MiniMe({
             <circle cx="187" cy="137" r="6" fill="#FFFFFF" />
           </g>
         </g>
+        {female && <MiniMeFemaleTouches limb={palette.limb} />}
         <path
           className="mini-me-mouth"
           d="M116 204 Q140 222 162 206"
-          stroke="#0A1526"
+          stroke={female ? "#B0305E" : "#0A1526"}
           strokeWidth="6"
           strokeLinecap="round"
           fill="none"
