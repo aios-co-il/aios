@@ -4401,6 +4401,97 @@ export type Database = {
         };
         Relationships: [];
       };
+      carmen_persona_choices: {
+        Row: {
+          persona_key: string;
+          tenant_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          persona_key: string;
+          tenant_id: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          persona_key?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_persona_choices_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      carmen_personas: {
+        Row: {
+          builtin_key: string | null;
+          call_words: string[];
+          created_at: string;
+          display_name: string;
+          id: string;
+          intro_line: string | null;
+          look: string;
+          mood: string | null;
+          owner_user_id: string | null;
+          personality: string | null;
+          soul: string | null;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          writing_style: string | null;
+        };
+        Insert: {
+          builtin_key?: string | null;
+          call_words?: string[];
+          created_at?: string;
+          display_name: string;
+          id?: string;
+          intro_line?: string | null;
+          look?: string;
+          mood?: string | null;
+          owner_user_id?: string | null;
+          personality?: string | null;
+          soul?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          writing_style?: string | null;
+        };
+        Update: {
+          builtin_key?: string | null;
+          call_words?: string[];
+          created_at?: string;
+          display_name?: string;
+          id?: string;
+          intro_line?: string | null;
+          look?: string;
+          mood?: string | null;
+          owner_user_id?: string | null;
+          personality?: string | null;
+          soul?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          writing_style?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "carmen_personas_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       carmen_phone_calls: {
         Row: {
           caller_kind: string;
