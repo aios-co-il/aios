@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useOptionalTenant } from "@/contexts/TenantContext";
-import { useActivePersona } from "@/components/carmen/personas/useActivePersona";
 
 /**
  * How Carmen is drawn: glass orbs (default), the Mini Me, or the
@@ -24,11 +23,7 @@ export const CARMEN_AVATAR_STYLES: Array<CarmenAvatarStyle> = [
 const DEFAULT_STYLE: CarmenAvatarStyle = "orbs";
 const SETTING_KEY = "carmen_avatar_style";
 
-/**
- * How Carmen is drawn for the signed-in user: the look of the character they
- * picked, else the organization's style. `orgStyle` and `setStyle` are the
- * organization's setting.
- */
+/** The organization's Carmen avatar style, and a way to change it. */
 export function useCarmenAvatarStyle() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
@@ -55,11 +50,8 @@ export function useCarmenAvatarStyle() {
     },
   });
 
-  const persona = useActivePersona();
-  const orgStyle = query.data ?? DEFAULT_STYLE;
   return {
-    style: persona?.look ?? orgStyle,
-    orgStyle,
+    style: query.data ?? DEFAULT_STYLE,
     setStyle: (style: CarmenAvatarStyle) =>
       mutation.mutate({ tenantId, style }),
     saving: mutation.isPending,
@@ -77,8 +69,7 @@ export function useKnownCarmenAvatarStyle(): CarmenAvatarStyle {
     staleTime: 30 * 60 * 1000,
     queryFn: tenantId ? () => fetchStyle(tenantId) : skipToken,
   });
-  const persona = useActivePersona();
-  return persona?.look ?? query.data ?? DEFAULT_STYLE;
+  return query.data ?? DEFAULT_STYLE;
 }
 
 interface StyleSave {

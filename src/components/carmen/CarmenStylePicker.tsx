@@ -43,7 +43,7 @@ const HEADING_ID = "carmen-style-heading";
  * owners and super admins may save it (`tenant_settings` row-level security).
  */
 export function CarmenStylePicker() {
-  const { orgStyle: style, setStyle, saving } = useCarmenAvatarStyle();
+  const { style, setStyle, saving } = useCarmenAvatarStyle();
   const { isOwner, isSuperAdmin } = useUserRole();
   const canEdit = isOwner || isSuperAdmin;
 

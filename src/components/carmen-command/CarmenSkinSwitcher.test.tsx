@@ -31,10 +31,6 @@ vi.mock("@/hooks/useTenantPath", () => ({
   }),
 }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
-// The persona pick is its own feature; here no character is picked.
-vi.mock("@/components/carmen/personas/useActivePersona", () => ({
-  useActivePersona: () => null,
-}));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),

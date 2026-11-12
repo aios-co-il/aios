@@ -1,6 +1,4 @@
 import { AgentVisualIdentity } from "../AgentVisualIdentity";
-import { MOOD_OPTIONS, WRITING_STYLE_OPTIONS } from "../agentToneOptions";
-import { PersonaSwitcher } from "@/components/carmen/personas/PersonaSwitcher";
 import type { LucideIcon } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect, useMemo } from "react";
@@ -94,11 +92,6 @@ export function ProfileTab({
 
   return (
     <div className="max-w-4xl space-y-4 pb-24">
-      {carmen && (
-        <PersonaSwitcher
-          characterEditor={<AgentVisualIdentity key={agent.id} agent={agent} />}
-        />
-      )}
       <AgentVisualIdentity key={agent.id} agent={agent} />
       {/* ===== Identity card ===== */}
       <Card className="p-5">
@@ -175,11 +168,11 @@ export function ProfileTab({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {WRITING_STYLE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="none">ברירת מחדל</SelectItem>
+                  <SelectItem value="formal">רשמי</SelectItem>
+                  <SelectItem value="casual">חברותי</SelectItem>
+                  <SelectItem value="professional">מקצועי</SelectItem>
+                  <SelectItem value="playful">משחקי</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -419,6 +412,49 @@ export function ProfileTab({
 // Mood selector — swappable persona tone. Self-contained save (its own
 // mutation), so it persists independently of the main profile form.
 // =========================================================================
+const MOOD_OPTIONS: {
+  value: string;
+  label: string;
+  emoji: string;
+  desc: string;
+}[] = [
+  {
+    value: "none",
+    label: "ברירת מחדל",
+    emoji: "🙂",
+    desc: "ללא מצב רוח — האישיות הבסיסית.",
+  },
+  {
+    value: "fun",
+    label: "כיפי ומצחיק",
+    emoji: "😄",
+    desc: "אנרגטית, הומור קליל, בדיחות ואימוג׳ים.",
+  },
+  {
+    value: "focused",
+    label: "מקצועי ויעיל",
+    emoji: "🎯",
+    desc: "זורמת ועניינית, תשובות קצרות, בלי חזרות ובלי הומור.",
+  },
+  {
+    value: "tired",
+    label: "עייף ואין כוח",
+    emoji: "😴",
+    desc: "אנרגיה נמוכה, קצר וחסכוני — עדיין מבצעת הכול.",
+  },
+  {
+    value: "angry",
+    label: "כועס",
+    emoji: "😤",
+    desc: "בוטה, חסר סבלנות וישיר — בלי להעליב או לרדת בדיוק.",
+  },
+  {
+    value: "random",
+    label: "רנדומלי",
+    emoji: "🎲",
+    desc: "מתחלף לבד כל כמה ימים בין כל מצבי הרוח.",
+  },
+];
 
 /** Save mood independently and invalidate the parent's tenant-scoped agent list. */
 function MoodCard({
