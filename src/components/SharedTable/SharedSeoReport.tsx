@@ -14,10 +14,17 @@ type Props = {
   table: SharedTableInfo;
   /** Search Console still loading in its follow-up request. */
   gscLoading: boolean;
+  /** The send capture: no monthly-work button, ready once Search Console is in. */
+  summaryOnly?: boolean;
 };
 
 /** An SEO (Ahrefs) share: the SEO dashboard with the GSC, GA and calls tabs the share dialog left on. */
-export function SharedSeoReport({ data, table, gscLoading }: Props) {
+export function SharedSeoReport({
+  data,
+  table,
+  gscLoading,
+  summaryOnly = false,
+}: Props) {
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
   const settings = table.integration_settings || {};
   const gaRecords = data.ga_records || [];
@@ -54,14 +61,18 @@ export function SharedSeoReport({ data, table, gscLoading }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div
+      className="min-h-screen bg-background"
+      dir="rtl"
+      data-snapshot-ready={gscLoading ? "false" : "true"}
+    >
       <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         <ReportHeader
           title={table.name}
           badges={<Globe className="h-4 w-4 text-primary" />}
         />
 
-        {monthlyWork.length > 0 && (
+        {monthlyWork.length > 0 && !summaryOnly && (
           <Button
             type="button"
             onClick={() => {
@@ -107,6 +118,7 @@ export function SharedSeoReport({ data, table, gscLoading }: Props) {
           seoKeywordRelevance={relevance}
           sharedTabs={sharedTabs}
         />
+        {summaryOnly && <div data-snapshot-end="true" aria-hidden="true" />}
       </div>
     </div>
   );
