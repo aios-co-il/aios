@@ -121,7 +121,7 @@ export function MiniMe({
         </g>
         <path
           className="mini-me-mouth"
-          d="M116 204 Q140 222 162 206"
+          d="M116 206 Q142 220 163 201"
           stroke="#0A1526"
           strokeWidth="6"
           strokeLinecap="round"
