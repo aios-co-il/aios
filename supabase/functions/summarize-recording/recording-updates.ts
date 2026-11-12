@@ -67,7 +67,10 @@ export async function assignRecording(
   }
 }
 
-/** Copies the summary to the other recordings of the same meeting, so every card shows it. */
+/**
+ * Copies the summary to every recording of the same meeting, so every card
+ * shows it. Throws when the copy fails, so the background writer logs it.
+ */
 export async function copyToMeetingRecordings(
   admin: Admin,
   input: WriteSummaryInput,
@@ -96,9 +99,8 @@ export async function copyToMeetingRecordings(
     .eq("tenant_id", input.tenantId)
     .eq("meeting_id", rec.meeting_id);
   if (copyError) {
-    console.error(
-      "[summarize-recording] copying to meeting recordings failed",
-      copyError.message,
+    throw new Error(
+      `copying the summary to the meeting's recordings failed: ${copyError.message}`,
     );
   }
 }

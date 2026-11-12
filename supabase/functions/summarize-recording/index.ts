@@ -202,10 +202,18 @@ serve(async (req) => {
 
     // A recording's summary is written after the reply: a long meeting takes
     // longer than the gateway waits (AIO-581). The UI polls the recording.
+    // requested_at is the server's clock, which also stamps
+    // summary_generated_at, so a skewed browser clock cannot miss the result.
     if (recording_id) {
+      const requestedAt = new Date().toISOString();
       writeSummaryInBackground(summaryInput);
       return new Response(
-        JSON.stringify({ success: true, pending: true, channel: "model" }),
+        JSON.stringify({
+          success: true,
+          pending: true,
+          channel: "model",
+          requested_at: requestedAt,
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }

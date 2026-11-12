@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isNewSummary } from "./waitForRecordingSummary";
+import { isNewSummary, pendingSince } from "./waitForRecordingSummary";
 
 describe("isNewSummary", () => {
   const since = new Date("2026-11-12T10:00:00Z");
@@ -33,5 +33,22 @@ describe("isNewSummary", () => {
       isNewSummary({ summary_md: null, summary_generated_at: null }, since),
     ).toBe(false);
     expect(isNewSummary(null, since)).toBe(false);
+  });
+});
+
+describe("pendingSince", () => {
+  const browserTime = new Date("2026-11-12T10:05:00Z");
+
+  it("uses the server's request time, not a skewed browser clock", () => {
+    expect(
+      pendingSince({ requested_at: "2026-11-12T10:00:00Z" }, browserTime),
+    ).toEqual(new Date("2026-11-12T10:00:00Z"));
+  });
+
+  it("falls back to the browser time when the reply has none", () => {
+    expect(pendingSince({}, browserTime)).toBe(browserTime);
+    expect(pendingSince({ requested_at: "not a date" }, browserTime)).toBe(
+      browserTime,
+    );
   });
 });

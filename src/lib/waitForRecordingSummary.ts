@@ -38,6 +38,21 @@ export async function waitForRecordingSummary(
   return null;
 }
 
+/**
+ * The server's request time from a pending reply (AIO-581), or the browser's
+ * time from before the request when an older function omits it.
+ */
+export function pendingSince(
+  data: { requested_at?: unknown } | null,
+  fallback: Date,
+): Date {
+  const serverTime =
+    typeof data?.requested_at === "string" ? new Date(data.requested_at) : null;
+  return serverTime && !Number.isNaN(serverTime.getTime())
+    ? serverTime
+    : fallback;
+}
+
 /** True when the row carries a summary generated after `since`. */
 export function isNewSummary(
   row: {

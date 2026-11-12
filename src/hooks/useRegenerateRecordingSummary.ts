@@ -1,5 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { waitForRecordingSummary } from "@/lib/waitForRecordingSummary";
+import {
+  pendingSince,
+  waitForRecordingSummary,
+} from "@/lib/waitForRecordingSummary";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -82,7 +85,10 @@ export function useRegenerateRecordingSummary({
       // The model writes long summaries in the background (AIO-581); wait for
       // the row instead of the HTTP reply.
       const saved = data?.pending
-        ? await waitForRecordingSummary(sourceRow.id, requestedAt)
+        ? await waitForRecordingSummary(
+            sourceRow.id,
+            pendingSince(data, requestedAt),
+          )
         : data?.summary
           ? { summary: data.summary as string, fileUrl: data.file_url ?? null }
           : null;
@@ -92,19 +98,6 @@ export function useRegenerateRecordingSummary({
             ? "הסיכום עדיין נכתב. הוא יופיע על ההקלטה בעוד כמה דקות."
             : "לא התקבל סיכום חדש",
         );
-      }
-
-      // The edge function writes onto the row it was given; the other rows of
-      // the same meeting are updated here so every card shows the new summary.
-      const siblingIds = recordingIds.filter((id) => id !== sourceRow.id);
-      if (siblingIds.length > 0) {
-        await supabase
-          .from("zoom_recordings")
-          .update({
-            summary_md: saved.summary,
-            summary_file_url: saved.fileUrl,
-          })
-          .in("id", siblingIds);
       }
 
       return saved.summary;

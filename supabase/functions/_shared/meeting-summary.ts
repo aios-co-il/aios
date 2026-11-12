@@ -224,7 +224,7 @@ export async function saveSummaryForTarget(
   // Also persist the summary on the recording itself — the raw Markdown is
   // what the UI renders in-app; the DOCX is for download/sharing.
   if (recording_id) {
-    await admin
+    const { error: recordingError } = await admin
       .from("zoom_recordings")
       // deno-lint-ignore no-explicit-any
       .update({
@@ -234,6 +234,11 @@ export async function saveSummaryForTarget(
       } as any)
       .eq("tenant_id", tenant_id)
       .eq("id", recording_id);
+    if (recordingError) {
+      throw new Error(
+        `saving the summary on the recording failed: ${recordingError.message}`,
+      );
+    }
   }
 
   if (recording_id) {

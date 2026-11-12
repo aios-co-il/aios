@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { waitForRecordingSummary } from "@/lib/waitForRecordingSummary";
+import {
+  pendingSince,
+  waitForRecordingSummary,
+} from "@/lib/waitForRecordingSummary";
 import {
   Dialog,
   DialogContent,
@@ -90,6 +93,8 @@ export default function SummarizeRecordingDialog({
       "",
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  /** Increments per summary request and on close; a stale wait ignores its result. */
+  const generateRequestRef = useRef(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [transcribeProgress, setTranscribeProgress] = useState<{
@@ -450,6 +455,7 @@ export default function SummarizeRecordingDialog({
 
     setIsGenerating(true);
     setResult(null);
+    const request = ++generateRequestRef.current;
 
     try {
       const requestedAt = new Date();
@@ -472,10 +478,18 @@ export default function SummarizeRecordingDialog({
       if (data?.error) throw new Error(data.error);
       if (data?.pending && data.channel === "model" && recording?.id) {
         // Long summaries are written in the background (AIO-581).
-        const saved = await waitForRecordingSummary(recording.id, requestedAt);
+        const saved = await waitForRecordingSummary(
+          recording.id,
+          pendingSince(data, requestedAt),
+        );
         queryClient.invalidateQueries({
           queryKey: ["recordings", currentTenantId],
         });
+        // Closing the dialog hands the wait to the background; a reopened
+        // dialog must not receive this request's result.
+        if (request !== generateRequestRef.current) {
+          return;
+        }
         if (!saved) {
           toast({
             title: "הסיכום עדיין נכתב",
@@ -522,7 +536,9 @@ export default function SummarizeRecordingDialog({
         variant: "destructive",
       });
     } finally {
-      setIsGenerating(false);
+      if (request === generateRequestRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -541,8 +557,10 @@ export default function SummarizeRecordingDialog({
       pollingRef.current = null;
     }
 
+    generateRequestRef.current++;
     onOpenChange(false);
     setTimeout(() => {
+      setIsGenerating(false);
       setTranscript("");
       setCustomFocus("");
       setResult(null);
