@@ -29,26 +29,21 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import {
-  Shield,
-  UserPlus,
-  Trash2,
-  Settings,
-  Lock,
-  Mail,
-  Building2,
-  Eye,
-} from "lucide-react";
+import { Shield, UserPlus, Building2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { EditUserAgenciesDialog } from "@/components/forms/EditUserAgenciesDialog";
 import { EditUserPermissionsDialog } from "@/components/forms/EditUserPermissionsDialog";
 import { EditUserNameDialog } from "@/components/forms/EditUserNameDialog";
 import EditSalesPersonAgenciesDialog from "@/components/forms/EditSalesPersonAgenciesDialog";
 import EditManagedAgenciesDialog from "@/components/forms/EditManagedAgenciesDialog";
 import { ResetPasswordDialog } from "@/components/forms/ResetPasswordDialog";
-import { DeactivateMemberButton } from "@/components/UsersPage/DeactivateMemberButton";
 import { InactiveMembersCard } from "@/components/UsersPage/InactiveMembersCard";
+import { UsersList } from "@/components/UsersPage/UsersList";
+import { roleBadgeColors } from "@/components/UsersPage/userRoleStyles";
+import type {
+  ManagedUser,
+  UsersListProps,
+} from "@/components/UsersPage/userListTypes";
 import { MEMBER_LIST_KEYS } from "@/components/UsersPage/useMemberActivation";
 import type { DeleteMemberResult } from "@functions/_shared/user-admin/member-results.ts";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
@@ -76,15 +71,6 @@ const roleTerminologyKeys: Record<UserRole, string> = {
   sales_person: "role_sales_person",
   super_admin: "role_super_admin",
   seo: "role_seo",
-};
-
-const roleBadgeColors: Record<UserRole, string> = {
-  owner: "bg-primary",
-  team_manager: "bg-secondary",
-  campaigner: "bg-accent",
-  sales_person: "bg-muted",
-  super_admin: "bg-destructive",
-  seo: "bg-muted",
 };
 
 export default function Users() {
@@ -953,6 +939,89 @@ export default function Users() {
     },
   });
 
+  /** Team managers edit the agencies they manage; everyone else edits team-card agencies. */
+  function openAgenciesDialog(user: ManagedUser) {
+    if (!user.roles.includes("team_manager")) {
+      setEditAgenciesUserId(user.id);
+      setEditAgenciesUserEmail(user.email);
+      return;
+    }
+    const managedAgencies = (userManagedAgencies || [])
+      .filter((uma) => uma.user_id === user.id)
+      .map((uma) => uma.agencies)
+      .filter((agency) => agency !== null);
+    setEditManagedAgenciesUser({
+      id: user.id,
+      full_name: user.full_name || user.email,
+      managed_agencies: managedAgencies,
+    });
+  }
+
+  /** Super admins preview any user; owners keep the legacy sales-person preview only. */
+  function startViewAs(user: ManagedUser) {
+    const name = user.full_name || user.email;
+    setViewAs(user.id, user.sales_person_id || null, name);
+    setSelectedAgency("all");
+    toast.success(`עובר למצב צפייה בתור ${name}`);
+    navigate(
+      buildPath(
+        user.sales_person_id && !user.campaigner_id ? "leads" : "clients",
+      ),
+    );
+  }
+
+  const usersListProps: UsersListProps = {
+    users: filteredUsers,
+    roleLabels,
+    campaigners: campaigners || [],
+    salesPeople: salesPeople || [],
+    salesPersonAgencyNames: (user) =>
+      (salesPeopleWithAgencies || [])
+        .find((sp) => sp.id === user.sales_person_id)
+        ?.agencies.map((agency: { name: string }) => agency.name)
+        .join(", ") || "",
+    canViewAs: (user) => isSuperAdmin || (isOwner && !!user.sales_person_id),
+    currentUserId,
+    resendPending: resendInviteMutation.isPending,
+    deletePending: deleteUserMutation.isPending,
+    actions: {
+      addRole: (user, role) =>
+        addRoleMutation.mutate({ userId: user.id, role }),
+      removeRole: (user, role) =>
+        removeRoleMutation.mutate({ userId: user.id, role }),
+      setCampaigner: (user, campaignerId) =>
+        updateCampaignerMutation.mutate({ userId: user.id, campaignerId }),
+      setSalesPerson: (user, salesPersonId) =>
+        updateSalesPersonMutation.mutate({ userId: user.id, salesPersonId }),
+      editName: (user) => {
+        setEditNameUserId(user.id);
+        setEditNameUserEmail(user.email);
+        setEditNameUserFullName(user.full_name || "");
+      },
+      editAgencies: openAgenciesDialog,
+      editSalesPersonAgencies: (user) => {
+        const salesPerson = salesPeopleWithAgencies?.find(
+          (sp) => sp.id === user.sales_person_id,
+        );
+        if (salesPerson) {
+          setEditSalesPersonAgencies(salesPerson);
+        }
+      },
+      editPermissions: (user) => {
+        setEditPermissionsUserId(user.id);
+        setEditPermissionsUserEmail(user.email);
+      },
+      resetPassword: (user) => {
+        setResetPasswordUserId(user.id);
+        setResetPasswordUserEmail(user.email);
+      },
+      viewAs: startViewAs,
+      resendInvite: (user) =>
+        resendInviteMutation.mutate({ email: user.email }),
+      deleteUser: (user) => deleteUserMutation.mutate({ userId: user.id }),
+    },
+  };
+
   if (!isOwner && !isSuperAdmin) {
     return (
       <div className="container mx-auto py-6">
@@ -1080,7 +1149,7 @@ export default function Users() {
                 הזמן משתמש חדש
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh]">
+            <DialogContent className="max-w-4xl max-h-[90dvh] overflow-hidden">
               <DialogHeader>
                 <DialogTitle>הזמן משתמש חדש לארגון שלך</DialogTitle>
                 <DialogDescription>
@@ -1090,9 +1159,11 @@ export default function Users() {
                   אנשי צוות.
                 </DialogDescription>
               </DialogHeader>
-              <ScrollArea className="max-h-[calc(90vh-180px)] pl-4">
+              {/* One scroll area between the fixed header and footer: nested
+                  scroll boxes trapped touch scrolling on phones. */}
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-6 px-6">
                 <div
-                  className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-4"
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
                   dir="rtl"
                 >
                   {showMultiTenantInvite && (
@@ -1382,7 +1453,7 @@ export default function Users() {
                   </div>
                   <div className="md:col-span-2">
                     <Label>הרשאות מודולים</Label>
-                    <div className="mt-2 max-h-[400px] overflow-y-auto pr-1">
+                    <div className="mt-2">
                       <PermissionsSelector
                         value={Object.fromEntries(
                           getAllModules().map((m) => [
@@ -1410,8 +1481,8 @@ export default function Users() {
                     </p>
                   </div>
                 </div>
-              </ScrollArea>
-              <div className="pt-4 border-t">
+              </div>
+              <div className="shrink-0 pt-4 border-t">
                 <Button
                   onClick={() =>
                     inviteUserMutation.mutate({
@@ -1455,608 +1526,8 @@ export default function Users() {
             {userListFilters}
             {isLoading ? (
               <Card className="p-6 text-center">טוען...</Card>
-            ) : isMobile ? (
-              <div className="space-y-4">
-                {filteredUsers?.map((user: any) => (
-                  <Card key={user.id} className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium">
-                            {user.full_name || "-"}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {user.email}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            תפקידים:
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {user.roles?.map((role: UserRole) => (
-                              <Badge
-                                key={role}
-                                className={`${roleBadgeColors[role] || "bg-gray-500"} relative group text-xs`}
-                              >
-                                {roleLabels[role]}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (
-                                      confirm(
-                                        `האם להסיר את תפקיד ${roleLabels[role]}?`,
-                                      )
-                                    ) {
-                                      removeRoleMutation.mutate({
-                                        userId: user.id,
-                                        role: role as UserRole,
-                                      });
-                                    }
-                                  }}
-                                  className="mr-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="הסר תפקיד"
-                                >
-                                  ×
-                                </button>
-                              </Badge>
-                            ))}
-                            <Select
-                              value=""
-                              onValueChange={(role) => {
-                                addRoleMutation.mutate({
-                                  userId: user.id,
-                                  role: role as UserRole,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-[60px] h-6 px-2 text-xs">
-                                <SelectValue>הוסף</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                {Object.entries(roleLabels)
-                                  .filter(
-                                    ([value]) => !user.roles?.includes(value),
-                                  )
-                                  .map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            איש צוות:
-                          </p>
-                          <Select
-                            value={user.campaigner_id || "none"}
-                            onValueChange={(value) => {
-                              updateCampaignerMutation.mutate({
-                                userId: user.id,
-                                campaignerId: value === "none" ? null : value,
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue>
-                                {user.campaigner_name || (
-                                  <span className="text-muted-foreground">
-                                    -
-                                  </span>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="none">
-                                <span className="text-muted-foreground">
-                                  ללא שיוך
-                                </span>
-                              </SelectItem>
-                              {campaigners?.map((campaigner) => (
-                                <SelectItem
-                                  key={campaigner.id}
-                                  value={campaigner.id}
-                                >
-                                  {campaigner.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-1">
-                            איש מכירות:
-                          </p>
-                          <Select
-                            value={user.sales_person_id || "none"}
-                            onValueChange={(value) => {
-                              updateSalesPersonMutation.mutate({
-                                userId: user.id,
-                                salesPersonId: value === "none" ? null : value,
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue>
-                                {user.sales_person_name || (
-                                  <span className="text-muted-foreground">
-                                    -
-                                  </span>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="none">
-                                <span className="text-muted-foreground">
-                                  ללא שיוך
-                                </span>
-                              </SelectItem>
-                              {salesPeople?.map((salesPerson) => (
-                                <SelectItem
-                                  key={salesPerson.id}
-                                  value={salesPerson.id}
-                                >
-                                  {salesPerson.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-2 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditNameUserId(user.id);
-                            setEditNameUserEmail(user.email);
-                            setEditNameUserFullName(user.full_name || "");
-                          }}
-                          className="flex-1"
-                        >
-                          ערוך שם
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Determine which dialog to open based on user's roles
-                            if (user.roles?.includes("team_manager")) {
-                              // Team manager - open managed agencies dialog
-                              const managedAgencies =
-                                userManagedAgencies
-                                  ?.filter((uma) => uma.user_id === user.id)
-                                  .map((uma) => uma.agencies)
-                                  .filter(Boolean) || [];
-                              setEditManagedAgenciesUser({
-                                id: user.id,
-                                full_name: user.full_name || user.email,
-                                managed_agencies: managedAgencies as Array<{
-                                  id: string;
-                                  name: string;
-                                }>,
-                              });
-                            } else {
-                              // Campaigner or other - open regular agencies dialog
-                              setEditAgenciesUserId(user.id);
-                              setEditAgenciesUserEmail(user.email);
-                            }
-                          }}
-                          className="flex-1"
-                        >
-                          <Settings className="h-3 w-3 ml-1" />
-                          סוכנויות
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditPermissionsUserId(user.id);
-                            setEditPermissionsUserEmail(user.email);
-                          }}
-                          className="flex-1"
-                        >
-                          <Lock className="h-3 w-3 ml-1" />
-                          הרשאות
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setResetPasswordUserId(user.id);
-                            setResetPasswordUserEmail(user.email);
-                          }}
-                          className="flex-1"
-                        >
-                          <Shield className="h-3 w-3 ml-1" />
-                          סיסמה
-                        </Button>
-                        <div className="flex gap-2 w-full">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              resendInviteMutation.mutate({ email: user.email })
-                            }
-                            disabled={resendInviteMutation.isPending}
-                            className="flex-1"
-                          >
-                            <Mail className="h-3 w-3 ml-1" />
-                            שלח מחדש
-                          </Button>
-                          <DeactivateMemberButton
-                            user={user}
-                            currentUserId={currentUserId}
-                          />
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              if (
-                                confirm(`האם להסיר את ${user.email} מהארגון?`)
-                              ) {
-                                deleteUserMutation.mutate({ userId: user.id });
-                              }
-                            }}
-                            disabled={deleteUserMutation.isPending}
-                            className="flex-1"
-                            title="הסר מהארגון"
-                          >
-                            <Trash2 className="h-3 w-3 ml-1" />
-                            מחק
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
             ) : (
-              <Card>
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[1200px] whitespace-nowrap">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">שם מלא</TableHead>
-                        <TableHead className="text-right">אימייל</TableHead>
-                        <TableHead className="text-right">תפקידים</TableHead>
-                        <TableHead className="text-right">איש צוות</TableHead>
-                        <TableHead className="text-right">איש מכירות</TableHead>
-                        <TableHead className="text-right">
-                          סוכנויות איש מכירות
-                        </TableHead>
-                        <TableHead className="text-right">פעולות</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredUsers?.map((user: any) => (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">
-                                {user.full_name || "-"}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditNameUserId(user.id);
-                                  setEditNameUserEmail(user.email);
-                                  setEditNameUserFullName(user.full_name || "");
-                                }}
-                                className="h-6 px-2 text-xs"
-                              >
-                                ערוך
-                              </Button>
-                            </div>
-                          </TableCell>
-                          <TableCell>{user.email}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-2">
-                              {user.roles?.map((role: UserRole) => (
-                                <Badge
-                                  key={role}
-                                  className={`${roleBadgeColors[role] || "bg-gray-500"} relative group`}
-                                >
-                                  {roleLabels[role]}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (
-                                        confirm(
-                                          `האם להסיר את תפקיד ${roleLabels[role]}?`,
-                                        )
-                                      ) {
-                                        removeRoleMutation.mutate({
-                                          userId: user.id,
-                                          role: role as UserRole,
-                                        });
-                                      }
-                                    }}
-                                    className="mr-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="הסר תפקיד"
-                                  >
-                                    ×
-                                  </button>
-                                </Badge>
-                              ))}
-                              <Select
-                                value=""
-                                onValueChange={(role) => {
-                                  addRoleMutation.mutate({
-                                    userId: user.id,
-                                    role: role as UserRole,
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="w-[40px] h-6 px-2">
-                                  <SelectValue>+</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="bg-background z-50">
-                                  {Object.entries(roleLabels)
-                                    .filter(
-                                      ([value]) => !user.roles?.includes(value),
-                                    )
-                                    .map(([value, label]) => (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Select
-                              value={user.campaigner_id || "none"}
-                              onValueChange={(value) => {
-                                updateCampaignerMutation.mutate({
-                                  userId: user.id,
-                                  campaignerId: value === "none" ? null : value,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="h-8 w-[140px]">
-                                <SelectValue>
-                                  {user.campaigner_name || (
-                                    <span className="text-muted-foreground">
-                                      -
-                                    </span>
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                <SelectItem value="none">
-                                  <span className="text-muted-foreground">
-                                    ללא שיוך
-                                  </span>
-                                </SelectItem>
-                                {campaigners?.map((campaigner) => (
-                                  <SelectItem
-                                    key={campaigner.id}
-                                    value={campaigner.id}
-                                  >
-                                    {campaigner.full_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Select
-                              value={user.sales_person_id || "none"}
-                              onValueChange={(value) => {
-                                updateSalesPersonMutation.mutate({
-                                  userId: user.id,
-                                  salesPersonId:
-                                    value === "none" ? null : value,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="h-8 w-[140px]">
-                                <SelectValue>
-                                  {user.sales_person_name || (
-                                    <span className="text-muted-foreground">
-                                      -
-                                    </span>
-                                  )}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                <SelectItem value="none">
-                                  <span className="text-muted-foreground">
-                                    ללא שיוך
-                                  </span>
-                                </SelectItem>
-                                {salesPeople?.map((salesPerson) => (
-                                  <SelectItem
-                                    key={salesPerson.id}
-                                    value={salesPerson.id}
-                                  >
-                                    {salesPerson.full_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            {user.sales_person_id ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  const salesPerson =
-                                    salesPeopleWithAgencies?.find(
-                                      (sp) => sp.id === user.sales_person_id,
-                                    );
-                                  if (salesPerson) {
-                                    setEditSalesPersonAgencies(salesPerson);
-                                  }
-                                }}
-                                className="h-8 text-sm w-full justify-start"
-                              >
-                                {salesPeopleWithAgencies
-                                  ?.find((sp) => sp.id === user.sales_person_id)
-                                  ?.agencies.map((a) => a.name)
-                                  .join(", ") || "אין סוכנויות"}
-                              </Button>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">
-                                -
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => {
-                                  // Determine which dialog to open based on user's roles
-                                  if (user.roles?.includes("team_manager")) {
-                                    // Team manager - open managed agencies dialog
-                                    const managedAgencies =
-                                      userManagedAgencies
-                                        ?.filter(
-                                          (uma) => uma.user_id === user.id,
-                                        )
-                                        .map((uma) => uma.agencies)
-                                        .filter(Boolean) || [];
-                                    setEditManagedAgenciesUser({
-                                      id: user.id,
-                                      full_name: user.full_name || user.email,
-                                      managed_agencies:
-                                        managedAgencies as Array<{
-                                          id: string;
-                                          name: string;
-                                        }>,
-                                    });
-                                  } else {
-                                    // Campaigner or other - open regular agencies dialog
-                                    setEditAgenciesUserId(user.id);
-                                    setEditAgenciesUserEmail(user.email);
-                                  }
-                                }}
-                                title="ערוך סוכנויות"
-                              >
-                                <Settings className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => {
-                                  setEditPermissionsUserId(user.id);
-                                  setEditPermissionsUserEmail(user.email);
-                                }}
-                                title="ערוך הרשאות"
-                              >
-                                <Lock className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => {
-                                  setResetPasswordUserId(user.id);
-                                  setResetPasswordUserEmail(user.email);
-                                }}
-                                title="הגדר סיסמה חדשה"
-                              >
-                                <Shield className="h-4 w-4" />
-                              </Button>
-                              {/* Super admins can preview the effective UI of any user.
-                            Owners keep the legacy sales-person preview only. */}
-                              {(isSuperAdmin ||
-                                (isOwner && user.sales_person_id)) &&
-                                user.id !== currentUserId && (
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => {
-                                      setViewAs(
-                                        user.id,
-                                        user.sales_person_id || null,
-                                        user.full_name || user.email,
-                                      );
-                                      setSelectedAgency("all");
-                                      toast.success(
-                                        `עובר למצב צפייה בתור ${user.full_name || user.email}`,
-                                      );
-                                      navigate(
-                                        buildPath(
-                                          user.sales_person_id &&
-                                            !user.campaigner_id
-                                            ? "leads"
-                                            : "clients",
-                                        ),
-                                      );
-                                    }}
-                                    title="צפה בתור משתמש זה"
-                                    className="border-warning text-warning hover:bg-warning/10"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `האם לשלוח הזמנה מחדש ל-${user.email}?`,
-                                    )
-                                  ) {
-                                    resendInviteMutation.mutate({
-                                      email: user.email,
-                                    });
-                                  }
-                                }}
-                                disabled={resendInviteMutation.isPending}
-                                title="שלח הזמנה מחדש"
-                              >
-                                <Mail className="h-4 w-4" />
-                              </Button>
-                              <DeactivateMemberButton
-                                user={user}
-                                currentUserId={currentUserId}
-                                compact
-                              />
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `האם להסיר את ${user.email} מהארגון?`,
-                                    )
-                                  ) {
-                                    deleteUserMutation.mutate({
-                                      userId: user.id,
-                                    });
-                                  }
-                                }}
-                                disabled={deleteUserMutation.isPending}
-                                title="הסר מהארגון"
-                                className="flex-shrink-0"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
+              <UsersList {...usersListProps} />
             )}
           </TabsContent>
 
@@ -2125,553 +1596,7 @@ export default function Users() {
       ) : (
         <>
           {userListFilters}
-          {isMobile ? (
-            <div className="space-y-4">
-              {filteredUsers?.map((user: any) => (
-                <Card key={user.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium">
-                          {user.full_name || "-"}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {user.email}
-                        </div>
-                        <Badge
-                          variant={
-                            user.status === "active"
-                              ? "default"
-                              : user.status === "pending"
-                                ? "secondary"
-                                : "outline"
-                          }
-                          className={`mt-1 ${user.status === "active" ? "bg-green-500" : user.status === "pending" ? "bg-yellow-500" : ""}`}
-                        >
-                          {user.status === "active"
-                            ? "פעיל"
-                            : user.status === "pending"
-                              ? "ממתין"
-                              : user.status === "inactive"
-                                ? "לא פעיל"
-                                : user.status}
-                        </Badge>
-                      </div>
-                      {user.role && (
-                        <Badge className={roleBadgeColors[user.role]}>
-                          {roleLabels[user.role]}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {user.campaigner_name && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">קמפיינר: </span>
-                        <span>{user.campaigner_name}</span>
-                      </div>
-                    )}
-
-                    {user.sales_person_name && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">
-                          איש מכירות:{" "}
-                        </span>
-                        <span>{user.sales_person_name}</span>
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-2 pt-2 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditNameUserId(user.id);
-                          setEditNameUserEmail(user.email);
-                          setEditNameUserFullName(user.full_name || "");
-                        }}
-                        className="flex-1"
-                      >
-                        ערוך שם
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditAgenciesUserId(user.id);
-                          setEditAgenciesUserEmail(user.email);
-                        }}
-                        className="flex-1"
-                      >
-                        <Settings className="h-3 w-3 ml-1" />
-                        סוכנויות
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditPermissionsUserId(user.id);
-                          setEditPermissionsUserEmail(user.email);
-                        }}
-                        className="flex-1"
-                      >
-                        <Lock className="h-3 w-3 ml-1" />
-                        הרשאות
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setResetPasswordUserId(user.id);
-                          setResetPasswordUserEmail(user.email);
-                        }}
-                        className="flex-1"
-                      >
-                        <Shield className="h-3 w-3 ml-1" />
-                        סיסמה
-                      </Button>
-                      <div className="flex flex-wrap gap-1">
-                        {user.roles?.map((role: UserRole) => (
-                          <Badge
-                            key={role}
-                            className={`${roleBadgeColors[role] || "bg-gray-500"} relative group text-xs`}
-                          >
-                            {roleLabels[role]}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (
-                                  confirm(
-                                    `האם להסיר את תפקיד ${roleLabels[role]}?`,
-                                  )
-                                ) {
-                                  removeRoleMutation.mutate({
-                                    userId: user.id,
-                                    role: role as UserRole,
-                                  });
-                                }
-                              }}
-                              className="mr-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="הסר תפקיד"
-                            >
-                              ×
-                            </button>
-                          </Badge>
-                        ))}
-                        <Select
-                          value=""
-                          onValueChange={(role) => {
-                            addRoleMutation.mutate({
-                              userId: user.id,
-                              role: role as UserRole,
-                            });
-                          }}
-                        >
-                          <SelectTrigger className="w-[50px] h-6 px-2 text-xs">
-                            <SelectValue>+</SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(roleLabels)
-                              .filter(([value]) => !user.roles?.includes(value))
-                              .map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {label}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex gap-2 w-full">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            resendInviteMutation.mutate({ email: user.email })
-                          }
-                          disabled={resendInviteMutation.isPending}
-                          className="flex-1"
-                        >
-                          <Mail className="h-3 w-3 ml-1" />
-                          שלח מחדש
-                        </Button>
-                        <DeactivateMemberButton
-                          user={user}
-                          currentUserId={currentUserId}
-                        />
-                        {user.id !== currentUserId && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              if (
-                                confirm(`האם להסיר את ${user.email} מהארגון?`)
-                              ) {
-                                deleteUserMutation.mutate({ userId: user.id });
-                              }
-                            }}
-                            className="flex-1"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <div className="overflow-x-auto">
-                <Table className="min-w-[1200px] whitespace-nowrap">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-right">שם מלא</TableHead>
-                      <TableHead className="text-right">אימייל</TableHead>
-                      <TableHead className="text-right">תפקידים</TableHead>
-                      <TableHead className="text-right">איש צוות</TableHead>
-                      <TableHead className="text-right">איש מכירות</TableHead>
-                      <TableHead className="text-right">
-                        סוכנויות איש מכירות
-                      </TableHead>
-                      <TableHead className="text-right">סטטוס</TableHead>
-                      <TableHead className="text-right">פעולות</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers?.map((user: any) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">
-                              {user.full_name || "-"}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditNameUserId(user.id);
-                                setEditNameUserEmail(user.email);
-                                setEditNameUserFullName(user.full_name || "");
-                              }}
-                              className="h-6 px-2 text-xs"
-                            >
-                              ערוך
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {user.roles?.map((role: UserRole) => (
-                              <Badge
-                                key={role}
-                                className={`${roleBadgeColors[role] || "bg-gray-500"} relative group text-xs`}
-                              >
-                                {roleLabels[role]}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (
-                                      confirm(
-                                        `האם להסיר את תפקיד ${roleLabels[role]}?`,
-                                      )
-                                    ) {
-                                      removeRoleMutation.mutate({
-                                        userId: user.id,
-                                        role: role as UserRole,
-                                      });
-                                    }
-                                  }}
-                                  className="mr-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="הסר תפקיד"
-                                >
-                                  ×
-                                </button>
-                              </Badge>
-                            ))}
-                            <Select
-                              value=""
-                              onValueChange={(role) => {
-                                addRoleMutation.mutate({
-                                  userId: user.id,
-                                  role: role as UserRole,
-                                });
-                              }}
-                            >
-                              <SelectTrigger className="w-[40px] h-6 px-2 text-xs">
-                                <SelectValue>+</SelectValue>
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                {Object.entries(roleLabels)
-                                  .filter(
-                                    ([value]) => !user.roles?.includes(value),
-                                  )
-                                  .map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                      {label}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.campaigner_id || "none"}
-                            onValueChange={(value) => {
-                              updateCampaignerMutation.mutate({
-                                userId: user.id,
-                                campaignerId: value === "none" ? null : value,
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 w-[140px]">
-                              <SelectValue>
-                                {user.campaigner_name || (
-                                  <span className="text-muted-foreground">
-                                    -
-                                  </span>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="none">
-                                <span className="text-muted-foreground">
-                                  ללא שיוך
-                                </span>
-                              </SelectItem>
-                              {campaigners?.map((campaigner) => (
-                                <SelectItem
-                                  key={campaigner.id}
-                                  value={campaigner.id}
-                                >
-                                  {campaigner.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.sales_person_id || "none"}
-                            onValueChange={(value) => {
-                              updateSalesPersonMutation.mutate({
-                                userId: user.id,
-                                salesPersonId: value === "none" ? null : value,
-                              });
-                            }}
-                          >
-                            <SelectTrigger className="h-8 w-[140px]">
-                              <SelectValue>
-                                {user.sales_person_name || (
-                                  <span className="text-muted-foreground">
-                                    -
-                                  </span>
-                                )}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="none">
-                                <span className="text-muted-foreground">
-                                  ללא שיוך
-                                </span>
-                              </SelectItem>
-                              {salesPeople?.map((salesPerson) => (
-                                <SelectItem
-                                  key={salesPerson.id}
-                                  value={salesPerson.id}
-                                >
-                                  {salesPerson.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          {user.sales_person_id ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm">
-                                {salesPeopleWithAgencies
-                                  ?.find((sp) => sp.id === user.sales_person_id)
-                                  ?.agencies.map((a) => a.name)
-                                  .join(", ") || "אין סוכנויות"}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const salesPerson =
-                                    salesPeopleWithAgencies?.find(
-                                      (sp) => sp.id === user.sales_person_id,
-                                    );
-                                  if (salesPerson) {
-                                    setEditSalesPersonAgencies(salesPerson);
-                                  }
-                                }}
-                                className="h-6 px-2 text-xs"
-                              >
-                                ערוך
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              -
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              user.status === "active"
-                                ? "default"
-                                : user.status === "pending"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                            className={
-                              user.status === "active"
-                                ? "bg-green-500"
-                                : user.status === "pending"
-                                  ? "bg-yellow-500"
-                                  : ""
-                            }
-                          >
-                            {user.status === "active"
-                              ? "פעיל"
-                              : user.status === "pending"
-                                ? "ממתין"
-                                : user.status === "inactive"
-                                  ? "לא פעיל"
-                                  : user.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditAgenciesUserId(user.id);
-                                setEditAgenciesUserEmail(user.email);
-                              }}
-                              className="h-8"
-                            >
-                              <Settings className="h-3 w-3 ml-1" />
-                              סוכנויות
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditPermissionsUserId(user.id);
-                                setEditPermissionsUserEmail(user.email);
-                              }}
-                              className="h-8"
-                            >
-                              <Lock className="h-3 w-3 ml-1" />
-                              הרשאות
-                            </Button>
-                            <div className="flex flex-wrap gap-1">
-                              {user.roles?.map((role: UserRole) => (
-                                <Badge
-                                  key={role}
-                                  className={`${roleBadgeColors[role] || "bg-gray-500"} relative group text-xs`}
-                                >
-                                  {roleLabels[role]}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (
-                                        confirm(
-                                          `האם להסיר את תפקיד ${roleLabels[role]}?`,
-                                        )
-                                      ) {
-                                        removeRoleMutation.mutate({
-                                          userId: user.id,
-                                          role: role as UserRole,
-                                        });
-                                      }
-                                    }}
-                                    className="mr-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    title="הסר תפקיד"
-                                  >
-                                    ×
-                                  </button>
-                                </Badge>
-                              ))}
-                              <Select
-                                value=""
-                                onValueChange={(role) => {
-                                  addRoleMutation.mutate({
-                                    userId: user.id,
-                                    role: role as UserRole,
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="w-[40px] h-6 px-2 text-xs">
-                                  <SelectValue>+</SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(roleLabels)
-                                    .filter(
-                                      ([value]) => !user.roles?.includes(value),
-                                    )
-                                    .map(([value, label]) => (
-                                      <SelectItem key={value} value={value}>
-                                        {label}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                resendInviteMutation.mutate({
-                                  email: user.email,
-                                })
-                              }
-                              disabled={resendInviteMutation.isPending}
-                              className="h-8"
-                            >
-                              <Mail className="h-3 w-3 ml-1" />
-                              שלח מחדש
-                            </Button>
-                            <DeactivateMemberButton
-                              user={user}
-                              currentUserId={currentUserId}
-                              compact
-                            />
-                            {user.id !== currentUserId && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `האם להסיר את ${user.email} מהארגון?`,
-                                    )
-                                  ) {
-                                    deleteUserMutation.mutate({
-                                      userId: user.id,
-                                    });
-                                  }
-                                }}
-                                className="h-8"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          )}
+          <UsersList {...usersListProps} />
         </>
       )}
 
