@@ -90,8 +90,12 @@ const input: WriteSummaryInput = {
 Deno.test(
   "the summary is copied to the meeting's recordings in the tenant",
   async () => {
-    const { admin, updates } = fakeAdmin("meeting-9", null);
+    const { admin, updates, lookupFilters } = fakeAdmin("meeting-9", null);
     await copyToMeetingRecordings(admin, input, "## סיכום", "file.docx");
+    assertEquals(lookupFilters, [
+      ["tenant_id", "t-1"],
+      ["id", "rec-1"],
+    ]);
     assertEquals(updates.length, 1);
     assertEquals(updates[0].values.summary_md, "## סיכום");
     assertEquals(updates[0].values.summary_file_url, "file.docx");
