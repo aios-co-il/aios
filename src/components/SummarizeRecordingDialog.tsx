@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { waitForRecordingSummary } from "@/lib/waitForRecordingSummary";
 import {
   Dialog,
   DialogContent,
@@ -451,6 +452,7 @@ export default function SummarizeRecordingDialog({
     setResult(null);
 
     try {
+      const requestedAt = new Date();
       const { data, error } = await supabase.functions.invoke(
         "summarize-recording",
         {
@@ -468,6 +470,30 @@ export default function SummarizeRecordingDialog({
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data?.pending && data.channel === "model" && recording?.id) {
+        // Long summaries are written in the background (AIO-581).
+        const saved = await waitForRecordingSummary(recording.id, requestedAt);
+        queryClient.invalidateQueries({
+          queryKey: ["recordings", currentTenantId],
+        });
+        if (!saved) {
+          toast({
+            title: "הסיכום עדיין נכתב",
+            description: "הוא יופיע על ההקלטה בעוד כמה דקות",
+          });
+          return;
+        }
+        setResult({
+          summary: saved.summary,
+          file_url: saved.fileUrl ?? "",
+          file_name: "סיכום פגישה.docx",
+        });
+        toast({
+          title: "הסיכום נוצר בהצלחה!",
+          description: "הקובץ נשמר ושויך",
+        });
+        return;
+      }
       if (data?.pending) {
         queryClient.invalidateQueries({
           queryKey: ["recordings", currentTenantId],

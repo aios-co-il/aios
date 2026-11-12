@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { waitForRecordingSummary } from "@/lib/waitForRecordingSummary";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -58,6 +59,7 @@ export function useRegenerateRecordingSummary({
         );
       }
 
+      const requestedAt = new Date();
       const { data, error } = await supabase.functions.invoke(
         "summarize-recording",
         {
@@ -74,8 +76,23 @@ export function useRegenerateRecordingSummary({
       );
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      if (data?.pending) return null;
-      if (!data?.summary) throw new Error("לא התקבל סיכום חדש");
+      if (data?.pending && data.channel !== "model") {
+        return null;
+      }
+      // The model writes long summaries in the background (AIO-581); wait for
+      // the row instead of the HTTP reply.
+      const saved = data?.pending
+        ? await waitForRecordingSummary(sourceRow.id, requestedAt)
+        : data?.summary
+          ? { summary: data.summary as string, fileUrl: data.file_url ?? null }
+          : null;
+      if (!saved) {
+        throw new Error(
+          data?.pending
+            ? "הסיכום עדיין נכתב. הוא יופיע על ההקלטה בעוד כמה דקות."
+            : "לא התקבל סיכום חדש",
+        );
+      }
 
       // The edge function writes onto the row it was given; the other rows of
       // the same meeting are updated here so every card shows the new summary.
@@ -84,13 +101,13 @@ export function useRegenerateRecordingSummary({
         await supabase
           .from("zoom_recordings")
           .update({
-            summary_md: data.summary,
-            summary_file_url: data.file_url ?? null,
+            summary_md: saved.summary,
+            summary_file_url: saved.fileUrl,
           })
           .in("id", siblingIds);
       }
 
-      return data.summary as string;
+      return saved.summary;
     },
     onSuccess: (summaryMd) => {
       queryClient.invalidateQueries({ queryKey: ["recordings"] });
