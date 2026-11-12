@@ -16,12 +16,13 @@ import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { SharedDashboardHeader } from "@/components/SharedDashboard/SharedDashboardHeader";
+import { useSharedPreviousPeriod } from "@/components/SharedDashboard/useSharedPreviousPeriod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
 import { GoalReportOverview } from "@/components/report-ui/dashboard/GoalReportOverview";
 import { dashboardReportInput } from "@/components/report-ui/dashboard/dashboardReportInput";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -38,20 +39,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Facebook,
   FileSpreadsheet,
   Globe,
   MousePointerClick,
   TrendingUp,
   BarChart3,
-  RefreshCw,
   ShoppingCart,
   Search,
   FileText,
@@ -106,7 +99,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import { SHARED_COMBINED_DASHBOARD_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import {
   shouldUseGoogleWooAttributionOverlay,
   summarizeGoogleAttributedWooOrders,
@@ -116,8 +108,6 @@ import {
   sumWooRevenue,
 } from "@/lib/wooOrderRevenue";
 import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
-
-const DATE_FILTERS = SHARED_COMBINED_DASHBOARD_DATE_FILTERS;
 
 const PLATFORM_CONFIG: Record<string, { name: string; color: string }> = {
   facebook_insights: { name: "Facebook", color: "text-blue-600" },
@@ -202,21 +192,29 @@ interface SharedDashboardProps {
   initialDateFilter?: string;
   /** Hide refresh/date controls when rendering off-screen for report capture. */
   snapshotMode?: boolean;
+  /** The window, when the host holds it: the client card's live view and its send capture. */
+  dateFilter?: string;
+  onDateFilterChange?: (filter: string) => void;
 }
 
 export default function SharedDashboard({
   shareTokenOverride,
   initialDateFilter = "last_30_days",
   snapshotMode = false,
+  dateFilter: hostDateFilter,
+  onDateFilterChange,
 }: SharedDashboardProps = {}) {
   const params = useParams();
   const shareToken = shareTokenOverride ?? params.shareToken;
-  const queryClient = useQueryClient();
-  const [dateFilter, setDateFilter] = useState(initialDateFilter);
+  const [ownDateFilter, setOwnDateFilter] = useState(initialDateFilter);
+  // The client card holds the window so its send capture shows the same one.
+  const dateFilter = hostDateFilter ?? ownDateFilter;
+  const setDateFilter = onDateFilterChange ?? setOwnDateFilter;
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // Off by default, like the signed-in dashboard's "השוואה לתקופה קודמת".
+  const [comparePrevious, setComparePrevious] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["shared-dashboard", shareToken, dateFilter],
@@ -743,9 +741,7 @@ export default function SharedDashboard({
   const hasWooData =
     hasWooCommerce && (wooSummary.revenue > 0 || wooSummary.orderCount > 0);
 
-  // The per-goal report on the overview. public-dashboard takes presets only
-  // and caps each table's rows newest-first, so a wider preset would cut the
-  // earlier period short: the shared report shows no previous-period change.
+  // The per-goal report on the overview: this range, and the one before it.
   const reportCurrent = useMemo(
     () =>
       dashboardReportInput({
@@ -757,6 +753,14 @@ export default function SharedDashboard({
       }),
     [records, tables, hasWooCommerce, wooSummary],
   );
+  const previous = useSharedPreviousPeriod({
+    shareToken,
+    dateFilter,
+    tables,
+    tab: platformFilter,
+    hasWooCommerce,
+    enabled: comparePrevious && !snapshotMode,
+  });
 
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
@@ -1076,77 +1080,19 @@ export default function SharedDashboard({
       data-snapshot-ready={isSnapshotReady ? "true" : "false"}
       data-snapshot-frame="true"
     >
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            <h1 className="text-xl md:text-3xl font-bold">{dashboard.name}</h1>
-          </div>
-          <div className="flex items-center gap-2 mt-2 text-muted-foreground">
-            <span>{dashboard.client_name}</span>
-            {dashboard.agency_name && (
-              <>
-                <span>•</span>
-                <span>{dashboard.agency_name}</span>
-              </>
-            )}
-          </div>
-        </div>
-        {!snapshotMode && (
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                setIsRefreshing(true);
-                try {
-                  await queryClient.invalidateQueries({
-                    queryKey: ["shared-dashboard", shareToken],
-                  });
-                } finally {
-                  setIsRefreshing(false);
-                }
-              }}
-              disabled={isRefreshing}
-            >
-              <RefreshCw
-                className={`ml-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              רענן נתונים
-            </Button>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DATE_FILTERS.map((f) => (
-                  <SelectItem key={f.value} value={f.value}>
-                    {f.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* Platform Tabs */}
-      {platformTabItems.length > 1 && (
-        <Tabs
-          value={platformFilter}
-          onValueChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
-        >
-          <ResponsiveTabsList
-            items={platformTabItems}
-            value={platformFilter}
-            onValueChange={(v) =>
-              setPlatformFilter(v as DashboardPlatformFilter)
-            }
-            mobileLabel="בחר פלטפורמה"
-          />
-        </Tabs>
-      )}
+      <SharedDashboardHeader
+        shareToken={shareToken}
+        dashboard={dashboard}
+        tabItems={platformTabItems}
+        tab={platformFilter}
+        onTabChange={(v) => setPlatformFilter(v as DashboardPlatformFilter)}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        comparePrevious={comparePrevious}
+        onComparePreviousChange={setComparePrevious}
+        previous={previous}
+        snapshotMode={snapshotMode}
+      />
 
       {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
       {platformFilter === "site_events" ? (
@@ -1254,7 +1200,7 @@ export default function SharedDashboard({
           {platformFilter === "all" && (
             <GoalReportOverview
               current={reportCurrent}
-              previous={null}
+              previous={comparePrevious ? previous.report : null}
               currency={dashboardCurrency}
             />
           )}
@@ -1399,6 +1345,7 @@ export default function SharedDashboard({
               campaigns={facebookCampaignGroups}
               records={filteredRecords}
               tables={tables}
+              previous={comparePrevious ? previous.tabs.facebook : null}
               formatCurrency={formatCurrency}
               formatNumber={formatNumber}
               formatUnitCost={formatUnitCost}
@@ -1413,6 +1360,7 @@ export default function SharedDashboard({
               formatNumber={formatNumber}
               formatUnitCost={formatUnitCost}
               woo={useGoogleWooOverlay ? googleWooAttribution : null}
+              previous={comparePrevious ? previous.tabs.google : null}
             />
           )}
 
