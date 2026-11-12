@@ -75,6 +75,7 @@ import {
 } from "./carmen-session-history.ts";
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
+import { loadPickedCallWords } from "./carmen/persona-runtime.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
 
@@ -262,7 +263,13 @@ const CARMEN_NAME_VARIANT_RE = /[כק]א?רמן/;
 
 // Resolve the configured trigger keyword(s). Supports a single `trigger_keyword`
 // (legacy) or a `trigger_keywords` array (multiple wake-words), defaulting to "כרמן".
-function resolveTriggerKeywords(cfg: CarmenAutomationConfig): string[] {
+// `personaWords` are the call words of characters the org's members picked
+// (AIO-570); they call Carmen too, after the automation's own keywords, but only
+// on an automation that runs Carmen (see carmenPersonaWords).
+function resolveTriggerKeywords(
+  cfg: CarmenAutomationConfig,
+  personaWords: string[] = [],
+): string[] {
   const list =
     Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
       ? cfg.trigger_keywords
@@ -274,7 +281,22 @@ function resolveTriggerKeywords(cfg: CarmenAutomationConfig): string[] {
         .toLowerCase(),
     )
     .filter(Boolean);
-  return out.length ? out : ["כרמן"];
+  const own = out.length ? out : ["כרמן"];
+  return [...new Set([...own, ...carmenPersonaWords(cfg, own, personaWords)])];
+}
+
+// A character's call words reach only an automation that runs Carmen: one with
+// no agent_id (the default Carmen) or one called by Carmen's name. An automation
+// for another agent (Claude, Manus) keeps only its own keywords.
+function carmenPersonaWords(
+  cfg: CarmenAutomationConfig,
+  ownKeywords: string[],
+  personaWords: string[],
+): string[] {
+  const runsCarmen =
+    !cfg?.agent_id ||
+    ownKeywords.some((keyword) => CARMEN_NAME_VARIANT_RE.test(keyword));
+  return runsCarmen ? personaWords : [];
 }
 
 // True when a configured wake-word (or a Whisper spelling variant of "כרמן") appears
@@ -355,11 +377,19 @@ const MEETING_URL_RE =
 /**
  * Group turns wake Carmen only when she is DIRECTLY addressed / asked to act.
  * Talking ABOUT her in third person must stay silent. If uncertain → false.
+ * `callWords` are other names that call her (a picked character's call words,
+ * AIO-570); each is read as her name, so the same address rules apply.
  */
-export function groupMessageInvokesCarmen(message: string): boolean {
-  const content = String(message || "")
-    .replace(/^\s*🎤\s*/, "")
-    .trim();
+export function groupMessageInvokesCarmen(
+  message: string,
+  callWords: string[] = [],
+): boolean {
+  const content = asCarmenName(
+    String(message || "")
+      .replace(/^\s*🎤\s*/, "")
+      .trim(),
+    callWords,
+  );
   if (!content) return false;
   if (!CARMEN_NAME_WORD_RE.test(content)) return false;
 
@@ -412,6 +442,16 @@ export function groupMessageInvokesCarmen(message: string): boolean {
 
   // Name appears mid-sentence without a clear direct ask → do not respond.
   return false;
+}
+
+// Reads each call word, matched literally as a whole word, as Carmen's name.
+function asCarmenName(content: string, callWords: string[]): string {
+  return callWords.reduce((text, word) => {
+    const literal = word.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return literal
+      ? text.replace(new RegExp(`(${HB})${literal}${HE}`, "giu"), "$1כרמן")
+      : text;
+  }, content);
 }
 
 // Detect meta-instruction style messages (long lists of "תעני..." rules) that
@@ -1791,6 +1831,7 @@ export async function handleCarmenMessage(
     return { handled: false, reason: "not_user_message" };
 
   const normalizedMsg = (messageText || "").trim().toLowerCase();
+  const personaWords = await loadPickedCallWords(supabase, tenantId);
 
   // Read configured timeout (defaults to 5 minutes). We need it both for find-active and start-session paths.
   // Look up the relevant automation up-front to get session_timeout_minutes & end_keyword.
@@ -1862,7 +1903,10 @@ export async function handleCarmenMessage(
       isIncoming,
       isManualOutgoing,
       isGroup,
-      hasTrigger: messageHasTrigger(normalizedMsg, resolveTriggerKeywords(cfg)),
+      hasTrigger: messageHasTrigger(
+        normalizedMsg,
+        resolveTriggerKeywords(cfg, personaWords),
+      ),
       pinnedIntegrationId: cfg.carmen_integration_id ?? null,
       integrationId,
       scopeMode: cfg.carmen_scope_mode ?? null,
@@ -1967,7 +2011,10 @@ export async function handleCarmenMessage(
     // participant cannot trigger an identification prompt either.
     if (
       mergedScope.requireDirectAddress &&
-      !groupMessageInvokesCarmen(messageText)
+      !groupMessageInvokesCarmen(
+        messageText,
+        resolveTriggerKeywords(cfg, personaWords),
+      )
     ) {
       return { handled: false, reason: "group_not_addressed" };
     }
@@ -2575,6 +2622,7 @@ export async function handleCarmenMessage(
 
   const triggerKeywords = resolveTriggerKeywords(
     carmenAutomation.configuration,
+    personaWords,
   );
   const triggerKeyword = triggerKeywords[0]; // primary — used for prompt copy below
   const endKeywordValue = carmenAutomation.configuration?.end_keyword;
@@ -2674,7 +2722,12 @@ export async function handleCarmenMessage(
 
   let contentAfterKeyword = messageText.replace(/🎤/g, ""); // strip the voice-transcript marker
   for (const k of triggerKeywords) {
-    contentAfterKeyword = contentAfterKeyword.replace(new RegExp(k, "gi"), "");
+    // Call words are typed by users (AIO-570), so they are matched literally.
+    const literal = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    contentAfterKeyword = contentAfterKeyword.replace(
+      new RegExp(literal, "gi"),
+      "",
+    );
   }
   contentAfterKeyword = contentAfterKeyword
     .replace(CARMEN_NAME_VARIANT_RE, "") // strip "קרמן"/"כארמן" voice spellings
