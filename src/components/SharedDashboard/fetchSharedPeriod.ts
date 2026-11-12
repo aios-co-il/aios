@@ -1,10 +1,12 @@
 import { z } from "zod";
 import type { CalendarRange } from "@/components/report-ui/dashboard/previousPeriod";
+import { attachTableSettings } from "./attachTableSettings";
 
 const recordSchema = z
   .object({
     _tableId: z.string().optional(),
     _source: z.string().optional(),
+    _integrationSettings: z.record(z.unknown()).nullable().optional(),
     data: z.record(z.unknown()).nullable().optional(),
   })
   .passthrough();
@@ -20,9 +22,17 @@ const wooOrderSchema = z
   })
   .passthrough();
 
+const tableSchema = z
+  .object({
+    id: z.string(),
+    integration_settings: z.record(z.unknown()).nullable().optional(),
+  })
+  .passthrough();
+
 /** The parts of a public-dashboard answer a compared period reads. */
 const sharedPeriodSchema = z.object({
   records: z.array(recordSchema).default([]),
+  tables: z.array(tableSchema).default([]),
   woocommerce: z
     .object({ orders: z.array(wooOrderSchema).default([]) })
     .default({ orders: [] }),
@@ -62,5 +72,5 @@ export async function fetchSharedPeriod(
       (await res.text()) || `public-dashboard failed (${res.status})`,
     );
   }
-  return sharedPeriodSchema.parse(await res.json());
+  return attachTableSettings(sharedPeriodSchema.parse(await res.json()));
 }

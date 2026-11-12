@@ -39,7 +39,7 @@ export type GoogleAdsRowData = {
 export type GoogleReportRecord = {
   table_id?: string;
   _tableId?: string;
-  /** Shared dashboards also send the table's settings on each record. */
+  /** Shared dashboards fill each record with its table's public settings. */
   _integrationSettings?: Record<string, unknown> | null;
   data?: GoogleAdsRowData | null;
 };

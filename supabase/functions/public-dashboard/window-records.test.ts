@@ -1,4 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
+import {
+  DASHBOARD_CAMPAIGN_ROWS_FILTER,
+  withDashboardCampaignRows,
+} from "../_shared/ads-sync/dashboard-rows.ts";
 import type { SharedRecordRow } from "./event-totals.ts";
 import {
   fetchWindowRecords,
@@ -70,6 +74,43 @@ Deno.test("the window filter goes to every page query", async () => {
     true,
   );
 });
+
+Deno.test(
+  "a campaign-rows-only table narrows every page to the rows dashboards sum",
+  async () => {
+    const { calls, loadPage } = tableOf(1500);
+    await fetchWindowRecords(loadPage, {
+      ...SEPTEMBER,
+      campaignRowsOnly: true,
+    });
+    const window = recordWindowFilter("2026-09-01", "2026-09-30");
+    assertEquals(
+      calls.map((call) => call.filter),
+      [withDashboardCampaignRows(window), withDashboardCampaignRows(window)],
+    );
+  },
+);
+
+Deno.test(
+  "an all-time campaign-rows-only read keeps the all-time cap",
+  async () => {
+    const { calls, loadPage } = tableOf(9000);
+    const original = console.error;
+    console.error = () => {};
+    try {
+      const rows = await fetchWindowRecords(loadPage, {
+        tableId: "t1",
+        startDate: null,
+        endDate: null,
+        campaignRowsOnly: true,
+      });
+      assertEquals(rows.length, MAX_UNBOUNDED_ROWS);
+    } finally {
+      console.error = original;
+    }
+    assertEquals(calls[0].filter, DASHBOARD_CAMPAIGN_ROWS_FILTER);
+  },
+);
 
 Deno.test("a dated window reads past the old 4,000-row cap", async () => {
   const { loadPage } = tableOf(6500);
