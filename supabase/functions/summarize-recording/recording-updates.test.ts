@@ -126,6 +126,7 @@ Deno.test(
       Error,
       "permission denied",
     );
+    assertEquals(updates[0].values, assignmentFor("client", "c-1", null));
     assertEquals(updates[0].filters, [
       ["tenant_id", "t-1"],
       ["id", "rec-1"],

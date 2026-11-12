@@ -217,7 +217,15 @@ export async function saveSummaryForTarget(
       .eq("id", recording_id);
     if (recordingError) {
       // Nothing points at the DOCX yet; remove it so a retry leaves no orphan.
-      await admin.storage.from("recordings").remove([fileName]);
+      const { error: removeError } = await admin.storage
+        .from("recordings")
+        .remove([fileName]);
+      if (removeError) {
+        console.error("[meeting-summary] DOCX cleanup failed", {
+          fileName,
+          error: removeError.message,
+        });
+      }
       throw new Error(
         `saving the summary on the recording failed: ${recordingError.message}`,
       );
