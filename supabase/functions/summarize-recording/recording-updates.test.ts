@@ -1,5 +1,9 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import { assignmentFor, copyToMeetingRecordings } from "./recording-updates.ts";
+import {
+  assignmentFor,
+  assignRecording,
+  copyToMeetingRecordings,
+} from "./recording-updates.ts";
 import type { WriteSummaryInput } from "./write-summary.ts";
 
 Deno.test("a client summary assigns the recording to the client only", () => {
@@ -32,11 +36,15 @@ interface RecordedUpdate {
 /** A zoom_recordings fake: the select finds `meetingId`, updates are recorded. */
 function fakeAdmin(meetingId: string | null, updateError: string | null) {
   const updates: Array<RecordedUpdate> = [];
+  const lookupFilters: Array<Filter> = [];
   const admin = {
     from: () => ({
       select: () => {
         const query = {
-          eq: () => query,
+          eq: (column: string, value: string) => {
+            lookupFilters.push([column, value]);
+            return query;
+          },
           maybeSingle: () =>
             Promise.resolve({
               data: meetingId ? { meeting_id: meetingId } : null,
@@ -62,7 +70,7 @@ function fakeAdmin(meetingId: string | null, updateError: string | null) {
       },
     }),
   } as unknown as Parameters<typeof copyToMeetingRecordings>[0];
-  return { admin, updates };
+  return { admin, updates, lookupFilters };
 }
 
 const input: WriteSummaryInput = {
@@ -108,3 +116,19 @@ Deno.test("a failed copy rejects instead of passing as saved", async () => {
     "permission denied",
   );
 });
+
+Deno.test(
+  "a failed assignment rejects instead of passing as assigned",
+  async () => {
+    const { admin, updates } = fakeAdmin("meeting-9", "permission denied");
+    await assertRejects(
+      () => assignRecording(admin, input),
+      Error,
+      "permission denied",
+    );
+    assertEquals(updates[0].filters, [
+      ["tenant_id", "t-1"],
+      ["id", "rec-1"],
+    ]);
+  },
+);

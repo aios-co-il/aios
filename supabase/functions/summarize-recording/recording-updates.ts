@@ -46,7 +46,7 @@ export function assignmentFor(
   }
 }
 
-/** Assigns the summarized recording to the target. */
+/** Assigns the summarized recording to the target; throws when the update fails. */
 export async function assignRecording(
   admin: Admin,
   input: WriteSummaryInput,
@@ -59,11 +59,7 @@ export async function assignRecording(
     .eq("tenant_id", input.tenantId)
     .eq("id", input.recordingId ?? "");
   if (error) {
-    console.error(
-      "[summarize-recording] assignment failed",
-      input.recordingId,
-      error.message,
-    );
+    throw new Error(`assigning the recording failed: ${error.message}`);
   }
 }
 
