@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,12 +25,27 @@ export function useClientSendContacts(clientId: string, tenantId: string) {
     queryKey: ["client-team-emails-report", clientId],
     queryFn: clientId ? () => fetchTeam(clientId) : skipToken,
   });
+  const loadError = client.error ?? groups.error;
+  useEffect(() => {
+    if (loadError) {
+      console.error(
+        `Failed to load send contacts of client ${clientId}`,
+        loadError,
+      );
+    }
+  }, [clientId, loadError]);
   return {
     client: client.data ?? null,
     groups: groups.data,
     teamMembers: teamMembers.data ?? [],
+    /** The client and the groups the destination is chosen from have loaded. */
+    loaded: client.isSuccess && groups.isSuccess,
+    failed: !!loadError,
   };
 }
+
+/** Who a client card report can go to, as the form and the send read it. */
+export type ClientSendContacts = ReturnType<typeof useClientSendContacts>;
 
 /** The client's contact fields. */
 async function fetchClient(clientId: string) {

@@ -46,6 +46,58 @@ export const BUILTIN_PERSONAS: Record<BuiltinPersonaKey, PersonaProfile> = {
   }),
 };
 
+/**
+ * Words that cannot call an agent: greetings and everyday words people write
+ * to each other all the time, so they would wake it in ordinary conversation.
+ */
+const GENERIC_WORDS = new Set([
+  "היי",
+  "הי",
+  "הייי",
+  "שלום",
+  "אהלן",
+  "הלו",
+  "בוקר טוב",
+  "ערב טוב",
+  "לילה טוב",
+  "תודה",
+  "כן",
+  "לא",
+  "אוקי",
+  "סבבה",
+  "טוב",
+  "מה",
+  "מה קורה",
+  "אחי",
+  "יאללה",
+  "hi",
+  "hey",
+  "hello",
+  "ok",
+  "okay",
+  "yes",
+  "no",
+  "thanks",
+]);
+
+/** Why a call word is refused, or null when it is fine. */
+export function callWordProblem(word: string): string | null {
+  const text = word.trim().toLowerCase();
+  const letters = text.replace(/[^\p{L}]/gu, "");
+  if (letters.length < 3) {
+    return "מילת קריאה צריכה לפחות 3 אותיות";
+  }
+  if (GENERIC_WORDS.has(text)) {
+    return "מילה נפוצה מדי: היא תעיר את האג'נט בכל שיחה";
+  }
+  return null;
+}
+
+/** The call words that may wake an agent; refused ones are dropped. */
+export function usableCallWords(words: Array<string>): Array<string> {
+  return words.filter((word) => callWordProblem(word) === null);
+}
+
 /** A `carmen_personas` row's fields as stored. */
 export interface PersonaRowFields {
   builtin_key: string | null;

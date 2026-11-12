@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { sendReportWhatsApp } from "@/components/report-sender/sendReportWhatsApp";
-import { toastReportSent } from "@/components/report-sender/toastReportSent";
 import { useRecordReportDelivery } from "@/hooks/useRecordReportDelivery";
 import { useTenantPath } from "@/hooks/useTenantPath";
-import type { ReportDeliveryChannel } from "@/lib/reportDelivery";
-import { emailReportImage } from "./emailReportImage";
-import { reportSendCopy, type ReportTarget } from "./reportSendKinds";
+import { deliverReport, type ReportDestination } from "./deliverReport";
+import {
+  reportSendCopy,
+  type ReportSendCopy,
+  type ReportTarget,
+} from "./reportSendKinds";
+import { errorMessage, toastChannelResult } from "./reportSendToasts";
 import type { ReportSendForm } from "./useReportSendForm";
 
 /** Where a send stands: photographing the summary, then delivering it. */
@@ -26,11 +28,12 @@ type Options = {
 };
 
 /**
- * Sends the report from the client card: checks the form, photographs the
- * summary once, delivers it on the chosen channels and records the delivery.
+ * Sends the report from the client card: checks the form, fixes the shown
+ * destination, photographs the summary once, delivers it on each chosen
+ * channel on its own and records the channels that went out.
  */
 export function useReportSend(options: Options) {
-  const { target, tenantId, clientId, form, shareUrl } = options;
+  const { target, tenantId, clientId, form } = options;
   const recordDelivery = useRecordReportDelivery();
   const navigate = useNavigate();
   const { buildPath } = useTenantPath();
@@ -39,54 +42,35 @@ export function useReportSend(options: Options) {
 
   /** Runs the send; every outcome is told in a toast. */
   async function send() {
-    const problem = formProblem(form, shareUrl);
-    if (problem) {
-      toast.error(problem);
+    const problem = formProblem(form, options.shareUrl);
+    if (problem || !options.shareUrl) {
+      toast.error(problem ?? "אין קישור שיתוף פעיל");
       return;
     }
+    const shareUrl = options.shareUrl;
+    const destination = shownDestination(form, copy, options.clientName);
     setPhase("capturing");
-    const image = await captureOrNull(options.capture);
-    if (!image) {
-      setPhase("idle");
-      return;
-    }
-    setPhase("sending");
-    const sent: Array<ReportDeliveryChannel> = [];
     try {
-      if (form.sendWhatsApp) {
-        const result = await sendReportWhatsApp({
-          tenantId,
-          pick: form.waSender.pick,
-          file: image,
-          fileName: copy.whatsAppFileName,
-          fileType: "image",
-          caption: copy.caption(form.message, shareUrl),
-          groupId: form.hasGroup ? form.groupId : null,
-          phoneNumber: form.hasGroup ? null : form.phone,
-          clientId,
-          sendKind: copy.sendKind,
-          sendRef: target.id,
-        });
-        sent.push("whatsapp");
-        toastReportSent(result, copy.whatsAppSentToast);
+      const image = await captureOrNull(options.capture);
+      if (!image) {
+        return;
       }
-      if (form.sendEmail) {
-        await emailReportImage({
-          copy,
-          image,
-          recipients: form.emailRecipients,
-          subject: form.subject || copy.defaultSubject(options.clientName),
-          message: form.message,
-          clientName: options.clientName,
-          shareUrl,
-          sender: form.emailSender,
-        });
-        sent.push("email");
-        toast.success(copy.emailSentToast);
-      }
-    } catch (error) {
-      toastSendError(error, () => navigate(buildPath("/gmail-settings")));
-    } finally {
+      setPhase("sending");
+      const results = await deliverReport({
+        copy,
+        target,
+        tenantId,
+        clientId,
+        clientName: options.clientName,
+        shareUrl,
+        image,
+        destination,
+      });
+      results.forEach((result) =>
+        toastChannelResult(result, copy, () =>
+          navigate(buildPath("/gmail-settings")),
+        ),
+      );
       recordDelivery.mutate({
         tenantId,
         clientId,
@@ -94,10 +78,14 @@ export function useReportSend(options: Options) {
         targetId: target.id,
         title: target.name,
         shareUrl,
-        requested: { whatsapp: form.sendWhatsApp, email: form.sendEmail },
-        sent,
-        emailRecipients: form.emailRecipients,
+        requested: {
+          whatsapp: !!destination.whatsApp,
+          email: !!destination.email,
+        },
+        sent: results.flatMap((result) => (result.ok ? [result.channel] : [])),
+        emailRecipients: destination.email?.recipients ?? [],
       });
+    } finally {
       setPhase("idle");
     }
   }
@@ -110,6 +98,12 @@ function formProblem(
   form: ReportSendForm,
   shareUrl: string | null,
 ): string | null {
+  if (form.contactsFailed) {
+    return "טעינת פרטי הלקוח נכשלה";
+  }
+  if (!form.ready) {
+    return "פרטי הלקוח עדיין נטענים";
+  }
   if (!form.sendWhatsApp && !form.sendEmail) {
     return "יש לבחור לפחות אמצעי שליחה אחד";
   }
@@ -120,9 +114,34 @@ function formProblem(
     return "יש לבחור לפחות נמען אימייל אחד";
   }
   if (!shareUrl) {
-    return "קישור השיתוף עדיין לא מוכן";
+    return "אין קישור שיתוף פעיל: יש ללחוץ על 'צור קישור' לפני השליחה";
   }
   return null;
+}
+
+/** The destination exactly as the form shows it when send is pressed. */
+function shownDestination(
+  form: ReportSendForm,
+  copy: ReportSendCopy,
+  clientName: string | null,
+): ReportDestination {
+  return {
+    whatsApp: form.sendWhatsApp
+      ? {
+          pick: form.waSender.pick,
+          groupId: form.hasGroup ? form.groupId : null,
+          phone: form.hasGroup ? null : form.phone,
+        }
+      : null,
+    email: form.sendEmail
+      ? {
+          recipients: [...form.emailRecipients],
+          subject: form.subject || copy.defaultSubject(clientName),
+          sender: form.emailSender,
+        }
+      : null,
+    message: form.message,
+  };
 }
 
 /** The summary image, or null after telling why it could not be taken. */
@@ -134,27 +153,4 @@ async function captureOrNull(capture: () => Promise<Blob>) {
     toast.error(`שגיאה בצילום: ${errorMessage(error)}`);
     return null;
   }
-}
-
-/** Tells why the send failed, with a reconnect action when Gmail's grant expired. */
-function toastSendError(error: unknown, reconnectGmail: () => void) {
-  console.error("Report send failed:", error);
-  const message = errorMessage(error);
-  const gmailExpired =
-    message.includes("Token refresh failed") ||
-    message.includes("Gmail not connected") ||
-    message.includes("invalid_grant");
-  if (gmailExpired) {
-    toast.error("חיבור ה-Gmail פג. יש להתחבר מחדש.", {
-      action: { label: "התחבר מחדש", onClick: reconnectGmail },
-      duration: 8000,
-    });
-    return;
-  }
-  toast.error(`שגיאה בשליחה: ${message}`);
-}
-
-/** An error's message, or a generic word when it has none. */
-function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : "לא ידוע";
 }

@@ -24,6 +24,7 @@ const forgedBody = () => ({
   wa_notify: { surface: "whatsapp", chat_id: "972500000000@c.us" },
   model_override: "some-model",
   carmen_automation: { instructions: "x" },
+  persona_user_id: OWNER,
 });
 
 // The service-only fields are trusted only because these callers use the service
@@ -43,6 +44,7 @@ Deno.test("bindRunAgentCaller", async (t) => {
         assertStrictEquals(field in body, false, `${field} must be stripped`);
       assertStrictEquals(body.lead_data, undefined);
       assertStrictEquals(body.wa_notify, undefined);
+      assertStrictEquals(body.persona_user_id, undefined);
       assertStrictEquals(body.surface, "internal_chat");
       assertStrictEquals(body.command_text, "כן 4821");
       assertStrictEquals(body.tenant_id, "t1");

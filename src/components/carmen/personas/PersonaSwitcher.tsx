@@ -3,8 +3,12 @@ import { Plus, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MiniMeGenderPicker } from "@/components/carmen/MiniMe/MiniMeGenderPicker";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useUserRole } from "@/hooks/useUserRole";
 import { PersonaCard } from "./PersonaCard";
 import { PersonaEditor } from "./PersonaEditor";
+import { selectWithArrows } from "./radioArrowKeys";
+import { canEditPersona } from "./carmenPersonas";
 import { useCarmenPersonas } from "./useCarmenPersonas";
 
 const HEADING_ID = "carmen-persona-heading";
@@ -23,14 +27,29 @@ export function PersonaSwitcher({
   /** The org's character-image editor, shown while a character uses that look. */
   characterEditor?: ReactNode;
 }) {
-  const { personas, activeKey, choose, save, remove, busy } =
+  const { personas, loaded, activeKey, choose, save, remove, busy } =
     useCarmenPersonas();
+  const { userId } = useCurrentUser();
+  const { isOwner, isSuperAdmin } = useUserRole();
+  const canManageOrg = isOwner || isSuperAdmin;
   const [editing, setEditing] = useState<Editing>(null);
   const editingPersona =
     editing && editing !== "new"
       ? (personas.find((persona) => persona.key === editing) ?? null)
       : null;
-  const editingRowId = editingPersona?.rowId;
+  const isOwn = Boolean(
+    editingPersona?.ownerUserId && editingPersona.ownerUserId === userId,
+  );
+  // A member removes only their own rows; the org's rows are for owners and super admins.
+  const editingRowId =
+    isOwn || canManageOrg ? editingPersona?.rowId : undefined;
+  const keys = personas.map((persona) => persona.key);
+  const focusKey = activeKey && keys.includes(activeKey) ? activeKey : keys[0];
+  /** Closes the editor only if it still shows what the finished write was for. */
+  function closeIf(submitted: Editing) {
+    return () =>
+      setEditing((current) => (current === submitted ? null : current));
+  }
 
   return (
     <Card className="space-y-4 p-5">
@@ -42,9 +61,10 @@ export function PersonaSwitcher({
               הדמות שלי
             </h3>
             <p className="text-sm text-muted-foreground">
-              עם איזו דמות לעבוד. הבחירה אישית: כרמן מופיעה, מציגה את עצמה
-              ומדברת איתך בשם, במראה, במצב הרוח ובנשמה של הדמות. מילות ההפעלה של
-              דמות שנבחרה קוראות לה גם בוואטסאפ של הארגון.
+              האג'נט האישי שלך: באפליקציה ובוואטסאפ שחיברת לעצמך הוא מופיע, מציג
+              את עצמו ומדבר איתך בשם, במראה, במצב הרוח ובנשמה של הדמות, ומילות
+              הקריאה שלה מעירות אותו בקו האישי שלך. כרמן הראשית של הארגון נשארת
+              כמו שהיא.
             </p>
           </div>
         </div>
@@ -52,6 +72,7 @@ export function PersonaSwitcher({
           type="button"
           variant="outline"
           size="sm"
+          disabled={!loaded}
           onClick={() => setEditing("new")}
           className="shrink-0 gap-1"
         >
@@ -62,6 +83,12 @@ export function PersonaSwitcher({
       <div
         role="radiogroup"
         aria-labelledby={HEADING_ID}
+        onKeyDown={(event) => {
+          const next = busy ? null : selectWithArrows(event, keys, focusKey);
+          if (next && next !== activeKey) {
+            choose(next);
+          }
+        }}
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
         {personas.map((persona) => (
@@ -69,31 +96,32 @@ export function PersonaSwitcher({
             key={persona.key}
             persona={persona}
             selected={persona.key === activeKey}
+            focusable={persona.key === focusKey}
             disabled={busy}
+            canEdit={loaded && canEditPersona(persona, userId, canManageOrg)}
             onChoose={() => choose(persona.key)}
             onEdit={() => setEditing(persona.key)}
           />
         ))}
       </div>
+      <MiniMeGenderPicker />
       {editing && (
         <PersonaEditor
           key={editing}
           persona={editingPersona}
           busy={busy}
           characterEditor={characterEditor}
-          genderPicker={<MiniMeGenderPicker />}
-          onSave={(draft, audience) =>
+          isOwn={isOwn}
+          canManageOrg={canManageOrg}
+          onSave={(draft, forOrg) =>
             save(
-              { persona: editingPersona, draft, audience },
-              { onSuccess: () => setEditing(null) },
+              { persona: editingPersona, draft, forOrg },
+              { onSuccess: closeIf(editing) },
             )
           }
           onDelete={
             editingRowId
-              ? () => {
-                  remove(editingRowId);
-                  setEditing(null);
-                }
+              ? () => remove(editingRowId, { onSuccess: closeIf(editing) })
               : undefined
           }
           onCancel={() => setEditing(null)}

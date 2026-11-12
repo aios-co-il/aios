@@ -14,6 +14,8 @@ type Props = {
   table: SharedTableInfo;
   /** Search Console still loading in its follow-up request. */
   gscLoading: boolean;
+  /** Both parts have loaded and none is refetching; the send capture waits for it. */
+  ready: boolean;
   /** The send capture: no monthly-work button, ready once Search Console is in. */
   summaryOnly?: boolean;
 };
@@ -23,6 +25,7 @@ export function SharedSeoReport({
   data,
   table,
   gscLoading,
+  ready,
   summaryOnly = false,
 }: Props) {
   const [monthlyWorkFullPage, setMonthlyWorkFullPage] = useState(false);
@@ -64,7 +67,7 @@ export function SharedSeoReport({
     <div
       className="min-h-screen bg-background"
       dir="rtl"
-      data-snapshot-ready={gscLoading ? "false" : "true"}
+      data-snapshot-ready={ready ? "true" : "false"}
     >
       <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         <ReportHeader

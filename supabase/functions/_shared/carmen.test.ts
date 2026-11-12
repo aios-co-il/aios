@@ -729,41 +729,181 @@ Deno.test(
 );
 
 Deno.test(
-  "handleCarmenMessage answers a character's call word once a member picked it",
+  "handleCarmenMessage answers a character's call word only on its owner's own line",
   async (t) => {
-    /** "מיני מי, ..." from a LID author in an opted-in group, with the org's character picks. */
-    const miniMeTurn = (choices: Array<Row>) => {
+    const ownerPicksMiniMe = [
+      { tenant_id: TENANT, user_id: "user-1", persona_key: "minime" },
+    ];
+
+    await t.step("the org's main Carmen line ignores it", async () => {
       const { ctx } = groupTurn(
         tenantDb(
           {
             carmen_scope_mode: "specific_group",
             carmen_allowed_group_ids: [GROUP_CHAT],
           },
-          { carmen_persona_choices: choices },
+          { carmen_persona_choices: ownerPicksMiniMe },
         ),
         LID,
       );
-      return { ...ctx, messageText: "מיני מי, מה המצב?" };
-    };
-
-    await t.step("ignores it while nobody picked the character", async () => {
       const { result, posted } = await capturingSends(() =>
-        handleCarmenMessage(miniMeTurn([])),
+        handleCarmenMessage({ ...ctx, messageText: "מיני מי, מה המצב?" }),
       );
       assertEquals(result, { handled: false, reason: "group_not_addressed" });
       assertEquals(posted, []);
     });
 
-    await t.step("answers it once a member picked Mini Me", async () => {
-      const { result } = await capturingSends(() =>
-        handleCarmenMessage(
-          miniMeTurn([
-            { tenant_id: TENANT, user_id: "user-2", persona_key: "minime" },
-          ]),
-        ),
-      );
-      assertEquals(result.handled, true);
+    /** The owner typing "מיני מי, ..." in a private chat on their own (secondary) line. */
+    const ownLineTurn = (choices: Array<Row>): CarmenContext => ({
+      supabase: tenantDb(
+        { carmen_integration_id: "integration-1" },
+        { carmen_persona_choices: choices },
+      ),
+      tenantId: TENANT,
+      integrationId: "integration-1",
+      connectionUserId: "user-1",
+      connectionRole: "secondary",
+      phoneNumber: "972500000001",
+      senderName: "Owner",
+      messageText: "מיני מי, מה המצב?",
+      isIncoming: false,
+      isManualOutgoing: true,
+      isGroup: false,
+      chatId: "972500000001@c.us",
+      sourceChannel: "own_instance",
     });
+
+    await t.step(
+      "the owner's own line wakes on the owner's call word",
+      async () => {
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage(ownLineTurn(ownerPicksMiniMe)),
+        );
+        assertEquals(result.handled, true);
+      },
+    );
+
+    await t.step(
+      "the owner's line runs Carmen as the owner's character",
+      async () => {
+        // The fake's insert returns the table's first row, so a closed session stands in for the new one.
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: ownerPicksMiniMe,
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+          },
+        );
+        // The stubbed run-ai-agent answers "{}", so runCarmenAI throws after the request is sent.
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(ownerPicksMiniMe),
+            supabase,
+          }).catch(() => null),
+        );
+        const run = posted.find((send) => send.fn === "run-ai-agent");
+        assertEquals(run?.body.persona_user_id, "user-1");
+      },
+    );
+
+    await t.step(
+      "only the call word that called Carmen leaves the request",
+      async () => {
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: ownerPicksMiniMe,
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+          },
+        );
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(ownerPicksMiniMe),
+            supabase,
+            messageText: "מיני מי, תכתבי ברכה עבור מיני מי",
+          }).catch(() => null),
+        );
+        const run = posted.find((send) => send.fn === "run-ai-agent");
+        assertStringIncludes(String(run?.body.command_text), "עבור מיני מי");
+      },
+    );
+
+    await t.step(
+      "a call word matches only as a whole word on the owner's line",
+      async () => {
+        const turn = ownLineTurn(ownerPicksMiniMe);
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage({ ...turn, messageText: "מיני מיםםם זה לא שם" }),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
+
+    await t.step(
+      "a greeting saved as a call word never wakes the line",
+      async () => {
+        const pick = [
+          { tenant_id: TENANT, user_id: "user-1", persona_key: "row-greeting" },
+        ];
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: pick,
+            carmen_personas: [
+              {
+                id: "row-greeting",
+                tenant_id: TENANT,
+                owner_user_id: "user-1",
+                builtin_key: null,
+                display_name: "שלי",
+                call_words: ["היי"],
+                intro_line: null,
+                look: "orbs",
+                mood: null,
+                personality: null,
+                soul: null,
+                writing_style: null,
+              },
+            ],
+          },
+        );
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(pick),
+            supabase,
+            messageText: "היי, מה נשמע?",
+          }),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
+
+    await t.step(
+      "a colleague's pick does not wake the owner's line",
+      async () => {
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage(
+            ownLineTurn([
+              { tenant_id: TENANT, user_id: "user-2", persona_key: "minime" },
+            ]),
+          ),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
   },
 );
 
@@ -791,6 +931,19 @@ Deno.test(
         false,
       );
     });
+
+    await t.step(
+      "reads a longer call word before a shorter one inside it",
+      () => {
+        assertEquals(
+          groupMessageInvokesCarmen("AIOS Pro תבדקי את הדופק", [
+            "aios",
+            "aios pro",
+          ]),
+          true,
+        );
+      },
+    );
 
     await t.step("matches a call word with symbols literally", () => {
       assertEquals(groupMessageInvokesCarmen("c++ תבדקי את זה", ["c++"]), true);

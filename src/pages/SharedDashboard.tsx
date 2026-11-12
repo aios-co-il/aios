@@ -217,7 +217,7 @@ export default function SharedDashboard({
   // Off by default, like the signed-in dashboard's "השוואה לתקופה קודמת".
   const [comparePrevious, setComparePrevious] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["shared-dashboard", shareToken, dateFilter],
     queryFn: async () => {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -1071,8 +1071,10 @@ export default function SharedDashboard({
       platformFilter === "woocommerce") &&
     (showAnalyticsCards || hasWooData);
 
+  // A cached answer that is being refetched (stale, or invalidated by a sync)
+  // is not ready: the send capture would photograph the old figures.
   const isSnapshotReady =
-    !isLoading && !!data?.dashboard && Array.isArray(tables);
+    !isFetching && !!data?.dashboard && Array.isArray(tables);
 
   return (
     <div

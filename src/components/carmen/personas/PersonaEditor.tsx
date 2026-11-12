@@ -1,26 +1,32 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RadioGroup } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { AudienceOption, Field } from "./PersonaFields";
+import { CallWordsField, Field, SaveScope } from "./PersonaFields";
 import { PersonaToneFields } from "./PersonaToneFields";
+import {
+  deleteLabel,
+  firstCallWordProblem,
+  initialDraft,
+} from "./personaDraft";
 import {
   type CarmenPersona,
   type PersonaDraft,
   parseCallWords,
 } from "./carmenPersonas";
 import { PersonaLookPicker } from "./PersonaLookPicker";
-import type { PersonaAudience } from "./useCarmenPersonas";
 
 interface PersonaEditorProps {
   /** The character to edit, or null to create one. */
   persona: CarmenPersona | null;
   busy: boolean;
   characterEditor?: ReactNode;
-  genderPicker: ReactNode;
-  onSave: (draft: PersonaDraft, audience: PersonaAudience) => void;
-  /** Deletes a created character, or resets a built-in to its defaults. */
+  /** The character is the user's own row (their creation or their version of a built-in). */
+  isOwn: boolean;
+  /** Owners and super admins may save for the whole org. */
+  canManageOrg: boolean;
+  onSave: (draft: PersonaDraft, forOrg: boolean) => void;
+  /** Removes the stored row: a created character, or an edit of a built-in. */
   onDelete?: () => void;
   onCancel: () => void;
 }
@@ -30,18 +36,27 @@ export function PersonaEditor({
   persona,
   busy,
   characterEditor,
-  genderPicker,
+  isOwn,
+  canManageOrg,
   onSave,
   onDelete,
   onCancel,
 }: PersonaEditorProps) {
   const [draft, setDraft] = useState<PersonaDraft>(() => initialDraft(persona));
   const [callWords, setCallWords] = useState(draft.callWords.join(", "));
-  const [audience, setAudience] = useState<PersonaAudience>("me");
+  const [forOrg, setForOrg] = useState(false);
+  // An edit of the org's character or a built-in becomes the user's own version.
+  // A member's edit of a built-in becomes their own version; a shared creation is edited in place.
+  const savesOwnVersion = Boolean(persona?.builtinKey) && !isOwn;
+  // Owners choose where a new character or a built-in edit goes, also over their own version.
+  const canChooseScope =
+    canManageOrg && (!persona || Boolean(persona.builtinKey));
   function update(patch: Partial<PersonaDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
-  const canSave = draft.displayName.trim().length > 0 && !busy;
+  const callWordError = firstCallWordProblem(parseCallWords(callWords));
+  const canSave =
+    draft.displayName.trim().length > 0 && !callWordError && !busy;
 
   return (
     <form
@@ -49,7 +64,10 @@ export function PersonaEditor({
       onSubmit={(event) => {
         event.preventDefault();
         if (canSave) {
-          onSave({ ...draft, callWords: parseCallWords(callWords) }, audience);
+          onSave(
+            { ...draft, callWords: parseCallWords(callWords) },
+            canManageOrg && forOrg,
+          );
         }
       }}
     >
@@ -57,22 +75,21 @@ export function PersonaEditor({
         {persona ? `עריכת ${persona.displayName}` : "דמות חדשה"}
       </p>
       <div className="grid gap-3 md:grid-cols-2">
-        <Field id="persona-name" label="שם">
+        <Field id="persona-name" label="שם (חובה)">
           <Input
             id="persona-name"
+            required
+            aria-required="true"
             value={draft.displayName}
             maxLength={40}
             onChange={(event) => update({ displayName: event.target.value })}
           />
         </Field>
-        <Field id="persona-call-words" label="מילות הפעלה (מופרדות בפסיק)">
-          <Input
-            id="persona-call-words"
-            value={callWords}
-            onChange={(event) => setCallWords(event.target.value)}
-            placeholder="לדוגמה: מיני מי, מיני"
-          />
-        </Field>
+        <CallWordsField
+          value={callWords}
+          error={callWordError}
+          onChange={setCallWords}
+        />
       </div>
       <Field id="persona-intro" label="איך היא מציגה את עצמה">
         <Input
@@ -85,7 +102,6 @@ export function PersonaEditor({
         look={draft.look}
         onChange={(look) => update({ look })}
       />
-      {draft.look === "minime" && genderPicker}
       {draft.look === "character" && characterEditor}
       <PersonaToneFields
         mood={draft.mood}
@@ -108,17 +124,12 @@ export function PersonaEditor({
           onChange={(event) => update({ soul: event.target.value })}
         />
       </Field>
-      {!persona && (
-        <RadioGroup
-          dir="rtl"
-          value={audience}
-          onValueChange={(value) => setAudience(value === "org" ? "org" : "me")}
-          className="flex gap-6"
-        >
-          <AudienceOption value="me" label="רק אצלי" />
-          <AudienceOption value="org" label="לכל הארגון" />
-        </RadioGroup>
-      )}
+      <SaveScope
+        canChoose={canChooseScope}
+        savesOwnVersion={savesOwnVersion}
+        forOrg={forOrg}
+        onChange={setForOrg}
+      />
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={!canSave}>
           שמירה
@@ -134,24 +145,10 @@ export function PersonaEditor({
             disabled={busy}
             onClick={onDelete}
           >
-            {persona?.builtinKey ? "חזרה לברירת המחדל" : "מחיקת הדמות"}
+            {deleteLabel(persona, isOwn)}
           </Button>
         )}
       </div>
     </form>
   );
-}
-
-/** The form starts from the character's values, or empty for a new one. */
-function initialDraft(persona: CarmenPersona | null): PersonaDraft {
-  return {
-    displayName: persona?.displayName ?? "",
-    callWords: persona?.callWords ?? [],
-    introLine: persona?.introLine ?? "",
-    look: persona?.look ?? "minime",
-    mood: persona?.mood ?? null,
-    personality: persona?.personality ?? "",
-    soul: persona?.soul ?? "",
-    writingStyle: persona?.writingStyle ?? "",
-  };
 }

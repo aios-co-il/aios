@@ -1,9 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
-import { mergePersonas } from "./carmenPersonas";
+import { mergePersonas, saveTarget } from "./carmenPersonas";
 import type { SaveInput } from "./useCarmenPersonas";
 
 /** The org's characters as the user sees them (RLS hides colleagues' own). */
-export async function loadPersonas(tenantId: string) {
+export async function loadPersonas(tenantId: string, userId: string) {
   const { data, error } = await supabase
     .from("carmen_personas")
     .select("*")
@@ -12,7 +12,7 @@ export async function loadPersonas(tenantId: string) {
   if (error) {
     throw error;
   }
-  return mergePersonas(data);
+  return mergePersonas(data, userId);
 }
 
 /** The user's picked character key, or null when they have not picked one. */
@@ -46,13 +46,13 @@ export async function saveChoice(tenantId: string | null, key: string) {
 }
 
 /**
- * Updates a stored character, stores the org's first edit of a built-in, or
- * creates a new character for the org or for the user.
+ * Saves a character: the user's own row is updated, anything else becomes their
+ * own version, and only an owner or super admin saves for the org (RLS checks it).
  */
 export async function savePersona(
   tenantId: string | null,
-  userId: string | undefined,
-  { persona, draft, audience }: SaveInput,
+  userId: string | null,
+  { persona, draft, forOrg }: SaveInput,
 ) {
   if (!tenantId || !userId) {
     throw new Error("No organization selected");
@@ -67,23 +67,25 @@ export async function savePersona(
     soul: draft.soul.trim() || null,
     writing_style: draft.writingStyle || null,
   };
-  const { error } = persona?.rowId
-    ? await supabase
-        .from("carmen_personas")
-        .update(fields)
-        .eq("id", persona.rowId)
-    : await supabase.from("carmen_personas").insert({
-        ...fields,
-        tenant_id: tenantId,
-        builtin_key: persona?.builtinKey ?? null,
-        owner_user_id: !persona && audience === "me" ? userId : null,
-      });
+  const target = saveTarget(persona, forOrg, userId);
+  const { error } =
+    target.kind === "update"
+      ? await supabase
+          .from("carmen_personas")
+          .update(fields)
+          .eq("id", target.rowId)
+      : await supabase.from("carmen_personas").insert({
+          ...fields,
+          tenant_id: tenantId,
+          builtin_key: target.builtinKey,
+          owner_user_id: target.ownerUserId,
+        });
   if (error) {
     throw error;
   }
 }
 
-/** Removes a created character, or an org's edit of a built-in (back to its defaults). */
+/** Removes a stored row: a created character, or an edit of a built-in (it falls back a level). */
 export async function deletePersona(rowId: string) {
   const { error } = await supabase
     .from("carmen_personas")

@@ -75,7 +75,7 @@ import {
 } from "./carmen-session-history.ts";
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import { loadPickedCallWords } from "./carmen/persona-runtime.ts";
+import { loadCallWords } from "./carmen/persona-runtime.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
 
@@ -263,12 +263,12 @@ const CARMEN_NAME_VARIANT_RE = /[כק]א?רמן/;
 
 // Resolve the configured trigger keyword(s). Supports a single `trigger_keyword`
 // (legacy) or a `trigger_keywords` array (multiple wake-words), defaulting to "כרמן".
-// `personaWords` are the call words of characters the org's members picked
+// `persona` carries the call words of characters the org's members picked
 // (AIO-570); they call Carmen too, after the automation's own keywords, but only
 // on an automation that runs Carmen (see carmenPersonaWords).
 function resolveTriggerKeywords(
   cfg: CarmenAutomationConfig,
-  personaWords: string[] = [],
+  persona?: PersonaTrigger,
 ): string[] {
   const list =
     Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
@@ -282,21 +282,47 @@ function resolveTriggerKeywords(
     )
     .filter(Boolean);
   const own = out.length ? out : ["כרמן"];
-  return [...new Set([...own, ...carmenPersonaWords(cfg, own, personaWords)])];
+  return [...new Set([...own, ...carmenPersonaWords(cfg, own, persona)])];
+}
+
+/** The line owner's call words, and Carmen's agent id to tell her automations apart. */
+interface PersonaTrigger {
+  words: string[];
+  carmenAgentId: string | null;
 }
 
 // A character's call words reach only an automation that runs Carmen: one with
-// no agent_id (the default Carmen) or one called by Carmen's name. An automation
-// for another agent (Claude, Manus) keeps only its own keywords.
+// no agent_id (the default Carmen), Carmen's own agent, or one called by Carmen's
+// name. An automation for another agent (Claude, Manus) keeps only its own keywords.
 function carmenPersonaWords(
   cfg: CarmenAutomationConfig,
   ownKeywords: string[],
-  personaWords: string[],
+  persona?: PersonaTrigger,
 ): string[] {
+  if (!persona?.words.length) {
+    return [];
+  }
   const runsCarmen =
     !cfg?.agent_id ||
+    cfg.agent_id === persona.carmenAgentId ||
     ownKeywords.some((keyword) => CARMEN_NAME_VARIANT_RE.test(keyword));
-  return runsCarmen ? personaWords : [];
+  return runsCarmen ? persona.words : [];
+}
+
+// The call words of the character the line's owner picked, and Carmen's agent
+// id (looked up only when there are call words to place). Only a personal line
+// (a secondary connection) has an owner here; the org's main Carmen line keeps
+// its own keywords, so `lineOwnerId` is null there (AIO-576).
+async function loadPersonaTrigger(
+  supabase: DbClient,
+  tenantId: string,
+  lineOwnerId: string | null,
+): Promise<PersonaTrigger> {
+  const words = await loadCallWords(supabase, tenantId, lineOwnerId);
+  const carmenAgentId = words.length
+    ? ((await findCarmenAgent(supabase, tenantId))?.id ?? null)
+    : null;
+  return { words, carmenAgentId };
 }
 
 // True when a configured wake-word (or a Whisper spelling variant of "כרמן") appears
@@ -306,11 +332,28 @@ function carmenPersonaWords(
 function messageHasTrigger(
   normalizedMsg: string,
   triggerKeywords: string[],
+  persona?: PersonaTrigger,
 ): boolean {
   const msgContent = normalizedMsg.replace(/^\s*🎤\s*/, "").trim();
   const prefix = msgContent.slice(0, 80);
-  if (triggerKeywords.some((k) => prefix.includes(k))) return true;
+  if (triggerKeywords.some((k) => keywordInPrefix(prefix, k, persona))) {
+    return true;
+  }
   return CARMEN_NAME_VARIANT_RE.test(prefix);
+}
+
+// An automation's own keyword matches anywhere in the prefix, as before. A
+// character's call word must stand as a whole word, so "מיני" never matches
+// inside "מינימום" (AIO-576).
+function keywordInPrefix(
+  prefix: string,
+  keyword: string,
+  persona?: PersonaTrigger,
+): boolean {
+  if (!persona?.words.includes(keyword)) {
+    return prefix.includes(keyword);
+  }
+  return new RegExp(`${HB}${escapeRegExp(keyword)}${HE}`, "u").test(prefix);
 }
 
 // Hebrew-safe boundary (JS \b is ASCII-only and breaks on Hebrew).
@@ -444,10 +487,50 @@ export function groupMessageInvokesCarmen(
   return false;
 }
 
+// Escapes a typed keyword for use inside a regular expression.
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The call word that called Carmen: the one that opens the message before any
+// of the automation's own keywords, inside the 80-character address window.
+// Null when an own keyword (or nothing) came first.
+function invokingCallWord(
+  content: string,
+  triggerKeywords: string[],
+  ownKeywords: string[],
+): string | null {
+  const prefix = content.slice(0, 80).toLowerCase();
+  let first: { word: string; index: number; own: boolean } | null = null;
+  for (const word of triggerKeywords) {
+    const index = prefix.indexOf(word);
+    if (index >= 0 && (!first || index < first.index)) {
+      first = { word, index, own: ownKeywords.includes(word) };
+    }
+  }
+  return first && !first.own ? first.word : null;
+}
+
+// A picked character's call word is removed only where it called Carmen (the
+// 80-character direct-address window); a later mention stays in the request.
+function withoutInvokingCallWord(content: string, word: RegExp): string {
+  const match = word.exec(content);
+  if (!match || match.index >= 80) {
+    return content;
+  }
+  return (
+    content.slice(0, match.index) + content.slice(match.index + match[0].length)
+  );
+}
+
 // Reads each call word, matched literally as a whole word, as Carmen's name.
 function asCarmenName(content: string, callWords: string[]): string {
-  return callWords.reduce((text, word) => {
-    const literal = word.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Longer names first, so "AIOS Pro" is read before "AIOS" can split it.
+  const longestFirst = [...callWords].sort(
+    (a, b) => b.trim().length - a.trim().length,
+  );
+  return longestFirst.reduce((text, word) => {
+    const literal = escapeRegExp(word.trim());
     return literal
       ? text.replace(new RegExp(`(${HB})${literal}${HE}`, "giu"), "$1כרמן")
       : text;
@@ -837,6 +920,8 @@ export async function findCarmenSessionAutomation(
     messageText?: string | null;
     /** Secondary connections: only automations pinned to THIS integration. */
     pinnedOnly?: boolean;
+    /** Picked characters' call words, which rank Carmen's automations too. */
+    personaTrigger?: PersonaTrigger;
   },
 ): Promise<CarmenSessionAutomation | null> {
   const { data: flowStepRows } = await supabase
@@ -927,14 +1012,9 @@ export async function findCarmenSessionAutomation(
     .slice(0, 80);
   const stepKeywordHit = (cfg: CarmenAutomationConfig): boolean => {
     if (!msgPrefix) return false;
-    const kws: string[] = (
-      Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
-        ? cfg.trigger_keywords
-        : [cfg?.trigger_keyword || "כרמן"]
-    )
-      .map((k) => String(k || "").toLowerCase())
-      .filter(Boolean);
-    if (kws.some((k) => msgPrefix.includes(k))) return true;
+    const kws = resolveTriggerKeywords(cfg, ctx?.personaTrigger);
+    if (kws.some((k) => keywordInPrefix(msgPrefix, k, ctx?.personaTrigger)))
+      return true;
     // The generic Carmen-name variants only count for default/Carmen automations.
     const hasCarmenDefault = kws.some((k) => /[כק]א?רמן/.test(k));
     return hasCarmenDefault && /[כק]א?רמן/.test(msgPrefix);
@@ -1181,6 +1261,8 @@ export async function runCarmenAI(
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
   automationCtx?: CarmenAutomationContext | null,
+  /** The personal line's owner, whose character Carmen speaks as; null on the main line. */
+  personaUserId?: string | null,
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1214,6 +1296,8 @@ export async function runCarmenAI(
     wa_notify: waNotify || null,
     // Admin-authored per-automation instructions (service-only in run-ai-agent).
     ...(automationCtx ? { carmen_automation: automationCtx } : {}),
+    // Whose character to speak as on a personal line (service-only in run-ai-agent).
+    ...(personaUserId ? { persona_user_id: personaUserId } : {}),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1831,7 +1915,14 @@ export async function handleCarmenMessage(
     return { handled: false, reason: "not_user_message" };
 
   const normalizedMsg = (messageText || "").trim().toLowerCase();
-  const personaWords = await loadPickedCallWords(supabase, tenantId);
+  // A personal line answers as its owner's character; the main Carmen line as the org's Carmen.
+  const personaUserId =
+    connectionRole === "secondary" ? (connectionUserId ?? null) : null;
+  const personaTrigger = await loadPersonaTrigger(
+    supabase,
+    tenantId,
+    personaUserId,
+  );
 
   // Read configured timeout (defaults to 5 minutes). We need it both for find-active and start-session paths.
   // Look up the relevant automation up-front to get session_timeout_minutes & end_keyword.
@@ -1845,6 +1936,7 @@ export async function handleCarmenMessage(
       phoneNumber,
       messageText,
       pinnedOnly: connectionRole === "secondary",
+      personaTrigger,
     },
   );
 
@@ -1905,7 +1997,8 @@ export async function handleCarmenMessage(
       isGroup,
       hasTrigger: messageHasTrigger(
         normalizedMsg,
-        resolveTriggerKeywords(cfg, personaWords),
+        resolveTriggerKeywords(cfg, personaTrigger),
+        personaTrigger,
       ),
       pinnedIntegrationId: cfg.carmen_integration_id ?? null,
       integrationId,
@@ -2013,7 +2106,7 @@ export async function handleCarmenMessage(
       mergedScope.requireDirectAddress &&
       !groupMessageInvokesCarmen(
         messageText,
-        resolveTriggerKeywords(cfg, personaWords),
+        resolveTriggerKeywords(cfg, personaTrigger),
       )
     ) {
       return { handled: false, reason: "group_not_addressed" };
@@ -2083,8 +2176,9 @@ export async function handleCarmenMessage(
   ) {
     const switchKeywords = resolveTriggerKeywords(
       earlyAutomation.configuration || {},
+      personaTrigger,
     );
-    if (messageHasTrigger(normalizedMsg, switchKeywords)) {
+    if (messageHasTrigger(normalizedMsg, switchKeywords, personaTrigger)) {
       console.log(
         "[carmen] Agent switch: ending session for incoming keyword",
         {
@@ -2462,6 +2556,7 @@ export async function handleCarmenMessage(
         // Only the automation that routes this session may contribute
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
+        personaUserId,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -2622,14 +2717,14 @@ export async function handleCarmenMessage(
 
   const triggerKeywords = resolveTriggerKeywords(
     carmenAutomation.configuration,
-    personaWords,
+    personaTrigger,
   );
   const triggerKeyword = triggerKeywords[0]; // primary — used for prompt copy below
   const endKeywordValue = carmenAutomation.configuration?.end_keyword;
   const endKeywordConfig = endKeywordValue
     ? String(endKeywordValue)
     : "סיימנו כרמן";
-  if (!messageHasTrigger(normalizedMsg, triggerKeywords))
+  if (!messageHasTrigger(normalizedMsg, triggerKeywords, personaTrigger))
     return { handled: false, reason: "no_keyword" };
 
   // Resolve agent
@@ -2721,12 +2816,25 @@ export async function handleCarmenMessage(
   }
 
   let contentAfterKeyword = messageText.replace(/🎤/g, ""); // strip the voice-transcript marker
-  for (const k of triggerKeywords) {
-    // Call words are typed by users (AIO-570), so they are matched literally.
-    const literal = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const ownKeywords = resolveTriggerKeywords(carmenAutomation.configuration);
+  // A character's call word is removed only if it is what called Carmen; the
+  // same or another call word later in the request stays (a name to write to).
+  const invoking = invokingCallWord(
+    contentAfterKeyword,
+    triggerKeywords,
+    ownKeywords,
+  );
+  for (const k of ownKeywords) {
+    // Keywords are typed by admins and users, so they are matched literally.
     contentAfterKeyword = contentAfterKeyword.replace(
-      new RegExp(literal, "gi"),
+      new RegExp(escapeRegExp(k), "gi"),
       "",
+    );
+  }
+  if (invoking) {
+    contentAfterKeyword = withoutInvokingCallWord(
+      contentAfterKeyword,
+      new RegExp(escapeRegExp(invoking), "i"),
     );
   }
   contentAfterKeyword = contentAfterKeyword
@@ -2772,6 +2880,7 @@ export async function handleCarmenMessage(
       senderName,
       waNotify,
       automationCtx,
+      personaUserId,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {
@@ -2848,6 +2957,7 @@ export async function handleCarmenMessage(
         senderName,
         waNotify,
         automationCtx,
+        personaUserId,
       );
     } catch (err) {
       console.error("[CARMEN] contextual opener failed, falling back:", err);

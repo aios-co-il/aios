@@ -58,6 +58,7 @@ export function SharedTableReport({
         data={data}
         table={data.table}
         gscLoading={gscLoading}
+        ready={!isFetching && !gscLoading}
         summaryOnly={summaryOnly}
       />
     );
