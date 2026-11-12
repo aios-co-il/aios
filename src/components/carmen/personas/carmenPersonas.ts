@@ -25,12 +25,26 @@ export type PersonaRow = Tables<"carmen_personas">;
 export type PersonaDraft = PersonaProfile;
 
 /**
- * The characters a user can pick: the built-ins with the org's edits applied,
- * then the org's shared characters and the user's own (RLS returns only those).
+ * The characters a user can pick: each built-in as the user's own version, else
+ * the org's edit, else its defaults; then the org's shared characters and the
+ * user's own. Rows of other users (a super admin reads them all) are left out.
  */
-export function mergePersonas(rows: Array<PersonaRow>): Array<CarmenPersona> {
+export function mergePersonas(
+  rows: Array<PersonaRow>,
+  userId: string | null,
+): Array<CarmenPersona> {
+  const visible = rows.filter(
+    (row) => row.owner_user_id === null || row.owner_user_id === userId,
+  );
   const builtins = BUILTIN_PERSONA_KEYS.map((key) => {
-    const row = rows.find((item) => item.builtin_key === key);
+    const own = visible.find(
+      (item) => item.builtin_key === key && item.owner_user_id !== null,
+    );
+    const row =
+      own ??
+      visible.find(
+        (item) => item.builtin_key === key && item.owner_user_id === null,
+      );
     return row
       ? { ...personaFromRow(row), ...stored(row), key, builtinKey: key }
       : {
@@ -41,7 +55,7 @@ export function mergePersonas(rows: Array<PersonaRow>): Array<CarmenPersona> {
           ownerUserId: null,
         };
   });
-  const created = rows
+  const created = visible
     .filter((row) => !isBuiltinPersonaKey(row.builtin_key))
     .map((row) => ({
       ...personaFromRow(row),
@@ -50,6 +64,38 @@ export function mergePersonas(rows: Array<PersonaRow>): Array<CarmenPersona> {
       builtinKey: null,
     }));
   return [...builtins, ...created];
+}
+
+/** Where a save goes: an update of a stored row, or a new row. */
+export type SaveTarget =
+  | { kind: "update"; rowId: string }
+  | {
+      kind: "insert";
+      builtinKey: BuiltinPersonaKey | null;
+      ownerUserId: string | null;
+    };
+
+/**
+ * Where saving a character goes (AIO-576). A user's own row is updated. Anything
+ * else becomes the user's own version, unless an owner or super admin chose to
+ * save it for the whole org.
+ */
+export function saveTarget(
+  persona: CarmenPersona | null,
+  forOrg: boolean,
+  userId: string,
+): SaveTarget {
+  if (persona?.rowId && persona.ownerUserId === userId) {
+    return { kind: "update", rowId: persona.rowId };
+  }
+  if (forOrg && persona?.rowId && persona.ownerUserId === null) {
+    return { kind: "update", rowId: persona.rowId };
+  }
+  return {
+    kind: "insert",
+    builtinKey: persona?.builtinKey ?? null,
+    ownerUserId: forOrg ? null : userId,
+  };
 }
 
 /** The picked character, or null when the user has not picked one (or it is gone). */

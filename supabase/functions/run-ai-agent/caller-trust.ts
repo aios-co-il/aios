@@ -18,6 +18,8 @@ export const SERVICE_ONLY_RUN_FIELDS: readonly string[] = Object.freeze([
   "lead_data",
   // WhatsApp delivery target for subagent results and reminders.
   "wa_notify",
+  // The personal WhatsApp line's owner, whose agent character Carmen speaks as (AIO-576).
+  "persona_user_id",
 ]);
 
 /**

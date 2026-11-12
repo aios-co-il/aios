@@ -2,7 +2,7 @@ import { assertEquals, assertMatch, assertNotMatch } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import {
   loadCallerPersona,
-  loadPickedCallWords,
+  loadCallWords,
   personaPromptSection,
 } from "./persona-runtime.ts";
 import { BUILTIN_PERSONAS } from "./personas.ts";
@@ -69,6 +69,38 @@ describe("loadCallerPersona", () => {
     assertEquals(persona?.mood, "fun");
   });
 
+  it("prefers the user's own version of a built-in over the org's edit", async () => {
+    const client = db({
+      carmen_persona_choices: { data: { persona_key: "minime" }, error: null },
+      carmen_personas: {
+        data: [
+          row({ id: "org", builtin_key: "minime", display_name: "של הארגון" }),
+          row({
+            id: "mine",
+            builtin_key: "minime",
+            owner_user_id: "u1",
+            display_name: "שלי",
+          }),
+          row({
+            id: "theirs",
+            builtin_key: "minime",
+            owner_user_id: "u2",
+            display_name: "של עמית",
+          }),
+        ],
+        error: null,
+      },
+    });
+    assertEquals(
+      (await loadCallerPersona(client, "t1", "u1"))?.displayName,
+      "שלי",
+    );
+    assertEquals(
+      (await loadCallerPersona(client, "t1", "u3"))?.displayName,
+      "של הארגון",
+    );
+  });
+
   it("gives an unedited built-in its defaults", async () => {
     const client = db({
       carmen_persona_choices: { data: { persona_key: "aios" }, error: null },
@@ -98,42 +130,18 @@ describe("loadCallerPersona", () => {
   });
 });
 
-describe("loadPickedCallWords", () => {
-  it("collects the call words of characters members picked, lowercased", async () => {
+describe("loadCallWords", () => {
+  it("gives the picked character's call words, lowercased", async () => {
     const client = db({
-      carmen_persona_choices: {
-        data: [
-          { persona_key: "minime" },
-          { persona_key: "aios" },
-          { persona_key: "minime" },
-        ],
-        error: null,
-      },
+      carmen_persona_choices: { data: { persona_key: "aios" }, error: null },
     });
-    assertEquals(await loadPickedCallWords(client, "t1"), [
-      "מיני מי",
-      "aios",
-      "איוס",
-    ]);
+    assertEquals(await loadCallWords(client, "t1", "u1"), ["aios", "איוס"]);
   });
 
-  it("skips a pick of a colleague's own character", async () => {
-    const client = db({
-      carmen_persona_choices: {
-        data: [{ user_id: "u1", persona_key: "row-1" }],
-        error: null,
-      },
-      carmen_personas: {
-        data: [row({ owner_user_id: "u2", call_words: ["סודי"] })],
-        error: null,
-      },
-    });
-    assertEquals(await loadPickedCallWords(client, "t1"), []);
-  });
-
-  it("adds nothing when nobody picked a character", async () => {
-    const client = db({ carmen_persona_choices: { data: [], error: null } });
-    assertEquals(await loadPickedCallWords(client, "t1"), []);
+  it("is empty without a line owner or a pick", async () => {
+    const none = db({ carmen_persona_choices: { data: null, error: null } });
+    assertEquals(await loadCallWords(none, "t1", null), []);
+    assertEquals(await loadCallWords(none, "t1", "u1"), []);
   });
 });
 

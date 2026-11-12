@@ -729,41 +729,76 @@ Deno.test(
 );
 
 Deno.test(
-  "handleCarmenMessage answers a character's call word once a member picked it",
+  "handleCarmenMessage answers a character's call word only on its owner's own line",
   async (t) => {
-    /** "מיני מי, ..." from a LID author in an opted-in group, with the org's character picks. */
-    const miniMeTurn = (choices: Array<Row>) => {
+    const ownerPicksMiniMe = [
+      { tenant_id: TENANT, user_id: "user-1", persona_key: "minime" },
+    ];
+
+    await t.step("the org's main Carmen line ignores it", async () => {
       const { ctx } = groupTurn(
         tenantDb(
           {
             carmen_scope_mode: "specific_group",
             carmen_allowed_group_ids: [GROUP_CHAT],
           },
-          { carmen_persona_choices: choices },
+          { carmen_persona_choices: ownerPicksMiniMe },
         ),
         LID,
       );
-      return { ...ctx, messageText: "מיני מי, מה המצב?" };
-    };
-
-    await t.step("ignores it while nobody picked the character", async () => {
       const { result, posted } = await capturingSends(() =>
-        handleCarmenMessage(miniMeTurn([])),
+        handleCarmenMessage({ ...ctx, messageText: "מיני מי, מה המצב?" }),
       );
       assertEquals(result, { handled: false, reason: "group_not_addressed" });
       assertEquals(posted, []);
     });
 
-    await t.step("answers it once a member picked Mini Me", async () => {
-      const { result } = await capturingSends(() =>
-        handleCarmenMessage(
-          miniMeTurn([
-            { tenant_id: TENANT, user_id: "user-2", persona_key: "minime" },
-          ]),
-        ),
-      );
-      assertEquals(result.handled, true);
+    /** The owner typing "מיני מי, ..." in a private chat on their own (secondary) line. */
+    const ownLineTurn = (choices: Array<Row>): CarmenContext => ({
+      supabase: tenantDb(
+        { carmen_integration_id: "integration-1" },
+        { carmen_persona_choices: choices },
+      ),
+      tenantId: TENANT,
+      integrationId: "integration-1",
+      connectionUserId: "user-1",
+      connectionRole: "secondary",
+      phoneNumber: "972500000001",
+      senderName: "Owner",
+      messageText: "מיני מי, מה המצב?",
+      isIncoming: false,
+      isManualOutgoing: true,
+      isGroup: false,
+      chatId: "972500000001@c.us",
+      sourceChannel: "own_instance",
     });
+
+    await t.step(
+      "the owner's own line wakes on the owner's call word",
+      async () => {
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage(ownLineTurn(ownerPicksMiniMe)),
+        );
+        assertEquals(result.handled, true);
+      },
+    );
+
+    await t.step(
+      "a colleague's pick does not wake the owner's line",
+      async () => {
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage(
+            ownLineTurn([
+              { tenant_id: TENANT, user_id: "user-2", persona_key: "minime" },
+            ]),
+          ),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
   },
 );
 

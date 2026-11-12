@@ -7,6 +7,7 @@ import { PersonaSwitcher } from "./PersonaSwitcher";
 const state = vi.hoisted(() => ({
   activeKey: null as string | null,
   loaded: true,
+  isOwner: false,
   choose: vi.fn(),
   save: vi.fn(),
   remove: vi.fn(),
@@ -14,7 +15,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("./useCarmenPersonas", () => ({
   useCarmenPersonas: () => ({
-    personas: mergePersonas([]),
+    personas: mergePersonas([], "me"),
     loaded: state.loaded,
     activeKey: state.activeKey,
     choose: state.choose,
@@ -22,6 +23,12 @@ vi.mock("./useCarmenPersonas", () => ({
     remove: state.remove,
     busy: false,
   }),
+}));
+vi.mock("@/hooks/useCurrentUser", () => ({
+  useCurrentUser: () => ({ userId: "me" }),
+}));
+vi.mock("@/hooks/useUserRole", () => ({
+  useUserRole: () => ({ isOwner: state.isOwner, isSuperAdmin: false }),
 }));
 vi.mock("@/hooks/useCarmenIdentity", () => ({
   useCarmenIdentity: () => ({ image: "carmen.png", custom: false }),
@@ -34,6 +41,7 @@ describe("PersonaSwitcher", () => {
   beforeEach(() => {
     state.activeKey = null;
     state.loaded = true;
+    state.isOwner = false;
     vi.clearAllMocks();
   });
 
@@ -64,7 +72,7 @@ describe("PersonaSwitcher", () => {
     expect(state.save).toHaveBeenCalledWith(
       expect.objectContaining({
         persona: null,
-        audience: "me",
+        forOrg: false,
         draft: expect.objectContaining({
           displayName: "ג׳ארוויס",
           callWords: ["ג׳ארוויס", "ג׳רוויס"],
@@ -101,5 +109,31 @@ describe("PersonaSwitcher", () => {
     await user.click(screen.getByRole("button", { name: /עריכת AIOS/ }));
     act(() => onSuccess());
     expect(screen.getByText("עריכת AIOS")).toBeInTheDocument();
+  });
+
+  it("saves a member's edit of a built-in as their own version", async () => {
+    const user = userEvent.setup();
+    render(<PersonaSwitcher />);
+    await user.click(screen.getByRole("button", { name: /עריכת מיני מי/ }));
+    expect(screen.getByText(/נשמרים כגרסה שלך בלבד/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "לכל הארגון" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "שמירה" }));
+    expect(state.save).toHaveBeenCalledWith(
+      expect.objectContaining({ forOrg: false }),
+      expect.anything(),
+    );
+  });
+
+  it("lets an owner save a built-in for the whole org", async () => {
+    state.isOwner = true;
+    const user = userEvent.setup();
+    render(<PersonaSwitcher />);
+    await user.click(screen.getByRole("button", { name: /עריכת מיני מי/ }));
+    await user.click(screen.getByRole("radio", { name: "לכל הארגון" }));
+    await user.click(screen.getByRole("button", { name: "שמירה" }));
+    expect(state.save).toHaveBeenCalledWith(
+      expect.objectContaining({ forOrg: true }),
+      expect.anything(),
+    );
   });
 });
