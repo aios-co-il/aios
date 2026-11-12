@@ -59,8 +59,7 @@ export function ClientReportPanel({ table, clientId, tenantId }: Props) {
         className="px-1"
       />
       <LiveReportFrame
-        ready={!!token}
-        failed={card.share.failed}
+        share={card.share}
         busyLabel={sync.syncing ? "מסנכרן נתונים..." : null}
       >
         {token && (

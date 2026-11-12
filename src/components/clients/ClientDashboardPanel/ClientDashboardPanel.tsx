@@ -45,8 +45,7 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
   return (
     <div className="space-y-3 min-w-0" dir="rtl">
       <LiveReportFrame
-        ready={!!token}
-        failed={card.share.failed}
+        share={card.share}
         busyLabel={sync.syncing ? "מסנכרן מקורות..." : null}
       >
         {token && (

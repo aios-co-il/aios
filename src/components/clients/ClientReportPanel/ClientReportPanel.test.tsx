@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   toPng: vi.fn(),
   sendReportWhatsApp: vi.fn(),
   recordDelivery: vi.fn(),
+  readActive: vi.fn(),
+  createLink: vi.fn(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -38,6 +40,7 @@ vi.mock("./ReportLinkButtons", () => ({ ReportLinkButtons: () => null }));
 vi.mock("../ClientReportCard/useClientSendContacts", () => ({
   useClientSendContacts: () => ({
     client: {
+      id: "client-1",
       name: "לקוח",
       phone: null,
       email: null,
@@ -45,14 +48,17 @@ vi.mock("../ClientReportCard/useClientSendContacts", () => ({
     },
     groups: [{ id: "group-1", group_name: "קבוצת לקוח" }],
     teamMembers: [],
+    loaded: true,
+    failed: false,
   }),
 }));
 vi.mock("./tableShareToken", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./tableShareToken")>()),
   tableShareSource: (table: { id: string }) => ({
     queryKey: ["table-share-token", table.id],
-    readActive: async () => "table-token",
-    ensure: async () => "table-token",
+    label: "test",
+    readActive: mocks.readActive,
+    create: mocks.createLink,
   }),
 }));
 vi.mock("@/components/SharedTable/SharedTableReport", () => ({
@@ -114,6 +120,8 @@ beforeEach(() => {
     `data:image/png;base64,${btoa("x".repeat(2000))}`,
   );
   mocks.sendReportWhatsApp.mockResolvedValue({ deliveredAs: "media" });
+  mocks.readActive.mockResolvedValue("table-token");
+  mocks.createLink.mockResolvedValue("new-token");
 });
 
 describe("ClientReportPanel", () => {
@@ -171,5 +179,24 @@ describe("ClientReportPanel", () => {
     );
     expect(mocks.sendReportWhatsApp).not.toHaveBeenCalled();
     expect(mocks.recordDelivery).not.toHaveBeenCalled();
+  });
+
+  it("offers to create a link when none is active, and makes it only on request", async () => {
+    mocks.readActive.mockResolvedValue(null);
+    const user = userEvent.setup();
+    renderPanel();
+
+    const create = await screen.findByRole("button", { name: /צור קישור/ });
+    expect(mocks.createLink).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /שלח דוח/ }));
+    expect(mocks.toPng).not.toHaveBeenCalled();
+    expect(mocks.sendReportWhatsApp).not.toHaveBeenCalled();
+
+    await user.click(create);
+
+    expect(
+      await screen.findByText("live new-token last_7_days"),
+    ).toBeInTheDocument();
+    expect(mocks.createLink).toHaveBeenCalledTimes(1);
   });
 });

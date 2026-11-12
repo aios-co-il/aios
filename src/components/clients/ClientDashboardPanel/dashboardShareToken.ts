@@ -1,10 +1,9 @@
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { buildDefaultShareToken } from "@/lib/share-slug";
 import {
   currentUserId,
   type ShareTokenSource,
-} from "../ClientReportCard/useEnsureShareToken";
+} from "../ClientReportCard/useShareToken";
 
 /** The dashboard a client card shows. */
 export type ClientCardDashboard = { id: string; name: string };
@@ -16,37 +15,39 @@ export function dashboardShareSource(
 ): ShareTokenSource {
   return {
     queryKey: ["dashboard-share-link", dashboard.id],
-    readActive: async () => {
-      const latest = await latestDashboardShare(dashboard.id);
-      return latest?.is_active ? latest.share_token : null;
-    },
-    ensure: () => ensureDashboardShareToken(dashboard, tenantId),
+    label: `dashboard ${dashboard.id}`,
+    readActive: () => activeDashboardShareToken(dashboard.id),
+    create: () => createDashboardShareToken(dashboard, tenantId),
   };
 }
 
+/** The newest active share token of the dashboard, across all its rows. */
+async function activeDashboardShareToken(
+  dashboardId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("dashboard_shares")
+    .select("share_token")
+    .eq("dashboard_id", dashboardId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return data?.share_token ?? null;
+}
+
 /**
- * Reactivates the dashboard's newest share row, or creates one on the
- * dashboard's home tenant (DMM for DMM-MC), as the share dialog does: a share
- * on the UI tenant would be an orphan that RLS cannot manage.
+ * Creates a new share row on the dashboard's home tenant (DMM for DMM-MC), as
+ * the share dialog does: a share on the UI tenant would be an orphan that RLS
+ * cannot manage. Rows the user turned off stay off.
  */
-async function ensureDashboardShareToken(
+async function createDashboardShareToken(
   dashboard: ClientCardDashboard,
   tenantId: string,
 ): Promise<string> {
-  const latest = await latestDashboardShare(dashboard.id);
-  if (latest) {
-    if (!latest.is_active) {
-      const { error } = await supabase
-        .from("dashboard_shares")
-        .update({ is_active: true })
-        .eq("dashboard_id", dashboard.id)
-        .eq("share_token", latest.share_token);
-      if (error) {
-        throw error;
-      }
-    }
-    return latest.share_token;
-  }
   const userId = await currentUserId();
   const { data, error } = await supabase
     .from("dashboard_shares")
@@ -65,23 +66,7 @@ async function ensureDashboardShareToken(
   if (error) {
     throw error;
   }
-  toast.success("נוצר קישור שיתוף חדש");
   return data.share_token;
-}
-
-/** The dashboard's newest share row, active or not, so none is duplicated. */
-async function latestDashboardShare(dashboardId: string) {
-  const { data, error } = await supabase
-    .from("dashboard_shares")
-    .select("share_token, is_active")
-    .eq("dashboard_id", dashboardId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  return data;
 }
 
 /** The tenant that owns the dashboard, falling back to the UI tenant. */

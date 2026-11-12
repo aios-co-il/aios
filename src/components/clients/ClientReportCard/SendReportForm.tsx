@@ -9,13 +9,13 @@ import { buildReportEmailOptions } from "@/lib/defaultReportEmailRecipients";
 import { EmailRecipientsSelector } from "../EmailRecipientsSelector";
 import { ReportEmailSenderSelect } from "../ReportEmailSenderSelect";
 import { WhatsAppGroupSelect } from "../WhatsAppGroupSelect";
-import type { useClientSendContacts } from "./useClientSendContacts";
+import type { ClientSendContacts } from "./useClientSendContacts";
 import type { SendPhase } from "./useReportSend";
 import type { ReportSendForm } from "./useReportSendForm";
 
 type Props = {
   form: ReportSendForm;
-  contacts: ReturnType<typeof useClientSendContacts>;
+  contacts: ClientSendContacts;
   /** The single report lets the user edit the email subject. */
   showSubject: boolean;
   sendLabel: string;

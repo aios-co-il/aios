@@ -1,10 +1,9 @@
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { buildDefaultShareToken } from "@/lib/share-slug";
 import {
   currentUserId,
   type ShareTokenSource,
-} from "../ClientReportCard/useEnsureShareToken";
+} from "../ClientReportCard/useShareToken";
 
 /** The report table fields the share token needs. */
 type ShareableTable = { id: string; name: string; tenant_id?: string | null };
@@ -22,36 +21,36 @@ export function tableShareSource(
   return {
     // Not "table-share-link": the send dialog caches the URL under that key.
     queryKey: ["table-share-token", table.id],
-    readActive: async () => {
-      const latest = await latestTableShare(table.id);
-      return latest?.is_active ? latest.share_token : null;
-    },
-    ensure: () => ensureTableShareToken(table, tenantId),
+    label: `report table ${table.id}`,
+    readActive: () => activeTableShareToken(table.id),
+    create: () => createTableShareToken(table, tenantId),
   };
 }
 
+/** The newest active share token of the report, across all its rows. */
+async function activeTableShareToken(tableId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("table_shares")
+    .select("share_token")
+    .eq("table_id", tableId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return data?.share_token ?? null;
+}
+
 /**
- * Reactivates the report's newest share row, or creates one on the table's
- * own tenant, as the share dialog does (it is given `table.tenant_id`).
+ * Creates a new share row on the table's own tenant, as the share dialog does
+ * (it is given `table.tenant_id`). Rows the user turned off stay off.
  */
-async function ensureTableShareToken(
+async function createTableShareToken(
   table: ShareableTable,
   tenantId: string,
 ): Promise<string> {
-  const latest = await latestTableShare(table.id);
-  if (latest) {
-    if (!latest.is_active) {
-      const { error } = await supabase
-        .from("table_shares")
-        .update({ is_active: true })
-        .eq("table_id", table.id)
-        .eq("share_token", latest.share_token);
-      if (error) {
-        throw error;
-      }
-    }
-    return latest.share_token;
-  }
   const userId = await currentUserId();
   const { data, error } = await supabase
     .from("table_shares")
@@ -67,21 +66,5 @@ async function ensureTableShareToken(
   if (error) {
     throw error;
   }
-  toast.success("נוצר קישור שיתוף חדש");
   return data.share_token;
-}
-
-/** The report's newest share row, active or not, so none is duplicated. */
-async function latestTableShare(tableId: string) {
-  const { data, error } = await supabase
-    .from("table_shares")
-    .select("share_token, is_active")
-    .eq("table_id", tableId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  return data;
 }

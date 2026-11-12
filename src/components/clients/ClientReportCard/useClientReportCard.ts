@@ -1,9 +1,6 @@
 import { reportSendCopy, type ReportTarget } from "./reportSendKinds";
 import { useClientSendContacts } from "./useClientSendContacts";
-import {
-  type ShareTokenSource,
-  useEnsureShareToken,
-} from "./useEnsureShareToken";
+import { type ShareTokenSource, useShareToken } from "./useShareToken";
 import { useExportReportPdf } from "./useExportReportPdf";
 import { useReportSend } from "./useReportSend";
 import { useReportSendForm } from "./useReportSendForm";
@@ -26,14 +23,15 @@ type Options = {
  */
 export function useClientReportCard(options: Options) {
   const { target, clientId, tenantId } = options;
-  const share = useEnsureShareToken(options.shareSource);
+  const share = useShareToken(options.shareSource);
   const summary = useSummaryCapture(options.captureImage);
   const contacts = useClientSendContacts(clientId, tenantId);
   const clientName = contacts.client?.name ?? null;
   const copy = reportSendCopy(target);
   const form = useReportSendForm(
     tenantId,
-    contacts.client,
+    clientId,
+    contacts,
     copy.defaultSubject(clientName),
   );
   const shareUrl = share.token ? options.buildShareUrl(share.token) : null;
