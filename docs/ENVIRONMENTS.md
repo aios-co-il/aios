@@ -61,7 +61,7 @@ Work branch (named per docs/git-conventions.md)
 
 **Branch freshness (required):** every PR must contain the latest tip of its base before merge. Cloud Agents `git fetch origin <base>` and merge/rebase before opening or updating a PR. Enforced by the ruleset rule "Require branches to be up to date before merging" on `develop` and by check `Branch contains latest main` on `main`.
 
-**Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then a second PR cherry-picks it onto `develop`. On every push to `main` or `develop`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
+**Staging stays current:** history is linear on `main` and `develop` (see `.github/rulesets/develop.json`), so nothing merges between them. A Production hotfix PR targets `main`, then `backport.yml` cherry-picks it onto `develop` through one rolling `backport/main-hotfixes` PR (later hotfixes are added to it until a human queues it; on a conflict it comments on the hotfix PR with a prompt for a coding agent). On every push to `main` or `develop`, workflow `Check develop has main` fails if a `main` commit has no patch-equivalent on `develop`; port it before the next release.
 
 | Git         | Deploy             | Data                                                      |
 | ----------- | ------------------ | --------------------------------------------------------- |
