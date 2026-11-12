@@ -131,7 +131,7 @@ export function ChatMessageRow({
         ))}
       <div className={`cc-msg-bubble${isUser ? " is-user" : ""}`}>
         {(content || !hasAttachments) && (
-          <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
+          <div className="cc-md prose dark:prose-invert prose-sm max-w-none [&_p]:my-1">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={MARKDOWN_COMPONENTS}
