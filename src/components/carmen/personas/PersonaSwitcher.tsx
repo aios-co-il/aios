@@ -8,6 +8,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { PersonaCard } from "./PersonaCard";
 import { PersonaEditor } from "./PersonaEditor";
 import { selectWithArrows } from "./radioArrowKeys";
+import { canEditPersona } from "./carmenPersonas";
 import { useCarmenPersonas } from "./useCarmenPersonas";
 
 const HEADING_ID = "carmen-persona-heading";
@@ -83,7 +84,7 @@ export function PersonaSwitcher({
         role="radiogroup"
         aria-labelledby={HEADING_ID}
         onKeyDown={(event) => {
-          const next = busy ? null : selectWithArrows(event, keys, activeKey);
+          const next = busy ? null : selectWithArrows(event, keys, focusKey);
           if (next && next !== activeKey) {
             choose(next);
           }
@@ -97,7 +98,7 @@ export function PersonaSwitcher({
             selected={persona.key === activeKey}
             focusable={persona.key === focusKey}
             disabled={busy}
-            canEdit={loaded}
+            canEdit={loaded && canEditPersona(persona, userId, canManageOrg)}
             onChoose={() => choose(persona.key)}
             onEdit={() => setEditing(persona.key)}
           />

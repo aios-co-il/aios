@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mergePersonas } from "./carmenPersonas";
 import { PersonaSwitcher } from "./PersonaSwitcher";
+import { withTestQuery } from "@/test/withTestQuery";
 
 const state = vi.hoisted(() => ({
   activeKey: null as string | null,
@@ -47,7 +48,7 @@ describe("PersonaSwitcher", () => {
 
   it("offers Carmen, Mini Me and AIOS and picks one", async () => {
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     expect(screen.getAllByRole("radio", { checked: false })).toHaveLength(3);
     await user.click(screen.getByRole("radio", { name: /מיני מי/ }));
     expect(state.choose).toHaveBeenCalledWith("minime");
@@ -55,7 +56,7 @@ describe("PersonaSwitcher", () => {
 
   it("marks the picked character", () => {
     state.activeKey = "aios";
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     expect(screen.getByRole("radio", { name: /AIOS/ })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -64,7 +65,7 @@ describe("PersonaSwitcher", () => {
 
   it("creates a character for the user only by default, with its call words", async () => {
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     await user.click(screen.getByRole("button", { name: /דמות חדשה/ }));
     await user.type(screen.getByLabelText(/^שם/), "ג׳ארוויס");
     await user.type(screen.getByLabelText(/מילות הפעלה/), "ג׳ארוויס, ג׳רוויס");
@@ -85,15 +86,23 @@ describe("PersonaSwitcher", () => {
   it("moves the pick with the arrow keys", async () => {
     state.activeKey = "carmen";
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     screen.getByRole("radio", { name: /כרמן/ }).focus();
     await user.keyboard("{ArrowDown}");
     expect(state.choose).toHaveBeenCalledWith("minime");
   });
 
+  it("moves from the first card when nothing is picked yet", async () => {
+    const user = userEvent.setup();
+    render(withTestQuery(<PersonaSwitcher />));
+    screen.getByRole("radio", { name: /כרמן/ }).focus();
+    await user.keyboard("{ArrowUp}");
+    expect(state.choose).toHaveBeenCalledWith("aios");
+  });
+
   it("does not open an editor before the stored characters load", () => {
     state.loaded = false;
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     expect(
       screen.getByRole("button", { name: /עריכת מיני מי/ }),
     ).toBeDisabled();
@@ -102,7 +111,7 @@ describe("PersonaSwitcher", () => {
 
   it("keeps a newer editor open when an earlier save finishes", async () => {
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     await user.click(screen.getByRole("button", { name: /עריכת כרמן/ }));
     await user.click(screen.getByRole("button", { name: "שמירה" }));
     const { onSuccess } = state.save.mock.calls[0][1];
@@ -113,7 +122,7 @@ describe("PersonaSwitcher", () => {
 
   it("saves a member's edit of a built-in as their own version", async () => {
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     await user.click(screen.getByRole("button", { name: /עריכת מיני מי/ }));
     expect(screen.getByText(/נשמרים כגרסה שלך בלבד/)).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "לכל הארגון" })).toBeNull();
@@ -127,7 +136,7 @@ describe("PersonaSwitcher", () => {
   it("lets an owner save a built-in for the whole org", async () => {
     state.isOwner = true;
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     await user.click(screen.getByRole("button", { name: /עריכת מיני מי/ }));
     await user.click(screen.getByRole("radio", { name: "לכל הארגון" }));
     await user.click(screen.getByRole("button", { name: "שמירה" }));
@@ -139,7 +148,7 @@ describe("PersonaSwitcher", () => {
 
   it("refuses a greeting as a call word and blocks the save", async () => {
     const user = userEvent.setup();
-    render(<PersonaSwitcher />);
+    render(withTestQuery(<PersonaSwitcher />));
     await user.click(screen.getByRole("button", { name: /דמות חדשה/ }));
     await user.type(screen.getByLabelText(/^שם/), "שלי");
     await user.type(screen.getByLabelText(/מילות הפעלה/), "היי");

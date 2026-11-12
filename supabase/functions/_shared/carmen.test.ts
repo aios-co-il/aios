@@ -784,6 +784,55 @@ Deno.test(
     );
 
     await t.step(
+      "the owner's line runs Carmen as the owner's character",
+      async () => {
+        // The fake's insert returns the table's first row, so a closed session stands in for the new one.
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: ownerPicksMiniMe,
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+          },
+        );
+        // The stubbed run-ai-agent answers "{}", so runCarmenAI throws after the request is sent.
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(ownerPicksMiniMe),
+            supabase,
+          }).catch(() => null),
+        );
+        const run = posted.find((send) => send.fn === "run-ai-agent");
+        assertEquals(run?.body.persona_user_id, "user-1");
+      },
+    );
+
+    await t.step(
+      "only the call word that called Carmen leaves the request",
+      async () => {
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: ownerPicksMiniMe,
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+          },
+        );
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(ownerPicksMiniMe),
+            supabase,
+            messageText: "מיני מי, תכתבי ברכה עבור מיני מי",
+          }).catch(() => null),
+        );
+        const run = posted.find((send) => send.fn === "run-ai-agent");
+        assertStringIncludes(String(run?.body.command_text), "עבור מיני מי");
+      },
+    );
+
+    await t.step(
       "a call word matches only as a whole word on the owner's line",
       async () => {
         const turn = ownLineTurn(ownerPicksMiniMe);

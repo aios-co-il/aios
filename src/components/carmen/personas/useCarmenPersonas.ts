@@ -61,8 +61,9 @@ export function useCarmenPersonas() {
       savePersona(input.scope.tenantId, input.scope.userId, input),
     onSuccess: (_data, { scope }) => {
       toast.success("הדמות נשמרה");
+      // An org-level change reaches every user's list in this browser.
       return queryClient.invalidateQueries({
-        queryKey: personasKey(scope.tenantId, scope.userId),
+        queryKey: personasListPrefix(scope.tenantId),
       });
     },
     onError: reportError("שמירת הדמות נכשלה"),
@@ -72,7 +73,7 @@ export function useCarmenPersonas() {
       deletePersona(input.rowId),
     onSuccess: (_data, { scope }) =>
       queryClient.invalidateQueries({
-        queryKey: personasKey(scope.tenantId, scope.userId),
+        queryKey: personasListPrefix(scope.tenantId),
       }),
     onError: reportError("מחיקת הדמות נכשלה"),
   });
@@ -111,6 +112,11 @@ export interface SaveInput {
   draft: PersonaDraft;
   /** Save for the whole org; only owners and super admins may (RLS checks it). */
   forOrg: boolean;
+}
+
+/** Every user's character list in the org; the pick entries ("choice") are not included. */
+export function personasListPrefix(tenantId: string | null | undefined) {
+  return ["carmen-personas", tenantId, "list"];
 }
 
 /**

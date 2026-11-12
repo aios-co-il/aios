@@ -46,7 +46,11 @@ export function PersonaEditor({
   const [callWords, setCallWords] = useState(draft.callWords.join(", "));
   const [forOrg, setForOrg] = useState(false);
   // An edit of the org's character or a built-in becomes the user's own version.
-  const savesOwnVersion = Boolean(persona) && !isOwn;
+  // A member's edit of a built-in becomes their own version; a shared creation is edited in place.
+  const savesOwnVersion = Boolean(persona?.builtinKey) && !isOwn;
+  // Owners choose where a new character or a built-in edit goes, also over their own version.
+  const canChooseScope =
+    canManageOrg && (!persona || Boolean(persona.builtinKey));
   function update(patch: Partial<PersonaDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
@@ -121,7 +125,7 @@ export function PersonaEditor({
         />
       </Field>
       <SaveScope
-        canChoose={canManageOrg && !isOwn}
+        canChoose={canChooseScope}
         savesOwnVersion={savesOwnVersion}
         forOrg={forOrg}
         onChange={setForOrg}

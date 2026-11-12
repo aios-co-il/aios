@@ -22,7 +22,13 @@ export function selectWithArrows(
     return null;
   }
   event.preventDefault();
-  const index = current ? values.indexOf(current) : -1;
+  // Move from the option that has focus (the group's Tab stop when none is picked).
+  const focused =
+    event.target instanceof HTMLElement
+      ? event.target.closest<HTMLElement>("[data-radio-value]")
+      : null;
+  const base = focused?.dataset.radioValue ?? current;
+  const index = base ? values.indexOf(base) : -1;
   const next = values[(index + step + values.length) % values.length];
   event.currentTarget
     .querySelector<HTMLElement>(`[data-radio-value="${CSS.escape(next)}"]`)

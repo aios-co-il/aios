@@ -353,8 +353,7 @@ function keywordInPrefix(
   if (!persona?.words.includes(keyword)) {
     return prefix.includes(keyword);
   }
-  const literal = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`${HB}${literal}${HE}`, "u").test(prefix);
+  return new RegExp(`${HB}${escapeRegExp(keyword)}${HE}`, "u").test(prefix);
 }
 
 // Hebrew-safe boundary (JS \b is ASCII-only and breaks on Hebrew).
@@ -488,6 +487,30 @@ export function groupMessageInvokesCarmen(
   return false;
 }
 
+// Escapes a typed keyword for use inside a regular expression.
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The call word that called Carmen: the one that opens the message before any
+// of the automation's own keywords, inside the 80-character address window.
+// Null when an own keyword (or nothing) came first.
+function invokingCallWord(
+  content: string,
+  triggerKeywords: string[],
+  ownKeywords: string[],
+): string | null {
+  const prefix = content.slice(0, 80).toLowerCase();
+  let first: { word: string; index: number; own: boolean } | null = null;
+  for (const word of triggerKeywords) {
+    const index = prefix.indexOf(word);
+    if (index >= 0 && (!first || index < first.index)) {
+      first = { word, index, own: ownKeywords.includes(word) };
+    }
+  }
+  return first && !first.own ? first.word : null;
+}
+
 // A picked character's call word is removed only where it called Carmen (the
 // 80-character direct-address window); a later mention stays in the request.
 function withoutInvokingCallWord(content: string, word: RegExp): string {
@@ -507,7 +530,7 @@ function asCarmenName(content: string, callWords: string[]): string {
     (a, b) => b.trim().length - a.trim().length,
   );
   return longestFirst.reduce((text, word) => {
-    const literal = word.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const literal = escapeRegExp(word.trim());
     return literal
       ? text.replace(new RegExp(`(${HB})${literal}${HE}`, "giu"), "$1כרמן")
       : text;
@@ -2794,12 +2817,25 @@ export async function handleCarmenMessage(
 
   let contentAfterKeyword = messageText.replace(/🎤/g, ""); // strip the voice-transcript marker
   const ownKeywords = resolveTriggerKeywords(carmenAutomation.configuration);
-  for (const k of triggerKeywords) {
-    // Call words are typed by users (AIO-570), so they are matched literally.
-    const literal = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    contentAfterKeyword = ownKeywords.includes(k)
-      ? contentAfterKeyword.replace(new RegExp(literal, "gi"), "")
-      : withoutInvokingCallWord(contentAfterKeyword, new RegExp(literal, "i"));
+  // A character's call word is removed only if it is what called Carmen; the
+  // same or another call word later in the request stays (a name to write to).
+  const invoking = invokingCallWord(
+    contentAfterKeyword,
+    triggerKeywords,
+    ownKeywords,
+  );
+  for (const k of ownKeywords) {
+    // Keywords are typed by admins and users, so they are matched literally.
+    contentAfterKeyword = contentAfterKeyword.replace(
+      new RegExp(escapeRegExp(k), "gi"),
+      "",
+    );
+  }
+  if (invoking) {
+    contentAfterKeyword = withoutInvokingCallWord(
+      contentAfterKeyword,
+      new RegExp(escapeRegExp(invoking), "i"),
+    );
   }
   contentAfterKeyword = contentAfterKeyword
     .replace(CARMEN_NAME_VARIANT_RE, "") // strip "קרמן"/"כארמן" voice spellings

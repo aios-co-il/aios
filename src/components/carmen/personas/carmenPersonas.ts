@@ -17,6 +17,8 @@ export interface CarmenPersona extends PersonaProfile {
   rowId: string | null;
   /** Set when the character belongs to one user; null means shared with the org. */
   ownerUserId: string | null;
+  /** The org-level row behind this card (a built-in's org edit, or a shared character). */
+  orgRowId: string | null;
 }
 
 export type PersonaRow = Tables<"carmen_personas">;
@@ -40,19 +42,26 @@ export function mergePersonas(
     const own = visible.find(
       (item) => item.builtin_key === key && item.owner_user_id !== null,
     );
-    const row =
-      own ??
-      visible.find(
-        (item) => item.builtin_key === key && item.owner_user_id === null,
-      );
+    const org = visible.find(
+      (item) => item.builtin_key === key && item.owner_user_id === null,
+    );
+    const row = own ?? org;
+    const orgRowId = org?.id ?? null;
     return row
-      ? { ...personaFromRow(row), ...stored(row), key, builtinKey: key }
+      ? {
+          ...personaFromRow(row),
+          ...stored(row),
+          key,
+          builtinKey: key,
+          orgRowId,
+        }
       : {
           ...BUILTIN_PERSONAS[key],
           key,
           builtinKey: key,
           rowId: null,
           ownerUserId: null,
+          orgRowId,
         };
   });
   const created = visible
@@ -62,6 +71,7 @@ export function mergePersonas(
       ...stored(row),
       key: row.id,
       builtinKey: null,
+      orgRowId: row.owner_user_id === null ? row.id : null,
     }));
   return [...builtins, ...created];
 }
@@ -76,26 +86,54 @@ export type SaveTarget =
     };
 
 /**
- * Where saving a character goes (AIO-576). A user's own row is updated. Anything
- * else becomes the user's own version, unless an owner or super admin chose to
- * save it for the whole org.
+ * Where saving a character goes (AIO-576):
+ * - saved for the org (owners and super admins): the org-level row, also when
+ *   the owner has a personal version of the built-in;
+ * - a character shared with the org is edited in place (only owners and super
+ *   admins may; it has no personal version, so its key stays stable);
+ * - the user's own row is updated;
+ * - anything else, a built-in, becomes the user's own version.
  */
 export function saveTarget(
   persona: CarmenPersona | null,
   forOrg: boolean,
   userId: string,
 ): SaveTarget {
-  if (persona?.rowId && persona.ownerUserId === userId) {
-    return { kind: "update", rowId: persona.rowId };
+  const sharedCreation = persona && !persona.builtinKey && persona.orgRowId;
+  if (forOrg || sharedCreation) {
+    return persona?.orgRowId
+      ? { kind: "update", rowId: persona.orgRowId }
+      : {
+          kind: "insert",
+          builtinKey: persona?.builtinKey ?? null,
+          ownerUserId: null,
+        };
   }
-  if (forOrg && persona?.rowId && persona.ownerUserId === null) {
+  if (persona?.rowId && persona.ownerUserId === userId) {
     return { kind: "update", rowId: persona.rowId };
   }
   return {
     kind: "insert",
     builtinKey: persona?.builtinKey ?? null,
-    ownerUserId: forOrg ? null : userId,
+    ownerUserId: userId,
   };
+}
+
+/**
+ * Whether the user may open a character's editor: any built-in (an edit is
+ * their own version), their own creations, and the org's shared creations only
+ * for owners and super admins.
+ */
+export function canEditPersona(
+  persona: CarmenPersona,
+  userId: string | null | undefined,
+  canManageOrg: boolean,
+): boolean {
+  return (
+    Boolean(persona.builtinKey) ||
+    persona.ownerUserId === userId ||
+    canManageOrg
+  );
 }
 
 /** The picked character, or null when the user has not picked one (or it is gone). */

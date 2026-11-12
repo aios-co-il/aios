@@ -79,6 +79,11 @@ BEGIN
   IF v_rows <> 0 THEN
     RAISE EXCEPTION 'member: the org''s characters must not be editable';
   END IF;
+  DELETE FROM public.carmen_personas WHERE owner_user_id IS NULL;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'member: the org''s characters must not be deletable';
+  END IF;
 
   -- I see the org's edit and my own, not my colleague's own or the other org's.
   SELECT count(*) INTO v_rows FROM public.carmen_personas;
@@ -107,6 +112,13 @@ BEGIN
     RAISE EXCEPTION 'member: a colleague''s own character must not be editable';
   END IF;
 
+  -- My colleague's own character cannot be deleted by me.
+  DELETE FROM public.carmen_personas WHERE owner_user_id = v_colleague;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'member: a colleague''s own character must not be deletable';
+  END IF;
+
   -- I record my choice; I cannot record one for my colleague.
   INSERT INTO public.carmen_persona_choices (tenant_id, persona_key) VALUES (v_own, 'minime');
   BEGIN
@@ -123,6 +135,16 @@ BEGIN
   SELECT count(*) INTO v_rows FROM public.carmen_persona_choices;
   IF v_rows <> 0 THEN
     RAISE EXCEPTION 'colleague: another user''s choice must be hidden';
+  END IF;
+  RESET ROLE;
+
+  -- The owner removes the org's edit.
+  PERFORM pg_temp.qa_sign_in(v_owner);
+  SET LOCAL ROLE authenticated;
+  DELETE FROM public.carmen_personas WHERE tenant_id = v_own AND owner_user_id IS NULL;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'owner: must delete the org''s character (deleted %)', v_rows;
   END IF;
   RESET ROLE;
 

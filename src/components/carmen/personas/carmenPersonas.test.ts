@@ -4,6 +4,7 @@ import {
   findPersona,
   mergePersonas,
   parseCallWords,
+  canEditPersona,
   saveTarget,
 } from "./carmenPersonas";
 
@@ -149,12 +150,51 @@ describe("saveTarget", () => {
     });
   });
 
+  it("saves an owner's org choice to the org row even over their own version", () => {
+    const both = mergePersonas(
+      [
+        row({ id: "org", builtin_key: "minime" }),
+        row({ id: "mine", builtin_key: "minime", owner_user_id: "me" }),
+      ],
+      "me",
+    )[1];
+    expect(saveTarget(both, true, "me")).toEqual({
+      kind: "update",
+      rowId: "org",
+    });
+    expect(saveTarget(both, false, "me")).toEqual({
+      kind: "update",
+      rowId: "mine",
+    });
+  });
+
+  it("edits a shared creation in place, never as a personal copy", () => {
+    const shared = mergePersonas([row({ id: "shared" })], "me")[3];
+    expect(saveTarget(shared, false, "me")).toEqual({
+      kind: "update",
+      rowId: "shared",
+    });
+  });
+
   it("creates a new character for the user by default", () => {
     expect(saveTarget(null, false, "me")).toEqual({
       kind: "insert",
       builtinKey: null,
       ownerUserId: "me",
     });
+  });
+});
+
+describe("canEditPersona", () => {
+  it("lets a member edit built-ins and their own, and only owners the org's creations", () => {
+    const [carmen, , , shared, mine] = mergePersonas(
+      [row({ id: "shared" }), row({ id: "own", owner_user_id: "me" })],
+      "me",
+    );
+    expect(canEditPersona(carmen, "me", false)).toBe(true);
+    expect(canEditPersona(mine, "me", false)).toBe(true);
+    expect(canEditPersona(shared, "me", false)).toBe(false);
+    expect(canEditPersona(shared, "me", true)).toBe(true);
   });
 });
 
