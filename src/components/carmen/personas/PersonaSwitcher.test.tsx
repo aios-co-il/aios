@@ -136,4 +136,14 @@ describe("PersonaSwitcher", () => {
       expect.anything(),
     );
   });
+
+  it("refuses a greeting as a call word and blocks the save", async () => {
+    const user = userEvent.setup();
+    render(<PersonaSwitcher />);
+    await user.click(screen.getByRole("button", { name: /דמות חדשה/ }));
+    await user.type(screen.getByLabelText(/^שם/), "שלי");
+    await user.type(screen.getByLabelText(/מילות הפעלה/), "היי");
+    expect(screen.getByText(/מילה נפוצה מדי/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "שמירה" })).toBeDisabled();
+  });
 });

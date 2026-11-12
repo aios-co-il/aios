@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -66,5 +67,34 @@ export function SaveScope({
     <p className="text-sm text-muted-foreground">
       השינויים נשמרים כגרסה שלך בלבד. כרמן הראשית של הארגון לא משתנה.
     </p>
+  );
+}
+
+/** The call words input, with the reason a word is refused. */
+export function CallWordsField({
+  value,
+  error,
+  onChange,
+}: {
+  value: string;
+  error: string | null;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field id="persona-call-words" label="מילות הפעלה (מופרדות בפסיק)">
+      <Input
+        id="persona-call-words"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="לדוגמה: מיני מי, מיני"
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? "persona-call-words-error" : undefined}
+      />
+      {error && (
+        <p id="persona-call-words-error" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </Field>
   );
 }

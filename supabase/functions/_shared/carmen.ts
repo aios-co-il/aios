@@ -332,11 +332,29 @@ async function loadPersonaTrigger(
 function messageHasTrigger(
   normalizedMsg: string,
   triggerKeywords: string[],
+  persona?: PersonaTrigger,
 ): boolean {
   const msgContent = normalizedMsg.replace(/^\s*🎤\s*/, "").trim();
   const prefix = msgContent.slice(0, 80);
-  if (triggerKeywords.some((k) => prefix.includes(k))) return true;
+  if (triggerKeywords.some((k) => keywordInPrefix(prefix, k, persona))) {
+    return true;
+  }
   return CARMEN_NAME_VARIANT_RE.test(prefix);
+}
+
+// An automation's own keyword matches anywhere in the prefix, as before. A
+// character's call word must stand as a whole word, so "מיני" never matches
+// inside "מינימום" (AIO-576).
+function keywordInPrefix(
+  prefix: string,
+  keyword: string,
+  persona?: PersonaTrigger,
+): boolean {
+  if (!persona?.words.includes(keyword)) {
+    return prefix.includes(keyword);
+  }
+  const literal = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`${HB}${literal}${HE}`, "u").test(prefix);
 }
 
 // Hebrew-safe boundary (JS \b is ASCII-only and breaks on Hebrew).
@@ -972,7 +990,8 @@ export async function findCarmenSessionAutomation(
   const stepKeywordHit = (cfg: CarmenAutomationConfig): boolean => {
     if (!msgPrefix) return false;
     const kws = resolveTriggerKeywords(cfg, ctx?.personaTrigger);
-    if (kws.some((k) => msgPrefix.includes(k))) return true;
+    if (kws.some((k) => keywordInPrefix(msgPrefix, k, ctx?.personaTrigger)))
+      return true;
     // The generic Carmen-name variants only count for default/Carmen automations.
     const hasCarmenDefault = kws.some((k) => /[כק]א?רמן/.test(k));
     return hasCarmenDefault && /[כק]א?רמן/.test(msgPrefix);
@@ -1956,6 +1975,7 @@ export async function handleCarmenMessage(
       hasTrigger: messageHasTrigger(
         normalizedMsg,
         resolveTriggerKeywords(cfg, personaTrigger),
+        personaTrigger,
       ),
       pinnedIntegrationId: cfg.carmen_integration_id ?? null,
       integrationId,
@@ -2135,7 +2155,7 @@ export async function handleCarmenMessage(
       earlyAutomation.configuration || {},
       personaTrigger,
     );
-    if (messageHasTrigger(normalizedMsg, switchKeywords)) {
+    if (messageHasTrigger(normalizedMsg, switchKeywords, personaTrigger)) {
       console.log(
         "[carmen] Agent switch: ending session for incoming keyword",
         {
@@ -2681,7 +2701,7 @@ export async function handleCarmenMessage(
   const endKeywordConfig = endKeywordValue
     ? String(endKeywordValue)
     : "סיימנו כרמן";
-  if (!messageHasTrigger(normalizedMsg, triggerKeywords))
+  if (!messageHasTrigger(normalizedMsg, triggerKeywords, personaTrigger))
     return { handled: false, reason: "no_keyword" };
 
   // Resolve agent

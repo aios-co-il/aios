@@ -784,6 +784,62 @@ Deno.test(
     );
 
     await t.step(
+      "a call word matches only as a whole word on the owner's line",
+      async () => {
+        const turn = ownLineTurn(ownerPicksMiniMe);
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage({ ...turn, messageText: "מיני מיםםם זה לא שם" }),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
+
+    await t.step(
+      "a greeting saved as a call word never wakes the line",
+      async () => {
+        const pick = [
+          { tenant_id: TENANT, user_id: "user-1", persona_key: "row-greeting" },
+        ];
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            carmen_persona_choices: pick,
+            carmen_personas: [
+              {
+                id: "row-greeting",
+                tenant_id: TENANT,
+                owner_user_id: "user-1",
+                builtin_key: null,
+                display_name: "שלי",
+                call_words: ["היי"],
+                intro_line: null,
+                look: "orbs",
+                mood: null,
+                personality: null,
+                soul: null,
+                writing_style: null,
+              },
+            ],
+          },
+        );
+        const { result } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn(pick),
+            supabase,
+            messageText: "היי, מה נשמע?",
+          }),
+        );
+        assertEquals(result, {
+          handled: false,
+          reason: "secondary_no_trigger",
+        });
+      },
+    );
+
+    await t.step(
       "a colleague's pick does not wake the owner's line",
       async () => {
         const { result } = await capturingSends(() =>

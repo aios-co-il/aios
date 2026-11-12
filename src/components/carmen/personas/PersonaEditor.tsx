@@ -2,9 +2,13 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Field, SaveScope } from "./PersonaFields";
+import { CallWordsField, Field, SaveScope } from "./PersonaFields";
 import { PersonaToneFields } from "./PersonaToneFields";
-import { deleteLabel, initialDraft } from "./personaDraft";
+import {
+  deleteLabel,
+  firstCallWordProblem,
+  initialDraft,
+} from "./personaDraft";
 import {
   type CarmenPersona,
   type PersonaDraft,
@@ -46,7 +50,9 @@ export function PersonaEditor({
   function update(patch: Partial<PersonaDraft>) {
     setDraft((current) => ({ ...current, ...patch }));
   }
-  const canSave = draft.displayName.trim().length > 0 && !busy;
+  const callWordError = firstCallWordProblem(parseCallWords(callWords));
+  const canSave =
+    draft.displayName.trim().length > 0 && !callWordError && !busy;
 
   return (
     <form
@@ -75,14 +81,11 @@ export function PersonaEditor({
             onChange={(event) => update({ displayName: event.target.value })}
           />
         </Field>
-        <Field id="persona-call-words" label="מילות הפעלה (מופרדות בפסיק)">
-          <Input
-            id="persona-call-words"
-            value={callWords}
-            onChange={(event) => setCallWords(event.target.value)}
-            placeholder="לדוגמה: מיני מי, מיני"
-          />
-        </Field>
+        <CallWordsField
+          value={callWords}
+          error={callWordError}
+          onChange={setCallWords}
+        />
       </div>
       <Field id="persona-intro" label="איך היא מציגה את עצמה">
         <Input

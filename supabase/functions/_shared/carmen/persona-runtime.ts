@@ -5,6 +5,7 @@ import {
   type PersonaRowFields,
   isBuiltinPersonaKey,
   personaFromRow,
+  usableCallWords,
 } from "./personas.ts";
 
 type Db = Pick<DbClient, "from">;
@@ -51,7 +52,8 @@ export async function loadCallWords(
   userId: string | null,
 ): Promise<Array<string>> {
   const persona = await loadCallerPersona(db, tenantId, userId);
-  const words = (persona?.callWords ?? []).map((word) =>
+  // Words saved before validation existed (or written around the app) are checked again here.
+  const words = usableCallWords(persona?.callWords ?? []).map((word) =>
     word.trim().toLowerCase(),
   );
   return [...new Set(words)].filter(Boolean);
