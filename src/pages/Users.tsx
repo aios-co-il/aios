@@ -323,6 +323,11 @@ export default function Users() {
     : (ownerTenants || []).map((t: any) => ({ id: t.id, name: t.name }));
 
   const showMultiTenantInvite = inviteTenantOptions.length > 1 || isSuperAdmin;
+  // Clients can be assigned only in the current organization: the invite
+  // sends clientIds to that tenant alone, so hide the picker when it is unselected.
+  const invitesCurrentTenant =
+    !showMultiTenantInvite ||
+    (!!tenantId && selectedInviteTenantIds.includes(tenantId));
 
   useEffect(() => {
     if (isInviteDialogOpen && tenantId) {
@@ -1458,7 +1463,7 @@ export default function Users() {
                       </p>
                     )}
                   </div>
-                  {inviteRole === "campaigner" && (
+                  {inviteRole === "campaigner" && invitesCurrentTenant && (
                     <div className="md:col-span-2">
                       <InviteClientsPicker
                         tenantId={tenantId}
@@ -1508,7 +1513,9 @@ export default function Users() {
                       role: inviteRole,
                       agencyIds: selectedAgencies,
                       clientIds:
-                        inviteRole === "campaigner" ? selectedClientIds : [],
+                        inviteRole === "campaigner" && invitesCurrentTenant
+                          ? selectedClientIds
+                          : [],
                       modulePermissions: selectedModules,
                       campaignerId: selectedCampaignerId || undefined,
                       salesPersonId: selectedSalesPersonId || undefined,

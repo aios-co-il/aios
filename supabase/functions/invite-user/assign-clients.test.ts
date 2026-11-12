@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
   assignInvitedClients,
   type ClientAssignmentStore,
@@ -8,9 +8,12 @@ import {
 function fakeStore(
   clientsByTenant: Record<string, Array<string>>,
   team: Array<{ client_id: string; campaigner_id: string }>,
+  cardsByTenant: Record<string, Array<string>> = { t1: ["card"] },
 ): ClientAssignmentStore & { team: typeof team } {
   return {
     team,
+    campaignerInTenant: (tenantId, campaignerId) =>
+      Promise.resolve((cardsByTenant[tenantId] ?? []).includes(campaignerId)),
     tenantClientIds: (tenantId, ids) =>
       Promise.resolve(
         ids.filter((id) => (clientsByTenant[tenantId] ?? []).includes(id)),
@@ -94,3 +97,22 @@ Deno.test("does nothing without a campaigner card", async () => {
   assertEquals(result.assigned, []);
   assertEquals(store.team, []);
 });
+
+Deno.test(
+  "rejects a campaigner card from another tenant before writing",
+  async () => {
+    const store = fakeStore({ t1: ["c1"] }, [], { t2: ["foreign-card"] });
+
+    await assertRejects(
+      () =>
+        assignInvitedClients(store, {
+          tenantId: "t1",
+          campaignerId: "foreign-card",
+          clientIds: ["c1"],
+        }),
+      Error,
+      "Campaigner is not in this organization",
+    );
+    assertEquals(store.team, []);
+  },
+);

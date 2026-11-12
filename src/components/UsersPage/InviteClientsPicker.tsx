@@ -7,7 +7,8 @@ import { useInviteClientOptions } from "./useInviteClientOptions";
 /**
  * Picks the clients a new campaigner works on. The invite puts the
  * campaigner's team card on each one, which is what lets them see it.
- * When agencies are chosen, only those agencies' clients are listed.
+ * When agencies are chosen, only those agencies' clients are listed, plus
+ * any client already checked, so nothing selected is ever hidden.
  */
 export function InviteClientsPicker({
   tenantId,
@@ -30,9 +31,10 @@ export function InviteClientsPicker({
   const term = search.trim().toLowerCase();
   const visible = clients.filter(
     (client) =>
-      (agencyIds.length === 0 ||
+      value.includes(client.id) ||
+      ((agencyIds.length === 0 ||
         (client.agency_id !== null && agencyIds.includes(client.agency_id))) &&
-      (!term || client.name.toLowerCase().includes(term)),
+        (!term || client.name.toLowerCase().includes(term))),
   );
 
   function toggle(clientId: string, checked: boolean) {
