@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useContinentsReportView } from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
-import { TableContinentsView } from "@/components/dynamic-tables/CampaignContinents/TableContinentsView";
 import { previousReportRecords } from "@/components/reports/PreviousPeriod/previousReportRecords";
 import {
   type AdsEntityLevel,
@@ -9,12 +8,16 @@ import {
 import type { SharedTableInfo, SharedTablePayload } from "./publicTableApi";
 import { SharedAdsSummary } from "./SharedAdsSummary";
 import { SharedAnalyticsDaily } from "./SharedAnalyticsDaily";
+import {
+  PreviousPeriodFailed,
+  SharedAdsOtherView,
+  SharedReportFooter,
+} from "./SharedDataReportParts";
 import { makeFormatCurrency } from "./sharedFormat";
 import { SharedGenericTable } from "./SharedGenericTable";
 import { isAdsPlatform, isAnalyticsPlatform } from "./sharedIntegrationReport";
 import { SharedKpiCards } from "./SharedKpiCards";
 import { SharedReportHeader } from "./SharedReportHeader";
-import { SharedWeeklyView } from "./SharedWeeklyView";
 import { useSharedKpiSummary } from "./useSharedKpiSummary";
 import { useSharedPreviousPeriod } from "./useSharedPreviousPeriod";
 import type { SharedDateSelection } from "./useSharedTableData";
@@ -27,6 +30,8 @@ type Props = {
   onDatesChange: (dates: SharedDateSelection) => void;
   /** The period's records have loaded (not refetching another window). */
   ready: boolean;
+  /** The send capture's summary: no controls and no other views. */
+  summaryOnly: boolean;
 };
 
 /**
@@ -40,6 +45,7 @@ export function SharedDataReport({
   dates,
   onDatesChange,
   ready,
+  summaryOnly,
 }: Props) {
   const integrationType = table.integration_type || "";
   const isAds = isAdsPlatform(integrationType);
@@ -58,11 +64,12 @@ export function SharedDataReport({
     records: allRecords,
     ready,
   });
-  const showSummary = !isAds || views.view === "summary";
+  const showViews = isAds && !summaryOnly;
+  const showSummary = !showViews || views.view === "summary";
   const previousPeriod = useSharedPreviousPeriod(
     shareToken,
     dates,
-    comparePrevious && isAds && showSummary,
+    comparePrevious && showViews && showSummary,
   );
   // Both windows must be loaded before they are compared.
   const previousRecords =
@@ -78,14 +85,17 @@ export function SharedDataReport({
   );
 
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div
+      className="min-h-screen bg-background"
+      dir="rtl"
+      data-snapshot-ready={ready ? "true" : "false"}
+    >
       <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         <SharedReportHeader
           table={table}
-          dates={dates}
-          onDatesChange={onDatesChange}
+          dates={summaryOnly ? null : { value: dates, onChange: onDatesChange }}
           views={
-            isAds
+            showViews
               ? {
                   value: views.view,
                   onChange: views.setView,
@@ -94,7 +104,7 @@ export function SharedDataReport({
               : null
           }
           comparison={
-            isAds && showSummary
+            showViews && showSummary
               ? {
                   on: comparePrevious,
                   onChange: setComparePrevious,
@@ -103,19 +113,14 @@ export function SharedDataReport({
               : null
           }
         />
-        {previousPeriod.failed && (
-          <p className="text-sm text-destructive">
-            לא ניתן לטעון את התקופה הקודמת.
-          </p>
-        )}
-        {isAds && views.hasContinentsTab && views.view === "continents" && (
-          <TableContinentsView records={allRecords} table={table} />
-        )}
-        {isAdsPlatform(integrationType) && views.view === "weekly" && (
-          <SharedWeeklyView
+        {previousPeriod.failed && <PreviousPeriodFailed />}
+        {showViews && (
+          <SharedAdsOtherView
+            view={views.view}
+            hasContinents={views.hasContinentsTab}
             shareToken={shareToken}
             table={table}
-            source={integrationType}
+            records={allRecords}
           />
         )}
         {showSummary && (isAds || isAnalytics) && kpis.summary && (
@@ -137,6 +142,7 @@ export function SharedDataReport({
             previousRecords={previousRecords}
             level={level}
             onLevelChange={setLevel}
+            summaryOnly={summaryOnly}
           />
         )}
         {isAnalytics && levelRecords.length > 0 && (
@@ -148,10 +154,8 @@ export function SharedDataReport({
         {!isAds && !isAnalytics && (
           <SharedGenericTable fields={data.fields} records={levelRecords} />
         )}
-        <p className="text-center text-xs text-muted-foreground">
-          {levelRecords.length} שורות • {table.name} • Powered by{" "}
-          {table.agency_name || "Marketing Captain"}
-        </p>
+        {summaryOnly && <div data-snapshot-end="true" aria-hidden="true" />}
+        <SharedReportFooter rows={levelRecords.length} table={table} />
       </div>
     </div>
   );

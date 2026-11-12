@@ -12,8 +12,11 @@ import type { useSharedPreviousPeriod } from "./useSharedPreviousPeriod";
 
 type Props = {
   table: SharedTableInfo;
-  dates: SharedDateSelection;
-  onDatesChange: (dates: SharedDateSelection) => void;
+  /** The window picker; null in the send capture, which shows no controls. */
+  dates: {
+    value: SharedDateSelection;
+    onChange: (dates: SharedDateSelection) => void;
+  } | null;
   /** The ads report's views; null for other tables. */
   views: {
     value: AdsReportView;
@@ -33,13 +36,7 @@ type Props = {
  * its agency, then the views with the dates and the comparison. A share shows
  * no internal actions and no sync status.
  */
-export function SharedReportHeader({
-  table,
-  dates,
-  onDatesChange,
-  views,
-  comparison,
-}: Props) {
+export function SharedReportHeader({ table, dates, views, comparison }: Props) {
   return (
     <ReportHeader
       title={table.name}
@@ -47,17 +44,21 @@ export function SharedReportHeader({
       meta={table.agency_name ? <span>{table.agency_name}</span> : undefined}
       tabs={views && <ViewTabs views={views} />}
       controls={
-        <>
-          <SharedDateFilter value={dates} onChange={onDatesChange} />
-          {comparison && (
-            <PreviousPeriodToggle
-              on={comparison.on}
-              onChange={comparison.onChange}
-              range={comparison.period.range}
-              loading={comparison.period.isPending}
-            />
-          )}
-        </>
+        (dates || comparison) && (
+          <>
+            {dates && (
+              <SharedDateFilter value={dates.value} onChange={dates.onChange} />
+            )}
+            {comparison && (
+              <PreviousPeriodToggle
+                on={comparison.on}
+                onChange={comparison.onChange}
+                range={comparison.period.range}
+                loading={comparison.period.isPending}
+              />
+            )}
+          </>
+        )
       }
     />
   );
