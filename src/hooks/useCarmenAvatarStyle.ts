@@ -10,17 +10,17 @@ import { useCurrentTenant } from "./useCurrentTenant";
 import { useOptionalTenant } from "@/contexts/TenantContext";
 
 /**
- * How Carmen is drawn: the Mini Me (default), glass orbs, or the
+ * How Carmen is drawn: glass orbs (default), the Mini Me, or the
  * illustrated character.
  */
 export type CarmenAvatarStyle = "minime" | "orbs" | "character";
 
 export const CARMEN_AVATAR_STYLES: Array<CarmenAvatarStyle> = [
-  "minime",
   "orbs",
+  "minime",
   "character",
 ];
-const DEFAULT_STYLE: CarmenAvatarStyle = "minime";
+const DEFAULT_STYLE: CarmenAvatarStyle = "orbs";
 const SETTING_KEY = "carmen_avatar_style";
 
 /** The organization's Carmen avatar style, and a way to change it. */

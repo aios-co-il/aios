@@ -9,8 +9,8 @@ describe("parseStyle", () => {
   });
 
   test("falls back to the Mini Me when nothing valid is stored", () => {
-    expect(parseStyle(null)).toBe("minime");
-    expect(parseStyle({ style: "hologram" })).toBe("minime");
-    expect(parseStyle("character")).toBe("minime");
+    expect(parseStyle(null)).toBe("orbs");
+    expect(parseStyle({ style: "hologram" })).toBe("orbs");
+    expect(parseStyle("character")).toBe("orbs");
   });
 });
