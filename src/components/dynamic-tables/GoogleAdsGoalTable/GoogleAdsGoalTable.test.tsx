@@ -148,4 +148,22 @@ describe("Google Ads report table per goal", () => {
     const region = screen.getByRole("region", { name: "קמפייני מכירות" });
     expect(headers(region)).not.toContain("לידים");
   });
+
+  it("shows each campaign's on/off switch, as the dashboards do", () => {
+    render(
+      <GoogleAdsGoalTable
+        goal="leads"
+        rows={[row("On", 300, 6, 6), { ...row("Off", 100, 4, 4), off: true }]}
+        entityColumnLabel="קמפיין"
+        currency="₪"
+      />,
+    );
+    const region = screen.getByRole("region", { name: "קמפייני לידים" });
+    const switchOf = (name: string) =>
+      within(within(region).getByText(name).closest("tr") as HTMLElement)
+        .getByRole("img")
+        .getAttribute("aria-label");
+    expect(switchOf("On")).toBe("פעיל");
+    expect(switchOf("Off")).toBe("כבוי");
+  });
 });

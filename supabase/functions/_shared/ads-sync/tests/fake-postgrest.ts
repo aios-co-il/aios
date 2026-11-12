@@ -1,7 +1,8 @@
 /**
  * Minimal in-memory stand-in for the supabase-js query builder, for Deno tests.
  * Supports the calls the ads sync helpers make: select/insert/update/delete,
- * eq/in/gte/lte/or (with nested and()/or() and `data->>key` columns), order,
+ * eq/in/gte/lte/or (with nested and()/or(), `not.` terms, wildcard-free
+ * `ilike` and `data->>key` columns), order,
  * range and maybeSingle. Filters are evaluated like PostgREST does on text.
  */
 import type { RecordsClient } from "../campaign-records.ts";
@@ -244,7 +245,17 @@ function condition(term: string): Predicate {
       return value === "null" ? actual === null : false;
     }
     if (actual === null) {
+      // SQL: a comparison with null, negated or not, is not true.
       return false;
+    }
+    if (op === "not") {
+      return !condition(`${column}.${value}`)(row);
+    }
+    if (op === "ilike") {
+      if (/[*%_]/.test(value)) {
+        throw new Error(`fake-postgrest: ilike patterns unsupported: ${value}`);
+      }
+      return actual.toLowerCase() === value.toLowerCase();
     }
     if (op === "eq") {
       return actual === value;

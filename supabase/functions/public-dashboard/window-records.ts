@@ -1,3 +1,4 @@
+import { withDashboardCampaignRows } from "../_shared/ads-sync/dashboard-rows.ts";
 import type { SharedRecordRow } from "./event-totals.ts";
 
 /**
@@ -5,12 +6,13 @@ import type { SharedRecordRow } from "./event-totals.ts";
  * filtered in the query, by the record's own day (`data->>date`, else
  * `data->>date_start`), so a cap never drops a window's oldest days the way
  * reading the newest rows and filtering afterwards did. Undated rows (GA
- * channel roll-ups and the like) always come along.
+ * channel roll-ups and the like) always come along. A Meta table reads the
+ * rows its dashboards sum only (`campaignRowsOnly`, dashboard-rows.ts).
  */
 
-/** Reads one page of a table's rows, filtered by `dateFilter` when set. */
+/** Reads one page of a table's rows, filtered by the `or` terms when set. */
 export type LoadWindowPage = (
-  dateFilter: string | null,
+  filter: string | null,
   from: number,
   to: number,
 ) => PromiseLike<{
@@ -72,10 +74,14 @@ export async function fetchWindowRecords(
     tableId: string;
     startDate: string | null;
     endDate: string | null;
+    campaignRowsOnly?: boolean;
   },
 ): Promise<Array<SharedRecordRow>> {
-  const filter = recordWindowFilter(scope.startDate, scope.endDate);
-  const maxRows = filter ? MAX_WINDOW_ROWS : MAX_UNBOUNDED_ROWS;
+  const windowFilter = recordWindowFilter(scope.startDate, scope.endDate);
+  const filter = scope.campaignRowsOnly
+    ? withDashboardCampaignRows(windowFilter)
+    : windowFilter;
+  const maxRows = windowFilter ? MAX_WINDOW_ROWS : MAX_UNBOUNDED_ROWS;
   const rows: Array<SharedRecordRow> = [];
   for (let from = 0; from < maxRows; from += PAGE_SIZE) {
     const { data, error } = await loadPage(filter, from, from + PAGE_SIZE - 1);

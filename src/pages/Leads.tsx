@@ -95,6 +95,10 @@ import {
   LeadTagSelector,
   LeadTagBadges,
 } from "@/components/leads/LeadTagSelector";
+import {
+  patchLeadInListCaches,
+  restoreLeadListCaches,
+} from "@/components/LeadsPage/patchLeadInListCaches";
 import { FollowUpDatePicker } from "@/components/leads/FollowUpDatePicker";
 import { LeadNotesCell } from "@/components/leads/LeadNotesCell";
 import { LeadRecordingCell } from "@/components/leads/LeadRecordingCell";
@@ -4149,18 +4153,30 @@ function TableWithStickyScroll({
         });
       }
     },
+    onMutate: async ({ leadId, responseStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ["leads-table"] });
+      await queryClient.cancelQueries({ queryKey: ["leads-kanban"] });
+      return patchLeadInListCaches(queryClient, leadId, {
+        response_status: responseStatus,
+      });
+    },
     onSuccess: () => {
+      toast({
+        title: "סטטוס תגובה עודכן בהצלחה",
+      });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
       queryClient.invalidateQueries({
         queryKey: ["leads-stage-counts", tenantId],
       });
       queryClient.invalidateQueries({ queryKey: ["leads-table", tenantId] });
       queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
-      toast({
-        title: "סטטוס תגובה עודכן בהצלחה",
-      });
     },
-    onError: (error: any) => {
+    onError: (error: Error, _variables, snapshot) => {
+      if (snapshot) {
+        restoreLeadListCaches(queryClient, snapshot);
+      }
       toast({
         title: "שגיאה בעדכון סטטוס תגובה",
         description: error.message,

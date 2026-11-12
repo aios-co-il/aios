@@ -20,7 +20,7 @@ import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 export type DashboardAdsRecord = {
   _source?: string;
   _tableId?: string;
-  /** The share link sends each record's public table settings too. */
+  /** Share links fill each record with its public table settings (attachTableSettings). */
   _integrationSettings?: Record<string, unknown> | null;
   data?: (GoogleAdsRowData & Record<string, unknown>) | null;
 };

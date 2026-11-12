@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import { ReportNameCell } from "@/components/report-ui/ReportTable";
 import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
@@ -65,10 +65,11 @@ export function FacebookLeadsTable({
                 key={`lead-${groupKey}`}
                 className="border-b hover:bg-muted/30"
               >
-                <td className="p-2 text-right font-medium">
-                  <CampaignOffBadge off={campaign.off} />
-                  {campaign.name}
-                </td>
+                <ReportNameCell
+                  name={campaign.name}
+                  on={!campaign.off}
+                  className="p-2 text-right"
+                />
                 <LeadCells
                   campaigns={[campaign]}
                   previous={previousRowsOf(previous, groupKey)}

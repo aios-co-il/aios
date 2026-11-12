@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
+  pendingSince,
+  waitForRecordingSummary,
+} from "@/lib/waitForRecordingSummary";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -89,6 +93,8 @@ export default function SummarizeRecordingDialog({
       "",
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  /** Increments per summary request and on close; a stale wait ignores its result. */
+  const generateRequestRef = useRef(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const [transcribeProgress, setTranscribeProgress] = useState<{
@@ -449,8 +455,10 @@ export default function SummarizeRecordingDialog({
 
     setIsGenerating(true);
     setResult(null);
+    const request = ++generateRequestRef.current;
 
     try {
+      const requestedAt = new Date();
       const { data, error } = await supabase.functions.invoke(
         "summarize-recording",
         {
@@ -468,6 +476,38 @@ export default function SummarizeRecordingDialog({
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (data?.pending && data.channel === "model" && recording?.id) {
+        // Long summaries are written in the background (AIO-581).
+        const saved = await waitForRecordingSummary(
+          recording.id,
+          pendingSince(data, requestedAt),
+        );
+        queryClient.invalidateQueries({
+          queryKey: ["recordings", currentTenantId],
+        });
+        // Closing the dialog hands the wait to the background; a reopened
+        // dialog must not receive this request's result.
+        if (request !== generateRequestRef.current) {
+          return;
+        }
+        if (!saved) {
+          toast({
+            title: "הסיכום עדיין נכתב",
+            description: "הוא יופיע על ההקלטה בעוד כמה דקות",
+          });
+          return;
+        }
+        setResult({
+          summary: saved.summary,
+          file_url: saved.fileUrl ?? "",
+          file_name: "סיכום פגישה.docx",
+        });
+        toast({
+          title: "הסיכום נוצר בהצלחה!",
+          description: "הקובץ נשמר ושויך",
+        });
+        return;
+      }
       if (data?.pending) {
         queryClient.invalidateQueries({
           queryKey: ["recordings", currentTenantId],
@@ -496,7 +536,9 @@ export default function SummarizeRecordingDialog({
         variant: "destructive",
       });
     } finally {
-      setIsGenerating(false);
+      if (request === generateRequestRef.current) {
+        setIsGenerating(false);
+      }
     }
   };
 
@@ -515,8 +557,10 @@ export default function SummarizeRecordingDialog({
       pollingRef.current = null;
     }
 
+    generateRequestRef.current++;
     onOpenChange(false);
     setTimeout(() => {
+      setIsGenerating(false);
       setTranscript("");
       setCustomFocus("");
       setResult(null);
