@@ -31,8 +31,10 @@ Deno.test(
       tableIds: ["t1", "t2"],
       sinceYmd: "2026-09-21",
     });
+
     assertStrictEquals(rows.length, expected);
     assertStrictEquals(new Set(rows.map((row) => row.id)).size, expected);
+
     const reads = db.calls.filter((call) => call.op === "select");
     const pages = Math.floor(expected / 1000) + 1;
     assertEquals(
@@ -79,6 +81,7 @@ Deno.test(
     assert(expected > 1000, `fixture has ${expected} rows in t1`);
 
     const rows = await fetchTableRecords(recordsClient(db), "t1");
+
     assertStrictEquals(rows.length, expected);
     assertStrictEquals(new Set(rows.map((row) => row.id)).size, expected);
     assertEquals(
@@ -105,6 +108,7 @@ Deno.test(
     });
 
     const rows = await fetchTableRecords(recordsClient(db), "t1");
+
     assertEquals(rows, [
       { id: "r1", table_id: "t1", data: { date: "2026-10-20", spend: 3 } },
       { id: "r2", table_id: "t1", data: null },

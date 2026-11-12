@@ -15,10 +15,12 @@ export function pulseTableLines(
     // no_data = no campaign report table connected. Stale sync is warning, not no_data.
     no_data: "🟡 אין טבלת קמפיין מחוברת",
   };
+
   /** Retains the pulse table's fmtNumber rendering. */
   function fmtNumber(value: unknown) {
     return value === null || value === undefined ? "—" : String(value);
   }
+
   /** Retains the pulse table's fmtDate rendering. */
   function fmtDate(value: string | null | undefined) {
     return value
@@ -30,12 +32,14 @@ export function pulseTableLines(
         })
       : "—";
   }
+
   /** Retains the pulse table's escapeCell rendering. */
   function escapeCell(value: unknown) {
     return String(value ?? "—")
       .replace(/\|/g, "\\|")
       .replace(/\n/g, " ");
   }
+
   return [
     '| סוכנות | לקוח | יעד | סטטוס | הוצאה 7 ימים | לידים/רכישות | CPL/ROAS | שינוי | שיחת לקוח אחרונה | תועדה ע"י | שינוי במטה | הערה |',
     "|---|---|---|---:|---:|---:|---:|---|---|---|---|",

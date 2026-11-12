@@ -2,6 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing/bdd";
 import { loadPulseCacheRows } from "./pulse-cache-rows.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
+
 describe("loadPulseCacheRows", () => {
   it("pulse optional-column fallbacks precede deduplication and assignment", async () => {
     function missing(column: string) {
@@ -10,6 +11,7 @@ describe("loadPulseCacheRows", () => {
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
+
     const fixture = executorClient(
       [
         missing("campaign_breakdown"),
@@ -41,16 +43,20 @@ describe("loadPulseCacheRows", () => {
       200,
       { callerCampaignerId: "staff" },
     );
+
     const rows = await loadPulseCacheRows({}, fixture.context);
+
     assertEquals(
       rows.map((row) => [row.client_id, row.client_name]),
       [["a", "Latest"]],
     );
+
     const queries = fixture.calls.map((call) => new URL(call.url));
     assertEquals(
       queries.slice(0, 3).map((url) => url.searchParams.get("tenant_id")),
       Array(3).fill("in.(t1,shared)"),
     );
+
     const columns = queries
       .slice(0, 3)
       .map((url) => url.searchParams.get("select") || "");
