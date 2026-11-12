@@ -1,24 +1,12 @@
 import { useMemo } from "react";
-import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
-import type { GoogleAdsCampaignSummary } from "@/components/dynamic-tables/GoogleAdsCampaignSection/types";
-import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
-import {
-  dashboardFacebookCampaigns,
-  dashboardRecordGoalOf,
-  type DashboardFacebookCampaigns,
-} from "@/lib/dashboardCampaignGoals";
 import type { DashboardReportTable } from "./dashboardReportInput";
+import {
+  isPlatformTab,
+  NO_PREVIOUS_TABS,
+  previousPlatformTabsOf,
+  type PreviousPlatformTabs,
+} from "./previousPlatformTabs";
 import { usePreviousDashboardRecords } from "./usePreviousReportPeriod";
-
-type PlatformTab = "facebook" | "google_ads";
-
-/** The previous period of the dashboard's Facebook or Google tab. */
-export type PreviousPlatformTabs = {
-  facebook: DashboardFacebookCampaigns | null;
-  google: GoogleAdsCampaignSummary | null;
-};
-
-const NONE: PreviousPlatformTabs = { facebook: null, google: null };
 
 /**
  * The open platform tab's campaigns in the period before the dashboard's
@@ -50,7 +38,7 @@ export function usePreviousPlatformTabs({
   });
   return useMemo(() => {
     if (!records || !platform) {
-      return NONE;
+      return NO_PREVIOUS_TABS;
     }
     // The previous rows carry only their table id; tag each with its
     // platform, as the dashboard tags the current ones.
@@ -61,29 +49,6 @@ export function usePreviousPlatformTabs({
       ...record,
       _source: typeOf.get(record._tableId ?? "") ?? "",
     }));
-    if (platform === "google_ads") {
-      return {
-        facebook: null,
-        google: summarizeGoogleAdsCampaigns(
-          tagged.filter((record) => record._source === "google_ads"),
-          [...tables],
-        ),
-      };
-    }
-    const campaignRows = tagged.filter((record) =>
-      shouldIncludeInAdsDashboardAggregate(record.data, record._source),
-    );
-    return {
-      facebook: dashboardFacebookCampaigns(
-        campaignRows,
-        dashboardRecordGoalOf(tagged, [...tables]),
-      ),
-      google: null,
-    };
+    return previousPlatformTabsOf(tagged, tables, platform);
   }, [records, platform, tables]);
-}
-
-/** Whether the tab is one whose tables compare by campaign here. */
-function isPlatformTab(tab: string): tab is PlatformTab {
-  return tab === "facebook" || tab === "google_ads";
 }
