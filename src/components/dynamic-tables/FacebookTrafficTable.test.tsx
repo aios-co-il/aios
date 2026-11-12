@@ -131,4 +131,19 @@ describe("FacebookTrafficTable", () => {
     expect(cells("Instagram")[6]).toBe("6");
     expect(cells("Blog")[6]).toBe("0");
   });
+
+  it("shows each campaign's on/off switch, as the dashboards do", () => {
+    renderTraffic([
+      day("Live", { spend: 10, effective_status: "ACTIVE" }),
+      day("Paused", { spend: 5, effective_status: "PAUSED" }),
+    ]);
+    const switchOf = (name: string) =>
+      screen
+        .getByText(name)
+        .closest("tr")
+        ?.querySelector('[role="img"]')
+        ?.getAttribute("aria-label");
+    expect(switchOf("Live")).toBe("פעיל");
+    expect(switchOf("Paused")).toBe("כבוי");
+  });
 });

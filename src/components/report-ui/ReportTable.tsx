@@ -86,15 +86,18 @@ export function ReportNameCell({
   name,
   mark,
   on,
+  className = "px-2 py-2.5",
 }: {
   name: string;
   /** A platform mark before the name. */
   mark?: ReactNode;
   /** The campaign's on/off state; leave out for rows that are not campaigns. */
   on?: boolean | null;
+  /** The cell's padding and alignment; the report page's tables pass their own. */
+  className?: string;
 }) {
   return (
-    <td className="max-w-[18rem] px-2 py-2.5 font-medium">
+    <td className={cn("max-w-[18rem] font-medium", className)}>
       <span className="flex items-center gap-2">
         {on !== undefined && <CampaignStatusSwitch on={on} compact />}
         {mark && <span className="shrink-0">{mark}</span>}
