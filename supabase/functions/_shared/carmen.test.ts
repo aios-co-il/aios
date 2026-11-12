@@ -4,6 +4,7 @@ import {
   assertRejects,
 } from "jsr:@std/assert@1";
 import {
+  groupMessageInvokesCarmen,
   handleCarmenMessage,
   findCarmenSessionAutomation,
   runCarmenAI,
@@ -724,5 +725,75 @@ Deno.test(
         Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", oldKey);
       }
     }
+  },
+);
+
+Deno.test(
+  "handleCarmenMessage answers a character's call word once a member picked it",
+  async (t) => {
+    /** "מיני מי, ..." from a LID author in an opted-in group, with the org's character picks. */
+    const miniMeTurn = (choices: Array<Row>) => {
+      const { ctx } = groupTurn(
+        tenantDb(
+          {
+            carmen_scope_mode: "specific_group",
+            carmen_allowed_group_ids: [GROUP_CHAT],
+          },
+          { carmen_persona_choices: choices },
+        ),
+        LID,
+      );
+      return { ...ctx, messageText: "מיני מי, מה המצב?" };
+    };
+
+    await t.step("ignores it while nobody picked the character", async () => {
+      const { result, posted } = await capturingSends(() =>
+        handleCarmenMessage(miniMeTurn([])),
+      );
+      assertEquals(result, { handled: false, reason: "group_not_addressed" });
+      assertEquals(posted, []);
+    });
+
+    await t.step("answers it once a member picked Mini Me", async () => {
+      const { result } = await capturingSends(() =>
+        handleCarmenMessage(
+          miniMeTurn([
+            { tenant_id: TENANT, user_id: "user-2", persona_key: "minime" },
+          ]),
+        ),
+      );
+      assertEquals(result.handled, true);
+    });
+  },
+);
+
+Deno.test(
+  "groupMessageInvokesCarmen reads a call word as Carmen's name",
+  async (t) => {
+    await t.step("wakes on a direct address by the call word", () => {
+      assertEquals(
+        groupMessageInvokesCarmen("מיני מי, מה המצב?", ["מיני מי"]),
+        true,
+      );
+      assertEquals(groupMessageInvokesCarmen("היי AIOS", ["aios"]), true);
+    });
+
+    await t.step(
+      "stays silent on the call word without it being picked",
+      () => {
+        assertEquals(groupMessageInvokesCarmen("מיני מי, מה המצב?"), false);
+      },
+    );
+
+    await t.step("stays silent when the group talks about it", () => {
+      assertEquals(
+        groupMessageInvokesCarmen("מיני מי שלחה את הדוח", ["מיני מי"]),
+        false,
+      );
+    });
+
+    await t.step("matches a call word with symbols literally", () => {
+      assertEquals(groupMessageInvokesCarmen("c++ תבדקי את זה", ["c++"]), true);
+    });
   },
 );
