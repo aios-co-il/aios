@@ -10,6 +10,7 @@ import {
   withFullEventTotals,
 } from "./event-totals.ts";
 import { parseRequestRange, wooWindowIso } from "./request-range.ts";
+import { readsCampaignRowsOnly, tagTableRecords } from "./table-records.ts";
 import { fetchWindowRecords } from "./window-records.ts";
 
 const corsHeaders = {
@@ -110,7 +111,8 @@ Deno.serve(async (req) => {
       : allTables;
 
     // Fetch each table's records in parallel, filtered to the window in the
-    // query (window-records.ts) so a cap never drops the window's oldest days.
+    // query (window-records.ts) so a cap never drops the window's oldest days,
+    // and for Meta tables to the rows the dashboards sum (table-records.ts).
     const fetchTableRecords = async (table: any) => {
       const isAnalytics = table.integration_type === "google_analytics";
       const tableRecords = await fetchWindowRecords(
@@ -127,7 +129,12 @@ Deno.serve(async (req) => {
             .order("id")
             .range(from, to);
         },
-        { tableId: table.id, startDate, endDate },
+        {
+          tableId: table.id,
+          startDate,
+          endDate,
+          campaignRowsOnly: readsCampaignRowsOnly(table),
+        },
       );
 
       // The site events tab sums the per-event rows, which can pass the cap
@@ -148,14 +155,7 @@ Deno.serve(async (req) => {
           )
         : tableRecords;
 
-      const publicSettings = toPublicTableSettings(table.integration_settings);
-      return readRecords.map((r: any) => ({
-        ...r,
-        _source: table.integration_type,
-        _tableId: table.id,
-        _tableName: table.name,
-        _integrationSettings: publicSettings,
-      }));
+      return tagTableRecords(table, readRecords);
     };
 
     const allRecords = (

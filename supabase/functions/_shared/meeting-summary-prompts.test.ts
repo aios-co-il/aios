@@ -167,3 +167,12 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "summary prompt merges names, flags unsure fixes and keeps ideas",
+  () => {
+    assertMatch(MEETING_SUMMARY_SYSTEM_PROMPT, /אחד אותם לשם אחד/);
+    assertMatch(MEETING_SUMMARY_SYSTEM_PROMPT, /\(\?\)/);
+    assertMatch(MEETING_SUMMARY_SYSTEM_PROMPT, /## רעיונות והצעות שעלו/);
+  },
+);

@@ -1,6 +1,7 @@
 import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isAdsIntegrationType } from "@/lib/adsEntityLevel";
 import { getDashboardDateRange } from "@/lib/dashboardDateFilters";
 import { reportQueryOptions } from "@/lib/reportQueryOptions";
 import { reportRecordsQuery } from "@/lib/reportRecords";
@@ -126,6 +127,9 @@ async function fetchPeriodRecords(
 ): Promise<Array<DashboardReportRecord>> {
   const perTable = await Promise.all(
     tables.map(async (table) => {
+      // The previous period feeds buildReportPeriod and the platform tabs'
+      // campaign tables only, which sum campaign rows: an ads table's ad set
+      // and ad rows are skipped in the query.
       const rows = await fetchQuery(
         reportRecordsQuery(
           supabase,
@@ -133,6 +137,7 @@ async function fetchPeriodRecords(
           "custom",
           range.startDate,
           range.endDate,
+          isAdsIntegrationType(table.integration_type) ? "campaign" : undefined,
         ),
       );
       return rows.map((row) => ({ _tableId: table.id, data: row.data }));

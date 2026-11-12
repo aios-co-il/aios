@@ -70,6 +70,7 @@ import {
   finishExternalOpen,
   resolveExternalRecordingUrl,
 } from "@/lib/refreshRecordingPlayback";
+import { useMeetingFrame } from "./useMeetingFrame";
 
 export interface FeedRecording {
   id: string;
@@ -195,6 +196,7 @@ export function RecordingCard({
         ? { type: "agency", ids: [rec.agency_id] }
         : null;
 
+  const meetingFrameRef = useMeetingFrame(rec);
   const { data: thumbnailUrl } = useQuery({
     queryKey: ["recording-thumb", rec.thumbnail_path],
     queryFn: async () => {
@@ -317,6 +319,7 @@ export function RecordingCard({
       <Card className="overflow-hidden group hover:shadow-lg transition-all">
         {/* Thumbnail */}
         <button
+          ref={meetingFrameRef}
           type="button"
           className="relative block w-full aspect-video bg-muted focus:outline-none"
           onClick={handlePlayClick}

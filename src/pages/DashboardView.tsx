@@ -14,6 +14,7 @@ import { FacebookReportTab } from "@/components/FacebookReportTab/FacebookReport
 import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { reportRecordsQuery } from "@/lib/reportRecords";
+import { CAMPAIGN_ROWS_ONLY_TYPES } from "@functions/_shared/ads-sync/dashboard-rows.ts";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -471,8 +472,19 @@ export default function DashboardView() {
         );
         const results = await Promise.all(
           adsTables.map(async (table: any) => {
+            // Meta's ad set and ad rows are skipped in the query; the
+            // comparison sums campaign rows (CAMPAIGN_ROWS_ONLY_TYPES).
             const records = await queryClient.fetchQuery({
-              ...reportRecordsQuery(supabase, table.id, "last_365_days"),
+              ...reportRecordsQuery(
+                supabase,
+                table.id,
+                "last_365_days",
+                null,
+                null,
+                CAMPAIGN_ROWS_ONLY_TYPES.includes(table.integration_type)
+                  ? "campaign"
+                  : undefined,
+              ),
             });
             return records.map((record) => ({
               ...record,

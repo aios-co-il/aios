@@ -12,6 +12,7 @@ import {
   tenantSummaryKey,
 } from "./meeting-summary-openrouter.ts";
 import { applyMeetingDetailsFromSummary } from "./meeting-details/apply.ts";
+import { compactTranscript } from "./meeting-summary/compact-transcript.ts";
 
 export class AiHttpError extends Error {
   status: number;
@@ -83,6 +84,8 @@ export async function generateMeetingSummary(
   recordingInfo: string,
   focusPrompt: string,
 ): Promise<string> {
+  // Recall stores a word per line; rebuilt turns halve the tokens (AIO-582).
+  transcript = compactTranscript(transcript);
   if (keys.openRouterKey) {
     try {
       return await summarizeWithOpenRouter({

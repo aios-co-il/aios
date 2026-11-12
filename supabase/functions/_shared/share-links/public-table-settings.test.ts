@@ -211,7 +211,7 @@ function functionSource(name: string): Promise<string> {
 Deno.test(
   "share-link responses send table settings only through the allowlist",
   async () => {
-    const responseSites = { "public-table": 4, "public-dashboard": 2 };
+    const responseSites = { "public-table": 4, "public-dashboard": 1 };
     for (const [name, expected] of Object.entries(responseSites)) {
       const source = await functionSource(name);
       const filteredNames = new Set(

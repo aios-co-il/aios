@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { aggregateGscQueryRows } from "../_shared/gscPosition.ts";
+import { jsonDateFilter, recordsFilter } from "./records-filter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -158,20 +159,6 @@ function getDateRange(
   return { startDate, endDate };
 }
 
-/** Push date filtering into Postgres so report views don't scan full table history. */
-function applyJsonDateFilter(
-  query: any,
-  startDate: string,
-  endDate?: string | null,
-) {
-  if (endDate) {
-    return query.or(
-      `and(data->>date.gte.${startDate},data->>date.lte.${endDate}),data->>date.is.null`,
-    );
-  }
-  return query.or(`data->>date.gte.${startDate},data->>date.is.null`);
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -255,6 +242,8 @@ Deno.serve(async (req) => {
       const date_from = url.searchParams.get("date_from");
       const date_to = url.searchParams.get("date_to");
       const aggregated = url.searchParams.get("aggregated");
+      // `campaign`: an ads table's rows the dashboards sum only (records-filter.ts).
+      const level = url.searchParams.get("level");
 
       if (!table_id) {
         return new Response(JSON.stringify({ error: "table_id required" }), {
@@ -322,12 +311,9 @@ Deno.serve(async (req) => {
             .eq("tenant_id", effectiveTenantId)
             .range(from, from + pageSize - 1);
 
-          if (resolvedDateRange.startDate) {
-            pageQuery = applyJsonDateFilter(
-              pageQuery,
-              resolvedDateRange.startDate,
-              resolvedDateRange.endDate,
-            );
+          const dateFilter = jsonDateFilter(resolvedDateRange);
+          if (dateFilter) {
+            pageQuery = pageQuery.or(dateFilter);
           }
 
           const { data: page, error } = await pageQuery;
@@ -386,6 +372,10 @@ Deno.serve(async (req) => {
       const pageSize = 1000;
       const maxRows = 100000;
       const allRecords: any[] = [];
+      const rowsFilter = recordsFilter(resolvedDateRange, {
+        level,
+        integrationType: tableInfo.integration_type,
+      });
 
       for (let from = 0; from < maxRows; from += pageSize) {
         const to = from + pageSize - 1;
@@ -398,12 +388,8 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: false })
           .range(from, to);
 
-        if (resolvedDateRange.startDate) {
-          pageQuery = applyJsonDateFilter(
-            pageQuery,
-            resolvedDateRange.startDate,
-            resolvedDateRange.endDate,
-          );
+        if (rowsFilter) {
+          pageQuery = pageQuery.or(rowsFilter);
         }
 
         const { data: page, error } = await pageQuery;
