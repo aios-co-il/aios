@@ -51,7 +51,7 @@ export async function saveChoice(tenantId: string | null, key: string) {
  */
 export async function savePersona(
   tenantId: string | null,
-  userId: string | undefined,
+  userId: string | null,
   { persona, draft, audience }: SaveInput,
 ) {
   if (!tenantId || !userId) {

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { MiniMeGenderPicker } from "@/components/carmen/MiniMe/MiniMeGenderPicker";
 import { PersonaCard } from "./PersonaCard";
 import { PersonaEditor } from "./PersonaEditor";
+import { selectWithArrows } from "./radioArrowKeys";
 import { useCarmenPersonas } from "./useCarmenPersonas";
 
 const HEADING_ID = "carmen-persona-heading";
@@ -23,7 +24,7 @@ export function PersonaSwitcher({
   /** The org's character-image editor, shown while a character uses that look. */
   characterEditor?: ReactNode;
 }) {
-  const { personas, activeKey, choose, save, remove, busy } =
+  const { personas, loaded, activeKey, choose, save, remove, busy } =
     useCarmenPersonas();
   const [editing, setEditing] = useState<Editing>(null);
   const editingPersona =
@@ -31,6 +32,13 @@ export function PersonaSwitcher({
       ? (personas.find((persona) => persona.key === editing) ?? null)
       : null;
   const editingRowId = editingPersona?.rowId;
+  const keys = personas.map((persona) => persona.key);
+  const focusKey = activeKey && keys.includes(activeKey) ? activeKey : keys[0];
+  /** Closes the editor only if it still shows what the finished write was for. */
+  function closeIf(submitted: Editing) {
+    return () =>
+      setEditing((current) => (current === submitted ? null : current));
+  }
 
   return (
     <Card className="space-y-4 p-5">
@@ -52,6 +60,7 @@ export function PersonaSwitcher({
           type="button"
           variant="outline"
           size="sm"
+          disabled={!loaded}
           onClick={() => setEditing("new")}
           className="shrink-0 gap-1"
         >
@@ -62,6 +71,12 @@ export function PersonaSwitcher({
       <div
         role="radiogroup"
         aria-labelledby={HEADING_ID}
+        onKeyDown={(event) => {
+          const next = busy ? null : selectWithArrows(event, keys, activeKey);
+          if (next && next !== activeKey) {
+            choose(next);
+          }
+        }}
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
       >
         {personas.map((persona) => (
@@ -69,31 +84,30 @@ export function PersonaSwitcher({
             key={persona.key}
             persona={persona}
             selected={persona.key === activeKey}
+            focusable={persona.key === focusKey}
             disabled={busy}
+            canEdit={loaded}
             onChoose={() => choose(persona.key)}
             onEdit={() => setEditing(persona.key)}
           />
         ))}
       </div>
+      <MiniMeGenderPicker />
       {editing && (
         <PersonaEditor
           key={editing}
           persona={editingPersona}
           busy={busy}
           characterEditor={characterEditor}
-          genderPicker={<MiniMeGenderPicker />}
           onSave={(draft, audience) =>
             save(
               { persona: editingPersona, draft, audience },
-              { onSuccess: () => setEditing(null) },
+              { onSuccess: closeIf(editing) },
             )
           }
           onDelete={
             editingRowId
-              ? () => {
-                  remove(editingRowId);
-                  setEditing(null);
-                }
+              ? () => remove(editingRowId, { onSuccess: closeIf(editing) })
               : undefined
           }
           onCancel={() => setEditing(null)}

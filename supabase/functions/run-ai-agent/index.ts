@@ -11451,12 +11451,14 @@ async function tryFastLane(
   turn: FastLaneRequest,
 ): Promise<Response | null> {
   const startedAt = Date.now();
-  const [target, brief, addressLine] = await Promise.all([
+  const [target, brief, addressLine, persona] = await Promise.all([
     fastLaneTarget(supabase, turn.tenantId),
     fastLaneBriefScope(supabase, turn.caller).then((scope) =>
       loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
     ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
+    // The fast lane answers only as Carmen, so the caller's character applies here too.
+    loadCallerPersona(supabase, turn.tenantId, turn.userId),
   ]);
   if (!target) {
     return null;
@@ -11464,8 +11466,10 @@ async function tryFastLane(
   const answer = await answerFast({
     target,
     instructions: fastLaneInstructions({
-      agentName: turn.agentName,
-      addressLine,
+      agentName: persona?.displayName ?? turn.agentName,
+      addressLine: persona
+        ? addressLine + personaPromptSection(persona)
+        : addressLine,
       brief,
       now: new Date(),
     }),
