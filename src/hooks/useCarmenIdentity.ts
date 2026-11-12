@@ -6,7 +6,6 @@ import { useCurrentTenant } from "./useCurrentTenant";
 import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import { useSessionSkin } from "@/lib/carmenSessionSkin";
 import { readSkinAvatars, signProfileImage } from "@/lib/profileAvatars";
-import { useActivePersona } from "@/components/carmen/personas/useActivePersona";
 
 export type AgentIdentity = {
   displayName?: string;
@@ -58,7 +57,6 @@ export function useCarmenIdentity() {
       return { ...identity, skinAvatars: readSkinAvatars(data?.metadata) };
     },
   });
-  const persona = useActivePersona();
   // The session's skin (this browser only) picks which avatar to show.
   const activeSkin = useSessionSkin(tenantId);
   const { skins } = useCarmenSkins();
@@ -79,8 +77,7 @@ export function useCarmenIdentity() {
     defaultPortrait ||
     query.data?.avatarUrl;
   return {
-    // The character the user picked names the assistant for them.
-    name: persona?.displayName || query.data?.displayName || "כרמן",
+    name: query.data?.displayName || "כרמן",
     image: image || CARMEN_CHARACTER,
     custom: !!image && image !== defaultPortrait,
     activeSkin,

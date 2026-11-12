@@ -12,7 +12,6 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/useCarmenAvatarStyle", () => ({
   useCarmenAvatarStyle: () => ({
     style: state.style,
-    orgStyle: state.style,
     setStyle: state.setStyle,
     saving: state.saving,
   }),

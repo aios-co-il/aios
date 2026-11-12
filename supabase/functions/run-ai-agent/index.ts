@@ -187,10 +187,6 @@ import {
   workshopTurnTools,
 } from "./workshop-turn-setup.ts";
 import { callerAddressLine } from "../_shared/carmen/user-address.ts";
-import {
-  loadCallerPersona,
-  personaPromptSection,
-} from "../_shared/carmen/persona-runtime.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
@@ -9853,14 +9849,6 @@ async function handleRunAgent(
     // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
     // The profile name wins over user_name, which some screens set to a department label.
     systemPrompt += await callerAddressLine(supabase, callerUserId, callerName);
-    // The character the caller picked (AIO-570) names Carmen for them and sets her
-    // intro, personality, soul and mood; without a pick she stays herself.
-    const callerPersona = isCarmen
-      ? await loadCallerPersona(supabase, resolvedTenantId, callerUserId)
-      : null;
-    if (callerPersona) {
-      systemPrompt += personaPromptSection(callerPersona);
-    }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -9946,10 +9934,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // ─── Mood / persona modulation (swappable tone layer) ───
     {
-      const moodPrompt = agentMoodPrompt(
-        callerPersona?.mood ?? agent.mood,
-        agent.id,
-      );
+      const moodPrompt = agentMoodPrompt(agent.mood, agent.id);
       if (moodPrompt) {
         systemPrompt += `\n\n${moodPrompt}`;
       }
