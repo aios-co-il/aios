@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -24,6 +24,8 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
   const { tenantId } = useCurrentTenant();
   const qc = useQueryClient();
   const identity = useCarmenIdentity();
+  // Two editors can be on one page (Carmen's profile and its character editor).
+  const inputId = useId();
   const [draft, setDraft] = useState(() => ({
     ...readAgentIdentity(agent.metadata),
     displayName: readAgentIdentity(agent.metadata).displayName || agent.name,
@@ -149,9 +151,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
           className="carmen-portrait-large"
         />
         <div className="flex-1 min-w-48">
-          <Label htmlFor="agent-display-name">שם לתצוגה</Label>
+          <Label htmlFor={`${inputId}-display-name`}>שם לתצוגה</Label>
           <Input
-            id="agent-display-name"
+            id={`${inputId}-display-name`}
             maxLength={60}
             value={draft.displayName ?? agent.name}
             disabled={busy}
@@ -161,9 +163,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
           />
         </div>
       </div>
-      <Label htmlFor="agent-profile-upload">העלאת תמונה</Label>
+      <Label htmlFor={`${inputId}-profile-upload`}>העלאת תמונה</Label>
       <Input
-        id="agent-profile-upload"
+        id={`${inputId}-profile-upload`}
         type="file"
         accept="image/png,image/jpeg,image/webp"
         disabled={busy}
@@ -173,9 +175,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
           e.target.value = "";
         }}
       />
-      <Label htmlFor="agent-image-prompt">יצירת דמות לפי תיאור</Label>
+      <Label htmlFor={`${inputId}-image-prompt`}>יצירת דמות לפי תיאור</Label>
       <Textarea
-        id="agent-image-prompt"
+        id={`${inputId}-image-prompt`}
         value={draft.prompt || ""}
         disabled={busy}
         maxLength={2000}
