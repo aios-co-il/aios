@@ -1,0 +1,91 @@
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SharedDataReport } from "./SharedDataReport";
+import { SharedSeoReport } from "./SharedSeoReport";
+import {
+  type SharedDateSelection,
+  useSharedTableData,
+} from "./useSharedTableData";
+
+type Props = {
+  shareToken: string;
+  /** The window the report opens on; the viewer can change it. */
+  initialDateFilter?: string;
+};
+
+/**
+ * A single report as its share link shows it, with the internal report's
+ * tables. It takes the token as a prop so the client card can embed it too.
+ */
+export function SharedTableReport({
+  shareToken,
+  initialDateFilter = "last_7_days",
+}: Props) {
+  const [dates, setDates] = useState<SharedDateSelection>({
+    filter: initialDateFilter,
+  });
+  const { data, isLoading, isFetching, error, gscLoading } = useSharedTableData(
+    shareToken,
+    dates,
+  );
+
+  if (isLoading) {
+    return <LoadingReport />;
+  }
+  if (error || data?.error) {
+    return <InvalidLink />;
+  }
+  if (!data?.table) {
+    return null;
+  }
+  if (data.table.integration_type === "ahrefs") {
+    return (
+      <SharedSeoReport data={data} table={data.table} gscLoading={gscLoading} />
+    );
+  }
+  return (
+    <SharedDataReport
+      shareToken={shareToken}
+      data={data}
+      table={data.table}
+      dates={dates}
+      onDatesChange={setDates}
+      ready={!isFetching}
+    />
+  );
+}
+
+/** Placeholder while the report loads. */
+function LoadingReport() {
+  return (
+    <div
+      className="min-h-screen bg-background flex items-center justify-center"
+      dir="rtl"
+    >
+      <div className="w-full max-w-6xl mx-auto p-6 space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    </div>
+  );
+}
+
+/** Said when the link is unknown or switched off. */
+function InvalidLink() {
+  return (
+    <div
+      className="min-h-screen bg-background flex items-center justify-center"
+      dir="rtl"
+    >
+      <Card className="w-full max-w-md mx-4">
+        <CardContent className="py-12 text-center">
+          <p className="text-lg font-semibold mb-2">הקישור אינו תקין</p>
+          <p className="text-sm text-muted-foreground">
+            קישור השיתוף לא נמצא או שאינו פעיל יותר.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

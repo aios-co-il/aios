@@ -3,35 +3,32 @@ import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { groupFacebookRowsByGoal } from "@/lib/facebookGoalGroups";
 import type { GoogleGoalPresence } from "@/lib/googleGoalPresence";
 import type { GoogleCampaignGoal } from "../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
-import {
-  sharedCampaignTables,
-  type SharedCampaignTables,
-  type SharedReportRecord,
-} from "./sharedCampaignTables";
-import { sharedManualRoiFigures } from "./sharedManualRoi";
+import type { GoogleAdsRowData } from "@/lib/googleCampaignGoals";
 import {
   summarizeSharedTableRecords,
   type SharedTableSummary,
 } from "./sharedTableSummary";
 import type { SharedTableGoals } from "./useSharedTableGoals";
 
-/** What a shared integration table shows: KPIs, campaign tables and manual ROI. */
+/** A shared table's record: any integration's row, typed where Google Ads reads it. */
+export type SharedReportRecord = {
+  data?: (GoogleAdsRowData & Record<string, unknown>) | null;
+};
+
+/** The KPI cards of a shared integration table; its campaign tables are AdsGoalTables. */
 export type SharedIntegrationReport = {
   /** Goals the report has campaigns of; without sales the KPIs show no sales. */
   goals: GoogleGoalPresence;
   summary: SharedTableSummary | null;
-  campaigns: SharedCampaignTables;
-  manualRoi: { spend: number; leads: number } | null;
 };
 
 /**
- * A shared integration table's KPIs, campaign tables and manual ROI figures
- * from its records at one entity level. Facebook Insights splits campaigns by
- * facebookCampaignGoal and Google Ads by its campaigns' goals, like the internal
+ * A shared integration table's KPIs from its records at one entity level.
+ * Facebook Insights splits campaigns by facebookCampaignGoal and Google Ads by its campaigns' goals, like the internal
  * report; the KPIs count each campaign toward its own goal only.
  */
 export function sharedIntegrationReport(
-  records: SharedReportRecord[],
+  records: Array<SharedReportRecord>,
   options: {
     integrationType: string;
     level: AdsEntityLevel;
@@ -69,20 +66,19 @@ export function sharedIntegrationReport(
         goals,
       })
     : null;
-  const campaigns = sharedCampaignTables(records, options, facebookGroups);
-  const manualRoi = summary
-    ? sharedManualRoiFigures({
-        leadRows: campaigns.leads,
-        integrationSettings,
-      })
-    : null;
-  return { goals, summary, campaigns, manualRoi };
+  return { goals, summary };
 }
 
+/** The ads integrations whose shared report shows campaigns. */
+export type AdsPlatform =
+  "facebook_insights" | "facebook_ecommerce" | "google_ads";
+
 /** Integration types whose shared report shows ads campaigns. */
-export function isAdsPlatform(type: string): boolean {
-  return ["facebook_insights", "facebook_ecommerce", "google_ads"].includes(
-    type,
+export function isAdsPlatform(type: string): type is AdsPlatform {
+  return (
+    type === "facebook_insights" ||
+    type === "facebook_ecommerce" ||
+    type === "google_ads"
   );
 }
 
