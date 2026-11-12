@@ -117,6 +117,20 @@ describe("loadPickedCallWords", () => {
     ]);
   });
 
+  it("skips a pick of a colleague's own character", async () => {
+    const client = db({
+      carmen_persona_choices: {
+        data: [{ user_id: "u1", persona_key: "row-1" }],
+        error: null,
+      },
+      carmen_personas: {
+        data: [row({ owner_user_id: "u2", call_words: ["סודי"] })],
+        error: null,
+      },
+    });
+    assertEquals(await loadPickedCallWords(client, "t1"), []);
+  });
+
   it("adds nothing when nobody picked a character", async () => {
     const client = db({ carmen_persona_choices: { data: [], error: null } });
     assertEquals(await loadPickedCallWords(client, "t1"), []);

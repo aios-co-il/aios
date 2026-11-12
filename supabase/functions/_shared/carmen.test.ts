@@ -792,6 +792,19 @@ Deno.test(
       );
     });
 
+    await t.step(
+      "reads a longer call word before a shorter one inside it",
+      () => {
+        assertEquals(
+          groupMessageInvokesCarmen("AIOS Pro תבדקי את הדופק", [
+            "aios",
+            "aios pro",
+          ]),
+          true,
+        );
+      },
+    );
+
     await t.step("matches a call word with symbols literally", () => {
       assertEquals(groupMessageInvokesCarmen("c++ תבדקי את זה", ["c++"]), true);
     });
