@@ -18,7 +18,6 @@ interface PersonaEditorProps {
   persona: CarmenPersona | null;
   busy: boolean;
   characterEditor?: ReactNode;
-  genderPicker: ReactNode;
   onSave: (draft: PersonaDraft, audience: PersonaAudience) => void;
   /** Deletes a created character, or resets a built-in to its defaults. */
   onDelete?: () => void;
@@ -30,7 +29,6 @@ export function PersonaEditor({
   persona,
   busy,
   characterEditor,
-  genderPicker,
   onSave,
   onDelete,
   onCancel,
@@ -57,9 +55,11 @@ export function PersonaEditor({
         {persona ? `עריכת ${persona.displayName}` : "דמות חדשה"}
       </p>
       <div className="grid gap-3 md:grid-cols-2">
-        <Field id="persona-name" label="שם">
+        <Field id="persona-name" label="שם (חובה)">
           <Input
             id="persona-name"
+            required
+            aria-required="true"
             value={draft.displayName}
             maxLength={40}
             onChange={(event) => update({ displayName: event.target.value })}
@@ -85,7 +85,6 @@ export function PersonaEditor({
         look={draft.look}
         onChange={(look) => update({ look })}
       />
-      {draft.look === "minime" && genderPicker}
       {draft.look === "character" && characterEditor}
       <PersonaToneFields
         mood={draft.mood}
@@ -111,6 +110,7 @@ export function PersonaEditor({
       {!persona && (
         <RadioGroup
           dir="rtl"
+          aria-label="מי רואה את הדמות"
           value={audience}
           onValueChange={(value) => setAudience(value === "org" ? "org" : "me")}
           className="flex gap-6"

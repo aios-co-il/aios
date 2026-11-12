@@ -54,19 +54,21 @@ export async function loadPickedCallWords(
   }
   const { data: choices, error } = await db
     .from("carmen_persona_choices")
-    .select("persona_key")
+    .select("user_id, persona_key")
     .eq("tenant_id", tenantId);
   if (error) {
     console.error("[persona] picked call words lookup failed", error.message);
     return [];
   }
-  const keys = [...new Set((choices ?? []).map((row) => row.persona_key))];
-  if (keys.length === 0) {
+  const picks = choices ?? [];
+  if (picks.length === 0) {
     return [];
   }
   const rows = await loadRows(db, tenantId);
-  const words = keys.flatMap(
-    (key) => pickPersona(rows, key, null)?.callWords ?? [],
+  // Each pick counts only if its picker may use that character (their own or shared).
+  const words = picks.flatMap(
+    (pick) =>
+      pickPersona(rows, pick.persona_key, pick.user_id)?.callWords ?? [],
   );
   return [...new Set(words.map((word) => word.trim().toLowerCase()))].filter(
     Boolean,
@@ -139,20 +141,19 @@ interface StoredRow extends PersonaRowFields {
 
 /**
  * A key as a character: a built-in with the org's edit, or a created one. A
- * user's own character counts only for that user (`userId`), or for anyone
- * when `userId` is null (call words, where the picker already was its owner).
+ * user's own character counts only for that user.
  */
 function pickPersona(
   rows: Array<StoredRow>,
   key: string,
-  userId: string | null,
+  userId: string,
 ): PersonaProfile | null {
   if (isBuiltinPersonaKey(key)) {
     const edit = rows.find((row) => row.builtin_key === key);
     return edit ? personaFromRow(edit) : BUILTIN_PERSONAS[key];
   }
   const row = rows.find((item) => item.id === key);
-  if (!row || (userId && row.owner_user_id && row.owner_user_id !== userId)) {
+  if (!row || (row.owner_user_id && row.owner_user_id !== userId)) {
     return null;
   }
   return personaFromRow(row);

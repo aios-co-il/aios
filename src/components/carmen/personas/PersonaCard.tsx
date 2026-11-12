@@ -7,7 +7,11 @@ import { PersonaLook } from "./PersonaLook";
 interface PersonaCardProps {
   persona: CarmenPersona;
   selected: boolean;
+  /** The group's one Tab stop: the picked character, else the first. */
+  focusable: boolean;
   disabled: boolean;
+  /** False until the org's stored characters are known. */
+  canEdit: boolean;
   onChoose: () => void;
   onEdit: () => void;
 }
@@ -16,7 +20,9 @@ interface PersonaCardProps {
 export function PersonaCard({
   persona,
   selected,
+  focusable,
   disabled,
+  canEdit,
   onChoose,
   onEdit,
 }: PersonaCardProps) {
@@ -32,6 +38,8 @@ export function PersonaCard({
         role="radio"
         aria-checked={selected}
         aria-disabled={disabled}
+        tabIndex={focusable ? 0 : -1}
+        data-radio-value={persona.key}
         onClick={() => !disabled && !selected && onChoose()}
         className="flex min-w-0 flex-1 items-center gap-3 text-start"
       >
@@ -54,6 +62,7 @@ export function PersonaCard({
         variant="ghost"
         size="icon"
         aria-label={`עריכת ${persona.displayName}`}
+        disabled={!canEdit}
         onClick={onEdit}
       >
         <Pencil className="h-4 w-4" />
