@@ -36,21 +36,6 @@ export type ListFacebookAdsArgs = { client_id: string; campaign_id: string };
 
 export type InspectFacebookAdArgs = { client_id: string; ad_id: string };
 
-export type FbDuplicateAdVariantsArgs = {
-  client_id: string;
-  source_ad_id: string;
-  count?: number;
-  variants: Array<{
-    primary_text: string;
-    headline?: string;
-    name?: string;
-    description?: string;
-  }>;
-  daily_budget?: number;
-  budget_level?: "campaign" | "adset";
-  status?: "PAUSED" | "ACTIVE";
-};
-
 export type DuplicateFacebookAdVariantsArgs = {
   client_id: string;
   source_ad_id: string;
