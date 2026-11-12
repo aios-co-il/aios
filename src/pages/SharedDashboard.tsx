@@ -17,6 +17,7 @@ import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { attachTableSettings } from "@/components/SharedDashboard/attachTableSettings";
 import { SharedDashboardHeader } from "@/components/SharedDashboard/SharedDashboardHeader";
 import { useSharedPreviousPeriod } from "@/components/SharedDashboard/useSharedPreviousPeriod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,7 +243,7 @@ export default function SharedDashboard({
         const body = await res.text();
         throw new Error(body || `public-dashboard failed (${res.status})`);
       }
-      return res.json();
+      return attachTableSettings(await res.json());
     },
     enabled: !!shareToken,
     retry: false,
@@ -270,7 +271,7 @@ export default function SharedDashboard({
         },
       );
       if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      return attachTableSettings(await res.json());
     },
     enabled: !!shareToken && platformFilter === "weekly",
     staleTime: 5 * 60_000,

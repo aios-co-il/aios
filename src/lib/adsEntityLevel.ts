@@ -7,6 +7,7 @@ import {
   getSpendFromData,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
+import { ADS_TABLE_TYPES } from "@functions/_shared/ads-sync/dashboard-rows.ts";
 import {
   addFacebookFollowers,
   emptyFacebookFollowers,
@@ -37,12 +38,7 @@ export function resolveRecordEntityLevel(
   return "campaign";
 }
 
-const ADS_INTEGRATION_TYPES = new Set([
-  "facebook_insights",
-  "facebook_ecommerce",
-  "google_ads",
-  "tiktok",
-]);
+const ADS_INTEGRATION_TYPES: ReadonlySet<string> = new Set(ADS_TABLE_TYPES);
 
 export function isAdsIntegrationType(
   integrationType: string | null | undefined,
@@ -50,7 +46,11 @@ export function isAdsIntegrationType(
   return !!integrationType && ADS_INTEGRATION_TYPES.has(integrationType);
 }
 
-/** Dashboards and pulse metrics must aggregate campaign-level rows only — adset/ad rows duplicate spend. */
+/**
+ * Dashboards and pulse metrics must aggregate campaign-level rows only — adset/ad rows duplicate spend.
+ * Dashboard reads apply the same rule in their queries (DASHBOARD_CAMPAIGN_ROWS_FILTER in
+ * supabase/functions/_shared/ads-sync/dashboard-rows.ts); change both together.
+ */
 export function shouldIncludeInAdsDashboardAggregate(
   data: Record<string, unknown> | undefined | null,
   integrationType?: string | null,

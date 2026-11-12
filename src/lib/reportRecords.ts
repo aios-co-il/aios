@@ -22,18 +22,32 @@ type ReportClient = {
   };
 };
 
-/** One cache entry per table/date window, shared by table and combined reports. */
+/**
+ * `campaign`: an ads table's rows the dashboards sum only, read so in the
+ * query (crm-records `level`). Unset reads every level, as the single report
+ * with its ad set and ad tabs needs.
+ */
+export type ReportRecordsLevel = "campaign";
+
+/**
+ * One cache entry per table/date window (and level), shared by table and
+ * combined reports. A campaign-rows read keeps its own entry, so a report
+ * never reads a dashboard's trimmed rows from the cache.
+ */
 export function reportRecordsQuery(
   client: ReportClient,
   tableId: string,
   dateFilter: string,
   dateFrom?: string | null,
   dateTo?: string | null,
+  level?: ReportRecordsLevel,
 ) {
   const from = dateFilter === "custom" ? (dateFrom ?? null) : null;
   const to = dateFilter === "custom" ? (dateTo ?? null) : null;
+  // Appended only when set: every-level keys stay as they were.
+  const levelKey = level ? [level] : [];
   return {
-    queryKey: ["crm-records", tableId, dateFilter, from, to],
+    queryKey: ["crm-records", tableId, dateFilter, from, to, ...levelKey],
     staleTime: REPORT_QUERY_STALE_MS,
     queryFn: async ({ signal }: { signal: AbortSignal }) => {
       const params = new URLSearchParams({
@@ -43,6 +57,9 @@ export function reportRecordsQuery(
       if (dateFilter === "custom" && dateFrom && dateTo) {
         params.set("date_from", dateFrom);
         params.set("date_to", dateTo);
+      }
+      if (level) {
+        params.set("level", level);
       }
       // The Edge endpoint still authenticates and checks table access on every
       // request. Do not turn a failed permission/network request into cached [].
