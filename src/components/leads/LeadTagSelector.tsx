@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
@@ -15,6 +20,7 @@ import { Tag, Settings, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { ChatTagsManager } from "@/components/chat/ChatTagsManager";
 import { softColorChipStyle } from "./softColorChip";
+import { applyLeadTagChange, restoreLeadTagCaches } from "./leadTagCache";
 
 interface ChatTag {
   id: string;
@@ -98,9 +104,11 @@ export function LeadTagSelector({
       tagId: string;
       isAssigned: boolean;
     }) => {
+      // getSession reads the local session; getUser would add an auth round trip per click.
       const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user || !tenantId) throw new Error("No user or tenant");
 
       if (isAssigned) {
@@ -123,30 +131,19 @@ export function LeadTagSelector({
       }
     },
     onMutate: async ({ tagId, isAssigned }) => {
-      await queryClient.cancelQueries({ queryKey: ["lead-tags", leadId] });
-      await queryClient.cancelQueries({
-        queryKey: ["leads-tags-bulk", tenantId],
-      });
-
-      const previousTags = queryClient.getQueryData<string[]>([
-        "lead-tags",
+      await cancelLeadTagQueries(queryClient, leadId, tenantId);
+      return applyLeadTagChange(queryClient, {
+        tenantId,
         leadId,
-      ]);
-
-      queryClient.setQueryData<string[]>(["lead-tags", leadId], (old = []) => {
-        if (isAssigned) {
-          return old.filter((id) => id !== tagId);
-        } else {
-          return [...old, tagId];
-        }
+        tagId,
+        assign: !isAssigned,
       });
-
-      return { previousTags };
     },
-    onError: (_err, _variables, context) => {
-      if (context?.previousTags !== undefined) {
-        queryClient.setQueryData(["lead-tags", leadId], context.previousTags);
+    onError: (err, _variables, snapshot) => {
+      if (snapshot) {
+        restoreLeadTagCaches(queryClient, snapshot);
       }
+      console.error("[LeadTagSelector] tag toggle failed", err);
       toast.error("שגיאה בעדכון התגיות");
     },
     onSettled: () => {
@@ -309,20 +306,19 @@ export function LeadTagBadgesEditable({
       if (error) throw error;
     },
     onMutate: async (tagId) => {
-      await queryClient.cancelQueries({ queryKey: ["lead-tags", leadId] });
-      const previousTags = queryClient.getQueryData<string[]>([
-        "lead-tags",
+      await cancelLeadTagQueries(queryClient, leadId, tenantId);
+      return applyLeadTagChange(queryClient, {
+        tenantId,
         leadId,
-      ]);
-      queryClient.setQueryData<string[]>(["lead-tags", leadId], (old = []) =>
-        old.filter((id) => id !== tagId),
-      );
-      return { previousTags };
+        tagId,
+        assign: false,
+      });
     },
-    onError: (_err, _tagId, context) => {
-      if (context?.previousTags) {
-        queryClient.setQueryData(["lead-tags", leadId], context.previousTags);
+    onError: (err, _tagId, snapshot) => {
+      if (snapshot) {
+        restoreLeadTagCaches(queryClient, snapshot);
       }
+      console.error("[LeadTagBadgesEditable] tag removal failed", err);
       toast.error("שגיאה בהסרת התגית");
     },
     onSettled: () => {
@@ -370,4 +366,17 @@ export function LeadTagBadgesEditable({
       ))}
     </div>
   );
+}
+
+/** Stops in-flight tag reads so they cannot overwrite the optimistic change. */
+async function cancelLeadTagQueries(
+  queryClient: QueryClient,
+  leadId: string,
+  tenantId: string | null | undefined,
+) {
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: ["lead-tags", leadId] }),
+    queryClient.cancelQueries({ queryKey: ["leads-tags-visible", tenantId] }),
+    queryClient.cancelQueries({ queryKey: ["leads-tags-table", tenantId] }),
+  ]);
 }
