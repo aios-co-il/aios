@@ -192,16 +192,24 @@ interface SharedDashboardProps {
   initialDateFilter?: string;
   /** Hide refresh/date controls when rendering off-screen for report capture. */
   snapshotMode?: boolean;
+  /** The window, when the host holds it: the client card's live view and its send capture. */
+  dateFilter?: string;
+  onDateFilterChange?: (filter: string) => void;
 }
 
 export default function SharedDashboard({
   shareTokenOverride,
   initialDateFilter = "last_30_days",
   snapshotMode = false,
+  dateFilter: hostDateFilter,
+  onDateFilterChange,
 }: SharedDashboardProps = {}) {
   const params = useParams();
   const shareToken = shareTokenOverride ?? params.shareToken;
-  const [dateFilter, setDateFilter] = useState(initialDateFilter);
+  const [ownDateFilter, setOwnDateFilter] = useState(initialDateFilter);
+  // The client card holds the window so its send capture shows the same one.
+  const dateFilter = hostDateFilter ?? ownDateFilter;
+  const setDateFilter = onDateFilterChange ?? setOwnDateFilter;
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");

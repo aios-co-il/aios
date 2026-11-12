@@ -1,6 +1,7 @@
 import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 import { CarmenAvatar } from "@/components/carmen/CarmenAvatar";
 import { CarmenOrbBuddy } from "@/components/carmen/CarmenOrbBuddy";
+import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
 import { useCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 import { getRoleOrbTint } from "../../../supabase/functions/_shared/carmen/skin-roles";
 import { useCommandCenterAccess } from "@/components/carmen-command/access";
@@ -40,11 +41,17 @@ export function CarmenSessionButton() {
           name={identity.name}
           custom={identity.custom}
         />
-      ) : (
+      ) : style === "orbs" ? (
         <CarmenOrbBuddy
           tint={getRoleOrbTint(identity.activeSkin)}
           label={identity.name}
           className="orb-deep w-12 md:w-14"
+        />
+      ) : (
+        <MiniMe
+          skin={identity.activeSkin}
+          label={identity.name}
+          className="w-11 md:w-12"
         />
       )}
     </button>

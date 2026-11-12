@@ -22,6 +22,8 @@ type Props = {
   previousRecords: Array<SharedTableRecord> | undefined;
   level: AdsEntityLevel;
   onLevelChange: (level: AdsEntityLevel) => void;
+  /** The send capture's summary: no level tabs, and the ROI card reads only. */
+  summaryOnly: boolean;
 };
 
 /**
@@ -36,12 +38,15 @@ export function SharedAdsSummary({
   previousRecords,
   level,
   onLevelChange,
+  summaryOnly,
 }: Props) {
   const queryClient = useQueryClient();
   const hasRows = allRecords.length > 0;
   return (
     <>
-      {hasRows && <AdsEntityLevelTabs value={level} onChange={onLevelChange} />}
+      {hasRows && !summaryOnly && (
+        <AdsEntityLevelTabs value={level} onChange={onLevelChange} />
+      )}
       {hasRows && level !== "campaign" && levelRecords.length === 0 && (
         <Card className="border-dashed">
           <CardContent
@@ -60,6 +65,7 @@ export function SharedAdsSummary({
         // WooCommerce orders are read with a session, so a share has none.
         woo={null}
         manualRoi={{
+          readOnly: summaryOnly,
           saveFn: async (manualRoi) => {
             await savePublicManualRoi(shareToken, manualRoi);
             await queryClient.invalidateQueries({

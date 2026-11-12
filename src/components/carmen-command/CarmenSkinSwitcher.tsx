@@ -65,7 +65,7 @@ export function CarmenSkinSwitcher({
             aria-label={s.name}
           >
             <span className="flex items-center gap-2">
-              {(style === "orbs" || s.avatarUrl) && (
+              {(style !== "character" || s.avatarUrl) && (
                 <span aria-hidden="true">
                   <CarmenAvatar
                     skin={s.slug}

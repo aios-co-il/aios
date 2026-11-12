@@ -71,6 +71,50 @@ describe("SharedTableReport", () => {
     expect(screen.queryByText("תקופה קודמת")).toBeNull();
   });
 
+  it("shows the summary without controls, ending at the snapshot marker, when summaryOnly", async () => {
+    stubPublicTable();
+    const { container } = render(
+      withTestQuery(
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{ filter: "last_30_days" }}
+          summaryOnly
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("עלות לרכישה")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /השוואה לתקופה קודמת/ }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /30 יום אחרונים/ })).toBeNull();
+    expect(
+      container.querySelector('[data-snapshot-end="true"]'),
+    ).not.toBeNull();
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-snapshot-ready="true"]'),
+      ).not.toBeNull(),
+    );
+  });
+
+  it("asks public-table for the window the host holds", async () => {
+    const fetchMock = stubPublicTable();
+    render(
+      withTestQuery(
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{ filter: "last_30_days" }}
+          onDatesChange={() => undefined}
+        />,
+      ),
+    );
+
+    await screen.findByText("עלות לרכישה");
+    const url = new URL(fetchMock.mock.calls[0][0]);
+    expect(url.searchParams.get("date_filter")).toBe("last_30_days");
+  });
+
   it("adds the previous period's columns when the comparison is on", async () => {
     const fetchMock = stubPublicTable();
     const user = userEvent.setup();

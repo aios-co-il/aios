@@ -12,6 +12,14 @@ type Props = {
   shareToken: string;
   /** The window the report opens on; the viewer can change it. */
   initialDateFilter?: string;
+  /** The window, when the host holds it: the client card's live view and its send capture. */
+  dates?: SharedDateSelection;
+  onDatesChange?: (dates: SharedDateSelection) => void;
+  /**
+   * The summary the client card photographs on send: no controls, and a
+   * `data-snapshot-end` marker after the summary tables.
+   */
+  summaryOnly?: boolean;
 };
 
 /**
@@ -21,10 +29,15 @@ type Props = {
 export function SharedTableReport({
   shareToken,
   initialDateFilter = "last_7_days",
+  dates: hostDates,
+  onDatesChange,
+  summaryOnly = false,
 }: Props) {
-  const [dates, setDates] = useState<SharedDateSelection>({
+  const [ownDates, setOwnDates] = useState<SharedDateSelection>({
     filter: initialDateFilter,
   });
+  const dates = hostDates ?? ownDates;
+  const setDates = onDatesChange ?? setOwnDates;
   const { data, isLoading, isFetching, error, gscLoading } = useSharedTableData(
     shareToken,
     dates,
@@ -34,14 +47,19 @@ export function SharedTableReport({
     return <LoadingReport />;
   }
   if (error || data?.error) {
-    return <InvalidLink />;
+    return <InvalidLink detail={error instanceof Error ? error.message : ""} />;
   }
   if (!data?.table) {
     return null;
   }
   if (data.table.integration_type === "ahrefs") {
     return (
-      <SharedSeoReport data={data} table={data.table} gscLoading={gscLoading} />
+      <SharedSeoReport
+        data={data}
+        table={data.table}
+        gscLoading={gscLoading}
+        summaryOnly={summaryOnly}
+      />
     );
   }
   return (
@@ -52,6 +70,7 @@ export function SharedTableReport({
       dates={dates}
       onDatesChange={setDates}
       ready={!isFetching}
+      summaryOnly={summaryOnly}
     />
   );
 }
@@ -71,12 +90,13 @@ function LoadingReport() {
   );
 }
 
-/** Said when the link is unknown or switched off. */
-function InvalidLink() {
+/** Said when the link is unknown or switched off; a send capture stops on it. */
+function InvalidLink({ detail }: { detail: string }) {
   return (
     <div
       className="min-h-screen bg-background flex items-center justify-center"
       dir="rtl"
+      data-snapshot-error={detail || "load_failed"}
     >
       <Card className="w-full max-w-md mx-4">
         <CardContent className="py-12 text-center">

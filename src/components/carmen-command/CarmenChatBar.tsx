@@ -1932,7 +1932,7 @@ export const CarmenChatBar = forwardRef<
                   />
                 )}
                 <div className="cc-msg-bubble">
-                  <div className="cc-md prose prose-invert prose-sm max-w-none [&_p]:my-1">
+                  <div className="cc-md prose dark:prose-invert prose-sm max-w-none [&_p]:my-1">
                     {hidePartialQuickReplies(streamingText)}
                   </div>
                 </div>
