@@ -79,7 +79,9 @@ Deno.test("loadOffReportSpend", async (t) => {
         },
         { id: "4", table_id: "t-off", data: { date: "2026-11-07", spend: 50 } },
       ]);
+
       const spend = await loadOffReportSpend(client, [ARCHI_OFF], WINDOW, []);
+
       assertEquals(spend, [
         {
           table_id: "t-off",
@@ -133,12 +135,14 @@ Deno.test("loadOffReportSpend", async (t) => {
         // Before the window: an active report that covered 3 long ago does not count.
         { data: { date: "2026-10-20", campaign_id: "3", spend: 10 } },
       ];
+
       const spend = await loadOffReportSpend(
         client,
         [ARCHI_OFF],
         WINDOW,
         activeRecords,
       );
+
       assertEquals(
         spend.map((item) => item.spend_3d),
         [25],
@@ -154,12 +158,14 @@ Deno.test("loadOffReportSpend", async (t) => {
         { id: "1", table_id: "t-off", data: { date: "2026-11-05", spend: 40 } },
       ]);
       const activeRecords = [{ data: { date: "2026-11-05", spend: 90 } }];
+
       const spend = await loadOffReportSpend(
         client,
         [ARCHI_OFF],
         WINDOW,
         activeRecords,
       );
+
       assertEquals(
         spend.map((item) => item.spend_3d),
         [40],

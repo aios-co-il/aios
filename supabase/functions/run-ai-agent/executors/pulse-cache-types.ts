@@ -35,6 +35,7 @@ type SnapshotBase = Pick<
   | "client_id"
   | "agency_id"
 >;
+
 export type PulseCacheRow = {
   campaign_breakdown?: Array<PulseCampaignBreakdownRow> | null;
 } & Omit<

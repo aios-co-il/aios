@@ -1,8 +1,10 @@
 import type { PulseCacheRow } from "./pulse-cache-types.ts";
+
 type RetentionPulseRow = Pick<
   PulseCacheRow,
   "client_id" | "status" | "flags" | "last_client_call_at" | "calculated_at"
 >;
+
 import type { GetClientRetentionScanArgs } from "./pulse-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { buildRetentionScan } from "../../_shared/client-retention.ts";
@@ -73,6 +75,7 @@ export async function executeGetClientRetentionScan(
         .order("calculated_at", { ascending: false })
         .returns<Array<RetentionPulseRow>>();
     }
+
     let pulseResult = await loadPulses(
       "client_id, status, flags, last_client_call_at, calculated_at",
     );

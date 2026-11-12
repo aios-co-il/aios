@@ -12,6 +12,7 @@ export function fbStrongMatchAccount(
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, "");
   }
+
   const c = norm(clientName);
   if (c.length < 3) {
     return null;

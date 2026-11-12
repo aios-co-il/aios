@@ -38,6 +38,7 @@ export async function loadCampaignPerformanceScope(
   // agency_tenant_access. A tenant-wide scope here floods the report with the
   // partner tenant's entire client base and scrambles the per-agency grouping.
   const perfSel = "id, name, agency_id, agencies(name)";
+
   /** Builds the original tenant-specific client projection. */
   function perfClients(scopeTenantId: string) {
     return supabase
@@ -57,6 +58,7 @@ export async function loadCampaignPerformanceScope(
     }
     return q;
   }
+
   const { data: perfOwn, error: clientsErr } = await perfFilters(
     perfClients(tenantId),
   ).order("name");

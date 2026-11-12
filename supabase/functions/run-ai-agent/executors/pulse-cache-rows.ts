@@ -20,6 +20,7 @@ export async function loadPulseCacheRows(
     "tenant_id, calculated_at, data_fresh_through, status, campaign_goal_mode, is_ecommerce, spend_7d, lead_spend_7d, ecommerce_spend_7d, leads_7d, cpl_7d, cpl_change_pct, purchases_7d, revenue_7d, roas_7d, roas_change_pct, lead_goal_status, ecommerce_goal_status, flags, source, last_meta_change_at, last_meta_change_type, last_meta_change_actor, last_meta_change_object, meta_change_availability, client_id, agency_id, clients(name), agencies(name)";
   const PULSE_CALL_COLUMNS = "last_client_call_at, last_client_call_by";
   const PULSE_CAMPAIGN_COLUMNS = "campaign_breakdown";
+
   /** Reads the same projection with the original optional-column fallbacks. */
   async function loadPulse(columns: string) {
     let query = supabase
@@ -39,6 +40,7 @@ export async function loadPulseCacheRows(
     }
     return await query.returns<Array<PulseCacheRow>>();
   }
+
   let { data, error } = await loadPulse(
     `${PULSE_BASE_COLUMNS}, ${PULSE_CALL_COLUMNS}, ${PULSE_CAMPAIGN_COLUMNS}`,
   );

@@ -7,7 +7,9 @@
 import { isRecord } from "../is-record.ts";
 
 export type Row = Record<string, unknown> & { id?: string };
+
 type Predicate = (row: Row) => boolean;
+
 type Result = { data: unknown; error: { message: string } | null };
 
 export type FakeDb = {

@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing/bdd";
 import { loadCampaignPerformanceScope } from "./campaign-performance-scope.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
+
 describe("loadCampaignPerformanceScope", () => {
   it("reads only owned agencies in partner tenants", async () => {
     const own = { id: "own", name: "Own" };
@@ -15,9 +16,12 @@ describe("loadCampaignPerformanceScope", () => {
       [{ id: "owned" }],
       [shared],
     ]);
+
     const result = await loadCampaignPerformanceScope({}, fixture.context);
+
     assertEquals(result.scope?.targetClients, [own, shared]);
     assertEquals(fixture.calls.length, 4);
+
     const queries = fixture.calls.map((call) => new URL(call.url));
     assertEquals(queries[0].searchParams.get("tenant_id"), "eq.t1");
     assertEquals(queries[0].searchParams.get("status"), "in.(active)");
@@ -25,6 +29,7 @@ describe("loadCampaignPerformanceScope", () => {
     assertEquals(queries[3].searchParams.get("tenant_id"), "eq.partner");
     assertEquals(queries[3].searchParams.get("agency_id"), "eq.owned");
   });
+
   it("rejects a scope read failure", async () => {
     function failure() {
       return new Response(JSON.stringify({ message: "denied" }), {
@@ -32,10 +37,13 @@ describe("loadCampaignPerformanceScope", () => {
         headers: { "Content-Type": "application/json" },
       });
     }
+
     const performance = executorClient([failure()]);
+
     await assertRejects(async () => {
       await loadCampaignPerformanceScope({}, performance.context);
     });
+
     assertEquals(performance.calls.length, 1);
   });
 });

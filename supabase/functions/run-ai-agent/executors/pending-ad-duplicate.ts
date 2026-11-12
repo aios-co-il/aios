@@ -1,4 +1,5 @@
 import type { AgentDatabaseClient, AgentRow } from "../database-contracts.ts";
+
 export type NormalizedAdVariant = {
   primary_text: string;
   headline: string | null;
@@ -12,6 +13,7 @@ export type AdVariantPreview = {
   primary_text: string;
   headline?: string | null;
 };
+
 type DuplicateInput = {
   source_ad_id?: string;
   variants?: Array<NormalizedAdVariant>;
@@ -19,6 +21,7 @@ type DuplicateInput = {
   budget_level?: string;
   status?: string;
 };
+
 type PendingAdDuplicate = Pick<
   AgentRow<"agent_approval_queue">,
   "id" | "title" | "description" | "tool_name" | "created_at"

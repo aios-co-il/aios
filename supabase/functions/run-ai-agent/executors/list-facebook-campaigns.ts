@@ -15,6 +15,7 @@ type ListedStoredCampaign = {
   configured_status: string | null;
   last_date: string | null;
 };
+
 import type { ListFacebookCampaignsArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
