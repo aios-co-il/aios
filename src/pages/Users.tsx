@@ -39,6 +39,7 @@ import EditManagedAgenciesDialog from "@/components/forms/EditManagedAgenciesDia
 import { ResetPasswordDialog } from "@/components/forms/ResetPasswordDialog";
 import { InactiveMembersCard } from "@/components/UsersPage/InactiveMembersCard";
 import { UsersList } from "@/components/UsersPage/UsersList";
+import { InviteClientsPicker } from "@/components/UsersPage/InviteClientsPicker";
 import { roleBadgeColors } from "@/components/UsersPage/userRoleStyles";
 import type {
   ManagedUser,
@@ -103,6 +104,7 @@ export default function Users() {
   const [inviteFullName, setInviteFullName] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("campaigner");
   const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<Array<string>>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([
     "dashboard",
     "clients",
@@ -714,6 +716,7 @@ export default function Users() {
       fullName,
       role,
       agencyIds,
+      clientIds,
       modulePermissions,
       campaignerId,
       salesPersonId,
@@ -722,6 +725,7 @@ export default function Users() {
       fullName?: string;
       role: UserRole;
       agencyIds: string[];
+      clientIds: Array<string>;
       modulePermissions: string[];
       campaignerId?: string;
       salesPersonId?: string;
@@ -769,11 +773,12 @@ export default function Users() {
             fullName,
             role,
             agencyIds: isPrimaryTenant ? agencyIds : [],
+            clientIds: isPrimaryTenant ? clientIds : [],
             modulePermissions,
             campaignerId: isPrimaryTenant ? campaignerId : undefined,
             salesPersonId: isPrimaryTenant ? salesPersonId : undefined,
             tenantId: targetTenantId,
-            baseUrl: "https://aios.co.il",
+            baseUrl: window.location.origin,
             skipEmail: emailSent,
             updateProfileTeamLinks: isPrimaryTenant,
           },
@@ -810,7 +815,7 @@ export default function Users() {
         results,
         emailSent,
         addedCount,
-        invitationLink: "https://aios.co.il/auth",
+        invitationLink: `${window.location.origin}/auth`,
       };
     },
     onSuccess: async (data) => {
@@ -836,6 +841,7 @@ export default function Users() {
       setInviteFullName("");
       setInviteRole("campaigner");
       setSelectedAgencies([]);
+      setSelectedClientIds([]);
       setSelectedModules([
         "dashboard",
         "clients",
@@ -914,7 +920,7 @@ export default function Users() {
           email,
           resend: true,
           tenantId: tenantId || currentUserTenant?.tenant_id,
-          baseUrl: "https://aios.co.il",
+          baseUrl: window.location.origin,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -1258,6 +1264,7 @@ export default function Users() {
                         const newRole = value as UserRole;
                         setInviteRole(newRole);
                         setSelectedAgencies([]);
+                        setSelectedClientIds([]);
                         setSelectedCampaignerId("");
                         setSelectedSalesPersonId("");
 
@@ -1451,6 +1458,16 @@ export default function Users() {
                       </p>
                     )}
                   </div>
+                  {inviteRole === "campaigner" && (
+                    <div className="md:col-span-2">
+                      <InviteClientsPicker
+                        tenantId={tenantId}
+                        agencyIds={selectedAgencies}
+                        value={selectedClientIds}
+                        onChange={setSelectedClientIds}
+                      />
+                    </div>
+                  )}
                   <div className="md:col-span-2">
                     <Label>הרשאות מודולים</Label>
                     <div className="mt-2">
@@ -1490,6 +1507,8 @@ export default function Users() {
                       fullName: inviteFullName || undefined,
                       role: inviteRole,
                       agencyIds: selectedAgencies,
+                      clientIds:
+                        inviteRole === "campaigner" ? selectedClientIds : [],
                       modulePermissions: selectedModules,
                       campaignerId: selectedCampaignerId || undefined,
                       salesPersonId: selectedSalesPersonId || undefined,

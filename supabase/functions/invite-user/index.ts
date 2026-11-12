@@ -5,6 +5,10 @@ import {
   pickExistingTeamMember,
   type TeamMemberCandidate,
 } from "../_shared/team-member-match.ts";
+import {
+  assignInvitedClients,
+  supabaseClientAssignmentStore,
+} from "./assign-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +21,8 @@ interface InviteUserRequest {
   fullName?: string;
   role?: string;
   agencyIds?: string[];
+  /** Clients to put the campaigner card on (client_team), so the user sees them. */
+  clientIds?: string[];
   modulePermissions?: string[];
   resend?: boolean;
   campaignerId?: string;
@@ -340,6 +346,7 @@ serve(async (req: Request) => {
       fullName,
       role,
       agencyIds,
+      clientIds,
       modulePermissions,
       resend,
       campaignerId,
@@ -509,6 +516,21 @@ serve(async (req: Request) => {
       });
     }
 
+    const clientAssignment = await assignInvitedClients(
+      supabaseClientAssignmentStore(supabaseAdmin),
+      {
+        tenantId: tenantIdFinal,
+        campaignerId: effectiveCampaignerId,
+        clientIds,
+      },
+    );
+    if (clientAssignment.outsideTenant.length > 0) {
+      console.warn(
+        "invite-user: skipped clients outside the tenant",
+        clientAssignment.outsideTenant,
+      );
+    }
+
     if (existingUserId) {
       const userId = existingUserId;
 
@@ -656,6 +678,7 @@ serve(async (req: Request) => {
       fullName,
       role,
       agencyIds: agencyIds || [],
+      clientIds: clientAssignment.assigned,
       modulePermissions: modulePermissions || [],
       campaignerId: effectiveCampaignerId,
       salesPersonId: effectiveSalesPersonId,
