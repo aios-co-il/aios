@@ -1,7 +1,9 @@
 // Recall.ai Meeting Bot API helpers (Zoom, Google Meet, Teams).
 import { detectMeetingPlatform } from "./meeting-url.ts";
+import { MEETING_BOT_IMAGE_JPEG_B64 } from "./recall-bot-image.ts";
 
-const BOT_NAME = "כרמן AI — מסייעת תמלול";
+/** The name every meeting bot joins with (AIO-575). */
+export const MEETING_BOT_NAME = "מיני מי · מתמלל ומסכם";
 const CREDIT_PROBE_MEETING_URL = "https://zoom.us/j/99900011122";
 export const RECALL_CANARY_MARKER = "נבדק עכשיו";
 export const RECALL_CREDIT_CANARY_OK_MS = 3 * 60 * 60 * 1000;
@@ -139,8 +141,16 @@ export async function createRecallBot(
   const platform = detectMeetingPlatform(opts.meeting_url);
   const body: Record<string, unknown> = {
     meeting_url: opts.meeting_url,
-    bot_name: BOT_NAME,
+    bot_name: MEETING_BOT_NAME,
     metadata: opts.metadata ?? {},
+    // The bot's tile shows the Mini Me before and during recording.
+    automatic_video_output: {
+      in_call_recording: { kind: "jpeg", b64_data: MEETING_BOT_IMAGE_JPEG_B64 },
+      in_call_not_recording: {
+        kind: "jpeg",
+        b64_data: MEETING_BOT_IMAGE_JPEG_B64,
+      },
+    },
     recording_config: {
       video_mixed_mp4: {},
       // Mixed audio is a small artifact we can hand to Whisper when Recall's own
