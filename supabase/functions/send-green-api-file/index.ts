@@ -1,3 +1,4 @@
+import { greenUploadForm } from "./upload-form.ts";
 import {
   resolveGreenApiChatTarget,
   withTimeout,
@@ -246,10 +247,12 @@ Deno.serve(async (req) => {
       endpoint = `https://api.green-api.com/waInstance${instanceId}/sendFileByUpload/${apiToken}`;
 
       // For voice messages, use sendFileByUpload with audio file
-      const uploadFormData = new FormData();
-      uploadFormData.append("chatId", chatId);
-      uploadFormData.append("file", uploadBlob, fileName);
-      if (caption) uploadFormData.append("caption", caption);
+      const uploadFormData = greenUploadForm({
+        chatId,
+        file: uploadBlob,
+        fileName,
+        caption,
+      });
 
       const response = await fetchGreenApiUpload(endpoint, uploadFormData);
 
@@ -306,10 +309,12 @@ Deno.serve(async (req) => {
     }
 
     // Use FormData for file upload
-    const uploadFormData = new FormData();
-    uploadFormData.append("chatId", chatId);
-    uploadFormData.append("file", uploadBlob, fileName);
-    if (caption) uploadFormData.append("caption", caption);
+    const uploadFormData = greenUploadForm({
+      chatId,
+      file: uploadBlob,
+      fileName,
+      caption,
+    });
 
     const response = await fetchGreenApiUpload(endpoint, uploadFormData);
 

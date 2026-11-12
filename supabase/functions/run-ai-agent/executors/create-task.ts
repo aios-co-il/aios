@@ -56,14 +56,15 @@ export async function executeCreateTask(
       .maybeSingle();
     agencyId = taskClient?.agency_id || null;
   }
+  // Without a client: the organization's default agency when the campaigner
+  // belongs to it, else one of theirs. An unordered "first" filed a personal
+  // task under a random agency of eight (AIO-578).
   if (!agencyId && campaignerId) {
-    const { data: campAgency } = await supabase
+    const { data: campAgencies } = await supabase
       .from("campaigner_agencies")
-      .select("agency_id")
-      .eq("campaigner_id", campaignerId)
-      .limit(1)
-      .single();
-    agencyId = campAgency?.agency_id;
+      .select("agency_id, agencies(is_default)")
+      .eq("campaigner_id", campaignerId);
+    agencyId = pickCampaignerAgency(campAgencies);
   }
   if (!agencyId) {
     const { data: defaultAgency } = await supabase
@@ -129,4 +130,21 @@ export async function executeCreateTask(
     );
   }
   return { task_id: data.id, title: data.title, status: data.status };
+}
+
+/** One of the campaigner's agency links (`campaigner_agencies` with `agencies(is_default)`). */
+interface CampaignerAgencyRow {
+  agency_id: string;
+  agencies: { is_default: boolean | null } | null;
+}
+
+/** The campaigner's default agency if they have one, else their first, else null. */
+export function pickCampaignerAgency(
+  rows: ReadonlyArray<CampaignerAgencyRow> | null,
+): string | null {
+  if (!rows?.length) {
+    return null;
+  }
+  const preferred = rows.find((row) => row.agencies?.is_default) ?? rows[0];
+  return preferred.agency_id;
 }
