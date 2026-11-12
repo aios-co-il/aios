@@ -219,7 +219,7 @@ function buildMeetingBotCapabilities(): string {
   return `
 === בוט פגישות (Zoom / Google Meet / Teams) ===
 
-✅ **כן — את יכולה להצטרף לפגישות חיות** כמשתתפת גלויה ("כרמן AI — מסייעת תמלול") כשמשתמש שולח קישור הצטרפות.
+✅ **כן — את יכולה להצטרף לפגישות חיות** דרך בוט גלוי בשם "מיני מי · מתמלל ומסכם" כשמשתמש שולח קישור הצטרפות.
 
 כשמקבלת קישור meet.google.com / zoom.us / teams.microsoft.com (גם "תצטרפי", "תיכנסי לפגישה"):
 1. קראי מיד ל-**join_meeting_for_client** עם meeting_url מההודעה.
