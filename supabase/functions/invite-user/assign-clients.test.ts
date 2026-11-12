@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
   assignInvitedClients,
   type ClientAssignmentStore,
+  supabaseClientAssignmentStore,
 } from "./assign-clients.ts";
 
 /** In-memory store: clients by tenant and the existing client_team rows. */
@@ -114,5 +115,69 @@ Deno.test(
       "Campaigner is not in this organization",
     );
     assertEquals(store.team, []);
+  },
+);
+
+/** A Supabase client stand-in that records each query's calls and answers with `rows`. */
+function recordingDb(rows: Array<Record<string, unknown>>) {
+  const calls: Array<[string, ...Array<unknown>]> = [];
+  const result = Promise.resolve({ data: rows, error: null });
+  const chain: Record<string, unknown> = {};
+  for (const method of ["select", "eq", "in", "or", "upsert"]) {
+    chain[method] = (...args: Array<unknown>) => {
+      calls.push([method, ...args]);
+      return chain;
+    };
+  }
+  chain.then = result.then.bind(result);
+  const db = {
+    from: (table: string) => {
+      calls.push(["from", table]);
+      return chain;
+    },
+  };
+  return { db, calls };
+}
+
+Deno.test("the store counts only assignments active today", async () => {
+  const { db, calls } = recordingDb([{ client_id: "c1" }]);
+  const store = supabaseClientAssignmentStore(
+    db as unknown as Parameters<typeof supabaseClientAssignmentStore>[0],
+  );
+
+  await store.assignedClientIds("card", ["c1"]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  assertEquals(
+    calls.filter(([method]) => method === "or"),
+    [
+      ["or", `start_date.is.null,start_date.lte.${today}`],
+      ["or", `end_date.is.null,end_date.gte.${today}`],
+    ],
+  );
+});
+
+Deno.test(
+  "the store writes a start date and lets the unique key drop duplicates",
+  async () => {
+    const { db, calls } = recordingDb([]);
+    const store = supabaseClientAssignmentStore(
+      db as unknown as Parameters<typeof supabaseClientAssignmentStore>[0],
+    );
+
+    await store.insertAssignments([{ client_id: "c1", campaigner_id: "card" }]);
+
+    const today = new Date().toISOString().slice(0, 10);
+    assertEquals(calls, [
+      ["from", "client_team"],
+      [
+        "upsert",
+        [{ client_id: "c1", campaigner_id: "card", start_date: today }],
+        {
+          onConflict: "client_id,campaigner_id,start_date",
+          ignoreDuplicates: true,
+        },
+      ],
+    ]);
   },
 );
