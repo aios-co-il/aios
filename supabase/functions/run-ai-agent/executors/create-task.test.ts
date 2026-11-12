@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing/bdd";
-import { executeCreateTask } from "./create-task.ts";
+import { executeCreateTask, pickCampaignerAgency } from "./create-task.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
 
 const USER = "22222222-2222-4222-8222-222222222222";
@@ -51,5 +51,38 @@ describe("executeCreateTask", () => {
       duration_minutes: null,
       created_by: USER,
     });
+  });
+
+  it("a task without a client goes to the campaigner's default agency", async () => {
+    // Production, AIO-578: a personal task landed in "promo", one of the
+    // owner's eight agencies, instead of the default MarketingCaptain.
+    const fixture = executorClient(
+      [
+        [
+          { agency_id: "promo", agencies: { is_default: false } },
+          { agency_id: "marketing-captain", agencies: { is_default: true } },
+        ],
+        { id: "task", title: "Call Michael", status: "open" },
+      ],
+      200,
+      { userId: USER, callerCampaignerId: "caller-campaigner" },
+    );
+    await executeCreateTask({ title: "Call Michael" }, fixture.context);
+    assertEquals(
+      (fixture.calls[1].body as { agency_id: string }).agency_id,
+      "marketing-captain",
+    );
+  });
+
+  it("pickCampaignerAgency falls back to the first link, then to none", () => {
+    assertEquals(
+      pickCampaignerAgency([
+        { agency_id: "a", agencies: { is_default: false } },
+        { agency_id: "b", agencies: null },
+      ]),
+      "a",
+    );
+    assertEquals(pickCampaignerAgency([]), null);
+    assertEquals(pickCampaignerAgency(null), null);
   });
 });
