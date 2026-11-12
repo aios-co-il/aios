@@ -31,6 +31,10 @@ vi.mock("@/hooks/useTenantPath", () => ({
   }),
 }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+// The persona pick is its own feature; here no character is picked.
+vi.mock("@/components/carmen/personas/useActivePersona", () => ({
+  useActivePersona: () => null,
+}));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -135,7 +139,16 @@ test("a tenant's custom skin portrait wins over the role default in the Zoom win
   );
 });
 
-test("in the orb style the Zoom window shows the humanised orb in the skin's color", () => {
+test("in the Mini Me style the Zoom window shows the Mini Me", () => {
+  state.avatarStyle = { style: "minime" };
+  setSessionSkin("tenant-a", "campaigner");
+  const { container } = render(<Session />);
+  expect(container.querySelector(".carmen-session-character")).toBeNull();
+  expect(container.querySelector(".orb-buddy")).toBeNull();
+  expect(container.querySelector("svg.mini-me")).not.toBeNull();
+});
+
+test("by default the Zoom window shows the humanised orb in the skin's color", () => {
   state.avatarStyle = undefined;
   setSessionSkin("tenant-a", "campaigner");
   const { container } = render(<Session />);

@@ -1,19 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-  getJerusalemDashboardDateRange,
-  jerusalemDateRangeToIso,
-} from "../_shared/calendarTimeZone.ts";
-import {
   dedupeWooOrdersById,
   filterWooOrdersForRevenue,
 } from "../_shared/wooRevenue.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
-import { sharedDashboardDateRange } from "../_shared/share-links/shared-dashboard-range.ts";
 import {
   EVENT_REPORT_TYPES,
   fetchEventTotals,
   withFullEventTotals,
 } from "./event-totals.ts";
+import { parseRequestRange, wooWindowIso } from "./request-range.ts";
+import { fetchWindowRecords } from "./window-records.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +26,6 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const shareToken = url.searchParams.get("token");
-    const dateFilter = url.searchParams.get("date_filter") || "last_30_days";
 
     if (!shareToken) {
       return new Response(JSON.stringify({ error: "Missing token" }), {
@@ -68,6 +64,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    // A preset, or the custom window the shared page names to compare with
+    // the previous period. Read after the token check, as before.
+    const requestRange = parseRequestRange(url.searchParams);
+    if (!requestRange.ok) {
+      console.warn(
+        "[public-dashboard] rejected date range:",
+        requestRange.error,
+        url.searchParams.get("custom_start"),
+        url.searchParams.get("custom_end"),
+      );
+      return new Response(JSON.stringify({ error: "Invalid date range" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { startDate, endDate } = requestRange.window;
+
     // Fetch tables for this dashboard's client
     // NOTE: We intentionally do NOT filter by tenant_id here — integration tables
     // (Ahrefs / GA / Facebook) may have been created under a different tenant
@@ -80,11 +93,7 @@ Deno.serve(async (req) => {
 
     const allTables = tables || [];
 
-    const wooCalendar = getJerusalemDashboardDateRange(dateFilter);
-    const wooRange =
-      wooCalendar.startDate && wooCalendar.endDate
-        ? jerusalemDateRangeToIso(wooCalendar.startDate, wooCalendar.endDate)
-        : { start: null as string | null, end: null as string | null };
+    const wooRange = wooWindowIso(requestRange.window);
 
     // Deduplicate Facebook: if both facebook_insights AND facebook_ecommerce exist,
     // skip facebook_insights to avoid double-counting spend/impressions/clicks
@@ -100,37 +109,29 @@ Deno.serve(async (req) => {
       ? allTables.filter((t: any) => t.integration_type !== "facebook_insights")
       : allTables;
 
-    // Fetch each table's records in parallel. Select only the columns we need and
-    // cap page counts so a large history can't stall the shared link for ~15s.
+    // Fetch each table's records in parallel, filtered to the window in the
+    // query (window-records.ts) so a cap never drops the window's oldest days.
     const fetchTableRecords = async (table: any) => {
-      const pageSize = 1000;
       const isAnalytics = table.integration_type === "google_analytics";
-      const isSeoHeavy =
-        table.integration_type === "google_search_console" ||
-        table.integration_type === "ahrefs";
-      const maxPages = isAnalytics ? 4 : isSeoHeavy ? 3 : 3; // 3–4k rows max per table
-      const tableRecords: any[] = [];
-      const { startDate, endDate } = sharedDashboardDateRange(dateFilter);
+      const tableRecords = await fetchWindowRecords(
+        (filter, from, to) => {
+          let query = supabase
+            .from("crm_records")
+            .select("id, data, created_at")
+            .eq("table_id", table.id);
+          if (filter) {
+            query = query.or(filter);
+          }
+          return query
+            .order("created_at", { ascending: false })
+            .order("id")
+            .range(from, to);
+        },
+        { tableId: table.id, startDate, endDate },
+      );
 
-      for (let page = 0; page < maxPages; page++) {
-        const from = page * pageSize;
-        const { data: rows, error } = await supabase
-          .from("crm_records")
-          .select("id, data, created_at")
-          .eq("table_id", table.id)
-          .order("created_at", { ascending: false })
-          .range(from, from + pageSize - 1);
-
-        if (error) {
-          console.error("Error fetching records for table", table.id, error);
-          break;
-        }
-        if (!rows || rows.length === 0) break;
-        tableRecords.push(...rows);
-        if (rows.length < pageSize) break;
-      }
-
-      // The site events tab sums the per-event rows, which can pass the cap.
+      // The site events tab sums the per-event rows, which can pass the cap
+      // (the all-time read keeps the newest 4,000 rows only).
       const readRecords = isAnalytics
         ? withFullEventTotals(
             tableRecords,
@@ -147,18 +148,8 @@ Deno.serve(async (req) => {
           )
         : tableRecords;
 
-      const filteredRecords = readRecords.filter((r: any) => {
-        const recordDate = r.data?.date || r.data?.date_start;
-        // Keep aggregated / summary rows (no date) — needed for GA channel rolls etc.
-        if (!recordDate) return true;
-        if (startDate && endDate)
-          return recordDate >= startDate && recordDate <= endDate;
-        if (startDate) return recordDate >= startDate;
-        return true;
-      });
-
       const publicSettings = toPublicTableSettings(table.integration_settings);
-      return filteredRecords.map((r: any) => ({
+      return readRecords.map((r: any) => ({
         ...r,
         _source: table.integration_type,
         _tableId: table.id,

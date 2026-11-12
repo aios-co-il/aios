@@ -187,6 +187,10 @@ import {
   workshopTurnTools,
 } from "./workshop-turn-setup.ts";
 import { callerAddressLine } from "../_shared/carmen/user-address.ts";
+import {
+  loadCallerPersona,
+  personaPromptSection,
+} from "../_shared/carmen/persona-runtime.ts";
 
 import { lastAssistantText } from "../_shared/workshop/tapped-answers.ts";
 import { sceneEngineFor } from "../_shared/workshop/scene-engine-for.ts";
@@ -8794,6 +8798,15 @@ async function handleRunAgent(
     if (!callerUserId && resolvedUserId && resolvedUserId !== "system") {
       callerUserId = resolvedUserId;
     }
+    // Whose agent character Carmen speaks as (AIO-576): the signed-in user in the
+    // app, the owner of a personal WhatsApp line (service-only persona_user_id),
+    // and nobody on the org's main Carmen line or in tasks.
+    const personaUserId =
+      surface === "whatsapp"
+        ? asUuidOrNull(bodyJson.persona_user_id)
+        : surface === "internal_chat" || surface === "aios"
+          ? callerUserId
+          : null;
     if (callerUserId) {
       const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
@@ -8960,6 +8973,7 @@ async function handleRunAgent(
       const fastReply = await tryFastLane(supabase, emit, {
         tenantId: resolvedTenantId,
         userId: callerUserId,
+        personaUserId,
         callerName,
         agentId: agent_id,
         agentName: agent.name || "כרמן",
@@ -9849,6 +9863,15 @@ async function handleRunAgent(
     // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
     // The profile name wins over user_name, which some screens set to a department label.
     systemPrompt += await callerAddressLine(supabase, callerUserId, callerName);
+    // The character the caller picked (AIO-570) names Carmen for them and sets her
+    // intro, personality, soul and mood; without a pick, and on the org's main
+    // WhatsApp line (AIO-576), she stays herself.
+    const callerPersona = isCarmen
+      ? await loadCallerPersona(supabase, resolvedTenantId, personaUserId)
+      : null;
+    if (callerPersona) {
+      systemPrompt += personaPromptSection(callerPersona);
+    }
     // Per-automation instructions for this WhatsApp conversation (set on the
     // Carmen automation; stripped in Deno.serve for non-service callers).
     if (
@@ -9934,7 +9957,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // ─── Mood / persona modulation (swappable tone layer) ───
     {
-      const moodPrompt = agentMoodPrompt(agent.mood, agent.id);
+      const moodPrompt = agentMoodPrompt(
+        callerPersona?.mood ?? agent.mood,
+        agent.id,
+      );
       if (moodPrompt) {
         systemPrompt += `\n\n${moodPrompt}`;
       }
@@ -11415,6 +11441,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 type FastLaneRequest = {
   tenantId: string;
   userId: string | null;
+  /** Whose agent character to answer as; null on the org's main Carmen line. */
+  personaUserId: string | null;
   callerName: string | null;
   agentId: string;
   agentName: string;
@@ -11436,12 +11464,14 @@ async function tryFastLane(
   turn: FastLaneRequest,
 ): Promise<Response | null> {
   const startedAt = Date.now();
-  const [target, brief, addressLine] = await Promise.all([
+  const [target, brief, addressLine, persona] = await Promise.all([
     fastLaneTarget(supabase, turn.tenantId),
     fastLaneBriefScope(supabase, turn.caller).then((scope) =>
       loadOrgBrief(supabase, turn.tenantId, new Date(), scope),
     ),
     callerAddressLine(supabase, turn.userId, turn.callerName),
+    // The fast lane answers only as Carmen, so the caller's character applies here too.
+    loadCallerPersona(supabase, turn.tenantId, turn.personaUserId),
   ]);
   if (!target) {
     return null;
@@ -11449,8 +11479,10 @@ async function tryFastLane(
   const answer = await answerFast({
     target,
     instructions: fastLaneInstructions({
-      agentName: turn.agentName,
-      addressLine,
+      agentName: persona?.displayName ?? turn.agentName,
+      addressLine: persona
+        ? addressLine + personaPromptSection(persona)
+        : addressLine,
       brief,
       now: new Date(),
     }),

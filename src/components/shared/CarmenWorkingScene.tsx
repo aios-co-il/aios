@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { CarmenOrbBuddy } from "@/components/carmen/CarmenOrbBuddy";
+import { MiniMe } from "@/components/carmen/MiniMe/MiniMe";
 import { useKnownCarmenAvatarStyle } from "@/hooks/useCarmenAvatarStyle";
 
 /**
@@ -53,23 +54,33 @@ export function CarmenWorkingScene({
   return style === "character" ? (
     <CharacterWorkingScene size={size} className={className} />
   ) : (
-    <OrbWorkingScene size={size} className={className} />
+    <OrbWorkingScene
+      size={size}
+      className={className}
+      miniMe={style === "minime"}
+    />
   );
 }
 
-/** The glass orb at work on a card that follows light or dark mode. */
+/** The Mini Me or the glass orb at work, on a card that follows light or dark mode. */
 function OrbWorkingScene({
   size,
   className,
+  miniMe,
 }: {
   size: CarmenSceneSize;
   className?: string;
+  miniMe: boolean;
 }) {
   return (
     <div className={cn("relative", SCENE_WIDTH[size], className)}>
       {/* Deep green glass on the light card; dark mode turns it see-through. */}
       <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-[radial-gradient(ellipse_at_55%_40%,hsl(var(--brand-accent-100)),hsl(var(--card))_80%)] shadow-elevation-2 dark:bg-[#0b1020] dark:bg-none dark:shadow-[0_18px_45px_-20px_rgba(15,23,42,0.75)]">
-        <CarmenOrbBuddy state="working" className="orb-deep w-[62%]" />
+        {miniMe ? (
+          <MiniMe state="working" className="w-[46%]" />
+        ) : (
+          <CarmenOrbBuddy state="working" className="orb-deep w-[62%]" />
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   createRecallBot,
   isRecallCreditError,
+  MEETING_BOT_NAME,
   recallApiKey,
 } from "../_shared/recall.ts";
 import { notifyRecallCreditEmpty } from "../_shared/recall-credit-alert.ts";
@@ -242,7 +243,7 @@ Deno.serve(async (req) => {
       bot_id: bot.id,
       platform,
       platform_label: platformLabel(platform),
-      bot_name: "כרמן AI — מסייעת תמלול",
+      bot_name: MEETING_BOT_NAME,
       message: `כרמן מצטרפת ל${platformLabel(platform)}. אשרו אותה בחדר ההמתנה אם נדרש.`,
     });
   } catch (error) {

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@/hooks/useCarmenAvatarStyle", () => ({
   useCarmenAvatarStyle: () => ({
     style: state.style,
+    orgStyle: state.style,
     setStyle: state.setStyle,
     saving: state.saving,
   }),
@@ -51,7 +52,7 @@ describe("CarmenStylePicker", () => {
     render(<CarmenStylePicker />);
     screen.getByRole("radio", { name: /ספירות/ }).focus();
     await user.keyboard("{ArrowDown}");
-    expect(state.setStyle).toHaveBeenCalledWith("character");
+    expect(state.setStyle).toHaveBeenCalledWith("minime");
   });
 
   test("members who are not owners cannot change it", async () => {

@@ -141,7 +141,7 @@ export function EditUserPermissionsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         dir="rtl"
-        className="max-w-2xl max-h-[85vh] overflow-y-auto"
+        className="max-w-2xl max-h-[90dvh] overflow-hidden"
       >
         <DialogHeader>
           <DialogTitle className="text-xl">הרשאות משתמש</DialogTitle>
@@ -155,7 +155,8 @@ export function EditUserPermissionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-2">
+        {/* Only the list scrolls, so every permission is reachable on phones. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain -mx-6 px-6 py-2">
           <PermissionsSelector
             value={permissions}
             onChange={setPermissions}
@@ -164,7 +165,7 @@ export function EditUserPermissionsDialog({
         </div>
 
         {/* כפתורי פעולה */}
-        <div className="flex gap-2 pt-2 border-t sticky bottom-0 bg-background pb-1">
+        <div className="shrink-0 flex gap-2 pt-2 border-t">
           <Button
             onClick={handleSave}
             disabled={updatePermissionsMutation.isPending}

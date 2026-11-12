@@ -41,10 +41,8 @@ const mixedFacebook = [
   facebook("traffic", { campaign_type: "traffic", spend: 20 }),
 ];
 
-const names = (rows: Array<{ name: string }>) => rows.map((row) => row.name);
-
 describe("sharedIntegrationReport", () => {
-  it("a mixed Facebook table keeps each goal's campaigns, KPIs and ROI apart", () => {
+  it("a mixed Facebook table counts each goal's KPIs apart", () => {
     const report = sharedIntegrationReport(mixedFacebook, {
       integrationType: "facebook_insights",
       level: "campaign",
@@ -52,9 +50,6 @@ describe("sharedIntegrationReport", () => {
       tableGoals: singleGoal,
       tableMode: "leads",
     });
-    expect(names(report.campaigns.ecommerce)).toStrictEqual(["sales"]);
-    expect(names(report.campaigns.leads)).toStrictEqual(["lead"]);
-    expect(names(report.campaigns.traffic)).toStrictEqual(["traffic"]);
     expect(report.goals).toStrictEqual({
       hasEcommerce: true,
       hasLeads: true,
@@ -69,10 +64,9 @@ describe("sharedIntegrationReport", () => {
       leads: 5,
       cpl: 10,
     });
-    expect(report.manualRoi).toStrictEqual({ spend: 50, leads: 5 });
   });
 
-  it("a leads-only Facebook table keeps every non-traffic campaign in leads", () => {
+  it("a leads-only Facebook table counts no sales", () => {
     const report = sharedIntegrationReport(mixedFacebook, {
       integrationType: "facebook_insights",
       level: "campaign",
@@ -80,57 +74,10 @@ describe("sharedIntegrationReport", () => {
       tableGoals: singleGoal,
       tableMode: "leads",
     });
-    expect(report.campaigns.ecommerce).toStrictEqual([]);
-    expect(names(report.campaigns.leads)).toStrictEqual(["sales", "lead"]);
-    expect(names(report.campaigns.traffic)).toStrictEqual(["traffic"]);
     expect(report.summary).toMatchObject({ purchases: 0, revenue: 0 });
-    expect(report.manualRoi).toStrictEqual({ spend: 150, leads: 6 });
   });
 
-  it("a Facebook table's traffic rows carry their new followers", () => {
-    for (const level of ["campaign", "adset"] as const) {
-      const traffic = (name: string, data: Record<string, unknown>) =>
-        facebook(name, {
-          entity_level: level,
-          adset_id: `${name} set`,
-          adset_name: `${name} set`,
-          campaign_type: "traffic",
-          ...data,
-        });
-      const report = sharedIntegrationReport(
-        [
-          traffic("profile", {
-            destination_type: "INSTAGRAM_PROFILE",
-            spend: 60,
-            new_followers: 12,
-          }),
-          traffic("profile", {
-            date: "2026-10-21",
-            destination_type: "INSTAGRAM_PROFILE",
-            spend: 60,
-            new_followers: 8,
-          }),
-          traffic("blog", { destination_type: "WEBSITE", spend: 100 }),
-        ],
-        {
-          integrationType: "facebook_insights",
-          level,
-          integrationSettings: {},
-          tableGoals: singleGoal,
-          tableMode: "leads",
-        },
-      );
-      // SharedTrafficTable shows the follower columns from these totals.
-      expect(
-        report.campaigns.traffic.map((row) => row.followers),
-      ).toStrictEqual([
-        { newFollowers: 20, followerSpend: 120, profileTraffic: true },
-        { newFollowers: null, followerSpend: 0, profileTraffic: false },
-      ]);
-    }
-  });
-
-  it("a Google table splits by each campaign's goal", () => {
+  it("a Google table counts each campaign toward its goal", () => {
     const table = {
       id: "g",
       integration_type: "google_ads",
@@ -171,64 +118,10 @@ describe("sharedIntegrationReport", () => {
       tableGoals,
       tableMode: "leads",
     });
-    expect(names(report.campaigns.ecommerce)).toStrictEqual(["pmax"]);
-    expect(names(report.campaigns.leads)).toStrictEqual(["search"]);
     expect(report.summary).toMatchObject({ roas: 4, leads: 5, cpl: 20 });
-    expect(report.manualRoi).toStrictEqual({ spend: 100, leads: 5 });
   });
 
-  it("manual ROI never takes sales spend when lead campaigns have no rows at this level", () => {
-    const table = {
-      id: "g",
-      integration_type: "google_ads",
-      integration_settings: {
-        campaign_type: "leads",
-        manual_roi: { closures: 2, revenue: 3000 },
-      },
-    };
-    const leadCampaign = {
-      data: {
-        date: "2026-10-20",
-        campaign_id: "pmax",
-        campaign_name: "pmax",
-        conversion_goal: "leads" as const,
-        cost: 100,
-        conversions: 5,
-      },
-    };
-    const salesAdGroup = {
-      data: {
-        date: "2026-10-20",
-        entity_level: "adset",
-        campaign_id: "search",
-        campaign_name: "search",
-        ad_group_name: "search group",
-        conversion_goal: "ecommerce" as const,
-        cost: 200,
-        conversions: 4,
-        conversions_value: 800,
-      },
-    };
-    const tableGoals = googleCampaignGoalOf(
-      [leadCampaign, salesAdGroup].map((record) => ({
-        table_id: table.id,
-        data: record.data,
-      })),
-      [table],
-      "leads",
-    );
-    const report = sharedIntegrationReport([salesAdGroup], {
-      integrationType: "google_ads",
-      level: "adset",
-      integrationSettings: table.integration_settings,
-      tableGoals,
-      tableMode: "leads",
-    });
-    expect(report.campaigns.leads).toStrictEqual([]);
-    expect(report.manualRoi).toStrictEqual({ spend: 0, leads: 0 });
-  });
-
-  it("an analytics table has KPIs and no campaign tables", () => {
+  it("an analytics table has session KPIs", () => {
     const report = sharedIntegrationReport([{ data: { sessions: 30 } }], {
       integrationType: "google_analytics",
       level: "adset",
@@ -236,7 +129,5 @@ describe("sharedIntegrationReport", () => {
       tableMode: "leads",
     });
     expect(report.summary?.sessions).toBe(30);
-    expect(report.campaigns.all).toStrictEqual([]);
-    expect(report.campaigns.entityColumnLabel).toBe("קבוצת מודעות");
   });
 });
