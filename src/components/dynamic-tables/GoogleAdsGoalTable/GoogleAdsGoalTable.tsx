@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { CampaignOffBadge } from "@/components/reports/CampaignOffBadge";
+import { ReportNameCell } from "@/components/report-ui/ReportTable";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import {
   CAMPAIGN_GOAL_TITLES,
@@ -108,10 +108,11 @@ export function GoogleAdsGoalTable({
         <tbody>
           {rows.map((row) => (
             <tr key={row.key} className="border-b hover:bg-muted/30">
-              <td className="p-2 text-right font-medium">
-                <CampaignOffBadge off={row.off === true} />
-                {row.name}
-              </td>
+              <ReportNameCell
+                name={row.name}
+                on={row.off !== true}
+                className="p-2 text-right"
+              />
               <GoogleMetricCells
                 m={row}
                 previous={
