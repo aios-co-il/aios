@@ -1,18 +1,17 @@
 // redeploy trigger: rebundle _shared/meeting-summary.ts (rich summary structure + summary_md persistence)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  AiHttpError,
-  generateMeetingSummary,
-  maybeCreateMarketingBrief,
-  saveSummaryForTarget,
-} from "../_shared/meeting-summary.ts";
+import { AiHttpError } from "../_shared/meeting-summary.ts";
 import { dispatchMeetingSummaryToCursor } from "../_shared/meeting-summary-cursor.ts";
 import { resolveOpenAIKey } from "../_shared/ai.ts";
 import { cursorSummaryResponse } from "./cursor-outcome.ts";
 import { callerMayUseTenant } from "./caller-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
-import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
+import {
+  type WriteSummaryInput,
+  writeSummary,
+  writeSummaryInBackground,
+} from "./write-summary.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -187,17 +186,50 @@ serve(async (req) => {
     const OPENAI_API_KEY = await resolveOpenAIKey();
     if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
 
-    let summary: string;
+    const summaryInput: WriteSummaryInput = {
+      openaiKey: OPENAI_API_KEY,
+      tenantId: tenant_id,
+      userId: user.id,
+      recordingId: recording_id ?? null,
+      transcript,
+      recordingInfo,
+      focusPrompt,
+      targetType: target_type,
+      targetId: target_id,
+      targetName,
+      targetAgencyId,
+    };
+
+    // A recording's summary is written after the reply: a long meeting takes
+    // longer than the gateway waits (AIO-581). The UI polls the recording.
+    // requested_at is the server's clock, which also stamps
+    // summary_generated_at, so a skewed browser clock cannot miss the result.
+    if (recording_id) {
+      const requestedAt = new Date().toISOString();
+      writeSummaryInBackground(summaryInput);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          pending: true,
+          channel: "model",
+          requested_at: requestedAt,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     try {
-      summary = await generateMeetingSummary(
-        {
-          openaiKey: OPENAI_API_KEY,
-          openRouterKey: await tenantSummaryKey(serviceClient(), tenant_id),
-          tenantId: tenant_id,
-        },
-        transcript,
-        recordingInfo,
-        focusPrompt,
+      const written = await writeSummary(summaryInput);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          summary: written.summary,
+          file_url: written.fileUrl,
+          file_name: written.fileName,
+          marketing_brief_created: written.marketingBriefCreated,
+          marketing_work_item_id: written.marketingWorkItemId,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     } catch (err) {
       if (err instanceof AiHttpError) {
@@ -208,84 +240,6 @@ serve(async (req) => {
       }
       throw err;
     }
-
-    const { fileUrl, fileName } = await saveSummaryForTarget(admin, {
-      tenant_id,
-      target_type,
-      target_id,
-      target_name: targetName,
-      summary,
-      recording_id: recording_id ?? null,
-      created_by: user.id,
-    });
-
-    if (recording_id) {
-      const association =
-        target_type === "client"
-          ? {
-              client_id: target_id,
-              lead_id: null,
-              agency_id: null,
-              campaigner_ids: [],
-              summary_scope: "client",
-            }
-          : target_type === "lead"
-            ? {
-                client_id: null,
-                lead_id: target_id,
-                agency_id: null,
-                campaigner_ids: [],
-                summary_scope: "lead",
-              }
-            : target_type === "campaigner"
-              ? {
-                  client_id: null,
-                  lead_id: null,
-                  agency_id: targetAgencyId,
-                  campaigner_ids: [target_id],
-                  summary_scope: "campaigner",
-                }
-              : {
-                  client_id: null,
-                  lead_id: null,
-                  agency_id: target_id,
-                  campaigner_ids: [],
-                  summary_scope: "agency",
-                };
-      await admin
-        .from("zoom_recordings")
-        .update(association)
-        .eq("tenant_id", tenant_id)
-        .eq("id", recording_id);
-    }
-
-    // Auto-detect marketing needs and create a brief work item
-    let marketingBriefCreated = false;
-    let marketingWorkItemId: string | null = null;
-    if (target_type === "client" && target_id && tenant_id) {
-      const brief = await maybeCreateMarketingBrief(admin, OPENAI_API_KEY, {
-        summary,
-        tenant_id,
-        client_id: target_id,
-        recording_id: recording_id ?? null,
-        fileUrl,
-        source: "zoom_meeting",
-      });
-      marketingBriefCreated = brief.created;
-      marketingWorkItemId = brief.workItemId;
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        summary,
-        file_url: fileUrl,
-        file_name: fileName,
-        marketing_brief_created: marketingBriefCreated,
-        marketing_work_item_id: marketingWorkItemId,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
   } catch (error) {
     console.error("Error:", error);
     return new Response(

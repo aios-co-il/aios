@@ -201,6 +201,37 @@ export async function saveSummaryForTarget(
     created_by: created_by ?? null,
   };
 
+  // Persist the summary on the recording first — the raw Markdown is what
+  // the UI renders in-app; the DOCX is for download/sharing. A failure here
+  // stops before the target gets an attachment.
+  if (recording_id) {
+    const { error: recordingError } = await admin
+      .from("zoom_recordings")
+      // deno-lint-ignore no-explicit-any
+      .update({
+        summary_file_url: fileUrl,
+        summary_md: summary,
+        summary_generated_at: new Date().toISOString(),
+      } as any)
+      .eq("tenant_id", tenant_id)
+      .eq("id", recording_id);
+    if (recordingError) {
+      // Nothing points at the DOCX yet; remove it so a retry leaves no orphan.
+      const { error: removeError } = await admin.storage
+        .from("recordings")
+        .remove([fileName]);
+      if (removeError) {
+        console.error("[meeting-summary] DOCX cleanup failed", {
+          fileName,
+          error: removeError.message,
+        });
+      }
+      throw new Error(
+        `saving the summary on the recording failed: ${recordingError.message}`,
+      );
+    }
+  }
+
   // Clients and leads have an attachments collection. Campaigners/agencies do
   // not; their association lives on zoom_recordings and the DOCX remains in
   // the tenant-scoped summaries folder.
@@ -222,21 +253,6 @@ export async function saveSummaryForTarget(
     if (updateError) {
       console.error("Update attachments error:", updateError);
     }
-  }
-
-  // Also persist the summary on the recording itself — the raw Markdown is
-  // what the UI renders in-app; the DOCX is for download/sharing.
-  if (recording_id) {
-    await admin
-      .from("zoom_recordings")
-      // deno-lint-ignore no-explicit-any
-      .update({
-        summary_file_url: fileUrl,
-        summary_md: summary,
-        summary_generated_at: new Date().toISOString(),
-      } as any)
-      .eq("tenant_id", tenant_id)
-      .eq("id", recording_id);
   }
 
   if (recording_id) {
