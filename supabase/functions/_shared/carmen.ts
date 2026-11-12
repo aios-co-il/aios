@@ -75,7 +75,7 @@ import {
 } from "./carmen-session-history.ts";
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import { loadPickedCallWords } from "./carmen/persona-runtime.ts";
+import { loadCallWords } from "./carmen/persona-runtime.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
 
@@ -285,7 +285,7 @@ function resolveTriggerKeywords(
   return [...new Set([...own, ...carmenPersonaWords(cfg, own, persona)])];
 }
 
-/** The org's picked call words, and Carmen's agent id to tell her automations apart. */
+/** The line owner's call words, and Carmen's agent id to tell her automations apart. */
 interface PersonaTrigger {
   words: string[];
   carmenAgentId: string | null;
@@ -309,13 +309,16 @@ function carmenPersonaWords(
   return runsCarmen ? persona.words : [];
 }
 
-// The call words of characters the org's members picked, and Carmen's agent id
-// (looked up only when there are call words to place).
+// The call words of the character the line's owner picked, and Carmen's agent
+// id (looked up only when there are call words to place). Only a personal line
+// (a secondary connection) has an owner here; the org's main Carmen line keeps
+// its own keywords, so `lineOwnerId` is null there (AIO-576).
 async function loadPersonaTrigger(
   supabase: DbClient,
   tenantId: string,
+  lineOwnerId: string | null,
 ): Promise<PersonaTrigger> {
-  const words = await loadPickedCallWords(supabase, tenantId);
+  const words = await loadCallWords(supabase, tenantId, lineOwnerId);
   const carmenAgentId = words.length
     ? ((await findCarmenAgent(supabase, tenantId))?.id ?? null)
     : null;
@@ -1216,6 +1219,8 @@ export async function runCarmenAI(
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
   automationCtx?: CarmenAutomationContext | null,
+  /** The personal line's owner, whose character Carmen speaks as; null on the main line. */
+  personaUserId?: string | null,
 ): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -1249,6 +1254,8 @@ export async function runCarmenAI(
     wa_notify: waNotify || null,
     // Admin-authored per-automation instructions (service-only in run-ai-agent).
     ...(automationCtx ? { carmen_automation: automationCtx } : {}),
+    // Whose character to speak as on a personal line (service-only in run-ai-agent).
+    ...(personaUserId ? { persona_user_id: personaUserId } : {}),
   });
 
   // Try once; retry once after 1s ONLY for transient failures (network error, 5xx,
@@ -1866,7 +1873,14 @@ export async function handleCarmenMessage(
     return { handled: false, reason: "not_user_message" };
 
   const normalizedMsg = (messageText || "").trim().toLowerCase();
-  const personaTrigger = await loadPersonaTrigger(supabase, tenantId);
+  // A personal line answers as its owner's character; the main Carmen line as the org's Carmen.
+  const personaUserId =
+    connectionRole === "secondary" ? (connectionUserId ?? null) : null;
+  const personaTrigger = await loadPersonaTrigger(
+    supabase,
+    tenantId,
+    personaUserId,
+  );
 
   // Read configured timeout (defaults to 5 minutes). We need it both for find-active and start-session paths.
   // Look up the relevant automation up-front to get session_timeout_minutes & end_keyword.
@@ -2499,6 +2513,7 @@ export async function handleCarmenMessage(
         // Only the automation that routes this session may contribute
         // instructions — never another automation's.
         routingAutomationId === earlyAutomation?.id ? automationCtx : null,
+        personaUserId,
       );
     } catch (err) {
       // AI failed twice (with retry). Stay silent — don't send "מצטערת..." to the user.
@@ -2809,6 +2824,7 @@ export async function handleCarmenMessage(
       senderName,
       waNotify,
       automationCtx,
+      personaUserId,
     );
 
     if (carmenResponse.includes(DUAL_CARMEN_SKIP)) {
@@ -2885,6 +2901,7 @@ export async function handleCarmenMessage(
         senderName,
         waNotify,
         automationCtx,
+        personaUserId,
       );
     } catch (err) {
       console.error("[CARMEN] contextual opener failed, falling back:", err);

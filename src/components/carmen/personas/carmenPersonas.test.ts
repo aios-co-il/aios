@@ -4,22 +4,26 @@ import {
   findPersona,
   mergePersonas,
   parseCallWords,
+  saveTarget,
 } from "./carmenPersonas";
 
 describe("mergePersonas", () => {
   it("lists the three built-ins when the org stored nothing", () => {
-    const keys = mergePersonas([]).map((persona) => persona.key);
+    const keys = mergePersonas([], "me").map((persona) => persona.key);
     expect(keys).toEqual(["carmen", "minime", "aios"]);
   });
 
   it("applies the org's edit to a built-in and keeps its key", () => {
-    const [, minime] = mergePersonas([
-      row({
-        builtin_key: "minime",
-        display_name: "מיני",
-        call_words: ["מיני"],
-      }),
-    ]);
+    const [, minime] = mergePersonas(
+      [
+        row({
+          builtin_key: "minime",
+          display_name: "מיני",
+          call_words: ["מיני"],
+        }),
+      ],
+      "me",
+    );
     expect(minime).toMatchObject({
       key: "minime",
       builtinKey: "minime",
@@ -31,14 +35,17 @@ describe("mergePersonas", () => {
   });
 
   it("adds created characters after the built-ins, keyed by their row id", () => {
-    const personas = mergePersonas([
-      row({
-        id: "own-1",
-        owner_user_id: "me",
-        display_name: "שלי",
-        look: "character",
-      }),
-    ]);
+    const personas = mergePersonas(
+      [
+        row({
+          id: "own-1",
+          owner_user_id: "me",
+          display_name: "שלי",
+          look: "character",
+        }),
+      ],
+      "me",
+    );
     expect(personas).toHaveLength(4);
     expect(personas[3]).toMatchObject({
       key: "own-1",
@@ -49,14 +56,111 @@ describe("mergePersonas", () => {
   });
 
   it("reads an unknown stored look as the orb", () => {
-    const personas = mergePersonas([row({ id: "x", look: "hologram" })]);
+    const personas = mergePersonas([row({ id: "x", look: "hologram" })], "me");
     expect(personas[3].look).toBe("orbs");
+  });
+});
+
+describe("mergePersonas with personal versions", () => {
+  it("shows the user's own version of a built-in over the org's edit", () => {
+    const [, minime] = mergePersonas(
+      [
+        row({ id: "org", builtin_key: "minime", display_name: "של הארגון" }),
+        row({
+          id: "mine",
+          builtin_key: "minime",
+          owner_user_id: "me",
+          display_name: "שלי",
+        }),
+      ],
+      "me",
+    );
+    expect(minime).toMatchObject({
+      key: "minime",
+      rowId: "mine",
+      ownerUserId: "me",
+      displayName: "שלי",
+    });
+  });
+
+  it("leaves out other users' rows that a super admin can read", () => {
+    const personas = mergePersonas(
+      [
+        row({
+          id: "theirs",
+          builtin_key: "aios",
+          owner_user_id: "u2",
+          display_name: "של עמית",
+        }),
+        row({ id: "their-own", owner_user_id: "u2" }),
+      ],
+      "me",
+    );
+    expect(personas).toHaveLength(3);
+    expect(personas[2].displayName).toBe("AIOS");
+  });
+});
+
+describe("saveTarget", () => {
+  const [carmen] = mergePersonas([], "me");
+  const orgEdit = mergePersonas(
+    [row({ id: "org", builtin_key: "minime" })],
+    "me",
+  )[1];
+  const mine = mergePersonas(
+    [row({ id: "mine", builtin_key: "minime", owner_user_id: "me" })],
+    "me",
+  )[1];
+
+  it("updates the user's own row", () => {
+    expect(saveTarget(mine, false, "me")).toEqual({
+      kind: "update",
+      rowId: "mine",
+    });
+  });
+
+  it("turns a member's edit of a built-in or the org's edit into their own version", () => {
+    expect(saveTarget(carmen, false, "me")).toEqual({
+      kind: "insert",
+      builtinKey: "carmen",
+      ownerUserId: "me",
+    });
+    expect(saveTarget(orgEdit, false, "me")).toEqual({
+      kind: "insert",
+      builtinKey: "minime",
+      ownerUserId: "me",
+    });
+  });
+
+  it("saves for the org when an owner chose it", () => {
+    expect(saveTarget(orgEdit, true, "me")).toEqual({
+      kind: "update",
+      rowId: "org",
+    });
+    expect(saveTarget(carmen, true, "me")).toEqual({
+      kind: "insert",
+      builtinKey: "carmen",
+      ownerUserId: null,
+    });
+    expect(saveTarget(null, true, "me")).toEqual({
+      kind: "insert",
+      builtinKey: null,
+      ownerUserId: null,
+    });
+  });
+
+  it("creates a new character for the user by default", () => {
+    expect(saveTarget(null, false, "me")).toEqual({
+      kind: "insert",
+      builtinKey: null,
+      ownerUserId: "me",
+    });
   });
 });
 
 describe("findPersona", () => {
   it("is null without a pick or when the picked character is gone", () => {
-    const personas = mergePersonas([]);
+    const personas = mergePersonas([], "me");
     expect(findPersona(personas, null)).toBeNull();
     expect(findPersona(personas, "deleted-row")).toBeNull();
     expect(findPersona(personas, "aios")?.displayName).toBe("AIOS");

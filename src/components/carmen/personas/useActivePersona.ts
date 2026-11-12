@@ -21,7 +21,10 @@ export function useActivePersona() {
   const list = useQuery({
     queryKey: personasKey(tenantId, userId),
     staleTime: 30 * 60 * 1000,
-    queryFn: tenantId && choice.data ? () => loadPersonas(tenantId) : skipToken,
+    queryFn:
+      tenantId && userId && choice.data
+        ? () => loadPersonas(tenantId, userId)
+        : skipToken,
   });
   return list.data ? findPersona(list.data, choice.data) : null;
 }

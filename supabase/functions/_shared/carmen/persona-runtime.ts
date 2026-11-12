@@ -13,8 +13,8 @@ const ROW_FIELDS =
   "id, builtin_key, owner_user_id, display_name, call_words, intro_line, look, mood, personality, soul, writing_style";
 
 /**
- * The character the user picked in the org (`carmen_persona_choices`), with the
- * org's edits applied, or null when they picked none. A lookup failure is logged
+ * The character the user picked in the org (`carmen_persona_choices`), with
+ * their own version or the org's edit applied, or null when they picked none. A lookup failure is logged
  * and read as no pick, so Carmen answers as herself rather than not at all.
  */
 export async function loadCallerPersona(
@@ -41,38 +41,20 @@ export async function loadCallerPersona(
 }
 
 /**
- * Every call word of a character some member of the org picked, lowercased.
- * These call the assistant in the org's WhatsApp alongside the automation's own
- * keywords; a character nobody picked adds nothing.
+ * The call words of the character the user picked, lowercased. They wake the
+ * agent only on a WhatsApp line that user connected for themselves; the org's
+ * main Carmen line keeps its own keywords (AIO-576).
  */
-export async function loadPickedCallWords(
+export async function loadCallWords(
   db: Db,
   tenantId: string | null,
+  userId: string | null,
 ): Promise<Array<string>> {
-  if (!tenantId) {
-    return [];
-  }
-  const { data: choices, error } = await db
-    .from("carmen_persona_choices")
-    .select("user_id, persona_key")
-    .eq("tenant_id", tenantId);
-  if (error) {
-    console.error("[persona] picked call words lookup failed", error.message);
-    return [];
-  }
-  const picks = choices ?? [];
-  if (picks.length === 0) {
-    return [];
-  }
-  const rows = await loadRows(db, tenantId);
-  // Each pick counts only if its picker may use that character (their own or shared).
-  const words = picks.flatMap(
-    (pick) =>
-      pickPersona(rows, pick.persona_key, pick.user_id)?.callWords ?? [],
+  const persona = await loadCallerPersona(db, tenantId, userId);
+  const words = (persona?.callWords ?? []).map((word) =>
+    word.trim().toLowerCase(),
   );
-  return [...new Set(words.map((word) => word.trim().toLowerCase()))].filter(
-    Boolean,
-  );
+  return [...new Set(words)].filter(Boolean);
 }
 
 /**
@@ -140,8 +122,9 @@ interface StoredRow extends PersonaRowFields {
 }
 
 /**
- * A key as a character: a built-in with the org's edit, or a created one. A
- * user's own character counts only for that user.
+ * A key as a character: a built-in as the user's own version, else the org's
+ * edit, else its defaults; or a created one. A user's own row counts only for
+ * that user.
  */
 function pickPersona(
   rows: Array<StoredRow>,
@@ -149,7 +132,10 @@ function pickPersona(
   userId: string,
 ): PersonaProfile | null {
   if (isBuiltinPersonaKey(key)) {
-    const edit = rows.find((row) => row.builtin_key === key);
+    const builtinRows = rows.filter((row) => row.builtin_key === key);
+    const edit =
+      builtinRows.find((row) => row.owner_user_id === userId) ??
+      builtinRows.find((row) => row.owner_user_id === null);
     return edit ? personaFromRow(edit) : BUILTIN_PERSONAS[key];
   }
   const row = rows.find((item) => item.id === key);

@@ -21,9 +21,6 @@ import {
   savePersona,
 } from "./personaQueries";
 
-/** Where a new character is saved: for the whole org, or for this user only. */
-export type PersonaAudience = "org" | "me";
-
 /**
  * The characters the signed-in user can pick in the current org, the one they
  * picked, and the writes that change them.
@@ -36,7 +33,8 @@ export function useCarmenPersonas() {
   const list = useQuery({
     queryKey: personasKey(tenantId, userId),
     staleTime: 30 * 60 * 1000,
-    queryFn: tenantId && userId ? () => loadPersonas(tenantId) : skipToken,
+    queryFn:
+      tenantId && userId ? () => loadPersonas(tenantId, userId) : skipToken,
   });
   const choice = useQuery({
     queryKey: choiceQueryKey(tenantId, userId),
@@ -80,7 +78,7 @@ export function useCarmenPersonas() {
   });
 
   const scope: Scope = { tenantId, userId: userId ?? null };
-  const personas = list.data ?? mergePersonas([]);
+  const personas = list.data ?? mergePersonas([], userId ?? null);
   return {
     personas,
     /** False until the org's stored characters are known, so no stale draft opens. */
@@ -111,8 +109,8 @@ export interface SaveInput {
   /** The character being edited, or null for a new one. */
   persona: CarmenPersona | null;
   draft: PersonaDraft;
-  /** Only for a new character. */
-  audience: PersonaAudience;
+  /** Save for the whole org; only owners and super admins may (RLS checks it). */
+  forOrg: boolean;
 }
 
 /**
