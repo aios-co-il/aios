@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 
 type ReportHeaderProps = {
   title: ReactNode;
-  onBack: () => void;
+  /** The back button's action; a public share page has nowhere to go back to. */
+  onBack?: () => void;
   /** Small labels beside the title, such as the connected platforms. */
   badges?: ReactNode;
   /** Small text after the title: client, agency, freshness, sync warning. */
@@ -42,16 +43,18 @@ export function ReportHeader({
     <header className="space-y-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-h-9">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            aria-label="חזרה"
-            title="חזרה"
-            onClick={onBack}
-          >
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              aria-label="חזרה"
+              title="חזרה"
+              onClick={onBack}
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
           <h1 className="text-lg font-bold leading-tight">{title}</h1>
           {badges}
           {meta && (

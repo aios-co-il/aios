@@ -17,15 +17,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { COMBINED_DASHBOARD_DATE_FILTERS } from "@/lib/dashboardDateFilters";
+import {
+  COMBINED_DASHBOARD_DATE_FILTERS,
+  type DateFilterOption,
+} from "@/lib/dashboardDateFilters";
 
 type DateRange = { from?: Date; to?: Date };
 
 type DashboardDateControlsProps = {
   dateFilter: string;
   onDateFilterChange: (value: string) => void;
-  customDateRange: DateRange;
-  onCustomDateRangeChange: (range: DateRange) => void;
+  /** The presets offered; the signed-in dashboard's, with a custom range, by default. */
+  filters?: ReadonlyArray<DateFilterOption>;
+  /** The custom range and its setter; a list without "custom" needs neither. */
+  customDateRange?: DateRange;
+  onCustomDateRangeChange?: (range: DateRange) => void;
   /** Shown before the dates, such as an organization's agency picker. */
   agencyPicker?: ReactNode;
   /** Shown after the dates, such as the previous-period button. */
@@ -36,7 +42,8 @@ type DashboardDateControlsProps = {
 export function DashboardDateControls({
   dateFilter,
   onDateFilterChange,
-  customDateRange,
+  filters = COMBINED_DASHBOARD_DATE_FILTERS,
+  customDateRange = {},
   onCustomDateRangeChange,
   agencyPicker,
   children,
@@ -59,14 +66,14 @@ export function DashboardDateControls({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {COMBINED_DASHBOARD_DATE_FILTERS.map((filter) => (
+          {filters.map((filter) => (
             <SelectItem key={filter.value} value={filter.value}>
               {filter.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {dateFilter === "custom" && (
+      {dateFilter === "custom" && onCustomDateRangeChange && (
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="gap-1.5">

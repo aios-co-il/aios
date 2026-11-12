@@ -107,6 +107,7 @@ import {
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { usePreviousPlatformTabs } from "@/components/report-ui/dashboard/usePreviousPlatformTabs";
+import { showsPreviousToggle } from "@/components/report-ui/dashboard/previousPlatformTabs";
 import { DashboardDateControls } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import {
@@ -2374,9 +2375,4 @@ export default function DashboardView() {
       )}
     </div>
   );
-}
-
-/** The tabs whose figures compare with the previous period. */
-function showsPreviousToggle(tab: string): boolean {
-  return tab === "all" || tab === "facebook" || tab === "google_ads";
 }
