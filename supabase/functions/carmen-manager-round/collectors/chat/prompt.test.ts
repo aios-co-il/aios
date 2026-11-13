@@ -34,6 +34,29 @@ Deno.test("verdictPrompt", async (t) => {
     );
   });
 
+  await t.step("tells requests, updates and fragments from complaints", () => {
+    const { text } = verdictPrompt(
+      thread([row({ message_text: "בבקשה להוריד את הקמפיין" })]).turns,
+      new Set(),
+    );
+    const [instructions] = text.split("\n\n");
+    assert(
+      instructions.includes("whose own words say the client is dissatisfied"),
+    );
+    assert(instructions.includes("not on the lines around it"));
+    for (const notComplaint of [
+      "a request or instruction",
+      "a question",
+      "a status update",
+      "reported numbers or sales",
+      "praise or neutral remarks",
+      "a short fragment",
+    ]) {
+      assert(instructions.includes(notComplaint), notComplaint);
+    }
+    assert(instructions.includes("When unsure, leave the line out."));
+  });
+
   await t.step("marks the new client lines and maps them to messages", () => {
     const built = thread([
       row({ message_id: "old", created_at: il("09:00") }),
