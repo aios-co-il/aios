@@ -26,11 +26,7 @@ const MAX_WHISPER_FALLBACK_BYTES = 24 * 1024 * 1024;
 const TRANSCRIPT_WAIT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 export type FinalizeOutcome =
-  | "done"
-  | "awaiting_transcript"
-  | "awaiting_video"
-  | "no_recording"
-  | "failed";
+  "done" | "awaiting_transcript" | "awaiting_video" | "no_recording" | "failed";
 
 export interface FinalizeResult {
   outcome: FinalizeOutcome;
