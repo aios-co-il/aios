@@ -3,9 +3,31 @@
 // both finalize one session; the later run must not undo the earlier one.
 
 import type { DbClient } from "../supabase-clients.ts";
+import type { MeetingBotSession } from "../meeting-bot-finalize.ts";
 
-/** Columns that carry the bot's name, which a re-run must not write again. */
-const BOT_NAME_COLUMNS = new Set(["meeting_topic", "topic_set_manually"]);
+/** The recording's name and whether a person chose it (AIO-563). */
+export interface RecordingName {
+  meeting_topic: string;
+  topic_set_manually: boolean;
+}
+
+/** The zoom_recordings columns the finalize writes, besides the name. */
+export interface MeetingBotRecordingFields {
+  tenant_id: string;
+  client_id: string | null;
+  lead_id: string | null;
+  agency_id: string | null;
+  campaigner_ids: Array<string> | null;
+  summary_scope: MeetingBotSession["summary_scope"];
+  meeting_id: string;
+  start_time: string;
+  duration: number | null;
+  source: "meeting_bot";
+  recording_url: string | null;
+  file_path?: string;
+  transcription?: string;
+  transcription_status?: "completed" | "pending";
+}
 
 /** The recording row an earlier finalize run left, as far as a re-run cares. */
 export interface ExistingRecording {
@@ -18,15 +40,11 @@ export interface ExistingRecording {
  * its name, which the summary or a person may have changed since.
  */
 export function recordingRowFor(
-  row: Record<string, unknown>,
+  fields: MeetingBotRecordingFields,
+  name: RecordingName,
   existing: ExistingRecording | null,
-): Record<string, unknown> {
-  if (!existing) {
-    return row;
-  }
-  return Object.fromEntries(
-    Object.entries(row).filter(([column]) => !BOT_NAME_COLUMNS.has(column)),
-  );
+): MeetingBotRecordingFields & Partial<RecordingName> {
+  return existing ? fields : { ...fields, ...name };
 }
 
 /** True when an earlier run already summarized this recording. */
@@ -53,4 +71,45 @@ export async function findExistingRecording(
     throw new Error(`recording lookup failed: ${error.message}`);
   }
   return data ?? null;
+}
+
+/**
+ * A fresh read of the summary stamp, taken right before the pipeline runs: the
+ * early read can be minutes old after the transcript and video downloads.
+ */
+export async function hasSummaryNow(
+  admin: Pick<DbClient, "from">,
+  tenantId: string,
+  recordingId: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("zoom_recordings")
+    .select("summary_generated_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", recordingId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`summary check failed: ${error.message}`);
+  }
+  return !!data?.summary_generated_at;
+}
+
+/** Close a session whose recording an earlier run already summarized. */
+export async function finishAlreadySummarized(
+  admin: Pick<DbClient, "from">,
+  session: { id: string; tenant_id: string },
+): Promise<{ outcome: "done"; detail: string }> {
+  const { error } = await admin
+    .from("meeting_bot_sessions")
+    .update({
+      status: "done",
+      status_detail: "already_summarized",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", session.tenant_id)
+    .eq("id", session.id);
+  if (error) {
+    throw new Error(`session close failed: ${error.message}`);
+  }
+  return { outcome: "done", detail: "already summarized" };
 }

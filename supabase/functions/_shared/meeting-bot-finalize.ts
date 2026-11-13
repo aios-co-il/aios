@@ -14,7 +14,11 @@ import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
 import {
   alreadySummarized,
   findExistingRecording,
+  finishAlreadySummarized,
+  hasSummaryNow,
+  type MeetingBotRecordingFields,
   recordingRowFor,
+  type RecordingName,
 } from "./meeting-bot/existing-recording.ts";
 
 // A long meeting's mp4 does not fit in an edge function's memory. Above this we
@@ -35,7 +39,8 @@ export interface MeetingBotSession {
   lead_id: string | null;
   agency_id: string | null;
   campaigner_ids: string[] | null;
-  summary_scope: "auto" | "client" | "lead" | "campaigner" | "agency";
+  // Text in the schema; the values are auto, client, lead, campaigner, agency.
+  summary_scope: string;
   platform: string;
   meeting_topic: string | null;
   external_bot_id: string | null;
@@ -105,6 +110,8 @@ export async function finalizeMeetingBotSession(
         .from("meeting_bot_sessions")
         .update({
           status: "processing",
+          // Not `ingesting`: that would hold off the webhook and the cron.
+          status_detail: "awaiting_media",
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.id);
@@ -180,7 +187,12 @@ export async function finalizeMeetingBotSession(
   const defaultTopic = `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
   const topic = session.meeting_topic || defaultTopic;
 
-  const row: Record<string, unknown> = {
+  const name: RecordingName = {
+    meeting_topic: topic,
+    // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
+    topic_set_manually: topic !== defaultTopic,
+  };
+  const fields: MeetingBotRecordingFields = {
     tenant_id: session.tenant_id,
     client_id: session.client_id,
     lead_id: session.lead_id,
@@ -188,26 +200,26 @@ export async function finalizeMeetingBotSession(
     campaigner_ids: session.campaigner_ids,
     summary_scope: session.summary_scope,
     meeting_id: botId,
-    meeting_topic: topic,
-    // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
-    topic_set_manually: topic !== defaultTopic,
     start_time:
       session.joined_at || session.scheduled_start || new Date().toISOString(),
     duration: durationMin,
     source: "meeting_bot",
     recording_url: videoUrl,
   };
-  if (filePath) row.file_path = filePath;
-  if (transcription) {
-    row.transcription = transcription;
-    row.transcription_status = "completed";
+  if (filePath) {
+    fields.file_path = filePath;
   }
+  if (transcription) {
+    fields.transcription = transcription;
+    fields.transcription_status = "completed";
+  }
+  const row = recordingRowFor(fields, name, existing);
 
   let recording;
   if (recordingId) {
     const { data, error } = await admin
       .from("zoom_recordings")
-      .update(recordingRowFor(row, existing))
+      .update(row)
       .eq("id", recordingId)
       .select(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
@@ -242,11 +254,7 @@ export async function finalizeMeetingBotSession(
   // The webhook and the reconcile cron can both finalize a session; a second
   // run must not summarize again or undo the first run's name (AIO-587).
   if (alreadySummarized(existing)) {
-    await admin
-      .from("meeting_bot_sessions")
-      .update({ status: "done", updated_at: new Date().toISOString() })
-      .eq("id", session.id);
-    return { outcome: "done", detail: "already summarized" };
+    return await finishAlreadySummarized(admin, session);
   }
 
   // No transcript yet. Recall's own artifact is still the best source, so wait
@@ -309,6 +317,11 @@ export async function finalizeMeetingBotSession(
         .eq("id", session.id);
       return { outcome: "failed", detail: "no transcript and no usable audio" };
     }
+  }
+
+  // A run that started before ours may have summarized while we downloaded.
+  if (await hasSummaryNow(admin, session.tenant_id, recording.id)) {
+    return await finishAlreadySummarized(admin, session);
   }
 
   await runRecordingPipeline(admin, {

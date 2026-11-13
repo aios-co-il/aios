@@ -1,34 +1,60 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { alreadySummarized, recordingRowFor } from "./existing-recording.ts";
+import { describe, it } from "jsr:@std/testing/bdd";
+import {
+  alreadySummarized,
+  type MeetingBotRecordingFields,
+  recordingRowFor,
+  type RecordingName,
+} from "./existing-recording.ts";
 
-const row = {
-  meeting_topic: "Microsoft Teams — כרמן",
-  topic_set_manually: false,
+const fields: MeetingBotRecordingFields = {
+  tenant_id: "tenant-1",
+  client_id: null,
+  lead_id: null,
+  agency_id: null,
+  campaigner_ids: null,
+  summary_scope: "auto",
+  meeting_id: "bot-1",
+  start_time: "2026-11-12T12:00:00Z",
+  duration: 20,
+  source: "meeting_bot",
   recording_url: "https://recall.example/video.mp4",
 };
 
-Deno.test("a new recording takes the bot's name", () => {
-  assertEquals(recordingRowFor(row, null), row);
+const name: RecordingName = {
+  meeting_topic: "Microsoft Teams — כרמן",
+  topic_set_manually: false,
+};
+
+describe("recordingRowFor", () => {
+  it("gives a new recording the bot's name", () => {
+    assertEquals(recordingRowFor(fields, name, null), { ...fields, ...name });
+  });
+
+  it("keeps the name the summary gave an existing recording", () => {
+    assertEquals(
+      recordingRowFor(fields, name, {
+        id: "rec-1",
+        summary_generated_at: null,
+      }),
+      fields,
+    );
+  });
 });
 
-Deno.test("a re-run keeps the name the summary gave the recording", () => {
-  assertEquals(
-    recordingRowFor(row, { id: "rec-1", summary_generated_at: null }),
-    { recording_url: "https://recall.example/video.mp4" },
-  );
-});
-
-Deno.test("a recording with a summary is not summarized again", () => {
-  assertEquals(
-    alreadySummarized({
-      id: "rec-1",
-      summary_generated_at: "2026-11-12T12:23:00Z",
-    }),
-    true,
-  );
-  assertEquals(
-    alreadySummarized({ id: "rec-1", summary_generated_at: null }),
-    false,
-  );
-  assertEquals(alreadySummarized(null), false);
+describe("alreadySummarized", () => {
+  it("is true only for a recording with a summary stamp", () => {
+    assertEquals(
+      alreadySummarized({
+        id: "rec-1",
+        summary_generated_at: "2026-11-12T12:23:00Z",
+      }),
+      true,
+    );
+    assertEquals(
+      alreadySummarized({ id: "rec-1", summary_generated_at: null }),
+      false,
+    );
+    assertEquals(alreadySummarized(null), false);
+  });
 });

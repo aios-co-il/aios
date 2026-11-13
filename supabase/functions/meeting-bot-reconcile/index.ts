@@ -4,9 +4,16 @@
 // still processing, and copying a long meeting's video can outlive the webhook
 // invocation. Both cases leave a session stuck in `processing`. This runs on a
 // schedule, re-checks those sessions against Recall, and finishes them.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
-import { isReconcilable } from "./reconcilable.ts";
+import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
+import {
+  finalizeMeetingBotSession,
+  type MeetingBotSession,
+} from "../_shared/meeting-bot-finalize.ts";
+import {
+  claimSessionIngest,
+  INGEST_ERROR,
+  notLiveIngestFilter,
+} from "../_shared/meeting-bot/ingest-claim.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,9 +35,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { headers: corsHeaders });
 
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const admin = serviceClient();
 
   let sessionId: string | null = null;
   try {
@@ -43,7 +48,7 @@ Deno.serve(async (req) => {
   let query = admin
     .from("meeting_bot_sessions")
     .select(
-      "id, tenant_id, client_id, lead_id, agency_id, campaigner_ids, summary_scope, platform, meeting_topic, external_bot_id, zoom_recording_id, scheduled_start, joined_at, ended_at, created_by, status, status_detail, updated_at",
+      "id, tenant_id, client_id, lead_id, agency_id, campaigner_ids, summary_scope, platform, meeting_topic, external_bot_id, zoom_recording_id, scheduled_start, joined_at, ended_at, created_by, updated_at",
     )
     .not("external_bot_id", "is", null);
 
@@ -51,37 +56,72 @@ Deno.serve(async (req) => {
     query = query.eq("id", sessionId);
   } else {
     const cutoff = new Date(Date.now() - MIN_AGE_SECONDS * 1000).toISOString();
-    // Only `processing` — a bot still in the call must not be finalized early.
+    // Only `processing` — a bot still in the call must not be finalized early —
+    // and not a session the webhook is ingesting right now (AIO-587).
     query = query
       .eq("status", "processing")
       .lt("updated_at", cutoff)
+      .or(notLiveIngestFilter(Date.now()))
       .order("updated_at", { ascending: true })
       .limit(BATCH_SIZE);
   }
 
-  const { data: found, error } = await query;
+  const { data: sessions, error } = await query;
   if (error) return json({ error: error.message }, 500);
-  // An explicit session_id is an operator's retry; the cron skips live ingests.
-  const sessions = sessionId
-    ? found
-    : (found ?? []).filter((session) => isReconcilable(session, Date.now()));
   if (!sessions?.length) return json({ processed: 0, results: [] });
 
-  const results: Record<string, unknown>[] = [];
+  const results: Array<ReconcileResult> = [];
   for (const session of sessions) {
-    try {
-      const result = await finalizeMeetingBotSession(admin, session);
-      results.push({ session_id: session.id, ...result });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[meeting-bot-reconcile] failed", session.id, msg);
-      await admin
-        .from("meeting_bot_sessions")
-        .update({ error: msg, updated_at: new Date().toISOString() })
-        .eq("id", session.id);
-      results.push({ session_id: session.id, outcome: "error", detail: msg });
-    }
+    results.push(await reconcileSession(admin, session));
   }
 
   return json({ processed: results.length, results });
 });
+
+type ReconcileResult = { session_id: string; outcome: string; detail: string };
+
+/**
+ * Claim the session the way the webhook does, then finalize it. A lost claim
+ * means another run owns the ingest; a failed finalize stays retryable.
+ */
+async function reconcileSession(
+  admin: DbClient,
+  session: MeetingBotSession & { updated_at: string },
+): Promise<ReconcileResult> {
+  let claimed: boolean;
+  try {
+    claimed = await claimSessionIngest(admin, session);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[meeting-bot-reconcile] claim failed", session.id, msg);
+    return { session_id: session.id, outcome: "error", detail: msg };
+  }
+  if (!claimed) {
+    return {
+      session_id: session.id,
+      outcome: "skipped",
+      detail: "already claimed",
+    };
+  }
+
+  try {
+    const result = await finalizeMeetingBotSession(admin, session);
+    return { session_id: session.id, ...result };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[meeting-bot-reconcile] failed", session.id, msg);
+    const { error } = await admin
+      .from("meeting_bot_sessions")
+      .update({
+        status_detail: INGEST_ERROR,
+        error: msg,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tenant_id", session.tenant_id)
+      .eq("id", session.id);
+    if (error) {
+      console.error("[meeting-bot-reconcile] error not recorded", error);
+    }
+    return { session_id: session.id, outcome: "error", detail: msg };
+  }
+}
