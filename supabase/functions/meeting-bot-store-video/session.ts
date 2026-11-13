@@ -1,5 +1,10 @@
 // The meeting-bot session and recording rows meeting-bot-store-video reads and
 // writes, always filtered by the session's tenant.
+import type { MeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
+import {
+  AWAITING_VIDEO,
+  VIDEO_STORED,
+} from "../_shared/meeting-bot/video-storage.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
 export interface StoreVideoParams {
@@ -7,12 +12,12 @@ export interface StoreVideoParams {
   tenantId: string;
 }
 
-export interface StoredSession {
-  id: string;
-  tenant_id: string;
-  external_bot_id: string;
-  zoom_recording_id: string;
-}
+/** A session with the Recall bot and recording row a copy needs. */
+export type StoredSession = Pick<MeetingBotSession, "id" | "tenant_id"> & {
+  [K in "external_bot_id" | "zoom_recording_id"]: NonNullable<
+    MeetingBotSession[K]
+  >;
+};
 
 /** An expected failure with the HTTP status the caller gets. */
 export class StoreVideoError extends Error {
@@ -41,17 +46,18 @@ export async function loadSession(
   if (!data) {
     throw new StoreVideoError("session not found", 404);
   }
-  if (!data.external_bot_id) {
+  const { external_bot_id: botId, zoom_recording_id: recordingId } = data;
+  if (!botId) {
     throw new StoreVideoError("session has no external_bot_id", 409);
   }
-  if (!data.zoom_recording_id) {
+  if (!recordingId) {
     throw new StoreVideoError("session has no zoom_recording_id", 409);
   }
   return {
     id: data.id,
     tenant_id: data.tenant_id,
-    external_bot_id: data.external_bot_id,
-    zoom_recording_id: data.zoom_recording_id,
+    external_bot_id: botId,
+    zoom_recording_id: recordingId,
   };
 }
 
@@ -89,5 +95,30 @@ export async function setRecordingFilePath(
     .eq("id", session.zoom_recording_id);
   if (error) {
     throw new Error(`set file_path failed: ${error.message}`);
+  }
+}
+
+/**
+ * Hands a session finalize parked on its video back to the reconcile sweep,
+ * which then transcribes it from file_path. Matches nothing for any other
+ * session, so a plain copy leaves the session as it is.
+ */
+export async function resumeAwaitingSession(
+  admin: DbClient,
+  session: StoredSession,
+): Promise<void> {
+  const { error } = await admin
+    .from("meeting_bot_sessions")
+    .update({
+      status: "processing",
+      status_detail: VIDEO_STORED,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("tenant_id", session.tenant_id)
+    .eq("id", session.id)
+    .eq("status", "done")
+    .eq("status_detail", AWAITING_VIDEO);
+  if (error) {
+    throw new Error(`resume awaiting session failed: ${error.message}`);
   }
 }

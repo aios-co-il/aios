@@ -1,8 +1,10 @@
 // Copies a finished meeting-bot session's video from Recall into the private
 // `recordings` bucket and sets the recording's file_path (AIO-588). Recall's
 // download URL expires after six hours, so the stored copy is what keeps a
-// meeting playable. meeting-bot-finalize starts it once the recording pipeline
-// finishes. Callers: the service role only. Body: { session_id, tenant_id }.
+// meeting playable. meeting-bot-finalize and meeting-bot-reconcile's video
+// retry queue it through pg_net (kick_internal_function). Callers: the service
+// role only. Body: { session_id, tenant_id }.
+import type {} from "../_shared/edge-runtime.d.ts";
 import {
   extractRecallDownloads,
   retrieveRecallBot,
@@ -11,78 +13,54 @@ import {
   isGatewayServiceRoleRequest,
   projectServiceRoleKeys,
 } from "../_shared/auth/edge-caller-auth.ts";
+import { RECORDINGS_BUCKET } from "../_shared/meeting-bot/video-storage.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
-  alreadyStored,
-  loadSession,
-  setRecordingFilePath,
-  type StoreVideoParams,
-  StoreVideoError,
-} from "./session.ts";
+  type FreshVideo,
+  handleStoreVideo,
+  json,
+  type StoreVideoDeps,
+} from "./handler.ts";
+import { StoreVideoError } from "./session.ts";
 import { tusUpload } from "./tus-upload.ts";
 
-const BUCKET = "recordings";
-
 Deno.serve(async (req) => {
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
-  if (!callerIsServiceRole(req)) {
-    return json({ error: "Forbidden" }, 403);
-  }
-  const params = parseParams(await req.json().catch(() => ({})));
-  if (!params) {
-    return json({ error: "session_id and tenant_id are required" }, 400);
-  }
-
   try {
-    const admin = serviceClient();
-    const session = await loadSession(admin, params);
-    const path = `${session.tenant_id}/meeting_bot/${session.id}.mp4`;
-    if (await alreadyStored(admin, session, path)) {
-      return json({ stored: false, reason: "already stored", file_path: path });
-    }
-    const video = await openFreshVideo(session.external_bot_id);
-    await uploadVideo(video, path);
-    await setRecordingFilePath(admin, session, path);
-    console.log(
-      `[meeting-bot-store-video] session ${session.id}: stored ${video.length} bytes at ${path}`,
-    );
-    return json({ stored: true, file_path: path, bytes: video.length });
+    return await handleStoreVideo(req, liveDeps());
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[meeting-bot-store-video] session ${params.sessionId} failed:`,
-      message,
-    );
-    const status = err instanceof StoreVideoError ? err.status : 500;
-    return json({ error: message }, status);
+    console.error("[meeting-bot-store-video] request failed:", err);
+    return json({ error: "Internal error" }, 500);
   }
 });
 
-interface FreshVideo {
-  body: ReadableStream<Uint8Array>;
-  length: number;
+/** Recall, TUS and the service client, after checking the env they need. */
+function liveDeps(): StoreVideoDeps {
+  const supabaseUrl = requiredEnv("SUPABASE_URL");
+  const serviceKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  return {
+    admin: serviceClient(),
+    isServiceRole: (req) =>
+      isGatewayServiceRoleRequest(
+        req.headers.get("Authorization"),
+        projectServiceRoleKeys((name) => Deno.env.get(name)),
+      ),
+    openVideo: openFreshVideo,
+    upload: (video, path) =>
+      uploadVideo(video, path, {
+        endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
+        serviceKey,
+      }),
+    runInBackground: (task) => EdgeRuntime.waitUntil(task),
+  };
 }
 
-/** The service role only: verify_jwt is on, so the gateway checked the token. */
-function callerIsServiceRole(req: Request): boolean {
-  return isGatewayServiceRoleRequest(
-    req.headers.get("Authorization"),
-    projectServiceRoleKeys((name) => Deno.env.get(name)),
-  );
-}
-
-/** The body's session and tenant ids, or null when either is missing. */
-function parseParams(body: Record<string, unknown>): StoreVideoParams | null {
-  const { session_id: sessionId, tenant_id: tenantId } = body;
-  if (typeof sessionId !== "string" || !sessionId) {
-    return null;
+/** The env value, or a clear error naming the missing variable. */
+function requiredEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`${name} is not set`);
   }
-  if (typeof tenantId !== "string" || !tenantId) {
-    return null;
-  }
-  return { sessionId, tenantId };
+  return value;
 }
 
 /**
@@ -100,22 +78,30 @@ async function openFreshVideo(botId: string): Promise<FreshVideo> {
     await res.body?.cancel();
     throw new Error(`Recall video download failed (${res.status})`);
   }
-  // TUS needs the total up front; Recall's S3 responses always declare it.
+  // TUS create needs the total size. Recall's S3 responses declare it; without
+  // it we stop with a 502 rather than defer the length, which Supabase's
+  // resumable endpoint is not documented to support.
   const length = Number(res.headers.get("content-length"));
   if (!Number.isSafeInteger(length) || length <= 0) {
     await res.body.cancel();
-    throw new Error("Recall video response has no content-length");
+    throw new StoreVideoError(
+      "Recall video response has no content-length",
+      502,
+    );
   }
   return { body: res.body, length };
 }
 
 /** Streams the video into the recordings bucket, one chunk in memory at a time. */
-async function uploadVideo(video: FreshVideo, path: string): Promise<void> {
+async function uploadVideo(
+  video: FreshVideo,
+  path: string,
+  target: { endpoint: string; serviceKey: string },
+): Promise<void> {
   try {
     await tusUpload({
-      endpoint: `${Deno.env.get("SUPABASE_URL")}/storage/v1/upload/resumable`,
-      serviceKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      bucket: BUCKET,
+      ...target,
+      bucket: RECORDINGS_BUCKET,
       objectName: path,
       contentType: "video/mp4",
       body: video.body,
@@ -132,9 +118,4 @@ async function uploadVideo(video: FreshVideo, path: string): Promise<void> {
       );
     throw err;
   }
-}
-
-/** A JSON response. */
-function json(body: unknown, status = 200): Response {
-  return Response.json(body, { status });
 }

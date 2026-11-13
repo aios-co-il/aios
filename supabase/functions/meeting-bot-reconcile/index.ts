@@ -7,6 +7,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
 
+import { retryVideoStorage } from "./video-retry.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -37,6 +39,11 @@ Deno.serve(async (req) => {
     sessionId = body?.session_id ?? null;
   } catch {
     /* scheduled invocation sends no body */
+  }
+
+  // Re-copies videos whose storage failed or never ran (AIO-588).
+  if (!sessionId) {
+    await retryVideoStorage(Date.now());
   }
 
   let query = admin
