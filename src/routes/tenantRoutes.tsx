@@ -69,6 +69,7 @@ const Recordings = lazy(() => import("@/pages/Recordings"));
 const AutomationFlow = lazy(() => import("@/pages/AutomationFlow"));
 const TeamChat = lazy(() => import("@/pages/TeamChat"));
 const GmailSettings = lazy(() => import("@/pages/GmailSettings"));
+const MicrosoftSettings = lazy(() => import("@/pages/MicrosoftSettings"));
 const Gmail = lazy(() => import("@/pages/Gmail"));
 const Signatures = lazy(() => import("@/pages/Signatures"));
 const ManusSettings = lazy(() => import("@/pages/ManusSettings"));
@@ -232,6 +233,7 @@ export function tenantRoutes() {
         <Route path="recordings" element={<Recordings />} />
         <Route path="team-chat" element={<TeamChat />} />
         <Route path="gmail-settings" element={<GmailSettings />} />
+        <Route path="microsoft-settings" element={<MicrosoftSettings />} />
         <Route path="gmail" element={<Gmail />} />
         <Route path="signatures" element={<Signatures />} />
         <Route path="manus-settings" element={<ManusSettings />} />
