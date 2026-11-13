@@ -4,6 +4,7 @@ import type { DbClient } from "../supabase-clients.ts";
 import { extractMeetingDetails, type MeetingDetailsKeys } from "./extract.ts";
 import {
   type ClientOption,
+  type MeetingDetailsPolicy,
   planMeetingDetailsUpdate,
   type RecordingAssignment,
 } from "./plan.ts";
@@ -18,8 +19,8 @@ export interface MeetingDetailsOutcome {
 type Recording = RecordingAssignment & { id: string; meeting_id: string };
 
 /**
- * Reads the summary, then writes the meeting name and, with `assignClient`, the
- * client per planMeetingDetailsUpdate. With `dryRun` it only reports what it
+ * Reads the summary, then writes the meeting name and client that `policy`
+ * allows, per planMeetingDetailsUpdate. With `dryRun` it only reports what it
  * would write.
  */
 export async function applyMeetingDetailsFromSummary(
@@ -29,20 +30,19 @@ export async function applyMeetingDetailsFromSummary(
     recordingId: string;
     summary: string;
     keys: MeetingDetailsKeys;
-    /** False keeps the recording's assignment and only names the meeting. */
-    assignClient: boolean;
-    /** False keeps the recording's name (see planMeetingDetailsUpdate). */
-    renameMeeting?: boolean;
+    policy: MeetingDetailsPolicy;
     dryRun?: boolean;
   },
 ): Promise<MeetingDetailsOutcome> {
   const recording = await loadRecording(admin, opts.tenantId, opts.recordingId);
   const clients = await loadClients(admin, opts.tenantId);
   const details = await extractMeetingDetails(opts.summary, clients, opts.keys);
-  const update = planMeetingDetailsUpdate(recording, details, clients, {
-    assignClient: opts.assignClient,
-    renameMeeting: opts.renameMeeting,
-  });
+  const update = planMeetingDetailsUpdate(
+    recording,
+    details,
+    clients,
+    opts.policy,
+  );
   if (!opts.dryRun) {
     await writeUpdate(admin, opts.tenantId, recording.meeting_id, update);
   }

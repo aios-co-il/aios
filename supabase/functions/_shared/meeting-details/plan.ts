@@ -14,6 +14,14 @@ export interface ClientOption {
   agency_id: string | null;
 }
 
+/** What the caller lets a summary change on the meeting. */
+export interface MeetingDetailsPolicy {
+  /** False keeps the recording's assignment and only names the meeting. */
+  assignClient: boolean;
+  /** False keeps the current name, for names that predate topic_set_manually. */
+  renameMeeting: boolean;
+}
+
 export interface RecordingAssignment {
   meeting_topic: string | null;
   topic_set_manually: boolean;
@@ -24,23 +32,17 @@ export interface RecordingAssignment {
 }
 
 /**
- * What to write for these details: the name unless a person typed one, and the
- * client only when the caller says the recording was unrecognized
- * (`assignClient`) and it has no client, lead or team-member assignment. An
- * agency scope a person chose is never reclassified as a client meeting.
+ * What to write for these details: the name unless a person typed one or the
+ * caller keeps it (`renameMeeting`), and the client only when the caller says
+ * the recording was unrecognized (`assignClient`) and it has no client, lead or
+ * team-member assignment. An agency scope a person chose is never reclassified
+ * as a client meeting.
  */
 export function planMeetingDetailsUpdate(
   recording: RecordingAssignment,
   details: MeetingDetails,
   clients: Array<ClientOption>,
-  {
-    assignClient,
-    renameMeeting = true,
-  }: {
-    assignClient: boolean;
-    /** False keeps the current name, for names that predate topic_set_manually. */
-    renameMeeting?: boolean;
-  },
+  { assignClient, renameMeeting }: MeetingDetailsPolicy,
 ): {
   topic: string | null;
   client: {

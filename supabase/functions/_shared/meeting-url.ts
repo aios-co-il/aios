@@ -7,6 +7,11 @@ const PLATFORM_LABELS: Record<MeetingPlatform, string> = {
   unknown: "פגישה",
 };
 
+/** Every meeting platform, in label order. */
+export const MEETING_PLATFORMS = Object.keys(
+  PLATFORM_LABELS,
+) as Array<MeetingPlatform>;
+
 /** Normalize pasted meeting links (trim, ensure https). */
 export function normalizeMeetingUrl(raw: string): string {
   let url = raw.trim();
@@ -45,4 +50,9 @@ export function extractMeetingUrl(text: string): string | null {
 
 export function platformLabel(platform: MeetingPlatform): string {
   return PLATFORM_LABELS[platform];
+}
+
+/** The name the meeting bot gives a meeting nobody named. */
+export function defaultBotTopic(platform: MeetingPlatform): string {
+  return `${platformLabel(platform)} — כרמן`;
 }

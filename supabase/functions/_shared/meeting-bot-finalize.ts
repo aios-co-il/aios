@@ -10,7 +10,7 @@ import {
   retrieveRecallBot,
 } from "./recall.ts";
 import { runRecordingPipeline } from "./recording-pipeline.ts";
-import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
+import { defaultBotTopic, type MeetingPlatform } from "./meeting-url.ts";
 
 // A long meeting's mp4 does not fit in an edge function's memory. Above this we
 // keep Recall's download URL on the row instead of copying the file to Storage.
@@ -180,7 +180,7 @@ export async function finalizeMeetingBotSession(
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
-  const defaultTopic = `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
+  const defaultTopic = defaultBotTopic(session.platform as MeetingPlatform);
   const topic = session.meeting_topic || defaultTopic;
 
   const row: Record<string, unknown> = {

@@ -1,10 +1,11 @@
 // Names old meetings and assigns their clients from their saved summaries
-// (AIO-563). Only default names are replaced (AIO-589). Defaults to dry_run=true; pass dry_run=false to write. Callers:
-// the service role, a super admin, or the tenant's owner.
+// (AIO-563). Only default names are replaced; the response counts the rest as
+// `kept` (AIO-589). Defaults to dry_run=true; pass dry_run=false to write.
+// Callers: the service role, a super admin, or the tenant's owner.
 import { applyMeetingDetailsFromSummary } from "../_shared/meeting-details/apply.ts";
 import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
+import { backfillMeetings, type SummarizedMeeting } from "./backfill.ts";
 import { userMayRunBackfill } from "./caller.ts";
-import { isDefaultMeetingName } from "./default-name.ts";
 import {
   isGatewayServiceRoleRequest,
   projectServiceRoleKeys,
@@ -42,28 +43,22 @@ Deno.serve(async (req) => {
     const keys = {
       openRouterKey: await tenantSummaryKey(admin, params.tenantId),
     };
-    const results = [];
-    for (const rec of recordings) {
-      try {
-        const outcome = await applyMeetingDetailsFromSummary(admin, {
+    const { results, kept } = await backfillMeetings(
+      recordings,
+      (meeting, policy) =>
+        applyMeetingDetailsFromSummary(admin, {
           tenantId: params.tenantId,
-          recordingId: rec.id,
-          summary: rec.summary_md,
+          recordingId: meeting.id,
+          summary: meeting.summary_md,
           keys,
-          assignClient: true,
-          renameMeeting: isDefaultMeetingName(rec.meeting_topic),
+          policy,
           dryRun: params.dryRun,
-        });
-        results.push({ id: rec.id, before: rec.meeting_topic, ...outcome });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error("[backfill-meeting-details] failed", rec.id, message);
-        results.push({ id: rec.id, error: message });
-      }
-    }
+        }),
+    );
     return json({
       dry_run: params.dryRun,
       processed: results.length,
+      kept,
       next_offset: params.offset + rowCount,
       results,
     });
@@ -78,12 +73,6 @@ interface BackfillParams {
   dryRun: boolean;
   limit: number;
   offset: number;
-}
-
-interface SummarizedMeeting {
-  id: string;
-  meeting_topic: string | null;
-  summary_md: string;
 }
 
 /** The request body's tenant, dry-run flag and page, or null without a tenant. */
