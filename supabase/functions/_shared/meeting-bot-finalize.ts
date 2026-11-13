@@ -4,6 +4,7 @@
 // `bot.done` arrives, and meeting-bot-reconcile calls it again for sessions that
 // never reached `done` (edge function killed mid-download, transcript artifact
 // still processing when the meeting ended, etc.).
+import type {} from "./edge-runtime.d.ts";
 import {
   extractRecallDownloads,
   recallTranscriptToText,
@@ -12,9 +13,8 @@ import {
 import { runRecordingPipeline } from "./recording-pipeline.ts";
 import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
 
-// A long meeting's mp4 does not fit in an edge function's memory. Above this we
-// keep Recall's download URL on the row instead of copying the file to Storage.
-const MAX_STORAGE_UPLOAD_BYTES = 80 * 1024 * 1024;
+// Streams the video into Storage in its own invocation (AIO-588).
+const STORE_VIDEO_FUNCTION = "meeting-bot-store-video";
 // Whisper's own ceiling is 25MB; only hand it the small mixed-audio artifact.
 const MAX_WHISPER_FALLBACK_BYTES = 24 * 1024 * 1024;
 // Give up waiting for a transcript that never becomes available.
@@ -149,34 +149,6 @@ export async function finalizeMeetingBotSession(
     recordingId = existing?.id ?? null;
   }
 
-  let filePath: string | null = null;
-  if (videoUrl) {
-    try {
-      const { blob, tooLarge } = await fetchMediaIfSmallEnough(
-        videoUrl,
-        MAX_STORAGE_UPLOAD_BYTES,
-      );
-      if (blob) {
-        const path = `${session.tenant_id}/meeting_bot/${session.id}.mp4`;
-        const { error: upErr } = await admin.storage
-          .from("recordings")
-          .upload(path, blob, {
-            contentType: "video/mp4",
-            upsert: true,
-          });
-        if (upErr)
-          console.error("[meeting-bot-finalize] video upload failed", upErr);
-        else filePath = path;
-      } else if (tooLarge) {
-        console.log(
-          "[meeting-bot-finalize] video too large for Storage — keeping Recall URL",
-        );
-      }
-    } catch (vidErr) {
-      console.error("[meeting-bot-finalize] video download error", vidErr);
-    }
-  }
-
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
@@ -200,7 +172,6 @@ export async function finalizeMeetingBotSession(
     source: "meeting_bot",
     recording_url: videoUrl,
   };
-  if (filePath) row.file_path = filePath;
   if (transcription) {
     row.transcription = transcription;
     row.transcription_status = "completed";
@@ -290,7 +261,7 @@ export async function finalizeMeetingBotSession(
       }
     }
 
-    if (!fallbackDone && !filePath) {
+    if (!fallbackDone) {
       await admin
         .from("meeting_bot_sessions")
         .update({
@@ -311,6 +282,10 @@ export async function finalizeMeetingBotSession(
     skipTranscribe: !!transcription,
   });
 
+  if (videoUrl) {
+    startVideoStorage(session);
+  }
+
   await admin
     .from("meeting_bot_sessions")
     .update({
@@ -325,4 +300,52 @@ export async function finalizeMeetingBotSession(
       ? `transcript ${transcription.length} chars`
       : "transcribed via fallback",
   };
+}
+
+/**
+ * Starts meeting-bot-store-video for the session without waiting for the copy,
+ * which can take minutes for a long meeting. Failures are logged; the row keeps
+ * Recall's recording_url meanwhile. Returns the request so tests can await it.
+ */
+export function startVideoStorage(
+  session: Pick<MeetingBotSession, "id" | "tenant_id">,
+  fetchFn: typeof fetch = fetch,
+): Promise<void> {
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const task = fetchFn(
+    `${Deno.env.get("SUPABASE_URL")}/functions/v1/${STORE_VIDEO_FUNCTION}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        session_id: session.id,
+        tenant_id: session.tenant_id,
+      }),
+    },
+  )
+    .then(async (res) => {
+      const detail = await res.text();
+      if (!res.ok) {
+        console.error(
+          `[meeting-bot-finalize] ${STORE_VIDEO_FUNCTION} failed for session ${session.id} (${res.status})`,
+          detail.slice(0, 300),
+        );
+      }
+    })
+    .catch((err) =>
+      console.error(
+        `[meeting-bot-finalize] ${STORE_VIDEO_FUNCTION} request failed for session ${session.id}`,
+        err,
+      ),
+    );
+  // Keeps the isolate alive until the copy answers; without a runtime (tests,
+  // local scripts) the promise runs on its own.
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+    EdgeRuntime.waitUntil(task);
+  }
+  return task;
 }
