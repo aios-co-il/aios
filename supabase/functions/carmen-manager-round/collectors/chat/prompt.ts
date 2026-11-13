@@ -22,7 +22,7 @@ const DATA_GUARD =
  * near a complaint as complaints at 0.85+ confidence (AIO-590).
  */
 const COMPLAINT_EXCLUSIONS =
-  "Judge each line on its own words, not on the lines around it. These are not complaints: a request or instruction (stop, pause, change or add a campaign, send an update), a question, a status update, reported numbers or sales, praise or neutral remarks, and a short fragment without a clear negative meaning. When unsure, leave the line out.";
+  "Complaints are rare in these groups: most threads have none. Judge each line on its own words, not on the lines around it. These are not complaints: a request or instruction (stop, pause, change or add a campaign, send an update), a question, a status update, reported numbers or sales, praise or neutral remarks, and a short fragment without a clear negative meaning. When unsure, leave the line out.";
 
 const INSTRUCTIONS = [
   "You read a WhatsApp group between a digital marketing agency (צוות) and its client (לקוח).",

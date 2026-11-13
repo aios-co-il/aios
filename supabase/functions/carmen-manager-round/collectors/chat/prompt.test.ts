@@ -43,6 +43,7 @@ Deno.test("verdictPrompt", async (t) => {
     assert(
       instructions.includes("whose own words say the client is dissatisfied"),
     );
+    assert(instructions.includes("Complaints are rare"));
     assert(instructions.includes("not on the lines around it"));
     for (const notComplaint of [
       "a request or instruction",
