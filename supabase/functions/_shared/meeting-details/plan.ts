@@ -33,7 +33,14 @@ export function planMeetingDetailsUpdate(
   recording: RecordingAssignment,
   details: MeetingDetails,
   clients: Array<ClientOption>,
-  { assignClient }: { assignClient: boolean },
+  {
+    assignClient,
+    renameMeeting = true,
+  }: {
+    assignClient: boolean;
+    /** False keeps the current name, for names that predate topic_set_manually. */
+    renameMeeting?: boolean;
+  },
 ): {
   topic: string | null;
   client: {
@@ -45,7 +52,10 @@ export function planMeetingDetailsUpdate(
 } {
   const title = details.title?.trim() || null;
   const topic =
-    title && !recording.topic_set_manually && title !== recording.meeting_topic
+    title &&
+    renameMeeting &&
+    !recording.topic_set_manually &&
+    title !== recording.meeting_topic
       ? title
       : null;
 

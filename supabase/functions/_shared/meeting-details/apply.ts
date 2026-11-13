@@ -31,6 +31,8 @@ export async function applyMeetingDetailsFromSummary(
     keys: MeetingDetailsKeys;
     /** False keeps the recording's assignment and only names the meeting. */
     assignClient: boolean;
+    /** False keeps the recording's name (see planMeetingDetailsUpdate). */
+    renameMeeting?: boolean;
     dryRun?: boolean;
   },
 ): Promise<MeetingDetailsOutcome> {
@@ -39,6 +41,7 @@ export async function applyMeetingDetailsFromSummary(
   const details = await extractMeetingDetails(opts.summary, clients, opts.keys);
   const update = planMeetingDetailsUpdate(recording, details, clients, {
     assignClient: opts.assignClient,
+    renameMeeting: opts.renameMeeting,
   });
   if (!opts.dryRun) {
     await writeUpdate(admin, opts.tenantId, recording.meeting_id, update);

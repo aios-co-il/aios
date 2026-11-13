@@ -96,3 +96,17 @@ Deno.test("a client id the model made up is dropped", () => {
     clientId: null,
   });
 });
+
+Deno.test(
+  "a meeting kept by the caller keeps its name but may get its client",
+  () => {
+    const plan = planMeetingDetailsUpdate(
+      { ...UNASSIGNED, meeting_topic: "פגישה שבועית אקו" },
+      { title: "אקו — סטטוס קמפיינים", clientId: "c-bilbi" },
+      CLIENTS,
+      { assignClient: true, renameMeeting: false },
+    );
+    assertEquals(plan.topic, null);
+    assertEquals(plan.client?.client_id, "c-bilbi");
+  },
+);

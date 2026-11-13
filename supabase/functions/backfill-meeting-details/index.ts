@@ -1,9 +1,10 @@
 // Names old meetings and assigns their clients from their saved summaries
-// (AIO-563). Defaults to dry_run=true; pass dry_run=false to write. Callers:
+// (AIO-563). Only default names are replaced (AIO-589). Defaults to dry_run=true; pass dry_run=false to write. Callers:
 // the service role, a super admin, or the tenant's owner.
 import { applyMeetingDetailsFromSummary } from "../_shared/meeting-details/apply.ts";
 import { tenantSummaryKey } from "../_shared/meeting-summary-openrouter.ts";
 import { userMayRunBackfill } from "./caller.ts";
+import { isDefaultMeetingName } from "./default-name.ts";
 import {
   isGatewayServiceRoleRequest,
   projectServiceRoleKeys,
@@ -50,6 +51,7 @@ Deno.serve(async (req) => {
           summary: rec.summary_md,
           keys,
           assignClient: true,
+          renameMeeting: isDefaultMeetingName(rec.meeting_topic),
           dryRun: params.dryRun,
         });
         results.push({ id: rec.id, before: rec.meeting_topic, ...outcome });
