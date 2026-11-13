@@ -6,6 +6,7 @@
 // schedule, re-checks those sessions against Recall, and finishes them.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
+import { isReconcilable } from "./reconcilable.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
   let query = admin
     .from("meeting_bot_sessions")
     .select(
-      "id, tenant_id, client_id, lead_id, agency_id, campaigner_ids, summary_scope, platform, meeting_topic, external_bot_id, zoom_recording_id, scheduled_start, joined_at, ended_at, created_by, status",
+      "id, tenant_id, client_id, lead_id, agency_id, campaigner_ids, summary_scope, platform, meeting_topic, external_bot_id, zoom_recording_id, scheduled_start, joined_at, ended_at, created_by, status, status_detail, updated_at",
     )
     .not("external_bot_id", "is", null);
 
@@ -58,8 +59,12 @@ Deno.serve(async (req) => {
       .limit(BATCH_SIZE);
   }
 
-  const { data: sessions, error } = await query;
+  const { data: found, error } = await query;
   if (error) return json({ error: error.message }, 500);
+  // An explicit session_id is an operator's retry; the cron skips live ingests.
+  const sessions = sessionId
+    ? found
+    : (found ?? []).filter((session) => isReconcilable(session, Date.now()));
   if (!sessions?.length) return json({ processed: 0, results: [] });
 
   const results: Record<string, unknown>[] = [];

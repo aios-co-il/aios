@@ -11,6 +11,11 @@ import {
 } from "./recall.ts";
 import { runRecordingPipeline } from "./recording-pipeline.ts";
 import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
+import {
+  alreadySummarized,
+  findExistingRecording,
+  recordingRowFor,
+} from "./meeting-bot/existing-recording.ts";
 
 // A long meeting's mp4 does not fit in an edge function's memory. Above this we
 // keep Recall's download URL on the row instead of copying the file to Storage.
@@ -138,16 +143,8 @@ export async function finalizeMeetingBotSession(
   }
 
   // Reuse the row from an earlier attempt so retries never duplicate recordings.
-  let recordingId = session.zoom_recording_id;
-  if (!recordingId) {
-    const { data: existing } = await admin
-      .from("zoom_recordings")
-      .select("id")
-      .eq("tenant_id", session.tenant_id)
-      .eq("meeting_id", botId)
-      .maybeSingle();
-    recordingId = existing?.id ?? null;
-  }
+  const existing = await findExistingRecording(admin, session, botId);
+  let recordingId = existing?.id ?? null;
 
   let filePath: string | null = null;
   if (videoUrl) {
@@ -210,7 +207,7 @@ export async function finalizeMeetingBotSession(
   if (recordingId) {
     const { data, error } = await admin
       .from("zoom_recordings")
-      .update(row)
+      .update(recordingRowFor(row, existing))
       .eq("id", recordingId)
       .select(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
@@ -241,6 +238,16 @@ export async function finalizeMeetingBotSession(
       updated_at: new Date().toISOString(),
     })
     .eq("id", session.id);
+
+  // The webhook and the reconcile cron can both finalize a session; a second
+  // run must not summarize again or undo the first run's name (AIO-587).
+  if (alreadySummarized(existing)) {
+    await admin
+      .from("meeting_bot_sessions")
+      .update({ status: "done", updated_at: new Date().toISOString() })
+      .eq("id", session.id);
+    return { outcome: "done", detail: "already summarized" };
+  }
 
   // No transcript yet. Recall's own artifact is still the best source, so wait
   // for a later retry rather than burning a Whisper pass on partial media.
