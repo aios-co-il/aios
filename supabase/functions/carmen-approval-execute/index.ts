@@ -14,6 +14,7 @@ import {
   rejectApproval,
   type Reply,
 } from "./decision.ts";
+import { pickCarmenAgent } from "../_shared/carmen/carmen-agent.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -227,13 +228,10 @@ Deno.serve(async (req) => {
       // Carmen (or any active agent) for agent steps.
       const { data: agents } = await supabase
         .from("ai_agents")
-        .select("id,name")
+        .select("id,name,is_carmen,created_at")
         .eq("tenant_id", row.tenant_id)
         .eq("active", true);
-      const carmen =
-        ((agents as any[]) || []).find((a) =>
-          /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agents as any[]) || [])[0];
+      const carmen = pickCarmenAgent(agents) ?? agents?.[0];
 
       const { data: automation, error: aErr } = await supabase
         .from("automations")
@@ -643,13 +641,10 @@ Deno.serve(async (req) => {
               .eq("automation_id", inp.automation_id);
             const { data: agents } = await supabase
               .from("ai_agents")
-              .select("id,name")
+              .select("id,name,is_carmen,created_at")
               .eq("tenant_id", row.tenant_id)
               .eq("active", true);
-            const carmen =
-              ((agents as any[]) || []).find((a) =>
-                /כרמן|carmen/i.test(a.name || ""),
-              ) || ((agents as any[]) || [])[0];
+            const carmen = pickCarmenAgent(agents) ?? agents?.[0];
             const stepRows: any[] = [];
             const trigId = crypto.randomUUID();
             const triggerType =

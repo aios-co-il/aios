@@ -216,6 +216,8 @@ serve(async (req: Request) => {
               id: newEntityId,
               tenant_id: targetTenantId,
               name: source.name,
+              // The target has no agent yet, so a cloned Carmen stays the org's Carmen (AIO-592).
+              is_carmen: source.is_carmen === true,
               engine: source.engine,
               personality: source.personality,
               soul: source.soul,

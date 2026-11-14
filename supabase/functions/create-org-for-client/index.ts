@@ -22,6 +22,8 @@
 
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { loadCarmenAgent } from "../_shared/carmen/load-carmen-agent.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -539,12 +541,13 @@ serve(async (req: Request) => {
     // ── Clone Carmen + selected automations ───────────────────────────────────
     const cloneResults: any[] = [];
     if (clone_carmen) {
-      const { data: sourceAgent } = await admin
-        .from("ai_agents")
-        .select("id")
-        .eq("tenant_id", sourceTenantId)
-        .limit(1)
-        .maybeSingle();
+      const sourceAgent = await loadCarmenAgent(
+        serviceClient(),
+        sourceTenantId,
+        {
+          activeOnly: false,
+        },
+      );
 
       if (sourceAgent) {
         const cloneRes = await fetch(

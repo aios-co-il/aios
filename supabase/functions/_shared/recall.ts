@@ -2,8 +2,6 @@
 import { detectMeetingPlatform } from "./meeting-url.ts";
 import { MEETING_BOT_IMAGE_JPEG_B64 } from "./recall-bot-image.ts";
 
-/** The name every meeting bot joins with (AIO-575). */
-export const MEETING_BOT_NAME = "מיני מי · מתמלל ומסכם";
 const CREDIT_PROBE_MEETING_URL = "https://zoom.us/j/99900011122";
 export const RECALL_CANARY_MARKER = "נבדק עכשיו";
 export const RECALL_CREDIT_CANARY_OK_MS = 3 * 60 * 60 * 1000;
@@ -121,6 +119,8 @@ export function shouldRunRecallCreditCanary(
 
 export interface CreateRecallBotOpts {
   meeting_url: string;
+  /** The participant name the bot joins with (`meetingBotName`, AIO-592). */
+  bot_name: string;
   join_at?: string | null;
   metadata?: Record<string, string>;
 }
@@ -141,7 +141,7 @@ export async function createRecallBot(
   const platform = detectMeetingPlatform(opts.meeting_url);
   const body: Record<string, unknown> = {
     meeting_url: opts.meeting_url,
-    bot_name: MEETING_BOT_NAME,
+    bot_name: opts.bot_name,
     metadata: opts.metadata ?? {},
     // The bot's tile shows the Mini Me before and during recording.
     automatic_video_output: {

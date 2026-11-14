@@ -3,6 +3,8 @@
  * Meet is always available via Calendar API. Zoom requires tenant_integrations.zoom.
  */
 
+import { isCarmenName } from "./carmen/brain-access.ts";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export function normalizeEmail(value) {
@@ -175,14 +177,39 @@ export function summarizeEventResult(event, extras = {}) {
   };
 }
 
+/**
+ * A campaigner's email by the org's own name for its assistant, when the org renamed it.
+ * Uses `ilike`, which takes the name as a value, so its characters cannot change the filter.
+ */
+async function findCampaignerEmailByName(supabase, tenantId, assistantName) {
+  const name = String(assistantName || "").trim();
+  if (!name || isCarmenName(name)) return { email: null, error: null };
+  const { data, error } = await supabase
+    .from("campaigners")
+    .select("email, name")
+    .eq("tenant_id", tenantId)
+    .ilike("name", `%${name.replace(/[%_\\]/g, "\\$&")}%`)
+    .not("email", "is", null)
+    .limit(5);
+  if (error) return { email: null, error: error.message };
+  const hit = (data || []).find((row) => normalizeEmail(row.email));
+  return { email: hit ? normalizeEmail(hit.email) : null, error: null };
+}
+
 export function zoomUnavailableMessage() {
   return "Zoom לא מוגדר בטננט (חסר tenant_integrations.zoom עם account_id/client_id/client_secret). נוצר Google Meet במקום.";
 }
 
+/**
+ * The email to invite as Carmen: the explicit argument, the env default, else a team member
+ * (campaigner) with an email named as the org calls its assistant (`assistantName`, AIO-592),
+ * else one named like Carmen.
+ */
 export async function resolveCarmenAttendeeEmail(
   supabase,
   tenantId,
   explicitEmail,
+  assistantName,
 ) {
   const fromArg = normalizeEmail(explicitEmail);
   if (fromArg) return { email: fromArg, source: "argument" };
@@ -202,6 +229,18 @@ export async function resolveCarmenAttendeeEmail(
     };
   }
 
+  const renamed = await findCampaignerEmailByName(
+    supabase,
+    tenantId,
+    assistantName,
+  );
+  if (renamed.error)
+    return {
+      email: null,
+      source: null,
+      error: `חיפוש מייל כרמן נכשל: ${renamed.error}`,
+    };
+  if (renamed.email) return { email: renamed.email, source: "campaigner" };
   const { data, error } = await supabase
     .from("campaigners")
     .select("email, name")
