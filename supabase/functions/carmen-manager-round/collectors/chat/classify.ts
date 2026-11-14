@@ -19,13 +19,9 @@ import type { Thread, Turn } from "./threads.ts";
 import { needsModel, unreviewedTurns } from "./unreviewed.ts";
 import { parseModelVerdict } from "./verdict.ts";
 
-/**
- * One model call: its JSON text (null on failure or an empty reply) and its
- * cost (0 when the call was not billed).
- */
-export type AskModel = (
-  prompt: string,
-) => Promise<{ text: string | null; costUsd: number }>;
+import type { AskModel } from "../../tenant-model.ts";
+
+export type { AskModel };
 
 export type ClassifyPorts = {
   cache: ReviewCache;
