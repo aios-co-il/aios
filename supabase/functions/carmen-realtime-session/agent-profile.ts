@@ -1,5 +1,6 @@
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
-import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
+import { CARMEN_AGENT_FILTER } from "../_shared/carmen/brain-access.ts";
+import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { shouldUseV2Prompt } from "../_shared/carmen-prompt-v2.ts";
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -68,6 +69,7 @@ async function readVoiceAgent(
       responseLength: agent.response_length,
       moodPrompt: agentMoodPrompt(agent.mood, agent.id),
       tenantName: await readTenantName(db, tenantId),
+      assistantName: orgAssistantName(agent),
     },
     voice: agent.voice,
   };
@@ -112,8 +114,9 @@ async function readCarmenAgent(db: DbClient, tenantId: string) {
       "id, name, system_prompt, writing_style, response_length, voice, mood, metadata",
     )
     .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
+    .or(CARMEN_AGENT_FILTER)
     .eq("active", true)
+    .order("is_carmen", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isNonProduction, resolveAppEnv } from "@/lib/appEnv";
 import {
-  CARMEN_NAME_FILTER,
+  CARMEN_AGENT_FILTER,
   carmenEnabledFor,
   toAccessRow,
   type BrainAccessRow,
@@ -37,8 +37,9 @@ export async function fetchCarmenAgentId(
     .from("ai_agents")
     .select("id")
     .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
+    .or(CARMEN_AGENT_FILTER)
     .eq("active", true)
+    .order("is_carmen", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

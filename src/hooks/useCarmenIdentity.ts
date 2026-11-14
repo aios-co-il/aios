@@ -7,6 +7,12 @@ import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import { useSessionSkin } from "@/lib/carmenSessionSkin";
 import { readSkinAvatars, signProfileImage } from "@/lib/profileAvatars";
 import { useActivePersona } from "@/components/carmen/personas/useActivePersona";
+import { CARMEN_AGENT_FILTER } from "../../supabase/functions/_shared/carmen/brain-access.ts";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  orgAssistantName,
+  personalAssistantName,
+} from "../../supabase/functions/_shared/carmen/assistant-name.ts";
 
 export type AgentIdentity = {
   displayName?: string;
@@ -42,7 +48,8 @@ export function useCarmenIdentity() {
         .from("ai_agents")
         .select("id,name,metadata")
         .eq("tenant_id", tenantId!)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .or(CARMEN_AGENT_FILTER)
+        .order("is_carmen", { ascending: false })
         .order("created_at")
         .limit(1)
         .maybeSingle();
@@ -55,10 +62,15 @@ export function useCarmenIdentity() {
         if (signError) throw signError;
         identity.avatarUrl = signed.signedUrl;
       }
-      return { ...identity, skinAvatars: readSkinAvatars(data?.metadata) };
+      return {
+        ...identity,
+        orgName: orgAssistantName(data),
+        skinAvatars: readSkinAvatars(data?.metadata),
+      };
     },
   });
   const persona = useActivePersona();
+  const orgName = query.data?.orgName ?? DEFAULT_ASSISTANT_NAME;
   // The session's skin (this browser only) picks which avatar to show.
   const activeSkin = useSessionSkin(tenantId);
   const { skins } = useCarmenSkins();
@@ -79,8 +91,9 @@ export function useCarmenIdentity() {
     defaultPortrait ||
     query.data?.avatarUrl;
   return {
-    // The character the user picked names the assistant for them.
-    name: persona?.displayName || query.data?.displayName || "כרמן",
+    // The character the user picked names the assistant for them; else the org's name (AIO-592).
+    name: personalAssistantName(persona?.displayName, orgName),
+    orgName,
     image: image || CARMEN_CHARACTER,
     custom: !!image && image !== defaultPortrait,
     activeSkin,

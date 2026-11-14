@@ -3,7 +3,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { CARMEN_NAME_FILTER } from "../carmen/brain-access.ts";
+import { CARMEN_AGENT_FILTER } from "../carmen/brain-access.ts";
 import { nameChatTopicLater } from "../carmen/chat-topic.ts";
 import type {
   BrainRouteRow,
@@ -58,8 +58,9 @@ export async function resolveCarmenAgent(
     .from("ai_agents")
     .select("id, name")
     .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
+    .or(CARMEN_AGENT_FILTER)
     .eq("active", true)
+    .order("is_carmen", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

@@ -223,7 +223,11 @@ import {
   shouldUseV2Prompt,
 } from "../_shared/carmen-prompt-v2.ts";
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
-import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
+import {
+  CARMEN_AGENT_FILTER,
+  isCarmenAgentRow,
+} from "../_shared/carmen/brain-access.ts";
+import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
   PULSE_TARGET_TOOL_NAMES,
@@ -6602,7 +6606,8 @@ async function executeTool(
         .from("ai_agents")
         .select("metadata")
         .eq("tenant_id", tenantId)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .or(CARMEN_AGENT_FILTER)
+        .order("is_carmen", { ascending: false })
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -8721,8 +8726,9 @@ async function handleRunAgent(
         .from("ai_agents")
         .select("*")
         .eq("tenant_id", tenant_id)
-        .or(CARMEN_NAME_FILTER)
+        .or(CARMEN_AGENT_FILTER)
         .eq("active", true)
+        .order("is_carmen", { ascending: false })
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -8735,9 +8741,7 @@ async function handleRunAgent(
       );
     }
 
-    const isCarmenAgent =
-      agent.name?.toLowerCase().includes("carmen") ||
-      agent.name?.includes("כרמן");
+    const isCarmenAgent = isCarmenAgentRow(agent);
     const tokenOptimize = shouldUseTokenOptimize(agent, isCarmenAgent);
     if (emit && tokenOptimize && !pinSkillsOnly) {
       emit({
@@ -9350,7 +9354,7 @@ async function handleRunAgent(
       if (!systemPrompt) {
         const parts = isCarmen
           ? [
-              buildV1Identity(tenantName),
+              buildV1Identity(tenantName, orgAssistantName(agent)),
               "יש לך גישה מלאה לכל מודולי המערכת: לידים, לקוחות, משימות, קמפיינרים, אנשי מכירות, סוכנויות, ספקים, מוצרים, אוטומציות, ועוד.",
               "את יכולה לבצע כל פעולה שמשתמש יכול לבצע ידנית במערכת.",
               "חשוב מאוד: לפני יצירת משימה חדשה, תמיד חפשי קודם עם search_tasks כדי לוודא שהמשימה לא קיימת כבר. אם היא קיימת - עדכני אותה במקום ליצור חדשה.",
@@ -11676,8 +11680,9 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
     .from("ai_agents")
     .select("id, allowed_tools, disabled_tools")
     .eq("tenant_id", tenantId)
-    .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+    .or(CARMEN_AGENT_FILTER)
     .eq("active", true)
+    .order("is_carmen", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();

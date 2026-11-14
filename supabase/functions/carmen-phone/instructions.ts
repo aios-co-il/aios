@@ -2,6 +2,7 @@ import type { CallerPolicy } from "../_shared/carmen/caller-policy/policy.ts";
 import type { OrgBrief } from "../_shared/carmen/org-brief/brief.ts";
 import { orgFactsLines } from "../_shared/carmen/org-brief/facts.ts";
 import type { PhoneCaller } from "./caller.ts";
+import { DEFAULT_ASSISTANT_NAME } from "../_shared/carmen/assistant-name.ts";
 
 /** The phone agent's tool that passes a message or request to the team. */
 export const LEAVE_MESSAGE_TOOL = "leave_message";
@@ -11,6 +12,8 @@ export type CallSetup = { prompt: string; firstMessage: string };
 
 export type CallSetupInput = {
   orgName: string;
+  /** The org's name for its assistant (orgAssistantName, AIO-592); "כרמן" when unset. */
+  assistantName?: string;
   caller: PhoneCaller;
   /** The org's policy for a client or unknown caller; null for the team. */
   policy: CallerPolicy | null;
@@ -28,7 +31,7 @@ export type CallSetupInput = {
 export function callSetup(input: CallSetupInput): CallSetup {
   return {
     prompt: [
-      ...commonRules(input.orgName),
+      ...commonRules(input.orgName, assistantNameOf(input)),
       ...callerRules(input),
       "=== הגייה ===",
       ...input.pronunciations,
@@ -38,9 +41,9 @@ export function callSetup(input: CallSetupInput): CallSetup {
 }
 
 /** How Carmen speaks on every call. */
-function commonRules(orgName: string): Array<string> {
+function commonRules(orgName: string, assistantName: string): Array<string> {
   return [
-    `את כרמן, העוזרת הקולית של ${orgName}. זו שיחת טלפון.`,
+    `את ${assistantName}, העוזרת הקולית של ${orgName}. זו שיחת טלפון.`,
     "דברי בעברית טבעית, במשפטים קצרים, בלי רשימות ובלי סימנים. שאלה אחת בכל פעם.",
     "לעולם אל תמציאי מידע ואל תתחייבי למועד, למחיר או לתוצאה. כשאינך יודעת, אמרי שתעבירי ושיחזרו.",
     "סיימי בנימוס כשהשיחה הסתיימה.",
@@ -100,12 +103,19 @@ function policyRules(policy: CallerPolicy): Array<string> {
 }
 
 /** Carmen's opening line: by first name for the team, the org's name for everyone else. */
-function firstMessage({ orgName, caller }: CallSetupInput): string {
+function firstMessage(input: CallSetupInput): string {
+  const { orgName, caller } = input;
+  const assistantName = assistantNameOf(input);
   if (caller.kind === "staff") {
     const firstName = caller.name?.trim().split(/\s+/)[0];
     return firstName
-      ? `היי ${firstName}, כאן כרמן. מה צריך?`
-      : "היי, כאן כרמן. מה צריך?";
+      ? `היי ${firstName}, כאן ${assistantName}. מה צריך?`
+      : `היי, כאן ${assistantName}. מה צריך?`;
   }
-  return `שלום, הגעתם ל${orgName}, מדברת כרמן. איך אפשר לעזור?`;
+  return `שלום, הגעתם ל${orgName}, מדברת ${assistantName}. איך אפשר לעזור?`;
+}
+
+/** The assistant's name for this call, or the product default. */
+function assistantNameOf(input: CallSetupInput): string {
+  return input.assistantName?.trim() || DEFAULT_ASSISTANT_NAME;
 }

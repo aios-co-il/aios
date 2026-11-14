@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
+import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/brain-access.ts";
 import { he } from "date-fns/locale";
 import { MemoryLayersPanel } from "../MemoryLayersPanel";
 
@@ -61,16 +62,11 @@ const SUBCATEGORY_LABELS: Record<string, string> = {
   tasks: "משימות",
 };
 
-function isCarmenName(name: string) {
-  const n = (name || "").toLowerCase();
-  return n.includes("carmen") || name?.includes("כרמן");
-}
-
 export function MemoryTab({ agent }: { agent: any }) {
   return (
     <div className="space-y-3">
       <MemoryLayersPanel agentId={agent.id} />
-      {isCarmenName(agent.name) ? (
+      {isCarmenAgentRow(agent) ? (
         <CarmenMemoryLibrary />
       ) : (
         <AgentMemoryLibrary agentId={agent.id} />

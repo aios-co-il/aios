@@ -2,10 +2,16 @@
 // what V2 tells Carmen.
 import { buildCarmenV2SystemPrompt } from "../carmen-prompt-v2.ts";
 
-/** The V2 prompt with `systemPrompt` as the agent's ai_agents.system_prompt. */
-export function v2Prompt(systemPrompt: string | null): string {
+/**
+ * The V2 prompt with `systemPrompt` as the agent's ai_agents.system_prompt and `metadata` as
+ * its metadata (e.g. a renamed `visual_identity.displayName`).
+ */
+export function v2Prompt(
+  systemPrompt: string | null,
+  metadata: Record<string, unknown> | null = null,
+): string {
   return buildCarmenV2SystemPrompt({
-    agent: { name: "כרמן", system_prompt: systemPrompt },
+    agent: { name: "כרמן", system_prompt: systemPrompt, metadata },
     tenant: {
       tenantName: "סוכנות",
       tenantId: "t",

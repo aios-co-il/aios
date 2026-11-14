@@ -7,11 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AgentEditor } from "@/components/agents/AgentEditor";
-
-export function isCarmenName(name?: string | null) {
-  const n = (name || "").toLowerCase();
-  return n.includes("carmen") || (name || "").includes("כרמן");
-}
+import { isCarmenAgentRow } from "../../../supabase/functions/_shared/carmen/brain-access.ts";
 
 /** Sub-agents that work under Carmen — list, create, and edit in place. */
 export function CarmenSubAgents({
@@ -90,7 +86,7 @@ export function CarmenSubAgents({
     );
   }
 
-  const subAgents = agents.filter((a: any) => !isCarmenName(a.name));
+  const subAgents = agents.filter((a: any) => !isCarmenAgentRow(a));
 
   return (
     <div className="space-y-3" dir="rtl">

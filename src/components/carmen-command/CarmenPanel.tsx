@@ -38,6 +38,7 @@ import { GoalsTab } from "@/components/agents/tabs/GoalsTab";
 import { ToolsTab } from "@/components/agents/tabs/ToolsTab";
 import { KnowledgeTab } from "@/components/agents/tabs/KnowledgeTab";
 import { MemoryTab } from "@/components/agents/tabs/MemoryTab";
+import { isCarmenAgentRow } from "../../../supabase/functions/_shared/carmen/brain-access.ts";
 import { CostTab } from "@/components/agents/tabs/CostTab";
 import { ApprovalsTab } from "@/components/agents/tabs/ApprovalsTab";
 import { UserProfilesTab } from "@/components/agents/tabs/UserProfilesTab";
@@ -74,7 +75,7 @@ import {
 import { CarmenAutomationsList } from "./CarmenAutomationsList";
 import { SecondaryConnectionAutomationForm } from "./SecondaryConnectionAutomationForm";
 import { ReportSenderDefaultCard } from "@/components/report-sender/ReportSenderDefaultCard";
-import { CarmenSubAgents, isCarmenName } from "./CarmenSubAgents";
+import { CarmenSubAgents } from "./CarmenSubAgents";
 import { CarmenTasksView, NewTaskChooser } from "./tasks/CarmenTasksView";
 import { AgentTaskEditor } from "./tasks/AgentTaskEditor";
 import { GoalEditor } from "./tasks/GoalEditor";
@@ -220,7 +221,10 @@ export function useCarmenAgent(tenantId: string | null) {
       if (error) throw error;
       return data ?? [];
     },
-    select: (agents: any[]) => agents.find((a) => isCarmenName(a.name)) ?? null,
+    select: (agents: any[]) =>
+      agents.find((a) => a.is_carmen) ??
+      agents.find((a) => isCarmenAgentRow(a)) ??
+      null,
   });
 }
 

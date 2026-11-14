@@ -2,7 +2,7 @@ import { assert, assertStringIncludes } from "jsr:@std/assert@1";
 import {
   buildIdentity,
   buildV1Identity,
-  CARMEN_HELPS_ANYONE,
+  carmenHelpsAnyone,
 } from "../_shared/carmen-prompt-v2.ts";
 import { userAddressLine } from "../_shared/carmen/user-address.ts";
 import {
@@ -17,6 +17,7 @@ const profile: VoiceAgentProfile = {
   useV2Prompt: false,
   moodPrompt: null,
   tenantName: "Demo",
+  assistantName: "כרמן",
 };
 
 Deno.test(
@@ -60,7 +61,7 @@ Deno.test(
       buildVoiceInstructions({ ...profile, useV2Prompt: true }, ""),
       buildIdentity("Demo"),
     );
-    assertStringIncludes(buildVoiceInstructions(null, ""), CARMEN_HELPS_ANYONE);
+    assertStringIncludes(buildVoiceInstructions(null, ""), carmenHelpsAnyone());
   },
 );
 

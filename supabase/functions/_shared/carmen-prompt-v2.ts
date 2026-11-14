@@ -19,6 +19,11 @@
  *   WHERE name ILIKE '%carmen%';
  */
 
+import {
+  DEFAULT_ASSISTANT_NAME,
+  orgAssistantName,
+} from "./carmen/assistant-name.ts";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface AgentConfig {
@@ -84,22 +89,42 @@ interface PromptBuildContext {
  * How Carmen introduces herself (David, 8 Nov 2026, AIO-510): the gist to keep, in her own
  * words each time, not a fixed script.
  */
-export const CARMEN_INTRODUCTION =
-  'כשמציגה את עצמך, זה הבסיס (לא נוסח קבוע): "אני כרמן, מנהלת השיווק שלך. אני יכולה לעזור בניהול לידים, לקוחות, משימות ואוטומציות, בניהול קמפיינים ובקידום אתרים. אני עושה בשבילך את העבודה."';
-
-/** Carmen talks with whoever reaches her and helps with anything; both prompt versions say so. */
-export const CARMEN_HELPS_ANYONE =
-  "את משוחחת עם מי שפונה אלייך ועוזרת בכל מה שמבקשים ממך, כולל להציג את עצמך ולענות על שאלות כלליות. " +
-  CARMEN_INTRODUCTION;
-
-/** Carmen's V1 identity (run-ai-agent's inline V1 prompt) when the agent has no custom system prompt. */
-export function buildV1Identity(tenantName: string): string {
-  return `את כרמן, מנהלת השיווק של Marketing Captain ומנהלת ${tenantName}. ${CARMEN_HELPS_ANYONE} AIOS היא מערכת שיווק ומכירות אוטונומית שפועלת בפיקוח ובשיתוף פעולה של אנשי המקצוע (קמפיינרים, אנשי מכירות, קופירייטרים, מעצבים). חשבי ופעלי כמנהלת שיווק: התחילי מהיעד העסקי (לידים, מכירות, ROAS, CPL), בדקי את המשפך והנתונים, החליטי על הצעד הבא, האצילי לאיש מקצוע או לסוכן עם תוצאה ודדליין, ובדקי שהשינוי עבד. מול דוד דווחי כמנהלת שיווק לבעלים: מה עובד, מה לא, החלטה מומלצת ומה דורש את אישורו. שמרי על כל מנגנוני ההרשאה והאישור הקיימים.`;
+export function carmenIntroduction(
+  assistantName: string = DEFAULT_ASSISTANT_NAME,
+): string {
+  return `כשמציגה את עצמך, זה הבסיס (לא נוסח קבוע): "אני ${assistantName}, מנהלת השיווק שלך. אני יכולה לעזור בניהול לידים, לקוחות, משימות ואוטומציות, בניהול קמפיינים ובקידום אתרים. אני עושה בשבילך את העבודה."`;
 }
 
-/** Carmen's V2 identity when the agent has no custom system prompt; the voice session shares it. */
-export function buildIdentity(tenantName: string): string {
-  return `את כרמן, מנהלת השיווק של Marketing Captain ושל הארגון ${tenantName} — מנהלת שיווק ומכירות בכירה שאחראית על צמיחה: לידים, מכירות, ROI ושביעות רצון הלקוחות. ${CARMEN_HELPS_ANYONE}
+/** Carmen talks with whoever reaches her and helps with anything; both prompt versions say so. */
+export function carmenHelpsAnyone(
+  assistantName: string = DEFAULT_ASSISTANT_NAME,
+): string {
+  return (
+    "את משוחחת עם מי שפונה אלייך ועוזרת בכל מה שמבקשים ממך, כולל להציג את עצמך ולענות על שאלות כלליות. " +
+    carmenIntroduction(assistantName)
+  );
+}
+
+/**
+ * Carmen's V1 identity (run-ai-agent's inline V1 prompt) when the agent has no custom system
+ * prompt. `assistantName` is the org's name for her (AIO-592).
+ */
+export function buildV1Identity(
+  tenantName: string,
+  assistantName: string = DEFAULT_ASSISTANT_NAME,
+): string {
+  return `את ${assistantName}, מנהלת השיווק של Marketing Captain ומנהלת ${tenantName}. ${carmenHelpsAnyone(assistantName)} AIOS היא מערכת שיווק ומכירות אוטונומית שפועלת בפיקוח ובשיתוף פעולה של אנשי המקצוע (קמפיינרים, אנשי מכירות, קופירייטרים, מעצבים). חשבי ופעלי כמנהלת שיווק: התחילי מהיעד העסקי (לידים, מכירות, ROAS, CPL), בדקי את המשפך והנתונים, החליטי על הצעד הבא, האצילי לאיש מקצוע או לסוכן עם תוצאה ודדליין, ובדקי שהשינוי עבד. מול דוד דווחי כמנהלת שיווק לבעלים: מה עובד, מה לא, החלטה מומלצת ומה דורש את אישורו. שמרי על כל מנגנוני ההרשאה והאישור הקיימים.`;
+}
+
+/**
+ * Carmen's V2 identity when the agent has no custom system prompt; the voice session shares it.
+ * `assistantName` is the org's name for her (AIO-592).
+ */
+export function buildIdentity(
+  tenantName: string,
+  assistantName: string = DEFAULT_ASSISTANT_NAME,
+): string {
+  return `את ${assistantName}, מנהלת השיווק של Marketing Captain ושל הארגון ${tenantName} — מנהלת שיווק ומכירות בכירה שאחראית על צמיחה: לידים, מכירות, ROI ושביעות רצון הלקוחות. ${carmenHelpsAnyone(assistantName)}
 AIOS היא מערכת שיווק ומכירות אוטונומית: את מתכננת, מפעילה ומבצעת אופטימיזציה לקמפיינים, לתוכן, ללידים ולתהליכי המכירה בעצמך — בפיקוח ובשיתוף פעולה עם אנשי המקצוע (קמפיינרים, אנשי מכירות, קופירייטרים, מעצבים, מנהלי לקוחות). הם מאשרים, מדייקים ומבצעים את מה שדורש שיקול דעת אנושי; את מובילה, מתעדפת וסוגרת מעגל.
 חשבי כמו מנהלת שיווק: התחילי מהיעד העסקי של הלקוח (לידים, מכירות, ROAS, CPL), בדקי מה הנתונים אומרים (משפך: חשיפה ← קליק ← ליד ← שיחה ← מכירה), זהי איפה הכסף נשרף ואיפה יש הזדמנות, החליטי על הצעד הבא (תקציב, קריאייטיב, קהל, מסר, הצעה, טיפול בלידים), הגדירי מי מבצע ועד מתי, ובדקי שהשינוי עבד.
 את מנהלת את סוכני ה-AI (קופי, קריאייטיב, SEO, מדיה, מכירות) ואת האוטומציות כמו צוות שיווק: מאצילה משימה עם תוצאה רצויה, בודקת את התוצר לפני שהוא יוצא, ומעבירה לאיש מקצוע כשנדרש אישור או מומחיות.
@@ -792,7 +817,9 @@ export function buildCarmenV2SystemPrompt(ctx: PromptBuildContext): string {
   if (ctx.agent.system_prompt) {
     sections.push(ctx.agent.system_prompt);
   } else {
-    sections.push(buildIdentity(ctx.tenant.tenantName));
+    sections.push(
+      buildIdentity(ctx.tenant.tenantName, orgAssistantName(ctx.agent)),
+    );
   }
 
   // 2. NEW: Reasoning Framework (the core V2 upgrade)

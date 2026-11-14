@@ -11,6 +11,7 @@ import {
   signProfileImage,
   uploadProfileImage,
 } from "@/lib/profileAvatars";
+import { CARMEN_AGENT_FILTER } from "../../supabase/functions/_shared/carmen/brain-access.ts";
 
 export type CarmenSkinOption = {
   slug: string;
@@ -34,7 +35,8 @@ export function useCarmenSkins() {
         .from("ai_agents")
         .select("id,metadata")
         .eq("tenant_id", tenantId!)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
+        .or(CARMEN_AGENT_FILTER)
+        .order("is_carmen", { ascending: false })
         .order("created_at")
         .limit(1)
         .maybeSingle();

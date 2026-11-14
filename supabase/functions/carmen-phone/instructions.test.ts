@@ -74,3 +74,16 @@ Deno.test("an unknown caller's actions follow the policy switches", () => {
   assertEquals(closed.includes("leave_message"), false);
   assertEquals(closed.includes("לקביעת פגישה"), false);
 });
+
+Deno.test("the call uses the org's name for its assistant", () => {
+  const setup = callSetup({
+    orgName: "MarketingCaptain",
+    assistantName: "מיני מי",
+    caller: caller({ kind: "staff", name: "רון לוי" }),
+    policy: null,
+    brief,
+    pronunciations: [],
+  });
+  assertStringIncludes(setup.prompt, "את מיני מי, העוזרת הקולית");
+  assertEquals(setup.firstMessage, "היי רון, כאן מיני מי. מה צריך?");
+});

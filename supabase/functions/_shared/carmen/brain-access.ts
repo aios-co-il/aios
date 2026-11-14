@@ -20,8 +20,13 @@ export const BRAIN = {
 /** Brains where "bug fixes only" makes sense: the coding agents. */
 export const BUGFIX_CAPABLE_PROVIDERS = ["cursor", "claude", "codex", "grok"];
 
-/** PostgREST filter that finds Carmen among a tenant's agents. */
-export const CARMEN_NAME_FILTER = "name.ilike.%carmen%,name.ilike.%כרמן%";
+/**
+ * PostgREST filter that finds Carmen among a tenant's agents: the flagged agent (AIO-592), or one
+ * named like Carmen for agents created without the flag. Order by `is_carmen` descending so the
+ * flagged one wins.
+ */
+export const CARMEN_AGENT_FILTER =
+  "is_carmen.eq.true,name.ilike.%carmen%,name.ilike.%כרמן%";
 
 /** Prepended to a message on a "bug fixes only" grant. */
 export const BUGFIX_ONLY_PREAMBLE =
@@ -29,6 +34,14 @@ export const BUGFIX_ONLY_PREAMBLE =
   "Fix the reported bug with the smallest change. Do not build new features, " +
   "refactor, or change behaviour beyond the fix. If the request is not a bug " +
   "fix, reply that it needs a full-access user and do nothing else.]\n\n";
+
+/** True for the org's Carmen agent: flagged, or named like Carmen when not flagged. */
+export function isCarmenAgentRow(
+  agent:
+    { is_carmen?: boolean | null; name?: string | null } | null | undefined,
+): boolean {
+  return Boolean(agent && (agent.is_carmen || isCarmenName(agent.name)));
+}
 
 /** True when an agent name marks it as a Carmen agent. */
 export function isCarmenName(name: unknown): boolean {
