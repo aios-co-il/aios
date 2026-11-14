@@ -636,7 +636,7 @@ async function nameMeetingFromSummary(
       tenantId,
       recordingId,
       summary,
-      assignClient,
+      policy: { assignClient, renameMeeting: true },
       keys: { openRouterKey: await tenantSummaryKey(admin, tenantId) },
     });
     console.log("[meeting-summary] meeting details", recordingId, outcome);

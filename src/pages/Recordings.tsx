@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { fetchRecordingsFeed } from "@/lib/recordingsFeedQuery";
 import { fetchRecordingFolders } from "@/lib/recordingsFeed";
 import { recordingsPollInterval } from "@/lib/recordingsPollInterval";
+import { MANUAL_RECORDING_TOPIC } from "../../supabase/functions/_shared/manual-recording-topic.ts";
 
 type SidebarSelection =
   | { kind: "all" }
@@ -296,7 +297,7 @@ export default function Recordings() {
       }
       const { error } = await supabase.from("zoom_recordings").insert({
         tenant_id: currentTenantId,
-        meeting_topic: uploadTopic || "הקלטה ידנית",
+        meeting_topic: uploadTopic || MANUAL_RECORDING_TOPIC,
         topic_set_manually: !!uploadTopic.trim(),
         start_time: new Date(uploadDate).toISOString(),
         source: "manual",
