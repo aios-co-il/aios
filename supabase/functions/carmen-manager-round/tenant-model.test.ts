@@ -23,6 +23,7 @@ const GEMINI: ModelTarget = {
   url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
   key: "g-key",
   model: "gemini-3.5-flash",
+  jsonMode: true,
 };
 
 /** Deps over a scripted fetch that records each request. */
@@ -84,6 +85,27 @@ Deno.test("tenantModelAsker", async (t) => {
     },
   );
 
+  await t.step(
+    "a target without JSON mode sends no response_format",
+    async () => {
+      const claude: ModelTarget = {
+        url: "https://api.anthropic.com/v1/chat/completions",
+        key: "a-key",
+        model: "claude-sonnet-4-6",
+        jsonMode: false,
+      };
+      const { d, requests } = deps([claude], ok("{}"));
+      const ask = tenantModelAsker(
+        fakeDb({}),
+        "t1",
+        { source: "s", timeoutMs: 1_000 },
+        d,
+      );
+      await ask("p");
+      assertEquals("response_format" in requests[0].body, false);
+    },
+  );
+
   await t.step("without a target no call is made", async () => {
     const { d, requests } = deps([], ok("{}"));
     const ask = tenantModelAsker(
@@ -128,6 +150,7 @@ Deno.test("tenantModelAsker chain", async (t) => {
     url: "https://openrouter.ai/api/v1/chat/completions",
     key: "or-key",
     model: "openrouter/auto",
+    jsonMode: true,
   };
 
   await t.step("a refused link moves to the next one", async () => {
@@ -182,6 +205,18 @@ Deno.test("loadTarget", async (t) => {
       await loadTarget(db, "t1", carmenOn("gemini-3.5-flash")),
       GEMINI,
     );
+  });
+
+  await t.step("a Claude engine runs without JSON mode", async () => {
+    const withAnthropic = fakeDb({
+      tenant_integrations: { settings: { anthropic_api_key: "a-key" } },
+    });
+    const target = await loadTarget(
+      withAnthropic,
+      "t1",
+      carmenOn("claude-sonnet-4-6"),
+    );
+    assertEquals(target?.jsonMode, false);
   });
 
   await t.step("no key for the engine's provider: no target", async () => {

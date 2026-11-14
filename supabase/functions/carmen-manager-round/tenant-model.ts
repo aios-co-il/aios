@@ -88,7 +88,9 @@ async function askTarget(
       body: JSON.stringify({
         model: target.model,
         messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
+        ...(target.jsonMode
+          ? { response_format: { type: "json_object" } }
+          : {}),
       }),
       signal: call.signal,
     });

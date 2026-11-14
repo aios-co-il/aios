@@ -9,8 +9,17 @@ import { llmEndpoint } from "../_shared/llm-endpoint.ts";
 import { resolveModelId } from "../_shared/models.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
 
-/** The tenant's chat endpoint, key and model name. */
-export type ModelTarget = { url: string; key: string; model: string };
+/**
+ * The tenant's chat endpoint, key and model name, and whether it takes
+ * `response_format: json_object` (Anthropic's compatible endpoint refuses it;
+ * the prompt already asks for JSON only).
+ */
+export type ModelTarget = {
+  url: string;
+  key: string;
+  model: string;
+  jsonMode: boolean;
+};
 
 /** Carmen's engine with the tenant's own key, then its OpenRouter brain; either may be absent. */
 export async function loadChain(
@@ -19,17 +28,41 @@ export async function loadChain(
 ): Promise<Array<ModelTarget>> {
   const [own, tail] = await Promise.all([
     loadTarget(db, tenantId),
-    openRouterTail(
-      db,
-      { kind: "service", userId: null },
-      { tenant_id: tenantId },
-    ),
+    loadTail(db, tenantId),
   ]);
   const chain = [...(own ? [own] : []), ...tail];
   if (!chain.length) {
     logNoModel(tenantId, "no link in Carmen's chain");
   }
   return chain;
+}
+
+/**
+ * The tenant's OpenRouter link; a failed read counts as no link (logged), so
+ * Carmen's own engine still runs.
+ */
+async function loadTail(
+  db: DbClient,
+  tenantId: string,
+): Promise<Array<ModelTarget>> {
+  try {
+    const targets = await openRouterTail(
+      db,
+      { kind: "service", userId: null },
+      { tenant_id: tenantId },
+    );
+    return targets.map(({ url, key, model }) => ({
+      url,
+      key,
+      model,
+      jsonMode: true,
+    }));
+  } catch (error) {
+    console.warn(
+      `[carmen-manager-round] OpenRouter link unavailable for tenant ${tenantId}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return [];
+  }
 }
 
 /**
@@ -74,7 +107,12 @@ export async function loadTarget(
     logNoModel(tenantId, `no ${endpoint.provider} key for ${modelId}`);
     return null;
   }
-  return { url: endpoint.url, key: key.trim(), model: endpoint.model };
+  return {
+    url: endpoint.url,
+    key: key.trim(),
+    model: endpoint.model,
+    jsonMode: endpoint.provider !== "anthropic",
+  };
 }
 
 /** Says why the run has no model, so a tenant without one shows in the logs. */
