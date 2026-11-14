@@ -186,6 +186,13 @@ BEGIN
     RAISE EXCEPTION 'grants: get_client_thread_activity is service-role only';
   END IF;
 
+  -- A paused client is not in the round (AIO-591): neither its chat nor its group is read.
+  UPDATE public.clients SET status = 'paused' WHERE id = v_client;
+  IF EXISTS (SELECT 1 FROM public.get_client_thread_activity(v_reader, ARRAY[v_line, v_org_line], now() - interval '7 days', 'qa_chat', v_kinds) AS a
+             WHERE a.client_id = v_client) THEN
+    RAISE EXCEPTION 'activity: a paused client''s threads must not be read';
+  END IF;
+
   RAISE NOTICE 'carmen_chat_sla: all checks passed';
 END;
 $test$;
