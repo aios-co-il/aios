@@ -21,14 +21,21 @@ export type ModelTarget = {
   jsonMode: boolean;
 };
 
+/** The tenant's Carmen agent lookup (findCarmenAgent). */
+type FindAgent = (
+  db: DbClient,
+  tenantId: string,
+) => Promise<{ engine: string | null } | null>;
+
 /** Carmen's engine with the tenant's own key, then its OpenRouter brain; either may be absent. */
 export async function loadChain(
   db: DbClient,
   tenantId: string,
+  reads: { findAgent?: FindAgent; readTail?: typeof openRouterTail } = {},
 ): Promise<Array<ModelTarget>> {
   const [own, tail] = await Promise.all([
-    loadTarget(db, tenantId),
-    loadTail(db, tenantId),
+    loadTarget(db, tenantId, reads.findAgent),
+    loadTail(db, tenantId, reads.readTail ?? openRouterTail),
   ]);
   const chain = [...(own ? [own] : []), ...tail];
   if (!chain.length) {
@@ -44,9 +51,10 @@ export async function loadChain(
 async function loadTail(
   db: DbClient,
   tenantId: string,
+  readTail: typeof openRouterTail,
 ): Promise<Array<ModelTarget>> {
   try {
-    const targets = await openRouterTail(
+    const targets = await readTail(
       db,
       { kind: "service", userId: null },
       { tenant_id: tenantId },
@@ -72,10 +80,7 @@ async function loadTail(
 export async function loadTarget(
   db: DbClient,
   tenantId: string,
-  findAgent: (
-    db: DbClient,
-    tenantId: string,
-  ) => Promise<{ engine: string | null } | null> = findCarmenAgent,
+  findAgent: FindAgent = findCarmenAgent,
 ): Promise<ModelTarget | null> {
   const agent = await findAgent(db, tenantId);
   if (!agent) {
