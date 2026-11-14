@@ -1,11 +1,11 @@
 -- Marks each org's Carmen agent (AIO-592), so code finds it without matching its name and an org
 -- can rename its assistant (e.g. to "מיני מי") without losing it.
 --
--- Backfill: the one active agent per tenant whose name is a Carmen variant ("carmen" / "כרמן").
--- Read-only counts before this migration: Production has exactly one such agent in each of its two
--- tenants that have one, so the backfill touches those two rows; a tenant with several picks the
--- oldest. No trigger on ai_agents reacts to this column. Lookups keep the name match as a fallback
--- for agents created later without the flag. Safe to re-run.
+-- Backfill: in each tenant without a flagged agent, the Carmen-named agent ("carmen" / "כרמן"),
+-- the active one first, else the oldest. Read-only counts on Production before this migration:
+-- 2 tenants have Carmen-named agents, with exactly 1 such agent each (both active), so the
+-- backfill flags those 2 rows. The new trigger below fires only on INSERT, so the backfill's
+-- UPDATE fires no trigger. Safe to re-run.
 
 ALTER TABLE public.ai_agents
   ADD COLUMN IF NOT EXISTS is_carmen boolean NOT NULL DEFAULT false;
@@ -18,15 +18,41 @@ CREATE UNIQUE INDEX IF NOT EXISTS ai_agents_one_carmen_per_tenant
   ON public.ai_agents (tenant_id)
   WHERE is_carmen;
 
--- Flags the oldest active name-matched agent in each tenant that has no flagged agent yet.
+-- Flags the best Carmen-named agent in each tenant that has no flagged agent yet.
 UPDATE public.ai_agents AS a
 SET is_carmen = true
 FROM (
-  SELECT DISTINCT ON (tenant_id) id
-  FROM public.ai_agents
-  WHERE active IS TRUE
-    AND (name ILIKE '%carmen%' OR name LIKE '%כרמן%')
-    AND tenant_id NOT IN (SELECT tenant_id FROM public.ai_agents WHERE is_carmen)
-  ORDER BY tenant_id, created_at ASC NULLS LAST, id
+  SELECT DISTINCT ON (c.tenant_id) c.id
+  FROM public.ai_agents AS c
+  WHERE (c.name ILIKE '%carmen%' OR c.name LIKE '%כרמן%')
+    AND NOT EXISTS (
+      SELECT 1 FROM public.ai_agents AS f WHERE f.tenant_id = c.tenant_id AND f.is_carmen
+    )
+  ORDER BY c.tenant_id, (c.active IS TRUE) DESC, c.created_at ASC NULLS LAST, c.id
 ) AS pick
 WHERE a.id = pick.id;
+
+-- Flags a new org's first Carmen-named agent, so every path that creates one (tenant bootstrap,
+-- seeds, the agent editor) marks it without each caller knowing about the flag.
+CREATE OR REPLACE FUNCTION public.ai_agents_flag_first_carmen()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT'
+     AND NOT NEW.is_carmen
+     AND (NEW.name ILIKE '%carmen%' OR NEW.name LIKE '%כרמן%')
+     AND NOT EXISTS (
+       SELECT 1 FROM public.ai_agents WHERE tenant_id = NEW.tenant_id AND is_carmen
+     ) THEN
+    NEW.is_carmen := true;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS ai_agents_flag_first_carmen ON public.ai_agents;
+CREATE TRIGGER ai_agents_flag_first_carmen
+  BEFORE INSERT ON public.ai_agents
+  FOR EACH ROW EXECUTE FUNCTION public.ai_agents_flag_first_carmen();

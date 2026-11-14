@@ -9,6 +9,11 @@ import {
   type FakeDb,
   fakeClient,
 } from "./meeting-bot/fake-db.test-fixture.ts";
+import {
+  callsOn,
+  fakeDb,
+  ok,
+} from "./meeting-bot/video-storage-db.test-fixture.ts";
 
 const TRANSCRIPT_URL = "https://recall.test/transcript.json";
 const SUMMARY_NAME = "פגישת היכרות עם דנה";
@@ -118,5 +123,66 @@ describe("finalizeMeetingBotSession on a re-run", () => {
 
     assertEquals(result, { outcome: "done", detail: "already summarized" });
     assertEquals(db.tables.zoom_recordings[0].meeting_topic, SUMMARY_NAME);
+  });
+});
+
+describe("finalizeMeetingBotSession names an unnamed meeting", () => {
+  const realFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    Deno.env.set("RECALL_API_KEY", "test-key");
+    globalThis.fetch = recallFetch([]);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    Deno.env.delete("RECALL_API_KEY");
+  });
+
+  /** The meeting_topic and topic_set_manually the new recording row was inserted with. */
+  async function insertedName(agents: Array<Record<string, unknown>>) {
+    const { client, calls } = fakeDb({
+      ai_agents: [ok(agents)],
+      // No earlier recording, then the inserted row.
+      zoom_recordings: [ok(null), ok({ id: "rec-1", tenant_id: "tenant-1" })],
+    });
+    // Later pipeline steps the queued fake does not answer may throw; the insert came first.
+    await finalizeMeetingBotSession(client, {
+      ...session,
+      zoom_recording_id: null,
+    }).catch(() => null);
+    const insert = callsOn(calls, "zoom_recordings").find(
+      (call) => call[0] === "insert",
+    );
+    const row = insert?.[1] as Record<string, unknown> | undefined;
+    return {
+      meeting_topic: row?.meeting_topic,
+      topic_set_manually: row?.topic_set_manually,
+    };
+  }
+
+  it("after the org's renamed assistant (AIO-592)", async () => {
+    const name = await insertedName([
+      {
+        name: "כרמן",
+        is_carmen: true,
+        active: true,
+        metadata: { visual_identity: { displayName: "מיני מי" } },
+      },
+    ]);
+    assertEquals(name, {
+      meeting_topic: "Microsoft Teams — מיני מי",
+      topic_set_manually: false,
+    });
+  });
+
+  it("after Carmen in an org that did not rename", async () => {
+    const name = await insertedName([
+      { name: "כרמן", is_carmen: true, active: true, metadata: {} },
+    ]);
+    assertEquals(name, {
+      meeting_topic: "Microsoft Teams — כרמן",
+      topic_set_manually: false,
+    });
   });
 });

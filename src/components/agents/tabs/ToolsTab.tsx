@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Wrench, Search } from "lucide-react";
 import { AGENT_TOOLS_CATALOG as ALL_TOOLS } from "@/lib/agentToolsCatalog";
-import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/brain-access.ts";
+import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/carmen-agent.ts";
 import { CARMEN_PULSE_TOOL_NAMES } from "../../../../supabase/functions/_shared/carmen/pulse-tools.ts";
 
 export function ToolsTab({ agent }: { agent: any }) {

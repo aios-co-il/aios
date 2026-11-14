@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AgentEditor } from "@/components/agents/AgentEditor";
-import { isCarmenAgentRow } from "../../../supabase/functions/_shared/carmen/brain-access.ts";
+import { isCarmenAgentRow } from "../../../supabase/functions/_shared/carmen/carmen-agent.ts";
 
 /** Sub-agents that work under Carmen — list, create, and edit in place. */
 export function CarmenSubAgents({
@@ -86,7 +86,7 @@ export function CarmenSubAgents({
     );
   }
 
-  const subAgents = agents.filter((a: any) => !isCarmenAgentRow(a));
+  const subAgents = agents.filter((agent) => !isCarmenAgentRow(agent));
 
   return (
     <div className="space-y-3" dir="rtl">

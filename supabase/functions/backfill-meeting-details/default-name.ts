@@ -2,6 +2,7 @@
 // typed before topic_set_manually existed (AIO-563) look like any other name
 // in the column, so only the names the system itself gives are replaced.
 import { MANUAL_RECORDING_TOPIC } from "../_shared/manual-recording-topic.ts";
+import { DEFAULT_ASSISTANT_NAME } from "../_shared/carmen/assistant-name.ts";
 import { defaultBotTopic, MEETING_PLATFORMS } from "../_shared/meeting-url.ts";
 
 /**
@@ -12,7 +13,10 @@ const LEGACY_ZOOM_TOPICS = ["Zoom meeting", "Zoom"];
 
 /** Exact names the meeting bot, manual uploads and older Zoom imports give. */
 const DEFAULT_NAMES = new Set([
-  ...MEETING_PLATFORMS.map(defaultBotTopic),
+  // Rows from before AIO-592, when every bot meeting was named after Carmen.
+  ...MEETING_PLATFORMS.map((platform) =>
+    defaultBotTopic(platform, DEFAULT_ASSISTANT_NAME),
+  ),
   MANUAL_RECORDING_TOPIC,
   ...LEGACY_ZOOM_TOPICS,
 ]);

@@ -23,6 +23,7 @@ const caller = (over: Partial<PhoneCaller>): PhoneCaller => ({
 Deno.test("the team hears the org brief and is greeted by first name", () => {
   const setup = callSetup({
     orgName: "MarketingCaptain",
+    orgAssistantName: "כרמן",
     caller: caller({ kind: "staff", name: "רון לוי" }),
     policy: null,
     brief,
@@ -36,6 +37,7 @@ Deno.test("the team hears the org brief and is greeted by first name", () => {
 Deno.test("a client gets only the policy, never other clients' names", () => {
   const setup = callSetup({
     orgName: "MarketingCaptain",
+    orgAssistantName: "כרמן",
     caller: caller({ kind: "client", clientNames: ["אקו"] }),
     policy: DEFAULT_CALLER_POLICIES.client,
     brief: null,
@@ -54,6 +56,7 @@ Deno.test("a client gets only the policy, never other clients' names", () => {
 Deno.test("an unknown caller's actions follow the policy switches", () => {
   const open = callSetup({
     orgName: "X",
+    orgAssistantName: "כרמן",
     caller: caller({}),
     policy: DEFAULT_CALLER_POLICIES.unknown,
     brief: null,
@@ -62,6 +65,7 @@ Deno.test("an unknown caller's actions follow the policy switches", () => {
   assertStringIncludes(open, "לקביעת פגישה");
   const closed = callSetup({
     orgName: "X",
+    orgAssistantName: "כרמן",
     caller: caller({}),
     policy: {
       ...DEFAULT_CALLER_POLICIES.unknown,
@@ -78,7 +82,7 @@ Deno.test("an unknown caller's actions follow the policy switches", () => {
 Deno.test("the call uses the org's name for its assistant", () => {
   const setup = callSetup({
     orgName: "MarketingCaptain",
-    assistantName: "מיני מי",
+    orgAssistantName: "מיני מי",
     caller: caller({ kind: "staff", name: "רון לוי" }),
     policy: null,
     brief,

@@ -2,7 +2,12 @@ import { CARMEN_CHARACTER } from "@/lib/agentSeats";
 import { CARMEN_ROLES } from "../../supabase/functions/_shared/carmen/skin-roles";
 import { getSkinPortrait } from "@/lib/carmenSkinPortraits";
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { setSessionSkin, useSessionSkin } from "@/lib/carmenSessionSkin";
@@ -11,7 +16,7 @@ import {
   signProfileImage,
   uploadProfileImage,
 } from "@/lib/profileAvatars";
-import { CARMEN_AGENT_FILTER } from "../../supabase/functions/_shared/carmen/brain-access.ts";
+import { fetchCarmenAgent } from "@/lib/carmenAgent";
 
 export type CarmenSkinOption = {
   slug: string;
@@ -20,8 +25,6 @@ export type CarmenSkinOption = {
   avatarUrl?: string;
 };
 
-type AgentRow = { id: string; metadata: Record<string, any> | null };
-
 /** Carmen's skins with per-skin avatars and the active skin, all tenant-scoped via Carmen's own agent row. */
 export function useCarmenSkins() {
   const { tenantId } = useCurrentTenant();
@@ -29,20 +32,9 @@ export function useCarmenSkins() {
 
   const agentQuery = useQuery({
     queryKey: ["carmen-skins-agent", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<AgentRow | null> => {
-      const { data, error } = await supabase
-        .from("ai_agents")
-        .select("id,metadata")
-        .eq("tenant_id", tenantId!)
-        .or(CARMEN_AGENT_FILTER)
-        .order("is_carmen", { ascending: false })
-        .order("created_at")
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data as AgentRow | null;
-    },
+    queryFn: tenantId
+      ? () => fetchCarmenAgent(tenantId, { activeOnly: false })
+      : skipToken,
   });
 
   const skinsQuery = useQuery({

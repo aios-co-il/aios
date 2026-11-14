@@ -19,7 +19,8 @@ begin
       ('campaigners',  (select count(*) from public.campaigners where id::text like '99999999-%'), 1),
       ('campaigner link', (select count(*) from public.profiles where id::text like 'aaaaaaaa-%' and campaigner_id is not null), 1),
       ('tasks',         (select count(*) from public.tasks where id::text like 'ffffffff-%'), 3),
-      ('carmen agents', (select count(*) from public.ai_agents where id::text like '12121212-%'), 3)
+      ('carmen agents', (select count(*) from public.ai_agents where id::text like '12121212-%'), 3),
+      ('flagged carmen agents', (select count(*) from public.ai_agents where id::text like '12121212-%' and is_carmen), 3)
     ) as t(name, actual, expected)
     where actual <> expected
   loop

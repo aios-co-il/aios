@@ -52,7 +52,10 @@ export function platformLabel(platform: MeetingPlatform): string {
   return PLATFORM_LABELS[platform];
 }
 
-/** The name the meeting bot gives a meeting nobody named. */
-export function defaultBotTopic(platform: MeetingPlatform): string {
-  return `${platformLabel(platform)} — כרמן`;
+/** The name the meeting bot gives a meeting nobody named, after the assistant who joined it. */
+export function defaultBotTopic(
+  platform: MeetingPlatform,
+  assistantName: string,
+): string {
+  return `${platformLabel(platform)} — ${assistantName}`;
 }

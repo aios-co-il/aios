@@ -35,7 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import { he } from "date-fns/locale";
-import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/brain-access.ts";
+import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/carmen-agent.ts";
 
 // Learning & self-improvement tab for any agent.
 // Carmen gets her full CarmenInsights view (sessions, episodes, pointers).

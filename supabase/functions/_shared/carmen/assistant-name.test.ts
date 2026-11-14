@@ -1,6 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { orgAssistantName, personalAssistantName } from "./assistant-name.ts";
-import { isCarmenAgentRow } from "./brain-access.ts";
 
 Deno.test("orgAssistantName", async (t) => {
   await t.step("uses the display name the owner set", () => {
@@ -19,6 +18,20 @@ Deno.test("orgAssistantName", async (t) => {
       assertEquals(
         orgAssistantName({ name: "מיני מי", metadata: {} }),
         "מיני מי",
+      );
+    },
+  );
+
+  await t.step(
+    "keeps Carmen when the display name is just the default Carmen name",
+    () => {
+      // The profile saves the agent's name as its display name until the owner changes it.
+      assertEquals(
+        orgAssistantName({
+          name: "Carmen",
+          metadata: { visual_identity: { displayName: "Carmen" } },
+        }),
+        "כרמן",
       );
     },
   );
@@ -43,11 +56,4 @@ Deno.test("personalAssistantName prefers the user's character", () => {
   assertEquals(personalAssistantName("AIOS", "מיני מי"), "AIOS");
   assertEquals(personalAssistantName(null, "מיני מי"), "מיני מי");
   assertEquals(personalAssistantName(" ", "כרמן"), "כרמן");
-});
-
-Deno.test("isCarmenAgentRow finds Carmen after a rename", () => {
-  assertEquals(isCarmenAgentRow({ is_carmen: true, name: "מיני מי" }), true);
-  assertEquals(isCarmenAgentRow({ is_carmen: false, name: "כרמן" }), true);
-  assertEquals(isCarmenAgentRow({ is_carmen: false, name: "מיני מי" }), false);
-  assertEquals(isCarmenAgentRow(null), false);
 });

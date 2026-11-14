@@ -75,7 +75,7 @@ import {
 } from "./carmen-session-history.ts";
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import { CARMEN_AGENT_FILTER } from "./carmen/brain-access.ts";
+import { loadCarmenAgent } from "./carmen/load-carmen-agent.ts";
 import { loadCallWords, loadCallerPersona } from "./carmen/persona-runtime.ts";
 import {
   DEFAULT_ASSISTANT_NAME,
@@ -785,17 +785,12 @@ export async function findCarmenAgent(
   supabase: DbClient,
   tenantId: string,
 ): Promise<Tables<"ai_agents"> | null> {
-  const { data } = await supabase
-    .from("ai_agents")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .or(CARMEN_AGENT_FILTER)
-    .eq("active", true)
-    .order("is_carmen", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return data || null;
+  try {
+    return await loadCarmenAgent(supabase, tenantId, { activeOnly: true });
+  } catch (err) {
+    console.error("[carmen] Carmen agent lookup failed", tenantId, err);
+    return null;
+  }
 }
 
 // Fetch client + team (campaigner) names for the tenant. Used to help the voice
@@ -2750,7 +2745,9 @@ export async function handleCarmenMessage(
       .select("name, metadata")
       .eq("id", agentId)
       .maybeSingle();
-    if (agentRow) agentName = orgAssistantName(agentRow);
+    if (agentRow) {
+      agentName = orgAssistantName(agentRow);
+    }
   }
   // On the owner's own line the agent greets as their character (AIO-592).
   if (personaUserId) {

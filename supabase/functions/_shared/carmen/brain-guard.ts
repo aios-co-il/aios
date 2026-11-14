@@ -10,10 +10,10 @@ import {
   BRAIN,
   brainLevel,
   carmenEnabledFor,
-  isCarmenAgentRow,
   toAccessRow,
   type BrainAccessRow,
 } from "./brain-access.ts";
+import { isCarmenAgentRow } from "./carmen-agent.ts";
 
 /** A user's permissions row for one Carmen agent, or null (unrestricted). */
 export async function loadCarmenAccessRow(
@@ -97,7 +97,9 @@ export async function internalBrainAllowed(
       .eq("id", args.agentId)
       .maybeSingle();
     // Unknown agent: run-ai-agent rejects it on its own.
-    if (!agent || !isCarmenAgentRow(agent)) return true;
+    if (!agent || !isCarmenAgentRow(agent)) {
+      return true;
+    }
     tenantId = agent.tenant_id;
   }
   if (!tenantId) return true; // run-ai-agent rejects a request with neither.

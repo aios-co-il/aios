@@ -14,7 +14,7 @@ import {
   rejectApproval,
   type Reply,
 } from "./decision.ts";
-import { isCarmenName } from "../_shared/carmen/brain-access.ts";
+import { pickCarmenAgent } from "../_shared/carmen/carmen-agent.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,10 +228,10 @@ Deno.serve(async (req) => {
       // Carmen (or any active agent) for agent steps.
       const { data: agents } = await supabase
         .from("ai_agents")
-        .select("id,name,is_carmen")
+        .select("id,name,is_carmen,created_at")
         .eq("tenant_id", row.tenant_id)
         .eq("active", true);
-      const carmen = pickCarmenAgent(agents);
+      const carmen = pickCarmenAgent(agents) ?? agents?.[0];
 
       const { data: automation, error: aErr } = await supabase
         .from("automations")
@@ -641,10 +641,10 @@ Deno.serve(async (req) => {
               .eq("automation_id", inp.automation_id);
             const { data: agents } = await supabase
               .from("ai_agents")
-              .select("id,name,is_carmen")
+              .select("id,name,is_carmen,created_at")
               .eq("tenant_id", row.tenant_id)
               .eq("active", true);
-            const carmen = pickCarmenAgent(agents);
+            const carmen = pickCarmenAgent(agents) ?? agents?.[0];
             const stepRows: any[] = [];
             const trigId = crypto.randomUUID();
             const triggerType =
@@ -968,16 +968,4 @@ Deno.serve(async (req) => {
 /** JSON response with this function's CORS headers. */
 function reply({ status, body }: Reply): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
-}
-
-/** The org's Carmen among its active agents (flag first, then name), else the first agent. */
-function pickCarmenAgent<
-  T extends { is_carmen?: boolean | null; name?: string | null },
->(agents: Array<T> | null): T | undefined {
-  const list = agents ?? [];
-  return (
-    list.find((agent) => agent.is_carmen) ??
-    list.find((agent) => isCarmenName(agent.name)) ??
-    list[0]
-  );
 }

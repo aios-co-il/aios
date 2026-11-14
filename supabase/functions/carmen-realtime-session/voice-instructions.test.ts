@@ -55,13 +55,16 @@ Deno.test(
   () => {
     assertStringIncludes(
       buildVoiceInstructions(profile, ""),
-      buildV1Identity("Demo"),
+      buildV1Identity("Demo", "כרמן"),
     );
     assertStringIncludes(
       buildVoiceInstructions({ ...profile, useV2Prompt: true }, ""),
-      buildIdentity("Demo"),
+      buildIdentity("Demo", "כרמן"),
     );
-    assertStringIncludes(buildVoiceInstructions(null, ""), carmenHelpsAnyone());
+    assertStringIncludes(
+      buildVoiceInstructions(null, ""),
+      carmenHelpsAnyone("כרמן"),
+    );
   },
 );
 

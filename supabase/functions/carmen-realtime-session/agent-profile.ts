@@ -1,5 +1,5 @@
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
-import { CARMEN_AGENT_FILTER } from "../_shared/carmen/brain-access.ts";
+import { loadCarmenAgent } from "../_shared/carmen/load-carmen-agent.ts";
 import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { shouldUseV2Prompt } from "../_shared/carmen-prompt-v2.ts";
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
@@ -107,23 +107,8 @@ async function resolveTenantId(
 }
 
 /** The tenant's default Carmen agent: the same row run-ai-agent resolves without an agent_id. */
-async function readCarmenAgent(db: DbClient, tenantId: string) {
-  const { data, error } = await db
-    .from("ai_agents")
-    .select(
-      "id, name, system_prompt, writing_style, response_length, voice, mood, metadata",
-    )
-    .eq("tenant_id", tenantId)
-    .or(CARMEN_AGENT_FILTER)
-    .eq("active", true)
-    .order("is_carmen", { ascending: false })
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw new Error(`ai_agents read failed: ${error.message}`);
-  }
-  return data;
+function readCarmenAgent(db: DbClient, tenantId: string) {
+  return loadCarmenAgent(db, tenantId, { activeOnly: true });
 }
 
 /** The tenant's display name, or "" when it has none. */

@@ -19,6 +19,8 @@ import {
 } from "./recall.ts";
 import { runRecordingPipeline } from "./recording-pipeline.ts";
 import { defaultBotTopic, type MeetingPlatform } from "./meeting-url.ts";
+import { DEFAULT_ASSISTANT_NAME } from "./carmen/assistant-name.ts";
+import { loadPersonalAssistantName } from "./carmen/load-carmen-agent.ts";
 import {
   alreadySummarized,
   findExistingRecording,
@@ -167,13 +169,20 @@ export async function finalizeMeetingBotSession(
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
-  const defaultTopic = defaultBotTopic(session.platform as MeetingPlatform);
-  const topic = session.meeting_topic || defaultTopic;
+  const platform = session.platform as MeetingPlatform;
+  // The same name dispatch-meeting-bot joined with (AIO-592).
+  const assistantName = await loadPersonalAssistantName(
+    admin,
+    session.tenant_id,
+    session.created_by,
+  );
+  const topic =
+    session.meeting_topic || defaultBotTopic(platform, assistantName);
 
   const name: RecordingName = {
     meeting_topic: topic,
     // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
-    topic_set_manually: topic !== defaultTopic,
+    topic_set_manually: !isDefaultBotTopicFor(topic, platform, assistantName),
   };
   const fields: MeetingBotRecordingFields = {
     tenant_id: session.tenant_id,
@@ -394,4 +403,18 @@ async function waitForStoredVideo(
     })
     .eq("id", session.id);
   return { outcome: "failed", detail: "no transcript and no usable audio" };
+}
+
+/**
+ * True when `topic` is the name the bot gave an unnamed meeting: after the assistant who joined
+ * it, or after Carmen for sessions dispatched before names came from one source (AIO-592).
+ */
+function isDefaultBotTopicFor(
+  topic: string,
+  platform: MeetingPlatform,
+  assistantName: string,
+): boolean {
+  return [assistantName, DEFAULT_ASSISTANT_NAME].some(
+    (name) => topic === defaultBotTopic(platform, name),
+  );
 }

@@ -1,30 +1,26 @@
 /**
  * The assistant's display name, from one source (AIO-592).
  *
- * Org surfaces (the main WhatsApp line, notifications, alerts) use the org's name: the display
- * name the owner sets on the Carmen agent (`metadata.visual_identity.displayName`), else the
- * agent's own name when it is not just a Carmen variant, else "כרמן". Personal surfaces (in-app
- * chat, a user's own line, a meeting a user sends the bot to) use the user's picked character,
- * falling back to the org's name.
+ * Org surfaces (the main WhatsApp line, the phone line, the AI's self-introduction) use the org's
+ * name: the display name the owner sets on the Carmen agent, else the agent's own name, else
+ * "כרמן". A Carmen variant in either field counts as unset, because the profile saves the agent's
+ * name as its display name by default. Personal surfaces (a user's own line, a meeting a user
+ * sends the bot to) use the user's picked character, falling back to the org's name.
  *
- * Dependency-free so the frontend imports it too.
+ * Pure (it imports only pure sibling modules), so the frontend imports it too.
  */
 
+import { readAgentIdentity } from "./agent-identity.ts";
 import { isCarmenName } from "./brain-access.ts";
+import type { CarmenAgentRef } from "./carmen-agent.ts";
 
-/** The product default, used only when nothing is set. */
+/** The product default, used only when the org set no name. */
 export const DEFAULT_ASSISTANT_NAME = "כרמן";
 
-/** The fields of an `ai_agents` row the name is read from. */
-export type AssistantNameSource = {
-  name?: string | null;
-  metadata?: unknown;
-} | null;
-
 /** The org's name for its assistant, from its Carmen agent row. */
-export function orgAssistantName(agent: AssistantNameSource): string {
-  const displayName = visualDisplayName(agent?.metadata);
-  if (displayName) {
+export function orgAssistantName(agent: CarmenAgentRef | null): string {
+  const displayName = readAgentIdentity(agent?.metadata).displayName?.trim();
+  if (displayName && !isCarmenName(displayName)) {
     return displayName;
   }
   const name = agent?.name?.trim();
@@ -37,19 +33,4 @@ export function personalAssistantName(
   orgName: string,
 ): string {
   return personaName?.trim() || orgName;
-}
-
-/** `metadata.visual_identity.displayName`, trimmed, or null. */
-function visualDisplayName(metadata: unknown): string | null {
-  if (!metadata || typeof metadata !== "object") {
-    return null;
-  }
-  const identity = (metadata as { visual_identity?: unknown }).visual_identity;
-  if (!identity || typeof identity !== "object") {
-    return null;
-  }
-  const displayName = (identity as { displayName?: unknown }).displayName;
-  return typeof displayName === "string" && displayName.trim()
-    ? displayName.trim()
-    : null;
 }

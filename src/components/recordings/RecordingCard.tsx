@@ -58,6 +58,8 @@ import {
   EntityAssignmentDialog,
   type EntityAssignmentSelection,
 } from "@/components/shared/EntityAssignmentDialog";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { recordingSourceLabel } from "./recordingSourceLabel";
 import { useToast } from "@/hooks/use-toast";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import {
@@ -127,26 +129,6 @@ interface RecordingCardProps {
   onRejectSuggestion?: (rec: FeedRecording) => void;
 }
 
-const sourceLabel = (source: string | null) => {
-  switch (source) {
-    case "zoom":
-      return "Zoom";
-    case "manual":
-      return "העלאה ידנית";
-    case "chrome_extension":
-      return "הקלטת מסך";
-    case "google_meet":
-      return "Google Meet";
-    case "meeting_bot":
-      return "כרמן";
-    case "microsoft_teams":
-    case "teams":
-      return "Teams";
-    default:
-      return source || "Zoom";
-  }
-};
-
 function formatDuration(minutes: number | null): string | null {
   if (!minutes) return null;
   const h = Math.floor(minutes / 60);
@@ -173,6 +155,7 @@ export function RecordingCard({
   onRejectSuggestion,
 }: RecordingCardProps) {
   const { buildPath } = useTenantPath();
+  const { orgName } = useCarmenIdentity();
   const { toast } = useToast();
   const suggestedClientName =
     rec.suggested_client_id && !rec.client_id
@@ -383,7 +366,7 @@ export function RecordingCard({
                     {format(new Date(rec.start_time), "dd/MM/yy HH:mm")}
                   </span>
                 )}
-                <span>{sourceLabel(rec.source)}</span>
+                <span>{recordingSourceLabel(rec.source, orgName)}</span>
               </div>
             </div>
 

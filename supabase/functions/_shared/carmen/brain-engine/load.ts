@@ -7,7 +7,8 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { resolveCarmenAgent } from "../../agent-channel/store.ts";
 import { assertPublicTarget } from "../../agent-channel/chat-model-api.ts";
-import { BRAIN, brainLevel, isCarmenAgentRow } from "../brain-access.ts";
+import { BRAIN, brainLevel } from "../brain-access.ts";
+import { isCarmenAgentRow } from "../carmen-agent.ts";
 import { loadCarmenAccessRow } from "../brain-guard.ts";
 import { connectionSecret } from "../brain-connections/overrides.ts";
 import { sanitizeProfile } from "../brain-connections/profile.ts";
@@ -58,7 +59,9 @@ export async function resolveBrainEngine(
       .select("name, tenant_id, is_carmen")
       .eq("id", body.agent_id)
       .maybeSingle();
-    if (!agent || !isCarmenAgentRow(agent)) return { kind: "internal" };
+    if (!agent || !isCarmenAgentRow(agent)) {
+      return { kind: "internal" };
+    }
     tenantId = agent.tenant_id;
   }
   if (!tenantId) return { kind: "internal" };

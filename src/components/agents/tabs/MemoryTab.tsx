@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
-import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/brain-access.ts";
+import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/carmen-agent.ts";
 import { he } from "date-fns/locale";
 import { MemoryLayersPanel } from "../MemoryLayersPanel";
 
