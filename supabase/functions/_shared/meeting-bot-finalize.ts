@@ -25,8 +25,8 @@ import {
   finishAlreadySummarized,
   hasSummaryNow,
   type MeetingBotRecordingFields,
-  recordingRowFor,
   type RecordingName,
+  recordingRowFor,
 } from "./meeting-bot/existing-recording.ts";
 
 // Whisper's own ceiling is 25MB; only hand it the small mixed-audio artifact.
@@ -94,8 +94,9 @@ export async function finalizeMeetingBotSession(
   session: MeetingBotSession,
 ): Promise<FinalizeResult> {
   const botId = session.external_bot_id;
-  if (!botId)
+  if (!botId) {
     return { outcome: "failed", detail: "session has no external_bot_id" };
+  }
 
   const botData = await retrieveRecallBot(botId);
   const {
@@ -166,7 +167,9 @@ export async function finalizeMeetingBotSession(
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
-  const defaultTopic = `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
+  const defaultTopic = `${platformLabel(
+    session.platform as MeetingPlatform,
+  )} — כרמן`;
   const topic = session.meeting_topic || defaultTopic;
 
   const name: RecordingName = {
@@ -204,8 +207,9 @@ export async function finalizeMeetingBotSession(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
       )
       .single();
-    if (error)
+    if (error) {
       throw new Error(`update zoom_recordings failed: ${error.message}`);
+    }
     recording = data;
   } else {
     if (!transcription) row.transcription_status = "pending";
@@ -216,8 +220,9 @@ export async function finalizeMeetingBotSession(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
       )
       .single();
-    if (error)
+    if (error) {
       throw new Error(`insert zoom_recordings failed: ${error.message}`);
+    }
     recording = data;
     recordingId = data.id;
   }
@@ -244,7 +249,9 @@ export async function finalizeMeetingBotSession(
         .from("meeting_bot_sessions")
         .update({
           status: "processing",
-          status_detail: `awaiting_transcript${transcriptStatus ? `:${transcriptStatus}` : ""}`,
+          status_detail: `awaiting_transcript${
+            transcriptStatus ? `:${transcriptStatus}` : ""
+          }`,
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.id);
@@ -359,7 +366,10 @@ async function waitForStoredVideo(
     return null;
   }
 
-  if (hasVideo && withinVideoRetention(session.ended_at, Date.now())) {
+  // The webhook writes ended_at just before finalizing, so a null here means
+  // the meeting ended now (as the transcript wait above assumes).
+  const endedAt = session.ended_at ?? new Date().toISOString();
+  if (hasVideo && withinVideoRetention(endedAt, Date.now())) {
     // `done`, not `processing`: the reconcile sweep would re-run finalize every
     // minute while the copy runs. Reconcile's video retry re-copies it instead.
     await admin

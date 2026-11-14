@@ -98,22 +98,21 @@ async function claimRetries(
   candidates: Array<SessionKey>,
   now: number,
 ): Promise<Array<SessionKey>> {
-  if (!candidates.length) {
-    return [];
+  const claimed: Array<SessionKey> = [];
+  for (const candidate of candidates) {
+    const { data, error } = await admin
+      .from("meeting_bot_sessions")
+      .update({ updated_at: new Date(now).toISOString() })
+      .eq("id", candidate.id)
+      .eq("tenant_id", candidate.tenant_id)
+      .lt("updated_at", new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString())
+      .select("id, tenant_id");
+    if (error) {
+      throw new Error(`claim video retries failed: ${error.message}`);
+    }
+    claimed.push(...(data ?? []));
   }
-  const { data, error } = await admin
-    .from("meeting_bot_sessions")
-    .update({ updated_at: new Date(now).toISOString() })
-    .in(
-      "id",
-      candidates.map((session) => session.id),
-    )
-    .lt("updated_at", new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString())
-    .select("id, tenant_id");
-  if (error) {
-    throw new Error(`claim video retries failed: ${error.message}`);
-  }
-  return data ?? [];
+  return claimed;
 }
 
 /**
@@ -127,7 +126,7 @@ async function resumeStoredVideoWaits(
   const { data: stored, error: findError } = await admin
     .from("meeting_bot_sessions")
     .select(
-      "id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
+      "id, tenant_id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
     )
     .eq("status", "done")
     .eq("status_detail", AWAITING_VIDEO)
@@ -136,27 +135,26 @@ async function resumeStoredVideoWaits(
   if (findError) {
     throw new Error(`find stored video waits failed: ${findError.message}`);
   }
-  if (!stored?.length) {
-    return 0;
+  let resumed = 0;
+  for (const session of stored ?? []) {
+    const { data, error } = await admin
+      .from("meeting_bot_sessions")
+      .update({
+        status: "processing",
+        status_detail: VIDEO_STORED,
+        updated_at: new Date(now).toISOString(),
+      })
+      .eq("id", session.id)
+      .eq("tenant_id", session.tenant_id)
+      .eq("status", "done")
+      .eq("status_detail", AWAITING_VIDEO)
+      .select("id");
+    if (error) {
+      throw new Error(`resume stored video waits failed: ${error.message}`);
+    }
+    resumed += data?.length ?? 0;
   }
-  const { data, error } = await admin
-    .from("meeting_bot_sessions")
-    .update({
-      status: "processing",
-      status_detail: VIDEO_STORED,
-      updated_at: new Date(now).toISOString(),
-    })
-    .in(
-      "id",
-      stored.map((session) => session.id),
-    )
-    .eq("status", "done")
-    .eq("status_detail", AWAITING_VIDEO)
-    .select("id");
-  if (error) {
-    throw new Error(`resume stored video waits failed: ${error.message}`);
-  }
-  return data?.length ?? 0;
+  return resumed;
 }
 
 /**
@@ -174,37 +172,37 @@ async function failExpiredVideoWaits(
   const { data: unstored, error: findError } = await admin
     .from("meeting_bot_sessions")
     .select(
-      "id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
+      "id, tenant_id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
     )
     .eq("status", "done")
     .eq("status_detail", AWAITING_VIDEO)
     .is("zoom_recordings.file_path", null)
     .lt("ended_at", retentionCutoff)
-    .lt("updated_at", leaseCutoff);
+    .lt("updated_at", leaseCutoff)
+    .limit(VIDEO_RETRY_BATCH_SIZE);
   if (findError) {
     throw new Error(`find expired video waits failed: ${findError.message}`);
   }
-  if (!unstored?.length) {
-    return 0;
+  let expired = 0;
+  for (const session of unstored ?? []) {
+    const { data, error } = await admin
+      .from("meeting_bot_sessions")
+      .update({
+        status: "failed",
+        error:
+          "no transcript from Recall, no usable audio, and the video was never stored",
+        updated_at: new Date(now).toISOString(),
+      })
+      .eq("id", session.id)
+      .eq("tenant_id", session.tenant_id)
+      .eq("status", "done")
+      .eq("status_detail", AWAITING_VIDEO)
+      .lt("updated_at", leaseCutoff)
+      .select("id");
+    if (error) {
+      throw new Error(`fail expired video waits failed: ${error.message}`);
+    }
+    expired += data?.length ?? 0;
   }
-  const { data, error } = await admin
-    .from("meeting_bot_sessions")
-    .update({
-      status: "failed",
-      error:
-        "no transcript from Recall, no usable audio, and the video was never stored",
-      updated_at: new Date(now).toISOString(),
-    })
-    .in(
-      "id",
-      unstored.map((session) => session.id),
-    )
-    .eq("status", "done")
-    .eq("status_detail", AWAITING_VIDEO)
-    .lt("updated_at", leaseCutoff)
-    .select("id");
-  if (error) {
-    throw new Error(`fail expired video waits failed: ${error.message}`);
-  }
-  return data?.length ?? 0;
+  return expired;
 }

@@ -67,8 +67,9 @@ describe("retryVideoStorage", () => {
           { id: "s-1", tenant_id: "t-1" },
           { id: "s-2", tenant_id: "t-2" },
         ]),
-        // Another sweep claimed s-2 in between.
         ok([{ id: "s-1", tenant_id: "t-1" }]),
+        // Another sweep claimed s-2 in between.
+        ok([]),
         ok([]),
         ok([]),
       ],
@@ -87,10 +88,17 @@ describe("retryVideoStorage", () => {
         },
       ],
     ]);
-    const claim = callsOn(calls, "meeting_bot_sessions").slice(9, 13);
-    assertEquals(claim, [
+    const sessionCalls = callsOn(calls, "meeting_bot_sessions");
+    const firstClaim = sessionCalls.findIndex((call) => call[0] === "update");
+    assertEquals(sessionCalls.slice(firstClaim, firstClaim + 10), [
       ["update", { updated_at: iso(NOW) }],
-      ["in", "id", ["s-1", "s-2"]],
+      ["eq", "id", "s-1"],
+      ["eq", "tenant_id", "t-1"],
+      ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
+      ["select", "id, tenant_id"],
+      ["update", { updated_at: iso(NOW) }],
+      ["eq", "id", "s-2"],
+      ["eq", "tenant_id", "t-2"],
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
       ["select", "id, tenant_id"],
     ]);
@@ -101,7 +109,7 @@ describe("retryVideoStorage", () => {
       meeting_bot_sessions: [
         ok([]),
         ok([]),
-        ok([{ id: "s-3" }]),
+        ok([{ id: "s-3", tenant_id: "t-3" }]),
         ok([{ id: "s-3" }]),
       ],
     });
@@ -122,13 +130,20 @@ describe("retryVideoStorage", () => {
       // An upload leased in the last interval may still be running.
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
     ]);
+    assertEquals(
+      sessionCalls.some(
+        (call) =>
+          call[0] === "eq" && call[1] === "tenant_id" && call[2] === "t-3",
+      ),
+      true,
+    );
   });
 
   it("resumes a session whose video was stored but never handed back", async () => {
     const { client, calls } = fakeDb({
       meeting_bot_sessions: [
         ok([]),
-        ok([{ id: "s-4" }]),
+        ok([{ id: "s-4", tenant_id: "t-4" }]),
         ok([{ id: "s-4" }]),
         ok([]),
       ],
@@ -150,6 +165,13 @@ describe("retryVideoStorage", () => {
         updated_at: iso(NOW),
       },
     ]);
+    assertEquals(
+      callsOn(calls, "meeting_bot_sessions").some(
+        (call) =>
+          call[0] === "eq" && call[1] === "tenant_id" && call[2] === "t-4",
+      ),
+      true,
+    );
     assertEquals(callsOn(calls, "rpc"), []);
   });
 

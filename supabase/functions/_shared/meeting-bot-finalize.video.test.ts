@@ -99,6 +99,20 @@ describe("finalizeMeetingBotSession with no transcript and no audio", () => {
     ]);
   });
 
+  it("waits for the video when the webhook's session has no ended_at yet", async () => {
+    const { client } = fakeDb({
+      zoom_recordings: recordingResults(null),
+      "rpc:kick_internal_function": [ok(1)],
+    });
+
+    const result = await finalizeMeetingBotSession(client, {
+      ...session(0),
+      ended_at: null,
+    });
+
+    assertEquals(result.outcome, "awaiting_video");
+  });
+
   it("looks the stored video up within the session's tenant", async () => {
     const { client, calls } = fakeDb({
       zoom_recordings: recordingResults(null),

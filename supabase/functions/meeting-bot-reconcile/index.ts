@@ -34,8 +34,9 @@ const MIN_AGE_SECONDS = 90;
 const BATCH_SIZE = 5;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const admin = serviceClient();
 
