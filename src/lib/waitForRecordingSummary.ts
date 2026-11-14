@@ -8,10 +8,19 @@ export interface SavedSummary {
   fileUrl: string | null;
 }
 
+/** The background summary failed on the server (AIO-593). */
+export class SummaryFailedError extends Error {
+  constructor() {
+    super("כתיבת הסיכום נכשלה. נסה שוב.");
+    this.name = "SummaryFailedError";
+  }
+}
+
 /**
  * Waits for a summary written in the background (AIO-581) to land on the
  * recording: resolves once `summary_generated_at` is later than `since`, or
- * null after the timeout (the summary may still arrive later).
+ * null after the timeout (the summary may still arrive later). Throws
+ * SummaryFailedError once the server records a failure after `since`.
  */
 export async function waitForRecordingSummary(
   recordingId: string,
@@ -24,7 +33,9 @@ export async function waitForRecordingSummary(
     await new Promise((resolve) => setTimeout(resolve, pollMs));
     const { data, error } = await supabase
       .from("zoom_recordings")
-      .select("summary_md, summary_file_url, summary_generated_at")
+      .select(
+        "summary_md, summary_file_url, summary_generated_at, summary_failed_at",
+      )
       .eq("id", recordingId)
       .maybeSingle();
     if (error) {
@@ -33,6 +44,9 @@ export async function waitForRecordingSummary(
     }
     if (isNewSummary(data, since)) {
       return { summary: data.summary_md, fileUrl: data.summary_file_url };
+    }
+    if (isNewFailure(data, since)) {
+      throw new SummaryFailedError();
     }
   }
   return null;
@@ -67,5 +81,16 @@ export function isNewSummary(
     !!row?.summary_md &&
     !!row.summary_generated_at &&
     new Date(row.summary_generated_at).getTime() > since.getTime()
+  );
+}
+
+/** True when the server recorded a failed background summary after `since`. */
+export function isNewFailure(
+  row: { summary_failed_at: string | null } | null,
+  since: Date,
+): boolean {
+  return (
+    !!row?.summary_failed_at &&
+    new Date(row.summary_failed_at).getTime() > since.getTime()
   );
 }

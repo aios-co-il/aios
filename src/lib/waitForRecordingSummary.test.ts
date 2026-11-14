@@ -1,5 +1,74 @@
-import { describe, expect, it } from "vitest";
-import { isNewSummary, pendingSince } from "./waitForRecordingSummary";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  isNewSummary,
+  pendingSince,
+  SummaryFailedError,
+  waitForRecordingSummary,
+} from "./waitForRecordingSummary";
+
+const maybeSingle = vi.hoisted(() => vi.fn());
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    from: () => ({
+      select: () => ({ eq: () => ({ maybeSingle }) }),
+    }),
+  },
+}));
+
+/** One poll's row: the summary fields and the failure mark. */
+function row(fields: {
+  summary_md?: string | null;
+  summary_generated_at?: string | null;
+  summary_failed_at?: string | null;
+}) {
+  return {
+    data: {
+      summary_md: null,
+      summary_file_url: null,
+      summary_generated_at: null,
+      summary_failed_at: null,
+      ...fields,
+    },
+    error: null,
+  };
+}
+
+describe("waitForRecordingSummary", () => {
+  const since = new Date("2026-11-14T10:00:00Z");
+  const fast = { pollMs: 0, timeoutMs: 1_000 };
+
+  beforeEach(() => {
+    maybeSingle.mockReset();
+  });
+
+  it("stops at once when the server records a failure after the request", async () => {
+    maybeSingle.mockResolvedValueOnce(
+      row({ summary_failed_at: "2026-11-14T10:02:00Z" }),
+    );
+
+    await expect(
+      waitForRecordingSummary("rec-1", since, fast),
+    ).rejects.toBeInstanceOf(SummaryFailedError);
+    expect(maybeSingle).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a failure from an earlier request and returns the new summary", async () => {
+    maybeSingle
+      .mockResolvedValueOnce(row({ summary_failed_at: "2026-11-13T09:00:00Z" }))
+      .mockResolvedValueOnce(
+        row({
+          summary_md: "## תקציר",
+          summary_generated_at: "2026-11-14T10:03:00Z",
+          summary_failed_at: "2026-11-13T09:00:00Z",
+        }),
+      );
+
+    await expect(
+      waitForRecordingSummary("rec-1", since, fast),
+    ).resolves.toEqual({ summary: "## תקציר", fileUrl: null });
+  });
+});
 
 describe("isNewSummary", () => {
   const since = new Date("2026-11-12T10:00:00Z");
