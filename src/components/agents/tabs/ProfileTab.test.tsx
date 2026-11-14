@@ -155,6 +155,7 @@ const agent: Tables<"ai_agents"> = {
   allowed_tools: null,
   brain_mode: "model",
   brain_route_id: null,
+  is_carmen: false,
   created_at: null,
   description: null,
   disabled_integrations: null,

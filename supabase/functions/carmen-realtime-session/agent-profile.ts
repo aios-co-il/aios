@@ -1,5 +1,6 @@
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
-import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
+import { loadCarmenAgent } from "../_shared/carmen/load-carmen-agent.ts";
+import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { shouldUseV2Prompt } from "../_shared/carmen-prompt-v2.ts";
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -68,6 +69,7 @@ async function readVoiceAgent(
       responseLength: agent.response_length,
       moodPrompt: agentMoodPrompt(agent.mood, agent.id),
       tenantName: await readTenantName(db, tenantId),
+      assistantName: orgAssistantName(agent),
     },
     voice: agent.voice,
   };
@@ -105,22 +107,8 @@ async function resolveTenantId(
 }
 
 /** The tenant's default Carmen agent: the same row run-ai-agent resolves without an agent_id. */
-async function readCarmenAgent(db: DbClient, tenantId: string) {
-  const { data, error } = await db
-    .from("ai_agents")
-    .select(
-      "id, name, system_prompt, writing_style, response_length, voice, mood, metadata",
-    )
-    .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
-    .eq("active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    throw new Error(`ai_agents read failed: ${error.message}`);
-  }
-  return data;
+function readCarmenAgent(db: DbClient, tenantId: string) {
+  return loadCarmenAgent(db, tenantId, { activeOnly: true });
 }
 
 /** The tenant's display name, or "" when it has none. */

@@ -14,7 +14,6 @@ import {
   recallBudgetThreshold,
   shouldRunRecallCreditCanary,
   createRecallBot,
-  MEETING_BOT_NAME,
 } from "./recall.ts";
 import { MEETING_BOT_IMAGE_JPEG_B64 } from "./recall-bot-image.ts";
 
@@ -208,26 +207,33 @@ Deno.test(
   },
 );
 
-Deno.test("a new bot joins as MiniMe with the Mini Me tile", async () => {
-  const realFetch = globalThis.fetch;
-  Deno.env.set("RECALL_API_KEY", "test-key");
-  let body: Record<string, unknown> = {};
-  globalThis.fetch = (_input, init) => {
-    body = JSON.parse(String(init?.body ?? "{}"));
-    return Promise.resolve(Response.json({ id: "bot-1" }));
-  };
-  try {
-    await createRecallBot({
-      meeting_url: "https://meet.google.com/abc-defg-hij",
-    });
-    assertEquals(body.bot_name, MEETING_BOT_NAME);
-    const video = body.automatic_video_output as {
-      in_call_recording: { kind: string; b64_data: string };
+Deno.test(
+  "a new bot joins under the name it is given, with the Mini Me tile",
+  async () => {
+    const realFetch = globalThis.fetch;
+    Deno.env.set("RECALL_API_KEY", "test-key");
+    let body: Record<string, unknown> = {};
+    globalThis.fetch = (_input, init) => {
+      body = JSON.parse(String(init?.body ?? "{}"));
+      return Promise.resolve(Response.json({ id: "bot-1" }));
     };
-    assertEquals(video.in_call_recording.kind, "jpeg");
-    assertEquals(video.in_call_recording.b64_data, MEETING_BOT_IMAGE_JPEG_B64);
-  } finally {
-    globalThis.fetch = realFetch;
-    Deno.env.delete("RECALL_API_KEY");
-  }
-});
+    try {
+      await createRecallBot({
+        meeting_url: "https://meet.google.com/abc-defg-hij",
+        bot_name: "מיני מי · מתמלל ומסכם",
+      });
+      assertEquals(body.bot_name, "מיני מי · מתמלל ומסכם");
+      const video = body.automatic_video_output as {
+        in_call_recording: { kind: string; b64_data: string };
+      };
+      assertEquals(video.in_call_recording.kind, "jpeg");
+      assertEquals(
+        video.in_call_recording.b64_data,
+        MEETING_BOT_IMAGE_JPEG_B64,
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+      Deno.env.delete("RECALL_API_KEY");
+    }
+  },
+);

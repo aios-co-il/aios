@@ -223,7 +223,12 @@ import {
   shouldUseV2Prompt,
 } from "../_shared/carmen-prompt-v2.ts";
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
-import { CARMEN_NAME_FILTER } from "../_shared/carmen/brain-access.ts";
+import { isCarmenAgentRow } from "../_shared/carmen/carmen-agent.ts";
+import {
+  loadCarmenAgent,
+  loadOrgAssistantName,
+} from "../_shared/carmen/load-carmen-agent.ts";
+import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
   PULSE_TARGET_TOOL_NAMES,
@@ -1155,14 +1160,16 @@ async function resolveCalendarConferenceExtras(
   const extraNamed: Array<{ email: string; displayName?: string }> = [];
   let carmen_attendee: Record<string, unknown> | null = null;
   if (args.add_carmen === true) {
+    const assistantName = await loadOrgAssistantName(supabase, tenantId);
     const resolved = await resolveCarmenAttendeeEmail(
       supabase,
       tenantId,
       args.carmen_email,
+      assistantName,
     );
     if (resolved.email) {
       extraEmails.push(resolved.email);
-      extraNamed.push({ email: resolved.email, displayName: "כרמן" });
+      extraNamed.push({ email: resolved.email, displayName: assistantName });
       carmen_attendee = {
         added: true,
         email: resolved.email,
@@ -6598,14 +6605,9 @@ async function executeTool(
     // ===========================
     case "get_carmen_skins": {
       // The tenant's Carmen agent holds the custom skin images (visual_identity.skins).
-      const { data: carmenAgent } = await supabase
-        .from("ai_agents")
-        .select("metadata")
-        .eq("tenant_id", tenantId)
-        .or("name.ilike.%carmen%,name.ilike.%כרמן%")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const carmenAgent = await loadCarmenAgent(supabase, tenantId, {
+        activeOnly: false,
+      });
       const paths = customSkinPaths(carmenAgent?.metadata, tenantId);
       const signed: Record<string, string> = {};
       await Promise.all(
@@ -8276,7 +8278,7 @@ async function executeTool(
         bot_id: data.bot_id,
         platform: data.platform_label,
         message:
-          data.message || "כרמן מצטרפת לפגישה. אשרו אותה בחדר ההמתנה אם נדרש.",
+          data.message || "הבוט מצטרף לפגישה. אשרו אותו בחדר ההמתנה אם נדרש.",
       };
     }
 
@@ -8300,7 +8302,7 @@ async function executeTool(
       const statusLabels: Record<string, string> = {
         scheduled: "מתוזמנת",
         joining: "מצטרפת",
-        waiting_room: "בחדר המתנה — אשרו את כרמן",
+        waiting_room: "בחדר המתנה — אשרו את הבוט",
         in_meeting: "בפגישה ומקליטה",
         processing: "מעבדת תמלול וסיכום",
         done: "הסתיימה — סיכום מוכן",
@@ -8717,15 +8719,9 @@ async function handleRunAgent(
         throw new Error(
           "Missing agent_id or tenant_id (one is required to resolve the agent)",
         );
-      const { data: carmen } = await supabase
-        .from("ai_agents")
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .or(CARMEN_NAME_FILTER)
-        .eq("active", true)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      const carmen = await loadCarmenAgent(supabase, tenant_id, {
+        activeOnly: true,
+      });
       if (!carmen)
         throw new Error(`No active Carmen agent found for tenant ${tenant_id}`);
       agent = carmen;
@@ -8735,9 +8731,7 @@ async function handleRunAgent(
       );
     }
 
-    const isCarmenAgent =
-      agent.name?.toLowerCase().includes("carmen") ||
-      agent.name?.includes("כרמן");
+    const isCarmenAgent = isCarmenAgentRow(agent);
     const tokenOptimize = shouldUseTokenOptimize(agent, isCarmenAgent);
     if (emit && tokenOptimize && !pinSkillsOnly) {
       emit({
@@ -9350,7 +9344,7 @@ async function handleRunAgent(
       if (!systemPrompt) {
         const parts = isCarmen
           ? [
-              buildV1Identity(tenantName),
+              buildV1Identity(tenantName, orgAssistantName(agent)),
               "יש לך גישה מלאה לכל מודולי המערכת: לידים, לקוחות, משימות, קמפיינרים, אנשי מכירות, סוכנויות, ספקים, מוצרים, אוטומציות, ועוד.",
               "את יכולה לבצע כל פעולה שמשתמש יכול לבצע ידנית במערכת.",
               "חשוב מאוד: לפני יצירת משימה חדשה, תמיד חפשי קודם עם search_tasks כדי לוודא שהמשימה לא קיימת כבר. אם היא קיימת - עדכני אותה במקום ליצור חדשה.",
@@ -10645,7 +10639,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const finalOutput = execResult?.success
         ? String(
             execResult.message ||
-              "כרמן מצטרפת לפגישה. אשרו אותי בחדר ההמתנה אם נדרש.",
+              "הבוט מצטרף לפגישה. אשרו אותו בחדר ההמתנה אם נדרש.",
           )
         : `לא הצלחתי להצטרף לפגישה: ${execResult?.error || "שגיאה לא ידועה"}`;
       const executionTime = Date.now() - autoStart;
@@ -11672,15 +11666,9 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   const userId = asUuidOrNull(bodyJson.user_id);
   if (!tenantId || !userId)
     return json({ error: "tenant_id and user_id are required" }, 400);
-  const { data: agent } = await supabase
-    .from("ai_agents")
-    .select("id, allowed_tools, disabled_tools")
-    .eq("tenant_id", tenantId)
-    .or("name.ilike.%carmen%,name.ilike.%כרמן%")
-    .eq("active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const agent = await loadCarmenAgent(supabase, tenantId, {
+    activeOnly: true,
+  });
   if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
   const disabledTools: string[] = agent.disabled_tools || [];

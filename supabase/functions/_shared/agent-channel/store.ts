@@ -3,7 +3,7 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { CARMEN_NAME_FILTER } from "../carmen/brain-access.ts";
+import { loadCarmenAgent } from "../carmen/load-carmen-agent.ts";
 import { nameChatTopicLater } from "../carmen/chat-topic.ts";
 import type {
   BrainRouteRow,
@@ -54,16 +54,13 @@ export async function resolveCarmenAgent(
   sb: Pick<SupabaseClient, "from">,
   tenantId: string,
 ): Promise<{ id: string; name: string } | null> {
-  const { data } = await sb
-    .from("ai_agents")
-    .select("id, name")
-    .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
-    .eq("active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return data ?? null;
+  try {
+    const agent = await loadCarmenAgent(sb, tenantId, { activeOnly: true });
+    return agent ? { id: agent.id, name: agent.name } : null;
+  } catch (err) {
+    console.error("[agent-channel] Carmen agent lookup failed", tenantId, err);
+    return null;
+  }
 }
 
 export async function ensureDefaultRoutes(

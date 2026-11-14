@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { isNonProduction, resolveAppEnv } from "@/lib/appEnv";
+import { fetchCarmenAgent } from "@/lib/carmenAgent";
 import {
-  CARMEN_NAME_FILTER,
   carmenEnabledFor,
   toAccessRow,
   type BrainAccessRow,
@@ -33,16 +33,8 @@ export function carmenOpenToAll(
 export async function fetchCarmenAgentId(
   tenantId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("ai_agents")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .or(CARMEN_NAME_FILTER)
-    .eq("active", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return data?.id ?? null;
+  const agent = await fetchCarmenAgent(tenantId, { activeOnly: true });
+  return agent?.id ?? null;
 }
 
 /** A user's permissions row for the tenant's Carmen, or null (unrestricted). */

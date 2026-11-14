@@ -31,6 +31,8 @@ import {
   finishExternalOpen,
   resolveExternalRecordingUrl,
 } from "@/lib/refreshRecordingPlayback";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { recordingSourceLabel } from "@/components/recordings/recordingSourceLabel";
 
 interface ClientRecordingsTabProps {
   clientId: string;
@@ -61,26 +63,6 @@ interface WorkItemRow {
   status: string;
   payload: { source_recording_id?: string | null } | null;
 }
-
-const sourceLabel = (source: string | null) => {
-  switch (source) {
-    case "zoom":
-      return "Zoom";
-    case "manual":
-      return "העלאה ידנית";
-    case "chrome_extension":
-      return "הקלטת מסך";
-    case "google_meet":
-      return "Google Meet";
-    case "meeting_bot":
-      return "כרמן";
-    case "microsoft_teams":
-    case "teams":
-      return "Teams";
-    default:
-      return source || "Zoom";
-  }
-};
 
 function groupClientRecordings(rows: RecordingRow[]): RecordingRow[] {
   const groups = new Map<string, RecordingRow[]>();
@@ -123,6 +105,7 @@ export function ClientRecordingsTab({
 }: ClientRecordingsTabProps) {
   const navigate = useNavigate();
   const { buildPath } = useTenantPath();
+  const { orgName } = useCarmenIdentity();
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [transcriptRecording, setTranscriptRecording] =
@@ -305,8 +288,8 @@ export function ClientRecordingsTab({
         <Video className="h-8 w-8" />
         <div>אין הקלטות משויכות ללקוח זה</div>
         <div className="text-xs text-center max-w-sm">
-          הקלטות מפגישות (Zoom / כרמן / תוסף / העלאה ידנית) ששויכו ללקוח יופיעו
-          כאן
+          הקלטות מפגישות (Zoom / {orgName} / תוסף / העלאה ידנית) ששויכו ללקוח
+          יופיעו כאן
         </div>
         <Button variant="outline" size="sm" asChild>
           <Link to={buildPath("/recordings")}>
@@ -352,7 +335,7 @@ export function ClientRecordingsTab({
                     )}
                     {rec.duration ? <span>{rec.duration} דקות</span> : null}
                     <Badge variant="secondary" className="text-[10px]">
-                      {sourceLabel(rec.source)}
+                      {recordingSourceLabel(rec.source, orgName)}
                     </Badge>
                     {transcriptionBadge(rec)}
                   </div>
