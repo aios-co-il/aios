@@ -10,6 +10,7 @@ import {
 } from "../_shared/recall.ts";
 import { notifyRecallCreditEmpty } from "../_shared/recall-credit-alert.ts";
 import {
+  defaultBotTopic,
   detectMeetingPlatform,
   isSupportedMeetingUrl,
   normalizeMeetingUrl,
@@ -186,7 +187,7 @@ Deno.serve(async (req) => {
         summary_scope: summaryScope,
         meeting_url,
         platform,
-        meeting_topic: meeting_topic || `${platformLabel(platform)} — כרמן`,
+        meeting_topic: meeting_topic || defaultBotTopic(platform),
         status: "scheduled",
         scheduled_start: join_at || new Date().toISOString(),
         created_by: userId,
