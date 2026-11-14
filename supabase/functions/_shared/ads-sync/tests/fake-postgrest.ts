@@ -5,12 +5,12 @@
  * `ilike` and `data->>key` columns), order,
  * range and maybeSingle. Filters are evaluated like PostgREST does on text.
  */
-import type { RecordsClient } from "../campaign-records.ts";
 import { isRecord } from "../is-record.ts";
-import type { SyncDbClient } from "../write-window.ts";
 
 export type Row = Record<string, unknown> & { id?: string };
+
 type Predicate = (row: Row) => boolean;
+
 type Result = { data: unknown; error: { message: string } | null };
 
 export type FakeDb = {
@@ -20,8 +20,8 @@ export type FakeDb = {
   failures: Record<string, string>;
 };
 
-/** A client over `db` that fits both duck-typed clients the helpers take. */
-export function fakeClient(db: FakeDb): SyncDbClient & RecordsClient {
+/** An in-memory query client over `db` for the sync helpers. */
+export function fakeClient(db: FakeDb) {
   return { from: (table: string) => new Query(db, table) };
 }
 

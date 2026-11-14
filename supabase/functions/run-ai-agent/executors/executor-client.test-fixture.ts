@@ -27,7 +27,11 @@ export function executorClient(
             method: request.method,
             body: text ? JSON.parse(text) : null,
           });
-          return new Response(JSON.stringify(responses.shift()), {
+          const response = responses.shift();
+          if (response instanceof Response) {
+            return response;
+          }
+          return new Response(JSON.stringify(response), {
             status,
             headers: { "Content-Type": "application/json" },
           });
