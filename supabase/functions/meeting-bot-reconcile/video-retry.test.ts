@@ -98,15 +98,26 @@ describe("retryVideoStorage", () => {
 
   it("fails sessions that waited on their video past the window", async () => {
     const { client, calls } = fakeDb({
-      meeting_bot_sessions: [ok([]), ok([]), ok([{ id: "s-3" }])],
+      meeting_bot_sessions: [
+        ok([]),
+        ok([]),
+        ok([{ id: "s-3" }]),
+        ok([{ id: "s-3" }]),
+      ],
     });
 
     const result = await retryVideoStorage(NOW, client);
 
     assertEquals(result, { requeued: [], resumed: 0, expired: 1 });
-    assertEquals(callsOn(calls, "meeting_bot_sessions").slice(-5, -1), [
+    const sessionCalls = callsOn(calls, "meeting_bot_sessions");
+    const expiryLookup = sessionCalls.findIndex(
+      (call) => call[0] === "lt" && call[1] === "ended_at",
+    );
+    assertEquals(sessionCalls.slice(expiryLookup - 3, expiryLookup + 2), [
       ["eq", "status", "done"],
       ["eq", "status_detail", "awaiting_video"],
+      // A stored video is resumed, never expired.
+      ["is", "zoom_recordings.file_path", null],
       ["lt", "ended_at", iso(NOW - VIDEO_RETENTION_MS)],
       // An upload leased in the last interval may still be running.
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],

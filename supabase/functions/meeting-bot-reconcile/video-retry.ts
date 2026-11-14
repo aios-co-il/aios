@@ -167,6 +167,26 @@ async function failExpiredVideoWaits(
   admin: DbClient,
   now: number,
 ): Promise<number> {
+  const retentionCutoff = new Date(now - VIDEO_RETENTION_MS).toISOString();
+  const leaseCutoff = new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString();
+  // Only sessions whose video never reached Storage; a stored one waits for
+  // resumeStoredVideoWaits however many sweeps that takes.
+  const { data: unstored, error: findError } = await admin
+    .from("meeting_bot_sessions")
+    .select(
+      "id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
+    )
+    .eq("status", "done")
+    .eq("status_detail", AWAITING_VIDEO)
+    .is("zoom_recordings.file_path", null)
+    .lt("ended_at", retentionCutoff)
+    .lt("updated_at", leaseCutoff);
+  if (findError) {
+    throw new Error(`find expired video waits failed: ${findError.message}`);
+  }
+  if (!unstored?.length) {
+    return 0;
+  }
   const { data, error } = await admin
     .from("meeting_bot_sessions")
     .update({
@@ -175,10 +195,13 @@ async function failExpiredVideoWaits(
         "no transcript from Recall, no usable audio, and the video was never stored",
       updated_at: new Date(now).toISOString(),
     })
+    .in(
+      "id",
+      unstored.map((session) => session.id),
+    )
     .eq("status", "done")
     .eq("status_detail", AWAITING_VIDEO)
-    .lt("ended_at", new Date(now - VIDEO_RETENTION_MS).toISOString())
-    .lt("updated_at", new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString())
+    .lt("updated_at", leaseCutoff)
     .select("id");
   if (error) {
     throw new Error(`fail expired video waits failed: ${error.message}`);
