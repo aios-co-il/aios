@@ -45,7 +45,11 @@ export async function loadTarget(
   ) => Promise<{ engine: string | null } | null> = findCarmenAgent,
 ): Promise<ModelTarget | null> {
   const agent = await findAgent(db, tenantId);
-  const modelId = resolveModelId(agent?.engine);
+  if (!agent) {
+    logNoModel(tenantId, "no active Carmen agent");
+    return null;
+  }
+  const modelId = resolveModelId(agent.engine);
   if (modelId.startsWith("manus/")) {
     logNoModel(tenantId, "Carmen's engine is not a chat model");
     return null;

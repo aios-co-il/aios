@@ -7,9 +7,9 @@
  * (movesToNextLink) moves the call to the next one; a timeout or other error
  * ends it. With no link (no own key, a Manus engine, no eligible OpenRouter
  * brain) there is no call and the markers decide; a tenant's client text never
- * goes through another tenant's key. The chain is read once per run; each call
- * is JSON mode, cut at `timeoutMs`, and logged to ai_usage_log under the
- * tenant and source.
+ * goes through another tenant's key. The chain is read once per run; each ask
+ * is JSON mode, its links share one `timeoutMs` window, and each answer is
+ * logged to ai_usage_log under the tenant and source.
  */
 import { estimateOpenAICostUSD, logAiUsage } from "../_shared/ai.ts";
 import { movesToNextLink } from "../_shared/carmen/brain-engine/openrouter-tail.ts";
@@ -39,12 +39,15 @@ export function tenantModelAsker(
 ): AskModel {
   let chain: Promise<Array<ModelTarget>> | undefined;
   return async (prompt) => {
+    // One window for the whole chain: a refused link leaves the next one only
+    // what is left of it, so the call never outruns the round's reservation.
+    const signal = AbortSignal.timeout(call.timeoutMs);
     chain ??= deps.targets();
     for (const target of await chain) {
       const answer = await askTarget(
         target,
         prompt,
-        { tenantId, ...call },
+        { tenantId, source: call.source, signal },
         deps,
       );
       if (answer !== "next") {
@@ -66,12 +69,13 @@ function liveDeps(db: DbClient, tenantId: string): TenantModelDeps {
 
 /**
  * One JSON-mode call: its answer, "next" when the link refused or ran out
- * (movesToNextLink), or null text on any other error or the timeout.
+ * (movesToNextLink, below 500), or null text on a server error, any other
+ * error or the shared timeout.
  */
 async function askTarget(
   target: ModelTarget,
   prompt: string,
-  call: { tenantId: string; source: string; timeoutMs: number },
+  call: { tenantId: string; source: string; signal: AbortSignal },
   deps: TenantModelDeps,
 ): Promise<{ text: string | null; costUsd: number } | "next"> {
   try {
@@ -86,14 +90,16 @@ async function askTarget(
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       }),
-      signal: AbortSignal.timeout(call.timeoutMs),
+      signal: call.signal,
     });
     if (!response.ok) {
       const detail = await response.text();
       console.error(
         `[carmen-manager-round] model ${target.model} answered ${response.status} (${call.source})`,
       );
-      return movesToNextLink(response.status, detail, false)
+      // A server error ends the call even when its body names a quota.
+      return response.status < 500 &&
+        movesToNextLink(response.status, detail, false)
         ? "next"
         : { text: null, costUsd: 0 };
     }

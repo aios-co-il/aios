@@ -149,19 +149,22 @@ Deno.test("tenantModelAsker chain", async (t) => {
     );
   });
 
-  await t.step("a server error ends the call", async () => {
-    const { d, requests } = deps([GEMINI, tail], () =>
-      Promise.resolve(new Response("boom", { status: 500 })),
-    );
-    const ask = tenantModelAsker(
-      fakeDb({}),
-      "t1",
-      { source: "s", timeoutMs: 1_000 },
-      d,
-    );
-    assertEquals(await ask("p"), { text: null, costUsd: 0 });
-    assertEquals(requests.length, 1);
-  });
+  await t.step(
+    "a server error ends the call, even naming a quota",
+    async () => {
+      const { d, requests } = deps([GEMINI, tail], () =>
+        Promise.resolve(new Response("quota exceeded", { status: 503 })),
+      );
+      const ask = tenantModelAsker(
+        fakeDb({}),
+        "t1",
+        { source: "s", timeoutMs: 1_000 },
+        d,
+      );
+      assertEquals(await ask("p"), { text: null, costUsd: 0 });
+      assertEquals(requests.length, 1);
+    },
+  );
 });
 
 Deno.test("loadTarget", async (t) => {
@@ -187,6 +190,16 @@ Deno.test("loadTarget", async (t) => {
       null,
     );
   });
+
+  await t.step(
+    "no Carmen agent: no target, never a default model",
+    async () => {
+      assertEquals(
+        await loadTarget(db, "t1", () => Promise.resolve(null)),
+        null,
+      );
+    },
+  );
 
   await t.step("a Manus engine is not a chat model: no target", async () => {
     assertEquals(await loadTarget(db, "t1", carmenOn("manus/manus-1")), null);
