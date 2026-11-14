@@ -15,6 +15,8 @@ import {
   notLiveIngestFilter,
 } from "../_shared/meeting-bot/ingest-claim.ts";
 
+import { retryVideoStorage } from "./video-retry.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -32,8 +34,9 @@ const MIN_AGE_SECONDS = 90;
 const BATCH_SIZE = 5;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const admin = serviceClient();
 
@@ -43,6 +46,11 @@ Deno.serve(async (req) => {
     sessionId = body?.session_id ?? null;
   } catch {
     /* scheduled invocation sends no body */
+  }
+
+  // Re-copies videos whose storage failed or never ran (AIO-588).
+  if (!sessionId) {
+    await retryVideoStorage(Date.now());
   }
 
   let query = admin

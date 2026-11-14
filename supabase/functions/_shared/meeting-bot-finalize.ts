@@ -5,6 +5,14 @@
 // never reached `done` (edge function killed mid-download, transcript artifact
 // still processing when the meeting ended, etc.).
 import {
+  AWAITING_VIDEO,
+  meetingBotMediaPath,
+  RECORDINGS_BUCKET,
+  startVideoStorage,
+  withinVideoRetention,
+} from "./meeting-bot/video-storage.ts";
+import type { DbClient } from "./supabase-clients.ts";
+import {
   extractRecallDownloads,
   recallTranscriptToText,
   retrieveRecallBot,
@@ -17,20 +25,22 @@ import {
   finishAlreadySummarized,
   hasSummaryNow,
   type MeetingBotRecordingFields,
-  recordingRowFor,
   type RecordingName,
+  recordingRowFor,
 } from "./meeting-bot/existing-recording.ts";
 
-// A long meeting's mp4 does not fit in an edge function's memory. Above this we
-// keep Recall's download URL on the row instead of copying the file to Storage.
-const MAX_STORAGE_UPLOAD_BYTES = 80 * 1024 * 1024;
 // Whisper's own ceiling is 25MB; only hand it the small mixed-audio artifact.
 const MAX_WHISPER_FALLBACK_BYTES = 24 * 1024 * 1024;
 // Give up waiting for a transcript that never becomes available.
 const TRANSCRIPT_WAIT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 export type FinalizeOutcome =
-  "done" | "awaiting_transcript" | "no_recording" | "failed";
+  "done" | "awaiting_transcript" | "awaiting_video" | "no_recording" | "failed";
+
+export interface FinalizeResult {
+  outcome: FinalizeOutcome;
+  detail: string;
+}
 
 export interface MeetingBotSession {
   id: string;
@@ -82,10 +92,11 @@ async function fetchMediaIfSmallEnough(
 export async function finalizeMeetingBotSession(
   admin: any,
   session: MeetingBotSession,
-): Promise<{ outcome: FinalizeOutcome; detail: string }> {
+): Promise<FinalizeResult> {
   const botId = session.external_bot_id;
-  if (!botId)
+  if (!botId) {
     return { outcome: "failed", detail: "session has no external_bot_id" };
+  }
 
   const botData = await retrieveRecallBot(botId);
   const {
@@ -153,34 +164,6 @@ export async function finalizeMeetingBotSession(
   const existing = await findExistingRecording(admin, session, botId);
   let recordingId = existing?.id ?? null;
 
-  let filePath: string | null = null;
-  if (videoUrl) {
-    try {
-      const { blob, tooLarge } = await fetchMediaIfSmallEnough(
-        videoUrl,
-        MAX_STORAGE_UPLOAD_BYTES,
-      );
-      if (blob) {
-        const path = `${session.tenant_id}/meeting_bot/${session.id}.mp4`;
-        const { error: upErr } = await admin.storage
-          .from("recordings")
-          .upload(path, blob, {
-            contentType: "video/mp4",
-            upsert: true,
-          });
-        if (upErr)
-          console.error("[meeting-bot-finalize] video upload failed", upErr);
-        else filePath = path;
-      } else if (tooLarge) {
-        console.log(
-          "[meeting-bot-finalize] video too large for Storage — keeping Recall URL",
-        );
-      }
-    } catch (vidErr) {
-      console.error("[meeting-bot-finalize] video download error", vidErr);
-    }
-  }
-
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
     : null;
@@ -206,9 +189,6 @@ export async function finalizeMeetingBotSession(
     source: "meeting_bot",
     recording_url: videoUrl,
   };
-  if (filePath) {
-    fields.file_path = filePath;
-  }
   if (transcription) {
     fields.transcription = transcription;
     fields.transcription_status = "completed";
@@ -225,8 +205,9 @@ export async function finalizeMeetingBotSession(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
       )
       .single();
-    if (error)
+    if (error) {
       throw new Error(`update zoom_recordings failed: ${error.message}`);
+    }
     recording = data;
   } else {
     if (!transcription) row.transcription_status = "pending";
@@ -237,8 +218,9 @@ export async function finalizeMeetingBotSession(
         "id, tenant_id, meeting_id, source, client_id, lead_id, agency_id, campaigner_ids, summary_scope, meeting_topic, start_time, duration, host_email, transcription, calendar_event_id",
       )
       .single();
-    if (error)
+    if (error) {
       throw new Error(`insert zoom_recordings failed: ${error.message}`);
+    }
     recording = data;
     recordingId = data.id;
   }
@@ -265,7 +247,9 @@ export async function finalizeMeetingBotSession(
         .from("meeting_bot_sessions")
         .update({
           status: "processing",
-          status_detail: `awaiting_transcript${transcriptStatus ? `:${transcriptStatus}` : ""}`,
+          status_detail: `awaiting_transcript${
+            transcriptStatus ? `:${transcriptStatus}` : ""
+          }`,
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.id);
@@ -285,9 +269,9 @@ export async function finalizeMeetingBotSession(
           MAX_WHISPER_FALLBACK_BYTES,
         );
         if (blob) {
-          const audioPath = `${session.tenant_id}/meeting_bot/${session.id}.mp3`;
+          const audioPath = meetingBotMediaPath(session, "mp3");
           const { error: upErr } = await admin.storage
-            .from("recordings")
+            .from(RECORDINGS_BUCKET)
             .upload(audioPath, blob, {
               contentType: "audio/mpeg",
               upsert: true,
@@ -305,17 +289,16 @@ export async function finalizeMeetingBotSession(
       }
     }
 
-    if (!fallbackDone && !filePath) {
-      await admin
-        .from("meeting_bot_sessions")
-        .update({
-          status: "failed",
-          error:
-            "no transcript from Recall and no audio available for fallback",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", session.id);
-      return { outcome: "failed", detail: "no transcript and no usable audio" };
+    if (!fallbackDone) {
+      const waiting = await waitForStoredVideo(
+        admin,
+        session,
+        recording.id,
+        !!videoUrl,
+      );
+      if (waiting) {
+        return waiting;
+      }
     }
   }
 
@@ -324,12 +307,20 @@ export async function finalizeMeetingBotSession(
     return await finishAlreadySummarized(admin, session);
   }
 
-  await runRecordingPipeline(admin, {
-    recording,
-    createdByUserId: session.created_by,
-    briefSource: "meeting_bot",
-    skipTranscribe: !!transcription,
-  });
+  try {
+    await runRecordingPipeline(admin, {
+      recording,
+      createdByUserId: session.created_by,
+      briefSource: "meeting_bot",
+      skipTranscribe: !!transcription,
+    });
+  } finally {
+    // Queue the copy even when the pipeline throws: the video retry only
+    // picks up done sessions, and Recall drops the media after retention.
+    if (videoUrl) {
+      await startVideoStorage(admin, session);
+    }
+  }
 
   await admin
     .from("meeting_bot_sessions")
@@ -345,4 +336,62 @@ export async function finalizeMeetingBotSession(
       ? `transcript ${transcription.length} chars`
       : "transcribed via fallback",
   };
+}
+
+/**
+ * With no Recall transcript and no usable audio, the stored video is the last
+ * source transcribe-recording can read (it uses file_path). Null when the video
+ * is stored and the pipeline can run. Otherwise starts the copy and parks the
+ * session as done/awaiting_video, or marks it failed when there is no video or
+ * Recall's media is past the retention window.
+ */
+async function waitForStoredVideo(
+  admin: DbClient,
+  session: MeetingBotSession,
+  recordingId: string,
+  hasVideo: boolean,
+): Promise<FinalizeResult | null> {
+  const { data, error } = await admin
+    .from("zoom_recordings")
+    .select("file_path")
+    .eq("tenant_id", session.tenant_id)
+    .eq("id", recordingId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`load file_path failed: ${error.message}`);
+  }
+  if (data?.file_path) {
+    return null;
+  }
+
+  // The webhook writes ended_at just before finalizing, so a null here means
+  // the meeting ended now (as the transcript wait above assumes).
+  const endedAt = session.ended_at ?? new Date().toISOString();
+  if (hasVideo && withinVideoRetention(endedAt, Date.now())) {
+    // `done`, not `processing`: the reconcile sweep would re-run finalize every
+    // minute while the copy runs. Reconcile's video retry re-copies it instead.
+    await admin
+      .from("meeting_bot_sessions")
+      .update({
+        status: "done",
+        status_detail: AWAITING_VIDEO,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", session.id);
+    await startVideoStorage(admin, session);
+    return {
+      outcome: "awaiting_video",
+      detail: "transcribes from the stored video once it is copied",
+    };
+  }
+
+  await admin
+    .from("meeting_bot_sessions")
+    .update({
+      status: "failed",
+      error: "no transcript from Recall and no audio available for fallback",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", session.id);
+  return { outcome: "failed", detail: "no transcript and no usable audio" };
 }
