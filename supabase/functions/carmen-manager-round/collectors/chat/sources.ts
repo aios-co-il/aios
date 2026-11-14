@@ -1,9 +1,10 @@
 /**
  * Production wiring of the chat collector's reads and model calls: the
- * round's service-role client (every query names the tenant) and
- * _shared/ai.ts, metered under the tenant with source manager_round:chat.
+ * round's service-role client (every query names the tenant) and the
+ * tenant's own Carmen brain (tenant-model.ts), metered under the tenant with
+ * source manager_round:chat.
  */
-import { aiChat } from "../../../_shared/ai.ts";
+import { tenantModelAsker } from "../../tenant-model.ts";
 import type { CollectorContext } from "../types.ts";
 import {
   type ActivityQuery,
@@ -13,7 +14,7 @@ import {
   type UnlinkedGroupRow,
 } from "./activity.ts";
 import { type CallsRead, loadCompletedCalls } from "./calls.ts";
-import { type AskModel, CALL_MS, type ClassifyPorts } from "./classify.ts";
+import { CALL_MS, type ClassifyPorts } from "./classify.ts";
 import {
   type MonitoredLines,
   monitoredLines,
@@ -67,26 +68,12 @@ export function dbChatSources(
     },
     classify: {
       cache: createReviewCache(db, tenantId),
-      ask: modelAsk(tenantId),
-    },
-  };
-}
-
-/** The chat model (AI_CHAT_MODEL) in JSON mode, logged under the tenant. */
-function modelAsk(tenantId: string): AskModel {
-  return async (prompt) => {
-    let costUsd = 0;
-    const text = await aiChat(prompt, {
-      jsonMode: true,
       // The round budget only leaves CALL_MS for the call: a slow reply is
       // cut there and counts as the model being down.
-      signal: AbortSignal.timeout(CALL_MS),
-      tenantId,
-      source: CHAT_LLM_SOURCE,
-      onUsage: (usage) => {
-        costUsd = usage.costUsd;
-      },
-    });
-    return { text, costUsd };
+      ask: tenantModelAsker(db, tenantId, {
+        source: CHAT_LLM_SOURCE,
+        timeoutMs: CALL_MS,
+      }),
+    },
   };
 }
