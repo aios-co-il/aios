@@ -50,8 +50,9 @@ function recallBotWithVideoOnly(): Response {
 }
 
 /** Queued answers: the recording update, then the file_path lookup. */
+/** No earlier recording (AIO-587 lookup), the inserted row, then its file_path. */
 function recordingResults(filePath: string | null): Array<FakeResult> {
-  return [ok(RECORDING), ok({ file_path: filePath })];
+  return [ok(null), ok(RECORDING), ok({ file_path: filePath })];
 }
 
 describe("finalizeMeetingBotSession with no transcript and no audio", () => {

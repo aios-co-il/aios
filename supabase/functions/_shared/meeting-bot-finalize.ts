@@ -19,6 +19,15 @@ import {
 } from "./recall.ts";
 import { runRecordingPipeline } from "./recording-pipeline.ts";
 import { type MeetingPlatform, platformLabel } from "./meeting-url.ts";
+import {
+  alreadySummarized,
+  findExistingRecording,
+  finishAlreadySummarized,
+  hasSummaryNow,
+  type MeetingBotRecordingFields,
+  recordingRowFor,
+  type RecordingName,
+} from "./meeting-bot/existing-recording.ts";
 
 // Whisper's own ceiling is 25MB; only hand it the small mixed-audio artifact.
 const MAX_WHISPER_FALLBACK_BYTES = 24 * 1024 * 1024;
@@ -40,7 +49,8 @@ export interface MeetingBotSession {
   lead_id: string | null;
   agency_id: string | null;
   campaigner_ids: string[] | null;
-  summary_scope: "auto" | "client" | "lead" | "campaigner" | "agency";
+  // Text in the schema; the values are auto, client, lead, campaigner, agency.
+  summary_scope: string;
   platform: string;
   meeting_topic: string | null;
   external_bot_id: string | null;
@@ -110,6 +120,8 @@ export async function finalizeMeetingBotSession(
         .from("meeting_bot_sessions")
         .update({
           status: "processing",
+          // Not `ingesting`: that would hold off the webhook and the cron.
+          status_detail: "awaiting_media",
           updated_at: new Date().toISOString(),
         })
         .eq("id", session.id);
@@ -148,16 +160,8 @@ export async function finalizeMeetingBotSession(
   }
 
   // Reuse the row from an earlier attempt so retries never duplicate recordings.
-  let recordingId = session.zoom_recording_id;
-  if (!recordingId) {
-    const { data: existing } = await admin
-      .from("zoom_recordings")
-      .select("id")
-      .eq("tenant_id", session.tenant_id)
-      .eq("meeting_id", botId)
-      .maybeSingle();
-    recordingId = existing?.id ?? null;
-  }
+  const existing = await findExistingRecording(admin, session, botId);
+  let recordingId = existing?.id ?? null;
 
   const durationMin = durationSeconds
     ? Math.max(1, Math.round(durationSeconds / 60))
@@ -165,7 +169,12 @@ export async function finalizeMeetingBotSession(
   const defaultTopic = `${platformLabel(session.platform as MeetingPlatform)} — כרמן`;
   const topic = session.meeting_topic || defaultTopic;
 
-  const row: Record<string, unknown> = {
+  const name: RecordingName = {
+    meeting_topic: topic,
+    // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
+    topic_set_manually: topic !== defaultTopic,
+  };
+  const fields: MeetingBotRecordingFields = {
     tenant_id: session.tenant_id,
     client_id: session.client_id,
     lead_id: session.lead_id,
@@ -173,9 +182,6 @@ export async function finalizeMeetingBotSession(
     campaigner_ids: session.campaigner_ids,
     summary_scope: session.summary_scope,
     meeting_id: botId,
-    meeting_topic: topic,
-    // A name someone gave the bot (dialog or Carmen) is kept over the summary's (AIO-563).
-    topic_set_manually: topic !== defaultTopic,
     start_time:
       session.joined_at || session.scheduled_start || new Date().toISOString(),
     duration: durationMin,
@@ -183,9 +189,10 @@ export async function finalizeMeetingBotSession(
     recording_url: videoUrl,
   };
   if (transcription) {
-    row.transcription = transcription;
-    row.transcription_status = "completed";
+    fields.transcription = transcription;
+    fields.transcription_status = "completed";
   }
+  const row = recordingRowFor(fields, name, existing);
 
   let recording;
   if (recordingId) {
@@ -222,6 +229,12 @@ export async function finalizeMeetingBotSession(
       updated_at: new Date().toISOString(),
     })
     .eq("id", session.id);
+
+  // The webhook and the reconcile cron can both finalize a session; a second
+  // run must not summarize again or undo the first run's name (AIO-587).
+  if (alreadySummarized(existing)) {
+    return await finishAlreadySummarized(admin, session);
+  }
 
   // No transcript yet. Recall's own artifact is still the best source, so wait
   // for a later retry rather than burning a Whisper pass on partial media.
@@ -282,6 +295,11 @@ export async function finalizeMeetingBotSession(
         return waiting;
       }
     }
+  }
+
+  // A run that started before ours may have summarized while we downloaded.
+  if (await hasSummaryNow(admin, session.tenant_id, recording.id)) {
+    return await finishAlreadySummarized(admin, session);
   }
 
   await runRecordingPipeline(admin, {

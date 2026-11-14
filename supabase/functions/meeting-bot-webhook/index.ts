@@ -1,12 +1,17 @@
 // Recall.ai webhook: bot lifecycle + post-meeting ingest into zoom_recordings pipeline.
 // Redeploy trigger: rebundle _shared/meeting-bot-finalize.ts (summary_scope + calendar fields).
 import type {} from "../_shared/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   mapRecallEventToStatus,
   verifyRecallWebhook,
 } from "../_shared/recall.ts";
 import { finalizeMeetingBotSession } from "../_shared/meeting-bot-finalize.ts";
+import {
+  claimSessionIngest,
+  INGEST_ERROR,
+  isIngesting,
+} from "../_shared/meeting-bot/ingest-claim.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,9 +52,7 @@ Deno.serve(async (req) => {
   const botId = String(bot.id || "");
   const subCode = inner.sub_code ? String(inner.sub_code) : null;
 
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-  const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const admin = serviceClient();
 
   if (!botId) return json({ received: true });
 
@@ -93,29 +96,18 @@ Deno.serve(async (req) => {
     return json({ received: true, skipped: "already done" });
   // bot.done, recording.done and transcript.done arrive together. One of them
   // owns the ingest; the others must not each open a summary agent.
-  if (
-    session.status === "processing" &&
-    session.status_detail === "ingesting"
-  ) {
+  if (session.status === "processing" && isIngesting(session)) {
     return json({ received: true, skipped: "already ingesting" });
   }
 
-  const claimedAt = new Date().toISOString();
-  const { data: claimed, error: claimError } = await admin
-    .from("meeting_bot_sessions")
-    .update({
-      status: "processing",
-      status_detail: "ingesting",
-      ended_at: session.ended_at ?? claimedAt,
-      updated_at: claimedAt,
-    })
-    .eq("id", session.id)
-    .eq("updated_at", session.updated_at)
-    .neq("status", "done")
-    .select("id")
-    .maybeSingle();
-  if (claimError || !claimed)
+  // A failed claim is logged and left to meeting-bot-reconcile.
+  const claimed = await claimSessionIngest(admin, session).catch((claimErr) => {
+    console.error("[meeting-bot-webhook]", claimErr);
+    return false;
+  });
+  if (!claimed) {
     return json({ received: true, skipped: "already claimed" });
+  }
 
   const background = (async () => {
     try {
@@ -139,7 +131,7 @@ Deno.serve(async (req) => {
         .from("meeting_bot_sessions")
         .update({
           status: "processing",
-          status_detail: "ingest_error",
+          status_detail: INGEST_ERROR,
           error: msg,
           updated_at: new Date().toISOString(),
         })
