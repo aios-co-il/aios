@@ -92,6 +92,9 @@ async function patchChunk(
       "tus-resumable": TUS_VERSION,
       "upload-offset": String(offset),
       "content-type": "application/offset+octet-stream",
+      // Storage reads upsert per request; without it the final PATCH cannot
+      // replace an object an earlier attempt stored.
+      "x-upsert": "true",
     },
     body: chunk,
   });

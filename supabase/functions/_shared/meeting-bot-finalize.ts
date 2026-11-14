@@ -302,15 +302,19 @@ export async function finalizeMeetingBotSession(
     return await finishAlreadySummarized(admin, session);
   }
 
-  await runRecordingPipeline(admin, {
-    recording,
-    createdByUserId: session.created_by,
-    briefSource: "meeting_bot",
-    skipTranscribe: !!transcription,
-  });
-
-  if (videoUrl) {
-    await startVideoStorage(admin, session);
+  try {
+    await runRecordingPipeline(admin, {
+      recording,
+      createdByUserId: session.created_by,
+      briefSource: "meeting_bot",
+      skipTranscribe: !!transcription,
+    });
+  } finally {
+    // Queue the copy even when the pipeline throws: the video retry only
+    // picks up done sessions, and Recall drops the media after retention.
+    if (videoUrl) {
+      await startVideoStorage(admin, session);
+    }
   }
 
   await admin

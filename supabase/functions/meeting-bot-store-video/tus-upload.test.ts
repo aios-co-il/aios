@@ -155,6 +155,7 @@ describe("tusUpload", () => {
         patch.headers.get("content-type"),
         "application/offset+octet-stream",
       );
+      assertEquals(patch.headers.get("x-upsert"), "true");
     }
   });
 

@@ -70,13 +70,14 @@ describe("retryVideoStorage", () => {
         // Another sweep claimed s-2 in between.
         ok([{ id: "s-1", tenant_id: "t-1" }]),
         ok([]),
+        ok([]),
       ],
       "rpc:kick_internal_function": [ok(1)],
     });
 
     const result = await retryVideoStorage(NOW, client);
 
-    assertEquals(result, { requeued: ["s-1"], expired: 0 });
+    assertEquals(result, { requeued: ["s-1"], resumed: 0, expired: 0 });
     assertEquals(callsOn(calls, "rpc"), [
       [
         "kick_internal_function",
@@ -97,17 +98,48 @@ describe("retryVideoStorage", () => {
 
   it("fails sessions that waited on their video past the window", async () => {
     const { client, calls } = fakeDb({
-      meeting_bot_sessions: [ok([]), ok([{ id: "s-3" }])],
+      meeting_bot_sessions: [ok([]), ok([]), ok([{ id: "s-3" }])],
     });
 
     const result = await retryVideoStorage(NOW, client);
 
-    assertEquals(result, { requeued: [], expired: 1 });
-    assertEquals(callsOn(calls, "meeting_bot_sessions").slice(-4, -1), [
+    assertEquals(result, { requeued: [], resumed: 0, expired: 1 });
+    assertEquals(callsOn(calls, "meeting_bot_sessions").slice(-5, -1), [
       ["eq", "status", "done"],
       ["eq", "status_detail", "awaiting_video"],
       ["lt", "ended_at", iso(NOW - VIDEO_RETENTION_MS)],
+      // An upload leased in the last interval may still be running.
+      ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
     ]);
+  });
+
+  it("resumes a session whose video was stored but never handed back", async () => {
+    const { client, calls } = fakeDb({
+      meeting_bot_sessions: [
+        ok([]),
+        ok([{ id: "s-4" }]),
+        ok([{ id: "s-4" }]),
+        ok([]),
+      ],
+    });
+
+    const result = await retryVideoStorage(NOW, client);
+
+    assertEquals(result, { requeued: [], resumed: 1, expired: 0 });
+    const resume = callsOn(calls, "meeting_bot_sessions").find(
+      (call) =>
+        call[0] === "update" &&
+        (call[1] as { status?: string }).status === "processing",
+    );
+    assertEquals(resume, [
+      "update",
+      {
+        status: "processing",
+        status_detail: "video_stored",
+        updated_at: iso(NOW),
+      },
+    ]);
+    assertEquals(callsOn(calls, "rpc"), []);
   });
 
   it("logs a failed lookup and lets the sweep go on", async () => {
@@ -117,7 +149,7 @@ describe("retryVideoStorage", () => {
 
     const result = await retryVideoStorage(NOW, client);
 
-    assertEquals(result, { requeued: [], expired: 0 });
+    assertEquals(result, { requeued: [], resumed: 0, expired: 0 });
     assertEquals(
       errors.some((line) => line.includes("db down")),
       true,

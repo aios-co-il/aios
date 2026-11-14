@@ -6,6 +6,7 @@ import {
   AWAITING_VIDEO,
   startVideoStorage,
   VIDEO_RETENTION_MS,
+  VIDEO_STORED,
 } from "../_shared/meeting-bot/video-storage.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 
@@ -20,6 +21,7 @@ export const VIDEO_RETRY_BATCH_SIZE = 5;
 
 export interface VideoRetryResult {
   requeued: Array<string>;
+  resumed: number;
   expired: number;
 }
 
@@ -37,16 +39,21 @@ export async function retryVideoStorage(
     for (const session of claimed) {
       await startVideoStorage(admin, session);
     }
+    const resumed = await resumeStoredVideoWaits(admin, now);
     const expired = await failExpiredVideoWaits(admin, now);
-    if (claimed.length || expired) {
+    if (claimed.length || resumed || expired) {
       console.log(
-        `[meeting-bot-reconcile] video retry: requeued ${claimed.length}, expired ${expired}`,
+        `[meeting-bot-reconcile] video retry: requeued ${claimed.length}, resumed ${resumed}, expired ${expired}`,
       );
     }
-    return { requeued: claimed.map((session) => session.id), expired };
+    return {
+      requeued: claimed.map((session) => session.id),
+      resumed,
+      expired,
+    };
   } catch (err) {
     console.error("[meeting-bot-reconcile] video retry failed:", err);
-    return { requeued: [], expired: 0 };
+    return { requeued: [], resumed: 0, expired: 0 };
   }
 }
 
@@ -109,7 +116,53 @@ async function claimRetries(
   return data ?? [];
 }
 
-/** Fails sessions still waiting on their video once Recall's media is gone. */
+/**
+ * Hands back to reconcile the sessions whose video is stored but still wait on
+ * it: the store function saved file_path and then failed to resume them.
+ */
+async function resumeStoredVideoWaits(
+  admin: DbClient,
+  now: number,
+): Promise<number> {
+  const { data: stored, error: findError } = await admin
+    .from("meeting_bot_sessions")
+    .select(
+      "id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
+    )
+    .eq("status", "done")
+    .eq("status_detail", AWAITING_VIDEO)
+    .not("zoom_recordings.file_path", "is", null)
+    .limit(VIDEO_RETRY_BATCH_SIZE);
+  if (findError) {
+    throw new Error(`find stored video waits failed: ${findError.message}`);
+  }
+  if (!stored?.length) {
+    return 0;
+  }
+  const { data, error } = await admin
+    .from("meeting_bot_sessions")
+    .update({
+      status: "processing",
+      status_detail: VIDEO_STORED,
+      updated_at: new Date(now).toISOString(),
+    })
+    .in(
+      "id",
+      stored.map((session) => session.id),
+    )
+    .eq("status", "done")
+    .eq("status_detail", AWAITING_VIDEO)
+    .select("id");
+  if (error) {
+    throw new Error(`resume stored video waits failed: ${error.message}`);
+  }
+  return data?.length ?? 0;
+}
+
+/**
+ * Fails sessions still waiting on their video once Recall's media is gone. A
+ * session leased for a retry within the last interval is left to finish.
+ */
 async function failExpiredVideoWaits(
   admin: DbClient,
   now: number,
@@ -125,6 +178,7 @@ async function failExpiredVideoWaits(
     .eq("status", "done")
     .eq("status_detail", AWAITING_VIDEO)
     .lt("ended_at", new Date(now - VIDEO_RETENTION_MS).toISOString())
+    .lt("updated_at", new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString())
     .select("id");
   if (error) {
     throw new Error(`fail expired video waits failed: ${error.message}`);
