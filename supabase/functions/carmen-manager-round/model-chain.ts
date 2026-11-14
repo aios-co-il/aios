@@ -39,8 +39,12 @@ export async function loadChain(
 export async function loadTarget(
   db: DbClient,
   tenantId: string,
+  findAgent: (
+    db: DbClient,
+    tenantId: string,
+  ) => Promise<{ engine: string | null } | null> = findCarmenAgent,
 ): Promise<ModelTarget | null> {
-  const agent = await findCarmenAgent(db, tenantId);
+  const agent = await findAgent(db, tenantId);
   const modelId = resolveModelId(agent?.engine);
   if (modelId.startsWith("manus/")) {
     logNoModel(tenantId, "Carmen's engine is not a chat model");

@@ -3,7 +3,7 @@ import type { DbClient } from "../_shared/supabase-clients.ts";
 import { loadTarget, type ModelTarget } from "./model-chain.ts";
 import { type TenantModelDeps, tenantModelAsker } from "./tenant-model.ts";
 
-type Rows = { ai_agents?: unknown; tenant_integrations?: unknown };
+type Rows = { tenant_integrations?: unknown };
 
 /** A db whose every chained read of a table resolves to that table's row. */
 function fakeDb(rows: Rows): DbClient {
@@ -168,28 +168,27 @@ Deno.test("loadTarget", async (t) => {
   const keys = {
     settings: { google_api_key: "g-key", openai_api_key: "o-key" },
   };
+  const db = fakeDb({ tenant_integrations: keys });
+  /** Carmen's lookup, answering an agent on `engine`. */
+  function carmenOn(engine: string) {
+    return () => Promise.resolve({ engine });
+  }
 
   await t.step("Carmen's engine with the tenant's own key for it", async () => {
-    const db = fakeDb({
-      ai_agents: { engine: "gemini-3.5-flash" },
-      tenant_integrations: keys,
-    });
-    assertEquals(await loadTarget(db, "t1"), GEMINI);
+    assertEquals(
+      await loadTarget(db, "t1", carmenOn("gemini-3.5-flash")),
+      GEMINI,
+    );
   });
 
   await t.step("no key for the engine's provider: no target", async () => {
-    const db = fakeDb({
-      ai_agents: { engine: "claude-sonnet-4-6" },
-      tenant_integrations: keys,
-    });
-    assertEquals(await loadTarget(db, "t1"), null);
+    assertEquals(
+      await loadTarget(db, "t1", carmenOn("claude-sonnet-4-6")),
+      null,
+    );
   });
 
   await t.step("a Manus engine is not a chat model: no target", async () => {
-    const db = fakeDb({
-      ai_agents: { engine: "manus/manus-1" },
-      tenant_integrations: keys,
-    });
-    assertEquals(await loadTarget(db, "t1"), null);
+    assertEquals(await loadTarget(db, "t1", carmenOn("manus/manus-1")), null);
   });
 });
