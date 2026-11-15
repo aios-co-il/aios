@@ -155,6 +155,21 @@ function fieldsToRecord(fields: any): Record<string, any> {
   return fields;
 }
 
+/** Epoch ms of the oldest fetched submission; Infinity when none parse. */
+function oldestCreatedAt(
+  submissions: ReadonlyArray<Record<string, unknown>>,
+): number {
+  let oldest = Infinity;
+  for (const s of submissions) {
+    const raw = s.created_at || s.date || s.created;
+    const ts = typeof raw === "string" ? Date.parse(raw) : NaN;
+    if (ts < oldest) {
+      oldest = ts;
+    }
+  }
+  return oldest;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -265,6 +280,10 @@ serve(async (req) => {
     // 3) Parse + filter by date if requested
     const cutoff =
       days && Number(days) > 0 ? Date.now() - Number(days) * 86400000 : 0;
+    // Submissions come newest first: hitting the page cap while the oldest
+    // fetched one is still inside the lookback means older ones are missing.
+    const truncated =
+      page > maxPages && oldestCreatedAt(allSubmissions) >= cutoff;
 
     // Debug: log the structure of the first submission so we can see what fields exist
     if (allSubmissions.length > 0) {
@@ -443,6 +462,7 @@ serve(async (req) => {
         success: true,
         site: { id: site.id, name: site.site_name, url: site.site_url },
         total_available: totalAvailable,
+        truncated,
         totals,
         per_form: Array.from(perFormMap.values())
           .map((f: any) => ({

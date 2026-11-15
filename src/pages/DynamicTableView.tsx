@@ -108,7 +108,6 @@ import {
   MANAGER_ACCOUNT_REFUSAL,
   managerIdSetting,
 } from "@/components/dynamic-tables/googleAdsAccounts";
-import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { previousReportRecords } from "@/components/reports/PreviousPeriod/previousReportRecords";
 import { usePreviousPeriodRecords } from "@/components/reports/PreviousPeriod/usePreviousPeriodRecords";
@@ -125,6 +124,7 @@ import {
   getReportSyncProblem,
 } from "@/lib/reportQueryOptions";
 import { invalidateReportTables } from "@/lib/invalidateReportTables";
+import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
 import {
   adAccountShortcutLabel,
   getAdAccountLinks,
@@ -291,8 +291,10 @@ export default function DynamicTableView({
     dateFilter !== "custom" || (!!customDateRange.from && !!customDateRange.to);
 
   const getMainFilterSyncRange = () => {
-    // Sync ALWAYS ends today and ALWAYS pulls at least the last 120 days,
-    // regardless of the display filter. This prevents the sync from wiping
+    // Google Analytics / Search Console only: those syncs rewrite the whole
+    // table, so they cannot sync just the shown range (ads syncs can, see
+    // useAdsRangeSync). This sync ALWAYS ends today and ALWAYS pulls at least
+    // the last 120 days, regardless of the display filter. This prevents the sync from wiping
     // historical data when the user is viewing a short window like "7 days".
     // The view layer continues to filter the visible window separately.
     // For longer display windows we still extend the sync range accordingly.
@@ -894,47 +896,23 @@ export default function DynamicTableView({
     },
   });
 
-  const syncFacebookMutation = useMutation({
-    mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
-
-      // Determine which sync function to use based on integration type
-      const syncFunction =
-        table?.integration_type === "facebook_ecommerce"
-          ? "sync-facebook-ecommerce"
-          : "sync-facebook-insights";
-
-      const response = await supabase.functions.invoke(syncFunction, {
-        method: "POST",
-        body: { table_id: table.id },
-      });
-      if (response.error) throw response.error;
-      return response.data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      void invalidateReportTables(queryClient, tenantId);
-      const typeLabel =
-        table?.integration_type === "facebook_ecommerce"
-          ? "נתוני מכירות מפייסבוק"
-          : "נתוני פייסבוק";
-      const byLevel = data?.by_level;
-      const levelNote = byLevel
-        ? ` — קמפיינים: ${byLevel.campaign ?? 0}, ad sets: ${byLevel.adset ?? 0}, מודעות: ${byLevel.ad ?? 0}`
-        : "";
-      toast.success(
-        `${typeLabel} סונכרנו (${data.records_synced} שורות${levelNote})`,
-      );
-      if (byLevel && (!byLevel.adset || !byLevel.ad)) {
-        toast.message(
-          "אם ad set / מודעות ריקים — ודא שה-edge functions עודכנו ב-Staging",
-        );
-      }
-    },
-    onError: (error: any) => {
-      toast.error("שגיאה בסנכרון מפייסבוק: " + error.message);
-    },
-  });
+  // Facebook insights, Facebook ecommerce and Direct API Google Ads sync the
+  // range this report shows, 30 days per request.
+  const adsRangeSync = useAdsRangeSync({ tenantId });
+  /** Syncs the range this report shows (30 days per request; planSyncPieces handles an unfinished custom range). */
+  function syncShownRange() {
+    if (!table?.id) {
+      return;
+    }
+    adsRangeSync.sync({
+      tables: [table],
+      selection: {
+        filter: dateFilter,
+        customStart: customFromStr || null,
+        customEnd: customToStr || null,
+      },
+    });
+  }
 
   // Google Ads sync mutation
   // Check if this Google Ads table uses Make.com for sync (not Direct API)
@@ -1211,46 +1189,6 @@ export default function DynamicTableView({
     onSettled: () => {
       // Always unlock cloning when mutation completes (success or error)
       setIsCloning(false);
-    },
-  });
-
-  const syncGoogleAdsMutation = useMutation({
-    mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
-
-      // If this table uses Make.com, use the Make sync instead
-      if (isGoogleAdsMakeTable) {
-        // Trigger Make sync mutation directly
-        throw new Error("USE_MAKE_SYNC");
-      }
-
-      const response = await supabase.functions.invoke("sync-google-ads-data", {
-        method: "POST",
-        body: { table_id: table.id },
-      });
-      if (response.error) {
-        throw new Error(
-          await edgeFunctionErrorMessage(response.error, "הסנכרון נכשל"),
-        );
-      }
-      return response.data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["crm-records", table?.id] });
-      void invalidateReportTables(queryClient, tenantId);
-      toast.success(
-        `נתוני Google Ads סונכרנו בהצלחה (${data?.records_synced || 0} שורות)`,
-      );
-    },
-    onError: (error: any) => {
-      if (error.message === "USE_MAKE_SYNC") {
-        // This shouldn't happen now, but just in case
-        syncMakeGoogleAdsMutation.mutate();
-        return;
-      }
-      toast.error("שגיאה בסנכרון מ-Google Ads: " + error.message, {
-        duration: 12000,
-      });
     },
   });
 
@@ -2257,17 +2195,15 @@ export default function DynamicTableView({
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
-                      onClick={() => syncFacebookMutation.mutate()}
-                      disabled={syncFacebookMutation.isPending}
+                      onClick={syncShownRange}
+                      disabled={adsRangeSync.syncing}
                       className="gap-1.5"
                     >
                       <Facebook className="h-4 w-4 text-blue-600" />
                       <RefreshCw
-                        className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
+                        className={`h-4 w-4 ${adsRangeSync.syncing ? "animate-spin" : ""}`}
                       />
-                      {syncFacebookMutation.isPending
-                        ? "מסנכרן Facebook..."
-                        : "סנכרן Facebook"}
+                      {adsRangeSync.progressLabel ?? "סנכרן Facebook"}
                     </Button>
                     <Button
                       variant="outline"
@@ -2306,17 +2242,15 @@ export default function DynamicTableView({
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
-                      onClick={() => syncFacebookMutation.mutate()}
-                      disabled={syncFacebookMutation.isPending}
+                      onClick={syncShownRange}
+                      disabled={adsRangeSync.syncing}
                       className="gap-1.5"
                     >
                       <ShoppingCart className="h-4 w-4 text-green-600" />
                       <RefreshCw
-                        className={`h-4 w-4 ${syncFacebookMutation.isPending ? "animate-spin" : ""}`}
+                        className={`h-4 w-4 ${adsRangeSync.syncing ? "animate-spin" : ""}`}
                       />
-                      {syncFacebookMutation.isPending
-                        ? "מסנכרן מכירות..."
-                        : "סנכרן מכירות"}
+                      {adsRangeSync.progressLabel ?? "סנכרן מכירות"}
                     </Button>
                     <Button
                       variant="outline"
@@ -2405,17 +2339,15 @@ export default function DynamicTableView({
                       // For Direct API tables, show sync button
                       <Button
                         variant="outline"
-                        onClick={() => syncGoogleAdsMutation.mutate()}
-                        disabled={syncGoogleAdsMutation.isPending}
+                        onClick={syncShownRange}
+                        disabled={adsRangeSync.syncing}
                         className="gap-1.5"
                       >
                         <GoogleAdsIcon className="h-4 w-4" />
                         <RefreshCw
-                          className={`h-4 w-4 ${syncGoogleAdsMutation.isPending ? "animate-spin" : ""}`}
+                          className={`h-4 w-4 ${adsRangeSync.syncing ? "animate-spin" : ""}`}
                         />
-                        {syncGoogleAdsMutation.isPending
-                          ? "מסנכרן Google Ads..."
-                          : "סנכרן Google Ads"}
+                        {adsRangeSync.progressLabel ?? "סנכרן Google Ads"}
                       </Button>
                     )}
                     <Button

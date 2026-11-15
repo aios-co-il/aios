@@ -13,6 +13,13 @@ import { DashboardGoalOverview } from "@/components/dynamic-tables/DashboardGoal
 import { FacebookReportTab } from "@/components/FacebookReportTab/FacebookReportTab";
 import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
+import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
+import {
+  adsSyncLabel,
+  type AdsSyncTable,
+  isAdsSyncTable,
+} from "@/lib/adsRangeSync/syncAdsTableRange";
+import { rangeSyncFailureMessage } from "@/lib/adsRangeSync/rangeSyncFailureMessage";
 import { reportRecordsQuery } from "@/lib/reportRecords";
 import { CAMPAIGN_ROWS_ONLY_TYPES } from "@functions/_shared/ads-sync/dashboard-rows.ts";
 import { WeeklyCampaignComparison } from "@/components/reports/WeeklyCampaignComparison";
@@ -261,6 +268,10 @@ export default function DashboardView() {
   const isCustomReady =
     dateFilter !== "custom" || (!!customFromStr && !!customToStr);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const adsRangeSync = useAdsRangeSync({
+    tenantId: currentTenantId,
+    notify: false,
+  });
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const didSetSeoDefaultRef = useRef(false);
@@ -1300,34 +1311,34 @@ export default function DashboardView() {
       };
       const { startDate, endDate } = computeRange();
 
-      // Build a sync task per table based on integration_type
+      // Ads tables sync the shown range, 30 days per request (useAdsRangeSync);
+      // each table's task fails with its first failed piece.
+      const adsTables: Array<AdsSyncTable & { name?: string }> =
+        tables.filter(isAdsSyncTable);
+      const adsRun = adsTables.length
+        ? adsRangeSync.syncAsync({
+            tables: adsTables,
+            selection: {
+              filter: dateFilter,
+              customStart: customFromStr || null,
+              customEnd: customToStr || null,
+            },
+          })
+        : Promise.resolve([]);
+      const adsTasks = adsTables.map((t, index) => ({
+        label: adsSyncLabel(t) ?? t.name ?? t.id,
+        promise: adsRun.then((results) => {
+          const result = results[index];
+          return result?.failure
+            ? { error: rangeSyncFailureMessage(result) }
+            : {};
+        }),
+      }));
+
+      // Build a sync task per remaining table based on integration_type
       const tableTasks = (tables as any[])
         .map((t: any) => {
           switch (t.integration_type) {
-            case "facebook_insights":
-              return {
-                label: "Facebook",
-                promise: supabase.functions.invoke("sync-facebook-insights", {
-                  method: "POST",
-                  body: { table_id: t.id },
-                }),
-              };
-            case "facebook_ecommerce":
-              return {
-                label: "Facebook Ecom",
-                promise: supabase.functions.invoke("sync-facebook-ecommerce", {
-                  method: "POST",
-                  body: { table_id: t.id },
-                }),
-              };
-            case "google_ads":
-              return {
-                label: "Google Ads",
-                promise: supabase.functions.invoke("sync-google-ads-data", {
-                  method: "POST",
-                  body: { table_id: t.id },
-                }),
-              };
             case "google_analytics":
               return {
                 label: "Google Analytics",
@@ -1375,7 +1386,7 @@ export default function DashboardView() {
         });
       }
 
-      const allTasks = [...tableTasks, ...wooTasks];
+      const allTasks = [...adsTasks, ...tableTasks, ...wooTasks];
 
       if (allTasks.length === 0) {
         await reloadReportRecords();
@@ -1390,7 +1401,17 @@ export default function DashboardView() {
           r.status === "rejected" ||
           (r.status === "fulfilled" && (r.value as any)?.error)
         ) {
-          failed.push(allTasks[i].label);
+          const value: unknown = r.status === "fulfilled" ? r.value : null;
+          const reason =
+            value && typeof value === "object" && "error" in value
+              ? value.error
+              : null;
+          // Ads tasks name the failed days and the edge's reason.
+          failed.push(
+            typeof reason === "string"
+              ? `${allTasks[i].label} (${reason})`
+              : allTasks[i].label,
+          );
         }
       });
 
@@ -1548,7 +1569,7 @@ export default function DashboardView() {
                 <RefreshCw
                   className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
                 />
-                רענון
+                {adsRangeSync.progressLabel ?? "רענון"}
               </Button>
             </>
           )

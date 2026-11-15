@@ -15,10 +15,8 @@ import {
   buildDestinationTypeMaps,
   fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
-import {
-  resolveAdsSyncWindow,
-  toDateString,
-} from "../_shared/report-sync-window.ts";
+import { toDateString } from "../_shared/report-sync-window.ts";
+import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import { scheduledMarkerPatch } from "../_shared/ads-sync/outcome.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
@@ -292,21 +290,30 @@ Deno.serve(async (req) => {
         since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
     }
 
-    // `date_range` is the table's display default; reports can look back further than
-    // that, so always pull (and keep) at least the deepest report window.
-    let syncWindow = resolveAdsSyncWindow(
-      { startDate: toDateString(since), endDate: toDateString(until) },
-      toDateString(now),
+    // A body window (the report screen's range, 30 days per request, or a cron's
+    // catch-up slice) is fetched as given; without one, `date_range` is widened
+    // to the legacy 120-day pull.
+    const resolvedWindow = resolveManualSyncWindow(
+      { start_date, end_date },
+      {
+        configured: {
+          startDate: toDateString(since),
+          endDate: toDateString(until),
+        },
+        internal: internalCron,
+        now,
+      },
     );
-    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
-    if (
-      typeof start_date === "string" &&
-      typeof end_date === "string" &&
-      isoDate.test(start_date) &&
-      isoDate.test(end_date)
-    ) {
-      syncWindow = { startDate: start_date, endDate: end_date };
+    if (!resolvedWindow.ok) {
+      console.warn(
+        `[sync-facebook-ecommerce] rejected window for ${table_id}: ${resolvedWindow.error}`,
+      );
+      return new Response(JSON.stringify({ error: resolvedWindow.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const syncWindow = resolvedWindow.window;
     const sinceStr = syncWindow.startDate;
     const untilStr = syncWindow.endDate;
 
@@ -415,7 +422,7 @@ Deno.serve(async (req) => {
     // successful write; catch-up chunks (update_last_sync=false) never stamp it.
     const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
-      catchup: update_last_sync === false,
+      catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
       settingsPatch: {
         last_campaign_updated_at: latestCampaignUpdatedTime(campaignStatuses),

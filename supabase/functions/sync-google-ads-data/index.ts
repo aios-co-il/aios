@@ -15,10 +15,10 @@ import {
 } from "../_shared/ads-sync/google-customer-id.ts";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
-import {
-  resolveAdsSyncWindow,
-  toDateString,
-} from "../_shared/report-sync-window.ts";
+import { jerusalemToday, toDateString } from "../_shared/report-sync-window.ts";
+import { coveredFromFetched, elementorLookback } from "./elementor-lookback.ts";
+import { carryStoredVerifiedLeads } from "./stored-verified-leads.ts";
+import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
@@ -545,22 +545,30 @@ Deno.serve(async (req) => {
         );
     }
 
-    // `date_range` is the table's display default; reports can look back further than
-    // that, so always pull (and keep) at least the deepest report window.
-    let syncWindow = resolveAdsSyncWindow(
-      { startDate: toDateString(startDate), endDate: toDateString(endDate) },
-      toDateString(now),
+    // A body window (the report screen's range, 30 days per request, or a cron's
+    // catch-up slice) is fetched as given; without one, `date_range` is widened
+    // to the legacy 120-day pull.
+    const resolvedWindow = resolveManualSyncWindow(
+      { start_date, end_date },
+      {
+        configured: {
+          startDate: toDateString(startDate),
+          endDate: toDateString(endDate),
+        },
+        internal: isInternalCron && hasServiceRole,
+        now,
+      },
     );
-    // Morning cron passes an explicit short window. Manual sync keeps the full history pull.
-    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
-    if (
-      typeof start_date === "string" &&
-      typeof end_date === "string" &&
-      isoDate.test(start_date) &&
-      isoDate.test(end_date)
-    ) {
-      syncWindow = { startDate: start_date, endDate: end_date };
+    if (!resolvedWindow.ok) {
+      console.warn(
+        `[sync-google-ads-data] rejected window for ${table_id}: ${resolvedWindow.error}`,
+      );
+      return new Response(JSON.stringify({ error: resolvedWindow.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const syncWindow = resolvedWindow.window;
     const startIso = syncWindow.startDate;
     const endIso = syncWindow.endDate;
 
@@ -1031,6 +1039,8 @@ Deno.serve(async (req) => {
     // "Conversions" and real form submissions on the landing page.
     // ============================================================
     let verifiedSiteUrl: string | null = null;
+    // Oldest day the Elementor check annotated; older records keep stored counts.
+    let verifiedFrom: string | null = null;
     try {
       // Find an active WordPress site for this client (table.client_id)
       const tableClientId = (table as any).client_id as string | null;
@@ -1045,17 +1055,14 @@ Deno.serve(async (req) => {
         const site = wpSites?.[0];
         if (site) {
           verifiedSiteUrl = site.site_url;
-          // Compute days from date range to limit submission scan
-          const daysDiff = Math.max(
-            1,
-            Math.round((Date.parse(endIso) - Date.parse(startIso)) / 86400000) +
-              1,
-          );
+          // The submission fetch counts back from now, so a past window asks
+          // for the days from its start through today.
+          const lookback = elementorLookback(startIso, jerusalemToday());
 
           const { data: subData, error: subErr } =
             await supabaseAdmin.functions.invoke(
               "fetch-elementor-submissions",
-              { body: { site_id: site.id, days: Math.min(daysDiff, 90) } },
+              { body: { site_id: site.id, days: lookback.days } },
             );
 
           if (
@@ -1063,6 +1070,11 @@ Deno.serve(async (req) => {
             subData?.success &&
             Array.isArray(subData.submissions)
           ) {
+            const coveredFrom = coveredFromFetched(
+              lookback.coveredFrom,
+              subData,
+            );
+            verifiedFrom = coveredFrom;
             // Helper: extract URL slug (path segment) from referer
             const extractSlug = (referer: string | null): string => {
               if (!referer) return "";
@@ -1170,6 +1182,10 @@ Deno.serve(async (req) => {
 
             for (const rec of records) {
               if ((rec.entity_level || "campaign") !== "campaign") continue;
+              // Days older than the fetched submissions stay unannotated, not 0.
+              if (rec.date < coveredFrom) {
+                continue;
+              }
               // Strategy 1: manual FORM mapping (PRIMARY)
               const mappedForms = campaignIdToForms.get(rec.campaign_id) || [];
               if (mappedForms.length > 0) {
@@ -1350,6 +1366,15 @@ Deno.serve(async (req) => {
       ad: byLevelCount("ad"),
     };
 
+    if (verifiedFrom) {
+      await carryStoredVerifiedLeads(supabaseAdmin, {
+        tableId: table_id,
+        tenantId: tableTenantId,
+        records,
+        coveredFrom: verifiedFrom,
+      });
+    }
+
     // Admin client bypasses RLS; what may be replaced (table_id-only): see syncAdsWindow.
     const outcome = await syncAdsWindow(
       { deleteClient: supabaseAdmin },
@@ -1374,7 +1399,7 @@ Deno.serve(async (req) => {
     // Health/pulse read the freshest of column vs settings.
     const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
-      catchup: update_last_sync === false,
+      catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
       settingsPatch: scheduledMarkerPatch(outcome.status, {
         scheduled_history_from,
