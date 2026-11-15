@@ -7,7 +7,7 @@
  */
 import {
   replacedRecordsFilter,
-  resolvePruneStart,
+  resolvePruneRange,
   type SyncWindow,
 } from "../report-sync-window.ts";
 import { CAMPAIGN_LEVEL_FILTER } from "./campaign-records.ts";
@@ -114,17 +114,15 @@ export async function writeAdsWindow(
     chunkSize?: number;
   },
 ): Promise<{ inserted: number; error?: string }> {
-  const pruneStart = resolvePruneStart(
+  const { pruneStart, pruneEnd } = resolvePruneRange(
     input.window,
-    input.records.map((record) =>
-      typeof record.date === "string" ? record.date : null,
-    ),
+    input.records,
   );
   const { error: deleteError } = await clients.deleteClient
     .from("crm_records")
     .delete()
     .eq("table_id", input.tableId)
-    .or(replacedLevelRecordsFilter(pruneStart, input.levelsOk));
+    .or(replacedLevelRecordsFilter(pruneStart, pruneEnd, input.levelsOk));
   if (deleteError) {
     return { inserted: 0, error: `delete: ${deleteError.message || "error"}` };
   }
@@ -193,9 +191,10 @@ export async function confirmEmptyPlan(
  */
 export function replacedLevelRecordsFilter(
   pruneStart: string,
+  pruneEnd: string,
   levels: readonly AdsEntityLevel[],
 ): string {
-  const dateFilter = replacedRecordsFilter(pruneStart);
+  const dateFilter = replacedRecordsFilter(pruneStart, pruneEnd);
   const kept = ADS_LEVELS.filter((level) => levels.includes(level));
   if (kept.length === ADS_LEVELS.length) {
     return dateFilter;

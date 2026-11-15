@@ -80,10 +80,11 @@ Deno.test(
 Deno.test(
   "prune filter clears the rewritten window and undated rows but keeps older history",
   () => {
-    const filter = replacedRecordsFilter("2026-06-20");
+    const filter = replacedRecordsFilter("2026-06-20", "2026-06-25");
 
     assertEquals(filter.split(","), [
-      "data->>date.gte.2026-06-20",
+      "and(data->>date.gte.2026-06-20",
+      "data->>date.lte.2026-06-25)",
       "data->>date.is.null",
       "data->>date.lt.1900-01-01",
     ]);
