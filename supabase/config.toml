@@ -477,6 +477,11 @@ verify_jwt = true
 [functions.carmen-manager-round]
 verify_jwt = true
 
+# An owner runs one manager-round check now from the settings screen (AIO-597);
+# checks the signed-in user owns the tenant, then calls carmen-manager-round.
+[functions.carmen-manager-round-run]
+verify_jwt = true
+
 [functions.run-ai-agent-v2]
 verify_jwt = true
 
