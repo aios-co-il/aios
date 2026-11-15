@@ -100,14 +100,22 @@ describe("openRecordingFile", () => {
   });
 
   it("opens a tab at click time and sends it to a freshly signed URL", async () => {
-    createSignedUrl.mockResolvedValue({
-      data: { signedUrl: "https://signed" },
-      error: null,
-    });
+    let resolveSigning: ((value: unknown) => void) | undefined;
+    createSignedUrl.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSigning = resolve;
+      }),
+    );
 
-    await openRecordingFile(PUBLIC);
+    const opening = openRecordingFile(PUBLIC);
 
+    // The tab exists before signing resolves, still inside the click.
     expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(tab.location.href).toBe("");
+
+    resolveSigning?.({ data: { signedUrl: "https://signed" }, error: null });
+    await opening;
+
     expect(tab.location.href).toBe("https://signed");
     expect(tab.opener).toBeNull();
   });
