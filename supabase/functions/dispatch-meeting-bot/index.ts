@@ -5,9 +5,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   createRecallBot,
   isRecallCreditError,
-  MEETING_BOT_NAME,
   recallApiKey,
 } from "../_shared/recall.ts";
+import { loadPersonalAssistantName } from "../_shared/carmen/load-carmen-agent.ts";
+import { meetingBotName } from "../_shared/meeting-bot/bot-name.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { notifyRecallCreditEmpty } from "../_shared/recall-credit-alert.ts";
 import {
   defaultBotTopic,
@@ -109,6 +111,13 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    // The bot joins as the sender's character, else the org's name for its assistant (AIO-592).
+    const assistantName = await loadPersonalAssistantName(
+      serviceClient(),
+      tenantId,
+      userId,
+    );
+    const botName = meetingBotName(assistantName);
     const campaignerIds = Array.isArray(requestedCampaignerIds)
       ? [
           ...new Set(
@@ -187,7 +196,8 @@ Deno.serve(async (req) => {
         summary_scope: summaryScope,
         meeting_url,
         platform,
-        meeting_topic: meeting_topic || defaultBotTopic(platform),
+        meeting_topic:
+          meeting_topic || defaultBotTopic(platform, assistantName),
         status: "scheduled",
         scheduled_start: join_at || new Date().toISOString(),
         created_by: userId,
@@ -207,6 +217,7 @@ Deno.serve(async (req) => {
     try {
       bot = await createRecallBot({
         meeting_url,
+        bot_name: botName,
         join_at: join_at || null,
         metadata: {
           session_id: session.id,
@@ -244,8 +255,8 @@ Deno.serve(async (req) => {
       bot_id: bot.id,
       platform,
       platform_label: platformLabel(platform),
-      bot_name: MEETING_BOT_NAME,
-      message: `כרמן מצטרפת ל${platformLabel(platform)}. אשרו אותה בחדר ההמתנה אם נדרש.`,
+      bot_name: botName,
+      message: `${assistantName} מצטרפת ל${platformLabel(platform)}. אשרו את "${botName}" בחדר ההמתנה אם נדרש.`,
     });
   } catch (error) {
     console.error("[dispatch-meeting-bot] error:", error);

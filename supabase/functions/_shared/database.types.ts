@@ -1356,6 +1356,7 @@ export type Database = {
           disabled_tools: string[] | null;
           engine: string;
           id: string;
+          is_carmen: boolean;
           language: string | null;
           max_tool_rounds: number | null;
           metadata: Json | null;
@@ -1385,6 +1386,7 @@ export type Database = {
           disabled_tools?: string[] | null;
           engine?: string;
           id?: string;
+          is_carmen?: boolean;
           language?: string | null;
           max_tool_rounds?: number | null;
           metadata?: Json | null;
@@ -1414,6 +1416,7 @@ export type Database = {
           disabled_tools?: string[] | null;
           engine?: string;
           id?: string;
+          is_carmen?: boolean;
           language?: string | null;
           max_tool_rounds?: number | null;
           metadata?: Json | null;

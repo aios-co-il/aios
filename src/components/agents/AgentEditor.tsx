@@ -1,8 +1,6 @@
 import { useState } from "react";
-import {
-  useCarmenIdentity,
-  readAgentIdentity,
-} from "@/hooks/useCarmenIdentity";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { readAgentIdentity } from "../../../supabase/functions/_shared/carmen/agent-identity.ts";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import type { Tables } from "@/integrations/supabase/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

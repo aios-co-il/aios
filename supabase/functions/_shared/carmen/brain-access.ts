@@ -20,9 +20,6 @@ export const BRAIN = {
 /** Brains where "bug fixes only" makes sense: the coding agents. */
 export const BUGFIX_CAPABLE_PROVIDERS = ["cursor", "claude", "codex", "grok"];
 
-/** PostgREST filter that finds Carmen among a tenant's agents. */
-export const CARMEN_NAME_FILTER = "name.ilike.%carmen%,name.ilike.%כרמן%";
-
 /** Prepended to a message on a "bug fixes only" grant. */
 export const BUGFIX_ONLY_PREAMBLE =
   "[AIOS permission: this user may request BUG FIXES ONLY. " +

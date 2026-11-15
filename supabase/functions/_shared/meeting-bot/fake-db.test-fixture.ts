@@ -68,6 +68,15 @@ class FakeQuery implements PromiseLike<Result> {
     return this;
   }
 
+  // Filter strings are not parsed: callers re-check the rows (pickCarmenAgent).
+  or() {
+    return this;
+  }
+
+  limit() {
+    return this;
+  }
+
   maybeSingle() {
     this.mode = "maybe";
     return this;

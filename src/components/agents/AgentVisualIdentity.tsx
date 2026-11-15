@@ -2,10 +2,8 @@ import { useEffect, useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import {
-  useCarmenIdentity,
-  readAgentIdentity,
-} from "@/hooks/useCarmenIdentity";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { readAgentIdentity } from "../../../supabase/functions/_shared/carmen/agent-identity.ts";
 import { CarmenPortrait } from "@/components/carmen-profile/CarmenPortrait";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
