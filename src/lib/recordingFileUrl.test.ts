@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { openableRecordingUrl, publicRecordingPath } from "./recordingFileUrl";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  openableRecordingUrl,
+  openRecordingFile,
+  publicRecordingPath,
+} from "./recordingFileUrl";
 
 const createSignedUrl = vi.hoisted(() => vi.fn());
 
@@ -69,5 +73,52 @@ describe("openableRecordingUrl", () => {
     await expect(openableRecordingUrl(PUBLIC)).rejects.toThrow(
       "Object not found",
     );
+  });
+});
+
+describe("openRecordingFile", () => {
+  const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
+  const open = vi.fn();
+
+  beforeEach(() => {
+    createSignedUrl.mockReset();
+    tab.location.href = "";
+    tab.close.mockReset();
+    open.mockReset().mockReturnValue(tab);
+    vi.stubGlobal("open", open);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens any other URL directly", async () => {
+    await openRecordingFile(SIGNED);
+
+    expect(open).toHaveBeenCalledWith(SIGNED, "_blank", "noopener,noreferrer");
+    expect(createSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens a tab at click time and sends it to a freshly signed URL", async () => {
+    createSignedUrl.mockResolvedValue({
+      data: { signedUrl: "https://signed" },
+      error: null,
+    });
+
+    await openRecordingFile(PUBLIC);
+
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(tab.location.href).toBe("https://signed");
+    expect(tab.opener).toBeNull();
+  });
+
+  it("closes the tab and throws when signing fails", async () => {
+    createSignedUrl.mockResolvedValue({
+      data: null,
+      error: new Error("Object not found"),
+    });
+
+    await expect(openRecordingFile(PUBLIC)).rejects.toThrow("Object not found");
+    expect(tab.close).toHaveBeenCalled();
   });
 });

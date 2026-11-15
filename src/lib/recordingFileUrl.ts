@@ -35,3 +35,29 @@ export async function openableRecordingUrl(url: string): Promise<string> {
   }
   return data.signedUrl;
 }
+
+/**
+ * Opens a stored recordings file URL in a new tab. A legacy public URL is
+ * signed at click time (AIO-595); the tab opens first, inside the click, so
+ * the browser does not block it. Throws, after closing that tab, when signing
+ * fails.
+ */
+export async function openRecordingFile(url: string): Promise<void> {
+  if (publicRecordingPath(url) === null) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  const tab = window.open("", "_blank");
+  try {
+    const signed = await openableRecordingUrl(url);
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = signed;
+    } else {
+      window.open(signed, "_blank", "noopener,noreferrer");
+    }
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}

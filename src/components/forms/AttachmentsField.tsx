@@ -4,10 +4,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
-import {
-  openableRecordingUrl,
-  publicRecordingPath,
-} from "@/lib/recordingFileUrl";
+import { openRecordingFile } from "@/lib/recordingFileUrl";
 import {
   Upload,
   Trash2,
@@ -165,23 +162,10 @@ export function AttachmentsField({
   const handleDownload = async (attachment: Attachment) => {
     // If attachment has a direct URL (e.g. meeting summaries), open it directly
     if (attachment.url) {
-      if (publicRecordingPath(attachment.url) === null) {
-        window.open(attachment.url, "_blank");
-        return;
-      }
-      // A legacy public recordings URL is signed first (AIO-595). The tab
-      // opens now, inside the click, so the browser does not block it.
-      const tab = window.open("", "_blank");
       try {
-        const url = await openableRecordingUrl(attachment.url);
-        if (tab) {
-          tab.location.href = url;
-        } else {
-          window.open(url, "_blank");
-        }
+        await openRecordingFile(attachment.url);
       } catch (err) {
-        tab?.close();
-        console.error("Signing the attachment failed:", err);
+        console.error("Opening the attachment failed:", err);
         toast.error("שגיאה בפתיחת הקובץ");
       }
       return;
