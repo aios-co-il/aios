@@ -40,13 +40,15 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
     captureImage: captureDashboardImage,
   });
   const { token } = card.share;
-  const sync = useDashboardSync(clientId, tenantId, token);
+  const sync = useDashboardSync(clientId, tenantId, token, dateFilter);
 
   return (
     <div className="space-y-3 min-w-0" dir="rtl">
       <LiveReportFrame
         share={card.share}
-        busyLabel={sync.syncing ? "מסנכרן מקורות..." : null}
+        busyLabel={
+          sync.progressLabel ?? (sync.syncing ? "מסנכרן מקורות..." : null)
+        }
       >
         {token && (
           <SharedDashboard

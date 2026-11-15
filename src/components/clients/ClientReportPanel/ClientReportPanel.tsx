@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { format } from "date-fns";
 import { Link2 } from "lucide-react";
 import { ReportDataFreshness } from "@/components/reports/ReportDataFreshness";
 import type { SharedDateSelection } from "@/components/SharedTable/useSharedTableData";
@@ -49,7 +50,11 @@ export function ClientReportPanel({ table, clientId, tenantId }: Props) {
     captureImage: captureReportImage,
   });
   const { token } = card.share;
-  const sync = useReportSync(table, tenantId, token);
+  const sync = useReportSync(table, tenantId, token, {
+    filter: dates.filter,
+    customStart: dates.customStart && format(dates.customStart, "yyyy-MM-dd"),
+    customEnd: dates.customEnd && format(dates.customEnd, "yyyy-MM-dd"),
+  });
 
   return (
     <div className="space-y-3 min-w-0" dir="rtl">
@@ -60,7 +65,9 @@ export function ClientReportPanel({ table, clientId, tenantId }: Props) {
       />
       <LiveReportFrame
         share={card.share}
-        busyLabel={sync.syncing ? "מסנכרן נתונים..." : null}
+        busyLabel={
+          sync.progressLabel ?? (sync.syncing ? "מסנכרן נתונים..." : null)
+        }
       >
         {token && (
           <SharedTableReport

@@ -15,10 +15,8 @@ import {
 } from "../_shared/ads-sync/google-customer-id.ts";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
-import {
-  resolveAdsSyncWindow,
-  toDateString,
-} from "../_shared/report-sync-window.ts";
+import { toDateString } from "../_shared/report-sync-window.ts";
+import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
 import { enrichConversionCategories } from "./conversion-enrichment.ts";
@@ -545,22 +543,30 @@ Deno.serve(async (req) => {
         );
     }
 
-    // `date_range` is the table's display default; reports can look back further than
-    // that, so always pull (and keep) at least the deepest report window.
-    let syncWindow = resolveAdsSyncWindow(
-      { startDate: toDateString(startDate), endDate: toDateString(endDate) },
-      toDateString(now),
+    // A body window (the report screen's range, 30 days per request, or a cron's
+    // catch-up slice) is fetched as given; without one, `date_range` is widened
+    // to the legacy 120-day pull.
+    const resolvedWindow = resolveManualSyncWindow(
+      { start_date, end_date },
+      {
+        configured: {
+          startDate: toDateString(startDate),
+          endDate: toDateString(endDate),
+        },
+        internal: isInternalCron && hasServiceRole,
+        now,
+      },
     );
-    // Morning cron passes an explicit short window. Manual sync keeps the full history pull.
-    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
-    if (
-      typeof start_date === "string" &&
-      typeof end_date === "string" &&
-      isoDate.test(start_date) &&
-      isoDate.test(end_date)
-    ) {
-      syncWindow = { startDate: start_date, endDate: end_date };
+    if (!resolvedWindow.ok) {
+      console.warn(
+        `[sync-google-ads-data] rejected window for ${table_id}: ${resolvedWindow.error}`,
+      );
+      return new Response(JSON.stringify({ error: resolvedWindow.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const syncWindow = resolvedWindow.window;
     const startIso = syncWindow.startDate;
     const endIso = syncWindow.endDate;
 

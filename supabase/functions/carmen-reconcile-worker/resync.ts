@@ -18,8 +18,8 @@ import type { LatestRun } from "./store.ts";
 /**
  * The sync function each resyncable report type re-fetches with: these honor
  * start_date/end_date and update_last_sync=false. sync-facebook-insights
- * ignores both (it re-syncs 120+ days at every level and moves last_sync_at),
- * so facebook_insights tables are never auto-resynced.
+ * honors the window but ignores update_last_sync (it always moves
+ * last_sync_at), so facebook_insights tables are never auto-resynced.
  */
 export const RESYNC_SYNC_FUNCTION: Record<string, string> = {
   google_ads: "sync-google-ads-data",

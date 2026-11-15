@@ -16,10 +16,8 @@ import {
   buildDestinationTypeMaps,
   fetchAdsets,
 } from "../_shared/fb-insights/adsets.ts";
-import {
-  resolveAdsSyncWindow,
-  toDateString,
-} from "../_shared/report-sync-window.ts";
+import { toDateString } from "../_shared/report-sync-window.ts";
+import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import { isWriteSuccess } from "../_shared/ads-sync/outcome.ts";
 import { redactSyncError } from "../_shared/ads-sync/redact.ts";
 import { syncRunBody } from "../_shared/ads-sync/run-response.ts";
@@ -87,7 +85,8 @@ Deno.serve(async (req) => {
       user = authedUser;
     }
 
-    const { table_id } = await req.json();
+    const requestBody = await req.json();
+    const { table_id } = requestBody;
 
     if (!table_id) {
       return new Response(JSON.stringify({ error: "table_id required" }), {
@@ -324,12 +323,26 @@ Deno.serve(async (req) => {
         until = today;
     }
 
-    // `date_range` is the table's display default; reports can look back further than
-    // that, so always pull (and keep) at least the deepest report window.
-    const syncWindow = resolveAdsSyncWindow(
-      { startDate: toDateString(since), endDate: toDateString(until) },
-      toDateString(now),
-    );
+    // A body window (the report screen's range, 30 days per request) is fetched as
+    // given; without one, `date_range` is widened to the legacy 120-day pull.
+    const resolvedWindow = resolveManualSyncWindow(requestBody, {
+      configured: {
+        startDate: toDateString(since),
+        endDate: toDateString(until),
+      },
+      internal: isInternalCron && hasServiceRole,
+      now,
+    });
+    if (!resolvedWindow.ok) {
+      console.warn(
+        `[sync-facebook-insights] rejected window for ${table_id}: ${resolvedWindow.error}`,
+      );
+      return new Response(JSON.stringify({ error: resolvedWindow.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const syncWindow = resolvedWindow.window;
     const sinceStr = syncWindow.startDate;
     const untilStr = syncWindow.endDate;
 
@@ -476,7 +489,7 @@ Deno.serve(async (req) => {
       fallbackSettings: settings,
       settingsPatch: {
         ...(isWriteSuccess(outcome.status)
-          ? { last_insights_until: untilStr }
+          ? { last_insights_until: latestInsightsUntil(settings, untilStr) }
           : {}),
         last_campaign_updated_at: lastCampaignUpdatedAt,
         last_meta_activity: lastMetaActivity,
@@ -508,3 +521,17 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * An explicit window can end in the past (an older 30-day piece), so the
+ * marker only moves forward.
+ */
+function latestInsightsUntil(
+  settings: { last_insights_until?: unknown },
+  untilStr: string,
+): string {
+  const previous = settings.last_insights_until;
+  return typeof previous === "string" && previous > untilStr
+    ? previous
+    : untilStr;
+}
