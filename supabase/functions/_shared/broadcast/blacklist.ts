@@ -4,9 +4,34 @@
 // manual sends are not affected.
 import { normalizePhone } from "./template/template-vars.ts";
 
-/** Public unsubscribe link for one broadcast recipient. */
-export function unsubscribeUrl(supabaseUrl: string, recipientId: string) {
+/**
+ * The unsubscribe page in the app for one broadcast recipient: the email
+ * footer, the WhatsApp last line and the page a link from an old mailing
+ * redirects to. The function domain serves HTML as text/plain, so people
+ * are sent to the app.
+ */
+export function unsubscribeUrl(
+  appUrl: string,
+  tenantSlug: string,
+  recipientId: string,
+) {
+  return `${appUrl}/unsubscribe/${encodeURIComponent(tenantSlug)}?r=${recipientId}`;
+}
+
+/**
+ * The function address mail clients POST to for one-click unsubscribe
+ * (List-Unsubscribe-Post); server to server, so no page is needed.
+ */
+export function oneClickUnsubscribeUrl(
+  supabaseUrl: string,
+  recipientId: string,
+) {
   return `${supabaseUrl}/functions/v1/broadcast-unsubscribe?r=${recipientId}`;
+}
+
+/** List-Unsubscribe value: the one-click address first, then the page. */
+export function listUnsubscribeHeader(oneClickUrl: string, pageUrl: string) {
+  return `<${oneClickUrl}>, <${pageUrl}>`;
 }
 
 /** Last lines of every WhatsApp mailing to a contact. */

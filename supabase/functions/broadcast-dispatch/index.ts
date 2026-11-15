@@ -22,10 +22,14 @@ import {
 } from "../_shared/broadcast/template/email-attachments.ts";
 import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
 import {
+  listUnsubscribeHeader,
+  oneClickUnsubscribeUrl,
   unsubscribeUrl,
   whatsappUnsubscribeFooter,
 } from "../_shared/broadcast/blacklist.ts";
+import { appOrigin } from "../_shared/carmen/skin-gallery.ts";
 import { resolveBroadcastRecipientClientId } from "./recipient-client.ts";
+import { tenantSlugOf } from "./tenant-slug.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +40,8 @@ const corsHeaders = {
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// Unsubscribe links open the app page (APP_URL); production when unset.
+const APP_URL = appOrigin(null, Deno.env.get("APP_URL"));
 
 const MAX_RUN_MS = 90_000; // stay well under the edge function execution limit
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -141,13 +147,15 @@ async function greenApiSendImage(
   return { ok: res.ok, json };
 }
 
+/** Send one recipient its rendered message, ending with the unsubscribe link. */
 async function sendOne(
   db: any,
   b: any,
   r: any,
+  tenantSlug: string,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const vars = recipientVars(r);
-  const unsubUrl = unsubscribeUrl(SB_URL, r.id);
+  const unsubUrl = unsubscribeUrl(APP_URL, tenantSlug, r.id);
   // Mailings to a contact end with the unsubscribe link (not to groups).
   const body =
     renderTemplate(b.body_text || "", vars) +
@@ -180,7 +188,10 @@ async function sendOne(
       fromName: b.from_name || undefined,
       replyTo: b.reply_to || undefined,
       headers: {
-        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe": listUnsubscribeHeader(
+          oneClickUnsubscribeUrl(SB_URL, r.id),
+          unsubUrl,
+        ),
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
@@ -452,6 +463,18 @@ Deno.serve(async (req) => {
         summary.push({ id: b.id, capped: true });
         continue;
       }
+      // Once per broadcast: every recipient's unsubscribe link names it.
+      let tenantSlug: string;
+      try {
+        tenantSlug = await tenantSlugOf(db, b.tenant_id);
+      } catch (e) {
+        console.error("[broadcast-dispatch] tenant slug lookup failed", {
+          broadcastId: b.id,
+          error: e,
+        });
+        summary.push({ id: b.id, error: "tenant_slug" });
+        continue;
+      }
       worked++;
 
       let sentThisRun = 0;
@@ -485,7 +508,7 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const result = await sendOne(db, b, r);
+        const result = await sendOne(db, b, r, tenantSlug);
         if (result.ok) {
           await db
             .from("broadcast_recipients")

@@ -15,6 +15,7 @@
 // The public answers carry the organization name only, never the
 // recipient's phone, email or name.
 import { corsHeaders } from "../_shared/cors.ts";
+import { unsubscribeUrl } from "../_shared/broadcast/blacklist.ts";
 
 export interface UnsubscribeStore {
   /** The recipient's tenant, or null when no recipient has this id. */
@@ -70,15 +71,6 @@ export async function handleUnsubscribe(
   }
 }
 
-/** The app page a recipient confirms the unsubscribe on. */
-export function unsubscribePageUrl(
-  appUrl: string,
-  tenantSlug: string,
-  recipientId: string,
-) {
-  return `${appUrl}/unsubscribe/${encodeURIComponent(tenantSlug)}?r=${recipientId}`;
-}
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const NOT_FOUND_TEXT = "הקישור פג או לא נמצא.";
@@ -101,7 +93,7 @@ async function answerGet(
     status: 302,
     headers: {
       ...corsHeaders,
-      Location: unsubscribePageUrl(appUrl, tenant.slug, recipientId),
+      Location: unsubscribeUrl(appUrl, tenant.slug, recipientId),
     },
   });
 }

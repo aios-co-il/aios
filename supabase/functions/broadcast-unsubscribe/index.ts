@@ -14,14 +14,11 @@ import {
   unsubscribeAddresses,
   type UnsubscribeRecipient,
 } from "../_shared/broadcast/blacklist.ts";
+import { appOrigin } from "../_shared/carmen/skin-gallery.ts";
 import { handleUnsubscribe, type UnsubscribeStore } from "./handler.ts";
 
-// Same convention as meta-data-deletion and google-*-auth: APP_URL is the
-// per-environment app origin; production is the fallback.
-const APP_URL = (Deno.env.get("APP_URL") || "https://aios.co.il").replace(
-  /\/+$/,
-  "",
-);
+// Per-environment app origin (APP_URL); production when unset.
+const APP_URL = appOrigin(null, Deno.env.get("APP_URL"));
 
 const store = supabaseStore(serviceClient());
 
