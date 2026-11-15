@@ -2,10 +2,10 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { MANAGER_DEFAULTS, resolveManagerSettings } from "./settings.ts";
 
 Deno.test("resolveManagerSettings", async (t) => {
-  await t.step("a tenant without settings observes with the defaults", () => {
+  await t.step("a tenant without settings is off, with the defaults", () => {
     for (const raw of [undefined, null, "x", [], {}, { manager: [] }]) {
       const settings = resolveManagerSettings(raw);
-      assertEquals(settings.mode, "observe");
+      assertEquals(settings.mode, "off");
       assertEquals(settings.notify_since, null);
       assertEquals(settings.business_hours, MANAGER_DEFAULTS.business_hours);
       assertEquals(settings.escalation_hours, [4, 24]);
@@ -14,10 +14,10 @@ Deno.test("resolveManagerSettings", async (t) => {
     }
   });
 
-  await t.step("an unknown mode observes; the four modes are kept", () => {
+  await t.step("an unknown mode is off; the four modes are kept", () => {
     assertEquals(
       resolveManagerSettings({ manager: { mode: "loud" } }).mode,
-      "observe",
+      "off",
     );
     for (const mode of ["off", "observe", "david_only", "team"]) {
       assertEquals(resolveManagerSettings({ manager: { mode } }).mode, mode);

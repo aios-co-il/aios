@@ -6,16 +6,21 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
+import { isAdsSyncTable } from "@/lib/adsRangeSync/syncAdsTableRange";
+import { rangeSyncFailureMessage } from "@/lib/adsRangeSync/rangeSyncFailureMessage";
 import { type SyncableReportTable, syncReportTables } from "@/lib/reportSync";
 
 /**
  * Syncs every source table of the client's dashboard, then reloads the live
- * dashboard so the card shows the fresh numbers.
+ * dashboard so the card shows the fresh numbers. Ads tables sync the
+ * dashboard's picked window, 30 days per request.
  */
 export function useDashboardSync(
   clientId: string,
   tenantId: string,
   shareToken: string | null,
+  dateFilter: string,
 ) {
   const queryClient = useQueryClient();
   const tables = useQuery({
@@ -25,17 +30,20 @@ export function useDashboardSync(
         ? () => fetchClientTables(clientId, tenantId)
         : skipToken,
   });
+  const adsSync = useAdsRangeSync({ tenantId, notify: false });
   const sync = useMutation({
-    mutationFn: () => syncReportTables(tables.data ?? []),
-    onSuccess: async (results) => {
+    mutationFn: () => syncDashboardSources(tables.data ?? []),
+    onSuccess: async ({ sourceFailures, adsResults }) => {
       await queryClient.invalidateQueries({
         queryKey: ["shared-dashboard", shareToken],
       });
-      const failures = results.filter((result) => result.status === "failed");
-      if (failures.length > 0) {
-        toast.warning(
-          `${failures.length} מקורות לא הסתנכרנו; יוצגו הנתונים האחרונים`,
-        );
+      const adsFailures = adsResults.filter((result) => result.failure);
+      const failures = sourceFailures + adsFailures.length;
+      if (adsFailures.length > 0) {
+        toast.error(rangeSyncFailureMessage(adsFailures[0]));
+      }
+      if (failures > 0) {
+        toast.warning(`${failures} מקורות לא הסתנכרנו; יוצגו הנתונים האחרונים`);
       } else {
         toast.success("נתוני הדשבורד סונכרנו");
       }
@@ -46,9 +54,31 @@ export function useDashboardSync(
     },
   });
 
+  /**
+   * Ads tables sync the window picked on the card (useAdsRangeSync), beside
+   * the other sources, which keep their own windows (reportSync).
+   */
+  async function syncDashboardSources(all: Array<SyncableReportTable>) {
+    const adsTables = all.filter(isAdsSyncTable);
+    const [sourceResults, adsResults] = await Promise.all([
+      syncReportTables(all.filter((table) => !isAdsSyncTable(table))),
+      adsTables.length
+        ? adsSync.syncAsync({
+            tables: adsTables,
+            selection: { filter: dateFilter },
+          })
+        : Promise.resolve([]),
+    ]);
+    const sourceFailures = sourceResults.filter(
+      (result) => result.status === "failed",
+    ).length;
+    return { sourceFailures, adsResults };
+  }
+
   return {
     sync: () => sync.mutate(),
     syncing: sync.isPending,
+    progressLabel: adsSync.progressLabel,
     loadingTables: tables.isLoading,
   };
 }

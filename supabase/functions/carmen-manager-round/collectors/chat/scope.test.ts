@@ -10,6 +10,7 @@ Deno.test("enabledKinds", async (t) => {
     assertEquals(enabledKinds(SETTINGS), [...CHAT_KINDS]);
     const settings = resolveManagerSettings({
       manager: {
+        mode: "observe",
         kinds: {
           unanswered_request: { enabled: false },
           unlinked_group: { mode: "off" },

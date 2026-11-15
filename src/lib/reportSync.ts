@@ -31,6 +31,11 @@ async function invoke(functionName: string, body: Record<string, unknown>) {
   if (data?.error) throw new Error(String(data.error));
 }
 
+/**
+ * Sync one non-ads report table (Google Analytics, Search Console, Ahrefs).
+ * Ads tables sync the picked date range through useAdsRangeSync and are
+ * skipped here.
+ */
 export async function syncReportTable(
   table: SyncableReportTable,
 ): Promise<ReportSyncResult> {
@@ -40,21 +45,6 @@ export async function syncReportTable(
 
   try {
     switch (type) {
-      case "facebook_insights":
-        await invoke("sync-facebook-insights", {
-          table_id: table.id,
-          tableId: table.id,
-        });
-        break;
-      case "facebook_ecommerce":
-        await invoke("sync-facebook-ecommerce", {
-          table_id: table.id,
-          tableId: table.id,
-        });
-        break;
-      case "google_ads":
-        await invoke("sync-google-ads-data", { table_id: table.id });
-        break;
       case "google_analytics":
         await invoke("sync-google-analytics-data", {
           tableId: table.id,

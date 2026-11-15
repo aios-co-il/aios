@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useRegenerateRecordingSummary } from "@/hooks/useRegenerateRecordingSummary";
+import { openRecordingFile } from "@/lib/recordingFileUrl";
 import {
   ShareSummaryDialog,
   type ShareableRecording,
@@ -56,6 +57,16 @@ export function SummaryViewerDialog({
   onSaved,
 }: SummaryViewerDialogProps) {
   const queryClient = useQueryClient();
+  const summaryFileUrl = recording.summary_file_url;
+  function downloadDocx() {
+    if (!summaryFileUrl) {
+      return;
+    }
+    openRecordingFile(summaryFileUrl).catch((err) => {
+      console.error("[SummaryViewerDialog] opening the DOCX failed", err);
+      toast.error("שגיאה בהורדת קובץ ה-Word");
+    });
+  }
   const [shareOpen, setShareOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [summaryMd, setSummaryMd] = useState(recording.summary_md || "");
@@ -192,15 +203,9 @@ export function SummaryViewerDialog({
               שתף ללקוח
             </Button>
             {recording.summary_file_url && !editing && (
-              <Button size="sm" variant="outline" asChild>
-                <a
-                  href={recording.summary_file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Download className="h-4 w-4 ml-1" />
-                  הורד Word
-                </a>
+              <Button size="sm" variant="outline" onClick={downloadDocx}>
+                <Download className="h-4 w-4 ml-1" />
+                הורד Word
               </Button>
             )}
           </div>
@@ -243,14 +248,13 @@ export function SummaryViewerDialog({
                     <>
                       {" "}
                       ניתן{" "}
-                      <a
-                        href={recording.summary_file_url}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
+                        onClick={downloadDocx}
                         className="text-primary underline"
                       >
                         להוריד את קובץ ה-Word
-                      </a>{" "}
+                      </button>{" "}
                       או לכתוב סיכום כאן.
                     </>
                   )}

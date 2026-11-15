@@ -6,6 +6,7 @@ import {
   type ManagerMode,
 } from "../../../../supabase/functions/_shared/manager-round/modes.ts";
 import { OpenFindingsList } from "./OpenFindingsList";
+import { RunChecksNow } from "./RunChecksNow";
 
 const MODE_TEXT: Record<ManagerMode, { label: string; hint: string }> = {
   off: { label: "כבוי", hint: "כרמן לא בודקת ולא שולחת דבר." },
@@ -66,6 +67,7 @@ export function ManagerModeSection({
           </div>
         ))}
       </RadioGroup>
+      <RunChecksNow />
       <OpenFindingsList />
     </div>
   );

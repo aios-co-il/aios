@@ -26,7 +26,7 @@ const tenant = (
 
 Deno.test("round", async (t) => {
   await t.step(
-    "tenantsToRun: every tenant not off, never-run and oldest first; a named one always",
+    "tenantsToRun: every tenant not off (no stored mode is off), never-run and oldest first; a named one always",
     () => {
       const tenants = [
         tenant("b", "team", "2026-11-01T07:00:00Z"),
@@ -36,7 +36,7 @@ Deno.test("round", async (t) => {
       ];
       assertEquals(
         tenantsToRun(tenants, { tenantId: null }).map((t) => t.tenant_id),
-        ["a", "c", "b"],
+        ["c", "b"],
       );
       assertEquals(
         tenantsToRun(tenants, { tenantId: "off" }).map((t) => t.tenant_id),
@@ -49,7 +49,7 @@ Deno.test("round", async (t) => {
     "runRound reports each tenant and keeps going after one fails",
     async () => {
       const w = world({
-        tenants: [tenant("t1", null, null), tenant("t2", "off", null)],
+        tenants: [tenant("t1", "observe", null), tenant("t2", "off", null)],
         failOn: "findings",
       });
       const report = await runRound(deps(w), request);
@@ -64,7 +64,7 @@ Deno.test("round", async (t) => {
     "runRound logs a lease failure and records it in heartbeat_logs",
     async () => {
       const w = world({
-        tenants: [tenant("t1", null, null)],
+        tenants: [tenant("t1", "observe", null)],
         failOn: "lease",
       });
       const { result, logged } = await withConsoleErrors(() =>

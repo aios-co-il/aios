@@ -15,6 +15,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { isSeoReportSource } from "@/lib/seoReports";
 import { buildSeoReportTenantIds, pickSeoSyncDomain } from "@/lib/seoDomain";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import {
+  ADS_SYNC_FUNCTIONS,
+  isAdsSyncTable,
+  planSyncPieces,
+  syncAdsTableRange,
+} from "@/lib/adsRangeSync/syncAdsTableRange";
+import { rangeSyncFailureMessage } from "@/lib/adsRangeSync/rangeSyncFailureMessage";
 
 interface CategoryTable {
   id: string;
@@ -31,13 +38,26 @@ interface Props {
 }
 
 const FN_BY_TYPE: Record<string, string> = {
+  ...ADS_SYNC_FUNCTIONS,
   google_analytics: "sync-google-analytics-data",
-  facebook_ecommerce: "sync-facebook-ecommerce",
-  facebook_insights: "sync-facebook-insights",
-  google_ads: "sync-google-ads-data",
   google_search_console: "sync-google-search-console-data",
   ahrefs: "sync-ahrefs-data",
 };
+
+/**
+ * An ads report has no selected range here, so it syncs the legacy 120 days
+ * in 30-day requests: one 120-day request outlasts the edge limit on a large
+ * account.
+ */
+async function syncAdsTableInPieces(table: CategoryTable): Promise<void> {
+  const result = await syncAdsTableRange(
+    table,
+    planSyncPieces({ filter: "all" }),
+  );
+  if (result.failure) {
+    throw new Error(rangeSyncFailureMessage(result));
+  }
+}
 
 async function runWithConcurrency<T>(
   items: T[],
@@ -462,6 +482,12 @@ export function CategorySyncControl({ category, tables }: Props) {
           return;
         }
 
+        if (isAdsSyncTable(t)) {
+          await syncAdsTableInPieces(t);
+          success++;
+          return;
+        }
+
         // Build per-integration body. Ahrefs requires a config object with target+dataType.
         const body: Record<string, any> = { tableId: t.id, table_id: t.id };
         if (t.integration_type === "ahrefs") {
@@ -481,6 +507,10 @@ export function CategorySyncControl({ category, tables }: Props) {
         console.error(`[CategorySyncControl] sync failed for ${t.name}:`, e);
         failed++;
       } finally {
+        // A failed ads sync still keeps the pieces written before it.
+        void queryClient.invalidateQueries({
+          queryKey: ["crm-records", t.id],
+        });
         setProgress((p) => ({ ...p, done: p.done + 1 }));
       }
     });
