@@ -1,5 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
+  coveredFromFetched,
   ELEMENTOR_MAX_LOOKBACK_DAYS,
   elementorLookback,
 } from "./elementor-lookback.ts";
@@ -49,4 +50,32 @@ Deno.test("elementorLookback", async (t) => {
     assertEquals(lookback.coveredFrom, today);
     assert(keptByFetch("2026-11-15 00:00:00", lookback.days, lateEvening));
   });
+});
+
+Deno.test("coveredFromFetched", async (t) => {
+  await t.step("a complete fetch keeps the lookback's coverage", () => {
+    assertEquals(
+      coveredFromFetched("2026-09-16", {
+        truncated: false,
+        submissions: [{ created_at: "2026-10-01 10:00:00" }],
+      }),
+      "2026-09-16",
+    );
+  });
+
+  await t.step(
+    "a fetch cut at the page cap covers only the days after its oldest submission",
+    () => {
+      assertEquals(
+        coveredFromFetched("2026-09-16", {
+          truncated: true,
+          submissions: [
+            { created_at: "2026-11-14 09:00:00" },
+            { created_at: "2026-10-20 18:00:00" },
+          ],
+        }),
+        "2026-10-21",
+      );
+    },
+  );
 });

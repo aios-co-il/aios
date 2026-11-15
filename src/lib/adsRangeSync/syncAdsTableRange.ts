@@ -2,6 +2,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import {
+  hasBoundedRange,
   legacySyncWindow,
   resolveSyncWindow,
   splitSyncWindow,
@@ -75,15 +76,18 @@ export function adsSyncLabel(table: AdsSyncTable): string | null {
  * The requests that sync `selection`: its window in pieces of at most 30 days,
  * newest first. A selection with no bounded range ("all", an unfinished custom
  * range) syncs the legacy 120 days the same way, since one 120-day request
- * outlasts the edge limit on a large account.
+ * outlasts the edge limit on a large account. A bounded range with no day up
+ * to today (all in the future) plans no request.
  */
 export function planSyncPieces(
   selection: SyncDateSelection,
   now: Date = new Date(),
 ): Array<SyncWindow> {
-  return splitSyncWindow(
-    resolveSyncWindow(selection, now) ?? legacySyncWindow(now),
-  );
+  if (!hasBoundedRange(selection)) {
+    return splitSyncWindow(legacySyncWindow(now));
+  }
+  const window = resolveSyncWindow(selection, now);
+  return window ? splitSyncWindow(window) : [];
 }
 
 /**

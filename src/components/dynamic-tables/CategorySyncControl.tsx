@@ -507,6 +507,10 @@ export function CategorySyncControl({ category, tables }: Props) {
         console.error(`[CategorySyncControl] sync failed for ${t.name}:`, e);
         failed++;
       } finally {
+        // A failed ads sync still keeps the pieces written before it.
+        void queryClient.invalidateQueries({
+          queryKey: ["crm-records", t.id],
+        });
         setProgress((p) => ({ ...p, done: p.done + 1 }));
       }
     });

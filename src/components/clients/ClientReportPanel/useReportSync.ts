@@ -50,30 +50,35 @@ export function useReportSync(
     },
   });
 
+  // Hook-level callbacks still run after the card closes; mutate-level ones
+  // do not, and the reload must not be skipped.
+  const adsReportSync = useMutation({
+    mutationFn: () => adsSync.syncAsync({ tables: [table], selection }),
+    onSuccess: ([result]) => {
+      if (result?.failure) {
+        toast.error(rangeSyncFailureMessage(result));
+      }
+    },
+    onError: (error) => {
+      console.error("Report sync failed:", error);
+      toast.error(error.message || "סנכרון הדוח נכשל");
+    },
+    // Pieces written before a failure stay, so reload either way.
+    onSettled: reloadReport,
+  });
+
   /** An ads report syncs the picked window; any other source its own. */
   function sync() {
-    if (!isAdsSyncTable(table)) {
+    if (isAdsSyncTable(table)) {
+      adsReportSync.mutate();
+    } else {
       sourceSync.mutate();
-      return;
     }
-    adsSync.sync(
-      { tables: [table], selection },
-      {
-        onSuccess: ([result]) => {
-          if (result?.failure) {
-            toast.error(rangeSyncFailureMessage(result));
-          }
-        },
-        onError: () => toast.error("סנכרון הדוח נכשל"),
-        // Pieces written before a failure stay, so reload either way.
-        onSettled: () => reloadReport(),
-      },
-    );
   }
 
   return {
     sync,
-    syncing: sourceSync.isPending || adsSync.syncing,
+    syncing: sourceSync.isPending || adsReportSync.isPending,
     progressLabel: adsSync.progressLabel,
   };
 }

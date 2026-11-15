@@ -49,6 +49,29 @@ describe("planSyncPieces", () => {
     });
     expect(pieces[3].startDate).toBe("2026-07-19");
   });
+
+  it("plans an unfinished custom range as the legacy 120 days", () => {
+    const pieces = planSyncPieces(
+      { filter: "custom", customStart: "2026-11-01", customEnd: null },
+      NOW,
+    );
+
+    expect(pieces).toHaveLength(4);
+    expect(pieces[3].startDate).toBe("2026-07-19");
+  });
+
+  it("plans no request for a range entirely in the future", () => {
+    expect(
+      planSyncPieces(
+        {
+          filter: "custom",
+          customStart: "2026-12-01",
+          customEnd: "2026-12-05",
+        },
+        NOW,
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("syncAdsTableRange", () => {

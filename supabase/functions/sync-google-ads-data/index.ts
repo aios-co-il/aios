@@ -16,7 +16,8 @@ import {
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
 import { jerusalemToday, toDateString } from "../_shared/report-sync-window.ts";
-import { elementorLookback } from "./elementor-lookback.ts";
+import { coveredFromFetched, elementorLookback } from "./elementor-lookback.ts";
+import { carryStoredVerifiedLeads } from "./stored-verified-leads.ts";
 import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
@@ -1038,6 +1039,8 @@ Deno.serve(async (req) => {
     // "Conversions" and real form submissions on the landing page.
     // ============================================================
     let verifiedSiteUrl: string | null = null;
+    // Oldest day the Elementor check annotated; older records keep stored counts.
+    let verifiedFrom: string | null = null;
     try {
       // Find an active WordPress site for this client (table.client_id)
       const tableClientId = (table as any).client_id as string | null;
@@ -1067,6 +1070,11 @@ Deno.serve(async (req) => {
             subData?.success &&
             Array.isArray(subData.submissions)
           ) {
+            const coveredFrom = coveredFromFetched(
+              lookback.coveredFrom,
+              subData,
+            );
+            verifiedFrom = coveredFrom;
             // Helper: extract URL slug (path segment) from referer
             const extractSlug = (referer: string | null): string => {
               if (!referer) return "";
@@ -1175,7 +1183,9 @@ Deno.serve(async (req) => {
             for (const rec of records) {
               if ((rec.entity_level || "campaign") !== "campaign") continue;
               // Days older than the fetched submissions stay unannotated, not 0.
-              if (rec.date < lookback.coveredFrom) continue;
+              if (rec.date < coveredFrom) {
+                continue;
+              }
               // Strategy 1: manual FORM mapping (PRIMARY)
               const mappedForms = campaignIdToForms.get(rec.campaign_id) || [];
               if (mappedForms.length > 0) {
@@ -1355,6 +1365,15 @@ Deno.serve(async (req) => {
       adset: byLevelCount("adset"),
       ad: byLevelCount("ad"),
     };
+
+    if (verifiedFrom) {
+      await carryStoredVerifiedLeads(supabaseAdmin, {
+        tableId: table_id,
+        tenantId: tableTenantId,
+        records,
+        coveredFrom: verifiedFrom,
+      });
+    }
 
     // Admin client bypasses RLS; what may be replaced (table_id-only): see syncAdsWindow.
     const outcome = await syncAdsWindow(

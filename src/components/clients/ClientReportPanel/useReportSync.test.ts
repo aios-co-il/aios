@@ -24,10 +24,12 @@ const LAST_7_DAYS = { filter: "last_7_days" };
 
 /** Mounts the hook for `table` with the card on the last 7 days. */
 function mountReportSync(table: { id: string; integration_type: string }) {
-  const { wrapper } = createTestQueryHarness();
-  return renderHook(() => useReportSync(table, "tenant-1", null, LAST_7_DAYS), {
-    wrapper,
-  });
+  const harness = createTestQueryHarness();
+  const view = renderHook(
+    () => useReportSync(table, "tenant-1", null, LAST_7_DAYS),
+    { wrapper: harness.wrapper },
+  );
+  return { ...view, queryClient: harness.queryClient };
 }
 
 beforeEach(() => {
@@ -67,6 +69,23 @@ describe("useReportSync", () => {
       },
     });
     expect(mocks.syncReportTable).not.toHaveBeenCalled();
+  });
+
+  it("reloads the report after an ads sync even when the card closed meanwhile", async () => {
+    const { result, unmount, queryClient } = mountReportSync({
+      id: "table-1",
+      integration_type: "facebook_insights",
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.sync());
+    unmount();
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["client-report-data", "table-1"],
+      }),
+    );
   });
 
   it("keeps a non-ads report on its own source sync", async () => {

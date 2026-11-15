@@ -45,6 +45,35 @@ export function elementorLookback(
   };
 }
 
+/**
+ * The oldest fully covered day once the fetch result is known. When
+ * fetch-elementor-submissions hit its page cap inside the lookback
+ * (`truncated`), the oldest fetched day is partial, so coverage starts the day
+ * after it; earlier days keep their stored counts (stored-verified-leads.ts).
+ */
+export function coveredFromFetched(
+  coveredFrom: string,
+  fetched: {
+    truncated?: unknown;
+    submissions: Array<{ created_at?: unknown }>;
+  },
+): string {
+  if (fetched.truncated !== true) {
+    return coveredFrom;
+  }
+  const days = fetched.submissions
+    .map((sub) =>
+      typeof sub.created_at === "string" ? sub.created_at.slice(0, 10) : "",
+    )
+    .filter(Boolean)
+    .sort();
+  if (!days.length) {
+    return coveredFrom;
+  }
+  const firstComplete = shiftDateString(days[0], 1);
+  return firstComplete > coveredFrom ? firstComplete : coveredFrom;
+}
+
 /** Whole calendar days from `from` to `to` (both `yyyy-MM-dd`). */
 function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / 86400000);

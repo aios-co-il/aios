@@ -899,13 +899,9 @@ export default function DynamicTableView({
   // Facebook insights, Facebook ecommerce and Direct API Google Ads sync the
   // range this report shows, 30 days per request.
   const adsRangeSync = useAdsRangeSync({ tenantId });
-  /** Syncs the range this report shows (30 days per request); rejects an unfinished custom range. */
+  /** Syncs the range this report shows (30 days per request; planSyncPieces handles an unfinished custom range). */
   function syncShownRange() {
     if (!table?.id) {
-      return;
-    }
-    if (!isDateRangeReadyForSync) {
-      toast.error("יש לבחור טווח תאריכים מלא לפני סנכרון");
       return;
     }
     adsRangeSync.sync({

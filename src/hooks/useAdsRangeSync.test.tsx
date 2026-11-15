@@ -2,7 +2,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
 import type { AdsRangeSyncResult } from "@/lib/adsRangeSync/syncAdsTableRange";
-import { rangeSyncProgressLabel, useAdsRangeSync } from "./useAdsRangeSync";
+import { toast } from "sonner";
+import {
+  NO_SYNC_DAYS_MESSAGE,
+  rangeSyncProgressLabel,
+  useAdsRangeSync,
+} from "./useAdsRangeSync";
 
 type Call = { name: string; body: Record<string, string> };
 
@@ -175,6 +180,29 @@ describe("useAdsRangeSync", () => {
       { table_id: "table-2", start_date: "2026-08-18", end_date: "2026-09-16" },
       { table_id: "table-2", start_date: "2026-07-19", end_date: "2026-08-17" },
     ]);
+  });
+
+  it("sends nothing and says why for a range that has not started yet", async () => {
+    const { wrapper } = createTestQueryHarness();
+    const { result } = renderHook(
+      () => useAdsRangeSync({ tenantId: "tenant-1" }),
+      { wrapper },
+    );
+    act(() => {
+      result.current.sync({
+        tables: [TABLE],
+        selection: {
+          filter: "custom",
+          customStart: "2099-01-01",
+          customEnd: "2099-01-05",
+        },
+      });
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(NO_SYNC_DAYS_MESSAGE),
+    );
+    expect(state.calls).toEqual([]);
   });
 });
 

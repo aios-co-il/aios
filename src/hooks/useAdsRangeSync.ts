@@ -18,6 +18,9 @@ export type AdsRangeSyncVariables = {
 
 type Progress = { done: number; total: number };
 
+/** Why a range with no day up to today (planSyncPieces plans none) syncs nothing. */
+export const NO_SYNC_DAYS_MESSAGE = "אין ימים לסנכרן: הטווח שנבחר עוד לא התחיל";
+
 /**
  * Syncs ads report tables for the date range the screen shows: 30 days per
  * request, newest first, one table's pieces after one another (tables run
@@ -39,6 +42,9 @@ export function useAdsRangeSync(options: {
   const mutation = useMutation({
     mutationFn: ({ tables, selection }: AdsRangeSyncVariables) => {
       const pieces = planSyncPieces(selection);
+      if (!pieces.length) {
+        throw new Error(NO_SYNC_DAYS_MESSAGE);
+      }
       const total = pieces.length * tables.length;
       let done = 0;
       setProgress({ done, total });
@@ -60,7 +66,9 @@ export function useAdsRangeSync(options: {
     },
     onError: (error) => {
       console.error("[useAdsRangeSync] sync failed", error);
-      if (notify) {
+      if (notify && error.message === NO_SYNC_DAYS_MESSAGE) {
+        toast.error(NO_SYNC_DAYS_MESSAGE);
+      } else if (notify) {
         toast.error(`הסנכרון נכשל: ${error.message}`);
       }
     },

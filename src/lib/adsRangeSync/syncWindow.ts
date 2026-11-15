@@ -32,13 +32,7 @@ export function resolveSyncWindow(
   selection: SyncDateSelection,
   now: Date = new Date(),
 ): SyncWindow | null {
-  if (selection.filter === "all") {
-    return null;
-  }
-  if (
-    selection.filter === "custom" &&
-    !(selection.customStart && selection.customEnd)
-  ) {
+  if (!hasBoundedRange(selection)) {
     return null;
   }
   const { startDate, endDate } = getDashboardDateRange(
@@ -53,6 +47,17 @@ export function resolveSyncWindow(
   const today = latestSyncableDay(now);
   const end = endDate > today ? today : endDate;
   return startDate > end ? null : { startDate, endDate: end };
+}
+
+/** False for "all" and for a custom range missing its start or end. */
+export function hasBoundedRange(selection: SyncDateSelection): boolean {
+  if (selection.filter === "all") {
+    return false;
+  }
+  return (
+    selection.filter !== "custom" ||
+    !!(selection.customStart && selection.customEnd)
+  );
 }
 
 /**
