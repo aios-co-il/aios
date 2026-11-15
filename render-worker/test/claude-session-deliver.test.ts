@@ -1,0 +1,98 @@
+import { describe, expect, test } from "vitest";
+import { deliverNext } from "../src/claude-session/deliver.ts";
+
+/** A queue holding the given claimed rows, recording what the worker writes back. */
+function fakeDb(claimed: Array<object>) {
+  const updates: Array<{ table: string; query: string; patch: object }> = [];
+  const claims: Array<object | undefined> = [];
+  return {
+    updates,
+    claims,
+    db: {
+      rpc: async (_name: string, args?: object) => {
+        claims.push(args);
+        return claimed.splice(0, 1);
+      },
+      update: async (table: string, query: string, patch: object) => {
+        updates.push({ table, query, patch });
+        return [];
+      },
+    },
+  };
+}
+
+const row = {
+  id: "11111111-1111-4111-8111-111111111111",
+  cloud_session_id: "session_01AbC",
+  prompt: "[AIOS] hello",
+};
+
+describe("deliverNext", () => {
+  test("an empty queue does no work", async () => {
+    const { db, updates } = fakeDb([]);
+    const sent: Array<object> = [];
+    const worked = await deliverNext({
+      db,
+      workerId: "w1",
+      send: async (args) => void sent.push(args),
+    });
+    expect(worked).toBe(false);
+    expect(sent).toEqual([]);
+    expect(updates).toEqual([]);
+  });
+
+  test("a claimed follow-up is sent and its prompt cleared", async () => {
+    const { db, updates, claims } = fakeDb([row]);
+    const sent: Array<object> = [];
+    const worked = await deliverNext({
+      db,
+      workerId: "w1",
+      send: async (args) => void sent.push(args),
+    });
+    expect(worked).toBe(true);
+    expect(claims).toEqual([{ p_worker: "w1" }]);
+    expect(sent).toEqual([
+      { sessionId: "session_01AbC", prompt: "[AIOS] hello" },
+    ]);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].table).toBe("claude_session_messages");
+    // Only a row still in "sending" is closed: the edge function may have failed it meanwhile.
+    expect(updates[0].query).toBe(`id=eq.${row.id}&status=eq.sending`);
+    expect(updates[0].patch).toMatchObject({
+      status: "sent",
+      error: null,
+      prompt: null,
+    });
+  });
+
+  test("a failed send is recorded as failed with the reason", async () => {
+    const { db, updates } = fakeDb([row]);
+    const worked = await deliverNext({
+      db,
+      workerId: "w1",
+      send: async () => {
+        throw new Error("Session expired. Please run /login to sign in again.");
+      },
+    });
+    expect(worked).toBe(true);
+    expect(updates[0].patch).toMatchObject({
+      status: "failed",
+      error: "Session expired. Please run /login to sign in again.",
+      prompt: null,
+    });
+  });
+
+  test("a row without a prompt fails without calling the CLI", async () => {
+    const { db, updates } = fakeDb([{ ...row, prompt: null }]);
+    let called = false;
+    await deliverNext({
+      db,
+      workerId: "w1",
+      send: async () => {
+        called = true;
+      },
+    });
+    expect(called).toBe(false);
+    expect(updates[0].patch).toMatchObject({ status: "failed" });
+  });
+});

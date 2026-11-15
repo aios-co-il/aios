@@ -5292,6 +5292,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      claude_session_messages: {
+        Row: {
+          claimed_at: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at: string;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          prompt: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker: string | null;
+        };
+        Insert: {
+          claimed_at?: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at?: string;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          prompt?: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker?: string | null;
+        };
+        Update: {
+          claimed_at?: string | null;
+          cloud_session_id?: string;
+          conversation_id?: string;
+          created_at?: string;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          prompt?: string | null;
+          status?: string;
+          tenant_id?: string;
+          via?: string;
+          worker?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "claude_session_messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "claude_session_messages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       client_auto_send_opt_ins: {
         Row: {
           client_id: string;
@@ -17601,6 +17661,29 @@ export type Database = {
           dispatch_id: string;
           existing_session_url: string;
         }[];
+      };
+      claim_claude_session_message: {
+        Args: { p_max_age_seconds?: number; p_worker?: string };
+        Returns: {
+          claimed_at: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at: string;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          prompt: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker: string | null;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "claude_session_messages";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       claim_client_retention_delivery: {
         Args: { p_tenant_id: string };

@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.ts",
+    "start:claude-session": "node src/claude-session/index.ts",
     "test": "cd .. && vitest run --project node render-worker"
   }
 }

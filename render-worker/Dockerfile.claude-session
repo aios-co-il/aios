@@ -1,0 +1,16 @@
+# The Claude session worker (src/claude-session): Node and the Claude CLI, nothing of the
+# render worker's ffmpeg or Remotion. Build from the repo root, like the render worker.
+FROM node:22-bookworm-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/*
+WORKDIR /opt/aios
+COPY render-worker/package.json render-worker/package.json
+COPY render-worker/src render-worker/src
+RUN chown -R node:node /opt/aios
+USER node
+# The CLI installs to ~/.local/bin and keeps its sign-in under ~/.claude (mount that as a volume).
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/home/node/.local/bin:${PATH}"
+WORKDIR /opt/aios/render-worker
+CMD ["node", "src/claude-session/index.ts"]

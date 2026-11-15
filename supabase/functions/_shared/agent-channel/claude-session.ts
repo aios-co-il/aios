@@ -1,0 +1,118 @@
+/**
+ * Claude Direct follow-ups into the cloud session a conversation already has (AIO-600).
+ *
+ * The routine's fire API starts a new session on every call. A follow-up is instead queued in
+ * claude_session_messages, and the claude-session worker (render-worker/src/claude-session),
+ * signed in to the Claude account, sends it into the open session. The send waits for the
+ * worker's verdict, so a follow-up the worker did not deliver starts a new session at once.
+ */
+/** How long a queued follow-up waits for a worker to claim it before a new session starts. */
+export const CLAIM_WAIT_MS = 8_000;
+/** How long a claimed follow-up may take; longer than the worker's own send timeout. */
+export const SEND_WAIT_MS = 20_000;
+const POLL_MS = 500;
+/** A command-line argument holds about 128 KB; larger prompts start a new session. */
+const MAX_PROMPT_BYTES = 100_000;
+const DEFAULT_IDLE_HOURS = 24;
+const CLOUD_SESSION_ID = /^session_[A-Za-z0-9]+$/;
+
+type Env = Record<string, string | undefined>;
+
+/** Whether this environment runs a claude-session worker (edge secret CLAUDE_SESSION_WORKER=1). */
+export function continuesSessions(env: Env): boolean {
+  return env.CLAUDE_SESSION_WORKER === "1";
+}
+
+/** How long after its last message a cloud session still takes follow-ups. */
+export function sessionIdleLimitMs(env: Env): number {
+  const hours = Number(env.CLAUDE_SESSION_IDLE_HOURS);
+  return (hours > 0 ? hours : DEFAULT_IDLE_HOURS) * 3_600_000;
+}
+
+/**
+ * The cloud session a routine fire opened, as the id the Claude CLI takes (session_…).
+ * The fire answers with a cse_… id and a claude.ai/code/<id> URL.
+ */
+export function cloudSessionIdOf(fire: {
+  claude_code_session_id?: unknown;
+  claude_code_session_url?: unknown;
+}): string | null {
+  const raw =
+    typeof fire.claude_code_session_id === "string" &&
+    fire.claude_code_session_id
+      ? fire.claude_code_session_id
+      : lastPathSegment(fire.claude_code_session_url);
+  const id = raw.replace(/^cse_/, "session_");
+  return CLOUD_SESSION_ID.test(id) ? id : null;
+}
+
+/** The last path segment of a URL, "" when the value is not a URL. */
+function lastPathSegment(url: unknown): string {
+  if (typeof url !== "string" || !URL.canParse(url)) {
+    return "";
+  }
+  return new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "";
+}
+
+/** Whether a prompt fits the worker's command line. */
+export function fitsFollowup(prompt: string): boolean {
+  return new TextEncoder().encode(prompt).length <= MAX_PROMPT_BYTES;
+}
+
+export type MessageStatus =
+  "queued" | "sending" | "sent" | "failed" | "cancelled";
+
+/** The queue operations a follow-up needs; faked in tests. */
+export type FollowupStore = {
+  /** Queues the prompt and returns the row id. */
+  queue(prompt: string): Promise<string>;
+  status(id: string): Promise<MessageStatus | null>;
+  /** Cancels a row no worker claimed. False when a worker claimed it first. */
+  cancelQueued(id: string): Promise<boolean>;
+  /** Fails a claimed row whose worker gave no verdict. False when the verdict just arrived. */
+  failSending(id: string): Promise<boolean>;
+};
+
+/**
+ * Queues a follow-up and waits for the worker's verdict. True when the worker sent it into the
+ * open session; false when it did not, and then the row can no longer be sent, so the caller
+ * may start a new session without a second delivery.
+ */
+export async function deliverFollowup(args: {
+  store: FollowupStore;
+  prompt: string;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<unknown>;
+}): Promise<boolean> {
+  const now = args.now ?? Date.now;
+  const sleep =
+    args.sleep ??
+    ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const id = await args.store.queue(args.prompt);
+  const queuedAt = now();
+
+  while (true) {
+    const status = await args.store.status(id);
+    if (status === "sent") {
+      return true;
+    }
+    if (status !== "queued" && status !== "sending") {
+      return false;
+    }
+    const waited = now() - queuedAt;
+    if (status === "queued" && waited >= CLAIM_WAIT_MS) {
+      if (await args.store.cancelQueued(id)) {
+        return false;
+      }
+    } else if (waited >= CLAIM_WAIT_MS + SEND_WAIT_MS) {
+      if (await args.store.failSending(id)) {
+        console.error(
+          `[claude-session] follow-up ${id}: the worker claimed it and gave no verdict`,
+        );
+        return false;
+      }
+    } else {
+      await sleep(POLL_MS);
+    }
+  }
+}

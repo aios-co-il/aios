@@ -43,6 +43,20 @@ import {
 import { codexOpenAiApiEnabled, runtimeEnv } from "../carmen-brain-flags.ts";
 import { launchCodexViaOpenAiApi } from "./codex-api.ts";
 import { sendEnv } from "./brain-env.ts";
+import {
+  cloudSessionIdOf,
+  continuesSessions,
+  deliverFollowup,
+  fitsFollowup,
+  sessionIdleLimitMs,
+} from "./claude-session.ts";
+import {
+  findOpenCloudSession,
+  followupStore,
+  recordOpenedCloudSession,
+  type SessionScope,
+} from "./claude-session-store.ts";
+import type { DbClient } from "../supabase-clients.ts";
 
 const MAX_TEXT = 100_000;
 
@@ -285,10 +299,11 @@ export async function launchClaude(
   const env = await sendEnv(ctx);
   const routineId = env.CLAUDE_ROUTINE_ID || "";
   const routineToken = env.CLAUDE_ROUTINE_TOKEN || "";
-  if (!routineId || !routineToken)
+  if (!routineId || !routineToken) {
     throw new Error(
       "Claude Direct is not configured (CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN).",
     );
+  }
 
   const sb = serviceClient();
   const session = await upsertRunningSession(sb, {
@@ -304,52 +319,37 @@ export async function launchClaude(
     conversationId: ctx.conversationId,
     tenantId: ctx.tenantId,
   });
-  const prompt =
-    (extraPrompt ||
-      wrapDirectPrompt({
-        origin: "claude",
-        userText: ctx.content,
-        history: ctx.history,
-        attachments: ctx.attachments,
-      })) +
-    buildCallbackInstructions({
-      origin: "claude",
-      conversationId: ctx.conversationId,
-      sessionId: session.id,
-      tenantId: ctx.tenantId,
-      token,
-    });
+  const callback = buildCallbackInstructions({
+    origin: "claude",
+    conversationId: ctx.conversationId,
+    sessionId: session.id,
+    tenantId: ctx.tenantId,
+    token,
+  });
+  const scope = { tenantId: ctx.tenantId, conversationId: ctx.conversationId };
 
-  const body = prompt.length > 65_536 ? prompt.slice(0, 65_536) : prompt;
-  const resp = await fetch(
-    `https://api.anthropic.com/v1/claude_code/routines/${routineId}/fire`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${routineToken}`,
-        "anthropic-version": "2023-06-01",
-        "anthropic-beta":
-          Deno.env.get("CLAUDE_ROUTINE_BETA") ||
-          "experimental-cc-routine-2026-04-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: body }),
-    },
-  );
-  const raw = await resp.text();
-  if (!resp.ok) {
-    await completeSession(sb, session.id, "failed");
-    throw new Error(`Claude routine fire ${resp.status}: ${raw.slice(0, 300)}`);
-  }
-  let data: any = {};
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  const url = String(
-    data?.claude_code_session_url || data?.claude_code_session_id || "",
-  );
+  // A one-off prompt (a parliament seat, a meeting summary) always gets its own session.
+  const continuedIn = extraPrompt
+    ? null
+    : await continueOpenClaudeSession({ sb, env, scope, ctx, callback });
+  const url = continuedIn
+    ? `https://claude.ai/code/${continuedIn}`
+    : await openClaudeSession({
+        sb,
+        scope,
+        sessionId: session.id,
+        routineId,
+        routineToken,
+        prompt:
+          (extraPrompt ||
+            wrapDirectPrompt({
+              origin: "claude",
+              userText: ctx.content,
+              history: ctx.history,
+              attachments: ctx.attachments,
+            })) + callback,
+      });
+
   await upsertRunningSession(sb, {
     tenant_id: ctx.tenantId,
     conversation_id: ctx.conversationId,
@@ -368,6 +368,7 @@ export async function launchClaude(
       conversation_id: ctx.conversationId,
       session_id: session.id,
       external_url: url,
+      continued: Boolean(continuedIn),
     },
   });
   return {
@@ -377,10 +378,106 @@ export async function launchClaude(
     session_id: session.id,
     status: "waiting_external",
     stream: false,
-    accepted_message: acceptedMessageFor("claude", url),
+    accepted_message: acceptedMessageFor("claude", url, {
+      reused: Boolean(continuedIn),
+    }),
     external_url: url || null,
     capabilities: capabilitiesForProvider("claude"),
   };
+}
+
+/**
+ * Sends this message into the cloud session the conversation already has. Returns that
+ * session's id, or null when there is none to continue or the worker did not deliver it.
+ */
+async function continueOpenClaudeSession(args: {
+  sb: DbClient;
+  env: Record<string, string | undefined>;
+  scope: SessionScope;
+  ctx: SendContext;
+  callback: string;
+}): Promise<string | null> {
+  if (!continuesSessions(args.env)) {
+    return null;
+  }
+  const cloudSessionId = await findOpenCloudSession(
+    args.sb,
+    args.scope,
+    sessionIdleLimitMs(args.env),
+  );
+  if (!cloudSessionId) {
+    return null;
+  }
+  // The open session remembers the thread, so the follow-up carries no pasted history.
+  const prompt =
+    wrapDirectPrompt({
+      origin: "claude",
+      userText: args.ctx.content,
+      history: [],
+      attachments: args.ctx.attachments,
+    }) + args.callback;
+  if (!fitsFollowup(prompt)) {
+    return null;
+  }
+  const sent = await deliverFollowup({
+    store: followupStore(args.sb, args.scope, cloudSessionId),
+    prompt,
+  });
+  return sent ? cloudSessionId : null;
+}
+
+/** Starts a new cloud session through the routine and returns its URL ("" when none came back). */
+async function openClaudeSession(args: {
+  sb: DbClient;
+  scope: SessionScope;
+  sessionId: string;
+  routineId: string;
+  routineToken: string;
+  prompt: string;
+}): Promise<string> {
+  const resp = await fetch(
+    `https://api.anthropic.com/v1/claude_code/routines/${args.routineId}/fire`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${args.routineToken}`,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta":
+          Deno.env.get("CLAUDE_ROUTINE_BETA") ||
+          "experimental-cc-routine-2026-04-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: args.prompt.slice(0, 65_536) }),
+    },
+  );
+  const raw = await resp.text();
+  if (!resp.ok) {
+    await completeSession(args.sb, args.sessionId, "failed");
+    throw new Error(`Claude routine fire ${resp.status}: ${raw.slice(0, 300)}`);
+  }
+  const fire = parseRoutineFire(raw);
+  const cloudSessionId = cloudSessionIdOf(fire);
+  if (cloudSessionId) {
+    // The session is already running; without this record the next message only starts a new one.
+    await recordOpenedCloudSession(args.sb, args.scope, cloudSessionId).catch(
+      (error) => console.error("[claude-session]", error),
+    );
+  }
+  const url = fire.claude_code_session_url || fire.claude_code_session_id;
+  return typeof url === "string" ? url : "";
+}
+
+/** The routine fire answer; {} when it is not a JSON object. */
+function parseRoutineFire(raw: string): {
+  claude_code_session_id?: unknown;
+  claude_code_session_url?: unknown;
+} {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export async function launchChatgpt(ctx: SendContext): Promise<SendResult> {
