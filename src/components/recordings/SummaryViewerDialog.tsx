@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useRegenerateRecordingSummary } from "@/hooks/useRegenerateRecordingSummary";
+import { useOpenableRecordingUrl } from "@/hooks/useOpenableRecordingUrl";
 import {
   ShareSummaryDialog,
   type ShareableRecording,
@@ -56,6 +57,7 @@ export function SummaryViewerDialog({
   onSaved,
 }: SummaryViewerDialogProps) {
   const queryClient = useQueryClient();
+  const docxUrl = useOpenableRecordingUrl(recording.summary_file_url);
   const [shareOpen, setShareOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [summaryMd, setSummaryMd] = useState(recording.summary_md || "");
@@ -193,11 +195,7 @@ export function SummaryViewerDialog({
             </Button>
             {recording.summary_file_url && !editing && (
               <Button size="sm" variant="outline" asChild>
-                <a
-                  href={recording.summary_file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a href={docxUrl} target="_blank" rel="noreferrer">
                   <Download className="h-4 w-4 ml-1" />
                   הורד Word
                 </a>
@@ -244,7 +242,7 @@ export function SummaryViewerDialog({
                       {" "}
                       ניתן{" "}
                       <a
-                        href={recording.summary_file_url}
+                        href={docxUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="text-primary underline"
