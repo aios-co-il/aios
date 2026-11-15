@@ -7,14 +7,15 @@
  */
 import {
   replacedRecordsFilter,
+  resolvePruneEnd,
   resolvePruneStart,
   type SyncWindow,
 } from "../report-sync-window.ts";
 import { CAMPAIGN_LEVEL_FILTER } from "./campaign-records.ts";
 import {
   finalizeSyncOutcome,
-  planLevelWrite,
   type LevelWritePlan,
+  planLevelWrite,
 } from "./level-plan.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./levels.ts";
 import type { SyncOutcome } from "./outcome.ts";
@@ -114,17 +115,16 @@ export async function writeAdsWindow(
     chunkSize?: number;
   },
 ): Promise<{ inserted: number; error?: string }> {
-  const pruneStart = resolvePruneStart(
-    input.window,
-    input.records.map((record) =>
-      typeof record.date === "string" ? record.date : null,
-    ),
+  const syncedDates = input.records.map((record) =>
+    typeof record.date === "string" ? record.date : null,
   );
+  const pruneStart = resolvePruneStart(input.window, syncedDates);
+  const pruneEnd = resolvePruneEnd(input.window, syncedDates);
   const { error: deleteError } = await clients.deleteClient
     .from("crm_records")
     .delete()
     .eq("table_id", input.tableId)
-    .or(replacedLevelRecordsFilter(pruneStart, input.levelsOk));
+    .or(replacedLevelRecordsFilter(pruneStart, pruneEnd, input.levelsOk));
   if (deleteError) {
     return { inserted: 0, error: `delete: ${deleteError.message || "error"}` };
   }
@@ -176,7 +176,9 @@ export async function confirmEmptyPlan(
     .limit(1);
   if (error) {
     console.error(
-      `[sync-outcome] empty-window check failed, run stays empty: ${error.message || "error"}`,
+      `[sync-outcome] empty-window check failed, run stays empty: ${
+        error.message || "error"
+      }`,
     );
     return input.plan;
   }
@@ -193,9 +195,10 @@ export async function confirmEmptyPlan(
  */
 export function replacedLevelRecordsFilter(
   pruneStart: string,
+  pruneEnd: string,
   levels: readonly AdsEntityLevel[],
 ): string {
-  const dateFilter = replacedRecordsFilter(pruneStart);
+  const dateFilter = replacedRecordsFilter(pruneStart, pruneEnd);
   const kept = ADS_LEVELS.filter((level) => levels.includes(level));
   if (kept.length === ADS_LEVELS.length) {
     return dateFilter;
