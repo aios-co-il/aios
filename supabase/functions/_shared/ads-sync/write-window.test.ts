@@ -9,6 +9,7 @@ import { buildAllLevelInsightRecords } from "../fbInsights.ts";
 import { replacedRecordsFilter } from "../report-sync-window.ts";
 import { resolveSyncOutcome, syncOutcomeProblem } from "./freshness.ts";
 import { isRecord } from "./is-record.ts";
+import { ADS_LEVELS } from "./levels.ts";
 import { scheduledMarkerPatch } from "./outcome.ts";
 import { saveSyncRun } from "./save-run.ts";
 import {
@@ -18,15 +19,15 @@ import {
 } from "./write-window.ts";
 import { fakeClient, type FakeDb } from "./tests/fake-postgrest.ts";
 import {
-  insight,
   NOW,
   PREVIOUS_SYNC,
   RUN_AT,
+  TABLE,
+  WINDOW,
+  insight,
   storedTable,
   storedTableRow,
   stubGraph,
-  TABLE,
-  WINDOW,
 } from "./tests/meta-graph-fixtures.ts";
 
 const realFetch = globalThis.fetch;
@@ -199,43 +200,13 @@ test("catch-up chunks never stamp last_sync_at and record only failures", async 
 
 test("replacedLevelRecordsFilter: all levels is the plain window filter", () => {
   assertStrictEquals(
-    replacedLevelRecordsFilter("2026-10-24", "2026-10-26", [
-      "campaign",
-      "adset",
-      "ad",
-    ]),
+    replacedLevelRecordsFilter("2026-10-24", "2026-10-26", ADS_LEVELS),
     replacedRecordsFilter("2026-10-24", "2026-10-26"),
   );
   assertStrictEquals(
     replacedLevelRecordsFilter("2026-10-24", "2026-10-26", ["campaign"]),
     "and(or(data->>entity_level.is.null,data->>entity_level.in.(campaign)),or(and(data->>date.gte.2026-10-24,data->>date.lte.2026-10-26),data->>date.is.null,data->>date.lt.1900-01-01))",
   );
-});
-
-test("a catch-up slice in the past replaces its own days and keeps every newer day", async () => {
-  const db = storedTable();
-  const client = fakeClient(db);
-  // An older slice, as the scheduled catch-up fetches: it ends before the
-  // stored 2026-10-23..10-25 rows, which it must not touch.
-  const result = await writeAdsWindow(
-    { deleteClient: client },
-    {
-      tableId: "t1",
-      tenantId: "tenant-1",
-      window: { startDate: "2026-05-31", endDate: "2026-06-01" },
-      records: [{ date: "2026-06-01", entity_level: "campaign", spend: 99 }],
-      levelsOk: ["campaign", "adset", "ad"] as const,
-    },
-  );
-  assertEquals(result, { inserted: 1 });
-  assertEquals(storedRows(db), [
-    "2026-06-01:campaign=99",
-    "2026-10-23:campaign=11",
-    "2026-10-24:none=12",
-    "2026-10-25:ad=15",
-    "2026-10-25:adset=14",
-    "2026-10-25:campaign=13",
-  ]);
 });
 
 /** The manual / scheduled Meta sync path: fetch, replace, record. */

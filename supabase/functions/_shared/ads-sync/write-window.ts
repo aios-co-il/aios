@@ -7,15 +7,14 @@
  */
 import {
   replacedRecordsFilter,
-  resolvePruneEnd,
-  resolvePruneStart,
+  resolvePruneRange,
   type SyncWindow,
 } from "../report-sync-window.ts";
 import { CAMPAIGN_LEVEL_FILTER } from "./campaign-records.ts";
 import {
   finalizeSyncOutcome,
-  type LevelWritePlan,
   planLevelWrite,
+  type LevelWritePlan,
 } from "./level-plan.ts";
 import { ADS_LEVELS, type AdsEntityLevel } from "./levels.ts";
 import type { SyncOutcome } from "./outcome.ts";
@@ -115,11 +114,10 @@ export async function writeAdsWindow(
     chunkSize?: number;
   },
 ): Promise<{ inserted: number; error?: string }> {
-  const syncedDates = input.records.map((record) =>
-    typeof record.date === "string" ? record.date : null,
+  const { pruneStart, pruneEnd } = resolvePruneRange(
+    input.window,
+    input.records,
   );
-  const pruneStart = resolvePruneStart(input.window, syncedDates);
-  const pruneEnd = resolvePruneEnd(input.window, syncedDates);
   const { error: deleteError } = await clients.deleteClient
     .from("crm_records")
     .delete()
@@ -176,9 +174,7 @@ export async function confirmEmptyPlan(
     .limit(1);
   if (error) {
     console.error(
-      `[sync-outcome] empty-window check failed, run stays empty: ${
-        error.message || "error"
-      }`,
+      `[sync-outcome] empty-window check failed, run stays empty: ${error.message || "error"}`,
     );
     return input.plan;
   }

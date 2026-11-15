@@ -1,14 +1,14 @@
 import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  jerusalemToday,
-  planScheduledSyncWindows,
-  replacedRecordsFilter,
   REPORT_MIN_SYNC_DAYS,
-  resolveAdsSyncWindow,
-  resolvePruneStart,
   SCHEDULED_CATCHUP_DAYS,
   SCHEDULED_LOOKBACK_DAYS,
   SCHEDULED_LOOKBACK_EVERY_DAYS,
+  jerusalemToday,
+  planScheduledSyncWindows,
+  replacedRecordsFilter,
+  resolveAdsSyncWindow,
+  resolvePruneStart,
   shiftDateString,
   toDateString,
 } from "./report-sync-window.ts";
@@ -82,14 +82,12 @@ Deno.test(
   () => {
     const filter = replacedRecordsFilter("2026-06-20", "2026-06-25");
 
-    assertEquals(
-      filter,
-      [
-        "and(data->>date.gte.2026-06-20,data->>date.lte.2026-06-25)",
-        "data->>date.is.null",
-        "data->>date.lt.1900-01-01",
-      ].join(","),
-    );
+    assertEquals(filter.split(","), [
+      "and(data->>date.gte.2026-06-20",
+      "data->>date.lte.2026-06-25)",
+      "data->>date.is.null",
+      "data->>date.lt.1900-01-01",
+    ]);
   },
 );
 

@@ -196,22 +196,23 @@ export function planScheduledSyncWindows(
 }
 
 /**
- * Last day a sync may clear: the window end, pushed forward if the provider
+ * The days a sync may clear for these fetched records: from the window start
+ * (see resolvePruneStart) to the window end, pushed forward if the provider
  * returned a row dated later. A catch-up slice ends in the past, so without
- * this bound its delete swept every newer day the slice never fetched (Eco
- * field trips lost July 23 – November 13, 2026).
+ * the end its delete swept every newer day it never fetched (Eco field trips
+ * lost July 23 – November 13, 2026).
  */
-export function resolvePruneEnd(
+export function resolvePruneRange(
   window: SyncWindow,
-  syncedDates: Iterable<string | null | undefined>,
-): string {
-  let endDate = window.endDate;
-  for (const raw of syncedDates) {
-    const date = typeof raw === "string" ? raw.slice(0, 10) : "";
-    if (!ISO_DATE.test(date)) continue;
-    if (date > endDate) endDate = date;
-  }
-  return endDate;
+  records: ReadonlyArray<{ date?: unknown }>,
+): { pruneStart: string; pruneEnd: string } {
+  const dates = records.map((record) =>
+    typeof record.date === "string" ? record.date.slice(0, 10) : "",
+  );
+  const pruneEnd = dates
+    .filter((date) => ISO_DATE.test(date))
+    .reduce((end, date) => (date > end ? date : end), window.endDate);
+  return { pruneStart: resolvePruneStart(window, dates), pruneEnd };
 }
 
 /**
