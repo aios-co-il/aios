@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
+import { openRecordingFile } from "@/lib/recordingFileUrl";
 import {
   Upload,
   Trash2,
@@ -161,7 +162,12 @@ export function AttachmentsField({
   const handleDownload = async (attachment: Attachment) => {
     // If attachment has a direct URL (e.g. meeting summaries), open it directly
     if (attachment.url) {
-      window.open(attachment.url, "_blank");
+      try {
+        await openRecordingFile(attachment.url);
+      } catch (err) {
+        console.error("Opening the attachment failed:", err);
+        toast.error("שגיאה בפתיחת הקובץ");
+      }
       return;
     }
 

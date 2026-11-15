@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchGmailConnection } from "@/lib/gmailConnection";
+import { openableRecordingUrl } from "@/lib/recordingFileUrl";
 import {
   Dialog,
   DialogContent,
@@ -199,7 +200,9 @@ export function ShareSummaryDialog({
         if (attachDocx && recording.summary_file_url) {
           try {
             const docxBlob = await (
-              await fetch(recording.summary_file_url)
+              await fetch(
+                await openableRecordingUrl(recording.summary_file_url),
+              )
             ).blob();
             await sendReportWhatsApp({
               tenantId,
@@ -257,7 +260,9 @@ export function ShareSummaryDialog({
         if (attachDocx && recording.summary_file_url) {
           try {
             const docxBlob = await (
-              await fetch(recording.summary_file_url)
+              await fetch(
+                await openableRecordingUrl(recording.summary_file_url),
+              )
             ).blob();
             attachments = [
               {
