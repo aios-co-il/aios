@@ -86,6 +86,19 @@ describe("handleUnsubscribe", () => {
     assertEquals(await res.json(), { ok: false, error: "internal_error" });
   });
 
+  it("reports success when the opt-out is recorded but the name is not", async () => {
+    const store: UnsubscribeStore = {
+      tenantOf: () => Promise.resolve(null),
+      unsubscribe: () => Promise.resolve({ tenantName: null }),
+    };
+    const res = await handleUnsubscribe(postJson({ r: ID }), {
+      store,
+      appUrl: APP,
+    });
+    assertStrictEquals(res.status, 200);
+    assertEquals(await res.json(), { ok: true, tenant_name: null });
+  });
+
   it("GET info=1 names the tenant without unsubscribing", async () => {
     const { res, unsubscribed } = await run(
       new Request(`${FN}?r=${ID}&info=1`),

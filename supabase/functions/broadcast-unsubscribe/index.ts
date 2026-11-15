@@ -53,10 +53,18 @@ async function findTenant(db: DbClient, tenantId: string) {
   return data;
 }
 
-/** The recipient's addresses plus the CRM record's current ones. */
+/**
+ * The recipient's addresses plus the CRM record's current ones. A failed CRM
+ * read is logged and the recipient's own addresses are still blocked, so the
+ * opt-out never waits on enrichment.
+ */
 async function addressesOf(
   db: DbClient,
-  r: UnsubscribeRecipient & { tenant_id: string; entity_id: string | null },
+  r: UnsubscribeRecipient & {
+    id: string;
+    tenant_id: string;
+    entity_id: string | null;
+  },
 ) {
   let crm: { phone: string | null; email: string | null } | null = null;
   if (r.entity_id && (r.entity_type === "lead" || r.entity_type === "client")) {
@@ -67,7 +75,10 @@ async function addressesOf(
       .eq("tenant_id", r.tenant_id)
       .maybeSingle();
     if (error) {
-      throw error;
+      console.error("[broadcast-unsubscribe] CRM address lookup failed", {
+        recipientId: r.id,
+        error,
+      });
     }
     crm = data;
   }
@@ -86,7 +97,6 @@ function supabaseStore(db: DbClient): UnsubscribeStore {
       if (!r) {
         return null;
       }
-      const tenant = await findTenant(db, r.tenant_id);
       await addToBlacklist(
         db,
         r.tenant_id,
@@ -101,7 +111,17 @@ function supabaseStore(db: DbClient): UnsubscribeStore {
       if (error) {
         throw error;
       }
-      return { tenantName: tenant.name };
+      return { tenantName: await tenantNameAfterOptOut(db, r.tenant_id) };
     },
   };
+}
+
+/** The name the page shows once the opt-out is recorded; null when unreadable. */
+async function tenantNameAfterOptOut(db: DbClient, tenantId: string) {
+  try {
+    return (await findTenant(db, tenantId)).name;
+  } catch (e) {
+    console.error("[broadcast-unsubscribe] tenant name lookup failed", e);
+    return null;
+  }
 }

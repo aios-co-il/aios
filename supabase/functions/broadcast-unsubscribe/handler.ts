@@ -27,9 +27,12 @@ export interface UnsubscribeStore {
   tenantOf(recipientId: string): Promise<{ name: string; slug: string } | null>;
   /**
    * Blacklist the recipient's addresses in its own tenant and mark it
-   * opted_out. Returns the tenant name, or null when no recipient has this id.
+   * opted_out. Returns the tenant name (null when it could not be read after
+   * the opt-out was recorded), or null when no recipient has this id.
    */
-  unsubscribe(recipientId: string): Promise<{ tenantName: string } | null>;
+  unsubscribe(
+    recipientId: string,
+  ): Promise<{ tenantName: string | null } | null>;
 }
 
 export interface UnsubscribeDeps {

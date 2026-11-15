@@ -6,7 +6,8 @@ export type UnsubscribeError =
   "invalid_link" | "not_found" | "method_not_allowed" | "internal_error";
 
 export type UnsubscribeAnswer =
-  { ok: true; tenant_name: string } | { ok: false; error: UnsubscribeError };
+  | { ok: true; tenant_name: string | null }
+  | { ok: false; error: UnsubscribeError };
 
 /** A broadcast recipient id: the only credential the link carries. */
 export const RECIPIENT_ID =
