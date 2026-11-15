@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { afterEach, beforeEach, describe, it } from "jsr:@std/testing@1/bdd";
 
 import {
@@ -141,5 +141,60 @@ describe("finalizeMeetingBotSession with no transcript and no audio", () => {
 
     assertEquals(result.outcome, "failed");
     assertEquals(callsOn(calls, "rpc"), []);
+  });
+
+  it("records the video wait within the session's tenant", async () => {
+    const { client, calls } = fakeDb({
+      zoom_recordings: recordingResults(null),
+      "rpc:kick_internal_function": [ok(1)],
+    });
+
+    await finalizeMeetingBotSession(client, session(60_000));
+
+    const sessionCalls = callsOn(calls, "meeting_bot_sessions");
+    const wait = sessionCalls.findIndex(
+      (call) =>
+        call[0] === "update" &&
+        (call[1] as { status_detail?: string }).status_detail ===
+          "awaiting_video",
+    );
+    assertEquals(sessionCalls.slice(wait + 1, wait + 3), [
+      ["eq", "tenant_id", "tenant-1"],
+      ["eq", "id", "session-1"],
+    ]);
+  });
+
+  it("queues no copy when recording the video wait fails", async () => {
+    const { client, calls } = fakeDb({
+      zoom_recordings: recordingResults(null),
+      meeting_bot_sessions: [
+        ok(null),
+        { data: null, error: { message: "db down" } },
+      ],
+      "rpc:kick_internal_function": [ok(1)],
+    });
+
+    await assertRejects(
+      () => finalizeMeetingBotSession(client, session(60_000)),
+      Error,
+      "marking the video wait failed: db down",
+    );
+    assertEquals(callsOn(calls, "rpc"), []);
+  });
+
+  it("throws when recording the failure fails", async () => {
+    const { client } = fakeDb({
+      zoom_recordings: recordingResults(null),
+      meeting_bot_sessions: [
+        ok(null),
+        { data: null, error: { message: "db down" } },
+      ],
+    });
+
+    await assertRejects(
+      () => finalizeMeetingBotSession(client, session(4 * 24 * 60 * 60 * 1000)),
+      Error,
+      "recording the session failure failed: db down",
+    );
   });
 });

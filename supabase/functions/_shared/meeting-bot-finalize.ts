@@ -379,14 +379,20 @@ async function waitForStoredVideo(
   if (hasVideo && withinVideoRetention(endedAt, Date.now())) {
     // `done`, not `processing`: the reconcile sweep would re-run finalize every
     // minute while the copy runs. Reconcile's video retry re-copies it instead.
-    await admin
+    // The copy starts only once the wait is recorded: a session left in
+    // `processing` would be re-finalized, and re-copied, every minute.
+    const { error: waitError } = await admin
       .from("meeting_bot_sessions")
       .update({
         status: "done",
         status_detail: AWAITING_VIDEO,
         updated_at: new Date().toISOString(),
       })
+      .eq("tenant_id", session.tenant_id)
       .eq("id", session.id);
+    if (waitError) {
+      throw new Error(`marking the video wait failed: ${waitError.message}`);
+    }
     await startVideoStorage(admin, session);
     return {
       outcome: "awaiting_video",
@@ -394,14 +400,20 @@ async function waitForStoredVideo(
     };
   }
 
-  await admin
+  const { error: failError } = await admin
     .from("meeting_bot_sessions")
     .update({
       status: "failed",
       error: "no transcript from Recall and no audio available for fallback",
       updated_at: new Date().toISOString(),
     })
+    .eq("tenant_id", session.tenant_id)
     .eq("id", session.id);
+  if (failError) {
+    throw new Error(
+      `recording the session failure failed: ${failError.message}`,
+    );
+  }
   return { outcome: "failed", detail: "no transcript and no usable audio" };
 }
 
