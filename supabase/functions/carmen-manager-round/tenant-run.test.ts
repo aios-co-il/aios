@@ -78,6 +78,13 @@ const newCollector: Collector = {
 };
 
 Deno.test("runTenant", async (t) => {
+  await t.step("a tenant with no stored mode is off (AIO-598)", async () => {
+    const w = world();
+    const report = await run(w, null);
+    assertEquals([report.mode, report.skipped], ["off", "off"]);
+    assertEquals(w.leased.size, 0);
+  });
+
   await t.step("a tenant switched off is skipped without a lease", async () => {
     const w = world();
     assertEquals(await run(w, { mode: "off" }), {
@@ -89,10 +96,10 @@ Deno.test("runTenant", async (t) => {
   });
 
   await t.step(
-    "observe (the default) records planned actions, sends nothing, logs the run",
+    "observe records planned actions, sends nothing, logs the run",
     async () => {
       const w = world({ staff: [owner], findings: [finding()] });
-      const report = await run(w, null);
+      const report = await run(w, { mode: "observe" });
       assertEquals(
         [report.mode, report.routed, report.dispatch, report.brief],
         ["observe", 1, null, null],
@@ -169,14 +176,14 @@ Deno.test("runTenant", async (t) => {
   await t.step("a tenant another call holds is skipped", async () => {
     const w = world();
     w.leased.add(TENANT);
-    assertEquals((await run(w, null)).skipped, "locked");
+    assertEquals((await run(w, { mode: "observe" })).skipped, "locked");
   });
 
   await t.step(
     "a failure is reported, logged as an error and releases the lease",
     async () => {
       const w = world({ failOn: "findings" });
-      const report = await run(w, null);
+      const report = await run(w, { mode: "observe" });
       assertEquals(report.error, "db down");
       assertEquals(
         w.heartbeats.map((h) => h.status),

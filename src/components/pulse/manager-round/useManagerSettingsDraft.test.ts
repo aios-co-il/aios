@@ -59,7 +59,7 @@ describe("useManagerSettingsDraft", () => {
   it("saves the chosen mode next to the rules for an owner", async () => {
     const { result, onSave } = renderDraft({}, true);
     await waitFor(() => expect(result.current.section).not.toBeNull());
-    expect(result.current.section?.mode).toBe("observe");
+    expect(result.current.section?.mode).toBe("off");
     act(() => result.current.section?.onChange("team"));
     result.current.save(DEFAULT_PULSE_ALERT_RULES);
     expect(onSave).toHaveBeenCalledWith(DEFAULT_PULSE_ALERT_RULES, {

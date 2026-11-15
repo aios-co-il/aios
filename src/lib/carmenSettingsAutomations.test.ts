@@ -25,7 +25,7 @@ describe("mapSettingsAutomations", () => {
       heartbeat: false,
       weekly_pulse: false,
       instant_pulse_alerts: true,
-      manager_round: true,
+      manager_round: false,
     });
     expect(selectRows(rows, "automation")).toHaveLength(4);
   });

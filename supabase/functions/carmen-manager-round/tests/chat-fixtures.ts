@@ -10,7 +10,9 @@ import { TENANT } from "./fake-world.ts";
 /** Tuesday 27.10.2026, 14:00 in Israel. */
 export const NOW = new Date("2026-10-27T12:00:00Z");
 
-export const SETTINGS = resolveManagerSettings(null);
+export const SETTINGS = resolveManagerSettings({
+  manager: { mode: "observe" },
+});
 
 export const CLIENT_KEY = "501234567";
 export const STAFF_KEY = "502222222";

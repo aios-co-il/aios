@@ -14,6 +14,7 @@ const collect = (fake: ChatSources, fields: Partial<CollectorContext> = {}) =>
 const kindsOff = (...kinds: string[]) =>
   resolveManagerSettings({
     manager: {
+      mode: "observe",
       kinds: Object.fromEntries(kinds.map((k) => [k, { enabled: false }])),
     },
   });
@@ -99,7 +100,10 @@ Deno.test("chat collector", async (t) => {
     async () => {
       const { fake } = fakeChatSources(late);
       const result = await collect(fake, {
-        settings: resolveManagerSettings({ unanswered_reply_hours: 6 }),
+        settings: resolveManagerSettings({
+          unanswered_reply_hours: 6,
+          manager: { mode: "observe" },
+        }),
       });
       assertEquals(
         result.candidates.map((c) => c.kind),
