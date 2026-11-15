@@ -53,6 +53,8 @@ import { cn } from "@/lib/utils";
 import { fetchRecordingsFeed } from "@/lib/recordingsFeedQuery";
 import { fetchRecordingFolders } from "@/lib/recordingsFeed";
 import { recordingsPollInterval } from "@/lib/recordingsPollInterval";
+import { MANUAL_RECORDING_TOPIC } from "../../supabase/functions/_shared/manual-recording-topic.ts";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
 
 type SidebarSelection =
   | { kind: "all" }
@@ -62,6 +64,7 @@ type SidebarSelection =
 
 export default function Recordings() {
   const { currentTenantId } = useTenant();
+  const { name: assistantName } = useCarmenIdentity();
   const { agencies: accessibleAgencies } = useAgency();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -296,7 +299,7 @@ export default function Recordings() {
       }
       const { error } = await supabase.from("zoom_recordings").insert({
         tenant_id: currentTenantId,
-        meeting_topic: uploadTopic || "הקלטה ידנית",
+        meeting_topic: uploadTopic || MANUAL_RECORDING_TOPIC,
         topic_set_manually: !!uploadTopic.trim(),
         start_time: new Date(uploadDate).toISOString(),
         source: "manual",
@@ -584,7 +587,7 @@ export default function Recordings() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setJoinBotOpen(true)}>
             <Bot className="h-4 w-4 ml-2" />
-            שלח את כרמן לפגישה
+            שלח את {assistantName} לפגישה
           </Button>
           <Button onClick={() => setUploadOpen(true)}>
             <Upload className="h-4 w-4 ml-2" />
@@ -799,7 +802,7 @@ export default function Recordings() {
               <Video className="h-10 w-10" />
               <div className="font-medium">אין הקלטות להצגה</div>
               <div className="text-sm">
-                שלח את כרמן לפגישה, הקלט עם התוסף או העלה קובץ
+                שלח את {assistantName} לפגישה, הקלט עם התוסף או העלה קובץ
               </div>
             </div>
           ) : (

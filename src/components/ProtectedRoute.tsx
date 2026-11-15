@@ -9,6 +9,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useTenantPath } from "@/hooks/useTenantPath";
 import { resolveTenantSlug } from "@/hooks/useResolveTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { MiniMeGenderProvider } from "@/components/carmen/MiniMe/MiniMeGenderProvider";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -84,5 +85,6 @@ export function ProtectedRoute({
     return <Navigate to={buildPath(redirectTo)} replace />;
   }
 
-  return <>{children}</>;
+  // Every signed-in page sees the user's Mini Me set, including the command center outside AppLayout.
+  return <MiniMeGenderProvider>{children}</MiniMeGenderProvider>;
 }

@@ -11,6 +11,8 @@ export type CallSetup = { prompt: string; firstMessage: string };
 
 export type CallSetupInput = {
   orgName: string;
+  /** The org's name for its assistant (`loadOrgAssistantName`, AIO-592). */
+  orgAssistantName: string;
   caller: PhoneCaller;
   /** The org's policy for a client or unknown caller; null for the team. */
   policy: CallerPolicy | null;
@@ -28,7 +30,7 @@ export type CallSetupInput = {
 export function callSetup(input: CallSetupInput): CallSetup {
   return {
     prompt: [
-      ...commonRules(input.orgName),
+      ...commonRules(input.orgName, input.orgAssistantName),
       ...callerRules(input),
       "=== הגייה ===",
       ...input.pronunciations,
@@ -38,9 +40,9 @@ export function callSetup(input: CallSetupInput): CallSetup {
 }
 
 /** How Carmen speaks on every call. */
-function commonRules(orgName: string): Array<string> {
+function commonRules(orgName: string, assistantName: string): Array<string> {
   return [
-    `את כרמן, העוזרת הקולית של ${orgName}. זו שיחת טלפון.`,
+    `את ${assistantName}, העוזרת הקולית של ${orgName}. זו שיחת טלפון.`,
     "דברי בעברית טבעית, במשפטים קצרים, בלי רשימות ובלי סימנים. שאלה אחת בכל פעם.",
     "לעולם אל תמציאי מידע ואל תתחייבי למועד, למחיר או לתוצאה. כשאינך יודעת, אמרי שתעבירי ושיחזרו.",
     "סיימי בנימוס כשהשיחה הסתיימה.",
@@ -100,12 +102,14 @@ function policyRules(policy: CallerPolicy): Array<string> {
 }
 
 /** Carmen's opening line: by first name for the team, the org's name for everyone else. */
-function firstMessage({ orgName, caller }: CallSetupInput): string {
+function firstMessage(input: CallSetupInput): string {
+  const { orgName, caller } = input;
+  const assistantName = input.orgAssistantName;
   if (caller.kind === "staff") {
     const firstName = caller.name?.trim().split(/\s+/)[0];
     return firstName
-      ? `היי ${firstName}, כאן כרמן. מה צריך?`
-      : "היי, כאן כרמן. מה צריך?";
+      ? `היי ${firstName}, כאן ${assistantName}. מה צריך?`
+      : `היי, כאן ${assistantName}. מה צריך?`;
   }
-  return `שלום, הגעתם ל${orgName}, מדברת כרמן. איך אפשר לעזור?`;
+  return `שלום, הגעתם ל${orgName}, מדברת ${assistantName}. איך אפשר לעזור?`;
 }

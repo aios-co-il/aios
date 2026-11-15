@@ -12,6 +12,7 @@ import { identifyCaller } from "./caller.ts";
 import { callSetup } from "./instructions.ts";
 import { insertCall } from "./calls.ts";
 import { findPhoneLine, loadPolicyRows, orgName } from "./store.ts";
+import { loadOrgAssistantName } from "../_shared/carmen/load-carmen-agent.ts";
 
 /** What ElevenLabs sends when a call to the agent starts. */
 export type InitiationPayload = {
@@ -62,14 +63,17 @@ export async function initiateCall(
     payload.caller_id ?? null,
   );
   const isStaff = caller.kind === "staff";
-  const [name, policyRows, brief, pronunciations] = await Promise.all([
-    orgName(db, line.tenantId),
-    isStaff ? Promise.resolve([]) : loadPolicyRows(db, line.tenantId),
-    isStaff ? loadOrgBrief(db, line.tenantId) : Promise.resolve(null),
-    loadPronunciations(db, line.tenantId),
-  ]);
+  const [name, orgAssistantName, policyRows, brief, pronunciations] =
+    await Promise.all([
+      orgName(db, line.tenantId),
+      loadOrgAssistantName(db, line.tenantId),
+      isStaff ? Promise.resolve([]) : loadPolicyRows(db, line.tenantId),
+      isStaff ? loadOrgBrief(db, line.tenantId) : Promise.resolve(null),
+      loadPronunciations(db, line.tenantId),
+    ]);
   const setup = callSetup({
     orgName: name,
+    orgAssistantName,
     caller,
     policy: isStaff
       ? null

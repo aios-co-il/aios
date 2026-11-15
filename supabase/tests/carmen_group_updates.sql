@@ -237,6 +237,13 @@ BEGIN
     RAISE EXCEPTION 'grants: get_client_group_digest_messages is service role only';
   END IF;
 
+  -- A paused client is not in the round (AIO-591): its group is not digested.
+  UPDATE public.clients SET status = 'paused' WHERE id = v_client;
+  IF EXISTS (SELECT 1 FROM public.get_client_group_digest_messages(v_reader, ARRAY[v_line, v_org_line], now() - interval '1 day', 'qa_group') AS r
+             WHERE r.client_id = v_client) THEN
+    RAISE EXCEPTION 'digest: a paused client''s group must not be read';
+  END IF;
+
   RAISE NOTICE 'carmen_group_updates: all checks passed';
 END;
 $test$;

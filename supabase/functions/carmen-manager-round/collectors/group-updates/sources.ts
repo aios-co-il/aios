@@ -1,7 +1,8 @@
 /**
  * Where the collector reads from: the round's service-role client (every
  * query names the tenant, or the clients in its scope) and the model call
- * (ask-model.ts), logged under the tenant with no money limit. The lines
+ * on the tenant's own Carmen brain (tenant-model.ts), logged under the
+ * tenant with no money limit. The lines
  * are the chat collector's (chat/connections.ts: every member's own active
  * Green line, the org-shared ones and the tenant's Carmen line), so both read
  * the same lines. A
@@ -10,7 +11,8 @@
  */
 import { monitoredLines } from "../chat/connections.ts";
 import type { CollectorContext } from "../types.ts";
-import { modelAsker } from "./ask-model.ts";
+import { tenantModelAsker } from "../../tenant-model.ts";
+import { MODEL_CALL_MS } from "./ask-model.ts";
 import { type CardEntry, loadCardEntries } from "./card-entries.ts";
 import { fixtureSources } from "./fixtures.ts";
 import { GROUP_UPDATES_COLLECTOR } from "./id.ts";
@@ -80,6 +82,11 @@ function dbSources(ctx: CollectorContext): GroupUpdateSources {
       }),
     summarize: ctx.dryRun
       ? markersOnlyPorts()
-      : { ask: modelAsker(tenantId, GROUP_LLM_SOURCE) },
+      : {
+          ask: tenantModelAsker(db, tenantId, {
+            source: GROUP_LLM_SOURCE,
+            timeoutMs: MODEL_CALL_MS,
+          }),
+        },
   };
 }

@@ -9,6 +9,7 @@ import { buildAllLevelInsightRecords } from "../fbInsights.ts";
 import { replacedRecordsFilter } from "../report-sync-window.ts";
 import { resolveSyncOutcome, syncOutcomeProblem } from "./freshness.ts";
 import { isRecord } from "./is-record.ts";
+import { ADS_LEVELS } from "./levels.ts";
 import { scheduledMarkerPatch } from "./outcome.ts";
 import { saveSyncRun } from "./save-run.ts";
 import {
@@ -199,12 +200,12 @@ test("catch-up chunks never stamp last_sync_at and record only failures", async 
 
 test("replacedLevelRecordsFilter: all levels is the plain window filter", () => {
   assertStrictEquals(
-    replacedLevelRecordsFilter("2026-10-24", ["campaign", "adset", "ad"]),
-    replacedRecordsFilter("2026-10-24"),
+    replacedLevelRecordsFilter("2026-10-24", "2026-10-26", ADS_LEVELS),
+    replacedRecordsFilter("2026-10-24", "2026-10-26"),
   );
   assertStrictEquals(
-    replacedLevelRecordsFilter("2026-10-24", ["campaign"]),
-    "and(or(data->>entity_level.is.null,data->>entity_level.in.(campaign)),or(data->>date.gte.2026-10-24,data->>date.is.null,data->>date.lt.1900-01-01))",
+    replacedLevelRecordsFilter("2026-10-24", "2026-10-26", ["campaign"]),
+    "and(or(data->>entity_level.is.null,data->>entity_level.in.(campaign)),or(and(data->>date.gte.2026-10-24,data->>date.lte.2026-10-26),data->>date.is.null,data->>date.lt.1900-01-01))",
   );
 });
 

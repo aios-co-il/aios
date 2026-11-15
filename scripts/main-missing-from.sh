@@ -6,15 +6,30 @@
 # A hotfix of several commits reaches develop through the squash merge queue as one commit,
 # so a run of consecutive main commits also counts as present when its combined patch
 # equals a commit in <ref> (AIO-412: #1141 on main, #1142 squashed on develop).
+# A release squash-merged onto main has the tree of a <ref> commit, so <ref> held that main
+# commit and everything before it (AIO-586: #1366).
 set -euo pipefail
 ref=${1:?usage: main-missing-from.sh <ref>}
 git fetch --no-tags origin main
 missing=$(git cherry "$ref" origin/main | awk '$1 == "+" { print $2 }')
 [ -z "$missing" ] && exit 0
 
+ref_trees=$(git log --format=%T "$ref")
+covered=""
+for sha in $missing; do
+  if grep -qxF "$(git rev-parse "$sha^{tree}")" <<<"$ref_trees"; then covered=$sha; fi
+done
+if [ -n "$covered" ]; then
+  missing=$(for sha in $missing; do
+    git merge-base --is-ancestor "$sha" "$covered" || echo "$sha"
+  done)
+  [ -z "$missing" ] && exit 0
+fi
+
 # A port can sit before the merge base once a release merge brings it into main too, so
 # compare against every commit in <ref> since the oldest missing main commit was written.
-oldest=$(echo "$missing" | tail -n1)
+# `git cherry` lists oldest first.
+oldest=$(echo "$missing" | head -n1)
 since=$(git log -1 --format=%cI "$oldest")
 ref_ids=$(git log --no-merges --since="$since" --format=%H "$ref" | while read -r c; do
   git show "$c" | git patch-id --stable

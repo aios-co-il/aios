@@ -889,6 +889,41 @@ Deno.test(
     );
 
     await t.step(
+      "greets with the org's name for its assistant when Carmen cannot answer",
+      async () => {
+        // The org renamed Carmen to "מיני מי" (AIO-592); the owner picked no character.
+        const supabase = tenantDb(
+          { carmen_integration_id: "integration-1" },
+          {
+            ai_agents: [
+              {
+                id: "agent-1",
+                tenant_id: TENANT,
+                name: "כרמן",
+                metadata: { visual_identity: { displayName: "מיני מי" } },
+              },
+            ],
+            carmen_whatsapp_sessions: [
+              { id: "session-new", tenant_id: TENANT, status: "ended" },
+            ],
+          },
+        );
+        const { posted } = await capturingSends(() =>
+          handleCarmenMessage({
+            ...ownLineTurn([]),
+            supabase,
+            // Only the call word: Carmen opens the session with a greeting.
+            messageText: "כרמן",
+          }).catch(() => null),
+        );
+        const greeting = posted
+          .map((send) => JSON.stringify(send.body))
+          .find((body) => body.includes("כאן. מה תרצה לבדוק"));
+        assertStringIncludes(String(greeting), "היי, מיני מי כאן");
+      },
+    );
+
+    await t.step(
       "a colleague's pick does not wake the owner's line",
       async () => {
         const { result } = await capturingSends(() =>

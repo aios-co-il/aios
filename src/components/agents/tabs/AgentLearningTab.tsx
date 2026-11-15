@@ -35,15 +35,11 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 import { he } from "date-fns/locale";
+import { isCarmenAgentRow } from "../../../../supabase/functions/_shared/carmen/carmen-agent.ts";
 
 // Learning & self-improvement tab for any agent.
 // Carmen gets her full CarmenInsights view (sessions, episodes, pointers).
 // Every other agent gets the generic AgentMemoryLibrary.
-
-function isCarmenName(name: string) {
-  const n = (name || "").toLowerCase();
-  return n.includes("carmen") || name?.includes("כרמן");
-}
 
 const CATEGORY_META: Record<string, { icon: any; label: string }> = {
   clients: { icon: Users, label: "לקוחות" },
@@ -282,7 +278,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
 }
 
 export function AgentLearningTab({ agent }: { agent: any }) {
-  if (isCarmenName(agent.name)) {
+  if (isCarmenAgentRow(agent)) {
     // Rendered inside an agent-settings tab — never as a standalone page.
     return <CarmenInsights embedded />;
   }

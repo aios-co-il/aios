@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { Bot, Loader2 } from "lucide-react";
 import { invokeErrorMessage } from "@/components/marketing/lib/invokeErrorMessage";
+import { useCarmenIdentity } from "@/hooks/useCarmenIdentity";
+import { meetingBotName } from "../../../supabase/functions/_shared/meeting-bot/bot-name.ts";
 
 interface ClientOption {
   id: string;
@@ -59,6 +61,9 @@ export function JoinMeetingBotDialog({
   defaultClientId,
 }: JoinMeetingBotDialogProps) {
   const { toast } = useToast();
+  // The bot joins as this user's character, else the org's name (AIO-592).
+  const { name: assistantName } = useCarmenIdentity();
+  const botName = meetingBotName(assistantName);
   const [meetingUrl, setMeetingUrl] = useState("");
   const [meetingTopic, setMeetingTopic] = useState("");
   const [targetType, setTargetType] = useState<
@@ -94,15 +99,20 @@ export function JoinMeetingBotDialog({
       );
       if (error || data?.error) {
         throw new Error(
-          await invokeErrorMessage(error, data, "שליחת כרמן לפגישה נכשלה"),
+          await invokeErrorMessage(
+            error,
+            data,
+            `שליחת ${assistantName} לפגישה נכשלה`,
+          ),
         );
       }
       return data;
     },
     onSuccess: (data) => {
       toast({
-        title: "כרמן מצטרפת לפגישה",
-        description: data.message || "אשרו את כרמן בחדר ההמתנה אם נדרש.",
+        title: `${assistantName} מצטרפת לפגישה`,
+        description:
+          data.message || `אשרו את "${botName}" בחדר ההמתנה אם נדרש.`,
       });
       setMeetingUrl("");
       setMeetingTopic("");
@@ -125,12 +135,12 @@ export function JoinMeetingBotDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5" />
-            שלחי את כרמן לפגישה
+            שלחי את {assistantName} לפגישה
           </DialogTitle>
           <DialogDescription>
             הדביקו קישור לפגישת Zoom, Google Meet או Microsoft Teams — גם בלי
-            זימון ביומן. כרמן תופיעה כמשתתפת גלויה, תקליט, תתמלל את כל הדוברים
-            ותייצר סיכום ללקוח, לאיש צוות או לסוכנות.
+            זימון ביומן. {assistantName} תופיע כמשתתפת גלויה בשם "{botName}",
+            תקליט, תתמלל את כל הדוברים ותייצר סיכום ללקוח, לאיש צוות או לסוכנות.
           </DialogDescription>
         </DialogHeader>
 
@@ -247,7 +257,7 @@ export function JoinMeetingBotDialog({
             ) : (
               <Bot className="h-4 w-4 ml-2" />
             )}
-            שלח את כרמן
+            שלח את {assistantName}
           </Button>
         </div>
       </DialogContent>

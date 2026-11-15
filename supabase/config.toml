@@ -503,6 +503,10 @@ verify_jwt = false
 [functions.meeting-bot-reconcile]
 verify_jwt = false
 
+# Streams a finished session's video into Storage; service role only (AIO-588).
+[functions.meeting-bot-store-video]
+verify_jwt = true
+
 # Authenticated dry-run/apply endpoint for existing recording calendar matches.
 [functions.match-recordings-calendar]
 verify_jwt = true

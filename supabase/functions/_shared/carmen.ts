@@ -75,7 +75,13 @@ import {
 } from "./carmen-session-history.ts";
 import type { Tables } from "./database.types.ts";
 import type { DbClient } from "./supabase-clients.ts";
-import { loadCallWords } from "./carmen/persona-runtime.ts";
+import { loadCarmenAgent } from "./carmen/load-carmen-agent.ts";
+import { loadCallWords, loadCallerPersona } from "./carmen/persona-runtime.ts";
+import {
+  DEFAULT_ASSISTANT_NAME,
+  orgAssistantName,
+  personalAssistantName,
+} from "./carmen/assistant-name.ts";
 
 const CARMEN_SESSION_IDLE_MINUTES_DEFAULT = 5;
 
@@ -779,15 +785,12 @@ export async function findCarmenAgent(
   supabase: DbClient,
   tenantId: string,
 ): Promise<Tables<"ai_agents"> | null> {
-  const { data } = await supabase
-    .from("ai_agents")
-    .select("*")
-    .eq("tenant_id", tenantId)
-    .or("name.ilike.%carmen%,name.ilike.%כרמן%")
-    .eq("active", true)
-    .limit(1)
-    .maybeSingle();
-  return data || null;
+  try {
+    return await loadCarmenAgent(supabase, tenantId, { activeOnly: true });
+  } catch (err) {
+    console.error("[carmen] Carmen agent lookup failed", tenantId, err);
+    return null;
+  }
 }
 
 // Fetch client + team (campaigner) names for the tenant. Used to help the voice
@@ -2729,26 +2732,33 @@ export async function handleCarmenMessage(
 
   // Resolve agent
   let agentId = (carmenAutomation.configuration?.agent_id ?? null) || null;
-  let agentName = "כרמן";
+  let agentName = DEFAULT_ASSISTANT_NAME;
   if (!agentId) {
     const carmenAgent = await findCarmenAgent(supabase, tenantId);
     if (carmenAgent) {
       agentId = carmenAgent.id;
-      agentName = carmenAgent.name;
+      agentName = orgAssistantName(carmenAgent);
     }
   } else {
     const { data: agentRow } = await supabase
       .from("ai_agents")
-      .select("name")
+      .select("name, metadata")
       .eq("id", agentId)
       .maybeSingle();
-    if (agentRow) agentName = agentRow.name;
+    if (agentRow) {
+      agentName = orgAssistantName(agentRow);
+    }
+  }
+  // On the owner's own line the agent greets as their character (AIO-592).
+  if (personaUserId) {
+    const persona = await loadCallerPersona(supabase, tenantId, personaUserId);
+    agentName = personalAssistantName(persona?.displayName, agentName);
   }
 
   if (!agentId) {
     await routedSend(
       chatId,
-      "שלום! זיהיתי שרצית לדבר עם כרמן, אך עדיין לא הוגדר סוכן AI. אנא פנה למנהל המערכת להגדרת סוכן כרמן.",
+      `שלום! זיהיתי שרצית לדבר עם ${agentName}, אך עדיין לא הוגדר סוכן AI. אנא פנה למנהל המערכת להגדרת הסוכן.`,
     );
     return { handled: true, outcome: "error" };
   }

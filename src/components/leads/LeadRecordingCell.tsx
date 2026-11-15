@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { LeadRecordingItem } from "@/lib/leadRecordings";
+import { MANUAL_RECORDING_TOPIC } from "../../../supabase/functions/_shared/manual-recording-topic.ts";
 
 export function LeadRecordingCell({
   leadId,
@@ -29,7 +30,8 @@ export function LeadRecordingCell({
           .from("recordings")
           .upload(filePath, file);
         if (uploadError) throw uploadError;
-        const topic = file.name.replace(/\.[^.]+$/, "") || "הקלטה ידנית";
+        const topic =
+          file.name.replace(/\.[^.]+$/, "") || MANUAL_RECORDING_TOPIC;
         const { error } = await supabase.from("zoom_recordings").insert({
           tenant_id: tenantId,
           lead_id: leadId,

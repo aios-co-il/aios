@@ -196,13 +196,36 @@ export function planScheduledSyncWindows(
 }
 
 /**
- * PostgREST `or` expression selecting the rows a sync is about to rewrite: everything
- * from `pruneStart` onwards plus rows without a usable date. Rows older than that are
- * real history and are left alone.
+ * The days a sync may clear for these fetched records: from the window start
+ * (see resolvePruneStart) to the window end, pushed forward if the provider
+ * returned a row dated later. A catch-up slice ends in the past, so without
+ * the end its delete swept every newer day it never fetched (Eco field trips
+ * lost July 23 – November 13, 2026).
  */
-export function replacedRecordsFilter(pruneStart: string): string {
+export function resolvePruneRange(
+  window: SyncWindow,
+  records: ReadonlyArray<{ date?: unknown }>,
+): { pruneStart: string; pruneEnd: string } {
+  const dates = records.map((record) =>
+    typeof record.date === "string" ? record.date.slice(0, 10) : "",
+  );
+  const pruneEnd = dates
+    .filter((date) => ISO_DATE.test(date))
+    .reduce((end, date) => (date > end ? date : end), window.endDate);
+  return { pruneStart: resolvePruneStart(window, dates), pruneEnd };
+}
+
+/**
+ * PostgREST `or` expression selecting the rows a sync is about to rewrite: the
+ * days from `pruneStart` through `pruneEnd`, plus rows without a usable date.
+ * Rows outside those days are real history and are left alone.
+ */
+export function replacedRecordsFilter(
+  pruneStart: string,
+  pruneEnd: string,
+): string {
   return [
-    `data->>date.gte.${pruneStart}`,
+    `and(data->>date.gte.${pruneStart},data->>date.lte.${pruneEnd})`,
     "data->>date.is.null",
     `data->>date.lt.${EARLIEST_REAL_REPORT_DATE}`,
   ].join(",");
