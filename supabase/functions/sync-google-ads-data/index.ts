@@ -992,33 +992,34 @@ Deno.serve(async (req) => {
     // A failed ad group / ad query keeps that level's stored rows (syncAdsWindow).
     const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
-    try {
-      const adGroupBatches = await runGaqlSearch(adGroupQuery);
-      records.push(...parseGaqlResults(adGroupBatches, "adset"));
-      console.log(
-        `[sync-google-ads] ad group rows: ${records.filter((r) => r.entity_level === "adset").length}`,
-      );
-    } catch (adGroupErr) {
-      const message =
-        adGroupErr instanceof Error ? adGroupErr.message : String(adGroupErr);
-      levelErrors.adset = message;
-      console.warn(
-        "[sync-google-ads] ad group query failed (non-fatal):",
-        message,
-      );
-    }
-
-    try {
-      const adBatches = await runGaqlSearch(adQuery);
-      records.push(...parseGaqlResults(adBatches, "ad"));
-      console.log(
-        `[sync-google-ads] ad rows: ${records.filter((r) => r.entity_level === "ad").length}`,
-      );
-    } catch (adErr) {
-      const message = adErr instanceof Error ? adErr.message : String(adErr);
-      levelErrors.ad = message;
-      console.warn("[sync-google-ads] ad query failed (non-fatal):", message);
-    }
+    // The ad group and ad queries are independent, so they run at once after the
+    // campaign query (which settles loginCustomerId). Rows keep the campaign,
+    // ad group, ad order.
+    const fetchLowerLevel = async (
+      query: string,
+      level: "adset" | "ad",
+    ): Promise<GoogleAdsRecord[]> => {
+      try {
+        return parseGaqlResults(await runGaqlSearch(query), level);
+      } catch (levelErr) {
+        const message =
+          levelErr instanceof Error ? levelErr.message : String(levelErr);
+        levelErrors[level] = message;
+        console.warn(
+          `[sync-google-ads] ${level} query failed (non-fatal):`,
+          message,
+        );
+        return [];
+      }
+    };
+    const [adGroupRows, adRows] = await Promise.all([
+      fetchLowerLevel(adGroupQuery, "adset"),
+      fetchLowerLevel(adQuery, "ad"),
+    ]);
+    records.push(...adGroupRows, ...adRows);
+    console.log(
+      `[sync-google-ads] ad group rows: ${adGroupRows.length}, ad rows: ${adRows.length}`,
+    );
 
     console.log(`[sync-google-ads] total records parsed: ${records.length}`);
 
