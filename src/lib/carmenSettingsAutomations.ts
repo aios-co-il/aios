@@ -5,7 +5,7 @@
  * two screens always agree and no data moves.
  */
 import {
-  DEFAULT_MANAGER_MODE,
+  MANAGER_ON_MODE,
   type ManagerMode,
 } from "../../supabase/functions/_shared/manager-round/modes.ts";
 import { resolveManagerSettings } from "../../supabase/functions/_shared/manager-round/settings.ts";
@@ -125,7 +125,7 @@ export function settingsAutomationPatch(
       return { pulse_alert_rules: { ...stored, instant_wa_enabled: on } };
     case "manager_round": {
       const manager = isJsonObject(stored.manager) ? stored.manager : {};
-      const mode: ManagerMode = on ? DEFAULT_MANAGER_MODE : "off";
+      const mode: ManagerMode = on ? MANAGER_ON_MODE : "off";
       return {
         pulse_alert_rules: { ...stored, manager: { ...manager, mode } },
       };

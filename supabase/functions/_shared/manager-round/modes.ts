@@ -11,8 +11,14 @@ export const MANAGER_MODES = ["off", "observe", "david_only", "team"] as const;
 
 export type ManagerMode = (typeof MANAGER_MODES)[number];
 
-/** A tenant without a stored mode records findings and sends nothing. */
-export const DEFAULT_MANAGER_MODE: ManagerMode = "observe";
+/**
+ * A tenant without a stored mode (or with an unknown one) is not run: the
+ * round is turned on per tenant (AIO-598).
+ */
+export const DEFAULT_MANAGER_MODE: ManagerMode = "off";
+
+/** The mode the settings switch stores when it turns the round on: record, send nothing. */
+export const MANAGER_ON_MODE: ManagerMode = "observe";
 
 /** True for the modes that send WhatsApp (the database guard agrees). */
 export function isSendingMode(mode: ManagerMode): boolean {
