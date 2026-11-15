@@ -1,104 +1,110 @@
-// broadcast-unsubscribe — public unsubscribe link at the end of every mailing
-// (email footer and WhatsApp last line). ?r=<recipient_id>.
+// broadcast-unsubscribe — the unsubscribe link at the end of every mailing
+// (email footer, WhatsApp last line, List-Unsubscribe header). Routing lives
+// in handler.ts; this file wires it to the database.
 //
-//   GET  → confirmation page with a button (a link preview must not
-//          unsubscribe anyone)
-//   POST → adds the recipient's phone and email to the tenant's mailing
-//          blacklist (broadcast_opt_outs, channel 'all'), so mailings skip
-//          them on WhatsApp and email. Email one-click
-//          (List-Unsubscribe-Post) posts here too.
+// Unsubscribing adds the recipient's phone and email to its tenant's mailing
+// blacklist (broadcast_opt_outs, channel 'all'), so mailings skip them on
+// WhatsApp and email, and marks the recipient opted_out.
 //
-// Public (verify_jwt = false in config.toml).
-import { serviceClient } from "../_shared/supabase-clients.ts";
+// Public (verify_jwt = false in config.toml). The recipient id is the only
+// credential: every write is scoped to that recipient's own tenant.
+import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import {
   addToBlacklist,
   unsubscribeAddresses,
   type UnsubscribeRecipient,
 } from "../_shared/broadcast/blacklist.ts";
+import { handleUnsubscribe, type UnsubscribeStore } from "./handler.ts";
 
-const STYLE = `body{font-family:system-ui,Arial,sans-serif;background:#f6f7f9;color:#222;display:flex;
-min-height:100vh;align-items:center;justify-content:center;margin:0}
-.card{background:#fff;padding:32px 40px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);text-align:center;max-width:420px}
-h1{font-size:20px;margin:0 0 8px}p{color:#555;margin:0 0 16px}
-button{background:#dc2626;color:#fff;border:0;border-radius:8px;padding:10px 20px;font-size:15px;cursor:pointer}`;
+// Same convention as meta-data-deletion and google-*-auth: APP_URL is the
+// per-environment app origin; production is the fallback.
+const APP_URL = (Deno.env.get("APP_URL") || "https://aios.co.il").replace(
+  /\/+$/,
+  "",
+);
 
-const page = (
-  title: string,
-  body: string,
-) => `<!doctype html><html lang="he" dir="rtl"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex"><title>הסרה מרשימת הדיוור</title><style>${STYLE}</style></head>
-<body><div class="card"><h1>${title}</h1>${body}</div></body></html>`;
+const store = supabaseStore(serviceClient());
 
-const html = (body: string, status = 200) =>
-  new Response(body, {
-    status,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+Deno.serve((req) => handleUnsubscribe(req, { store, appUrl: APP_URL }));
 
-const UUID = /^[0-9a-f-]{36}$/i;
+/** The broadcast recipient with this id, in any tenant (the id is the credential). */
+async function findRecipient(db: DbClient, id: string) {
+  const { data, error } = await db
+    .from("broadcast_recipients")
+    .select("id, tenant_id, entity_type, entity_id, phone, email, vars")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  return data;
+}
+
+/** The recipient's tenant name and slug; a missing tenant is a data error. */
+async function findTenant(db: DbClient, tenantId: string) {
+  const { data, error } = await db
+    .from("tenants")
+    .select("name, slug")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error(`tenant ${tenantId} not found for recipient`);
+  }
+  return data;
+}
 
 /** The recipient's addresses plus the CRM record's current ones. */
 async function addressesOf(
-  db: ReturnType<typeof serviceClient>,
-  r: UnsubscribeRecipient & {
-    tenant_id: string;
-    entity_id: string | null;
-  },
+  db: DbClient,
+  r: UnsubscribeRecipient & { tenant_id: string; entity_id: string | null },
 ) {
   let crm: { phone: string | null; email: string | null } | null = null;
   if (r.entity_id && (r.entity_type === "lead" || r.entity_type === "client")) {
-    const { data } = await db
+    const { data, error } = await db
       .from(r.entity_type === "lead" ? "leads" : "clients")
       .select("phone, email")
       .eq("id", r.entity_id)
       .eq("tenant_id", r.tenant_id)
       .maybeSingle();
+    if (error) {
+      throw error;
+    }
     crm = data;
   }
   return unsubscribeAddresses(r, crm);
 }
 
-Deno.serve(async (req) => {
-  const url = new URL(req.url);
-  const recipientId = url.searchParams.get("r") ?? "";
-  if (!UUID.test(recipientId))
-    return html(page("קישור לא תקין", "<p>הקישור אינו תקין.</p>"), 400);
-
-  if (req.method === "GET") {
-    return html(
-      page(
-        "הסרה מרשימת הדיוור",
-        `<p>לאחר ההסרה לא יישלחו אליך עוד דיוורים, לא בוואטסאפ ולא באימייל.</p>
-<form method="post"><button type="submit">הסירו אותי</button></form>`,
-      ),
-    );
-  }
-  if (req.method !== "POST") return html(page("שגיאה", ""), 405);
-
-  try {
-    const db = serviceClient();
-    const { data: r } = await db
-      .from("broadcast_recipients")
-      .select("id, tenant_id, entity_type, entity_id, phone, email, vars")
-      .eq("id", recipientId)
-      .maybeSingle();
-    if (!r) return html(page("הקישור פג או לא נמצא", ""), 404);
-
-    await addToBlacklist(
-      db,
-      r.tenant_id,
-      await addressesOf(db, r),
-      "unsubscribe_link",
-    );
-    await db
-      .from("broadcast_recipients")
-      .update({ status: "opted_out" })
-      .eq("id", r.id);
-
-    return html(page("הוסרת בהצלחה ✓", "<p>לא יישלחו אליך עוד דיוורים.</p>"));
-  } catch (e) {
-    console.error("[broadcast-unsubscribe]", e);
-    return html(page("אירעה שגיאה, נסה/י שוב מאוחר יותר", ""), 500);
-  }
-});
+/** Supabase-backed store; every write is keyed to the recipient's tenant. */
+function supabaseStore(db: DbClient): UnsubscribeStore {
+  return {
+    async tenantOf(id) {
+      const r = await findRecipient(db, id);
+      return r ? await findTenant(db, r.tenant_id) : null;
+    },
+    async unsubscribe(id) {
+      const r = await findRecipient(db, id);
+      if (!r) {
+        return null;
+      }
+      const tenant = await findTenant(db, r.tenant_id);
+      await addToBlacklist(
+        db,
+        r.tenant_id,
+        await addressesOf(db, r),
+        "unsubscribe_link",
+      );
+      const { error } = await db
+        .from("broadcast_recipients")
+        .update({ status: "opted_out" })
+        .eq("id", r.id)
+        .eq("tenant_id", r.tenant_id);
+      if (error) {
+        throw error;
+      }
+      return { tenantName: tenant.name };
+    },
+  };
+}
