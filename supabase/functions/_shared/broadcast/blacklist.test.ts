@@ -3,7 +3,6 @@ import { fakeDb } from "./fake-db.ts";
 import {
   addToBlacklist,
   blacklistRows,
-  listUnsubscribeHeader,
   oneClickUnsubscribeUrl,
   unsubscribeAddresses,
   unsubscribeUrl,
@@ -74,20 +73,12 @@ Deno.test("unsubscribe link encodes the tenant slug", () => {
   );
 });
 
-Deno.test(
-  "List-Unsubscribe names the one-click function, then the page",
-  () => {
-    const oneClick = oneClickUnsubscribeUrl("https://x.supabase.co", "r1");
-    assertStrictEquals(
-      oneClick,
-      "https://x.supabase.co/functions/v1/broadcast-unsubscribe?r=r1",
-    );
-    assertStrictEquals(
-      listUnsubscribeHeader(oneClick, "https://aios.co.il/unsubscribe/t?r=r1"),
-      `<${oneClick}>, <https://aios.co.il/unsubscribe/t?r=r1>`,
-    );
-  },
-);
+Deno.test("one-click unsubscribe posts to the function", () => {
+  assertStrictEquals(
+    oneClickUnsubscribeUrl("https://x.supabase.co", "r1"),
+    "https://x.supabase.co/functions/v1/broadcast-unsubscribe?r=r1",
+  );
+});
 
 Deno.test(
   "unsubscribeAddresses recovers the snapshot phone of an email recipient",

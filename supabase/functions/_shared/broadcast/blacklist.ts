@@ -20,18 +20,15 @@ export function unsubscribeUrl(
 
 /**
  * The function address mail clients POST to for one-click unsubscribe
- * (List-Unsubscribe-Post); server to server, so no page is needed.
+ * (List-Unsubscribe-Post); server to server, so no page is needed. It is the
+ * only List-Unsubscribe URI: RFC 8058 allows exactly one HTTPS URI there, so
+ * the page link stays in the message body.
  */
 export function oneClickUnsubscribeUrl(
   supabaseUrl: string,
   recipientId: string,
 ) {
   return `${supabaseUrl}/functions/v1/broadcast-unsubscribe?r=${recipientId}`;
-}
-
-/** List-Unsubscribe value: the one-click address first, then the page. */
-export function listUnsubscribeHeader(oneClickUrl: string, pageUrl: string) {
-  return `<${oneClickUrl}>, <${pageUrl}>`;
 }
 
 /** Last lines of every WhatsApp mailing to a contact. */

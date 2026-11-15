@@ -22,7 +22,6 @@ import {
 } from "../_shared/broadcast/template/email-attachments.ts";
 import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
 import {
-  listUnsubscribeHeader,
   oneClickUnsubscribeUrl,
   unsubscribeUrl,
   whatsappUnsubscribeFooter,
@@ -188,10 +187,7 @@ async function sendOne(
       fromName: b.from_name || undefined,
       replyTo: b.reply_to || undefined,
       headers: {
-        "List-Unsubscribe": listUnsubscribeHeader(
-          oneClickUnsubscribeUrl(SB_URL, r.id),
-          unsubUrl,
-        ),
+        "List-Unsubscribe": `<${oneClickUnsubscribeUrl(SB_URL, r.id)}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
