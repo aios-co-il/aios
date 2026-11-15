@@ -41,6 +41,7 @@ const SharedTable = lazy(() => import("./pages/SharedTable"));
 const SharedSeoMonthly = lazy(() => import("./pages/SharedSeoMonthly"));
 const UnifiedCallback = lazy(() => import("./pages/UnifiedCallback"));
 const SignDocument = lazy(() => import("./pages/SignDocument"));
+const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -148,6 +149,10 @@ const App = () => (
                 />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/data-deletion" element={<DataDeletion />} />
+                <Route
+                  path="/unsubscribe/:tenantSlug"
+                  element={<Unsubscribe />}
+                />
 
                 {tenantRoutes()}
 

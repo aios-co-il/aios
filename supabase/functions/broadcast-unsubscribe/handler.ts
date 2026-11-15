@@ -16,6 +16,11 @@
 // recipient's phone, email or name.
 import { corsHeaders } from "../_shared/cors.ts";
 import { unsubscribeUrl } from "../_shared/broadcast/blacklist.ts";
+import {
+  RECIPIENT_ID,
+  type UnsubscribeAnswer,
+  type UnsubscribeError,
+} from "./contract.ts";
 
 export interface UnsubscribeStore {
   /** The recipient's tenant, or null when no recipient has this id. */
@@ -36,7 +41,7 @@ export interface UnsubscribeDeps {
 /** How the caller reads the answer: JSON for the app page, plain otherwise. */
 type Reply = {
   json: boolean;
-  fail(status: number, error: string, message: string): Response;
+  fail(status: number, error: UnsubscribeError, message: string): Response;
 };
 
 /** Routes one request; any thrown error becomes a generic 500. */
@@ -54,7 +59,7 @@ export async function handleUnsubscribe(
   }
   try {
     const recipientId = await recipientIdOf(req, url, reply.json);
-    if (!UUID.test(recipientId)) {
+    if (!RECIPIENT_ID.test(recipientId)) {
       console.warn("[broadcast-unsubscribe] invalid recipient id");
       return reply.fail(400, "invalid_link", "הקישור אינו תקין.");
     }
@@ -70,8 +75,6 @@ export async function handleUnsubscribe(
     );
   }
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const NOT_FOUND_TEXT = "הקישור פג או לא נמצא.";
 
@@ -144,7 +147,7 @@ async function recipientIdOf(req: Request, url: URL, isJson: boolean) {
 }
 
 /** JSON answer for the app page. */
-function json(body: unknown, status = 200) {
+function json(body: UnsubscribeAnswer, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
