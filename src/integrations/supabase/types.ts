@@ -16908,6 +16908,8 @@ export type Database = {
           source: string;
           start_time: string | null;
           suggested_client_id: string | null;
+          summary_error: string | null;
+          summary_failed_at: string | null;
           summary_file_url: string | null;
           summary_generated_at: string | null;
           summary_md: string | null;
@@ -16945,6 +16947,8 @@ export type Database = {
           source?: string;
           start_time?: string | null;
           suggested_client_id?: string | null;
+          summary_error?: string | null;
+          summary_failed_at?: string | null;
           summary_file_url?: string | null;
           summary_generated_at?: string | null;
           summary_md?: string | null;
@@ -16982,6 +16986,8 @@ export type Database = {
           source?: string;
           start_time?: string | null;
           suggested_client_id?: string | null;
+          summary_error?: string | null;
+          summary_failed_at?: string | null;
           summary_file_url?: string | null;
           summary_generated_at?: string | null;
           summary_md?: string | null;

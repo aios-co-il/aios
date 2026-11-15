@@ -89,21 +89,87 @@ export async function writeSummary(
   };
 }
 
-/** Starts writeSummary after the response; a failure is logged with the recording id. */
-export function writeSummaryInBackground(input: WriteSummaryInput): void {
-  const work = writeSummary(input).then(
-    () => console.log("[summarize-recording] summary saved", input.recordingId),
-    (err) =>
-      console.error(
-        "[summarize-recording] background summary failed",
-        input.recordingId,
-        err instanceof Error ? err.message : err,
-      ),
-  );
+type Admin = ReturnType<typeof serviceClient>;
+
+export interface BackgroundDeps {
+  write: (input: WriteSummaryInput) => Promise<WrittenSummary>;
+  admin: () => Admin;
+  waitUntil: (work: Promise<unknown>) => void;
+}
+
+/** EdgeRuntime.waitUntil when the runtime has it; otherwise the work just runs. */
+function edgeWaitUntil(work: Promise<unknown>): void {
   const runtime = (
     globalThis as {
       EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void };
     }
   ).EdgeRuntime;
   runtime?.waitUntil?.(work);
+}
+
+const defaultDeps: BackgroundDeps = {
+  write: writeSummary,
+  admin: serviceClient,
+  waitUntil: edgeWaitUntil,
+};
+
+/**
+ * Marks the recording's background summary as failed, so the waiting UI
+ * stops and says so (AIO-593). Logs, and does not throw, when the mark fails.
+ */
+export async function recordSummaryFailure(
+  admin: Admin,
+  input: Pick<WriteSummaryInput, "tenantId" | "recordingId">,
+  message: string,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!input.recordingId) {
+    return;
+  }
+  const { error } = await admin
+    .from("zoom_recordings")
+    .update({ summary_failed_at: now.toISOString(), summary_error: message })
+    .eq("id", input.recordingId)
+    .eq("tenant_id", input.tenantId);
+  if (error) {
+    console.error(
+      "[summarize-recording] could not record the summary failure",
+      input.recordingId,
+      error.message,
+    );
+  }
+}
+
+/**
+ * Starts writeSummary after the response and returns that work. A failure is
+ * logged and recorded on the recording (AIO-593).
+ */
+export function writeSummaryInBackground(
+  input: WriteSummaryInput,
+  deps: BackgroundDeps = defaultDeps,
+): Promise<void> {
+  const work = deps.write(input).then(
+    () => {
+      console.log("[summarize-recording] summary saved", input.recordingId);
+    },
+    async (err) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        "[summarize-recording] background summary failed",
+        input.recordingId,
+        message,
+      );
+      try {
+        await recordSummaryFailure(deps.admin(), input, message);
+      } catch (markErr) {
+        console.error(
+          "[summarize-recording] could not record the summary failure",
+          input.recordingId,
+          markErr instanceof Error ? markErr.message : markErr,
+        );
+      }
+    },
+  );
+  deps.waitUntil(work);
+  return work;
 }
