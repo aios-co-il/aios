@@ -15,7 +15,7 @@ import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import { useDashboardGoalTotals } from "@/hooks/useDashboardGoalTotals";
 import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
 import {
-  ADS_SYNC_LABELS,
+  adsSyncLabel,
   type AdsSyncTable,
   isAdsSyncTable,
 } from "@/lib/adsRangeSync/syncAdsTableRange";
@@ -1326,7 +1326,7 @@ export default function DashboardView() {
           })
         : Promise.resolve([]);
       const adsTasks = adsTables.map((t, index) => ({
-        label: ADS_SYNC_LABELS[t.integration_type ?? ""] ?? t.name ?? t.id,
+        label: adsSyncLabel(t) ?? t.name ?? t.id,
         promise: adsRun.then((results) => {
           const result = results[index];
           return result?.failure

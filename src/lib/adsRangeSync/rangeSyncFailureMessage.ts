@@ -10,9 +10,7 @@ export function rangeSyncFailureMessage(result: AdsRangeSyncResult): string {
     return "";
   }
   const { piece, message } = result.failure;
-  const where = piece
-    ? ` בימים ${formatReportDate(piece.startDate)}–${formatReportDate(piece.endDate)}`
-    : "";
+  const where = ` בימים ${formatReportDate(piece.startDate)}–${formatReportDate(piece.endDate)}`;
   const kept =
     result.piecesDone > 0
       ? ` (${result.piecesDone}/${result.piecesTotal} חלקים נשמרו)`

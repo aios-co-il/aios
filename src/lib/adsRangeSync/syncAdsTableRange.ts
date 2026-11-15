@@ -2,13 +2,17 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import {
+  legacySyncWindow,
   resolveSyncWindow,
   splitSyncWindow,
   type SyncDateSelection,
   type SyncWindow,
 } from "./syncWindow";
 
-/** The manual sync function of each ads report type. */
+/**
+ * The manual sync function of each ads report type; other sync maps spread
+ * this one for their ads entries.
+ */
 export const ADS_SYNC_FUNCTIONS = {
   facebook_insights: "sync-facebook-insights",
   facebook_ecommerce: "sync-facebook-ecommerce",
@@ -16,16 +20,15 @@ export const ADS_SYNC_FUNCTIONS = {
 } as const;
 
 /** Source names for a combined sync's summary. */
-export const ADS_SYNC_LABELS: Record<string, string> = {
+export const ADS_SYNC_LABELS: Record<AdsIntegrationType, string> = {
   facebook_insights: "Facebook",
   facebook_ecommerce: "Facebook Ecom",
   google_ads: "Google Ads",
 };
 
-export type AdsSyncTable = { id: string; integration_type?: string | null };
+export type AdsIntegrationType = keyof typeof ADS_SYNC_FUNCTIONS;
 
-/** One request: a window, or null for a legacy call that lets the edge pick. */
-export type SyncPiece = SyncWindow | null;
+export type AdsSyncTable = { id: string; integration_type?: string | null };
 
 export type AdsRangeSyncResult = {
   tableId: string;
@@ -34,7 +37,7 @@ export type AdsRangeSyncResult = {
   recordsSynced: number;
   byLevel: Record<"campaign" | "adset" | "ad", number> | null;
   /** The first failed piece; the pieces before it stay written. */
-  failure: { piece: SyncPiece; message: string } | null;
+  failure: { piece: SyncWindow; message: string } | null;
 };
 
 /** Sends one piece to `functionName`; resolves with the response body. */
@@ -62,17 +65,25 @@ export function isAdsSyncTable(table: AdsSyncTable): boolean {
   return adsSyncFunctionFor(table) !== null;
 }
 
+/** The source name of an ads table for a combined sync's summary, or null. */
+export function adsSyncLabel(table: AdsSyncTable): string | null {
+  const type = table.integration_type;
+  return isAdsIntegrationType(type) ? ADS_SYNC_LABELS[type] : null;
+}
+
 /**
  * The requests that sync `selection`: its window in pieces of at most 30 days,
- * newest first, or one legacy request when the selection has no bounded range
- * ("all").
+ * newest first. A selection with no bounded range ("all", an unfinished custom
+ * range) syncs the legacy 120 days the same way, since one 120-day request
+ * outlasts the edge limit on a large account.
  */
 export function planSyncPieces(
   selection: SyncDateSelection,
   now: Date = new Date(),
-): Array<SyncPiece> {
-  const window = resolveSyncWindow(selection, now);
-  return window ? splitSyncWindow(window) : [null];
+): Array<SyncWindow> {
+  return splitSyncWindow(
+    resolveSyncWindow(selection, now) ?? legacySyncWindow(now),
+  );
 }
 
 /**
@@ -82,7 +93,7 @@ export function planSyncPieces(
  */
 export async function syncAdsTableRange(
   table: AdsSyncTable,
-  pieces: ReadonlyArray<SyncPiece>,
+  pieces: ReadonlyArray<SyncWindow>,
   options: {
     invoke?: InvokeSyncPiece;
     onPieceDone?: () => void;
@@ -147,21 +158,19 @@ function adsSyncFunctionFor(table: AdsSyncTable): string | null {
 /** Narrows an integration type to the ads report types. */
 function isAdsIntegrationType(
   type: string | null | undefined,
-): type is keyof typeof ADS_SYNC_FUNCTIONS {
+): type is AdsIntegrationType {
   return (
     !!type && Object.prototype.hasOwnProperty.call(ADS_SYNC_FUNCTIONS, type)
   );
 }
 
-/** The request body: the table, plus the window when the piece names one. */
-function pieceBody(tableId: string, piece: SyncPiece): Record<string, string> {
-  return piece
-    ? {
-        table_id: tableId,
-        start_date: piece.startDate,
-        end_date: piece.endDate,
-      }
-    : { table_id: tableId };
+/** The request body: the table and the piece's days. */
+function pieceBody(tableId: string, piece: SyncWindow): Record<string, string> {
+  return {
+    table_id: tableId,
+    start_date: piece.startDate,
+    end_date: piece.endDate,
+  };
 }
 
 /** Adds one response's row and level counts to the running totals. */

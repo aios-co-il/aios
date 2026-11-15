@@ -1,15 +1,19 @@
 import { getDashboardDateRange } from "@/lib/dashboardDateFilters";
 import { jerusalemYmd, shiftYmd } from "@/lib/calendarTimeZone";
+import { MAX_REQUESTED_WINDOW_DAYS } from "@functions/_shared/ads-sync/requested-window.ts";
+import {
+  REPORT_MIN_SYNC_DAYS,
+  type SyncWindow,
+} from "@functions/_shared/report-sync-window.ts";
+
+export type { SyncWindow };
 
 /**
- * Days per sync request. The edge accepts at most 31 per request
+ * Days per sync request: one under the edge's per-request limit
  * (MAX_REQUESTED_WINDOW_DAYS), which a large account's three-level Meta read
  * still finishes inside the 150 s edge limit.
  */
-export const ADS_SYNC_PIECE_DAYS = 30;
-
-/** Inclusive `yyyy-MM-dd` days one sync request fetches and replaces. */
-export type SyncWindow = { startDate: string; endDate: string };
+export const ADS_SYNC_PIECE_DAYS = MAX_REQUESTED_WINDOW_DAYS - 1;
 
 /** The date range a report screen shows: a preset, or a custom range. */
 export type SyncDateSelection = {
@@ -52,6 +56,19 @@ export function resolveSyncWindow(
 }
 
 /**
+ * The window a selection without a bounded range ("all", an unfinished custom
+ * range) syncs: the edge's legacy floor, the last REPORT_MIN_SYNC_DAYS days
+ * through today, so it can still go out in 30-day pieces.
+ */
+export function legacySyncWindow(now: Date = new Date()): SyncWindow {
+  const endDate = latestSyncableDay(now);
+  return {
+    startDate: shiftYmd(endDate, -(REPORT_MIN_SYNC_DAYS - 1)),
+    endDate,
+  };
+}
+
+/**
  * Consecutive pieces of at most `pieceDays` days covering `window` with no gap
  * or overlap, newest first so the freshest days land first.
  */
@@ -75,11 +92,7 @@ export function splitSyncWindow(
  * ending after today in Israel, and the presets count from the local day.
  */
 function latestSyncableDay(now: Date): string {
-  const local = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("-");
   const israel = jerusalemYmd(now);
+  const local = getDashboardDateRange("today", now).startDate ?? israel;
   return local < israel ? local : israel;
 }

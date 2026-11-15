@@ -15,7 +15,8 @@ import {
 } from "../_shared/ads-sync/google-customer-id.ts";
 import { isPermanentGoogleOAuthError } from "../_shared/google-oauth/refresh-error.ts";
 import { recordGoogleFindings } from "./record-google-findings.ts";
-import { toDateString } from "../_shared/report-sync-window.ts";
+import { jerusalemToday, toDateString } from "../_shared/report-sync-window.ts";
+import { elementorLookback } from "./elementor-lookback.ts";
 import { resolveManualSyncWindow } from "../_shared/ads-sync/requested-window.ts";
 import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classify.ts";
 import { operationalCampaignStates } from "../_shared/campaign-goal/delivery-status.ts";
@@ -1051,17 +1052,14 @@ Deno.serve(async (req) => {
         const site = wpSites?.[0];
         if (site) {
           verifiedSiteUrl = site.site_url;
-          // Compute days from date range to limit submission scan
-          const daysDiff = Math.max(
-            1,
-            Math.round((Date.parse(endIso) - Date.parse(startIso)) / 86400000) +
-              1,
-          );
+          // The submission fetch counts back from now, so a past window asks
+          // for the days from its start through today.
+          const lookback = elementorLookback(startIso, jerusalemToday());
 
           const { data: subData, error: subErr } =
             await supabaseAdmin.functions.invoke(
               "fetch-elementor-submissions",
-              { body: { site_id: site.id, days: Math.min(daysDiff, 90) } },
+              { body: { site_id: site.id, days: lookback.days } },
             );
 
           if (
@@ -1176,6 +1174,8 @@ Deno.serve(async (req) => {
 
             for (const rec of records) {
               if ((rec.entity_level || "campaign") !== "campaign") continue;
+              // Days older than the fetched submissions stay unannotated, not 0.
+              if (rec.date < lookback.coveredFrom) continue;
               // Strategy 1: manual FORM mapping (PRIMARY)
               const mappedForms = campaignIdToForms.get(rec.campaign_id) || [];
               if (mappedForms.length > 0) {
@@ -1380,7 +1380,7 @@ Deno.serve(async (req) => {
     // Health/pulse read the freshest of column vs settings.
     const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
-      catchup: update_last_sync === false,
+      catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
       settingsPatch: scheduledMarkerPatch(outcome.status, {
         scheduled_history_from,

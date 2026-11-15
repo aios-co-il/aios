@@ -152,7 +152,11 @@ describe("useAdsRangeSync", () => {
     });
   });
 
-  it("asks the edge for its legacy window when the screen shows all dates", async () => {
+  it("syncs the legacy 120 days in 30-day requests when the screen shows all dates", async () => {
+    vi.useFakeTimers({
+      shouldAdvanceTime: true,
+      now: new Date(2026, 10, 15, 12),
+    });
     const { wrapper } = createTestQueryHarness();
     const { result } = renderHook(
       () => useAdsRangeSync({ tenantId: "tenant-1", notify: false }),
@@ -164,8 +168,12 @@ describe("useAdsRangeSync", () => {
         selection: { filter: "all" },
       });
     });
-    expect(state.calls).toEqual([
-      { name: "sync-google-ads-data", body: { table_id: "table-2" } },
+    vi.useRealTimers();
+    expect(state.calls.map((call) => call.body)).toEqual([
+      { table_id: "table-2", start_date: "2026-10-17", end_date: "2026-11-15" },
+      { table_id: "table-2", start_date: "2026-09-17", end_date: "2026-10-16" },
+      { table_id: "table-2", start_date: "2026-08-18", end_date: "2026-09-16" },
+      { table_id: "table-2", start_date: "2026-07-19", end_date: "2026-08-17" },
     ]);
   });
 });

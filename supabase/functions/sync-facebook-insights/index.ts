@@ -486,6 +486,7 @@ Deno.serve(async (req) => {
     // Account status always; last_sync_at only after a successful write (saveSyncRun).
     const { lastSyncAt } = await saveSyncRun(supabase, run, {
       outcome,
+      catchup: !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
       settingsPatch: {
         ...(isWriteSuccess(outcome.status)

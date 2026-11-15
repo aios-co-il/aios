@@ -110,8 +110,32 @@ Deno.test(
         ok: true,
         explicit: true,
         window: { startDate: "2026-11-08", endDate: "2026-11-14" },
+        stampsLastSync: true,
       },
     );
+  },
+);
+
+Deno.test(
+  "resolveManualSyncWindow: only a window reaching yesterday stamps last_sync_at",
+  () => {
+    const stamps = (start_date: string, end_date: string) => {
+      const result = resolveManualSyncWindow(
+        { start_date, end_date },
+        { configured: CONFIGURED, internal: false, now: NOW },
+      );
+      return result.ok && result.stampsLastSync;
+    };
+
+    assertEquals(stamps("2026-11-15", "2026-11-15"), true);
+    assertEquals(stamps("2026-10-15", "2026-11-14"), true);
+    assertEquals(stamps("2026-10-01", "2026-10-31"), false);
+    assertEquals(stamps("2026-10-14", "2026-11-13"), false);
+    const legacy = resolveManualSyncWindow(
+      {},
+      { configured: CONFIGURED, internal: false, now: NOW },
+    );
+    assertEquals(legacy.ok && legacy.stampsLastSync, true);
   },
 );
 

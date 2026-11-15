@@ -24,7 +24,18 @@ import {
 export const MAX_REQUESTED_WINDOW_DAYS = 31;
 
 export type ManualSyncWindow =
-  | { ok: true; window: SyncWindow; explicit: boolean }
+  | {
+      ok: true;
+      window: SyncWindow;
+      explicit: boolean;
+      /**
+       * The window reaches yesterday (Israel) or later, so a successful write
+       * may stamp last_sync_at. A past-only window (an older 30-day piece,
+       * last month) passes `catchup` to saveSyncRun instead: reconcile and the
+       * freshness badge read last_sync_at as "recent days were fetched".
+       */
+      stampsLastSync: boolean;
+    }
   | { ok: false; error: string };
 
 type RequestedWindow =
@@ -45,20 +56,29 @@ export function resolveManualSyncWindow(
   options: { configured: SyncWindow; internal: boolean; now?: Date },
 ): ManualSyncWindow {
   const now = options.now ?? new Date();
+  const today = jerusalemToday(now);
   const requested = parseRequestedWindow(body, {
-    today: jerusalemToday(now),
+    today,
     enforceLimits: !options.internal,
   });
   if (requested.kind === "invalid") {
     return { ok: false, error: requested.error };
   }
   if (requested.kind === "window") {
-    return { ok: true, window: requested.window, explicit: true };
+    return {
+      ok: true,
+      window: requested.window,
+      explicit: true,
+      // Rolling presets (last_7_days …) end yesterday; they still refresh
+      // every finished day, which is what reconcile checks.
+      stampsLastSync: requested.window.endDate >= shiftDateString(today, -1),
+    };
   }
   return {
     ok: true,
     window: resolveAdsSyncWindow(options.configured, toDateString(now)),
     explicit: false,
+    stampsLastSync: true,
   };
 }
 

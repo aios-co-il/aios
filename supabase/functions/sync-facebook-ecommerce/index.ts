@@ -422,7 +422,7 @@ Deno.serve(async (req) => {
     // successful write; catch-up chunks (update_last_sync=false) never stamp it.
     const { lastSyncAt } = await saveSyncRun(supabaseAdmin, run, {
       outcome,
-      catchup: update_last_sync === false,
+      catchup: update_last_sync === false || !resolvedWindow.stampsLastSync,
       fallbackSettings: settings,
       settingsPatch: {
         last_campaign_updated_at: latestCampaignUpdatedTime(campaignStatuses),
