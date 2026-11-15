@@ -704,38 +704,21 @@ async function resolveLLMTarget(
     .limit(1)
     .maybeSingle();
   const s = (data?.settings || {}) as Record<string, string>;
-  const m = String(model || "");
-  const lower = m.toLowerCase();
-
-  if (lower.startsWith("google/") || lower.includes("gemini")) {
-    const key = s.google_api_key;
-    if (!key)
-      throw new Error("Google (Gemini) API key חסר באינטגרציית מודלי AI");
-    return {
-      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      key,
-      model: m.replace(/^google\//, ""),
-    };
-  }
-  if (lower.startsWith("anthropic/") || lower.includes("claude")) {
-    const key = s.anthropic_api_key;
-    if (!key)
-      throw new Error("Anthropic (Claude) API key חסר באינטגרציית מודלי AI");
-    return {
-      url: "https://api.anthropic.com/v1/chat/completions",
-      key,
-      model: m.replace(/^anthropic\//, ""),
-    };
-  }
-  // Default: OpenAI (GPT)
-  const key = s.openai_api_key;
-  if (!key) throw new Error("OpenAI (GPT) API key חסר באינטגרציית מודלי AI");
+  const endpoint = llmEndpoint(model);
+  const key = s[endpoint.keyField];
+  if (!key) throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
   return {
-    url: "https://api.openai.com/v1/chat/completions",
+    url: endpoint.url,
     key,
-    model: m.replace(/^openai\//, ""),
+    model: endpoint.model,
   };
 }
+
+const MISSING_KEY_TEXT: Record<LLMProvider, string> = {
+  google: "Google (Gemini) API key חסר באינטגרציית מודלי AI",
+  anthropic: "Anthropic (Claude) API key חסר באינטגרציית מודלי AI",
+  openai: "OpenAI (GPT) API key חסר באינטגרציית מודלי AI",
+};
 
 // ─── Provider failover chain ───
 // When the agent's primary provider is out of quota/credit (Gemini spend cap,
@@ -743,7 +726,7 @@ async function resolveLLMTarget(
 // SAME request against the next provider that has a configured key — so she keeps
 // working instead of failing the whole conversation. Only providers whose key
 // exists are included; the agent's own engine is always tried first.
-type LLMProvider = "openai" | "google" | "anthropic";
+type LLMProvider = LlmProvider;
 interface LLMTarget {
   url: string;
   key: string;
@@ -766,10 +749,7 @@ const LLM_FALLBACK_ORDER = [
 const FAST_LANE_MODELS = LLM_FALLBACK_ORDER.slice(0, 2);
 
 function providerOf(fullId: string): LLMProvider {
-  const l = (fullId || "").toLowerCase();
-  if (l.startsWith("google/") || l.includes("gemini")) return "google";
-  if (l.startsWith("anthropic/") || l.includes("claude")) return "anthropic";
-  return "openai";
+  return llmEndpoint(fullId).provider;
 }
 
 async function buildLLMChain(
@@ -8619,6 +8599,7 @@ import {
   type FastTarget,
 } from "./fast-lane/answer.ts";
 import { loadOrgBrief } from "../_shared/carmen/org-brief/brief.ts";
+import { llmEndpoint, type LlmProvider } from "../_shared/llm-endpoint.ts";
 import { type FastLaneCaller, fastLaneBriefScope } from "./fast-lane/scope.ts";
 
 // Emit function used by the streaming wrapper to push SSE events to the client.
