@@ -1,4 +1,5 @@
 import { Trash2 } from "lucide-react";
+import { isSelfUnsubscribe } from "./blacklistSources";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +24,7 @@ export function UnblockButton({
   disabled: boolean;
   onConfirm: () => void;
 }) {
-  const selfUnsubscribed =
-    entry.source === "unsubscribe_link" || entry.source === "email_unsubscribe";
+  const selfUnsubscribed = isSelfUnsubscribe(entry.source);
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
