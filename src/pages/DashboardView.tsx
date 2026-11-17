@@ -720,11 +720,6 @@ export default function DashboardView() {
         label: "Analytics",
         iconNode: getIntegrationIcon("google_analytics"),
       });
-      items.push({
-        value: "site_events",
-        label: "אירועים באתר",
-        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
-      });
     }
     if (availablePlatforms.includes("seo")) {
       items.push({
@@ -1670,20 +1665,7 @@ export default function DashboardView() {
         )
       ) : (
         <>
-          {platformFilter === "site_events" ? (
-            <DashboardTrackedEvents
-              records={displayAllRecords}
-              settings={dashboard?.settings}
-              adsSpend={globalAdsMetrics.spend}
-              formatCurrency={formatCurrency}
-              formatNumber={formatNumber}
-              source={dashboardId ? { dashboardId } : null}
-              dateFilter={dateFilter}
-              customFrom={customFromStr}
-              customTo={customToStr}
-              editableDashboardId={dashboardId}
-            />
-          ) : platformFilter === "continents" ? (
+          {platformFilter === "continents" ? (
             <CampaignContinentsTab
               campaigns={googleAdsSummary.campaigns}
               formatCurrency={formatCurrency}
@@ -1753,14 +1735,28 @@ export default function DashboardView() {
             </Card>
           ) : platformFilter === "google_analytics" ? (
             /* Analytics tab: render the same GoogleAnalyticsDashboard used in standalone table view */
-            <GoogleAnalyticsDashboard
-              records={allAnalyticsRecords}
-              externalDateFilter={dateFilter}
-              dashboardId={dashboardId}
-              tableId={analyticsTableIds[0]}
-              relatedTableIds={analyticsTableIds.slice(1)}
-              defaultReportMode={analyticsReportMode}
-            />
+            <div className="space-y-4">
+              <DashboardTrackedEvents
+                records={displayAllRecords}
+                settings={dashboard?.settings}
+                adsSpend={globalAdsMetrics.spend}
+                formatCurrency={formatCurrency}
+                formatNumber={formatNumber}
+                source={dashboardId ? { dashboardId } : null}
+                dateFilter={dateFilter}
+                customFrom={customFromStr}
+                customTo={customToStr}
+                editableDashboardId={dashboardId}
+              />
+              <GoogleAnalyticsDashboard
+                records={allAnalyticsRecords}
+                externalDateFilter={dateFilter}
+                dashboardId={dashboardId}
+                tableId={analyticsTableIds[0]}
+                relatedTableIds={analyticsTableIds.slice(1)}
+                defaultReportMode={analyticsReportMode}
+              />
+            </div>
           ) : (
             <>
               {platformFilter === "all" && (

@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users } from "lucide-react";
+import { ReportSection } from "@/components/report-ui/ReportSection";
 import {
   Table,
   TableBody,
@@ -32,64 +33,59 @@ export function EventUsersTable({
   formatNumber,
 }: Props) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">משתמשים לפי מקור תנועה</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">
-            טוען נתונים מ-Google Analytics…
-          </p>
-        ) : !result && !failed ? (
-          <p className="text-sm text-muted-foreground">
-            בחרו טווח תאריכים כדי לראות את המשתמשים
-          </p>
-        ) : failed || !result ? (
-          <p className="text-sm text-muted-foreground">
-            לא הצלחנו לטעון את נתוני המשתמשים מ-Google Analytics
-          </p>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-right">מקור תנועה</TableHead>
-                    {result.steps.map((step) => (
-                      <TableHead key={step.event} className="text-center">
-                        {step.label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+    <ReportSection title="משתמשים לפי מקור תנועה" icon={Users}>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">
+          טוען נתונים מ-Google Analytics…
+        </p>
+      ) : !result && !failed ? (
+        <p className="text-sm text-muted-foreground">
+          בחרו טווח תאריכים כדי לראות את המשתמשים
+        </p>
+      ) : failed || !result ? (
+        <p className="text-sm text-muted-foreground">
+          לא הצלחנו לטעון את נתוני המשתמשים מ-Google Analytics
+        </p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">מקור תנועה</TableHead>
+                  {result.steps.map((step) => (
+                    <TableHead key={step.event} className="text-center">
+                      {step.label}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <UsersRow
+                  row={result.total}
+                  result={result}
+                  formatNumber={formatNumber}
+                  isTotal
+                />
+                {result.sources.map((row) => (
                   <UsersRow
-                    row={result.total}
+                    key={row.source}
+                    row={row}
                     result={result}
                     formatNumber={formatNumber}
-                    isTotal
                   />
-                  {result.sources.map((row) => (
-                    <UsersRow
-                      key={row.source}
-                      row={row}
-                      result={result}
-                      formatNumber={formatNumber}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              {result.funnelAvailable
-                ? "המספרים הם משתמשים ייחודיים. האחוז מתחת לכל שלב: מתוך מי שעשה את השלב הקודם, כמה המשיכו לשלב הזה."
-                : "המספרים הם משתמשים ייחודיים. אחוזי ההמרה לא זמינים כרגע מ-Google Analytics."}
-            </p>
-          </>
-        )}
-      </CardContent>
-    </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            {result.funnelAvailable
+              ? "המספרים הם משתמשים ייחודיים. האחוז מתחת לכל שלב: מתוך מי שעשה את השלב הקודם, כמה המשיכו לשלב הזה."
+              : "המספרים הם משתמשים ייחודיים. אחוזי ההמרה לא זמינים כרגע מ-Google Analytics."}
+          </p>
+        </>
+      )}
+    </ReportSection>
   );
 }
 
