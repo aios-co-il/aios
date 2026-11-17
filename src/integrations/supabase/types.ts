@@ -17237,6 +17237,10 @@ export type Database = {
         Args: { p_current: string; p_mode: string; p_values: Json };
         Returns: boolean;
       };
+      broadcast_is_unsubscribe_reply: {
+        Args: { p_text: string };
+        Returns: boolean;
+      };
       broadcast_list_add_members: {
         Args: { p_added_via?: string; p_list_id: string; p_rows: Json };
         Returns: number;
@@ -18319,6 +18323,10 @@ export type Database = {
       kick_internal_function: {
         Args: { p_body: Json; p_function: string };
         Returns: number;
+      };
+      landing_page_client_matches: {
+        Args: { p_client_id: string; p_tenant_id: string };
+        Returns: boolean;
       };
       lead_origin_tag_names: {
         Args: { p_campaign_name: string; p_source: string };

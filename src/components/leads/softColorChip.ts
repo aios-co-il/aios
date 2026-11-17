@@ -17,3 +17,16 @@ export function softColorChipStyle(
     borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
   };
 }
+
+/**
+ * A chip filled with the exact colour the user chose for a funnel stage or
+ * response status, as the tenant picked it in settings, with white text.
+ */
+export function solidColorChipStyle(
+  color: string | null | undefined,
+): CSSProperties | undefined {
+  if (!color) {
+    return undefined;
+  }
+  return { backgroundColor: color, borderColor: color, color: "#fff" };
+}

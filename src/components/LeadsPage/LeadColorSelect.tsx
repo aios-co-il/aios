@@ -5,7 +5,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { softColorChipStyle } from "@/components/leads/softColorChip";
+import { solidColorChipStyle } from "@/components/leads/softColorChip";
 import { cn } from "@/lib/utils";
 
 /** One choice in a stage or status select, in the colour the tenant chose. */
@@ -30,8 +30,8 @@ interface LeadColorSelectProps {
 }
 
 /**
- * An inline stage or status picker drawn as a soft chip in the chosen colour,
- * with a colour dot per option and a shortcut to manage the list.
+ * An inline stage or status picker drawn as a chip filled with the chosen
+ * colour, each option in its own colour, and a shortcut to manage the list.
  */
 export function LeadColorSelect({
   value,
@@ -56,24 +56,19 @@ export function LeadColorSelect({
           "h-7 w-full gap-1.5 rounded-full px-2.5 text-xs font-medium shadow-none",
           current ? "text-foreground" : "border-dashed text-muted-foreground",
         )}
-        style={softColorChipStyle(current?.color)}
+        style={solidColorChipStyle(current?.color)}
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          {current?.color && <ColorDot color={current.color} />}
-          <span className="truncate">{current?.label ?? placeholder}</span>
-        </span>
+        <span className="truncate">{current?.label ?? placeholder}</span>
       </SelectTrigger>
       <SelectContent className="z-50 bg-popover">
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            <span className="flex items-center gap-2">
-              {option.color ? (
-                <ColorDot color={option.color} />
-              ) : (
-                <span className="h-2 w-2 shrink-0 rounded-full border border-muted-foreground/40" />
-              )}
-              {option.label}
-            </span>
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className="my-0.5"
+            style={solidColorChipStyle(option.color)}
+          >
+            {option.label}
           </SelectItem>
         ))}
         <div className="mt-1 border-t pt-1">
@@ -91,16 +86,5 @@ export function LeadColorSelect({
         </div>
       </SelectContent>
     </Select>
-  );
-}
-
-/** The chosen colour as a small solid dot. */
-function ColorDot({ color }: { color: string }) {
-  return (
-    <span
-      className="h-2 w-2 shrink-0 rounded-full"
-      style={{ backgroundColor: color }}
-      aria-hidden="true"
-    />
   );
 }

@@ -6,6 +6,5 @@ export type DashboardPlatformFilter =
   | "google_ads"
   | "continents"
   | "google_analytics"
-  | "site_events"
   | "seo"
   | "woocommerce";
