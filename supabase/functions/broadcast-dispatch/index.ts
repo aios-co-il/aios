@@ -16,10 +16,7 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../_shared/broadcast/template/template-vars.ts";
-import {
-  attachmentUrlPrefix,
-  emailAttachmentsForResend,
-} from "../_shared/broadcast/template/email-attachments.ts";
+import { emailSendFields } from "../_shared/broadcast/template/inline-images.ts";
 import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
 import {
   oneClickUnsubscribeUrl,
@@ -181,7 +178,7 @@ async function sendOne(
     const res = await invokeEdgeFn("send-resend-email", {
       to: r.email,
       subject: renderTemplate(b.subject || b.name, vars),
-      html,
+      ...emailSendFields(html, b.attachments, SB_URL),
       text,
       fromEmail: b.from_email || undefined,
       fromName: b.from_name || undefined,
@@ -191,10 +188,6 @@ async function sendOne(
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
       tags: [{ name: "broadcast_id", value: b.id }],
-      attachments: emailAttachmentsForResend(
-        b.attachments,
-        attachmentUrlPrefix(SB_URL),
-      ),
     });
     return res.ok
       ? { ok: true, messageId: res.json?.id }

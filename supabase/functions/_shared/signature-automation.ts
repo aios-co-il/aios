@@ -9,12 +9,17 @@ import {
   type SignatureEmailColors,
   type SignatureEmailSettings,
 } from "./signature-email-template.ts";
+import {
+  inlineEmailImages,
+  inlineImageUrlPrefixes,
+} from "./broadcast/template/inline-images.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const DEFAULT_FROM_EMAIL =
   Deno.env.get("RESEND_FROM_EMAIL") ?? "noreply@aios.co.il";
 const DEFAULT_FROM_NAME = Deno.env.get("RESEND_FROM_NAME") ?? "AIOS";
 const DEFAULT_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "https://aios.co.il";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
 export function safeOrigin(baseUrl?: string): string {
   const fallback = DEFAULT_BASE_URL;
@@ -126,6 +131,32 @@ export async function loadSignatureEmailSettings(
   const value = data?.setting_value;
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as SignatureEmailSettings;
+}
+
+/** A file sent with a signing email, as the Resend API expects it. */
+type SigningEmailAttachment = {
+  filename: string;
+  content?: string;
+  path?: string;
+  content_id?: string;
+};
+
+/**
+ * The `html` and `attachments` fields of a signing email. The logo is embedded
+ * when it is in our storage, so Outlook shows it without asking the reader.
+ */
+function signingEmailFields(
+  opts: Parameters<typeof buildSigningEmailHtml>[0],
+  files: Array<SigningEmailAttachment> = [],
+): { html: string; attachments?: Array<SigningEmailAttachment> } {
+  const inlined = inlineEmailImages(
+    buildSigningEmailHtml(opts),
+    inlineImageUrlPrefixes(SUPABASE_URL),
+  );
+  const attachments = [...files, ...inlined.attachments];
+  return attachments.length > 0
+    ? { html: inlined.html, attachments }
+    : { html: inlined.html };
 }
 
 async function resolveSignatureEmailLogo(
@@ -301,7 +332,7 @@ export async function sendSignatureDocumentEmails(
           },
           emailSubject,
         ),
-        html: buildSigningEmailHtml({
+        ...signingEmailFields({
           recipientName: recipient.name,
           documentTitle: doc.title,
           signingUrl,
@@ -418,16 +449,18 @@ export async function emailSignedDocumentCopies(
         from: `${DEFAULT_FROM_NAME} <${DEFAULT_FROM_EMAIL}>`,
         to: [to],
         subject: headline,
-        html: buildSigningEmailHtml({
-          recipientName: name,
-          documentTitle: opts.title,
-          signingUrl: "",
-          logoUrl,
-          headline,
-          bodyText: body,
-          colors: emailSettings,
-        }),
-        attachments: [attachment],
+        ...signingEmailFields(
+          {
+            recipientName: name,
+            documentTitle: opts.title,
+            signingUrl: "",
+            logoUrl,
+            headline,
+            bodyText: body,
+            colors: emailSettings,
+          },
+          [attachment],
+        ),
       }),
     });
     if (!res.ok) {

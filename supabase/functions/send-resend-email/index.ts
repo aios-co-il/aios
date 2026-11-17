@@ -1,9 +1,11 @@
 // send-resend-email — sends a single email via the Resend API.
 // Body: { to, subject, html?, text?, fromEmail?, fromName?, replyTo?,
 //         headers?, tags?, attachments?: [{filename, content (base64) | path (URL), contentType}] }
-// A `path` attachment must be a public URL in our broadcast-media bucket;
-// others are dropped so a caller cannot make Resend fetch an arbitrary URL.
+// A `path` attachment must be a public URL in our broadcast-media bucket, or
+// an inline image from a bucket images may be embedded from; others are
+// dropped so a caller cannot make Resend fetch an arbitrary URL.
 import { attachmentUrlPrefix } from "../_shared/broadcast/template/email-attachments.ts";
+import { inlineImageUrlPrefixes } from "../_shared/broadcast/template/inline-images.ts";
 
 /** Attachment as callers send it (camelCase or snake_case accepted). */
 interface AttachmentInput {
@@ -104,13 +106,21 @@ Deno.serve(async (req) => {
     if (replyTo) payload.reply_to = replyTo;
     if (headers && typeof headers === "object") payload.headers = headers;
     if (Array.isArray(tags)) payload.tags = tags;
-    const allowedPrefix = attachmentUrlPrefix(
-      Deno.env.get("SUPABASE_URL") ?? "",
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const allowedPrefixes = [
+      attachmentUrlPrefix(supabaseUrl),
+      ...inlineImageUrlPrefixes(supabaseUrl),
+    ];
     const allowedAttachments = (
       Array.isArray(attachments) ? attachments : []
     ).filter((a: AttachmentInput) => {
-      if (!a.path || a.content || a.path.startsWith(allowedPrefix)) return true;
+      const path = a.path;
+      if (!path || a.content) {
+        return true;
+      }
+      if (allowedPrefixes.some((prefix) => path.startsWith(prefix))) {
+        return true;
+      }
       console.warn(`send-resend-email: dropped attachment path ${a.path}`);
       return false;
     });
