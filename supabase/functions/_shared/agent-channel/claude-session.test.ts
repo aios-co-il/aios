@@ -155,6 +155,25 @@ Deno.test("deliverFollowup", async (t) => {
     },
   );
 
+  await t.step(
+    "is unconfirmed when the queue call itself answers after the deadline",
+    async () => {
+      // The insert committed but its answer hung; a worker claimed the row and the claim was
+      // closed with no verdict meanwhile. The first status read already says failed.
+      const { store } = fakeStore(["", "failed"]);
+      const clock = fakeClock();
+      const queue = store.queue;
+      store.queue = async (prompt) => {
+        await clock.sleep(3 * 60_000);
+        return queue(prompt);
+      };
+      await assertRejects(
+        () => deliverFollowup({ store, prompt: "hi", ...clock }),
+        UnconfirmedFollowupError,
+      );
+    },
+  );
+
   await t.step("is not delivered when the row is gone", async () => {
     const { store } = fakeStore(["", null]);
     assertStrictEquals(

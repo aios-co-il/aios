@@ -110,8 +110,10 @@ export async function deliverFollowup(args: {
   const sleep =
     args.sleep ??
     ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const id = await args.store.queue(args.prompt);
+  // The clock starts before the insert: a queue call that answers late must count against the
+  // deadline, or a failure written meanwhile would look like a prompt worker verdict.
   const queuedAt = now();
+  const id = await args.store.queue(args.prompt);
 
   while (true) {
     const status = await args.store.status(id);
