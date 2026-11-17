@@ -44,7 +44,7 @@ Deno.test("inlineEmailImages", async (t) => {
   await t.step("points the chosen image at an inline attachment", () => {
     const out = inlineEmailImages(
       `<p>hi</p><img alt="logo" src="${logo}" width="230">`,
-      [logo],
+      [{ url: logo, content: "QUJD" }],
     );
 
     assertStrictEquals(
@@ -52,14 +52,19 @@ Deno.test("inlineEmailImages", async (t) => {
       `<p>hi</p><img alt="logo" src="cid:image-1" width="230">`,
     );
     assertEquals(out.attachments, [
-      { filename: "image-1.png", path: logo, content_id: "image-1" },
+      {
+        filename: "image-1.png",
+        content: "QUJD",
+        content_type: "image/png",
+        content_id: "image-1",
+      },
     ]);
   });
 
   await t.step("rewrites quoted, single-quoted and bare sources", () => {
     const out = inlineEmailImages(
       `<img src="${logo}"><img src='${logo}'><img src=${logo}>`,
-      [logo],
+      [{ url: logo, content: "QUJD" }],
     );
 
     assertStrictEquals(

@@ -6,9 +6,13 @@
 /** Resend attachment that the HTML references as `cid:<content_id>`. */
 export type InlineImageAttachment = {
   filename: string;
-  path: string;
+  content: string;
+  content_type: string;
   content_id: string;
 };
+
+/** An image already downloaded from our storage, Base64-encoded. */
+export type LoadedImage = { url: string; content: string };
 
 /** Public buckets whose images may be embedded: template images and the
  * tenant's brand logo. */
@@ -32,7 +36,7 @@ export function inlineImageUrlPrefixes(supabaseUrl: string): Array<string> {
  * The distinct image URLs in the HTML that are candidates for embedding, in
  * document order: served from an allowed prefix, in a format clients render.
  * Images from any other host are never candidates, so tenant-authored HTML
- * cannot make Resend fetch an arbitrary URL.
+ * cannot make us fetch an arbitrary URL.
  */
 export function inlineImageUrls(
   html: string,
@@ -50,19 +54,23 @@ export function inlineImageUrls(
 }
 
 /**
- * Point the `<img>` tags of the given URLs at inline attachments. An image
+ * Point the `<img>` tags of the given images at inline attachments. An image
  * used more than once is attached once; every other image is left as it is.
  */
 export function inlineEmailImages(
   html: string,
-  embedUrls: Array<string>,
+  images: Array<LoadedImage>,
 ): { html: string; attachments: Array<InlineImageAttachment> } {
-  const attachments = embedUrls.map((url, index): InlineImageAttachment => ({
-    filename: `image-${index + 1}.${imageExtension(url)}`,
-    path: url,
-    content_id: `image-${index + 1}`,
-  }));
-  const byUrl = new Map(attachments.map((a) => [a.path, a]));
+  const attachments = images.map((image, index): InlineImageAttachment => {
+    const extension = imageExtension(image.url) ?? "png";
+    return {
+      filename: `image-${index + 1}.${extension}`,
+      content: image.content,
+      content_type: `image/${extension.replace("jpg", "jpeg")}`,
+      content_id: `image-${index + 1}`,
+    };
+  });
+  const byUrl = new Map(images.map((image, i) => [image.url, attachments[i]]));
   const inlined = html.replace(
     IMG_SRC,
     (tag, beforeUrl: string, quote = '"', quoted?: string, bare?: string) => {

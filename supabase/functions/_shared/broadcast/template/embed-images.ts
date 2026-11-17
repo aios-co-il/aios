@@ -1,8 +1,8 @@
 /** Chooses which storage images an email embeds, and builds its send fields.
- * An embedded image is downloaded by Resend when it sends: a missing file or
- * an oversized message would fail the whole email, where a remote `<img>`
- * only shows a broken picture. So an image is embedded only after its size is
- * known, and only while the message stays within a byte budget. */
+ * A remote `<img>` that is missing only shows a broken picture, so embedding
+ * must never do worse: the image bytes are downloaded here and travel inside
+ * the message, and an image that cannot be downloaded, or that would push the
+ * message past a byte budget, stays an ordinary remote image. */
 import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
@@ -12,10 +12,15 @@ import {
   type InlineImageAttachment,
   inlineImageUrlPrefixes,
   inlineImageUrls,
+  type LoadedImage,
 } from "./inline-images.ts";
 
-/** Byte size of a stored image, or null when it cannot be fetched. */
-export type ImageSizeLookup = (url: string) => Promise<number | null>;
+/** Downloads a stored image as Base64, or null when it cannot be embedded. */
+export type ImageLoader = (url: string) => Promise<string | null>;
+
+/** A file Resend downloads by URL, or an image sent inside the message. */
+export type EmailSendAttachment =
+  { filename: string; path: string } | InlineImageAttachment;
 
 export const MAX_INLINE_IMAGES = 10;
 
@@ -24,8 +29,9 @@ export const MAX_INLINE_IMAGES = 10;
 export const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
 
 // One broadcast sends the same template to every recipient, so each image is
-// looked up once per function instance, not once per email.
-const sizeByUrl = new Map<string, Promise<number | null>>();
+// downloaded once per function instance, not once per email. The copy is the
+// bytes themselves, so deleting the file later cannot fail a send.
+const contentByUrl = new Map<string, Promise<string | null>>();
 
 /**
  * The `html` and `attachments` fields of a broadcast email: the stored file
@@ -35,12 +41,9 @@ export async function emailSendFields(
   html: string,
   storedAttachments: unknown,
   supabaseUrl: string,
-  imageSize: ImageSizeLookup = storedImageSize,
-): Promise<{
-  html: string;
-  attachments: Array<{ filename: string; path: string; content_id?: string }>;
-}> {
-  const embedded = await embedStorageImages(html, supabaseUrl, imageSize);
+  loadImage: ImageLoader = loadStoredImage,
+): Promise<{ html: string; attachments: Array<EmailSendAttachment> }> {
+  const embedded = await embedStorageImages(html, supabaseUrl, loadImage);
   return {
     html: embedded.html,
     attachments: [
@@ -54,54 +57,72 @@ export async function emailSendFields(
 }
 
 /**
- * Embed the HTML's storage images that exist and fit the budget. The rest
+ * Embed the HTML's storage images that download and fit the budget. The rest
  * stay ordinary remote images, exactly as before embedding existed.
  */
 export async function embedStorageImages(
   html: string,
   supabaseUrl: string,
-  imageSize: ImageSizeLookup = storedImageSize,
+  loadImage: ImageLoader = loadStoredImage,
 ): Promise<{ html: string; attachments: Array<InlineImageAttachment> }> {
   const candidates = inlineImageUrls(html, inlineImageUrlPrefixes(supabaseUrl));
-  const sizes = await Promise.all(candidates.map((url) => imageSize(url)));
-  const embedUrls: Array<string> = [];
+  const contents = await Promise.all(candidates.map((url) => loadImage(url)));
+  const images: Array<LoadedImage> = [];
   let totalBytes = 0;
   candidates.forEach((url, index) => {
-    const size = sizes[index];
-    const fits =
-      size !== null &&
-      embedUrls.length < MAX_INLINE_IMAGES &&
-      totalBytes + size <= MAX_INLINE_IMAGE_BYTES;
-    if (fits) {
-      embedUrls.push(url);
-      totalBytes += size;
+    const content = contents[index];
+    if (content === null || images.length >= MAX_INLINE_IMAGES) {
+      return;
+    }
+    const bytes = base64ByteLength(content);
+    if (totalBytes + bytes <= MAX_INLINE_IMAGE_BYTES) {
+      images.push({ url, content });
+      totalBytes += bytes;
     }
   });
-  return inlineEmailImages(html, embedUrls);
+  return inlineEmailImages(html, images);
 }
 
-/** Size of an image in our storage, remembered for the function instance. */
-function storedImageSize(url: string): Promise<number | null> {
-  const known = sizeByUrl.get(url);
+/** A stored image's Base64 content, remembered for the function instance. */
+function loadStoredImage(url: string): Promise<string | null> {
+  const known = contentByUrl.get(url);
   if (known) {
     return known;
   }
-  const lookup = headImageSize(url);
-  sizeByUrl.set(url, lookup);
-  return lookup;
+  const download = downloadImage(url);
+  contentByUrl.set(url, download);
+  return download;
 }
 
-/** Ask storage for the image's size; null (and a log line) when it is not there. */
-async function headImageSize(url: string): Promise<number | null> {
+/** Download an image within the budget; null (and a log line) otherwise. */
+async function downloadImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url, { method: "HEAD" });
-    const size = Number(res.headers.get("content-length"));
-    if (res.ok && Number.isFinite(size) && size > 0) {
-      return size;
+    const res = await fetch(url);
+    const declaredBytes = Number(res.headers.get("content-length") ?? 0);
+    if (!res.ok || declaredBytes > MAX_INLINE_IMAGE_BYTES) {
+      await res.body?.cancel();
+      console.warn(`[embed-images] not embedded, status ${res.status}: ${url}`);
+      return null;
     }
-    console.warn(`[embed-images] not embedded, status ${res.status}: ${url}`);
+    return bytesToBase64(new Uint8Array(await res.arrayBuffer()));
   } catch (e) {
-    console.warn(`[embed-images] not embedded, lookup failed: ${url}`, e);
+    console.warn(`[embed-images] not embedded, download failed: ${url}`, e);
+    return null;
   }
-  return null;
+}
+
+/** Base64 of raw bytes, built in chunks so large images do not overflow the stack. */
+function bytesToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/** Number of raw bytes a Base64 string decodes to. */
+function base64ByteLength(content: string): number {
+  const padding = content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0;
+  return (content.length / 4) * 3 - padding;
 }

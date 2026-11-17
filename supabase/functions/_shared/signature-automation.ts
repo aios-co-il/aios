@@ -133,8 +133,8 @@ export async function loadSignatureEmailSettings(
 /** A file sent with a signing email, as the Resend API expects it. */
 type SigningEmailAttachment = {
   filename: string;
-  content?: string;
-  path?: string;
+  content: string;
+  content_type?: string;
   content_id?: string;
 };
 

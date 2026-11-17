@@ -5,13 +5,15 @@ import {
   MAX_INLINE_IMAGE_BYTES,
   MAX_INLINE_IMAGES,
 } from "./embed-images.ts";
+import { buildEmailContent } from "./email-html.ts";
 
 const SB_URL = "https://x.supabase.co";
 const media = `${SB_URL}/storage/v1/object/public/broadcast-media/`;
 const logo = `${media}t1/templates/logo.png`;
+const PIXELS = btoa("pixels");
 
-/** A size lookup that knows only the given images. */
-function sizes(known: Record<string, number>) {
+/** A loader that can download only the given images. */
+function loader(known: Record<string, string>) {
   return (url: string) => Promise.resolve(known[url] ?? null);
 }
 
@@ -24,52 +26,92 @@ Deno.test("emailSendFields", async (t) => {
         `<img src="${logo}">`,
         [file],
         SB_URL,
-        sizes({ [logo]: 9000 }),
+        loader({ [logo]: PIXELS }),
       ),
       {
         html: `<img src="cid:image-1">`,
         attachments: [
           { filename: "price-list.pdf", path: file.url },
-          { filename: "image-1.png", path: logo, content_id: "image-1" },
+          {
+            filename: "image-1.png",
+            content: PIXELS,
+            content_type: "image/png",
+            content_id: "image-1",
+          },
         ],
       },
     );
   });
+
+  await t.step("embeds a bare src from a ready-made template", async () => {
+    const external = `<img src=https://other.example/banner.png>`;
+    const { html } = buildEmailContent({
+      bodyHtml: `<img src=${logo} width=230>${external}`,
+      htmlMode: true,
+      vars: {},
+    });
+
+    const out = await emailSendFields(
+      html,
+      [],
+      SB_URL,
+      loader({ [logo]: PIXELS }),
+    );
+
+    assertStrictEquals(
+      out.html,
+      `<img src="cid:image-1" width=230>${external}`,
+    );
+    assertStrictEquals(out.attachments.length, 1);
+  });
 });
 
 Deno.test("embedStorageImages", async (t) => {
-  await t.step(
-    "keeps a missing image remote so the email still sends",
-    async () => {
-      const html = `<img src="${logo}">`;
+  await t.step("keeps a missing image remote so the email sends", async () => {
+    const html = `<img src="${logo}">`;
 
-      assertEquals(await embedStorageImages(html, SB_URL, sizes({})), {
-        html,
-        attachments: [],
-      });
-    },
-  );
-
-  await t.step("never looks up images on other hosts", async () => {
-    const html = `<img src="https://evil.example/a.png">`;
-    const lookedUp: Array<string> = [];
-
-    await embedStorageImages(html, SB_URL, (url) => {
-      lookedUp.push(url);
-      return Promise.resolve(1);
+    assertEquals(await embedStorageImages(html, SB_URL, loader({})), {
+      html,
+      attachments: [],
     });
+  });
 
-    assertEquals(lookedUp, []);
+  await t.step("sends the downloaded bytes, never a URL to fetch", async () => {
+    const out = await embedStorageImages(
+      `<img src="${logo}">`,
+      SB_URL,
+      loader({ [logo]: PIXELS }),
+    );
+
+    assertStrictEquals(out.attachments[0].content, PIXELS);
+    assertStrictEquals("path" in out.attachments[0], false);
+  });
+
+  await t.step("never downloads images on other hosts", async () => {
+    const downloaded: Array<string> = [];
+
+    await embedStorageImages(
+      `<img src="https://evil.example/a.png">`,
+      SB_URL,
+      (url) => {
+        downloaded.push(url);
+        return Promise.resolve(PIXELS);
+      },
+    );
+
+    assertEquals(downloaded, []);
   });
 
   await t.step(
     "keeps an image that breaks the byte budget remote",
     async () => {
       const big = `${media}t1/templates/big.jpg`;
+      const tooBig = btoa("x".repeat(MAX_INLINE_IMAGE_BYTES + 1));
+
       const out = await embedStorageImages(
         `<img src="${big}"><img src="${logo}">`,
         SB_URL,
-        sizes({ [big]: MAX_INLINE_IMAGE_BYTES + 1, [logo]: 9000 }),
+        loader({ [big]: tooBig, [logo]: PIXELS }),
       );
 
       assertStrictEquals(out.html, `<img src="${big}"><img src="cid:image-1">`);
@@ -81,10 +123,11 @@ Deno.test("embedStorageImages", async (t) => {
       { length: MAX_INLINE_IMAGES + 1 },
       (_, i) => `${media}t1/templates/${i}.png`,
     );
+
     const out = await embedStorageImages(
       urls.map((u) => `<img src="${u}">`).join(""),
       SB_URL,
-      () => Promise.resolve(10),
+      () => Promise.resolve(PIXELS),
     );
 
     assertStrictEquals(out.attachments.length, MAX_INLINE_IMAGES);
