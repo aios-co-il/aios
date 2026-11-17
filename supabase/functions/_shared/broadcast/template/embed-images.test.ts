@@ -159,6 +159,19 @@ Deno.test("cachedImageLoader", async (t) => {
     assertStrictEquals(downloads, 1);
   });
 
+  await t.step("keeps embedding an image deleted after download", async () => {
+    const results: Array<string | null> = [PIXELS, null];
+    const load = cachedImageLoader(() =>
+      Promise.resolve(results.shift() ?? null),
+    );
+    const html = `<img src="${logo}">`;
+
+    await embedStorageImages(html, SB_URL, load);
+    const afterDelete = await embedStorageImages(html, SB_URL, load);
+
+    assertStrictEquals(afterDelete.attachments[0].content, PIXELS);
+  });
+
   await t.step("retries an image whose download failed", async () => {
     const results: Array<string | null> = [null, PIXELS];
     const load = cachedImageLoader(() =>
