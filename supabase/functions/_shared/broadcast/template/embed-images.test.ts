@@ -1,6 +1,7 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
   cachedImageLoader,
+  EMBED_DEADLINE_MS,
   embedStorageImages,
   emailSendFields,
   MAX_INLINE_IMAGE_BYTES,
@@ -145,6 +146,24 @@ Deno.test("embedStorageImages", async (t) => {
     );
 
     assertStrictEquals(downloads, MAX_INLINE_IMAGES);
+  });
+
+  await t.step("stops downloading when storage is too slow", async () => {
+    const slow = `${media}t1/templates/slow.png`;
+    let clock = 0;
+
+    const out = await embedStorageImages(
+      `<img src="${logo}"><img src="${slow}">`,
+      SB_URL,
+      () => {
+        clock += EMBED_DEADLINE_MS;
+        return Promise.resolve(PIXELS);
+      },
+      undefined,
+      () => clock,
+    );
+
+    assertStrictEquals(out.html, `<img src="cid:image-1"><img src="${slow}">`);
   });
 
   await t.step("keeps images past the count limit remote", async () => {

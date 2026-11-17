@@ -37,8 +37,11 @@ export const MAX_MESSAGE_ATTACHMENT_BYTES =
 // The most image bytes one function instance keeps between emails.
 const MAX_CACHED_IMAGE_BYTES = 4 * MAX_INLINE_IMAGE_BYTES;
 
-// An image is optional, so a slow storage response must not hold the email.
+// An image is optional, so a slow storage response must not hold the email:
+// one download may take this long, and no download starts once all of an
+// email's downloads together have taken EMBED_DEADLINE_MS.
 const DOWNLOAD_TIMEOUT_MS = 5000;
+export const EMBED_DEADLINE_MS = 8000;
 
 const loadStoredImage = cachedImageLoader(downloadImage);
 
@@ -68,21 +71,26 @@ export async function emailSendFields(
 /**
  * Embed the HTML's storage images that download and fit the budget. The rest
  * stay ordinary remote images, exactly as before embedding existed.
- * `budgetBytes` is lowered by callers whose message already carries files.
+ * `budgetBytes` is lowered by callers whose message already carries files;
+ * `now` is the clock, replaced in tests.
  */
 export async function embedStorageImages(
   html: string,
   supabaseUrl: string,
   loadImage: ImageLoader = loadStoredImage,
   budgetBytes: number = MAX_INLINE_IMAGE_BYTES,
+  now: () => number = Date.now,
 ): Promise<{ html: string; attachments: Array<InlineImageAttachment> }> {
   const candidates = inlineImageUrls(html, inlineImageUrlPrefixes(supabaseUrl));
   const images: Array<LoadedImage> = [];
   let totalBytes = 0;
-  // One at a time, and no further once the message is full: a template with
-  // many large images must not be downloaded whole just to be turned away.
+  const deadline = now() + EMBED_DEADLINE_MS;
+  // One at a time, and no further once the message is full or the time is up:
+  // a template with many large or slow images must not hold the email.
   for (const url of candidates) {
-    if (images.length >= MAX_INLINE_IMAGES || totalBytes >= budgetBytes) {
+    const isFull =
+      images.length >= MAX_INLINE_IMAGES || totalBytes >= budgetBytes;
+    if (isFull || now() >= deadline) {
       break;
     }
     const content = await loadImage(url);
