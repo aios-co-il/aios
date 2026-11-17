@@ -46,7 +46,7 @@ Use `https://after-lead-git-develop-aios-crm.vercel.app` as the stable Staging d
 
 ### Landing pages
 
-The separate repo `aios-co-il/landing-pages` (Vercel project `landing-pages`) holds each org's pages as `landing-pages/<tenants.subdomain>/<slug>/` and serves them on `https://<subdomain>.aios.co.il/<slug>` through the wildcard domain `*.aios.co.il`. Hosts attached to `after-lead` (the apex, `www`, `staging`) take precedence over the wildcard. Its only database access is the anon call to `landing_page_tenant_matches`, which its checks run against AIOS Production before a page merges.
+The separate repo `aios-co-il/landing-pages` (Vercel project `landing-pages`) holds each org's pages as `landing-pages/<tenants.subdomain>/<slug>/` and serves them on `https://<subdomain>.aios.co.il/<slug>` through the wildcard domain `*.aios.co.il`. Hosts attached to `after-lead` (the apex, `www`, `staging`) take precedence over the wildcard. Each site's `site.json` names its org and client; the repo's only database access is the anon call to `landing_page_client_matches`, which its checks run against AIOS Production before a page is published.
 
 The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no header space taken.
 
