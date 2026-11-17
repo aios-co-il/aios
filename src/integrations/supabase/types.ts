@@ -8878,6 +8878,168 @@ export type Database = {
           },
         ];
       };
+      landing_leads: {
+        Row: {
+          created_at: string;
+          crm_status: string;
+          email: string | null;
+          error: string | null;
+          id: string;
+          name: string;
+          page_id: string;
+          phone: string;
+          tenant_id: string;
+          webhook_status: string;
+        };
+        Insert: {
+          created_at?: string;
+          crm_status?: string;
+          email?: string | null;
+          error?: string | null;
+          id?: string;
+          name: string;
+          page_id: string;
+          phone: string;
+          tenant_id: string;
+          webhook_status?: string;
+        };
+        Update: {
+          created_at?: string;
+          crm_status?: string;
+          email?: string | null;
+          error?: string | null;
+          id?: string;
+          name?: string;
+          page_id?: string;
+          phone?: string;
+          tenant_id?: string;
+          webhook_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_leads_page_id_tenant_id_fkey";
+            columns: ["page_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_pages";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_page_webhooks: {
+        Row: {
+          page_id: string;
+          tenant_id: string;
+          updated_at: string;
+          url: string;
+        };
+        Insert: {
+          page_id: string;
+          tenant_id: string;
+          updated_at?: string;
+          url: string;
+        };
+        Update: {
+          page_id?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_webhooks_page_id_tenant_id_fkey";
+            columns: ["page_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_pages";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_pages: {
+        Row: {
+          created_at: string;
+          id: string;
+          lead_to_crm: boolean;
+          lead_to_webhook: boolean;
+          site_id: string;
+          slug: string;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          lead_to_crm?: boolean;
+          lead_to_webhook?: boolean;
+          site_id: string;
+          slug: string;
+          tenant_id: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          lead_to_crm?: boolean;
+          lead_to_webhook?: boolean;
+          site_id?: string;
+          slug?: string;
+          tenant_id?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_site_id_tenant_id_fkey";
+            columns: ["site_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_sites";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_sites: {
+        Row: {
+          client_id: string;
+          created_at: string;
+          id: string;
+          subdomain: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          client_id: string;
+          created_at?: string;
+          id?: string;
+          subdomain: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          client_id?: string;
+          created_at?: string;
+          id?: string;
+          subdomain?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_sites_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "landing_sites_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lead_alert_failure_notifications: {
         Row: {
           automation_log_id: string;
