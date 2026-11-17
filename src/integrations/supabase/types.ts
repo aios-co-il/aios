@@ -18241,8 +18241,8 @@ export type Database = {
         Args: { p_body: Json; p_function: string };
         Returns: number;
       };
-      landing_page_tenant_matches: {
-        Args: { p_subdomain: string; p_tenant_id: string };
+      landing_page_client_matches: {
+        Args: { p_client_id: string; p_tenant_id: string };
         Returns: boolean;
       };
       lead_origin_tag_names: {
