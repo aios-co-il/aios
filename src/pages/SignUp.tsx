@@ -141,10 +141,8 @@ export default function SignUp() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <img src={logo} alt="AfterLead" className="h-16 w-16 mx-auto mb-4" />
-          <CardTitle className="text-2xl md:text-3xl font-bold">
-            AfterLead
-          </CardTitle>
+          <img src={logo} alt="AIOS" className="h-16 w-16 mx-auto mb-4" />
+          <CardTitle className="text-2xl md:text-3xl font-bold">AIOS</CardTitle>
           <CardDescription className="text-base font-medium">
             מערכת לניהול סוכנויות שיווק ופרסום
           </CardDescription>

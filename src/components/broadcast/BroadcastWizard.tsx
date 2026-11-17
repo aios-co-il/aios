@@ -1011,7 +1011,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
                           <Input
                             value={fromName}
                             onChange={(e) => setFromName(e.target.value)}
-                            placeholder="שם השולח (לדוגמה: AfterLead)"
+                            placeholder="שם השולח (לדוגמה: AIOS)"
                           />
                           <div className="flex items-center gap-1">
                             <Input
