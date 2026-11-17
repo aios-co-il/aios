@@ -1101,25 +1101,32 @@ export async function buildAllLevelInsightRecords(
     accessToken,
   );
 
-  for (const level of ADS_LEVELS) {
-    try {
-      const raw = await fetchFacebookInsightsAtLevel(
-        adAccountId,
-        level,
-        sinceStr,
-        untilStr,
-        accessToken,
-      );
-      const instagramFollows = await fetchInstagramFollows(
-        adAccountId,
-        level,
-        sinceStr,
-        untilStr,
-        accessToken,
-        profileCampaignIds,
-      );
-      for (const insight of raw) {
-        allRows.push(
+  // The three levels are independent reads, so they run at once: a 30-day
+  // manual sync of a large account no longer waits for them one after another
+  // (Eco took 139 s of the 150 s limit). Rows keep the campaign, ad set, ad order.
+  const levelRows = await Promise.all(
+    ADS_LEVELS.map(async (level) => {
+      try {
+        const [raw, instagramFollows] = await Promise.all([
+          fetchFacebookInsightsAtLevel(
+            adAccountId,
+            level,
+            sinceStr,
+            untilStr,
+            accessToken,
+          ),
+          fetchInstagramFollows(
+            adAccountId,
+            level,
+            sinceStr,
+            untilStr,
+            accessToken,
+            profileCampaignIds,
+          ),
+        ]);
+        levelCounts[level] = raw.length;
+        console.log(`[fbInsights] level=${level} rows=${raw.length}`);
+        return raw.map((insight) =>
           buildInsightRecord(
             {
               ...insight,
@@ -1135,15 +1142,15 @@ export async function buildAllLevelInsightRecords(
             leadCustomConversionIds,
           ),
         );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        levelErrors[level] = message || "fetch failed";
+        console.error(`[fbInsights] level=${level} fetch failed:`, message);
+        return [];
       }
-      levelCounts[level] = raw.length;
-      console.log(`[fbInsights] level=${level} rows=${raw.length}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      levelErrors[level] = message || "fetch failed";
-      console.error(`[fbInsights] level=${level} fetch failed:`, message);
-    }
-  }
+    }),
+  );
+  allRows.push(...levelRows.flat());
 
   return { records: allRows, levelCounts, levelErrors };
 }

@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { softColorChipStyle } from "@/components/leads/softColorChip";
+import { solidColorChipStyle } from "@/components/leads/softColorChip";
 import { cn } from "@/lib/utils";
 import type { LeadStageOption } from "./leadTableTypes";
 
 /**
- * One pipeline column and its drop target: a header in the stage colour with
- * the lead count, and a calm well that holds the stage's cards.
+ * One pipeline column and its drop target: a header filled with the stage
+ * colour the tenant chose, with the lead count, and a calm well that holds the
+ * stage's cards.
  */
 export function LeadsKanbanStage({
   stage,
@@ -31,20 +32,14 @@ export function LeadsKanbanStage({
       >
         <div
           className="flex items-center justify-between gap-2 rounded-t-2xl border border-b-0 bg-card px-3 py-2.5 shadow-elevation-1"
-          style={{ borderTopColor: color, borderTopWidth: 3 }}
+          style={solidColorChipStyle(color)}
         >
-          <span className="flex min-w-0 items-center gap-2 text-sm font-bold">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: color }}
-              aria-hidden="true"
-            />
-            <span className="truncate">{stage.label}</span>
+          <span className="min-w-0 truncate text-sm font-bold">
+            {stage.label}
           </span>
           {typeof leadCount === "number" && (
             <span
-              className="shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground"
-              style={softColorChipStyle(color)}
+              className="shrink-0 rounded-full bg-black/20 px-2 py-0.5 text-xs font-semibold tabular-nums"
               title={`${leadCount.toLocaleString()} לידים`}
             >
               {leadCount.toLocaleString()}

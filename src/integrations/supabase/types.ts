@@ -17177,6 +17177,10 @@ export type Database = {
         Args: { p_current: string; p_mode: string; p_values: Json };
         Returns: boolean;
       };
+      broadcast_is_unsubscribe_reply: {
+        Args: { p_text: string };
+        Returns: boolean;
+      };
       broadcast_list_add_members: {
         Args: { p_added_via?: string; p_list_id: string; p_rows: Json };
         Returns: number;

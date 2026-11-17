@@ -79,7 +79,7 @@ export function TemplatePreview({
             )}
             {renderTemplate(bodyText, previewVars) || "—"}
             {/* Added by broadcast-dispatch to every mailing to a contact. */}
-            {whatsappUnsubscribeFooter("https://…/broadcast-unsubscribe")}
+            {whatsappUnsubscribeFooter("https://aios.co.il/unsubscribe/…")}
           </div>
         </div>
       )}
