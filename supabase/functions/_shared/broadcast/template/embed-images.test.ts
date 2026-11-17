@@ -128,6 +128,25 @@ Deno.test("embedStorageImages", async (t) => {
     );
   });
 
+  await t.step("stops downloading once the message is full", async () => {
+    const urls = Array.from(
+      { length: MAX_INLINE_IMAGES + 5 },
+      (_, i) => `${media}t1/templates/${i}.png`,
+    );
+    let downloads = 0;
+
+    await embedStorageImages(
+      urls.map((u) => `<img src="${u}">`).join(""),
+      SB_URL,
+      () => {
+        downloads += 1;
+        return Promise.resolve(PIXELS);
+      },
+    );
+
+    assertStrictEquals(downloads, MAX_INLINE_IMAGES);
+  });
+
   await t.step("keeps images past the count limit remote", async () => {
     const urls = Array.from(
       { length: MAX_INLINE_IMAGES + 1 },
@@ -170,6 +189,22 @@ Deno.test("cachedImageLoader", async (t) => {
     const afterDelete = await embedStorageImages(html, SB_URL, load);
 
     assertStrictEquals(afterDelete.attachments[0].content, PIXELS);
+  });
+
+  await t.step("drops the oldest images past the cache limit", async () => {
+    const other = `${media}t1/templates/other.png`;
+    const downloaded: Array<string> = [];
+    const load = cachedImageLoader((url) => {
+      downloaded.push(url);
+      return Promise.resolve(PIXELS);
+    }, 6);
+
+    await load(logo);
+    await load(other);
+    await load(other);
+    await load(logo);
+
+    assertEquals(downloaded, [logo, other, logo]);
   });
 
   await t.step("retries an image whose download failed", async () => {

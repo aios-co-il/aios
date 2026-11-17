@@ -34,6 +34,9 @@ export const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_MESSAGE_ATTACHMENT_BYTES =
   MAX_TOTAL_ATTACHMENT_BYTES + MAX_INLINE_IMAGE_BYTES;
 
+// The most image bytes one function instance keeps between emails.
+const MAX_CACHED_IMAGE_BYTES = 4 * MAX_INLINE_IMAGE_BYTES;
+
 // An image is optional, so a slow storage response must not hold the email.
 const DOWNLOAD_TIMEOUT_MS = 5000;
 
@@ -74,42 +77,68 @@ export async function embedStorageImages(
   budgetBytes: number = MAX_INLINE_IMAGE_BYTES,
 ): Promise<{ html: string; attachments: Array<InlineImageAttachment> }> {
   const candidates = inlineImageUrls(html, inlineImageUrlPrefixes(supabaseUrl));
-  const contents = await Promise.all(candidates.map((url) => loadImage(url)));
   const images: Array<LoadedImage> = [];
   let totalBytes = 0;
-  candidates.forEach((url, index) => {
-    const content = contents[index];
-    if (content === null || images.length >= MAX_INLINE_IMAGES) {
-      return;
+  // One at a time, and no further once the message is full: a template with
+  // many large images must not be downloaded whole just to be turned away.
+  for (const url of candidates) {
+    if (images.length >= MAX_INLINE_IMAGES || totalBytes >= budgetBytes) {
+      break;
     }
-    const bytes = base64ByteLength(content);
-    if (totalBytes + bytes <= budgetBytes) {
+    const content = await loadImage(url);
+    const bytes = content === null ? 0 : base64ByteLength(content);
+    if (content !== null && totalBytes + bytes <= budgetBytes) {
       images.push({ url, content });
       totalBytes += bytes;
     }
-  });
+  }
   return inlineEmailImages(html, images);
 }
 
 /**
  * Remember each downloaded image for the function instance: one broadcast
  * sends the same template to every recipient. Only successes are kept, so an
- * image that failed once is tried again by the next email.
+ * image that failed once is tried again by the next email, and the oldest
+ * images are dropped once the kept ones pass `maxCachedBytes`.
  */
-export function cachedImageLoader(download: ImageLoader): ImageLoader {
-  const contentByUrl = new Map<string, Promise<string | null>>();
+export function cachedImageLoader(
+  download: ImageLoader,
+  maxCachedBytes: number = MAX_CACHED_IMAGE_BYTES,
+): ImageLoader {
+  const pendingByUrl = new Map<string, Promise<string | null>>();
+  const contentByUrl = new Map<string, string>();
+  let cachedBytes = 0;
+
+  /** Keep a downloaded image, dropping the oldest ones to stay in bounds. */
+  function remember(url: string, content: string): void {
+    contentByUrl.set(url, content);
+    cachedBytes += base64ByteLength(content);
+    for (const [oldUrl, oldContent] of contentByUrl) {
+      if (cachedBytes <= maxCachedBytes) {
+        break;
+      }
+      contentByUrl.delete(oldUrl);
+      cachedBytes -= base64ByteLength(oldContent);
+    }
+  }
+
   return (url) => {
     const known = contentByUrl.get(url);
-    if (known) {
-      return known;
+    if (known !== undefined) {
+      return Promise.resolve(known);
     }
-    const pending = download(url).then((content) => {
-      if (content === null) {
-        contentByUrl.delete(url);
-      }
-      return content;
-    });
-    contentByUrl.set(url, pending);
+    // Emails prepared at the same moment share one download.
+    const pending =
+      pendingByUrl.get(url) ??
+      download(url)
+        .then((content) => {
+          if (content !== null) {
+            remember(url, content);
+          }
+          return content;
+        })
+        .finally(() => pendingByUrl.delete(url));
+    pendingByUrl.set(url, pending);
     return pending;
   };
 }
