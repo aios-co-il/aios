@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { cpSync, existsSync } from "fs";
 import { componentTagger } from "lovable-tagger";
+import { prerenderLegalPages } from "./vite-plugins/prerenderLegalPages";
 
 /** Copy pdf.js CMap + standard font assets so Hebrew PDFs render correctly in production. */
 function pdfjsAssetsPlugin() {
@@ -42,6 +43,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     pdfjsAssetsPlugin(),
+    prerenderLegalPages(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {
