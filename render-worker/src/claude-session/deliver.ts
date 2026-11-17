@@ -8,7 +8,15 @@ type ClaimedMessage = {
   id?: string;
   cloud_session_id?: string;
   prompt?: string | null;
+  claimed_at?: string | null;
 };
+
+/**
+ * A claim older than this is not sent. The claim function fails a claimed row after two
+ * minutes and frees its session for the next message, so a claim answer that arrives late
+ * must not send into a session that may already have moved on.
+ */
+const MAX_CLAIM_AGE_MS = 60_000;
 
 /**
  * Claims one queued follow-up and sends it. The row ends as sent or failed, with the prompt
@@ -21,12 +29,14 @@ export async function deliverNext({
   send,
   log = () => {},
   retryWait = () => wait(500),
+  now = Date.now,
 }: {
   db: Pick<SupabaseRest, "rpc" | "update">;
   workerId: string;
   send: SendToCloudSession;
   log?: (line: string) => void;
   retryWait?: () => Promise<unknown>;
+  now?: () => number;
 }): Promise<boolean> {
   const [message] = rowsOf<ClaimedMessage>(
     await db.rpc("claim_claude_session_message", { p_worker: workerId }),
@@ -35,7 +45,7 @@ export async function deliverNext({
     return false;
   }
 
-  const failure = await sendFailure(message, send);
+  const failure = await sendFailure(message, send, now);
   log(`${message.id} ${failure ? `failed: ${failure}` : "sent"}`);
   await recordVerdict(db, message.id, failure, retryWait);
   return true;
@@ -81,7 +91,12 @@ async function recordVerdict(
 async function sendFailure(
   message: ClaimedMessage,
   send: SendToCloudSession,
+  now: () => number,
 ): Promise<string | null> {
+  const claimedAt = Date.parse(message.claimed_at ?? "");
+  if (!(now() - claimedAt <= MAX_CLAIM_AGE_MS)) {
+    return "the claim is too old to send";
+  }
   if (!message.cloud_session_id || !message.prompt) {
     return "the row has no session or no prompt";
   }

@@ -25,7 +25,12 @@ const row = {
   id: "11111111-1111-4111-8111-111111111111",
   cloud_session_id: "session_01AbC",
   prompt: "[AIOS] hello",
+  claimed_at: "2026-11-17T10:00:00.000Z",
 };
+/** A moment after the row was claimed. */
+function now() {
+  return Date.parse(row.claimed_at) + 1000;
+}
 
 describe("deliverNext", () => {
   test("an empty queue does no work", async () => {
@@ -34,6 +39,7 @@ describe("deliverNext", () => {
     const worked = await deliverNext({
       db,
       workerId: "w1",
+      now,
       send: async (args) => void sent.push(args),
     });
     expect(worked).toBe(false);
@@ -47,6 +53,7 @@ describe("deliverNext", () => {
     const worked = await deliverNext({
       db,
       workerId: "w1",
+      now,
       send: async (args) => void sent.push(args),
     });
     expect(worked).toBe(true);
@@ -70,6 +77,7 @@ describe("deliverNext", () => {
     const worked = await deliverNext({
       db,
       workerId: "w1",
+      now,
       send: async () => {
         throw new Error("Session expired. Please run /login to sign in again.");
       },
@@ -97,6 +105,7 @@ describe("deliverNext", () => {
     await deliverNext({
       db,
       workerId: "w1",
+      now,
       send: async () => {
         sends += 1;
       },
@@ -116,10 +125,34 @@ describe("deliverNext", () => {
       deliverNext({
         db,
         workerId: "w1",
+        now,
         send: async () => {},
         retryWait: async () => {},
       }),
     ).rejects.toThrow(/503/);
+  });
+
+  test("a claim that is too old, or has no claim time, is failed without sending", async () => {
+    for (const claimed of [
+      { ...row, claimed_at: "2026-11-17T09:58:00.000Z" },
+      { ...row, claimed_at: null },
+    ]) {
+      const { db, updates } = fakeDb([claimed]);
+      let called = false;
+      await deliverNext({
+        db,
+        workerId: "w1",
+        now,
+        send: async () => {
+          called = true;
+        },
+      });
+      expect(called).toBe(false);
+      expect(updates[0].patch).toMatchObject({
+        status: "failed",
+        error: "the claim is too old to send",
+      });
+    }
   });
 
   test("a row without a prompt fails without calling the CLI", async () => {
@@ -128,6 +161,7 @@ describe("deliverNext", () => {
     await deliverNext({
       db,
       workerId: "w1",
+      now,
       send: async () => {
         called = true;
       },

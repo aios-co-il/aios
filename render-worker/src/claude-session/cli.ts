@@ -40,7 +40,9 @@ export function cloudSessionSender(
       ["-p", prompt, "--cloud", sessionId],
       SEND_TIMEOUT_MS,
     );
-    if (failure || !stdout.includes(SENT)) {
+    // The CLI can print the line and then exit badly or hit the timeout: the session has the
+    // message, and reporting a failure would start a second delivery through a new session.
+    if (!stdout.includes(SENT)) {
       throw new Error(
         [failure, stderr.trim(), stdout.trim()].filter(Boolean).join(" | ") ||
           "the CLI printed nothing",

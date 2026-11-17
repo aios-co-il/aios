@@ -41,6 +41,14 @@ describe("cloudSessionSender", () => {
     );
   });
 
+  test("a run that printed the sent line counts as sent even when it then fails", async () => {
+    const { run } = fakeCli({
+      stdout: "Sent to cloud session.\n",
+      failure: "Command failed: timed out",
+    });
+    await expect(cloudSessionSender(run)(message)).resolves.toBeUndefined();
+  });
+
   test("a failed or timed-out run counts as not sent", async () => {
     const { run } = fakeCli({ failure: "Command failed: spawn claude ENOENT" });
     await expect(cloudSessionSender(run)(message)).rejects.toThrow(/ENOENT/);

@@ -349,6 +349,7 @@ export async function launchClaude(
         sessionId: session.id,
         routineId,
         routineToken,
+        reusable: !extraPrompt,
         prompt:
           (extraPrompt ||
             wrapDirectPrompt({
@@ -446,6 +447,8 @@ async function openClaudeSession(args: {
   sessionId: string;
   routineId: string;
   routineToken: string;
+  /** False for a one-off prompt: its session must not take the conversation's next message. */
+  reusable: boolean;
   prompt: string;
 }): Promise<string> {
   const resp = await fetch(
@@ -470,7 +473,7 @@ async function openClaudeSession(args: {
   }
   const fire = parseRoutineFire(raw);
   const cloudSessionId = cloudSessionIdOf(fire);
-  if (cloudSessionId) {
+  if (cloudSessionId && args.reusable) {
     // The session is already running; without this record the next message only starts a new one.
     await recordOpenedCloudSession(args.sb, args.scope, cloudSessionId).catch(
       (error) => console.error("[claude-session]", error),
