@@ -48,6 +48,13 @@ describe("TrackedEventsTab", () => {
     await userEvent.setup().click(screen.getByText("בחירת אירועים"));
     expect(onEdit).toHaveBeenCalledOnce();
   });
+
+  it("shows nothing on a share link that follows no events", () => {
+    const { container } = render(
+      <TrackedEventsTab summary={{ events: [], days: [] }} {...format} />,
+    );
+    expect(container.textContent).toBe("");
+  });
 });
 
 describe("TrackedEventsEditor", () => {

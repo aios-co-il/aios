@@ -8,7 +8,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LineChart as LineChartIcon } from "lucide-react";
+import { ReportSection } from "@/components/report-ui/ReportSection";
+import {
+  REPORT_AXIS_TICK,
+  REPORT_CHART,
+} from "@/components/report-ui/reportChartTheme";
 import type { TrackedEvent, TrackedEventsDay } from "./trackedEvents";
 
 type Props = {
@@ -34,33 +39,28 @@ export function TrackedEventsChart({ events, days }: Props) {
     return null;
   }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>אירועים לפי יום</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={days}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" fontSize={12} />
-            <YAxis fontSize={12} />
-            <Tooltip />
-            <Legend />
-            {events.map((item, index) => (
-              <Line
-                key={item.event}
-                type="monotone"
-                dataKey={item.event}
-                name={item.label}
-                stroke={LINE_COLORS[index % LINE_COLORS.length]}
-                strokeWidth={2}
-                dot={days.length === 1}
-                isAnimationActive={false}
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    <ReportSection title="יעדים לפי יום" icon={LineChartIcon}>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={days}>
+          <CartesianGrid strokeDasharray="3 3" stroke={REPORT_CHART.grid} />
+          <XAxis dataKey="date" tick={REPORT_AXIS_TICK} />
+          <YAxis tick={REPORT_AXIS_TICK} />
+          <Tooltip />
+          <Legend />
+          {events.map((item, index) => (
+            <Line
+              key={item.event}
+              type="monotone"
+              dataKey={item.event}
+              name={item.label}
+              stroke={LINE_COLORS[index % LINE_COLORS.length]}
+              strokeWidth={2}
+              dot={days.length === 1}
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </ReportSection>
   );
 }

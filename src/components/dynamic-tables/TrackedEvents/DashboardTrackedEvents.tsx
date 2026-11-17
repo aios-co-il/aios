@@ -30,7 +30,7 @@ type Props = {
   editableDashboardId?: string;
 };
 
-/** The "אירועים באתר" tab of a dashboard, with its event picker when editable. */
+/** The site goals atop a dashboard's Analytics tab, with their event picker when editable. */
 export function DashboardTrackedEvents({
   records,
   settings,

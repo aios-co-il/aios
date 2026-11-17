@@ -1,4 +1,5 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Percent, Wallet } from "lucide-react";
+import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
 import type { RatioFigures } from "./siteKpis";
 
 type Props = {
@@ -10,7 +11,10 @@ type Props = {
   formatNumber: (value: number) => string;
 };
 
-/** Purchase revenue and the chosen step-to-step conversion, above the event cards. */
+/**
+ * Purchase revenue and the chosen step-to-step conversion, as cards in the
+ * goals grid ahead of the event cards.
+ */
 export function SiteKpiCards({
   revenue,
   ratio,
@@ -21,32 +25,26 @@ export function SiteKpiCards({
     return null;
   }
   return (
-    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+    <>
       {revenue !== 0 && (
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-sm text-muted-foreground">הכנסות מרכישות</p>
-            <p className="text-3xl font-bold mt-2">{formatCurrency(revenue)}</p>
-          </CardContent>
-        </Card>
+        <ReportKpiCard
+          icon={Wallet}
+          label="הכנסות מרכישות"
+          value={formatCurrency(revenue)}
+        />
       )}
       {ratio && (
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              יחס המרה: {ratio.label}
-            </p>
-            <p className="text-3xl font-bold mt-2">
-              {ratio.rate === null ? "—" : `${(ratio.rate * 100).toFixed(1)}%`}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {`${formatNumber(ratio.done)} מתוך ${formatNumber(ratio.of)} ${
-                ratio.basis === "people" ? "משתמשים" : "אירועים"
-              }`}
-            </p>
-          </CardContent>
-        </Card>
+        <ReportKpiCard
+          icon={Percent}
+          label={`יחס המרה: ${ratio.label}`}
+          value={
+            ratio.rate === null ? "—" : `${(ratio.rate * 100).toFixed(1)}%`
+          }
+          hint={`${formatNumber(ratio.done)} מתוך ${formatNumber(ratio.of)} ${
+            ratio.basis === "people" ? "משתמשים" : "אירועים"
+          }`}
+        />
       )}
-    </div>
+    </>
   );
 }

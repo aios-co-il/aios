@@ -6,7 +6,6 @@ import {
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
-import { parseTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/trackedEvents";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -508,10 +507,6 @@ export default function SharedDashboard({
     }
   }, [platformFilter, hasContinentsTab]);
 
-  // A dashboard that follows site events gets their tab; no picker on a share link.
-  const hasTrackedEvents =
-    parseTrackedEvents(data?.dashboard?.settings).length > 0;
-
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
     if (
@@ -552,13 +547,6 @@ export default function SharedDashboard({
         iconNode: getIntegrationIcon("google_analytics"),
       });
     }
-    if (hasTrackedEvents) {
-      items.push({
-        value: "site_events",
-        label: "אירועים באתר",
-        iconNode: <MousePointerClick className="h-4 w-4 text-indigo-600" />,
-      });
-    }
     if (availablePlatforms.includes("woocommerce")) {
       items.push({
         value: "woocommerce",
@@ -574,7 +562,7 @@ export default function SharedDashboard({
       });
     }
     return items;
-  }, [availablePlatforms, hasContinentsTab, hasTrackedEvents]);
+  }, [availablePlatforms, hasContinentsTab]);
 
   const seoTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [
@@ -1097,18 +1085,7 @@ export default function SharedDashboard({
         snapshotMode={snapshotMode}
       />
 
-      {/* Analytics Tab → Full GoogleAnalyticsDashboard */}
-      {platformFilter === "site_events" ? (
-        <DashboardTrackedEvents
-          records={records}
-          settings={data?.dashboard?.settings}
-          adsSpend={globalAdsMetrics.spend}
-          formatCurrency={formatCurrency}
-          formatNumber={formatNumber}
-          source={shareToken ? { shareToken } : null}
-          dateFilter={dateFilter}
-        />
-      ) : platformFilter === "continents" ? (
+      {platformFilter === "continents" ? (
         <CampaignContinentsTab
           campaigns={googleAdsSummary.campaigns}
           formatCurrency={formatCurrency}
@@ -1124,13 +1101,24 @@ export default function SharedDashboard({
           sourceModes={weeklySourceModesForTables(tables)}
         />
       ) : platformFilter === "google_analytics" ? (
-        <GoogleAnalyticsDashboard
-          records={allAnalyticsRecords}
-          externalDateFilter={dateFilter}
-          tableId={analyticsTableIds[0]}
-          relatedTableIds={analyticsTableIds.slice(1)}
-          defaultReportMode={analyticsReportMode}
-        />
+        <div className="space-y-4">
+          <DashboardTrackedEvents
+            records={records}
+            settings={data?.dashboard?.settings}
+            adsSpend={globalAdsMetrics.spend}
+            formatCurrency={formatCurrency}
+            formatNumber={formatNumber}
+            source={shareToken ? { shareToken } : null}
+            dateFilter={dateFilter}
+          />
+          <GoogleAnalyticsDashboard
+            records={allAnalyticsRecords}
+            externalDateFilter={dateFilter}
+            tableId={analyticsTableIds[0]}
+            relatedTableIds={analyticsTableIds.slice(1)}
+            defaultReportMode={analyticsReportMode}
+          />
+        </div>
       ) : platformFilter === "woocommerce" ? (
         <PublicWooCommerceView sites={wooSites} orders={wooOrders} />
       ) : platformFilter === "seo" ? (
