@@ -6,6 +6,7 @@
 import {
   attachmentUrlPrefix,
   emailAttachmentsForResend,
+  MAX_TOTAL_ATTACHMENT_BYTES,
 } from "./email-attachments.ts";
 import {
   inlineEmailImages,
@@ -24,14 +25,19 @@ export type EmailSendAttachment =
 
 export const MAX_INLINE_IMAGES = 10;
 
-// With the 20 MB stored-attachment cap (email-attachments.ts) this keeps the
-// Base64-encoded message under Resend's 40 MB limit.
+// With the stored-attachment cap this keeps the Base64-encoded message under
+// Resend's 40 MB limit.
 export const MAX_INLINE_IMAGE_BYTES = 5 * 1024 * 1024;
 
-// One broadcast sends the same template to every recipient, so each image is
-// downloaded once per function instance, not once per email. The copy is the
-// bytes themselves, so deleting the file later cannot fail a send.
-const contentByUrl = new Map<string, Promise<string | null>>();
+// The stored-attachment cap plus the image budget: the most attachment bytes a
+// message may carry before embedding stops.
+export const MAX_MESSAGE_ATTACHMENT_BYTES =
+  MAX_TOTAL_ATTACHMENT_BYTES + MAX_INLINE_IMAGE_BYTES;
+
+// An image is optional, so a slow storage response must not hold the email.
+const DOWNLOAD_TIMEOUT_MS = 5000;
+
+const loadStoredImage = cachedImageLoader(downloadImage);
 
 /**
  * The `html` and `attachments` fields of a broadcast email: the stored file
@@ -59,11 +65,13 @@ export async function emailSendFields(
 /**
  * Embed the HTML's storage images that download and fit the budget. The rest
  * stay ordinary remote images, exactly as before embedding existed.
+ * `budgetBytes` is lowered by callers whose message already carries files.
  */
 export async function embedStorageImages(
   html: string,
   supabaseUrl: string,
   loadImage: ImageLoader = loadStoredImage,
+  budgetBytes: number = MAX_INLINE_IMAGE_BYTES,
 ): Promise<{ html: string; attachments: Array<InlineImageAttachment> }> {
   const candidates = inlineImageUrls(html, inlineImageUrlPrefixes(supabaseUrl));
   const contents = await Promise.all(candidates.map((url) => loadImage(url)));
@@ -75,7 +83,7 @@ export async function embedStorageImages(
       return;
     }
     const bytes = base64ByteLength(content);
-    if (totalBytes + bytes <= MAX_INLINE_IMAGE_BYTES) {
+    if (totalBytes + bytes <= budgetBytes) {
       images.push({ url, content });
       totalBytes += bytes;
     }
@@ -83,21 +91,35 @@ export async function embedStorageImages(
   return inlineEmailImages(html, images);
 }
 
-/** A stored image's Base64 content, remembered for the function instance. */
-function loadStoredImage(url: string): Promise<string | null> {
-  const known = contentByUrl.get(url);
-  if (known) {
-    return known;
-  }
-  const download = downloadImage(url);
-  contentByUrl.set(url, download);
-  return download;
+/**
+ * Remember each downloaded image for the function instance: one broadcast
+ * sends the same template to every recipient. Only successes are kept, so an
+ * image that failed once is tried again by the next email.
+ */
+export function cachedImageLoader(download: ImageLoader): ImageLoader {
+  const contentByUrl = new Map<string, Promise<string | null>>();
+  return (url) => {
+    const known = contentByUrl.get(url);
+    if (known) {
+      return known;
+    }
+    const pending = download(url).then((content) => {
+      if (content === null) {
+        contentByUrl.delete(url);
+      }
+      return content;
+    });
+    contentByUrl.set(url, pending);
+    return pending;
+  };
 }
 
 /** Download an image within the budget; null (and a log line) otherwise. */
 async function downloadImage(url: string): Promise<string | null> {
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    });
     const declaredBytes = Number(res.headers.get("content-length") ?? 0);
     if (!res.ok || declaredBytes > MAX_INLINE_IMAGE_BYTES) {
       await res.body?.cancel();
@@ -122,7 +144,7 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /** Number of raw bytes a Base64 string decodes to. */
-function base64ByteLength(content: string): number {
+export function base64ByteLength(content: string): number {
   const padding = content.endsWith("==") ? 2 : content.endsWith("=") ? 1 : 0;
   return (content.length / 4) * 3 - padding;
 }

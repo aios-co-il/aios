@@ -1,5 +1,6 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
+  cachedImageLoader,
   embedStorageImages,
   emailSendFields,
   MAX_INLINE_IMAGE_BYTES,
@@ -118,6 +119,15 @@ Deno.test("embedStorageImages", async (t) => {
     },
   );
 
+  await t.step("keeps an image remote when files leave no room", async () => {
+    const html = `<img src="${logo}">`;
+
+    assertEquals(
+      await embedStorageImages(html, SB_URL, loader({ [logo]: PIXELS }), 3),
+      { html, attachments: [] },
+    );
+  });
+
   await t.step("keeps images past the count limit remote", async () => {
     const urls = Array.from(
       { length: MAX_INLINE_IMAGES + 1 },
@@ -132,5 +142,34 @@ Deno.test("embedStorageImages", async (t) => {
 
     assertStrictEquals(out.attachments.length, MAX_INLINE_IMAGES);
     assertStrictEquals(out.html.endsWith(`<img src="${urls.at(-1)}">`), true);
+  });
+});
+
+Deno.test("cachedImageLoader", async (t) => {
+  await t.step("downloads an image once for many emails", async () => {
+    let downloads = 0;
+    const load = cachedImageLoader(() => {
+      downloads += 1;
+      return Promise.resolve(PIXELS);
+    });
+
+    await Promise.all([load(logo), load(logo)]);
+    await load(logo);
+
+    assertStrictEquals(downloads, 1);
+  });
+
+  await t.step("retries an image whose download failed", async () => {
+    const results: Array<string | null> = [null, PIXELS];
+    const load = cachedImageLoader(() =>
+      Promise.resolve(results.shift() ?? null),
+    );
+    const html = `<img src="${logo}">`;
+
+    const first = await embedStorageImages(html, SB_URL, load);
+    const second = await embedStorageImages(html, SB_URL, load);
+
+    assertStrictEquals(first.html, html);
+    assertStrictEquals(second.html, `<img src="cid:image-1">`);
   });
 });

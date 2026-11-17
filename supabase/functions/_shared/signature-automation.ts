@@ -9,7 +9,12 @@ import {
   type SignatureEmailColors,
   type SignatureEmailSettings,
 } from "./signature-email-template.ts";
-import { embedStorageImages } from "./broadcast/template/embed-images.ts";
+import {
+  base64ByteLength,
+  embedStorageImages,
+  MAX_INLINE_IMAGE_BYTES,
+  MAX_MESSAGE_ATTACHMENT_BYTES,
+} from "./broadcast/template/embed-images.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const DEFAULT_FROM_EMAIL =
@@ -146,9 +151,14 @@ async function signingEmailFields(
   opts: Parameters<typeof buildSigningEmailHtml>[0],
   files: Array<SigningEmailAttachment> = [],
 ): Promise<{ html: string; attachments?: Array<SigningEmailAttachment> }> {
+  // The signed PDF has no size cap, so the logo is embedded only in the room
+  // the files leave.
+  const fileBytes = files.reduce((n, f) => n + base64ByteLength(f.content), 0);
   const inlined = await embedStorageImages(
     buildSigningEmailHtml(opts),
     SUPABASE_URL,
+    undefined,
+    Math.min(MAX_INLINE_IMAGE_BYTES, MAX_MESSAGE_ATTACHMENT_BYTES - fileBytes),
   );
   const attachments = [...files, ...inlined.attachments];
   return attachments.length > 0
