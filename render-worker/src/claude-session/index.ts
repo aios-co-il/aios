@@ -1,6 +1,7 @@
 // Claude session worker (AIO-600). Sends each queued Claude Direct follow-up into the cloud
 // session its conversation already has, through the Claude CLI signed in on this machine.
-// One message at a time, so two follow-ups of one conversation arrive in the order they were sent.
+// The claim gives out one message per session at a time, so a conversation's follow-ups arrive in
+// the order they were sent; one slot is enough for the single Claude account this worker serves.
 import { setTimeout as wait } from "node:timers/promises";
 import { runSlots } from "../loop.ts";
 import { createSupabaseRest } from "../supabaseRest.ts";

@@ -82,6 +82,46 @@ describe("deliverNext", () => {
     });
   });
 
+  test("a verdict write that fails is retried, so a sent follow-up is recorded as sent", async () => {
+    const { db, updates } = fakeDb([row]);
+    const update = db.update;
+    let writes = 0;
+    db.update = async (table, query, patch) => {
+      writes += 1;
+      if (writes < 3) {
+        throw new Error("PATCH: 503");
+      }
+      return update(table, query, patch);
+    };
+    let sends = 0;
+    await deliverNext({
+      db,
+      workerId: "w1",
+      send: async () => {
+        sends += 1;
+      },
+      retryWait: async () => {},
+    });
+    expect(sends).toBe(1);
+    expect(writes).toBe(3);
+    expect(updates[0].patch).toMatchObject({ status: "sent" });
+  });
+
+  test("a verdict that cannot be written leaves the row in sending and is reported", async () => {
+    const { db } = fakeDb([row]);
+    db.update = async () => {
+      throw new Error("PATCH: 503");
+    };
+    await expect(
+      deliverNext({
+        db,
+        workerId: "w1",
+        send: async () => {},
+        retryWait: async () => {},
+      }),
+    ).rejects.toThrow(/503/);
+  });
+
   test("a row without a prompt fails without calling the CLI", async () => {
     const { db, updates } = fakeDb([{ ...row, prompt: null }]);
     let called = false;

@@ -331,7 +331,16 @@ export async function launchClaude(
   // A one-off prompt (a parliament seat, a meeting summary) always gets its own session.
   const continuedIn = extraPrompt
     ? null
-    : await continueOpenClaudeSession({ sb, env, scope, ctx, callback });
+    : await continueOpenClaudeSession({
+        sb,
+        env,
+        scope,
+        ctx,
+        callback,
+      }).catch(async (error) => {
+        await completeSession(sb, session.id, "failed");
+        throw error;
+      });
   const url = continuedIn
     ? `https://claude.ai/code/${continuedIn}`
     : await openClaudeSession({
@@ -400,11 +409,15 @@ async function continueOpenClaudeSession(args: {
   if (!continuesSessions(args.env)) {
     return null;
   }
+  // Nothing is queued yet, so a failed lookup can safely start a new session instead.
   const cloudSessionId = await findOpenCloudSession(
     args.sb,
     args.scope,
     sessionIdleLimitMs(args.env),
-  );
+  ).catch((error) => {
+    console.error("[claude-session] open session lookup failed", error);
+    return null;
+  });
   if (!cloudSessionId) {
     return null;
   }

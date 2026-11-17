@@ -69,14 +69,24 @@ export type FollowupStore = {
   status(id: string): Promise<MessageStatus | null>;
   /** Cancels a row no worker claimed. False when a worker claimed it first. */
   cancelQueued(id: string): Promise<boolean>;
-  /** Fails a claimed row whose worker gave no verdict. False when the verdict just arrived. */
-  failSending(id: string): Promise<boolean>;
 };
+
+/** A worker took the follow-up and gave no verdict in time: it may or may not have been sent. */
+export class UnconfirmedFollowupError extends Error {
+  constructor(id: string) {
+    super(
+      `Claude did not confirm follow-up ${id}. It was not sent again, to avoid a second delivery; resend it if no answer arrives.`,
+    );
+    this.name = "UnconfirmedFollowupError";
+  }
+}
 
 /**
  * Queues a follow-up and waits for the worker's verdict. True when the worker sent it into the
- * open session; false when it did not, and then the row can no longer be sent, so the caller
- * may start a new session without a second delivery.
+ * open session. False only when it is certain it was not sent (no worker claimed it, or the
+ * worker reported a failed send), so the caller may start a new session without a second
+ * delivery. A claimed follow-up with no verdict throws UnconfirmedFollowupError instead: the
+ * worker may have sent it, and only the worker can say.
  */
 export async function deliverFollowup(args: {
   store: FollowupStore;
@@ -105,12 +115,7 @@ export async function deliverFollowup(args: {
         return false;
       }
     } else if (waited >= CLAIM_WAIT_MS + SEND_WAIT_MS) {
-      if (await args.store.failSending(id)) {
-        console.error(
-          `[claude-session] follow-up ${id}: the worker claimed it and gave no verdict`,
-        );
-        return false;
-      }
+      throw new UnconfirmedFollowupError(id);
     } else {
       await sleep(POLL_MS);
     }

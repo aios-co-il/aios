@@ -1,5 +1,6 @@
--- Claude Direct follow-up queue (20261116090000_claude_session_messages): who may reach it,
--- what a claim takes, and that a follow-up left queued too long is cancelled instead of sent.
+-- Claude Direct follow-up queue (20261117130000_claude_session_messages): who may reach it,
+-- what a claim takes (one message per session at a time), and that a follow-up left queued too
+-- long is cancelled, and a claimed one with no verdict failed, instead of being sent late.
 -- Synthetic rows inside one transaction that is rolled back.
 BEGIN;
 DO $test$
@@ -8,6 +9,7 @@ DECLARE
   v_conversation uuid;
   v_fresh uuid;
   v_stale uuid;
+  v_second uuid;
   v_claimed uuid;
   v_fn text := 'public.claim_claude_session_message(text, integer)';
 BEGIN
@@ -82,6 +84,34 @@ BEGIN
     RAISE EXCEPTION 'claim: a claimed follow-up must not be claimed twice';
   END IF;
 
+  -- A session with a message still being sent gives up no second message: one at a time, in order.
+  INSERT INTO public.claude_session_messages
+    (tenant_id, conversation_id, cloud_session_id, via, status, prompt)
+  VALUES (v_tenant, v_conversation, 'session_QAfresh', 'worker', 'queued', 'second')
+  RETURNING id INTO v_second;
+  v_claimed := NULL;
+  SELECT id INTO v_claimed FROM public.claim_claude_session_message('qa-worker-2', 60);
+  IF v_claimed IS NOT NULL THEN
+    RAISE EXCEPTION 'claim: a session with a message in flight must not give up another';
+  END IF;
+
+  -- Once the first has its verdict, the second is claimed.
+  UPDATE public.claude_session_messages SET status = 'sent' WHERE id = v_fresh;
+  SELECT id INTO v_claimed FROM public.claim_claude_session_message('qa-worker-2', 60);
+  IF v_claimed IS DISTINCT FROM v_second THEN
+    RAISE EXCEPTION 'claim: the next message of the session must be claimed after the verdict';
+  END IF;
+
+  -- A claimed row whose worker died is failed at the next claim, and its session is free again.
+  UPDATE public.claude_session_messages SET claimed_at = now() - interval '10 minutes' WHERE id = v_second;
+  PERFORM public.claim_claude_session_message('qa-worker-3', 60);
+  IF NOT EXISTS (
+    SELECT 1 FROM public.claude_session_messages
+    WHERE id = v_second AND status = 'failed' AND prompt IS NULL AND finished_at IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'claim: a row claimed long ago with no verdict must be failed';
+  END IF;
+
   -- A signed-in member cannot claim.
   BEGIN
     SET LOCAL ROLE authenticated;
@@ -93,5 +123,5 @@ BEGIN
   END;
 END
 $test$;
-SELECT 'claude_session_messages: grants, claim, stale cancel and race guard passed' AS result;
+SELECT 'claude_session_messages: grants, claim, per-session order, stale rows and race guard passed' AS result;
 ROLLBACK;

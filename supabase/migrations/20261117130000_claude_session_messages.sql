@@ -38,9 +38,11 @@ alter table public.claude_session_messages enable row level security;
 revoke all on table public.claude_session_messages from public, anon, authenticated;
 grant all on table public.claude_session_messages to service_role;
 
--- Claims the oldest queued follow-up no older than p_max_age_seconds. A follow-up left queued
--- longer than that was already answered through a new session, so it is cancelled instead of
--- being sent late. Concurrent workers skip rows another worker holds. Service role only.
+-- Claims the oldest queued follow-up whose session has no message still being sent, so the
+-- messages of one session are sent one at a time and in order, whatever the number of workers.
+-- A follow-up queued longer than p_max_age_seconds was already answered through a new session:
+-- it is cancelled, not sent late. A claimed row with no verdict after two minutes belongs to a
+-- worker that died; it is failed so that its session takes follow-ups again. Service role only.
 create or replace function public.claim_claude_session_message(
   p_worker text default null,
   p_max_age_seconds integer default 60
@@ -56,6 +58,9 @@ begin
     raise exception 'claim_claude_session_message: service role only' using errcode = '42501';
   end if;
 
+  -- One claim at a time: two workers must not both find a session free and take a row each.
+  perform pg_advisory_xact_lock(hashtext('public.claim_claude_session_message'));
+
   update public.claude_session_messages as stale
      set status = 'cancelled',
          prompt = null,
@@ -63,6 +68,14 @@ begin
          finished_at = now()
    where stale.status = 'queued'
      and stale.created_at < now() - make_interval(secs => greatest(p_max_age_seconds, 1));
+
+  update public.claude_session_messages as abandoned
+     set status = 'failed',
+         prompt = null,
+         error = 'no verdict from the worker',
+         finished_at = now()
+   where abandoned.status = 'sending'
+     and abandoned.claimed_at < now() - interval '2 minutes';
 
   return query
   update public.claude_session_messages as message
@@ -73,6 +86,12 @@ begin
      select queued.id
        from public.claude_session_messages as queued
       where queued.status = 'queued'
+        and not exists (
+          select 1
+            from public.claude_session_messages as in_flight
+           where in_flight.cloud_session_id = queued.cloud_session_id
+             and in_flight.status = 'sending'
+        )
       order by queued.created_at
       limit 1
       for update skip locked

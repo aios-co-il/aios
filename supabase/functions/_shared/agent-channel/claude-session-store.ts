@@ -117,8 +117,6 @@ export function followupStore(
     },
     cancelQueued: (id) =>
       close(id, "queued", "cancelled", "no worker claimed it in time"),
-    failSending: (id) =>
-      close(id, "sending", "failed", "the worker gave no verdict in time"),
   };
 }
 

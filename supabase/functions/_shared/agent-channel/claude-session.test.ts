@@ -1,4 +1,8 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertRejects,
+  assertStrictEquals,
+} from "jsr:@std/assert@1";
 import {
   CLAIM_WAIT_MS,
   cloudSessionIdOf,
@@ -8,6 +12,7 @@ import {
   type FollowupStore,
   SEND_WAIT_MS,
   sessionIdleLimitMs,
+  UnconfirmedFollowupError,
 } from "./claude-session.ts";
 
 /** A queue whose row moves through the statuses a test scripts, one per status read. */
@@ -30,10 +35,6 @@ function fakeStore(script: Array<string | null>) {
     cancelQueued: () => {
       calls.push("cancel");
       return Promise.resolve(status === "queued");
-    },
-    failSending: () => {
-      calls.push("fail");
-      return Promise.resolve(status === "sending");
     },
   };
   return { store, calls };
@@ -117,15 +118,16 @@ Deno.test("deliverFollowup", async (t) => {
   );
 
   await t.step(
-    "fails a claimed row whose worker never gives a verdict",
+    "is reported as unconfirmed, not as undelivered, when a claimed row gets no verdict",
     async () => {
+      // The worker may have sent it; answering false here would start a second delivery.
       const { store, calls } = fakeStore(["", "sending"]);
       const clock = fakeClock();
-      assertStrictEquals(
-        await deliverFollowup({ store, prompt: "hi", ...clock }),
-        false,
+      await assertRejects(
+        () => deliverFollowup({ store, prompt: "hi", ...clock }),
+        UnconfirmedFollowupError,
       );
-      assertEquals(calls.at(-1), "fail");
+      assertEquals(calls.includes("cancel"), false);
       assertEquals(clock.now() >= CLAIM_WAIT_MS + SEND_WAIT_MS, true);
     },
   );
