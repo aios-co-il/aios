@@ -5292,6 +5292,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      claude_session_messages: {
+        Row: {
+          claimed_at: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at: string;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          prompt: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker: string | null;
+        };
+        Insert: {
+          claimed_at?: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at?: string;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          prompt?: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker?: string | null;
+        };
+        Update: {
+          claimed_at?: string | null;
+          cloud_session_id?: string;
+          conversation_id?: string;
+          created_at?: string;
+          error?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          prompt?: string | null;
+          status?: string;
+          tenant_id?: string;
+          via?: string;
+          worker?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "claude_session_messages_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "claude_session_messages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       client_auto_send_opt_ins: {
         Row: {
           client_id: string;
@@ -8871,6 +8931,168 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_queue_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      landing_leads: {
+        Row: {
+          created_at: string;
+          crm_status: string;
+          email: string | null;
+          error: string | null;
+          id: string;
+          name: string;
+          page_id: string;
+          phone: string;
+          tenant_id: string;
+          webhook_status: string;
+        };
+        Insert: {
+          created_at?: string;
+          crm_status?: string;
+          email?: string | null;
+          error?: string | null;
+          id?: string;
+          name: string;
+          page_id: string;
+          phone: string;
+          tenant_id: string;
+          webhook_status?: string;
+        };
+        Update: {
+          created_at?: string;
+          crm_status?: string;
+          email?: string | null;
+          error?: string | null;
+          id?: string;
+          name?: string;
+          page_id?: string;
+          phone?: string;
+          tenant_id?: string;
+          webhook_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_leads_page_id_tenant_id_fkey";
+            columns: ["page_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_pages";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_page_webhooks: {
+        Row: {
+          page_id: string;
+          tenant_id: string;
+          updated_at: string;
+          url: string;
+        };
+        Insert: {
+          page_id: string;
+          tenant_id: string;
+          updated_at?: string;
+          url: string;
+        };
+        Update: {
+          page_id?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_page_webhooks_page_id_tenant_id_fkey";
+            columns: ["page_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_pages";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_pages: {
+        Row: {
+          created_at: string;
+          id: string;
+          lead_to_crm: boolean;
+          lead_to_webhook: boolean;
+          site_id: string;
+          slug: string;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          lead_to_crm?: boolean;
+          lead_to_webhook?: boolean;
+          site_id: string;
+          slug: string;
+          tenant_id: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          lead_to_crm?: boolean;
+          lead_to_webhook?: boolean;
+          site_id?: string;
+          slug?: string;
+          tenant_id?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_site_id_tenant_id_fkey";
+            columns: ["site_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "landing_sites";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      landing_sites: {
+        Row: {
+          client_id: string;
+          created_at: string;
+          id: string;
+          subdomain: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          client_id: string;
+          created_at?: string;
+          id?: string;
+          subdomain: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          client_id?: string;
+          created_at?: string;
+          id?: string;
+          subdomain?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_sites_client_id_fkey";
+            columns: ["client_id"];
+            isOneToOne: false;
+            referencedRelation: "clients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "landing_sites_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -17605,6 +17827,29 @@ export type Database = {
           dispatch_id: string;
           existing_session_url: string;
         }[];
+      };
+      claim_claude_session_message: {
+        Args: { p_max_age_seconds?: number; p_worker?: string };
+        Returns: {
+          claimed_at: string | null;
+          cloud_session_id: string;
+          conversation_id: string;
+          created_at: string;
+          error: string | null;
+          finished_at: string | null;
+          id: string;
+          prompt: string | null;
+          status: string;
+          tenant_id: string;
+          via: string;
+          worker: string | null;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "claude_session_messages";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       claim_client_retention_delivery: {
         Args: { p_tenant_id: string };

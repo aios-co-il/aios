@@ -130,6 +130,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 - In a private Manus chat, a message from the tenant owner's own phone (profile or linked campaigner phone, role `owner`/`super_admin`) that starts with **"קלוד"/"Claude"** or **"קרסר"/"Cursor"** skips Carmen and goes straight to Claude Direct / Cursor Direct (`_shared/agent-channel/whatsapp-direct.ts`). Groups and other senders are unchanged.
 - Each provider has one sticky AIOS conversation (`WhatsApp · <route label>`). The agent's callback reply is stored there and sent back to the same WhatsApp chat (`session.metadata.reply_whatsapp`).
+- A Claude Direct follow-up goes into the cloud session its conversation already has when all of these hold: the environment sets `CLAUDE_SESSION_WORKER=1`, its Claude session worker is running, the session took a message within `CLAUDE_SESSION_IDLE_HOURS`, and the worker claims and sends the follow-up. Any other message starts a new session. See `render-worker/README.md` § Claude session worker.
 
 ## Carmen's tools for coding agents (`carmen-tools-mcp`)
 
