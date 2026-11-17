@@ -308,6 +308,9 @@ export function acceptedMessageFor(
         ? `נשלח ל-Codex (ChatGPT Workspace). מעקב: ${url}`
         : "נשלח ל-Codex Direct (ChatGPT Workspace). מחכה לתשובה בשיחה הזו.";
     case "claude":
+      if (opts?.reused) {
+        return `נשלח לסשן Claude שכבר פתוח. מעקב: ${url}`;
+      }
       return url
         ? `נשלח ל-Claude Direct. מעקב: ${url}`
         : "נשלח ל-Claude Direct. מחכה לתשובה בשיחה הזו.";

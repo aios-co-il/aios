@@ -68,6 +68,32 @@ Give the Droplet at least 4 vCPUs.
 
 Kling keys given to a worker in its env file are invisible to the server, which offers Kling only when the tenant has its own Kling keys. When this environment's worker holds them, set `RENDER_WORKER_KLING=1` in that Supabase project's edge function secrets.
 
+## Claude session worker
+
+A second service in this folder (`src/claude-session`, AIO-600). Claude Direct starts a Claude Code cloud session through a routine, and the routine's API starts a new session on every call. This worker sends each follow-up into the session the conversation already has, with the Claude CLI (`claude -p <prompt> --cloud <session id>`), so the session keeps its own memory and working copy.
+
+- The edge function queues a follow-up in `claude_session_messages` and waits for the verdict (`supabase/functions/_shared/agent-channel/claude-session.ts`). The worker claims it with `claim_claude_session_message`, sends it, and marks the row `sent` or `failed`. The session's answer returns through the AIOS callback, as for a first message.
+- A follow-up that is not claimed within 8 seconds, or whose send the worker reports as failed, starts a new session through the routine. A row left queued for a minute is cancelled at the next claim, never sent late.
+- A follow-up the worker claimed and gave no verdict on within 20 seconds may or may not have reached the session, so it is not sent again: the send fails with "Claude did not confirm follow-up", and the user resends if no answer arrives. The worker retries a failed verdict write; a claimed row with no verdict after two minutes is failed at the next claim.
+- The claim gives out one message per cloud session at a time, oldest first, so a session's follow-ups arrive in order whatever the number of workers.
+- The CLI's "Sent to cloud session" line is the proof of delivery, even when the CLI then exits with an error. A claim the worker receives more than a minute late is not sent.
+- Only a conversation's ordinary messages continue a session. A one-off prompt (a parliament seat, a meeting summary) gets its own session, and that session never takes the conversation's next message.
+- The worker runs on one Claude account and can only reach that account's cloud sessions. It serves the tenants whose Claude Direct routine belongs to that account; another account's session fails and falls back to a new session.
+
+It needs no render-worker keys: only `WORKER_ENV`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally `WORKER_ID` and `POLL_MS` (1000). One container per environment, as above.
+
+```bash
+docker build -f render-worker/Dockerfile.claude-session -t aios-claude-session:staging .
+# Sign in once; the sign-in is kept in the volume.
+docker run -it --rm -v aios-claude-session-staging:/home/node/.claude aios-claude-session:staging claude auth login
+docker run -d --name aios-claude-session-staging --restart unless-stopped \
+  -v aios-claude-session-staging:/home/node/.claude \
+  --env-file render-worker/.env.claude-session.staging aios-claude-session:staging
+docker logs -f aios-claude-session-staging
+```
+
+Then set the edge function secret `CLAUDE_SESSION_WORKER=1` on that Supabase project. Without it Claude Direct never queues a follow-up. With it and no running worker, every follow-up waits 8 seconds before it starts a new session, so unset it when the container is stopped. `CLAUDE_SESSION_IDLE_HOURS` (24) is how long after its last message a session still takes follow-ups.
+
 ## Test
 
 ```bash
