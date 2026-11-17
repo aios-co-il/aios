@@ -95,25 +95,24 @@ Deno.test("deliverFollowup", async (t) => {
   await t.step(
     "keeps waiting when a worker claims it just before the cancel",
     async () => {
-      // The cancel finds the row already claimed (status sending), then the verdict arrives.
-      const script = [
+      // Still queued when the claim wait ends, so the cancel runs; a worker claimed the row a
+      // moment earlier, so the cancel moves nothing. The next reads see sending, then sent.
+      const { store } = fakeStore([
         "",
-        ...Array<string>(CLAIM_WAIT_MS / 500).fill("queued"),
+        ...Array<string>(CLAIM_WAIT_MS / 500 + 1).fill("queued"),
         "sending",
         "sent",
-      ];
-      const { store } = fakeStore(script);
-      const clock = fakeClock();
-      const cancel = store.cancelQueued;
-      store.cancelQueued = async (id) => {
-        script.shift();
-        await cancel(id);
-        return false;
+      ]);
+      let cancels = 0;
+      store.cancelQueued = () => {
+        cancels += 1;
+        return Promise.resolve(false);
       };
       assertStrictEquals(
-        await deliverFollowup({ store, prompt: "hi", ...clock }),
+        await deliverFollowup({ store, prompt: "hi", ...fakeClock() }),
         true,
       );
+      assertStrictEquals(cancels, 1);
     },
   );
 
