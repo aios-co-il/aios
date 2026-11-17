@@ -1,4 +1,4 @@
--- Landing pages (20261117100000_landing_pages): landing_page_tenant_matches is
+-- Landing pages (20261117110000_landing_page_tenant_check): landing_page_tenant_matches is
 -- true only for the subdomain and id of the same active or trial org, and the
 -- anon role can call it. Synthetic tenants inside one transaction that is rolled back.
 BEGIN;
