@@ -10,13 +10,8 @@ import {
   type BlacklistEntry,
 } from "@/hooks/useBroadcastBlacklist";
 import { useUserRole } from "@/hooks/useUserRole";
+import { BLACKLIST_SOURCE_LABELS } from "./blacklistSources";
 import { UnblockButton } from "./UnblockButton";
-
-const SOURCE_LABELS: Record<string, string> = {
-  unsubscribe_link: "קישור הסרה",
-  email_unsubscribe: "קישור הסרה (מייל)",
-  manual: "ידני",
-};
 
 const CHANNEL_LABELS: Record<string, string> = {
   all: "כל הדיוורים",
@@ -96,7 +91,7 @@ export function BroadcastBlacklist() {
                   {CHANNEL_LABELS[r.channel] ?? r.channel}
                 </Badge>
                 <span className="hidden text-xs text-muted-foreground sm:inline">
-                  {SOURCE_LABELS[r.source ?? ""] ?? r.source ?? ""} ·{" "}
+                  {BLACKLIST_SOURCE_LABELS[r.source ?? ""] ?? r.source ?? ""} ·{" "}
                   {new Date(r.created_at).toLocaleDateString("he-IL")}
                 </span>
                 {isOwner && (
