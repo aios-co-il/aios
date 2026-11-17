@@ -16,7 +16,7 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../_shared/broadcast/template/template-vars.ts";
-import { emailSendFields } from "../_shared/broadcast/template/inline-images.ts";
+import { emailSendFields } from "../_shared/broadcast/template/embed-images.ts";
 import { isOptedOut } from "../_shared/broadcast/audience/reachability.ts";
 import {
   oneClickUnsubscribeUrl,
@@ -178,7 +178,7 @@ async function sendOne(
     const res = await invokeEdgeFn("send-resend-email", {
       to: r.email,
       subject: renderTemplate(b.subject || b.name, vars),
-      ...emailSendFields(html, b.attachments, SB_URL),
+      ...(await emailSendFields(html, b.attachments, SB_URL)),
       text,
       fromEmail: b.from_email || undefined,
       fromName: b.from_name || undefined,

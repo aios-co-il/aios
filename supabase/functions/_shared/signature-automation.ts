@@ -9,10 +9,7 @@ import {
   type SignatureEmailColors,
   type SignatureEmailSettings,
 } from "./signature-email-template.ts";
-import {
-  inlineEmailImages,
-  inlineImageUrlPrefixes,
-} from "./broadcast/template/inline-images.ts";
+import { embedStorageImages } from "./broadcast/template/embed-images.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const DEFAULT_FROM_EMAIL =
@@ -145,13 +142,13 @@ type SigningEmailAttachment = {
  * The `html` and `attachments` fields of a signing email. The logo is embedded
  * when it is in our storage, so Outlook shows it without asking the reader.
  */
-function signingEmailFields(
+async function signingEmailFields(
   opts: Parameters<typeof buildSigningEmailHtml>[0],
   files: Array<SigningEmailAttachment> = [],
-): { html: string; attachments?: Array<SigningEmailAttachment> } {
-  const inlined = inlineEmailImages(
+): Promise<{ html: string; attachments?: Array<SigningEmailAttachment> }> {
+  const inlined = await embedStorageImages(
     buildSigningEmailHtml(opts),
-    inlineImageUrlPrefixes(SUPABASE_URL),
+    SUPABASE_URL,
   );
   const attachments = [...files, ...inlined.attachments];
   return attachments.length > 0
@@ -332,7 +329,7 @@ export async function sendSignatureDocumentEmails(
           },
           emailSubject,
         ),
-        ...signingEmailFields({
+        ...(await signingEmailFields({
           recipientName: recipient.name,
           documentTitle: doc.title,
           signingUrl,
@@ -355,7 +352,7 @@ export async function sendSignatureDocumentEmails(
             },
             emailBody,
           ),
-        }),
+        })),
       }),
     });
 
@@ -449,7 +446,7 @@ export async function emailSignedDocumentCopies(
         from: `${DEFAULT_FROM_NAME} <${DEFAULT_FROM_EMAIL}>`,
         to: [to],
         subject: headline,
-        ...signingEmailFields(
+        ...(await signingEmailFields(
           {
             recipientName: name,
             documentTitle: opts.title,
@@ -460,7 +457,7 @@ export async function emailSignedDocumentCopies(
             colors: emailSettings,
           },
           [attachment],
-        ),
+        )),
       }),
     });
     if (!res.ok) {

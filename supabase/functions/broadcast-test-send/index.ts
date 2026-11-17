@@ -14,7 +14,7 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../_shared/broadcast/template/template-vars.ts";
-import { emailSendFields } from "../_shared/broadcast/template/inline-images.ts";
+import { emailSendFields } from "../_shared/broadcast/template/embed-images.ts";
 import { isEmailAddress } from "../_shared/broadcast/email-address.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     const sendError = await sendViaResend({
       to: to.emails,
       subject: `[בדיקה] ${renderTemplate(asString(body.subject), vars) || "דיוור"}`,
-      ...emailSendFields(html, body.attachments, SB_URL),
+      ...(await emailSendFields(html, body.attachments, SB_URL)),
       text,
       fromEmail: sender.email,
       fromName: sender.name,
