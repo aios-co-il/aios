@@ -1,6 +1,7 @@
-import { Settings2 } from "lucide-react";
+import { Settings2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { ReportKpiCard } from "@/components/report-ui/ReportKpiCard";
+import { ReportSection } from "@/components/report-ui/ReportSection";
 import type { EventUsersResult } from "../../../../supabase/functions/ga-event-users/reports.ts";
 import { EventUsersTable } from "./EventUsersTable";
 import { SiteKpiCards } from "./SiteKpiCards";
@@ -30,10 +31,12 @@ type Props = {
 };
 
 /**
- * The "אירועים באתר" tab: purchase revenue and the chosen conversion, a card
- * per followed site event with its count and
- * cost per event, the people who did each by traffic source with the
- * conversion between steps, and a daily chart.
+ * The site goals at the top of a dashboard's Analytics tab: purchase revenue
+ * and the chosen conversion, a card per followed site event with its count
+ * and cost per event, the people who did each by traffic source with the
+ * conversion between steps, and a daily chart. Without followed events it
+ * offers the picker where the dashboard is editable and shows nothing on a
+ * share link.
  */
 export function TrackedEventsTab({
   summary,
@@ -44,49 +47,49 @@ export function TrackedEventsTab({
   formatNumber,
   onEdit,
 }: Props) {
+  const editButton = onEdit && (
+    <Button variant="outline" size="sm" onClick={onEdit}>
+      <Settings2 className="ml-2 h-4 w-4" />
+      {summary.events.length === 0 ? "בחירת אירועים" : "עריכת אירועים"}
+    </Button>
+  );
   if (summary.events.length === 0) {
-    return (
-      <Card className="p-12 text-center space-y-4">
-        <p className="text-muted-foreground">
-          עדיין לא נבחרו אירועים לדשבורד הזה
-        </p>
-        {onEdit && <Button onClick={onEdit}>בחירת אירועים</Button>}
-      </Card>
-    );
+    return editButton ? (
+      <ReportSection
+        title="יעדים באתר"
+        icon={Target}
+        description="בחרו אירועים מ-Google Analytics כדי לעקוב אחריהם כיעדים בראש הדוח"
+        actions={editButton}
+      >
+        {null}
+      </ReportSection>
+    ) : null;
   }
   return (
     <div className="space-y-4">
-      {onEdit && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={onEdit}>
-            <Settings2 className="h-4 w-4 ml-2" />
-            עריכת אירועים
-          </Button>
-        </div>
-      )}
-      <SiteKpiCards
-        revenue={revenue}
-        ratio={ratio}
-        formatCurrency={formatCurrency}
-        formatNumber={formatNumber}
-      />
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {summary.events.map((item) => (
-          <Card key={item.event}>
-            <CardContent className="p-4 text-center">
-              <p className="text-sm text-muted-foreground">{item.label}</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatNumber(item.count)}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {item.cost === null
+      <ReportSection title="יעדים באתר" icon={Target} actions={editButton}>
+        <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+          <SiteKpiCards
+            revenue={revenue}
+            ratio={ratio}
+            formatCurrency={formatCurrency}
+            formatNumber={formatNumber}
+          />
+          {summary.events.map((item) => (
+            <ReportKpiCard
+              key={item.event}
+              icon={Target}
+              label={item.label}
+              value={formatNumber(item.count)}
+              hint={
+                item.cost === null
                   ? "עלות לאירוע: -"
-                  : `עלות לאירוע: ${formatCurrency(item.cost)}`}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  : `עלות לאירוע: ${formatCurrency(item.cost)}`
+              }
+            />
+          ))}
+        </div>
+      </ReportSection>
       {eventUsers && (
         <EventUsersTable {...eventUsers} formatNumber={formatNumber} />
       )}
