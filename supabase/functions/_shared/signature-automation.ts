@@ -10,11 +10,10 @@ import {
   type SignatureEmailSettings,
 } from "./signature-email-template.ts";
 import {
-  base64ByteLength,
   embedStorageImages,
-  MAX_INLINE_IMAGE_BYTES,
-  MAX_MESSAGE_ATTACHMENT_BYTES,
+  imageBudgetBesideFiles,
 } from "./broadcast/template/embed-images.ts";
+import { base64ByteLength } from "./broadcast/template/image-loader.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const DEFAULT_FROM_EMAIL =
@@ -158,7 +157,7 @@ async function signingEmailFields(
     buildSigningEmailHtml(opts),
     SUPABASE_URL,
     undefined,
-    Math.min(MAX_INLINE_IMAGE_BYTES, MAX_MESSAGE_ATTACHMENT_BYTES - fileBytes),
+    imageBudgetBesideFiles(fileBytes),
   );
   const attachments = [...files, ...inlined.attachments];
   return attachments.length > 0

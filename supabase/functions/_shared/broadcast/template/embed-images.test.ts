@@ -1,12 +1,13 @@
 import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import {
-  cachedImageLoader,
   EMBED_DEADLINE_MS,
   embedStorageImages,
   emailSendFields,
-  MAX_INLINE_IMAGE_BYTES,
+  imageBudgetBesideFiles,
   MAX_INLINE_IMAGES,
+  MAX_MESSAGE_ATTACHMENT_BYTES,
 } from "./embed-images.ts";
+import { MAX_INLINE_IMAGE_BYTES } from "./image-loader.ts";
 import { buildEmailContent } from "./email-html.ts";
 
 const SB_URL = "https://x.supabase.co";
@@ -183,60 +184,27 @@ Deno.test("embedStorageImages", async (t) => {
   });
 });
 
-Deno.test("cachedImageLoader", async (t) => {
-  await t.step("downloads an image once for many emails", async () => {
-    let downloads = 0;
-    const load = cachedImageLoader(() => {
-      downloads += 1;
-      return Promise.resolve(PIXELS);
-    });
-
-    await Promise.all([load(logo), load(logo)]);
-    await load(logo);
-
-    assertStrictEquals(downloads, 1);
+Deno.test("imageBudgetBesideFiles", async (t) => {
+  await t.step("gives the usual budget beside small files", () => {
+    assertStrictEquals(imageBudgetBesideFiles(1024), MAX_INLINE_IMAGE_BYTES);
   });
 
-  await t.step("keeps embedding an image deleted after download", async () => {
-    const results: Array<string | null> = [PIXELS, null];
-    const load = cachedImageLoader(() =>
-      Promise.resolve(results.shift() ?? null),
-    );
-    const html = `<img src="${logo}">`;
+  await t.step(
+    "leaves no room for a logo beside a huge signed PDF",
+    async () => {
+      const budget = imageBudgetBesideFiles(MAX_MESSAGE_ATTACHMENT_BYTES + 1);
+      const html = `<img src="${logo}">`;
 
-    await embedStorageImages(html, SB_URL, load);
-    const afterDelete = await embedStorageImages(html, SB_URL, load);
-
-    assertStrictEquals(afterDelete.attachments[0].content, PIXELS);
-  });
-
-  await t.step("drops the oldest images past the cache limit", async () => {
-    const other = `${media}t1/templates/other.png`;
-    const downloaded: Array<string> = [];
-    const load = cachedImageLoader((url) => {
-      downloaded.push(url);
-      return Promise.resolve(PIXELS);
-    }, 6);
-
-    await load(logo);
-    await load(other);
-    await load(other);
-    await load(logo);
-
-    assertEquals(downloaded, [logo, other, logo]);
-  });
-
-  await t.step("retries an image whose download failed", async () => {
-    const results: Array<string | null> = [null, PIXELS];
-    const load = cachedImageLoader(() =>
-      Promise.resolve(results.shift() ?? null),
-    );
-    const html = `<img src="${logo}">`;
-
-    const first = await embedStorageImages(html, SB_URL, load);
-    const second = await embedStorageImages(html, SB_URL, load);
-
-    assertStrictEquals(first.html, html);
-    assertStrictEquals(second.html, `<img src="cid:image-1">`);
-  });
+      assertStrictEquals(budget, 0);
+      assertEquals(
+        await embedStorageImages(
+          html,
+          SB_URL,
+          loader({ [logo]: PIXELS }),
+          budget,
+        ),
+        { html, attachments: [] },
+      );
+    },
+  );
 });
