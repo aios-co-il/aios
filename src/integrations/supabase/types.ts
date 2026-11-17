@@ -8878,6 +8878,59 @@ export type Database = {
           },
         ];
       };
+      landing_pages: {
+        Row: {
+          content: Json;
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          id: string;
+          path: string;
+          published_at: string | null;
+          status: string;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          content?: Json;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          path?: string;
+          published_at?: string | null;
+          status?: string;
+          tenant_id: string;
+          title: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          content?: Json;
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          id?: string;
+          path?: string;
+          published_at?: string | null;
+          status?: string;
+          tenant_id?: string;
+          title?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       lead_alert_failure_notifications: {
         Row: {
           automation_log_id: string;
@@ -18053,6 +18106,18 @@ export type Database = {
           isOneToOne: false;
           isSetofReturn: true;
         };
+      };
+      get_published_landing_page: {
+        Args: { p_path?: string; p_subdomain: string };
+        Returns: {
+          content: Json;
+          description: string;
+          page_id: string;
+          published_at: string;
+          tenant_id: string;
+          title: string;
+          updated_at: string;
+        }[];
       };
       get_signature_by_token: { Args: { _token: string }; Returns: Json };
       get_tenant_home_agency_id: {
