@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { GMAIL_SCOPES } from "./scopes.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -158,8 +159,7 @@ serve(async (req) => {
           client_id: clientId,
           redirect_uri: redirectUri,
           response_type: "code",
-          scope:
-            "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify",
+          scope: GMAIL_SCOPES.join(" "),
           access_type: "offline",
           prompt: "consent",
           state: `${user.id}|${tenantId}`,
