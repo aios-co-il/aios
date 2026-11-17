@@ -3,6 +3,7 @@ import { fakeDb } from "./fake-db.ts";
 import {
   addToBlacklist,
   blacklistRows,
+  oneClickUnsubscribeUrl,
   unsubscribeAddresses,
   unsubscribeUrl,
   whatsappUnsubscribeFooter,
@@ -56,15 +57,26 @@ Deno.test("addToBlacklist inserts one row per address", async () => {
   assert(writes.every((w) => w.table === "broadcast_opt_outs"));
 });
 
-Deno.test("unsubscribe link and WhatsApp footer", () => {
-  const url = unsubscribeUrl("https://x.supabase.co", "r1");
-  assertStrictEquals(
-    url,
-    "https://x.supabase.co/functions/v1/broadcast-unsubscribe?r=r1",
-  );
+Deno.test("unsubscribe link opens the tenant's page in the app", () => {
+  const url = unsubscribeUrl("https://aios.co.il", "pdpsagot", "r1");
+  assertStrictEquals(url, "https://aios.co.il/unsubscribe/pdpsagot?r=r1");
   assertStrictEquals(
     whatsappUnsubscribeFooter(url),
     `\n\nלהסרה מרשימת הדיוור: ${url}`,
+  );
+});
+
+Deno.test("unsubscribe link encodes the tenant slug", () => {
+  assertStrictEquals(
+    unsubscribeUrl("https://aios.co.il", "a b/c", "r1"),
+    "https://aios.co.il/unsubscribe/a%20b%2Fc?r=r1",
+  );
+});
+
+Deno.test("one-click unsubscribe posts to the function", () => {
+  assertStrictEquals(
+    oneClickUnsubscribeUrl("https://x.supabase.co", "r1"),
+    "https://x.supabase.co/functions/v1/broadcast-unsubscribe?r=r1",
   );
 });
 
