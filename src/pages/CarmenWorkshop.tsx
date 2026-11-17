@@ -23,6 +23,7 @@ import {
 } from "@/lib/workshopBridge";
 import { WorkshopProjects } from "@/components/workshop/WorkshopProjects";
 import { WorkshopClientCard } from "@/components/workshop/WorkshopClientCard";
+import { LandingSettingsPanel } from "@/components/workshop/landing/LandingSettingsPanel";
 import { WorkshopAssignControl } from "@/components/workshop/WorkshopAssignControl";
 import {
   defaultProject,
@@ -436,34 +437,43 @@ export default function CarmenWorkshop() {
             onSelect={openProject}
           />
         ) : null}
-        <main className="min-h-0 min-w-0 flex-1">
-          {showClientCard && viewClientId ? (
-            <WorkshopClientCard
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {board?.project_type === "landing" ? (
+            <LandingSettingsPanel
               tenantId={tenantId}
-              clientId={viewClientId}
-              onNewProject={startNew}
+              itemId={board.id}
+              clientId={board.client_id}
             />
-          ) : (
-            <WorkshopFeed
-              artifacts={artifacts.data ?? []}
-              loading={
-                artifacts.isLoading ||
-                (!blank && (projects.isLoading || resolvingProject))
-              }
-              hasProject={!!board}
-              selectedId={artifactId}
-              onSelect={(id) => {
-                setArtifactId(id);
-                if (id) sceneBoard.clearScene();
-              }}
-              tenantId={tenantId}
-              projectId={boardId}
-              clientId={board?.client_id ?? null}
-              clientName={board?.client_name ?? null}
-              storyboard={sceneBoard.storyboard}
-              openChat={() => setOpen(true)}
-            />
-          )}
+          ) : null}
+          <div className="min-h-0 flex-1">
+            {showClientCard && viewClientId ? (
+              <WorkshopClientCard
+                tenantId={tenantId}
+                clientId={viewClientId}
+                onNewProject={startNew}
+              />
+            ) : (
+              <WorkshopFeed
+                artifacts={artifacts.data ?? []}
+                loading={
+                  artifacts.isLoading ||
+                  (!blank && (projects.isLoading || resolvingProject))
+                }
+                hasProject={!!board}
+                selectedId={artifactId}
+                onSelect={(id) => {
+                  setArtifactId(id);
+                  if (id) sceneBoard.clearScene();
+                }}
+                tenantId={tenantId}
+                projectId={boardId}
+                clientId={board?.client_id ?? null}
+                clientName={board?.client_name ?? null}
+                storyboard={sceneBoard.storyboard}
+                openChat={() => setOpen(true)}
+              />
+            )}
+          </div>
         </main>
       </div>
     </div>

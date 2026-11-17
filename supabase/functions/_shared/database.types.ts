@@ -8965,6 +8965,7 @@ export type Database = {
           tenant_id: string;
           title: string;
           updated_at: string;
+          work_item_id: string | null;
         };
         Insert: {
           created_at?: string;
@@ -8976,6 +8977,7 @@ export type Database = {
           tenant_id: string;
           title: string;
           updated_at?: string;
+          work_item_id?: string | null;
         };
         Update: {
           created_at?: string;
@@ -8987,6 +8989,7 @@ export type Database = {
           tenant_id?: string;
           title?: string;
           updated_at?: string;
+          work_item_id?: string | null;
         };
         Relationships: [
           {
@@ -8995,6 +8998,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "landing_sites";
             referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "landing_pages_work_item_id_fkey";
+            columns: ["work_item_id"];
+            isOneToOne: false;
+            referencedRelation: "marketing_work_items";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -18406,6 +18416,17 @@ export type Database = {
       landing_page_client_matches: {
         Args: { p_client_id: string; p_tenant_id: string };
         Returns: boolean;
+      };
+      landing_page_save_settings: {
+        Args: {
+          p_item_id: string;
+          p_lead_to_crm: boolean;
+          p_lead_to_webhook: boolean;
+          p_slug: string;
+          p_subdomain: string;
+          p_webhook_url?: string;
+        };
+        Returns: string;
       };
       lead_origin_tag_names: {
         Args: { p_campaign_name: string; p_source: string };
