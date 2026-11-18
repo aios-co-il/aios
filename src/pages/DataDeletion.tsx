@@ -1,6 +1,8 @@
+import { DATA_DELETION_PAGE } from "@/pages/legal/legalPages";
+import { useLegalPageTitle } from "@/pages/legal/useLegalPageTitle";
+import { lazy, Suspense } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSearchParams } from "react-router-dom";
-import { DeletionStatusBox } from "@/components/DataDeletionPage/DeletionStatusBox";
 import {
   ContactSection,
   HowToRequestSection,
@@ -10,7 +12,17 @@ import {
 import { EnglishInstructionsSection } from "@/components/DataDeletionPage/EnglishInstructionsSection";
 import { LegalPageFooter } from "@/components/DataDeletionPage/LegalPageFooter";
 
+// Loaded only with a status code, so the page also renders without the
+// Supabase client when it is written to static HTML at build time.
+const DeletionStatusBox = lazy(() =>
+  import("@/components/DataDeletionPage/DeletionStatusBox").then((module) => ({
+    default: module.DeletionStatusBox,
+  })),
+);
+
 export default function DataDeletion() {
+  useLegalPageTitle(DATA_DELETION_PAGE);
+
   const [searchParams] = useSearchParams();
   const code = searchParams.get("code")?.trim() || null;
 
@@ -31,7 +43,9 @@ export default function DataDeletion() {
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
             {code && (
               <section>
-                <DeletionStatusBox code={code} />
+                <Suspense fallback={null}>
+                  <DeletionStatusBox code={code} />
+                </Suspense>
               </section>
             )}
             <HowToRequestSection />

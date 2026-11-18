@@ -18,6 +18,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { UIModeProvider } from "./contexts/UIModeContext";
 import { AIOSProvider } from "./contexts/AIOSContext";
 import { Suspense } from "react";
+import { PrerenderHandoff } from "./pages/legal/PrerenderHandoff";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CarmenLoadingScreen } from "@/components/shared/CarmenLoadingScreen";
@@ -122,6 +123,7 @@ const App = () => (
           <Sonner />
           <RouteScopedProviders>
             <Suspense fallback={<PageLoader />}>
+              <PrerenderHandoff />
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<AuthPage />} />
