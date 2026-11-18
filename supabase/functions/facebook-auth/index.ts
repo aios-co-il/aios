@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { buildFacebookAuthorizeUrl } from "./authorize-url.ts";
+import { missingFacebookPermissions } from "./granted-permissions.ts";
+import { reconnectSettings } from "./reconnect-settings.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,24 +83,6 @@ serve(async (req) => {
         );
       }
 
-      // Permissions: ads + pages content + comments + Instagram
-      const scopes = [
-        "pages_manage_ads",
-        "leads_retrieval",
-        "pages_read_engagement",
-        "pages_show_list",
-        "ads_management",
-        // Content publishing & comments management
-        "pages_manage_posts",
-        "pages_manage_engagement",
-        "pages_messaging",
-        "business_management",
-        // Instagram (requires connected IG Business/Creator account)
-        "instagram_basic",
-        "instagram_content_publish",
-        "instagram_manage_comments",
-      ].join(",");
-
       // Use a FIXED redirect_uri pointing to the Edge Function callback
       // This way we only need to add ONE redirect_uri in Facebook App settings
       const centralCallbackUrl = `${supabaseUrl}/functions/v1/facebook-auth?action=oauth_callback`;
@@ -117,14 +102,13 @@ serve(async (req) => {
         },
       });
 
-      const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
-      authUrl.searchParams.set("client_id", credentials.appId);
-      authUrl.searchParams.set("redirect_uri", centralCallbackUrl); // Fixed central callback
-      authUrl.searchParams.set("scope", scopes);
-      authUrl.searchParams.set("state", `${tenant_id}:${state}`);
-      authUrl.searchParams.set("response_type", "code");
+      const authUrl = buildFacebookAuthorizeUrl({
+        appId: credentials.appId,
+        callbackUrl: centralCallbackUrl,
+        state: `${tenant_id}:${state}`,
+      });
 
-      return new Response(JSON.stringify({ auth_url: authUrl.toString() }), {
+      return new Response(JSON.stringify({ auth_url: authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -206,15 +190,9 @@ serve(async (req) => {
 
       if (!tokenResponse.ok) {
         console.error("Token exchange error:", tokenData);
-        const errorMsg =
-          tokenData.error?.message || "Failed to exchange code for token";
-        // Extract base URL from frontend_redirect_uri for error redirect
-        const baseUrl = frontend_redirect_uri
-          ? new URL(frontend_redirect_uri).origin
-          : "";
-        return new Response(
-          `<html><body><script>window.location.href = '${baseUrl}/?facebook_error=${encodeURIComponent(errorMsg)}';</script></body></html>`,
-          { headers: { "Content-Type": "text/html" } },
+        return facebookErrorPage(
+          frontend_redirect_uri,
+          tokenData.error?.message || "Failed to exchange code for token",
         );
       }
 
@@ -234,6 +212,19 @@ serve(async (req) => {
 
       const finalToken = longLivedData.access_token || access_token;
       const finalExpiry = longLivedData.expires_in || expires_in;
+
+      const permissionsResponse = await fetch(
+        `https://graph.facebook.com/v21.0/me/permissions?access_token=${finalToken}`,
+      );
+      const missingPermissions = missingFacebookPermissions(
+        await permissionsResponse.json(),
+      );
+      if (missingPermissions.length > 0) {
+        return facebookErrorPage(
+          frontend_redirect_uri,
+          `Missing Facebook permissions: ${missingPermissions.join(", ")}. Connect again and allow them.`,
+        );
+      }
 
       // Get user's pages with pagination - Page tokens from long-lived user tokens are PERMANENT!
       let allPages: any[] = [];
@@ -256,7 +247,7 @@ serve(async (req) => {
       // overwriting a shared/mirror record owned by someone else.
       let existingIntQuery = supabase
         .from("tenant_integrations")
-        .select("id")
+        .select("id, settings, updated_at")
         .eq("tenant_id", tenantId)
         .eq("integration_type", integration_type)
         .is("shared_from_integration_id", null);
@@ -265,7 +256,15 @@ serve(async (req) => {
       } else {
         existingIntQuery = existingIntQuery.is("user_id", null);
       }
-      const { data: existingInt } = await existingIntQuery.maybeSingle();
+      const { data: existingInt, error: existingIntError } =
+        await existingIntQuery.maybeSingle();
+      if (existingIntError) {
+        console.error("Facebook reconnect lookup failed:", existingIntError);
+        return facebookErrorPage(
+          frontend_redirect_uri,
+          "Could not save the Facebook connection. Try again.",
+        );
+      }
 
       // Store or update integration
       const integrationData = {
@@ -275,22 +274,33 @@ serve(async (req) => {
         api_key: finalToken,
         api_token_last_4: finalToken.slice(-4),
         is_active: true,
-        settings: {
-          pages: allPages,
-          token_expires_at: new Date(
-            Date.now() + (finalExpiry || 5184000) * 1000,
-          ).toISOString(),
-        },
+        settings: reconnectSettings(
+          existingInt?.settings ?? null,
+          allPages,
+          new Date(Date.now() + (finalExpiry || 5184000) * 1000).toISOString(),
+        ),
         updated_at: new Date().toISOString(),
       };
 
-      if (existingInt) {
-        await supabase
-          .from("tenant_integrations")
-          .update(integrationData)
-          .eq("id", existingInt.id);
-      } else {
-        await supabase.from("tenant_integrations").insert(integrationData);
+      // The updated_at check keeps a settings change saved during the
+      // reconnect (e.g. a new form mapping) from being overwritten.
+      const { data: saved, error: saveError } = existingInt
+        ? await supabase
+            .from("tenant_integrations")
+            .update(integrationData)
+            .eq("id", existingInt.id)
+            .eq("updated_at", existingInt.updated_at)
+            .select("id")
+        : await supabase
+            .from("tenant_integrations")
+            .insert(integrationData)
+            .select("id");
+      if (saveError || !saved || saved.length === 0) {
+        console.error("Facebook connection save failed:", saveError);
+        return facebookErrorPage(
+          frontend_redirect_uri,
+          "Could not save the Facebook connection. Try again.",
+        );
       }
 
       // Redirect user back to their frontend page
@@ -670,3 +680,18 @@ serve(async (req) => {
     });
   }
 });
+
+/** Sends the user back to the app's origin with the error shown there. */
+function facebookErrorPage(
+  frontendRedirectUri: string | undefined,
+  message: string,
+): Response {
+  const baseUrl = frontendRedirectUri
+    ? new URL(frontendRedirectUri).origin
+    : "";
+
+  return new Response(
+    `<html><body><script>window.location.href = '${baseUrl}/?facebook_error=${encodeURIComponent(message)}';</script></body></html>`,
+    { headers: { "Content-Type": "text/html" } },
+  );
+}
