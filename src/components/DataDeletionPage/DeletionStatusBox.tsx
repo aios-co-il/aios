@@ -1,6 +1,7 @@
 import { formatDateTime } from "@/lib/formatDateTime";
 import { DATA_DELETION_STATUS_LABELS } from "./dataDeletionStatus";
 import { PrivacyEmailLink } from "./PrivacyEmailLink";
+import { StatusUnavailable } from "./StatusUnavailable";
 import { useDeletionStatus, type DeletionLookup } from "./useDeletionStatus";
 
 function LookupResult({ result }: { result: DeletionLookup }) {
@@ -13,15 +14,7 @@ function LookupResult({ result }: { result: DeletionLookup }) {
     );
   }
   if (result.kind === "unavailable") {
-    return (
-      <p className="text-destructive">
-        לא הצלחנו לבדוק את הסטטוס כרגע, נסה שוב מאוחר יותר.
-        <br />
-        <span dir="ltr">
-          We could not check the status right now, please try again later.
-        </span>
-      </p>
-    );
+    return <StatusUnavailable />;
   }
   return (
     <>
@@ -40,11 +33,7 @@ export function DeletionStatusBox({ code }: { code: string }) {
   const { data, isPending } = useDeletionStatus(code);
 
   return (
-    <div
-      className="bg-muted/50 p-4 rounded-lg border"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="bg-muted/50 p-4 rounded-lg border">
       <p className="mb-2">
         <strong>סטטוס בקשת מחיקה</strong>
       </p>

@@ -17,3 +17,15 @@ export function isChunkLoadError(error: unknown): boolean {
     text.includes("loading css chunk")
   );
 }
+
+let chunkReloadPending = false;
+
+/** Called when a stale-chunk reload has been requested for this page load. */
+export function markChunkReloadPending(): void {
+  chunkReloadPending = true;
+}
+
+/** True while a reload requested by a chunk failure is on its way. */
+export function isChunkReloadPending(): boolean {
+  return chunkReloadPending;
+}

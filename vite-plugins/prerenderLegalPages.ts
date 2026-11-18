@@ -106,7 +106,7 @@ function createRendererServer(config: RendererConfig): Promise<ViteDevServer> {
     esbuild: { jsx: "automatic", jsxDev: false },
     logLevel: "error",
     appType: "custom",
-    server: { middlewareMode: true, hmr: false },
+    server: { middlewareMode: true, hmr: false, ws: false },
     optimizeDeps: { noDiscovery: true, include: [] },
   });
 }

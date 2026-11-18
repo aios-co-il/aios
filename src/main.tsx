@@ -3,7 +3,7 @@ import App from "./App.tsx";
 import { preserveLegalPrerender } from "./pages/legal/preserveLegalPrerender";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
-import { isChunkLoadError } from "./lib/chunkErrors.ts";
+import { isChunkLoadError, markChunkReloadPending } from "./lib/chunkErrors.ts";
 import { supabase } from "./integrations/supabase/client.ts";
 import { AIOS_BRAND, applyBrandTheme } from "./theme/index.ts";
 
@@ -17,6 +17,7 @@ function reloadOnceForStaleChunk(): boolean {
   } catch {
     // If storage is blocked, still attempt a single reload best-effort.
   }
+  markChunkReloadPending();
   window.location.reload();
   return true;
 }
