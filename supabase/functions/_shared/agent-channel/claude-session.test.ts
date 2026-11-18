@@ -12,6 +12,7 @@ import {
   type FollowupStore,
   SEND_WAIT_MS,
   sessionIdleLimitMs,
+  sessionLeftOpen,
   UnconfirmedFollowupError,
 } from "./claude-session.ts";
 
@@ -131,12 +132,83 @@ Deno.test("deliverFollowup", async (t) => {
     },
   );
 
+  await t.step(
+    "is unconfirmed when a failure is first seen after the deadline",
+    async () => {
+      // The status read hangs past the point where the claim function fails a claim with no
+      // verdict. That failure is not the worker saying "not sent", so nothing may be resent.
+      const { store } = fakeStore(["", "sending", "failed"]);
+      const clock = fakeClock();
+      const status = store.status;
+      let reads = 0;
+      store.status = async (id) => {
+        reads += 1;
+        if (reads === 2) {
+          await clock.sleep(3 * 60_000);
+        }
+        return status(id);
+      };
+      await assertRejects(
+        () => deliverFollowup({ store, prompt: "hi", ...clock }),
+        UnconfirmedFollowupError,
+      );
+    },
+  );
+
+  await t.step(
+    "is unconfirmed when the queue call itself answers after the deadline",
+    async () => {
+      // The insert committed but its answer hung; a worker claimed the row and the claim was
+      // closed with no verdict meanwhile. The first status read already says failed.
+      const { store } = fakeStore(["", "failed"]);
+      const clock = fakeClock();
+      const queue = store.queue;
+      store.queue = async (prompt) => {
+        await clock.sleep(3 * 60_000);
+        return queue(prompt);
+      };
+      await assertRejects(
+        () => deliverFollowup({ store, prompt: "hi", ...clock }),
+        UnconfirmedFollowupError,
+      );
+    },
+  );
+
   await t.step("is not delivered when the row is gone", async () => {
     const { store } = fakeStore(["", null]);
     assertStrictEquals(
       await deliverFollowup({ store, prompt: "hi", ...fakeClock() }),
       false,
     );
+  });
+});
+
+Deno.test("sessionLeftOpen", async (t) => {
+  await t.step(
+    "an ordinary launch stays open, a one-off launch does not take over the conversation",
+    async () => {
+      // The conversation's open session is the last one a launch left open.
+      const left: Array<string> = [];
+      function launch(id: string, oneOff: boolean) {
+        const open = sessionLeftOpen(
+          { claude_code_session_id: id },
+          { oneOff },
+        );
+        if (open) {
+          left.push(open);
+        }
+      }
+      launch("cse_ordinaryA", false);
+      launch("cse_oneOffB", true);
+
+      // The next ordinary follow-up continues A; recording B would send it there without history.
+      assertEquals(left, ["session_ordinaryA"]);
+      assertStrictEquals(left.at(-1), "session_ordinaryA");
+    },
+  );
+
+  await t.step("a launch whose fire returned no session id leaves none", () => {
+    assertStrictEquals(sessionLeftOpen({}, { oneOff: false }), null);
   });
 });
 
