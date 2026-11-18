@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { missingCalendarScopes } from "./scopes.ts";
@@ -9,7 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -60,7 +59,7 @@ serve(async (req) => {
       const missingScopes = missingCalendarScopes(tokens);
       if (missingScopes.length > 0) {
         throw new Error(
-          `Calendar access was not granted (${missingScopes.join(", ")}). Connect again and allow access to your calendar.`,
+          "Calendar permission is missing. Close this window and connect Calendar again, allowing both event and calendar list access. Your existing connection has been kept.",
         );
       }
 

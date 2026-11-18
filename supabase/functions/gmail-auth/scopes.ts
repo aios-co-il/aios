@@ -2,14 +2,8 @@
  * Google scopes requested when connecting Gmail.
  * gmail.modify covers every Gmail call the app makes: messages list/get,
  * attachments, labels, send, modify (mark read/unread) and trash.
- * userinfo.email lets the callback store which Google account was connected.
+ * users.getProfile supplies the mailbox address with the same permission.
  */
 export const GMAIL_SCOPES: ReadonlyArray<string> = [
-  "https://www.googleapis.com/auth/gmail.modify",
-  "https://www.googleapis.com/auth/userinfo.email",
-];
-
-/** Without these the connection cannot read or send mail. */
-export const GMAIL_REQUIRED_SCOPES: ReadonlyArray<string> = [
   "https://www.googleapis.com/auth/gmail.modify",
 ];

@@ -1,8 +1,7 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { missingGrantedScopes } from "../_shared/google-oauth/granted-scopes.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
-import { GMAIL_REQUIRED_SCOPES } from "./scopes.ts";
+import { GMAIL_SCOPES } from "./scopes.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -11,7 +10,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -57,10 +56,10 @@ serve(async (req) => {
         throw new Error("Failed to get tokens from Google");
       }
 
-      const missingScopes = missingGrantedScopes(tokens, GMAIL_REQUIRED_SCOPES);
+      const missingScopes = missingGrantedScopes(tokens, GMAIL_SCOPES);
       if (missingScopes.length > 0) {
         throw new Error(
-          `Gmail access was not granted (${missingScopes.join(", ")}). Connect again and allow access to Gmail.`,
+          "Gmail permission is missing. Close this window and connect Gmail again, allowing Gmail access.",
         );
       }
 
@@ -69,21 +68,21 @@ serve(async (req) => {
       const [userId, tenantId] = stateParam.split("|");
       if (!userId || !tenantId) throw new Error("Invalid state parameter");
 
-      // Fetch Google email
+      // Gmail profile uses the same permission as mailbox operations.
       let googleEmail = null;
       try {
         const res = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
+          "https://gmail.googleapis.com/gmail/v1/users/me/profile",
           {
             headers: { Authorization: `Bearer ${tokens.access_token}` },
           },
         );
         if (res.ok) {
           const info = await res.json();
-          googleEmail = info.email;
+          googleEmail = info.emailAddress;
         }
       } catch (e) {
-        console.error("Failed to fetch user info:", e);
+        console.error("Failed to fetch Gmail profile:", e);
       }
 
       const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);

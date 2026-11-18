@@ -44,11 +44,11 @@ import { codexOpenAiApiEnabled, runtimeEnv } from "../carmen-brain-flags.ts";
 import { launchCodexViaOpenAiApi } from "./codex-api.ts";
 import { sendEnv } from "./brain-env.ts";
 import {
-  cloudSessionIdOf,
   continuesSessions,
   deliverFollowup,
   fitsFollowup,
   sessionIdleLimitMs,
+  sessionLeftOpen,
 } from "./claude-session.ts";
 import {
   findOpenCloudSession,
@@ -472,8 +472,8 @@ async function openClaudeSession(args: {
     throw new Error(`Claude routine fire ${resp.status}: ${raw.slice(0, 300)}`);
   }
   const fire = parseRoutineFire(raw);
-  const cloudSessionId = cloudSessionIdOf(fire);
-  if (cloudSessionId && args.reusable) {
+  const cloudSessionId = sessionLeftOpen(fire, { oneOff: !args.reusable });
+  if (cloudSessionId) {
     // The session is already running; without this record the next message only starts a new one.
     await recordOpenedCloudSession(args.sb, args.scope, cloudSessionId).catch(
       (error) => console.error("[claude-session]", error),
