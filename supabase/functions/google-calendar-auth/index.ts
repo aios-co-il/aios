@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { CALENDAR_SCOPES } from "./scopes.ts";
+import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -272,18 +272,12 @@ serve(async (req) => {
         .maybeSingle();
       const hasExistingRefresh = !!existingToken?.refresh_token;
 
-      const authParams: Record<string, string> = {
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: "code",
-        scope: CALENDAR_SCOPES.join(" "),
-        access_type: "offline",
-        include_granted_scopes: "true",
+      const authUrl = buildCalendarAuthorizeUrl({
+        clientId,
+        redirectUri,
         state: user.id,
-      };
-      if (!hasExistingRefresh) authParams.prompt = "consent";
-
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(authParams)}`;
+        forceConsent: !hasExistingRefresh,
+      });
 
       return new Response(JSON.stringify({ authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

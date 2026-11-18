@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { GMAIL_SCOPES } from "./scopes.ts";
+import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -154,17 +154,11 @@ serve(async (req) => {
       const tenantId = requestBody.tenantId;
       if (!tenantId) throw new Error("Missing tenantId");
 
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(
-        {
-          client_id: clientId,
-          redirect_uri: redirectUri,
-          response_type: "code",
-          scope: GMAIL_SCOPES.join(" "),
-          access_type: "offline",
-          prompt: "consent",
-          state: `${user.id}|${tenantId}`,
-        },
-      )}`;
+      const authUrl = buildGmailAuthorizeUrl({
+        clientId,
+        redirectUri,
+        state: `${user.id}|${tenantId}`,
+      });
 
       return new Response(JSON.stringify({ authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

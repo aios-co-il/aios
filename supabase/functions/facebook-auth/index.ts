@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import { FACEBOOK_LOGIN_SCOPES } from "./scopes.ts";
+import { buildFacebookAuthorizeUrl } from "./authorize-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,8 +81,6 @@ serve(async (req) => {
         );
       }
 
-      const scopes = FACEBOOK_LOGIN_SCOPES.join(",");
-
       // Use a FIXED redirect_uri pointing to the Edge Function callback
       // This way we only need to add ONE redirect_uri in Facebook App settings
       const centralCallbackUrl = `${supabaseUrl}/functions/v1/facebook-auth?action=oauth_callback`;
@@ -102,14 +100,13 @@ serve(async (req) => {
         },
       });
 
-      const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
-      authUrl.searchParams.set("client_id", credentials.appId);
-      authUrl.searchParams.set("redirect_uri", centralCallbackUrl); // Fixed central callback
-      authUrl.searchParams.set("scope", scopes);
-      authUrl.searchParams.set("state", `${tenant_id}:${state}`);
-      authUrl.searchParams.set("response_type", "code");
+      const authUrl = buildFacebookAuthorizeUrl({
+        appId: credentials.appId,
+        callbackUrl: centralCallbackUrl,
+        state: `${tenant_id}:${state}`,
+      });
 
-      return new Response(JSON.stringify({ auth_url: authUrl.toString() }), {
+      return new Response(JSON.stringify({ auth_url: authUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
