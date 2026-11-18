@@ -33,11 +33,7 @@ export function DeletionStatusBox({ code }: { code: string }) {
   const { data, isPending } = useDeletionStatus(code);
 
   return (
-    <div
-      className="bg-muted/50 p-4 rounded-lg border"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="bg-muted/50 p-4 rounded-lg border">
       <p className="mb-2">
         <strong>סטטוס בקשת מחיקה</strong>
       </p>
