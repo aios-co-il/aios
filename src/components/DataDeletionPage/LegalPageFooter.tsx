@@ -1,4 +1,4 @@
-import { LEGAL_LAST_UPDATED } from "@/pages/legal/legalPages";
+import { DATA_DELETION_PAGE } from "@/pages/legal/legalPages";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 
@@ -6,7 +6,7 @@ export function LegalPageFooter() {
   return (
     <>
       <div className="text-sm text-muted-foreground mt-8 pt-4 border-t">
-        עדכון אחרון: {LEGAL_LAST_UPDATED}
+        עדכון אחרון: {DATA_DELETION_PAGE.lastUpdated}
       </div>
       <div className="flex items-center justify-between pt-6 border-t">
         <Link

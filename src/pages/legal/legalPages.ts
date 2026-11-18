@@ -3,19 +3,16 @@ export interface LegalPage {
   path: "/privacy" | "/terms" | "/data-deletion";
   title: string;
   description: string;
+  /** Date this page's text last changed; update with policy text changes. */
+  lastUpdated: string;
 }
-
-/**
- * Date the legal pages' text last changed, shown as "last updated". Bump it in
- * the PR that changes the text; it is not the build or visit date.
- */
-export const LEGAL_LAST_UPDATED = "18.11.2026";
 
 /** The app's own title from index.html, restored when leaving a legal page. */
 export const DEFAULT_DOCUMENT_TITLE = "AIOS | כל השיווק והמכירות במקום אחד";
 
 export const PRIVACY_PAGE: LegalPage = {
   path: "/privacy",
+  lastUpdated: "18.11.2026",
   title: "מדיניות פרטיות | AIOS",
   description:
     "מדיניות הפרטיות של AIOS: איזה מידע אנו אוספים, כיצד אנו משתמשים בו, שומרים ומגנים עליו, וכיצד לבקש את מחיקתו.",
@@ -23,12 +20,14 @@ export const PRIVACY_PAGE: LegalPage = {
 
 export const TERMS_PAGE: LegalPage = {
   path: "/terms",
+  lastUpdated: "18.11.2026",
   title: "תנאי שימוש | AIOS",
   description: "תנאי השימוש בפלטפורמת AIOS ובשירותים הנלווים לה.",
 };
 
 export const DATA_DELETION_PAGE: LegalPage = {
   path: "/data-deletion",
+  lastUpdated: "18.11.2026",
   title: "מחיקת מידע | AIOS",
   description:
     "כיצד לבקש מחיקה של המידע ש-AIOS שומרת מאינטגרציות Meta (Facebook, Instagram) ו-Google.",
