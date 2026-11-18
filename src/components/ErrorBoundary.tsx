@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isChunkLoadError } from "@/lib/chunkErrors";
+import { revealPrerenderedApp } from "@/pages/legal/preserveLegalPrerender";
 
 const CHUNK_RELOAD_KEY = "aios-error-boundary-chunk-reload";
 
@@ -33,6 +34,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   async componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
+    // The fallback has committed; a hidden root would hide it behind a
+    // prerendered legal page.
+    revealPrerenderedApp();
 
     if (isChunkLoadError(error)) {
       try {
