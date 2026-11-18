@@ -1,9 +1,10 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isChunkLoadError } from "@/lib/chunkErrors";
+import { isChunkLoadError, isChunkReloadPending } from "@/lib/chunkErrors";
 import { revealPrerenderedApp } from "@/pages/legal/preserveLegalPrerender";
 
-const CHUNK_RELOAD_KEY = "aios-error-boundary-chunk-reload";
+/** Session flag that limits the chunk-error reload to once. */
+export const CHUNK_RELOAD_KEY = "aios-error-boundary-chunk-reload";
 
 interface Props {
   children: ReactNode;
@@ -34,10 +35,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   async componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
-    if (!isChunkLoadError(error)) {
+    if (!isChunkLoadError(error) && !isChunkReloadPending()) {
       // The fallback has committed; a hidden root would hide it behind a
-      // prerendered legal page. A chunk error reloads instead, so the static
-      // page stays readable meanwhile.
+      // prerendered legal page. While a chunk reload is on its way (including
+      // the undefined module main.tsx hands React), keep the static page.
       revealPrerenderedApp();
     }
 
