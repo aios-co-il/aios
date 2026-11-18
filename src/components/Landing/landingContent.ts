@@ -111,5 +111,4 @@ export const AUDIENCES = [
 export const LEGAL_LINKS = [
   { to: "/privacy", label: "מדיניות פרטיות" },
   { to: "/terms", label: "תנאי שימוש" },
-  { to: "/data-deletion", label: "מחיקת מידע" },
 ];
