@@ -30,6 +30,14 @@ export const DEPARTMENTS: readonly Department[] = [
 
 const BY_ID = new Map(DEPARTMENTS.map((dept) => [dept.id, dept]));
 
+/** Departments with no screen of their own whose projects still start in the workshop. */
+const WORKSHOP_ONLY: readonly DepartmentId[] = ["creative", "web"];
+
+/** A new project of this department can start in the workshop chat: Carmen has tools for it. */
+export function startsInWorkshop(dept: Department): boolean {
+  return dept.screen !== null || WORKSHOP_ONLY.includes(dept.id);
+}
+
 export const isDepartmentId = (value: unknown): value is DepartmentId =>
   typeof value === "string" && BY_ID.has(value as DepartmentId);
 

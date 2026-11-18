@@ -2,6 +2,7 @@ import { isExplicitApprovalPhrase } from "../wa-approval-flow.ts";
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { type Db } from "./db.ts";
 import { type StartProjectPlan } from "./defaults.ts";
+import { LANDING_DEPARTMENT, LANDING_PROJECT_TYPE } from "./landing/kind.ts";
 import { tappedAnswers } from "./tapped-answers.ts";
 
 export const briefPayload = (plan: StartProjectPlan, brief: string) => ({
@@ -10,7 +11,8 @@ export const briefPayload = (plan: StartProjectPlan, brief: string) => ({
   project_type: plan.projectType,
   visual_style: plan.visualStyle,
   content_type: plan.contentType,
-  department: "creative",
+  department:
+    plan.projectType === LANDING_PROJECT_TYPE ? LANDING_DEPARTMENT : "creative",
   intake_source: "carmen",
   workshop: {
     kind: plan.kind,

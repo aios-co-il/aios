@@ -48,6 +48,8 @@ Use `https://after-lead-git-develop-aios-crm.vercel.app` as the stable Staging d
 
 The separate repo `aios-co-il/landing-pages` (Vercel project `landing-pages`) holds each org's pages as `landing-pages/<tenants.subdomain>/<slug>/` and serves them on `https://<subdomain>.aios.co.il/<slug>` through the wildcard domain `*.aios.co.il`. Hosts attached to `after-lead` (the apex, `www`, `staging`) take precedence over the wildcard. Each site's `site.json` names its org and client; the repo's only database access is the anon call to `landing_page_client_matches`, which its checks run against AIOS Production before a page is published.
 
+Leads: a site set to send its leads through AIOS posts each form to the `landing-lead-intake` edge function with the `x-landing-secret` header. The function reads the page's row in `landing_pages` and delivers the lead to the org's CRM, the page's webhook, or both, and records it in `landing_leads`. The secret `LANDING_LEAD_INTAKE_SECRET` is set once per environment in Supabase and under the same name in the `landing-pages` Vercel project; an unset secret refuses every lead. A landing page is a Workshop project (`payload.project_type` `landing`, department `web`); its settings panel saves the client's subdomain, the page's address and its lead destination through `landing_page_save_settings`, the only writer of a page's webhook URL.
+
 The in-app amber frame (subtle yellow border glow) marks Staging/Preview — no header space taken.
 
 ## Flow (staging-first)

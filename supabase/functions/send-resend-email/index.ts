@@ -48,7 +48,7 @@ const corsHeaders = {
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const DEFAULT_FROM_EMAIL =
   Deno.env.get("RESEND_FROM_EMAIL") ?? "noreply@aios.co.il";
-const DEFAULT_FROM_NAME = Deno.env.get("RESEND_FROM_NAME") ?? "AfterLead";
+const DEFAULT_FROM_NAME = Deno.env.get("RESEND_FROM_NAME") ?? "AIOS";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")

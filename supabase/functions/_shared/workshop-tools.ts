@@ -13,6 +13,7 @@
 import type { Db } from "./workshop/db.ts";
 import { settleEngine } from "./workshop/engine-choice.ts";
 import { type WorkshopDeps } from "./workshop/gate.ts";
+import { landingToolRefusal } from "./workshop/landing/tool-guard.ts";
 import { isWorkshopTool } from "./workshop/tool-definitions.ts";
 import type { ToolContext } from "./workshop/tool-context.ts";
 import { workshopAddAssets } from "./workshop/tools/add-assets.ts";
@@ -22,6 +23,8 @@ import { workshopChooseVoice } from "./workshop/tools/choose-voice.ts";
 import { workshopEditFromAssets } from "./workshop/tools/edit-from-assets.ts";
 import { workshopGetState } from "./workshop/tools/get-state.ts";
 import { workshopInspectSite } from "./workshop/tools/inspect-site.ts";
+import { workshopSaveLandingCopy } from "./workshop/tools/landing-copy.ts";
+import { workshopSaveLandingStyle } from "./workshop/tools/landing-style.ts";
 import { workshopMakeCreative } from "./workshop/tools/make-creative.ts";
 import { workshopMakeStills } from "./workshop/tools/make-stills.ts";
 import { workshopProduceVideo } from "./workshop/tools/produce-video.ts";
@@ -58,6 +61,8 @@ const HANDLERS: Record<string, (ctx: ToolContext) => Promise<unknown>> = {
   workshop_update_scene: workshopUpdateScene,
   workshop_make_stills: workshopMakeStills,
   workshop_produce_video: workshopProduceVideo,
+  workshop_save_landing_copy: workshopSaveLandingCopy,
+  workshop_save_landing_style: workshopSaveLandingStyle,
 };
 
 export async function executeWorkshopTool(
@@ -72,6 +77,14 @@ export async function executeWorkshopTool(
   if (!isWorkshopTool(name)) return { error: "כלי לא מוכר" };
   const handler = HANDLERS[name];
   if (!handler) return { error: "כלי לא מוכר" };
+  const refusal = await landingToolRefusal(
+    supabase,
+    tenantId,
+    name,
+    args,
+    assertClientAccess,
+  );
+  if (refusal) return refusal;
   // An engine that is not connected is not an error to retry on: the server picks one.
   const settled = await settleEngine(name, args, deps);
   const result = await handler({

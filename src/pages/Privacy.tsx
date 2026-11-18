@@ -1,10 +1,15 @@
+import { PRIVACY_PAGE } from "@/pages/legal/legalPages";
+import { useLegalPageTitle } from "@/pages/legal/useLegalPageTitle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { PRIVACY_EMAIL } from "@/components/DataDeletionPage/constants";
 import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink";
+import { EnglishPrivacySection } from "@/components/PrivacyPage/EnglishPrivacySection";
 
 export default function Privacy() {
+  useLegalPageTitle(PRIVACY_PAGE);
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="container max-w-4xl mx-auto">
@@ -12,9 +17,9 @@ export default function Privacy() {
           <CardHeader>
             <CardTitle className="text-3xl">מדיניות פרטיות</CardTitle>
             <p className="text-muted-foreground mt-2">
-              Carmen Marketing OS ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על
-              פרטיותך. מדיניות פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים
-              ומגנים על המידע שלך בעת השימוש בפלטפורמת Carmen Marketing OS.
+              AIOS ("אנחנו", "שלנו" או "החברה") מחויבת להגנה על פרטיותך. מדיניות
+              פרטיות זו מסבירה כיצד אנו אוספים, משתמשים, שומרים ומגנים על המידע
+              שלך בעת השימוש בפלטפורמת AIOS.
             </p>
           </CardHeader>
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
@@ -351,7 +356,7 @@ export default function Privacy() {
               <p className="mb-3">לשאלות, בקשות או תלונות בנוגע לפרטיות:</p>
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p>
-                  <strong>Carmen Marketing OS</strong>
+                  <strong>AIOS</strong>
                 </p>
                 <p>
                   אימייל: <PrivacyEmailLink />
@@ -368,8 +373,10 @@ export default function Privacy() {
               </div>
             </section>
 
+            <EnglishPrivacySection />
+
             <div className="text-sm text-muted-foreground mt-8 pt-4 border-t">
-              עדכון אחרון: {new Date().toLocaleDateString("he-IL")}
+              עדכון אחרון: {PRIVACY_PAGE.lastUpdated}
             </div>
 
             {/* Footer Links */}

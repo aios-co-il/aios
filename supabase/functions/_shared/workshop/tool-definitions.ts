@@ -1,4 +1,5 @@
 import { EDIT_TOOL } from "./edit-tool.ts";
+import { LANDING_TOOLS } from "./landing/tool-definitions.ts";
 import { CREATIVE_TOOLS } from "./tool-definitions-creative.ts";
 import { PRODUCE_VIDEO_TOOL } from "./tool-definitions-produce.ts";
 import { PROJECT_TOOLS } from "./tool-definitions-project.ts";
@@ -22,6 +23,7 @@ export const WORKSHOP_TOOLS = [
   UPDATE_SCENE_TOOL,
   MAKE_STILLS_TOOL,
   PRODUCE_VIDEO_TOOL,
+  ...LANDING_TOOLS,
 ];
 
 export const isWorkshopTool = (name: string) =>
