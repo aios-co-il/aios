@@ -1,3 +1,5 @@
+import { LEGAL_LAST_UPDATED, PRIVACY_PAGE } from "@/pages/legal/legalPages";
+import { useLegalPageTitle } from "@/pages/legal/useLegalPageTitle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
@@ -6,6 +8,8 @@ import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink
 import { EnglishPrivacySection } from "@/components/PrivacyPage/EnglishPrivacySection";
 
 export default function Privacy() {
+  useLegalPageTitle(PRIVACY_PAGE);
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8" dir="rtl">
       <div className="container max-w-4xl mx-auto">
@@ -372,7 +376,7 @@ export default function Privacy() {
             <EnglishPrivacySection />
 
             <div className="text-sm text-muted-foreground mt-8 pt-4 border-t">
-              עדכון אחרון: {new Date().toLocaleDateString("he-IL")}
+              עדכון אחרון: {LEGAL_LAST_UPDATED}
             </div>
 
             {/* Footer Links */}
