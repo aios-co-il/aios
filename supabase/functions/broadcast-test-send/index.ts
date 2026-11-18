@@ -14,10 +14,7 @@ import {
   renderTemplate,
   type TemplateVars,
 } from "../_shared/broadcast/template/template-vars.ts";
-import {
-  attachmentUrlPrefix,
-  emailAttachmentsForResend,
-} from "../_shared/broadcast/template/email-attachments.ts";
+import { emailSendFields } from "../_shared/broadcast/template/embed-images.ts";
 import { isEmailAddress } from "../_shared/broadcast/email-address.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
@@ -59,15 +56,11 @@ Deno.serve(async (req) => {
     const sendError = await sendViaResend({
       to: to.emails,
       subject: `[בדיקה] ${renderTemplate(asString(body.subject), vars) || "דיוור"}`,
-      html,
+      ...(await emailSendFields(html, body.attachments, SB_URL)),
       text,
       fromEmail: sender.email,
       fromName: sender.name,
       replyTo: asString(body.replyTo).trim() || undefined,
-      attachments: emailAttachmentsForResend(
-        body.attachments,
-        attachmentUrlPrefix(SB_URL),
-      ),
     });
     if (sendError) return json({ error: sendError }, 502);
     return json({ success: true, to: to.emails.join(", ") });

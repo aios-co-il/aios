@@ -46,6 +46,18 @@ export function cloudSessionIdOf(fire: {
   return CLOUD_SESSION_ID.test(id) ? id : null;
 }
 
+/**
+ * The session a launch leaves open for the conversation's next message. A one-off prompt (a
+ * parliament seat, a meeting summary) leaves none: its session never saw the conversation, and
+ * a follow-up sent there, without pasted history, would lose the thread.
+ */
+export function sessionLeftOpen(
+  fire: Parameters<typeof cloudSessionIdOf>[0],
+  launch: { oneOff: boolean },
+): string | null {
+  return launch.oneOff ? null : cloudSessionIdOf(fire);
+}
+
 /** The last path segment of a URL, "" when the value is not a URL. */
 function lastPathSegment(url: unknown): string {
   if (typeof url !== "string" || !URL.canParse(url)) {
@@ -98,23 +110,32 @@ export async function deliverFollowup(args: {
   const sleep =
     args.sleep ??
     ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
-  const id = await args.store.queue(args.prompt);
+  // The clock starts before the insert: a queue call that answers late must count against the
+  // deadline, or a failure written meanwhile would look like a prompt worker verdict.
   const queuedAt = now();
+  const id = await args.store.queue(args.prompt);
 
   while (true) {
     const status = await args.store.status(id);
     if (status === "sent") {
       return true;
     }
+    const waited = now() - queuedAt;
+    const pastDeadline = waited >= CLAIM_WAIT_MS + SEND_WAIT_MS;
+    // A worker reports a failed send well inside the deadline. A "failed" first seen after it
+    // is the claim function closing a claim that got no verdict, which proves nothing about
+    // delivery: the worker may have sent the prompt and failed to say so.
+    if (status === "failed" && pastDeadline) {
+      throw new UnconfirmedFollowupError(id);
+    }
     if (status !== "queued" && status !== "sending") {
       return false;
     }
-    const waited = now() - queuedAt;
     if (status === "queued" && waited >= CLAIM_WAIT_MS) {
       if (await args.store.cancelQueued(id)) {
         return false;
       }
-    } else if (waited >= CLAIM_WAIT_MS + SEND_WAIT_MS) {
+    } else if (pastDeadline) {
       throw new UnconfirmedFollowupError(id);
     } else {
       await sleep(POLL_MS);
