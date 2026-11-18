@@ -1,12 +1,20 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { CHUNK_RELOAD_KEY } from "@/components/ErrorBoundary";
 import {
   cleanUp,
   mountFailingPrivacyRoute,
   renderBoundary,
-} from "./failingLegalRoute.fixture";
+} from "./failingLegalRoute.test-fixture";
 
 describe("legal prerender handoff when the route fails", () => {
+  // Runs even when a test fails during setup, so no state leaks into the next.
+  afterEach(() => {
+    chunkState.reloadPending = false;
+    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    vi.restoreAllMocks();
+    document.getElementById("legal-prerender")?.remove();
+  });
+
   test("shows the error fallback when the legal route fails to load", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -23,7 +31,6 @@ describe("legal prerender handoff when the route fails", () => {
       await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     } finally {
       await cleanUp(root, container);
-      fetchSpy.mockRestore();
     }
   });
 
@@ -41,7 +48,6 @@ describe("legal prerender handoff when the route fails", () => {
       expect(document.getElementById("legal-prerender")).not.toBeNull();
     } finally {
       await cleanUp(root, container);
-      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
     }
   });
 
@@ -61,8 +67,6 @@ describe("legal prerender handoff when the route fails", () => {
       await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     } finally {
       await cleanUp(root, container);
-      chunkState.reloadPending = false;
-      fetchSpy.mockRestore();
     }
   });
 });

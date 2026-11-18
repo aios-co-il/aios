@@ -11,6 +11,7 @@ import {
 } from "@/components/DataDeletionPage/HebrewSections";
 import { EnglishInstructionsSection } from "@/components/DataDeletionPage/EnglishInstructionsSection";
 import { LegalPageFooter } from "@/components/DataDeletionPage/LegalPageFooter";
+import { StatusBoxBoundary } from "@/components/DataDeletionPage/StatusBoxBoundary";
 
 // Loaded only with a status code, so the page also renders without the
 // Supabase client when it is written to static HTML at build time.
@@ -43,9 +44,11 @@ export default function DataDeletion() {
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
             {code && (
               <section>
-                <Suspense fallback={<p role="status">טוען סטטוס בקשה...</p>}>
-                  <DeletionStatusBox code={code} />
-                </Suspense>
+                <StatusBoxBoundary>
+                  <Suspense fallback={<p role="status">טוען סטטוס בקשה...</p>}>
+                    <DeletionStatusBox code={code} />
+                  </Suspense>
+                </StatusBoxBoundary>
               </section>
             )}
             <HowToRequestSection />
