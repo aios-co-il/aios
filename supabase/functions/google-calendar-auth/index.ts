@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
+import { CALENDAR_SCOPES } from "./scopes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,6 +54,23 @@ Deno.serve(async (req) => {
       if (!tokens.access_token) {
         console.error("Token exchange failed:", tokens);
         throw new Error("Failed to get tokens from Google");
+      }
+
+      const grantedScopes = new Set(
+        typeof tokens.scope === "string" ? tokens.scope.split(/\s+/) : [],
+      );
+      // The legacy full Calendar grant covers both granular Calendar operations.
+      const hasCalendarAccess = CALENDAR_SCOPES.filter((scope) =>
+        scope.startsWith("https://www.googleapis.com/auth/calendar."),
+      ).every(
+        (scope) =>
+          grantedScopes.has(scope) ||
+          grantedScopes.has("https://www.googleapis.com/auth/calendar"),
+      );
+      if (!hasCalendarAccess) {
+        throw new Error(
+          "Calendar permission is missing. Close this window and connect Calendar again, allowing both event and calendar list access. Your existing connection has been kept.",
+        );
       }
 
       // Get user_id from state or session

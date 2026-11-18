@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:637265540365e176c4f42da90338700910e1992426b62d2a4be19f978fb6af51 -->
+
 # Development and verification
 
 ## Environment and commands
@@ -22,3 +26,12 @@
 - Frontend hosting is Vercel; the canonical domain is `https://aios.co.il`. Lovable is no longer the hosting provider.
 - Backend services use Supabase. Keep project refs and credentials outside git, and keep Staging connected to Staging.
 - After an authorized edge-function merge, confirm the function is declared in `supabase/config.toml` and that the Supabase integration deployed it.
+
+## Google Calendar OAuth release prerequisite
+
+Before deploying changes to `buildCalendarAuthorizeUrl` to Production, confirm that both `https://www.googleapis.com/auth/calendar.events` and `https://www.googleapis.com/auth/calendar.calendarlist.readonly` are approved in the production Google OAuth project associated with Production's `GOOGLE_CLIENT_ID`.
+Record the approval evidence and matching OAuth project in the release handoff; keep credentials outside git.
+A successful Preview or Staging connection does not confirm production approval.
+Without confirmed approval, keep the Production release blocked.
+
+<!-- /coderabbit-ai-generated:v1 -->
