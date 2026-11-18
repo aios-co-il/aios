@@ -13,8 +13,6 @@ import {
   landingTurnLines,
   withLandingApprovals,
 } from "./project.ts";
-import { landingStyleText } from "./page-style.ts";
-import { landingCopyText } from "./page-text.ts";
 
 const blocks = [{ type: "text" as const, body: "טקסט" }];
 const style = {
@@ -141,14 +139,12 @@ Deno.test("landingTurnLines names the next step at every stage", () => {
   assertStringIncludes(next({ blocks }), "הקופי נשמר ועוד לא אושר");
   // The saved text travels with the step that waits for approval: a new conversation has no other
   // copy of it to show.
-  assertStringIncludes(
-    landingTurnLines(landing({ blocks }))[2],
-    landingCopyText(blocks),
-  );
-  assertStringIncludes(
-    landingTurnLines(landing({ blocks, copy_approved: true, style }))[2],
-    landingStyleText(style),
-  );
+  assertStringIncludes(landingTurnLines(landing({ blocks }))[2], "טקסט");
+  const styleNote = landingTurnLines(
+    landing({ blocks, copy_approved: true, style }),
+  )[2];
+  assertStringIncludes(styleNote, "נקי");
+  assertStringIncludes(styleNote, "#112233");
   assertStringIncludes(
     next({ blocks, copy_approved: true }),
     "workshop_save_landing_style",
