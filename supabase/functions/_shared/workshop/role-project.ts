@@ -5,6 +5,7 @@
  */
 
 import { scriptSettled } from "./film-script.ts";
+import { isLandingProject } from "./landing/kind.ts";
 import type { ProjectKind } from "./roles.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -77,6 +78,9 @@ export async function workshopProjectKind(
       .eq("tenant_id", tenantId)
       .maybeSingle();
     const payload = (data?.payload ?? {}) as Record<string, unknown>;
+    if (isLandingProject(payload)) {
+      return { video: false, edit: false, landing: true };
+    }
     if (payload.project_type !== "video") return { video: false, edit: false };
     const edit = payload.workshop_edit === true;
     const writing =

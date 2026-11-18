@@ -3,9 +3,11 @@
  * Deno APIs, imported by the edge function tools and by the workshop UI.
  */
 
+import { asksForLanding } from "./landing/kind.ts";
+
 export const FORMATS = ["9:16", "4:5", "1:1", "16:9"] as const;
 export type Format = (typeof FORMATS)[number];
-export type ProjectKind = "video" | "static" | "campaign";
+export type ProjectKind = "video" | "static" | "campaign" | "landing";
 
 export const DEFAULT_VISUAL_STYLE = "adaptive";
 export const DEFAULT_FILM_SECONDS = 15;
@@ -32,6 +34,8 @@ const FORMAT_WORDS: { format: Format; words: RegExp }[] = [
 ];
 
 export function inferKind(text: string): ProjectKind {
+  // A landing page is named outright ("עמוד נחיתה"), so it wins over a video it may mention.
+  if (asksForLanding(text)) return "landing";
   if (VIDEO_WORDS.test(text)) return "video";
   if (CAMPAIGN_WORDS.test(text)) return "campaign";
   return "static";
@@ -107,7 +111,7 @@ export interface StartProjectInput {
 export interface StartProjectPlan {
   title: string;
   kind: ProjectKind;
-  projectType: "video" | "static";
+  projectType: "video" | "static" | "landing";
   format: Format;
   formats: Format[];
   contentType: ContentType;
@@ -123,7 +127,8 @@ const isFormat = (value: unknown): value is Format =>
 export function planProject(input: StartProjectInput): StartProjectPlan {
   const brief = input.brief.trim();
   const kind = input.kind ?? inferKind(brief);
-  const projectType = kind === "video" ? "video" : "static";
+  const projectType =
+    kind === "video" ? "video" : kind === "landing" ? "landing" : "static";
   const named = (input.formats ?? []).filter(isFormat);
   const formats = named.length > 0 ? named : inferFormats(brief, kind);
   const totalSeconds =
@@ -143,9 +148,11 @@ export function planProject(input: StartProjectInput): StartProjectPlan {
   const visualStyle = input.visual_style?.trim() || DEFAULT_VISUAL_STYLE;
   const summary = film
     ? `סרטון ${formats[0]}, ${film.totalSeconds} שניות, ${film.scenes} סצנות`
-    : kind === "campaign"
-      ? `קמפיין: קונספטים, קופי ומודעות בפורמטים ${formats.join(", ")}`
-      : `מודעה בפורמטים ${formats.join(", ")}`;
+    : kind === "landing"
+      ? "עמוד נחיתה: קופי, סגנון עיצובי ובנייה"
+      : kind === "campaign"
+        ? `קמפיין: קונספטים, קופי ומודעות בפורמטים ${formats.join(", ")}`
+        : `מודעה בפורמטים ${formats.join(", ")}`;
   return {
     title,
     kind,

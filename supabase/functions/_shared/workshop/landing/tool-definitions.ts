@@ -1,0 +1,88 @@
+/** The landing page tools: the page copy and the visual style, each shown for approval. */
+import { LANDING_BLOCK_TYPES } from "./page-content.ts";
+
+const FORM = {
+  type: "object",
+  description: "טופס הלידים (שם וטלפון בלבד)",
+  properties: {
+    buttonLabel: { type: "string", description: "הטקסט על כפתור השליחה" },
+    successMessage: {
+      type: "string",
+      description: "הודעת התודה אחרי שליחה",
+    },
+  },
+  required: ["buttonLabel", "successMessage"],
+};
+
+export const SAVE_LANDING_COPY_TOOL = {
+  name: "workshop_save_landing_copy",
+  description:
+    "שומרת את הקופי של עמוד נחיתה כמקטעים לפי הסדר ומציגה אותו למשתמש עם כפתורי אישור. רק בפרויקט עמוד נחיתה. המקטע הראשון הוא hero עם טופס, ובסוף העמוד מקטע leadForm אחד; כל כפתור בעמוד מוביל לטופס הזה. בין לבין, לפי הצורך: text, features, myths, services, faq, cta. כותבים בעברית, בגוף שפונה לגולש, בלי הבטחות שהלקוח לא נתן. הכלי בודק אורכים ומבנה ומחזיר מה לתקן. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. בקשת שינוי: כתבי את העמוד מחדש ושמרי שוב. לא עולה כסף.",
+  parameters: {
+    type: "object",
+    properties: {
+      item_id: { type: "string" },
+      blocks: {
+        type: "array",
+        description: "מקטעי העמוד לפי הסדר",
+        items: {
+          type: "object",
+          properties: {
+            type: { type: "string", enum: [...LANDING_BLOCK_TYPES] },
+            heading: { type: "string", description: "כותרת המקטע" },
+            subheading: { type: "string", description: "hero: כותרת משנה" },
+            body: {
+              type: "string",
+              description: "text, leadForm, cta: גוף הטקסט",
+            },
+            items: {
+              type: "array",
+              description:
+                "features: {title, body}. myths: {myth, answer}. faq: {question, answer}. services: מחרוזות.",
+              items: {},
+            },
+            tagline: { type: "string", description: "services: שורת סיום" },
+            label: { type: "string", description: "cta: הטקסט על הכפתור" },
+            form: FORM,
+          },
+          required: ["type"],
+        },
+      },
+    },
+    required: ["item_id", "blocks"],
+  },
+};
+
+export const SAVE_LANDING_STYLE_TOOL = {
+  name: "workshop_save_landing_style",
+  description:
+    "שומרת את הסגנון העיצובי של עמוד נחיתה ומציגה אותו למשתמש עם כפתורי אישור. רק אחרי שהמשתמש אישר את הקופי. הצבעים נלקחים מהמותג של הלקוח, מהאתר שלו (workshop_inspect_site) ומהרפרנסים שבפרויקט, לא מהדמיון. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. לא עולה כסף.",
+  parameters: {
+    type: "object",
+    properties: {
+      item_id: { type: "string" },
+      primary_color: {
+        type: "string",
+        description: "הצבע הראשי של הכפתורים וההדגשות, #RRGGBB",
+      },
+      accents: {
+        type: "array",
+        description: "2 עד 5 צבעי מותג לפס הצבעוני, #RRGGBB; אפשר בלי",
+        items: { type: "string" },
+      },
+      hero: {
+        type: "string",
+        enum: ["light", "dark"],
+        description: "dark: פתיחה כהה ללוגו בהיר. light: פתיחה בהירה",
+      },
+      direction: {
+        type: "string",
+        description:
+          "הכיוון במילים: האווירה, התחושה של הטיפוגרפיה, ומה נלקח מהרפרנסים",
+      },
+    },
+    required: ["item_id", "primary_color", "hero", "direction"],
+  },
+};
+
+export const LANDING_TOOLS = [SAVE_LANDING_COPY_TOOL, SAVE_LANDING_STYLE_TOOL];

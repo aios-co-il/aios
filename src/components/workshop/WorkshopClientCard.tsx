@@ -3,7 +3,10 @@ import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Globe, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DEPARTMENTS } from "../../../supabase/functions/_shared/workshop/departments.ts";
+import {
+  DEPARTMENTS,
+  startsInWorkshop,
+} from "../../../supabase/functions/_shared/workshop/departments.ts";
 import { useWorkshopClientCard } from "./useWorkshopClientCard";
 
 const siteHref = (url: string) =>
@@ -133,8 +136,9 @@ export function WorkshopClientCard({
           <div className="mt-2 flex flex-wrap gap-2">
             {/* Every department starts here, in the chat and on the board; a department with no
                 workshop tools yet (campaigns) is not offered. */}
-            {DEPARTMENTS.map(({ id, label, screen }) =>
-              id === "creative" || screen ? (
+            {DEPARTMENTS.map((dept) => {
+              const { id, label } = dept;
+              return startsInWorkshop(dept) ? (
                 <Button
                   key={id}
                   size="sm"
@@ -149,8 +153,8 @@ export function WorkshopClientCard({
                 <Button key={id} size="sm" variant="outline" disabled>
                   {label} · בקרוב
                 </Button>
-              ),
-            )}
+              );
+            })}
           </div>
         </div>
       </section>

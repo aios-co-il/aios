@@ -5,6 +5,7 @@
  * specialist answers. Every role gets every workshop tool (workshopToolOffered, blocked-tools.ts).
  */
 import { isExplicitDevTaskApproval } from "../dev-task-approval-words.ts";
+import { asksForLanding } from "./landing/kind.ts";
 import {
   isExplicitApprovalPhrase,
   isExplicitRejectionPhrase,
@@ -22,6 +23,8 @@ export type ProjectKind = {
   edit: boolean;
   scene?: boolean;
   writing?: boolean;
+  /** A landing page project: its copy and style are the copywriter's, whatever the message says. */
+  landing?: boolean;
 };
 
 /** The ai_skills row with the role's instructions. */
@@ -154,6 +157,9 @@ function currentRole(
   project: ProjectKind | null,
 ) {
   const role = roleOfPersona(current);
+  if (role === "copywriter" && project?.landing) {
+    return role;
+  }
   if (role === "copywriter" && !project?.writing) {
     return project?.video ? "producer" : null;
   }
@@ -186,6 +192,11 @@ export function workshopRole(
   const text = String(message ?? "");
   if (aboutCarmen(text)) {
     return currentRole(current, project);
+  }
+  // A landing page is written, not designed or filmed: an open one stays with the copywriter,
+  // and a request for a new one starts with her.
+  if (project?.landing || asksForLanding(text)) {
+    return "copywriter";
   }
   if (EDITOR.test(text)) return "editor";
   if (VIDEO.test(text)) {

@@ -15,6 +15,8 @@ export const ARTIFACT_KINDS = [
   "film",
   "reference",
   "article",
+  "landing_copy",
+  "landing_style",
 ] as const;
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
@@ -41,6 +43,8 @@ export const FOLDER_BY_KIND: Record<ArtifactKind, string> = {
   film: "video/film",
   reference: "references",
   article: "copy",
+  landing_copy: "copy",
+  landing_style: "copy",
 };
 
 export const FOLDER_LABELS: Record<string, string> = {
