@@ -1,3 +1,5 @@
+import { DATA_DELETION_PAGE } from "@/pages/legal/legalPages";
+import { useLegalPageTitle } from "@/pages/legal/useLegalPageTitle";
 import { lazy, Suspense } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSearchParams } from "react-router-dom";
@@ -19,6 +21,8 @@ const DeletionStatusBox = lazy(() =>
 );
 
 export default function DataDeletion() {
+  useLegalPageTitle(DATA_DELETION_PAGE);
+
   const [searchParams] = useSearchParams();
   const code = searchParams.get("code")?.trim() || null;
 

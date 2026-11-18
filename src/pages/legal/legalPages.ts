@@ -5,24 +5,39 @@ export interface LegalPage {
   description: string;
 }
 
+/**
+ * Date the legal pages' text last changed, shown as "last updated". Bump it in
+ * the PR that changes the text; it is not the build or visit date.
+ */
+export const LEGAL_LAST_UPDATED = "18.11.2026";
+
+/** The app's own title from index.html, restored when leaving a legal page. */
+export const DEFAULT_DOCUMENT_TITLE = "AIOS | כל השיווק והמכירות במקום אחד";
+
+export const PRIVACY_PAGE: LegalPage = {
+  path: "/privacy",
+  title: "מדיניות פרטיות | AIOS",
+  description:
+    "מדיניות הפרטיות של AIOS: איזה מידע אנו אוספים, כיצד אנו משתמשים בו, שומרים ומגנים עליו, וכיצד לבקש את מחיקתו.",
+};
+
+export const TERMS_PAGE: LegalPage = {
+  path: "/terms",
+  title: "תנאי שימוש | AIOS",
+  description: "תנאי השימוש בפלטפורמת AIOS ובשירותים הנלווים לה.",
+};
+
+export const DATA_DELETION_PAGE: LegalPage = {
+  path: "/data-deletion",
+  title: "מחיקת מידע | AIOS",
+  description:
+    "כיצד לבקש מחיקה של המידע ש-AIOS שומרת מאינטגרציות Meta (Facebook, Instagram) ו-Google.",
+};
+
 export const LEGAL_PAGES: ReadonlyArray<LegalPage> = [
-  {
-    path: "/privacy",
-    title: "מדיניות פרטיות | AIOS",
-    description:
-      "מדיניות הפרטיות של AIOS: איזה מידע אנו אוספים, כיצד אנו משתמשים בו, שומרים ומגנים עליו, וכיצד לבקש את מחיקתו.",
-  },
-  {
-    path: "/terms",
-    title: "תנאי שימוש | AIOS",
-    description: "תנאי השימוש בפלטפורמת AIOS ובשירותים הנלווים לה.",
-  },
-  {
-    path: "/data-deletion",
-    title: "מחיקת מידע | AIOS",
-    description:
-      "כיצד לבקש מחיקה של המידע ש-AIOS שומרת מאינטגרציות Meta (Facebook, Instagram) ו-Google.",
-  },
+  PRIVACY_PAGE,
+  TERMS_PAGE,
+  DATA_DELETION_PAGE,
 ];
 
 const ROOT_ELEMENT = '<div id="root"></div>';
