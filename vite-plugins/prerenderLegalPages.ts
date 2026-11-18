@@ -43,7 +43,7 @@ export function prerenderLegalPages(): Plugin {
 
   return {
     name: "prerender-legal-pages",
-    apply: "build",
+    apply: (_config, env) => env.command === "build" || env.isPreview === true,
     configResolved(config) {
       outDir = path.resolve(config.root, config.build.outDir);
       rendererConfig = {
@@ -51,6 +51,21 @@ export function prerenderLegalPages(): Plugin {
         alias: config.resolve.alias,
         define: config.define ?? {},
       };
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, _res, next) => {
+        const [pathname, query] = (req.url ?? "").split("?");
+        const page = LEGAL_PAGES.find(
+          (page) => pathname === page.path || pathname === page.path + "/",
+        );
+        if (page) {
+          req.url =
+            page.path +
+            "/index.html" +
+            (query === undefined ? "" : "?" + query);
+        }
+        next();
+      });
     },
     writeBundle: {
       sequential: true,

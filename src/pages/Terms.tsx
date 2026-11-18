@@ -1,4 +1,4 @@
-import { LEGAL_LAST_UPDATED, TERMS_PAGE } from "@/pages/legal/legalPages";
+import { TERMS_PAGE } from "@/pages/legal/legalPages";
 import { useLegalPageTitle } from "@/pages/legal/useLegalPageTitle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
@@ -350,7 +350,7 @@ export default function Terms() {
             </section>
 
             <div className="text-sm text-muted-foreground mt-8 pt-4 border-t">
-              עדכון אחרון: {LEGAL_LAST_UPDATED}
+              עדכון אחרון: {TERMS_PAGE.lastUpdated}
             </div>
 
             {/* Footer Links */}
