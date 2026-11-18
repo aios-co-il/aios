@@ -146,7 +146,7 @@ serve(async (req) => {
     const APP_BASE = (
       stateOrigin ||
       Deno.env.get("APP_URL") ||
-      "https://after-lead.com"
+      "https://aios.co.il"
     ).replace(/\/+$/, "");
 
     if (error) {
