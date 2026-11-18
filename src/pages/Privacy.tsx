@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { PRIVACY_EMAIL } from "@/components/DataDeletionPage/constants";
 import { PrivacyEmailLink } from "@/components/DataDeletionPage/PrivacyEmailLink";
+import { EnglishPrivacySection } from "@/components/PrivacyPage/EnglishPrivacySection";
 
 export default function Privacy() {
   return (
@@ -367,6 +368,8 @@ export default function Privacy() {
                 </p>
               </div>
             </section>
+
+            <EnglishPrivacySection />
 
             <div className="text-sm text-muted-foreground mt-8 pt-4 border-t">
               עדכון אחרון: {new Date().toLocaleDateString("he-IL")}
