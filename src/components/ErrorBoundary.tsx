@@ -34,9 +34,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   async componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
-    // The fallback has committed; a hidden root would hide it behind a
-    // prerendered legal page.
-    revealPrerenderedApp();
+    if (!isChunkLoadError(error)) {
+      // The fallback has committed; a hidden root would hide it behind a
+      // prerendered legal page. A chunk error reloads instead, so the static
+      // page stays readable meanwhile.
+      revealPrerenderedApp();
+    }
 
     if (isChunkLoadError(error)) {
       try {

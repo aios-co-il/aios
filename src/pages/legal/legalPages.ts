@@ -57,21 +57,38 @@ export function injectStaticPage(
   const title = escapeAttribute(page.title);
   const description = escapeAttribute(page.description);
 
-  return template
-    .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
-    .replace(
+  const head = [
+    replaceTag(/<title>[^<]*<\/title>/, `<title>${title}</title>`),
+    replaceTag(
       /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/,
       `<meta name="description" content="${description}" />`,
-    )
-    .replace(
+    ),
+    replaceTag(
       /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/,
       `<meta property="og:title" content="${title}" />`,
-    )
-    .replace(
+    ),
+    replaceTag(
       /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/,
       `<meta property="og:description" content="${description}" />`,
-    )
-    .replace(ROOT_ELEMENT, `<div id="root">${markup}</div>`);
+    ),
+  ].reduce((html, replace) => replace(html), template);
+
+  // A callback keeps "$" sequences in the rendered page literal.
+  return head.replace(ROOT_ELEMENT, () => `<div id="root">${markup}</div>`);
+}
+
+/**
+ * Replaces a head tag the page overrides. Throws when index.html no longer has
+ * it, so a changed template cannot silently publish the app's generic head.
+ */
+function replaceTag(pattern: RegExp, tag: string): (html: string) => string {
+  return (html) => {
+    if (!pattern.test(html)) {
+      throw new Error(`index.html has no tag matching ${pattern}`);
+    }
+
+    return html.replace(pattern, () => tag);
+  };
 }
 
 function escapeAttribute(value: string): string {

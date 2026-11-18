@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
-import { lazy, Suspense } from "react";
-import { createRoot } from "react-dom/client";
-import { describe, expect, test } from "vitest";
+import { lazy, Suspense, type ComponentType } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { describe, expect, test, vi } from "vitest";
 import { preserveLegalPrerender } from "./preserveLegalPrerender";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LEGAL_PAGES, PRIVACY_PAGE } from "./legalPages";
@@ -58,33 +58,39 @@ describe("legal prerender handoff", () => {
   );
 
   test("shows the error fallback when the legal route fails to load", async () => {
-    window.history.replaceState(null, "", PRIVACY_PAGE.path);
-    const container = document.createElement("div");
-    container.id = "root";
-    container.innerHTML = renderLegalPage(PRIVACY_PAGE.path);
-    document.body.appendChild(container);
-    const BrokenPage = lazy(() => Promise.reject(new Error("route failed")));
-    preserveLegalPrerender(container);
-    const root = createRoot(container);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null));
+    const { container, root, BrokenPage } = mountFailingPrivacyRoute(
+      new Error("route failed"),
+    );
     try {
-      await act(async () => {
-        root.render(
-          <ErrorBoundary>
-            <Suspense fallback={<p>Loading</p>}>
-              <PrerenderHandoff />
-              <BrokenPage />
-            </Suspense>
-          </ErrorBoundary>,
-        );
-      });
+      await renderBoundary(root, BrokenPage);
 
       expect(container.hidden).toBe(false);
       expect(document.getElementById("legal-prerender")).toBeNull();
       expect(container.textContent).toContain("route failed");
     } finally {
-      await act(async () => root.unmount());
-      container.remove();
-      window.history.replaceState(null, "", "/");
+      await cleanUp(root, container);
+      fetchSpy.mockRestore();
+    }
+  });
+
+  test("keeps the policy readable when the route chunk fails again", async () => {
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+    const { container, root, BrokenPage } = mountFailingPrivacyRoute(
+      new Error(
+        "Failed to fetch dynamically imported module: /assets/Privacy.js",
+      ),
+    );
+    try {
+      await renderBoundary(root, BrokenPage);
+
+      expect(container.hidden).toBe(true);
+      expect(document.getElementById("legal-prerender")).not.toBeNull();
+    } finally {
+      await cleanUp(root, container);
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
     }
   });
 
@@ -95,3 +101,38 @@ describe("legal prerender handoff", () => {
     expect(document.getElementById("legal-prerender")).toBeNull();
   });
 });
+
+// Matches the reload guard key in ErrorBoundary.
+const CHUNK_RELOAD_KEY = "aios-error-boundary-chunk-reload";
+
+function mountFailingPrivacyRoute(error: Error) {
+  window.history.replaceState(null, "", PRIVACY_PAGE.path);
+  const container = document.createElement("div");
+  container.id = "root";
+  container.innerHTML = renderLegalPage(PRIVACY_PAGE.path);
+  document.body.appendChild(container);
+  const BrokenPage = lazy(() => Promise.reject(error));
+  preserveLegalPrerender(container);
+
+  return { container, root: createRoot(container), BrokenPage };
+}
+
+async function renderBoundary(root: Root, BrokenPage: ComponentType) {
+  await act(async () => {
+    root.render(
+      <ErrorBoundary>
+        <Suspense fallback={<p>Loading</p>}>
+          <PrerenderHandoff />
+          <BrokenPage />
+        </Suspense>
+      </ErrorBoundary>,
+    );
+  });
+}
+
+async function cleanUp(root: Root, container: HTMLElement) {
+  await act(async () => root.unmount());
+  document.getElementById("legal-prerender")?.remove();
+  container.remove();
+  window.history.replaceState(null, "", "/");
+}

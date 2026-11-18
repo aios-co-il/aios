@@ -43,7 +43,7 @@ export default function DataDeletion() {
           <CardContent className="prose prose-slate dark:prose-invert max-w-none space-y-8">
             {code && (
               <section>
-                <Suspense fallback={null}>
+                <Suspense fallback={<p role="status">טוען סטטוס בקשה...</p>}>
                   <DeletionStatusBox code={code} />
                 </Suspense>
               </section>

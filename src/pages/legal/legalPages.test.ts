@@ -44,6 +44,22 @@ describe("LEGAL_PAGES", () => {
   });
 });
 
+describe("injectStaticPage text handling", () => {
+  test("keeps dollar sequences in the rendered page literal", () => {
+    const html = injectStaticPage(TEMPLATE, PRIVACY, "<p>$$ and $&</p>");
+
+    expect(html).toContain('<div id="root"><p>$$ and $&</p></div>');
+  });
+
+  test("fails when index.html has no description tag to override", () => {
+    const template = TEMPLATE.replace(/<meta\s+name="description"[^>]*>/, "");
+
+    expect(() => injectStaticPage(template, PRIVACY, "")).toThrow(
+      "index.html has no tag matching",
+    );
+  });
+});
+
 const PRIVACY = LEGAL_PAGES[0];
 
 const TEMPLATE = `<!doctype html>
