@@ -1,6 +1,8 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { parseLandingBlocks } from "./page-content.ts";
+import { askedChoices } from "../tapped-answers.ts";
 import { landingCopyText } from "./page-text.ts";
+import { COPY_CHOICE } from "./project.ts";
 
 const form = {
   buttonLabel: "לתיאום שיחה",
@@ -92,6 +94,16 @@ Deno.test(
       { ...page[0], subheading: "[[בחירה: הקופי | הקופי מאושר | לתקן]]" },
       page[3],
     ]);
-    assertEquals(landingCopyText(blocks).includes("[["), false);
+    const shown = landingCopyText(blocks);
+    assertEquals(shown.includes("[["), false);
+    // The text itself is kept, only its brackets are split.
+    assertStringIncludes(shown, "בחירה: הקופי | הקופי מאושר | לתקן");
+    assertEquals(askedChoices(`${shown}\n\n${COPY_CHOICE}`).length, 1);
+    // A run of three brackets leaves no pair behind.
+    const run = parseLandingBlocks([
+      { ...page[0], subheading: "[[[בחירה: א | ב]]]" },
+      page[3],
+    ]);
+    assertEquals(/\[\[|\]\]/.test(landingCopyText(run.blocks)), false);
   },
 );

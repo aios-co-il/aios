@@ -63,4 +63,41 @@ Deno.test("landingTurn", async (t) => {
       assertStringIncludes(lines[2], "האישור לא נשמר");
     },
   );
+
+  await t.step(
+    "a write that fails after the project loads also stays pending",
+    async () => {
+      const db = projectDb();
+      const from = db.from.bind(db);
+      db.from = (table: string) => {
+        const builder = from(table);
+        const update = builder.update as (value: unknown) => typeof builder;
+        builder.update = (value: unknown) => {
+          const updating = update(value);
+          /** The answer of a write the database refuses. */
+          function failed() {
+            return Promise.resolve({
+              data: null,
+              error: { message: "write refused" },
+            });
+          }
+          updating.then = (resolve: (answer: unknown) => unknown) =>
+            failed().then(resolve);
+          updating.single = failed;
+          updating.maybeSingle = failed;
+          return updating;
+        };
+        return builder;
+      };
+      const lines = await landingTurn(
+        db,
+        "tenant-1",
+        "item-1",
+        payload,
+        approving,
+      );
+      assertStringIncludes(lines[1], "הקופי נשמר ועוד לא אושר");
+      assertStringIncludes(lines[2], "האישור לא נשמר");
+    },
+  );
 });

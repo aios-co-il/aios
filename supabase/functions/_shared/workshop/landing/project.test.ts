@@ -1,4 +1,8 @@
-import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertNotEquals,
+  assertStringIncludes,
+} from "jsr:@std/assert@1";
 import { inferKind, planProject } from "../defaults.ts";
 import { workshopRole } from "../roles.ts";
 import {
@@ -31,6 +35,10 @@ Deno.test(
     // The first thing named is the deliverable: a film that promotes a landing page is a film.
     assertEquals(inferKind("צרי סרטון לקידום עמוד נחיתה"), "video");
     assertEquals(inferKind("צרי עמוד נחיתה עם סרטון"), "landing");
+    // A page that another deliverable promotes or describes is not the deliverable either.
+    assertEquals(inferKind("צרי מודעה לקידום עמוד נחיתה"), "static");
+    assertEquals(inferKind("Create a landing page promo video"), "video");
+    assertEquals(inferKind("Create a landing page with a video"), "landing");
     const plan = planProject({ brief: "עמוד נחיתה לקליניקה" });
     assertEquals(plan.projectType, "landing");
     assertEquals(plan.film, null);
@@ -50,6 +58,14 @@ Deno.test(
     assertEquals(workshopRole("מודעה לפייסבוק", null), "designer");
     assertEquals(workshopRole("צרי עמוד נחיתה עם סרטון", null), "copywriter");
     assertEquals(workshopRole("צרי סרטון לקידום עמוד נחיתה", null), "producer");
+    // "קליפ" is a film word to project planning only; which film role it gets is roles.ts's own
+    // vocabulary, but it is no longer the copywriter's landing page.
+    assertNotEquals(
+      workshopRole("צרי קליפ לקידום עמוד נחיתה", null),
+      "copywriter",
+    );
+    assertEquals(workshopRole("צרי מודעה לקידום עמוד נחיתה", null), "designer");
+    assertEquals(workshopRole("עמוד נחיתה עם סרטון", null), "copywriter");
   },
 );
 

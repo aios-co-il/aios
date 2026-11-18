@@ -5,6 +5,7 @@
  * specialist answers. Every role gets every workshop tool (workshopToolOffered, blocked-tools.ts).
  */
 import { isExplicitDevTaskApproval } from "../dev-task-approval-words.ts";
+import { VIDEO_WORDS } from "./defaults.ts";
 import { asksForLanding } from "./landing/kind.ts";
 import {
   isExplicitApprovalPhrase,
@@ -175,11 +176,14 @@ export function roleOfPersona(slug: string | null | undefined) {
   return entry ? (entry[0] as WorkshopRole) : null;
 }
 
-/** Where the message first names a film or a video, or -1 when it does not. */
-function firstFilmWord(text: string): number {
-  const found = [text.search(VIDEO), text.search(FILM_NOUN)].filter(
-    (index) => index >= 0,
-  );
+/**
+ * Where the message first names another deliverable than a landing page: a film, in the words
+ * project planning reads too (defaults.ts VIDEO_WORDS), or a static piece. -1 when it names none.
+ */
+function firstOtherDeliverable(text: string): number {
+  const found = [VIDEO, FILM_NOUN, VIDEO_WORDS, STATIC_DELIVERABLE]
+    .map((words) => text.search(words))
+    .filter((index) => index >= 0);
   return found.length > 0 ? Math.min(...found) : -1;
 }
 
@@ -203,7 +207,7 @@ export function workshopRole(
   }
   // A landing page is written, not designed or filmed: an open one stays with the copywriter,
   // and a request for a new one starts with her.
-  if (project?.landing || asksForLanding(text, firstFilmWord(text))) {
+  if (project?.landing || asksForLanding(text, firstOtherDeliverable(text))) {
     return "copywriter";
   }
   if (EDITOR.test(text)) return "editor";

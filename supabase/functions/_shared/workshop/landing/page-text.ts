@@ -1,5 +1,5 @@
 import { plainShownText } from "./kind.ts";
-import type { LandingBlock } from "./page-content.ts";
+import type { LandingBlock, LandingForm } from "./page-content.ts";
 
 /** The page as readable text, section by section, for the board and for Carmen's reply. */
 export function landingCopyText(blocks: Array<LandingBlock>): string {
@@ -17,9 +17,7 @@ function blockText(entry: LandingBlock): string {
       if (entry.subheading) {
         lines.push(entry.subheading);
       }
-      lines.push(
-        `[טופס: שם וטלפון · ${entry.form.buttonLabel}]\nאחרי שליחה: ${entry.form.successMessage}`,
-      );
+      lines.push(formText(entry.form));
       break;
     case "text":
       lines.push(entry.body);
@@ -51,9 +49,7 @@ function blockText(entry: LandingBlock): string {
       if (entry.body) {
         lines.push(entry.body);
       }
-      lines.push(
-        `[טופס: שם וטלפון · ${entry.form.buttonLabel}]\nאחרי שליחה: ${entry.form.successMessage}`,
-      );
+      lines.push(formText(entry.form));
       break;
     case "cta":
       if (entry.body) {
@@ -63,4 +59,9 @@ function blockText(entry: LandingBlock): string {
       break;
   }
   return lines.join("\n");
+}
+
+/** A lead form as the reader sees it: its fields, its button and what it answers. */
+function formText(form: LandingForm): string {
+  return `[טופס: שם וטלפון · ${form.buttonLabel}]\nאחרי שליחה: ${form.successMessage}`;
 }

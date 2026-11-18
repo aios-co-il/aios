@@ -2,7 +2,8 @@
 -- and the visual style are pages on the board, and Carmen's workshop guidance names the kind and
 -- its order of work. The server tells her where a landing project stands on every turn
 -- (landing/project.ts landingTurnLines); this only teaches the skins that the kind exists.
--- Safe to re-run.
+-- Safe to re-run, together with 20261118120100 after it: this file leaves the kind check NOT VALID
+-- and that one validates it.
 
 -- The copy and style pages. The constraint is added NOT VALID here, which checks new rows only,
 -- and validated in the next migration (20261118120100): validating in this one would scan the

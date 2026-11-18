@@ -14,7 +14,7 @@ export const DEFAULT_FILM_SECONDS = 15;
 const MAX_FILM_SECONDS = 90;
 const MAX_SCENES = 20;
 
-const VIDEO_WORDS =
+export const VIDEO_WORDS =
   /סרטון|(?<![א-ת])סרט(?![א-ת])|וידאו|ווידאו|ריל|רילס|קליפ|אנימציה|סטורי נע|טיקטוק|\bvideo\b|\breels?\b|\btiktok\b/i;
 const CAMPAIGN_WORDS = /קמפיין|קמפיינים|\bcampaign\b/i;
 

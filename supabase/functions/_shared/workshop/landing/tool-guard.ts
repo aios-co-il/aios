@@ -50,8 +50,9 @@ export async function landingToolRefusal(
     try {
       await assertClientAccess(data.client_id);
     } catch {
-      // The tool's own access check answers: the project's kind is not this caller's to learn.
-      return null;
+      // Denied or not checked, the call stops here, with the answer any project would get: the
+      // project's kind is not this caller's to learn.
+      return { error: "אין הרשאה ללקוח הזה" };
     }
   }
   return {

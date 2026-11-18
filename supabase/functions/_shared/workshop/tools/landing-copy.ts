@@ -37,11 +37,16 @@ export async function workshopSaveLandingCopy(ctx: ToolContext) {
       title: project.title || "קופי לעמוד נחיתה",
       meta: { text, blocks },
     }).catch(async (error) => {
-      // The board would not show the new copy: put the previous one back before failing.
+      // The board would not show the new copy: put the previous one back before failing. A
+      // restore that fails too is logged and never hides why the save failed.
       await updateLanding(supabase, tenantId, project.id, () => ({
         blocks: saved.before.blocks,
         copy_approved: saved.before.copy_approved,
-      }));
+      })).catch((restoreError) =>
+        console.error(
+          `landing copy: previous copy of project ${project.id} not restored: ${restoreError instanceof Error ? restoreError.message : "unknown error"}`,
+        ),
+      );
       throw error;
     });
     return {

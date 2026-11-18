@@ -12,22 +12,34 @@ export const LANDING_DEPARTMENT = "web";
 const LANDING_WORDS =
   /עמוד(?:י)?\s+ה?נחיתה|דף\s+ה?נחיתה|דפי\s+ה?נחיתה|בניית\s+אתרים|לנדינג|\blanding\s*page/i;
 
-/** Where the request first names a landing page, or -1 when it does not. */
-export function landingAt(text: string | null | undefined): number {
-  return (text ?? "").search(LANDING_WORDS);
-}
+// What comes right before a landing page that is only where something else leads ("מודעה לקידום
+// עמוד נחיתה"), and right after one that only describes something else ("landing page promo video").
+const LEADS_TO_IT =
+  /(?:לקידום|לקדם|שמקדם\S*|שמקדמת|שמוביל\S*\s+ל|שמפנה\s+ל|\bpromot\w*|\bfor\s+(?:an?|the|our|my))\s*$/i;
+const DESCRIBES_OTHER = /^\s*(?:promo|video|ads?|banner)\b/i;
 
 /**
- * The request asks for a landing page as its deliverable: it names one, and names it before any
- * film word at `filmAt` (-1 for none). "עמוד נחיתה עם סרטון" is a landing page; "סרטון לקידום
- * עמוד נחיתה" is a film, the same first-word rule roles.ts uses for a film against a post.
+ * The request asks for a landing page as its deliverable. It names one; the page is not just what
+ * another deliverable promotes or describes; and it comes before any other deliverable at
+ * `otherAt` (a film or a static piece; -1 for none). "עמוד נחיתה עם סרטון" is a landing page;
+ * "סרטון לקידום עמוד נחיתה" and "מודעה לקידום עמוד נחיתה" are not: the same first-word rule
+ * roles.ts uses for a film against a post.
  */
 export function asksForLanding(
   text: string | null | undefined,
-  filmAt = -1,
+  otherAt = -1,
 ): boolean {
-  const at = landingAt(text);
-  return at >= 0 && (filmAt < 0 || at < filmAt);
+  const source = text ?? "";
+  const match = LANDING_WORDS.exec(source);
+  if (!match) {
+    return false;
+  }
+  const before = source.slice(0, match.index);
+  const after = source.slice(match.index + match[0].length);
+  if (LEADS_TO_IT.test(before) || DESCRIBES_OTHER.test(after)) {
+    return false;
+  }
+  return otherAt < 0 || match.index < otherAt;
 }
 
 /** True for the payload of a landing page project. */
@@ -41,5 +53,6 @@ export function isLandingProject(payload: Record<string, unknown>): boolean {
  * is the one the tool appends after the text.
  */
 export function plainShownText(text: string): string {
-  return text.replace(/\[\[/g, "[ [").replace(/\]\]/g, "] ]");
+  // Every bracket that is followed by its twin is split, so a run of three leaves no pair.
+  return text.replace(/\[(?=\[)/g, "[ ").replace(/\](?=\])/g, "] ");
 }

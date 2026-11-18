@@ -5,8 +5,10 @@ import { recordArtifact } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { loadLandingProject } from "./landing-project.ts";
 
-const COPY_NOT_APPROVED =
-  "הקופי עוד לא אושר: קודם workshop_save_landing_copy ואישור של המשתמש, ורק אז סגנון";
+const NO_COPY =
+  "עוד אין קופי לעמוד: קודם workshop_save_landing_copy ואישור של המשתמש, ורק אז סגנון";
+const COPY_WAITS =
+  "הקופי נשמר ועוד לא אושר. אל תשמרי אותו שוב: הציגי למשתמש את הקופי השמור, בקשי אישור, ורק אחרי האישור שמרי סגנון";
 
 /** Saves a landing page's visual style and shows it to the user for approval. */
 export async function workshopSaveLandingStyle(ctx: ToolContext) {
@@ -34,7 +36,7 @@ export async function workshopSaveLandingStyle(ctx: ToolContext) {
         current.copy_approved ? { style, style_approved: false } : null,
     );
     if (!saved.changed) {
-      return { error: COPY_NOT_APPROVED };
+      return { error: saved.after.blocks ? COPY_WAITS : NO_COPY };
     }
     const artifact = await recordArtifact(supabase, {
       tenantId,
@@ -43,11 +45,16 @@ export async function workshopSaveLandingStyle(ctx: ToolContext) {
       title: "סגנון עיצובי",
       meta: { text, style },
     }).catch(async (error) => {
-      // The board would not show the new style: put the previous one back before failing.
+      // The board would not show the new style: put the previous one back before failing. A
+      // restore that fails too is logged and never hides why the save failed.
       await updateLanding(supabase, tenantId, project.id, () => ({
         style: saved.before.style,
         style_approved: saved.before.style_approved,
-      }));
+      })).catch((restoreError) =>
+        console.error(
+          `landing style: previous style of project ${project.id} not restored: ${restoreError instanceof Error ? restoreError.message : "unknown error"}`,
+        ),
+      );
       throw error;
     });
     return {
