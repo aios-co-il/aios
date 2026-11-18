@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { missingGrantedScopes } from "../_shared/google-oauth/granted-scopes.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
+import { GMAIL_REQUIRED_SCOPES } from "./scopes.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -53,6 +55,13 @@ serve(async (req) => {
       if (!tokens.access_token || !tokens.refresh_token) {
         console.error("Token error:", tokens);
         throw new Error("Failed to get tokens from Google");
+      }
+
+      const missingScopes = missingGrantedScopes(tokens, GMAIL_REQUIRED_SCOPES);
+      if (missingScopes.length > 0) {
+        throw new Error(
+          `Gmail access was not granted (${missingScopes.join(", ")}). Connect again and allow access to Gmail.`,
+        );
       }
 
       // state = userId|tenantId

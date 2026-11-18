@@ -8,3 +8,8 @@ export const GMAIL_SCOPES: ReadonlyArray<string> = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
+
+/** Without these the connection cannot read or send mail. */
+export const GMAIL_REQUIRED_SCOPES: ReadonlyArray<string> = [
+  "https://www.googleapis.com/auth/gmail.modify",
+];

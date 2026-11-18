@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
+import { missingCalendarScopes } from "./scopes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +55,13 @@ serve(async (req) => {
       if (!tokens.access_token) {
         console.error("Token exchange failed:", tokens);
         throw new Error("Failed to get tokens from Google");
+      }
+
+      const missingScopes = missingCalendarScopes(tokens);
+      if (missingScopes.length > 0) {
+        throw new Error(
+          `Calendar access was not granted (${missingScopes.join(", ")}). Connect again and allow access to your calendar.`,
+        );
       }
 
       // Get user_id from state or session
