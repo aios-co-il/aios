@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { createServer, type Plugin } from "vite";
+import { createServer, type Alias, type Plugin } from "vite";
 import {
   injectStaticPage,
   LEGAL_PAGES,
@@ -17,6 +17,8 @@ const PRERENDER_ENTRY = "/src/pages/legal/prerender.tsx";
 export function prerenderLegalPages(): Plugin {
   let root = process.cwd();
   let outDir = "dist";
+  let alias: Alias[] = [];
+  let define: Record<string, unknown> = {};
 
   return {
     name: "prerender-legal-pages",
@@ -24,6 +26,8 @@ export function prerenderLegalPages(): Plugin {
     configResolved(config) {
       root = config.root;
       outDir = path.resolve(config.root, config.build.outDir);
+      alias = config.resolve.alias;
+      define = config.define ?? {};
     },
     writeBundle: {
       sequential: true,
@@ -32,7 +36,13 @@ export function prerenderLegalPages(): Plugin {
         const template = readFileSync(path.join(outDir, "index.html"), "utf8");
         const server = await createServer({
           root,
+          // The app config's SWC plugin emits dev-only jsxDEV calls in server
+          // mode, which React's production runtime does not export.
+          configFile: false,
           mode: "production",
+          resolve: { alias, dedupe: ["react", "react-dom"] },
+          define,
+          esbuild: { jsx: "automatic", jsxDev: false },
           logLevel: "error",
           appType: "custom",
           server: { middlewareMode: true, hmr: false },
