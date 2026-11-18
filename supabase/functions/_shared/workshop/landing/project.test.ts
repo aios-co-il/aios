@@ -13,6 +13,8 @@ import {
   landingTurnLines,
   withLandingApprovals,
 } from "./project.ts";
+import { landingStyleText } from "./page-style.ts";
+import { landingCopyText } from "./page-text.ts";
 
 const blocks = [{ type: "text" as const, body: "טקסט" }];
 const style = {
@@ -31,6 +33,23 @@ Deno.test(
     assertEquals(asksForLanding("פרויקט בניית אתרים חדש: לקליניקה"), true);
     assertEquals(asksForLanding("עמוד הנחיתה של הקמפיין"), true);
     assertEquals(asksForLanding("מודעה לפייסבוק"), false);
+    // The next line of a brief is another subject, not what the page describes.
+    assertEquals(
+      asksForLanding("Create a landing page\nVideo testimonials\nContact form"),
+      true,
+    );
+    assertEquals(asksForLanding("Create a landing page promo video"), false);
+    // A page named first as context does not hide the one asked for later.
+    assertEquals(
+      asksForLanding(
+        "For our landing page migration, build a new landing page for the clinic",
+      ),
+      true,
+    );
+    assertEquals(
+      asksForLanding("Create a banner linking to a landing page"),
+      false,
+    );
     assertEquals(inferKind("דף נחיתה עם סרטון לקליניקה"), "landing");
     // The first thing named is the deliverable: a film that promotes a landing page is a film.
     assertEquals(inferKind("צרי סרטון לקידום עמוד נחיתה"), "video");
@@ -120,6 +139,16 @@ Deno.test("landingTurnLines names the next step at every stage", () => {
   }
   assertStringIncludes(next({}), "השלב הבא: קופי העמוד");
   assertStringIncludes(next({ blocks }), "הקופי נשמר ועוד לא אושר");
+  // The saved text travels with the step that waits for approval: a new conversation has no other
+  // copy of it to show.
+  assertStringIncludes(
+    landingTurnLines(landing({ blocks }))[2],
+    landingCopyText(blocks),
+  );
+  assertStringIncludes(
+    landingTurnLines(landing({ blocks, copy_approved: true, style }))[2],
+    landingStyleText(style),
+  );
   assertStringIncludes(
     next({ blocks, copy_approved: true }),
     "workshop_save_landing_style",

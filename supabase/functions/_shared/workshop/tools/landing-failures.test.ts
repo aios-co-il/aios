@@ -75,7 +75,10 @@ Deno.test(
   "invalid copy writes nothing: no project update and no board page",
   async () => {
     const db = landingDb();
-    await run(db, "workshop_save_landing_copy", { blocks: [blocks[0]] });
+    const result = await run(db, "workshop_save_landing_copy", {
+      blocks: [blocks[0]],
+    });
+    assertStringIncludes(result.problems.join(" "), "leadForm");
     assertEquals(
       db.calls.filter((call) => call.op !== "select"),
       [],

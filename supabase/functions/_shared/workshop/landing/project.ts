@@ -5,7 +5,8 @@
  */
 import { approvalAnswer } from "../script-approval.ts";
 import type { LandingBlock } from "./page-content.ts";
-import type { LandingStyle } from "./page-style.ts";
+import { type LandingStyle, landingStyleText } from "./page-style.ts";
+import { landingCopyText } from "./page-text.ts";
 
 export {
   LANDING_DEPARTMENT,
@@ -74,7 +75,10 @@ export function withLandingApprovals(
   return { payload: changed ? withLanding(payload, patch) : payload, changed };
 }
 
-/** Where the project stands and what Carmen does next; sent to her on every turn. */
+/**
+ * Where the project stands and what Carmen does next; sent to her on every turn. A step that waits
+ * for approval comes with its saved text: in a new conversation this is her only copy of it.
+ */
 export function landingTurnLines(
   payload: Record<string, unknown>,
 ): Array<string> {
@@ -89,6 +93,7 @@ export function landingTurnLines(
   } else if (!state.copy_approved) {
     lines.push(
       `הקופי נשמר ועוד לא אושר. המשתמש ביקש שינוי: כתבי את העמוד מחדש ושמרי שוב ב-workshop_save_landing_copy. אחרת: הציגי את הקופי, סיימי בשורה ${COPY_CHOICE} ועצרי.`,
+      `הקופי השמור:\n${landingCopyText(state.blocks)}`,
     );
   } else if (!state.style) {
     lines.push(
@@ -97,6 +102,7 @@ export function landingTurnLines(
   } else if (!state.style_approved) {
     lines.push(
       `הסגנון נשמר ועוד לא אושר. המשתמש ביקש שינוי: שמרי סגנון מתוקן ב-workshop_save_landing_style. אחרת: הציגי את הסגנון, סיימי בשורה ${STYLE_CHOICE} ועצרי.`,
+      `הסגנון השמור:\n${landingStyleText(state.style)}`,
     );
   } else {
     lines.push(

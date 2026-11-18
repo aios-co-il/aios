@@ -60,7 +60,7 @@ Deno.test("landingTurn", async (t) => {
         approving,
       );
       assertStringIncludes(lines[1], "הקופי נשמר ועוד לא אושר");
-      assertStringIncludes(lines[2], "האישור לא נשמר");
+      assertStringIncludes(String(lines.at(-1)), "האישור לא נשמר");
     },
   );
 
@@ -97,7 +97,7 @@ Deno.test("landingTurn", async (t) => {
         approving,
       );
       assertStringIncludes(lines[1], "הקופי נשמר ועוד לא אושר");
-      assertStringIncludes(lines[2], "האישור לא נשמר");
+      assertStringIncludes(String(lines.at(-1)), "האישור לא נשמר");
     },
   );
 });
