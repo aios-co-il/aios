@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { preserveLegalPrerender } from "./pages/legal/preserveLegalPrerender";
 import "./index.css";
 import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { isChunkLoadError } from "./lib/chunkErrors.ts";
@@ -77,7 +78,12 @@ window.addEventListener("unhandledrejection", (event) => {
 // tenant's brand once its settings load.
 applyBrandTheme(AIOS_BRAND);
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+if (!root) {
+  throw new Error("Missing app root");
+}
+preserveLegalPrerender(root);
+createRoot(root).render(
   <ErrorBoundary>
     <App />
   </ErrorBoundary>,
