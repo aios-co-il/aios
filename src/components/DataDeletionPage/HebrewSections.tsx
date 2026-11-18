@@ -15,14 +15,13 @@ export function HowToRequestSection() {
         </li>
         <li>
           <strong>בקשה באימייל:</strong> שלח הודעה לכתובת <PrivacyEmailLink />{" "}
-          עם כתובת האימייל של חשבון Carmen Marketing OS שלך וציון האינטגרציה
-          שברצונך למחוק. נאשר את קבלת הבקשה ונטפל בה ידנית.
+          עם כתובת האימייל של חשבון AIOS שלך וציון האינטגרציה שברצונך למחוק.
+          נאשר את קבלת הבקשה ונטפל בה ידנית.
         </li>
         <li>
-          <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת Carmen Marketing OS
-          מתוך הגדרות ← אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו בקשת
-          מחיקה. הבקשה נרשמת אצלנו, ותקבל קוד אישור וקישור לדף זה למעקב אחר
-          הסטטוס.
+          <strong>הסרת האפליקציה ב-Facebook:</strong> הסרת AIOS מתוך הגדרות ←
+          אפליקציות ואתרים בחשבון Facebook שלך שולחת אלינו בקשת מחיקה. הבקשה
+          נרשמת אצלנו, ותקבל קוד אישור וקישור לדף זה למעקב אחר הסטטוס.
         </li>
       </ul>
     </section>
@@ -86,7 +85,7 @@ export function ContactSection() {
       <h2 className="text-2xl font-semibold mb-3">4. יצירת קשר</h2>
       <div className="bg-muted/50 p-4 rounded-lg">
         <p>
-          <strong>Carmen Marketing OS</strong>
+          <strong>AIOS</strong>
         </p>
         <p>
           אימייל: <PrivacyEmailLink />
