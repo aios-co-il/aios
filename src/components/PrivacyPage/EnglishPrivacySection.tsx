@@ -35,8 +35,13 @@ const GOOGLE_DATA_USES = [
 
 export function EnglishPrivacySection() {
   return (
-    <section dir="ltr" lang="en" className="text-left">
-      <h2 className="text-2xl font-semibold mb-3">
+    <section
+      dir="ltr"
+      lang="en"
+      aria-labelledby="english-privacy-heading"
+      className="text-left"
+    >
+      <h2 id="english-privacy-heading" className="text-2xl font-semibold mb-3">
         Privacy Policy Summary (English)
       </h2>
       <p className="mb-3">
@@ -110,9 +115,12 @@ export function EnglishPrivacySection() {
       </h3>
       <p className="mb-2">
         Data is encrypted in transit and at rest, and each organization&apos;s
-        data is isolated. Access tokens and imported data are kept while the
-        integration is connected. You can disconnect any integration under
-        Settings → Integrations, revoke AIOS&apos;s Google access at{" "}
+        data is isolated. Disconnecting an integration under Settings →
+        Integrations stops its use in AIOS but does not delete imported data.
+        Calendar and Gmail disconnects delete their stored tokens; other
+        integrations may retain stored credentials, including refresh tokens,
+        until a deletion request is processed. You can also revoke AIOS&apos;s
+        Google access at{" "}
         <a
           href={GOOGLE_PERMISSIONS_URL}
           target="_blank"
@@ -121,11 +129,18 @@ export function EnglishPrivacySection() {
         >
           myaccount.google.com/permissions
         </a>
-        , and ask us to delete your data as described on the{" "}
+        . Revoking access prevents further authorized access to Google but does
+        not itself delete credentials or data already stored in AIOS. To delete
+        remaining credentials and imported data, submit a separate deletion
+        request as described on the{" "}
         <Link to="/data-deletion" className="text-primary hover:underline">
           data deletion page
         </Link>
-        . Deletion requests are processed within 30 days.
+        . Requests are processed manually, with deletion from the active
+        database within 30 days of receiving the request. This period starts
+        with the deletion request, not with disconnection or revocation; backups
+        may be retained for up to 30 days after deletion from the active
+        database.
       </p>
       <p>
         Contact: <PrivacyEmailLink />
