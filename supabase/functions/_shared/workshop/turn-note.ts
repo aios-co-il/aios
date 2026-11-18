@@ -7,6 +7,8 @@
 
 import { answerFor, briefAnswersOf } from "./brief-answers.ts";
 import { CTA_MAX_CHARS } from "./cta.ts";
+import { isLandingProject } from "./landing/kind.ts";
+import { landingTurn } from "./landing/turn.ts";
 import { scriptLines } from "./script-lines.ts";
 import { loadSelectedArtifact, markedPageLines } from "./selected-artifact.ts";
 import { failStalePictures } from "./stale-pictures.ts";
@@ -126,7 +128,14 @@ export async function workshopTurnNote(
       lines.push(
         `בלוח כבר יש ${onBoard.concept} קונספטים ו-${onBoard.copy} טקסטים: אל תשמרי קונספטים או קופי שוב אלא אם המשתמש ביקש חדשים.`,
       );
-    if (payload.project_type !== "video") {
+    if (isLandingProject(payload)) {
+      lines.push(
+        ...(await landingTurn(supabase, tenantId, itemId, payload, {
+          lastAssistant,
+          userText,
+        })),
+      );
+    } else if (payload.project_type !== "video") {
       lines.push(ANY_KIND);
     }
     if (payload.project_type === "video") {
