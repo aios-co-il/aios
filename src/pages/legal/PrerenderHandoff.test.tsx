@@ -17,7 +17,9 @@ describe("legal prerender handoff", () => {
       container.innerHTML = renderLegalPage(page.path);
       document.body.appendChild(container);
       const original = container.firstChild;
-      let resolvePage!: (value: { default: () => JSX.Element }) => void;
+      let resolvePage: (value: {
+        default: () => JSX.Element;
+      }) => void = () => {};
       const Page = lazy(
         () =>
           new Promise<{ default: () => JSX.Element }>((resolve) => {

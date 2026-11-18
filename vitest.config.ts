@@ -32,7 +32,6 @@ export default defineConfig({
           environment: "node",
           include: [
             "render-worker/test/**/*.test.ts",
-            "vite-plugins/**/*.test.ts",
             "scripts/**/*.test.mjs",
             "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
