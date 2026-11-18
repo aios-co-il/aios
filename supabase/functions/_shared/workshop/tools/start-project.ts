@@ -36,9 +36,7 @@ export async function workshopStartProject(ctx: ToolContext) {
   const plan = planProject({
     brief,
     title: typeof args.title === "string" ? args.title : undefined,
-    kind: ["video", "static", "campaign", "landing"].includes(String(args.kind))
-      ? (args.kind as StartProjectPlan["kind"])
-      : undefined,
+    kind: namedKind(args.kind),
     formats: Array.isArray(args.formats)
       ? (args.formats as unknown[]).map(String)
       : undefined,
@@ -125,4 +123,16 @@ export async function workshopStartProject(ctx: ToolContext) {
 /** The project's channel: a film, a landing page, or creative for everything else. */
 function targetChannel(plan: StartProjectPlan): string {
   return plan.projectType === "static" ? "creative" : plan.projectType;
+}
+
+const KINDS: readonly StartProjectPlan["kind"][] = [
+  "video",
+  "static",
+  "campaign",
+  "landing",
+];
+
+/** The kind the caller named outright, or undefined to infer it from the brief. */
+function namedKind(value: unknown): StartProjectPlan["kind"] | undefined {
+  return KINDS.find((kind) => kind === value);
 }

@@ -28,6 +28,9 @@ Deno.test(
     assertEquals(asksForLanding("עמוד הנחיתה של הקמפיין"), true);
     assertEquals(asksForLanding("מודעה לפייסבוק"), false);
     assertEquals(inferKind("דף נחיתה עם סרטון לקליניקה"), "landing");
+    // The first thing named is the deliverable: a film that promotes a landing page is a film.
+    assertEquals(inferKind("צרי סרטון לקידום עמוד נחיתה"), "video");
+    assertEquals(inferKind("צרי עמוד נחיתה עם סרטון"), "landing");
     const plan = planProject({ brief: "עמוד נחיתה לקליניקה" });
     assertEquals(plan.projectType, "landing");
     assertEquals(plan.film, null);
@@ -45,6 +48,8 @@ Deno.test(
       "copywriter",
     );
     assertEquals(workshopRole("מודעה לפייסבוק", null), "designer");
+    assertEquals(workshopRole("צרי עמוד נחיתה עם סרטון", null), "copywriter");
+    assertEquals(workshopRole("צרי סרטון לקידום עמוד נחיתה", null), "producer");
   },
 );
 

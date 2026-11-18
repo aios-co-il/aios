@@ -10,7 +10,12 @@ export function text(
   problems: Array<string>,
   required = true,
 ): string {
-  const value = typeof source[key] === "string" ? source[key].trim() : "";
+  const raw = source[key];
+  if (raw !== undefined && raw !== null && typeof raw !== "string") {
+    problems.push(`${where}: ${key} חייב להיות טקסט`);
+    return "";
+  }
+  const value = typeof raw === "string" ? raw.trim() : "";
   if (!value && required) {
     problems.push(`${where}: חסר ${key}`);
   }

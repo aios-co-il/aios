@@ -34,8 +34,9 @@ const FORMAT_WORDS: { format: Format; words: RegExp }[] = [
 ];
 
 export function inferKind(text: string): ProjectKind {
-  // A landing page is named outright ("עמוד נחיתה"), so it wins over a video it may mention.
-  if (asksForLanding(text)) return "landing";
+  // A landing page named before any film word is the deliverable; named after one it is only
+  // where the film leads ("סרטון לקידום עמוד נחיתה").
+  if (asksForLanding(text, text.search(VIDEO_WORDS))) return "landing";
   if (VIDEO_WORDS.test(text)) return "video";
   if (CAMPAIGN_WORDS.test(text)) return "campaign";
   return "static";
@@ -149,7 +150,7 @@ export function planProject(input: StartProjectInput): StartProjectPlan {
   const summary = film
     ? `סרטון ${formats[0]}, ${film.totalSeconds} שניות, ${film.scenes} סצנות`
     : kind === "landing"
-      ? "עמוד נחיתה: קופי, סגנון עיצובי ובנייה"
+      ? "עמוד נחיתה: קופי וסגנון עיצובי"
       : kind === "campaign"
         ? `קמפיין: קונספטים, קופי ומודעות בפורמטים ${formats.join(", ")}`
         : `מודעה בפורמטים ${formats.join(", ")}`;

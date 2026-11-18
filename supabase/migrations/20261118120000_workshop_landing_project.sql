@@ -4,14 +4,14 @@
 -- (landing/project.ts landingTurnLines); this only teaches the skins that the kind exists.
 -- Safe to re-run.
 
--- The copy and style pages. Added NOT VALID and validated after, so the table is not locked for
--- writes while the existing rows are checked.
+-- The copy and style pages. The constraint is added NOT VALID here, which checks new rows only,
+-- and validated in the next migration (20261118120100): validating in this one would scan the
+-- table while this transaction still holds the lock that replacing the constraint takes.
 ALTER TABLE public.workshop_artifacts DROP CONSTRAINT IF EXISTS workshop_artifacts_kind_check;
 ALTER TABLE public.workshop_artifacts ADD CONSTRAINT workshop_artifacts_kind_check CHECK (kind IN (
   'brief', 'concept', 'copy', 'script', 'image', 'variation', 'storyboard', 'scene_still',
   'clip', 'narration', 'music', 'film', 'reference', 'article', 'landing_copy', 'landing_style'
 )) NOT VALID;
-ALTER TABLE public.workshop_artifacts VALIDATE CONSTRAINT workshop_artifacts_kind_check;
 
 -- Carmen's workshop skin and the copywriter learn the landing page kind.
 UPDATE public.ai_skills

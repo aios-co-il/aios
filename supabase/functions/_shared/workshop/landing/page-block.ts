@@ -95,7 +95,7 @@ export function parseBlock(
       };
     default:
       problems.push(
-        `${where}: סוג לא מוכר "${String(raw.type ?? "")}". הסוגים: ${LANDING_BLOCK_TYPES.join(", ")}`,
+        `${where}: סוג לא מוכר${typeof raw.type === "string" ? ` "${raw.type}"` : ""}. הסוגים: ${LANDING_BLOCK_TYPES.join(", ")}`,
       );
       return null;
   }

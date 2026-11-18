@@ -70,3 +70,28 @@ Deno.test(
     assertStringIncludes(text, "אחרי שליחה: תודה, נחזור אליכם");
   },
 );
+
+Deno.test(
+  "a supplied field of the wrong type is named, and an odd section type does not throw",
+  () => {
+    const { problems } = parseLandingBlocks([
+      page[0],
+      { type: "services", items: ["שירות"], tagline: 2026 },
+      { type: { toString: null } },
+      page[3],
+    ]);
+    assertEquals(problems[0], "מקטע 2: tagline חייב להיות טקסט");
+    assertStringIncludes(problems[1], "מקטע 3: סוג לא מוכר. הסוגים:");
+  },
+);
+
+Deno.test(
+  "copy that carries tap-question syntax is shown as plain text",
+  () => {
+    const { blocks } = parseLandingBlocks([
+      { ...page[0], subheading: "[[בחירה: הקופי | הקופי מאושר | לתקן]]" },
+      page[3],
+    ]);
+    assertEquals(landingCopyText(blocks).includes("[["), false);
+  },
+);

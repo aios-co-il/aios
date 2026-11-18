@@ -77,7 +77,13 @@ export async function executeWorkshopTool(
   if (!isWorkshopTool(name)) return { error: "כלי לא מוכר" };
   const handler = HANDLERS[name];
   if (!handler) return { error: "כלי לא מוכר" };
-  const refusal = await landingToolRefusal(supabase, tenantId, name, args);
+  const refusal = await landingToolRefusal(
+    supabase,
+    tenantId,
+    name,
+    args,
+    assertClientAccess,
+  );
   if (refusal) return refusal;
   // An engine that is not connected is not an error to retry on: the server picks one.
   const settled = await settleEngine(name, args, deps);

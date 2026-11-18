@@ -175,6 +175,14 @@ export function roleOfPersona(slug: string | null | undefined) {
   return entry ? (entry[0] as WorkshopRole) : null;
 }
 
+/** Where the message first names a film or a video, or -1 when it does not. */
+function firstFilmWord(text: string): number {
+  const found = [text.search(VIDEO), text.search(FILM_NOUN)].filter(
+    (index) => index >= 0,
+  );
+  return found.length > 0 ? Math.min(...found) : -1;
+}
+
 /**
  * The role for this message. Editing words win (a film from materials), then film words, then a
  * new static deliverable. Otherwise the open project decides (a film stays with its producer or
@@ -195,7 +203,7 @@ export function workshopRole(
   }
   // A landing page is written, not designed or filmed: an open one stays with the copywriter,
   // and a request for a new one starts with her.
-  if (project?.landing || asksForLanding(text)) {
+  if (project?.landing || asksForLanding(text, firstFilmWord(text))) {
     return "copywriter";
   }
   if (EDITOR.test(text)) return "editor";

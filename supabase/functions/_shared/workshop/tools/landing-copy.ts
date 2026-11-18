@@ -1,7 +1,7 @@
 import { parseLandingBlocks } from "../landing/page-content.ts";
 import { landingCopyText } from "../landing/page-text.ts";
-import { COPY_CHOICE, withLanding } from "../landing/project.ts";
-import { savePayload } from "../project-io.ts";
+import { COPY_CHOICE } from "../landing/project.ts";
+import { updateLanding } from "../landing/store.ts";
 import { recordArtifact } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
 import { loadLandingProject } from "./landing-project.ts";
@@ -26,33 +26,38 @@ export async function workshopSaveLandingCopy(ctx: ToolContext) {
   const text = landingCopyText(blocks);
   try {
     // A new copy is a new thing to approve, whatever was approved before it.
-    await savePayload(
-      supabase,
+    const saved = await updateLanding(supabase, tenantId, project.id, () => ({
+      blocks,
+      copy_approved: false,
+    }));
+    const artifact = await recordArtifact(supabase, {
       tenantId,
-      project.id,
-      withLanding(project.payload, { blocks, copy_approved: false }),
-    );
+      itemId: project.id,
+      kind: "landing_copy",
+      title: project.title || "קופי לעמוד נחיתה",
+      meta: { text, blocks },
+    }).catch(async (error) => {
+      // The board would not show the new copy: put the previous one back before failing.
+      await updateLanding(supabase, tenantId, project.id, () => ({
+        blocks: saved.before.blocks,
+        copy_approved: saved.before.copy_approved,
+      }));
+      throw error;
+    });
+    return {
+      success: true,
+      sections: blocks.length,
+      artifact,
+      say_to_user: `${text}\n\n${COPY_CHOICE}`,
+      workshop: {
+        event: "artifacts",
+        item_id: project.id,
+        artifact_id: artifact.id,
+      },
+    };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : "שמירת הקופי נכשלה",
     };
   }
-  const artifact = await recordArtifact(supabase, {
-    tenantId,
-    itemId: project.id,
-    kind: "landing_copy",
-    title: project.title || "קופי לעמוד נחיתה",
-    meta: { text, blocks },
-  });
-  return {
-    success: true,
-    sections: blocks.length,
-    artifact,
-    say_to_user: `${text}\n\n${COPY_CHOICE}`,
-    workshop: {
-      event: "artifacts",
-      item_id: project.id,
-      artifact_id: artifact.id,
-    },
-  };
 }

@@ -1,8 +1,9 @@
+import { plainShownText } from "./kind.ts";
 import type { LandingBlock } from "./page-content.ts";
 
 /** The page as readable text, section by section, for the board and for Carmen's reply. */
 export function landingCopyText(blocks: Array<LandingBlock>): string {
-  return blocks.map(blockText).join("\n\n———\n\n");
+  return plainShownText(blocks.map(blockText).join("\n\n———\n\n"));
 }
 
 /** One section as readable text. */
@@ -16,7 +17,9 @@ function blockText(entry: LandingBlock): string {
       if (entry.subheading) {
         lines.push(entry.subheading);
       }
-      lines.push(`[טופס: שם וטלפון · ${entry.form.buttonLabel}]`);
+      lines.push(
+        `[טופס: שם וטלפון · ${entry.form.buttonLabel}]\nאחרי שליחה: ${entry.form.successMessage}`,
+      );
       break;
     case "text":
       lines.push(entry.body);

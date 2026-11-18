@@ -23,20 +23,36 @@ export async function landingToolRefusal(
   tenantId: string,
   name: string,
   args: Record<string, unknown>,
+  assertClientAccess: (clientId: string) => Promise<void>,
 ): Promise<{ error: string } | null> {
   const itemId = typeof args.item_id === "string" ? args.item_id.trim() : "";
   if (!NOT_FOR_LANDING.has(name) || !itemId) {
     return null;
   }
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("marketing_work_items")
-    .select("payload")
+    .select("client_id, payload")
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
+  if (error) {
+    // Unknown is not "not a landing page": letting the call through could film a landing page.
+    console.error(
+      `landing tool guard: project ${itemId} not read: ${error.message}`,
+    );
+    return { error: "לא הצלחתי לקרוא את הפרויקט. נסי שוב." };
+  }
   const payload = (data?.payload ?? {}) as Record<string, unknown>;
   if (!isLandingProject(payload)) {
     return null;
+  }
+  if (typeof data?.client_id === "string") {
+    try {
+      await assertClientAccess(data.client_id);
+    } catch {
+      // The tool's own access check answers: the project's kind is not this caller's to learn.
+      return null;
+    }
   }
   return {
     error:
