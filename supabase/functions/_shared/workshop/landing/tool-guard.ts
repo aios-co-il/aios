@@ -1,17 +1,17 @@
 import type { Db } from "../db.ts";
 import { isLandingProject } from "./kind.ts";
 
-/** Picture and film tools: a landing page project has no use for them. */
+/**
+ * The tools that start picture or film work on a project. The ones that continue a film (scenes,
+ * stills, voice, production) need scenes a landing page never has, so they refuse on their own
+ * and are spared the extra project read.
+ */
 const NOT_FOR_LANDING = new Set([
   "workshop_make_creative",
   "workshop_save_concepts",
   "workshop_save_script",
   "workshop_storyboard",
-  "workshop_update_scene",
-  "workshop_make_stills",
-  "workshop_choose_voice",
   "workshop_edit_from_assets",
-  "workshop_produce_video",
 ]);
 
 /**
