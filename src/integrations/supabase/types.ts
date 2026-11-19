@@ -9006,9 +9006,11 @@ export type Database = {
       };
       landing_leads: {
         Row: {
+          company: string | null;
           created_at: string;
           crm_status: string;
           email: string | null;
+          employees: string | null;
           error: string | null;
           id: string;
           name: string;
@@ -9018,9 +9020,11 @@ export type Database = {
           webhook_status: string;
         };
         Insert: {
+          company?: string | null;
           created_at?: string;
           crm_status?: string;
           email?: string | null;
+          employees?: string | null;
           error?: string | null;
           id?: string;
           name: string;
@@ -9030,9 +9034,11 @@ export type Database = {
           webhook_status?: string;
         };
         Update: {
+          company?: string | null;
           created_at?: string;
           crm_status?: string;
           email?: string | null;
+          employees?: string | null;
           error?: string | null;
           id?: string;
           name?: string;
