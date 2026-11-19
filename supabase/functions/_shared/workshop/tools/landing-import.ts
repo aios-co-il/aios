@@ -75,12 +75,18 @@ export async function workshopImportLandingPage(ctx: ToolContext) {
       await recordImport(ctx, project, { blocks, style });
     } catch (error) {
       // The board would not show the import: empty the project again, so a retry can import it.
-      await updateLanding(supabase, tenantId, project.id, () => ({
-        blocks: saved.before.blocks,
-        copy_approved: saved.before.copy_approved,
-        style: saved.before.style,
-        style_approved: saved.before.style_approved,
-      })).catch((restoreError) =>
+      // Only while the project still holds this import: a copy saved since then stays.
+      await updateLanding(supabase, tenantId, project.id, (current) =>
+        JSON.stringify([current.blocks, current.style]) ===
+        JSON.stringify([blocks, style])
+          ? {
+              blocks: saved.before.blocks,
+              copy_approved: saved.before.copy_approved,
+              style: saved.before.style,
+              style_approved: saved.before.style_approved,
+            }
+          : null,
+      ).catch((restoreError) =>
         console.error(
           `landing import: project ${project.id} not emptied again: ${restoreError instanceof Error ? restoreError.message : "unknown error"}`,
         ),
