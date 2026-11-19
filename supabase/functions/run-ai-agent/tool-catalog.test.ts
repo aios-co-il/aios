@@ -7,10 +7,12 @@ import { seoTools } from "./tool-schemas/seo.ts";
 Deno.test(
   "catalog preserves every schema and its develop ordering",
   async () => {
-    assertEquals(ALL_TOOLS.length, 245);
+    assertEquals(ALL_TOOLS.length, 246);
     // Captured from the original develop catalog before extraction (2fe5ef954), then recaptured
     // when the landing page kind added its two tools and its kind to workshop_start_project
-    // (AIO-607), and when the five read-only SEO tools joined before the workshop tail.
+    // (AIO-607), then workshop_import_landing_page, when workshop_import_file let a direct
+    // brain put its files on the board, and when the five read-only SEO tools joined before the
+    // workshop tail.
     // Includes descriptions, parameters, required fields, and object-key ordering.
     const digest = await crypto.subtle.digest(
       "SHA-256",
@@ -21,7 +23,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "ceaaf757dd0bd828d87a0bf72bac75070eca45b98f5b482129769c767d358fe8",
+      "f321ce8d1a382b00944f105d464a00077716f4fe46d6c1c4911492a6f0e0bca3",
     );
   },
 );

@@ -5,6 +5,7 @@ import {
   formatLeadTableFieldValue,
   getLeadTableCustomColumns,
   isLeadTableColumnVisible,
+  isLeadTableCustomColumnVisible,
   LEAD_TABLE_COLUMN_FIELDS,
   LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY,
   LEAD_TABLE_OPTIONAL_COLUMNS,
@@ -155,4 +156,26 @@ test("toggleable catalog excludes required columns", () => {
       .map((field) => field.key)
       .join(","),
   ).toBe("contact_name,actions");
+});
+
+test("custom field columns follow the field's visibility until the org sets a preference", () => {
+  const preferences: Record<string, boolean> = {};
+  function isFieldVisible(key: string, defaultVisible = true) {
+    return key in preferences ? preferences[key] : defaultVisible;
+  }
+  const employees = {
+    visibilityKey: "table_column:employees",
+    is_visible: true,
+  };
+
+  expect(isLeadTableCustomColumnVisible(employees, isFieldVisible)).toBe(true);
+  expect(
+    isLeadTableCustomColumnVisible(
+      { ...employees, is_visible: false },
+      isFieldVisible,
+    ),
+  ).toBe(false);
+
+  preferences["table_column:employees"] = false;
+  expect(isLeadTableCustomColumnVisible(employees, isFieldVisible)).toBe(false);
 });

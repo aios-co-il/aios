@@ -1,3 +1,5 @@
+import { WORKSHOP_IMPORT_FILE_TOOL } from "./tool-definition-import-file.ts";
+
 /** The workshop's project tools: start, assign a client, check connections, read a site, add assets, read state. */
 
 export const PROJECT_TOOLS = [
@@ -115,6 +117,7 @@ export const PROJECT_TOOLS = [
       required: ["item_id", "assets"],
     },
   },
+  WORKSHOP_IMPORT_FILE_TOOL,
   {
     name: "workshop_get_state",
     description:
