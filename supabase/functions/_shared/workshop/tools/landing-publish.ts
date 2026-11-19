@@ -1,4 +1,4 @@
-import { projectAssetLoader } from "../landing/page-assets.ts";
+import { projectAssetLoader } from "../landing/page-asset-loader.ts";
 import { prepareBuild } from "../landing/page-build.ts";
 import { liveUrl, loadLandingTarget } from "../landing/page-target.ts";
 import { landingStateOf } from "../landing/project.ts";

@@ -3,9 +3,9 @@ import {
   type LoadPageAsset,
   mediaFingerprint,
   type PageAssetFile,
-  projectAssetLoader,
   withPageAssets,
 } from "./page-assets.ts";
+import { projectAssetLoader } from "./page-asset-loader.ts";
 import type { LandingBlock } from "./page-content.ts";
 
 const PICTURE = "11111111-2222-4333-8444-555555555555";
