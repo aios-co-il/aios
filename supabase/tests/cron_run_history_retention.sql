@@ -12,11 +12,12 @@ BEGIN
     RETURN;
   END IF;
 
-  INSERT INTO cron.job_run_details (jobid, command, status, return_message, start_time, end_time)
+  -- Explicit runids: postgres may not use pg_cron's runid sequence.
+  INSERT INTO cron.job_run_details (jobid, runid, command, status, return_message, start_time, end_time)
   VALUES
-    (v_job, 'qa-old', 'succeeded', 'QA ROLLBACK', now() - interval '8 days', now() - interval '8 days'),
-    (v_job, 'qa-old-unfinished', 'running', 'QA ROLLBACK', now() - interval '9 days', NULL),
-    (v_job, 'qa-recent', 'succeeded', 'QA ROLLBACK', now() - interval '6 days', now() - interval '6 days');
+    (v_job, -424241, 'qa-old', 'succeeded', 'QA ROLLBACK', now() - interval '8 days', now() - interval '8 days'),
+    (v_job, -424242, 'qa-old-unfinished', 'running', 'QA ROLLBACK', now() - interval '9 days', NULL),
+    (v_job, -424243, 'qa-recent', 'succeeded', 'QA ROLLBACK', now() - interval '6 days', now() - interval '6 days');
 
   SELECT command INTO v_command FROM cron.job
   WHERE jobname = 'cleanup-cron-run-history' AND schedule = '57 3 * * *';
