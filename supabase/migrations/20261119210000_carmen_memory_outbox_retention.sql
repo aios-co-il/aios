@@ -12,22 +12,32 @@
 -- exclusive lock makes the five outbox triggers (clients, campaigners, tasks,
 -- chat_messages, ai_conversations) wait the moment this takes instead of
 -- losing an event; ids are kept and the sequence is not reset.
+-- The lock wait is capped at 5 s so a long transaction on the outbox cannot
+-- queue those triggers behind this migration. On timeout the cleanup is
+-- skipped whole (nothing changes) and the release goes on; the nightly job
+-- below still deletes the old rows, only without freeing the disk at once.
 DO $cleanup$
 DECLARE
   v_kept integer;
 BEGIN
-  LOCK TABLE public.carmen_memory_outbox IN ACCESS EXCLUSIVE MODE;
+  PERFORM set_config('lock_timeout', '5s', true);
+  BEGIN
+    LOCK TABLE public.carmen_memory_outbox IN ACCESS EXCLUSIVE MODE;
 
-  CREATE TEMP TABLE outbox_keep AS
-    SELECT * FROM public.carmen_memory_outbox
-    WHERE processed_at IS NULL OR processed_at >= now() - interval '7 days';
-  GET DIAGNOSTICS v_kept = ROW_COUNT;
+    CREATE TEMP TABLE outbox_keep AS
+      SELECT * FROM public.carmen_memory_outbox
+      WHERE processed_at IS NULL OR processed_at >= now() - interval '7 days';
+    GET DIAGNOSTICS v_kept = ROW_COUNT;
 
-  TRUNCATE public.carmen_memory_outbox;
-  INSERT INTO public.carmen_memory_outbox SELECT * FROM outbox_keep;
-  DROP TABLE outbox_keep;
+    TRUNCATE public.carmen_memory_outbox;
+    INSERT INTO public.carmen_memory_outbox SELECT * FROM outbox_keep;
+    DROP TABLE outbox_keep;
 
-  RAISE NOTICE 'carmen memory outbox cleanup: kept % rows', v_kept;
+    RAISE NOTICE 'carmen memory outbox cleanup: kept % rows', v_kept;
+  EXCEPTION WHEN lock_not_available THEN
+    RAISE NOTICE 'carmen memory outbox cleanup: outbox busy for 5 s, skipped; the nightly job deletes the old rows';
+  END;
+  PERFORM set_config('lock_timeout', '0', true);
 END
 $cleanup$;
 
