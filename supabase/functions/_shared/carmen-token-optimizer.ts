@@ -10,6 +10,7 @@ import { aiEmbed, aiEmbedBatch } from "./ai.ts";
 import { hasPulseIntent } from "./pulse-request.mjs";
 import { hasRetentionIntent } from "./client-retention.ts";
 import { NATIVE_DEV_TASK_TOOLS } from "./dev-escalation-auth.mjs";
+import { SEO_READ_TOOL_NAMES, hasSeoIntent } from "./carmen/seo-read-tools.ts";
 
 export function shouldUseTokenOptimize(
   agent: { metadata?: Record<string, unknown> | null },
@@ -281,6 +282,9 @@ export function applyToolForceIncludes(
   }
   if (hasPulseIntent(userText)) {
     promote(["get_latest_campaign_pulse"]);
+  }
+  if (hasSeoIntent(userText)) {
+    promote([...SEO_READ_TOOL_NAMES, "search_entities"]);
   }
   if (hasRetentionIntent(userText)) {
     promote([
