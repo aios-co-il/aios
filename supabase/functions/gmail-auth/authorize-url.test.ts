@@ -1,4 +1,8 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -23,12 +27,20 @@ Deno.test("the consent screen asks for gmail.modify only", () => {
 });
 
 const SUPABASE_URL = "https://oauth-test.supabase.co";
+
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+
+const TENANT_ID = "22222222-2222-4222-8222-222222222222";
+
+const STATE_SECRET = "test-state-secret";
+
 const env = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY: "test-anon",
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  OAUTH_STATE_SECRET: STATE_SECRET,
 };
 
 Deno.test({
@@ -41,7 +53,11 @@ Deno.test({
       async () => {
         const http = fakeSupabaseHttp({
           supabaseUrl: SUPABASE_URL,
-          users: { session: "user-1" },
+          users: { session: USER_ID },
+          tables: {
+            tenant_users: [{ tenant_id: TENANT_ID, user_id: USER_ID }],
+          },
+          rpc: { is_super_admin: () => false },
         });
         await withRuntime({ env, fetch: http.fetch }, async () => {
           const handle = await servedHandler(
@@ -54,7 +70,7 @@ Deno.test({
                 Authorization: "Bearer session",
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ action: "init", tenantId: "tenant-1" }),
+              body: JSON.stringify({ action: "init", tenantId: TENANT_ID }),
             }),
           );
           assertEquals(response.status, 200);
@@ -64,7 +80,12 @@ Deno.test({
             "https://www.googleapis.com/auth/gmail.modify",
           ]);
           assertEquals(url.searchParams.get("client_id"), env.GOOGLE_CLIENT_ID);
-          assertEquals(url.searchParams.get("state"), "user-1|tenant-1");
+          const state = await verifyOAuthState(
+            url.searchParams.get("state"),
+            STATE_SECRET,
+          );
+          assertEquals(state?.userId, USER_ID);
+          assertEquals(state?.tenantId, TENANT_ID);
         });
       },
     );
@@ -82,7 +103,7 @@ Deno.test({
         `callback scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
         async () => {
           const existing = {
-            user_id: "user-1",
+            user_id: USER_ID,
             access_token: "existing",
             refresh_token: "existing-refresh",
           };
@@ -111,9 +132,18 @@ Deno.test({
             const handle = await servedHandler(
               new URL("./index.ts", import.meta.url),
             );
+            const state = await signOAuthState(
+              {
+                userId: USER_ID,
+                tenantId: TENANT_ID,
+                origin: null,
+                addNew: false,
+              },
+              STATE_SECRET,
+            );
             const response = await handle(
               new Request(
-                `${SUPABASE_URL}/functions/v1/gmail-auth?action=callback&code=code&state=user-1|tenant-1`,
+                `${SUPABASE_URL}/functions/v1/gmail-auth?action=callback&code=code&state=${encodeURIComponent(state)}`,
               ),
             );
             const writes = http.calls.filter(

@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
 import {
   checkCalendarConnection,
   addCalendarEvent,
@@ -117,7 +118,7 @@ export function CalendarIframeSettings() {
       );
       return new Promise<void>((resolve, reject) => {
         const handler = (event: MessageEvent) => {
-          if (event.data?.type === "calendar_connected") {
+          if (isOAuthPopupMessage(event, "calendar_connected")) {
             window.removeEventListener("message", handler);
             queryClient.invalidateQueries({
               queryKey: ["calendar-status", userId, tenantId],

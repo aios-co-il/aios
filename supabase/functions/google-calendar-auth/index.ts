@@ -1,4 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  allowedAppOrigin,
+  appReturnOrigin,
+} from "../_shared/google-oauth/app-origin.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { tokenErrorSummary } from "../_shared/google-oauth/token-error.ts";
+import {
+  UserFacingError,
+  userFacingMessage,
+} from "../_shared/google-oauth/user-facing-error.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { missingCalendarScopes } from "./scopes.ts";
 
@@ -23,6 +37,18 @@ Deno.serve(async (req) => {
       if (!code) {
         throw new Error("No authorization code provided");
       }
+
+      const state = await verifyOAuthState(
+        url.searchParams.get("state"),
+        oauthStateSecret(),
+      );
+      if (!state) {
+        throw new UserFacingError(
+          "This connect link is invalid or has expired. Close this window and connect Calendar again.",
+        );
+      }
+
+      const userId = state.userId;
 
       const supabaseClient = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
@@ -52,23 +78,15 @@ Deno.serve(async (req) => {
       const tokens = await tokenResponse.json();
 
       if (!tokens.access_token) {
-        console.error("Token exchange failed:", tokens);
+        console.error("Token exchange failed:", tokenErrorSummary(tokens));
         throw new Error("Failed to get tokens from Google");
       }
 
       const missingScopes = missingCalendarScopes(tokens);
       if (missingScopes.length > 0) {
-        throw new Error(
+        throw new UserFacingError(
           "Calendar permission is missing. Close this window and connect Calendar again, allowing both event and calendar list access. Your existing connection has been kept.",
         );
-      }
-
-      // Get user_id from state or session
-      const stateParam = url.searchParams.get("state");
-      const userId = stateParam; // We'll pass userId in state
-
-      if (!userId) {
-        throw new Error("No user ID in state");
       }
 
       // If Google didn't return a refresh_token (re-auth without prompt=consent),
@@ -83,7 +101,7 @@ Deno.serve(async (req) => {
         refreshTokenToStore = existing?.refresh_token || null;
       }
       if (!refreshTokenToStore) {
-        throw new Error(
+        throw new UserFacingError(
           "No refresh token available. Please disconnect and reconnect granting offline access.",
         );
       }
@@ -157,7 +175,7 @@ Deno.serve(async (req) => {
           <head>
             <title>Calendar Connected</title>
             <script>
-              window.opener?.postMessage({ type: 'calendar_connected' }, '*');
+              window.opener?.postMessage({ type: 'calendar_connected' }, ${JSON.stringify(appReturnOrigin(state.origin))});
               setTimeout(() => window.close(), 1000);
             </script>
           </head>
@@ -282,7 +300,15 @@ Deno.serve(async (req) => {
       const authUrl = buildCalendarAuthorizeUrl({
         clientId,
         redirectUri,
-        state: user.id,
+        state: await signOAuthState(
+          {
+            userId: user.id,
+            tenantId: null,
+            origin: allowedAppOrigin(req.headers.get("origin")),
+            addNew: false,
+          },
+          oauthStateSecret(),
+        ),
         forceConsent: !hasExistingRefresh,
       });
 
@@ -313,9 +339,7 @@ Deno.serve(async (req) => {
     throw new Error("Invalid action");
   } catch (error) {
     console.error("Error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

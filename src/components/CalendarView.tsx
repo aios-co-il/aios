@@ -7,6 +7,7 @@ import {
   openUnifiedCalendarConnection,
 } from "@/lib/unifiedCalendarConnection";
 import { initDirectGoogleAuth } from "@/lib/calendarApi";
+import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, AlertCircle } from "lucide-react";
@@ -60,7 +61,7 @@ export function CalendarView() {
           "width=600,height=700",
         );
         const handler = (event: MessageEvent) => {
-          if (event.data?.type === "calendar_connected") {
+          if (isOAuthPopupMessage(event, "calendar_connected")) {
             window.removeEventListener("message", handler);
             window.location.reload();
           }
