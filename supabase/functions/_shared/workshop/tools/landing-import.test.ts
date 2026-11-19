@@ -54,3 +54,51 @@ Deno.test("a page that is not live yet is a new page", async () => {
   const result = await run(db, "workshop_import_landing_page", repo);
   assertStringIncludes(result.error, "אין עמוד קיים");
 });
+
+Deno.test(
+  "a board write that fails empties the project again, so a retry can import",
+  async () => {
+    const db = landingDb({});
+    const { repo } = fakeRepo({
+      "landing-pages/acme/offer/content.json": LIVE,
+    });
+    const from = db.from.bind(db);
+    db.from = (table: string) => {
+      const builder = from(table);
+      if (table === "workshop_artifacts") {
+        builder.insert = () => {
+          throw new Error("board is down");
+        };
+      }
+      return builder;
+    };
+    const result = await run(db, "workshop_import_landing_page", repo);
+    assertStringIncludes(result.error, "board is down");
+    assertEquals(savedLanding(db).blocks, undefined);
+  },
+);
+
+Deno.test(
+  "a caller without access to the page's client imports nothing",
+  async () => {
+    const db = landingDb({});
+    const { repo } = fakeRepo({
+      "landing-pages/acme/offer/content.json": LIVE,
+    });
+    const result = await run(
+      db,
+      "workshop_import_landing_page",
+      repo,
+      {},
+      (clientId) =>
+        clientId === "client-1"
+          ? Promise.reject(new Error("no"))
+          : Promise.resolve(),
+    );
+    assertEquals(result.error, "אין הרשאה ללקוח הזה");
+    assertEquals(
+      db.calls.some((call) => call.op === "update"),
+      false,
+    );
+  },
+);

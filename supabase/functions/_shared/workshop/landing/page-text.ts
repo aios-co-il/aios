@@ -99,5 +99,6 @@ function formText(form: LandingForm): string {
     "טלפון",
     ...(form.fields ?? []).map((field) => FIELD_NAMES[field]),
   ];
-  return `[טופס: ${fields.join(", ")} · ${form.buttonLabel}]\nאחרי שליחה: ${form.successMessage}`;
+  const note = form.privacyNote ? `\n${form.privacyNote}` : "";
+  return `[טופס: ${fields.join(", ")} · ${form.buttonLabel}]${note}\nאחרי שליחה: ${form.successMessage}`;
 }

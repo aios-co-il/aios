@@ -183,3 +183,21 @@ Deno.test("broken proof sections name what to fix", () => {
     "מקטע 4: צריך items (המלצות) או badges (כרטיסי אמון)",
   ]);
 });
+
+Deno.test(
+  "the copy shown for approval includes the line under the form's button",
+  () => {
+    const withNote = {
+      ...form,
+      privacyNote: "הפרטים משמשים רק כדי לחזור אליכם.",
+    };
+    const { blocks } = parseLandingBlocks([
+      { type: "hero", heading: "כותרת", form: withNote },
+      { type: "leadForm", heading: "השאירו פרטים", form: withNote },
+    ]);
+    assertStringIncludes(
+      landingCopyText(blocks),
+      "הפרטים משמשים רק כדי לחזור אליכם.",
+    );
+  },
+);

@@ -102,13 +102,14 @@ export async function run(
   name: string,
   repo?: LandingRepo,
   args: Record<string, unknown> = {},
+  access?: (clientId: string) => Promise<void>,
 ): Promise<Loose> {
   return (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     name,
     { item_id: "item-1", ...args },
-    undefined,
+    access,
     null,
     { landingRepo: repo, sleep: () => Promise.resolve() },
   )) as Loose;
