@@ -142,3 +142,45 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "new tracking ids in AIOS rebuild with site.json, keeping its other keys",
+  async () => {
+    const db = landingDb(
+      { ...approved, build: built },
+      {},
+      { ga4_id: "G-ABC1234" },
+    );
+    const site = {
+      tenantId: "tenant-1",
+      clientId: "client-1",
+      leads: { destination: "webhook" },
+      tracking: { gtmId: "GTM-NVKZTXH3" },
+    };
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json": JSON.stringify(site),
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    assertEquals(pushes.length, 1);
+    assertEquals(JSON.parse(pushes[0].files["landing-pages/acme/site.json"]), {
+      ...site,
+      tracking: { ga4Id: "G-ABC1234" },
+    });
+    // The site.json is part of what the user approves, so the build is a new one.
+    assertEquals(savedLanding(db).build.digest === digest, false);
+  },
+);
+
+Deno.test(
+  "tracking the repository already holds leaves site.json out of the build",
+  async () => {
+    const db = landingDb(approved, {}, { gtm_id: "GTM-NVKZTXH3" });
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json":
+        '{"tracking":{"gtmId":"GTM-NVKZTXH3"},"clientId":"client-1","tenantId":"tenant-1"}',
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    assertEquals("landing-pages/acme/site.json" in pushes[0].files, false);
+    assertEquals(savedLanding(db).build.digest, digest);
+  },
+);

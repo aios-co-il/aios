@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  LANDING_ROOT_DOMAIN,
   draftProblem,
   landingPageUrl,
   type LandingSettings,
   type LandingSettingsDraft,
+  type TrackingDraft,
 } from "./landingSettings";
+import { LandingAddressFields } from "./LandingAddressFields";
+import { LandingTrackingFields } from "./LandingTrackingFields";
 import { LeadDestinationFields } from "./LeadDestinationFields";
 import { useLandingSettings } from "./useLandingSettings";
 
@@ -25,7 +25,7 @@ function draftOf(saved: LandingSettings): LandingSettingsDraft {
   };
 }
 
-/** A landing project's settings: its address and where its leads go. */
+/** A landing project's settings: its address, where its leads go and its site's tracking ids. */
 export function LandingSettingsPanel({
   tenantId,
   itemId,
@@ -35,7 +35,11 @@ export function LandingSettingsPanel({
   itemId: string;
   clientId: string | null;
 }) {
-  const { settings, save } = useLandingSettings(tenantId, itemId, clientId);
+  const { settings, save, saveTracking } = useLandingSettings(
+    tenantId,
+    itemId,
+    clientId,
+  );
   const saved = settings.data;
   const [draft, setDraft] = useState<LandingSettingsDraft | null>(null);
 
@@ -74,6 +78,13 @@ export function LandingSettingsPanel({
       onError: (error) => toast.error(error.message || "השמירה נכשלה"),
     });
   }
+  /** Saves the site's tracking ids and tells the user how it ended. */
+  function submitTracking(tracking: TrackingDraft) {
+    saveTracking.mutate(tracking, {
+      onSuccess: () => toast.success("קודי המעקב נשמרו"),
+      onError: (error) => toast.error(error.message || "השמירה נכשלה"),
+    });
+  }
 
   return (
     <section
@@ -99,42 +110,7 @@ export function LandingSettingsPanel({
         ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="landing-subdomain">תת־דומיין של הלקוח</Label>
-          <div className="flex items-center gap-1" dir="ltr">
-            <Input
-              id="landing-subdomain"
-              value={draft.subdomain}
-              disabled={saved.siteExists}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  subdomain: event.target.value.toLowerCase(),
-                })
-              }
-            />
-            <span className="shrink-0 text-sm text-muted-foreground">
-              .{LANDING_ROOT_DOMAIN}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="landing-slug">כתובת העמוד</Label>
-          <Input
-            id="landing-slug"
-            dir="ltr"
-            value={draft.slug}
-            disabled={saved.pageExists}
-            onChange={(event) =>
-              setDraft({ ...draft, slug: event.target.value.toLowerCase() })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            home הוא העמוד הראשי של האתר.
-          </p>
-        </div>
-      </div>
+      <LandingAddressFields draft={draft} saved={saved} onChange={setDraft} />
 
       <LeadDestinationFields
         draft={draft}
@@ -156,6 +132,18 @@ export function LandingSettingsPanel({
           <p className="text-sm text-muted-foreground">{problem}</p>
         ) : null}
       </div>
+
+      {saved.siteExists ? (
+        <LandingTrackingFields
+          saved={saved.tracking}
+          pending={saveTracking.isPending}
+          onSave={submitTracking}
+        />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב.
+        </p>
+      )}
     </section>
   );
 }

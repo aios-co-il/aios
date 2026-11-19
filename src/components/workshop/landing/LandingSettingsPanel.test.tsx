@@ -106,3 +106,60 @@ describe("LandingSettingsPanel", () => {
     });
   });
 });
+
+describe("LandingSettingsPanel tracking", () => {
+  beforeEach(() => {
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValue({ error: null });
+    mocks.site = null;
+    mocks.page = {
+      slug: "home",
+      lead_to_crm: true,
+      lead_to_webhook: false,
+      landing_sites: {
+        subdomain: "acme",
+        gtm_id: "GTM-NVKZTXH3",
+        ga4_id: null,
+        meta_pixel_id: null,
+      },
+    };
+  });
+
+  test("shows the stored ids and saves them for the site", async () => {
+    const user = userEvent.setup();
+    panel();
+    expect(await screen.findByLabelText("Google Tag Manager")).toHaveValue(
+      "GTM-NVKZTXH3",
+    );
+    await user.type(screen.getByLabelText("Google Analytics 4"), "g-abc1234");
+    await user.click(screen.getByRole("button", { name: "שמירת קודי מעקב" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(mocks.rpc).toHaveBeenCalledWith("landing_site_save_tracking", {
+      p_item_id: "p1",
+      p_gtm_id: "GTM-NVKZTXH3",
+      p_ga4_id: "G-ABC1234",
+      p_meta_pixel_id: "",
+    });
+  });
+
+  test("an id in the wrong format cannot be saved", async () => {
+    const user = userEvent.setup();
+    panel();
+    await user.type(await screen.findByLabelText("Meta Pixel"), "123");
+    expect(
+      screen.getByRole("button", { name: "שמירת קודי מעקב" }),
+    ).toBeDisabled();
+    expect(screen.getByText(/מזהה Meta Pixel לא תקין/)).toBeInTheDocument();
+  });
+
+  test("a client without a site saves its address first", async () => {
+    mocks.page = null;
+    panel();
+    expect(
+      await screen.findByText(
+        "אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Google Tag Manager")).toBeNull();
+  });
+});

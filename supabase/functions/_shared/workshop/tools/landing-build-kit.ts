@@ -35,10 +35,11 @@ export const built = {
 };
 export const OUR_SITE = '{"tenantId":"tenant-1","clientId":"client-1"}';
 
-/** A fake database: a landing project in the given state, with its page settings. */
+/** A fake database: a landing project in the given state, with its page and site settings. */
 export function landingDb(
   state: Record<string, unknown>,
   page: Loose | null = {},
+  site: Loose = {},
 ) {
   const db = fakeDb({
     "marketing_work_items:select": {
@@ -55,7 +56,14 @@ export function landingDb(
       lead_to_webhook: false,
       ...page,
     },
-    "landing_sites:select": { subdomain: "acme", client_id: "client-1" },
+    "landing_sites:select": {
+      subdomain: "acme",
+      client_id: "client-1",
+      gtm_id: null,
+      ga4_id: null,
+      meta_pixel_id: null,
+      ...site,
+    },
     "clients:select": { name: "Acme" },
   });
   // A saved project is what the next read returns, as in the real database: the build tool

@@ -14,6 +14,12 @@ export interface PreparedBuild {
   digest: string;
   branch: string;
   newSite: boolean;
+  /**
+   * True when the build writes site.json (a new site, or new tracking ids). The landing-pages
+   * repository merges by itself only a pull request that changes exactly one page folder, so a
+   * person merges this one.
+   */
+  writesSite: boolean;
 }
 
 /**
@@ -30,8 +36,9 @@ export async function prepareBuild(
     return { error: "אין קופי וסגנון מאושרים לבנות מהם" };
   }
   const { subdomain } = target.site;
-  const existingSite = await repo.readFile(siteFile(subdomain));
-  if (existingSite !== null && !sameOwner(existingSite, target)) {
+  const siteText = await repo.readFile(siteFile(subdomain));
+  const existingSite = siteText === null ? null : jsonObjectOf(siteText);
+  if (siteText !== null && !sameOwner(existingSite, target)) {
     console.error(
       `landing build: site ${subdomain} in the repository belongs to another org or client`,
     );
@@ -49,13 +56,15 @@ export async function prepareBuild(
     blocks: state.blocks,
     style: state.style,
     status: options.status,
-    existingPage: pageJsonOf(existingPage),
+    existingPage: existingPage ? jsonObjectOf(existingPage) : null,
     today: options.today,
-    newSite: existingSite === null,
+    existingSite,
   });
+  const site = files[siteFile(subdomain)] ?? null;
   const digest = await buildDigest(
     { subdomain, slug: target.slug, title: target.title },
     files[`${folder}/content.json`],
+    site,
   );
   return {
     files,
@@ -68,29 +77,26 @@ export async function prepareBuild(
         ? `page/${subdomain}/${target.slug}`
         : `publish/${subdomain}/${target.slug}-${digest.slice(0, 12)}`,
     newSite: existingSite === null,
+    writesSite: site !== null,
   };
 }
 
 /** True when the repository's site.json names the same org and client as the project's site. */
-function sameOwner(siteJson: string, target: LandingTarget): boolean {
-  try {
-    const site = JSON.parse(siteJson) as Record<string, unknown>;
-    return (
-      site.tenantId === target.site.tenantId &&
-      site.clientId === target.site.clientId
-    );
-  } catch {
-    return false;
-  }
+function sameOwner(
+  site: Record<string, unknown> | null,
+  target: LandingTarget,
+): boolean {
+  return (
+    site !== null &&
+    site.tenantId === target.site.tenantId &&
+    site.clientId === target.site.clientId
+  );
 }
 
-/** An existing page's page.json as an object; null for a new page or one that is not JSON. */
-function pageJsonOf(pageJson: string | null): Record<string, unknown> | null {
-  if (!pageJson) {
-    return null;
-  }
+/** A repository JSON file as an object; null for one that is not a JSON object. */
+function jsonObjectOf(text: string): Record<string, unknown> | null {
   try {
-    const parsed: unknown = JSON.parse(pageJson);
+    const parsed: unknown = JSON.parse(text);
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;

@@ -14,7 +14,13 @@ const style = {
   direction: "נקי",
 };
 const input = {
-  site: { subdomain: "acme", tenantId: "t-1", clientId: "c-1", name: "Acme" },
+  site: {
+    subdomain: "acme",
+    tenantId: "t-1",
+    clientId: "c-1",
+    name: "Acme",
+    tracking: {},
+  },
   slug: "home",
   title: "עמוד הבית",
   itemId: "item-1",
@@ -23,7 +29,7 @@ const input = {
   status: "draft" as const,
   existingPage: null,
   today: "2026-11-19",
-  newSite: false,
+  existingSite: { name: "Acme", tenantId: "t-1", clientId: "c-1" },
 };
 
 Deno.test(
@@ -87,7 +93,7 @@ Deno.test("an existing site gets only the page's two files", () => {
 Deno.test(
   "a client's first page also creates the site, with leads sent to AIOS",
   () => {
-    const files = landingPageFiles({ ...input, newSite: true });
+    const files = landingPageFiles({ ...input, existingSite: null });
     assertEquals(JSON.parse(files["landing-pages/acme/site.json"]), {
       name: "Acme",
       tenantId: "t-1",
@@ -95,5 +101,43 @@ Deno.test(
       leads: { destination: "aios" },
     });
     assertEquals(files["landing-pages/acme/assets/.gitkeep"], "");
+  },
+);
+
+Deno.test("a client's first page carries the site's tracking ids", () => {
+  const files = landingPageFiles({
+    ...input,
+    site: { ...input.site, tracking: { gtmId: "GTM-ABCD12" } },
+    existingSite: null,
+  });
+  assertEquals(JSON.parse(files["landing-pages/acme/site.json"]).tracking, {
+    gtmId: "GTM-ABCD12",
+  });
+});
+
+Deno.test(
+  "new tracking ids rewrite only the tracking of an existing site.json",
+  () => {
+    const existingSite = {
+      name: "Acme",
+      logo: "site/logo.png",
+      tenantId: "t-1",
+      clientId: "c-1",
+      leads: { destination: "webhook" },
+      tracking: { gtmId: "GTM-ABCD12" },
+    };
+    const files = landingPageFiles({
+      ...input,
+      site: {
+        ...input.site,
+        tracking: { gtmId: "GTM-ABCD12", metaPixelId: "1234567890" },
+      },
+      existingSite,
+    });
+    assertEquals(JSON.parse(files["landing-pages/acme/site.json"]), {
+      ...existingSite,
+      tracking: { gtmId: "GTM-ABCD12", metaPixelId: "1234567890" },
+    });
+    assertEquals("landing-pages/acme/assets/.gitkeep" in files, false);
   },
 );
