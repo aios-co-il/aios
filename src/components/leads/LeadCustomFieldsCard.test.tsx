@@ -41,6 +41,23 @@ describe("LeadCustomFieldsCard", () => {
     expect(screen.getByText("כן")).toBeInTheDocument();
   });
 
+  it("shows a long multiline value in full, keeping its line breaks", () => {
+    const notes = "סניף ראשי בתל אביב\nסניף נוסף בחיפה";
+    render(
+      <LeadCustomFieldsCard
+        fields={[field({ field_key: "branches", field_type: "textarea" })]}
+        formData={{ branches: notes }}
+      />,
+    );
+
+    const value = screen.getByText(
+      (_content, element) => element?.textContent === notes,
+      { selector: "span" },
+    );
+    expect(value).toHaveClass("whitespace-pre-wrap", "break-words");
+    expect(value).not.toHaveClass("truncate");
+  });
+
   it("marks an empty value instead of hiding the field", () => {
     render(<LeadCustomFieldsCard fields={[field({})]} formData={null} />);
     expect(screen.getByText("—")).toBeInTheDocument();

@@ -68,3 +68,17 @@ export const supabaseModule = {
     },
   },
 };
+
+/** Clears the fake backend, browser storage and console noise before each test. */
+export function resetBackend() {
+  backend.row = null;
+  backend.readError = null;
+  backend.writeError = null;
+  backend.filters = [];
+  backend.upsert.mockClear();
+  backend.update.mockClear();
+  backend.deferred = null;
+  backend.toastError.mockClear();
+  window.localStorage.clear();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+}
