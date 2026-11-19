@@ -117,10 +117,16 @@ serve(async (req) => {
           try {
             // Only the owner's own request clears their dead connection; a viewer never disconnects someone else.
             if (calendarOwnerId === user.id) {
-              await serviceClient
+              const { error: deleteError } = await serviceClient
                 .from("calendar_tokens")
                 .delete()
                 .eq("user_id", user.id);
+              if (deleteError) {
+                console.error(
+                  "Failed to clear the dead calendar connection:",
+                  deleteError.message,
+                );
+              }
             }
           } catch (cleanupError) {
             console.error(

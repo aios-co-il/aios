@@ -91,7 +91,7 @@ serve(async (req) => {
       accessToken = refreshData.access_token;
       const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000);
 
-      await tokensClient
+      const { error: saveError } = await tokensClient
         .from("calendar_tokens")
         .update({
           access_token: accessToken,
@@ -99,6 +99,13 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", user.id);
+      if (saveError) {
+        // The fresh token still serves this request; the next one refreshes again.
+        console.error(
+          "Failed to save refreshed calendar token:",
+          saveError.message,
+        );
+      }
     }
 
     // First, get the existing event to preserve fields not being updated
