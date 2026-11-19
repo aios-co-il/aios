@@ -107,6 +107,10 @@ export function useLandingSettings(
     queryFn: enabled
       ? () => fetchLandingSettings(tenantId, itemId, clientId)
       : skipToken,
+    // The tracking ids belong to the client's site, which another project may have changed
+    // since this one was cached; the app's defaults keep cached data fresh for minutes.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const save = useMutation({
