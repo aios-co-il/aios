@@ -105,14 +105,41 @@ export function leadStatusChangedRequest(
   };
 }
 
-/** The fields the fan-out reads from trigger-automation's answer. */
-type TriggerAutomationReply = {
-  error?: string;
-  results?: Array<{ success?: boolean; error?: string } | null>;
-};
+/** One entry of trigger-automation's `results`: null when an automation's conditions did not match. */
+type AutomationResult = {
+  success?: boolean;
+  skipped?: boolean;
+  error?: unknown;
+} | null;
 
 /** What the fan-out reports in the step's response. */
 export type FanoutResult = { fired: true; automations_run: number };
+
+/**
+ * Reads trigger-automation's results: how many automations ran, or throws when
+ * one failed. An entry that only carries `error` is a rejected run and counts
+ * as failed.
+ */
+export function fanoutResult(
+  results: Array<AutomationResult> | undefined,
+): FanoutResult {
+  const entries = (results || []).filter((result) => result !== null);
+  const failed = entries.filter(
+    (result) => result.success === false || result.error !== undefined,
+  );
+  if (failed.length > 0) {
+    const reasons = failed.map((result) =>
+      typeof result.error === "string" && result.error
+        ? result.error
+        : "unknown error",
+    );
+    throw new Error(`status-change automations failed: ${reasons.join(" | ")}`);
+  }
+  return {
+    fired: true,
+    automations_run: entries.filter((result) => result.success === true).length,
+  };
+}
 
 /**
  * Fires lead_status_changed with the service key and waits for the automations
@@ -134,18 +161,12 @@ export async function fireLeadStatusChanged(
       body: JSON.stringify(leadStatusChangedRequest(change, context)),
     },
   );
-  const reply: TriggerAutomationReply = await response.json().catch(() => ({}));
+  const reply: { error?: string; results?: Array<AutomationResult> } =
+    await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(
       `status-change automations: ${reply.error || `trigger-automation returned ${response.status}`}`,
     );
   }
-  const ran = (reply.results || []).filter((result) => result !== null);
-  const failed = ran.filter((result) => result?.success === false);
-  if (failed.length > 0) {
-    throw new Error(
-      `status-change automations failed: ${failed.map((result) => result?.error || "unknown error").join(" | ")}`,
-    );
-  }
-  return { fired: true, automations_run: ran.length };
+  return fanoutResult(reply.results);
 }

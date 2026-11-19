@@ -1,6 +1,11 @@
-import { assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertThrows,
+} from "jsr:@std/assert@1";
 import {
   automationLoopKey,
+  fanoutResult,
   firesStatusTriggers,
   leadStatusChange,
   leadStatusChangedRequest,
@@ -141,5 +146,35 @@ Deno.test("leadStatusChangedRequest", async (t) => {
   await t.step("goes one level deeper and passes the chain on", () => {
     assertStrictEquals(request._execution_depth, 1);
     assertEquals(request._execution_chain, ["auto-1:lead-1"]);
+  });
+});
+
+Deno.test("fanoutResult", async (t) => {
+  await t.step("counts the automations that ran", () => {
+    assertEquals(fanoutResult([{ success: true }, null, { skipped: true }]), {
+      fired: true,
+      automations_run: 1,
+    });
+  });
+
+  await t.step("is zero when nothing was waiting for the status", () => {
+    assertEquals(fanoutResult([]), { fired: true, automations_run: 0 });
+    assertEquals(fanoutResult(undefined), { fired: true, automations_run: 0 });
+  });
+
+  await t.step("throws when an automation reports a failure", () => {
+    assertThrows(
+      () =>
+        fanoutResult([
+          { success: true },
+          { success: false, error: "send failed" },
+        ]),
+      Error,
+      "send failed",
+    );
+  });
+
+  await t.step("throws on a rejected run, which carries only an error", () => {
+    assertThrows(() => fanoutResult([{ error: {} }]), Error, "unknown error");
   });
 });

@@ -85,9 +85,8 @@ import {
   automationLoopKey,
   firesStatusTriggers,
   fireLeadStatusChanged,
-  leadStatusChange,
 } from "./status-fanout.ts";
-import { leadStatusesBefore } from "./lead-statuses.ts";
+import { moveLeadStatus } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
 import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
@@ -3391,16 +3390,19 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
-                  // Read before the update: the change the step makes decides
-                  // whether status-change automations start (AIO-611).
+                  // When the step starts status-change automations, the status
+                  // is moved first with a compare-and-set, which yields the
+                  // exact transition; executeStatusUpdate then finds the status
+                  // already set and applies the step's other fields (AIO-611).
                   const statusLeadId = firesStatusTriggers(stepConfig)
                     ? resolveStatusRecordId("lead", stepData)
                     : null;
-                  const statusesBefore = statusLeadId
-                    ? await leadStatusesBefore(
+                  const statusChange = statusLeadId
+                    ? await moveLeadStatus(
                         serviceClient(),
                         tenantId,
                         statusLeadId,
+                        stepConfig,
                       )
                     : null;
                   stepResponse = await executeStatusUpdate(
@@ -3408,14 +3410,6 @@ Deno.serve(async (req) => {
                     stepConfig,
                     stepData,
                   );
-                  const statusChange =
-                    statusLeadId && statusesBefore
-                      ? leadStatusChange(
-                          stepConfig,
-                          statusLeadId,
-                          statusesBefore,
-                        )
-                      : null;
                   if (statusChange) {
                     stepResponse.status_triggers = await fireLeadStatusChanged(
                       statusChange,
