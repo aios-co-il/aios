@@ -99,6 +99,13 @@ BEGIN
     failures := failures || 'a non-Google row was copied';
   END IF;
 
+  -- A row whose type changes to Google gets its secrets row, with no token change.
+  UPDATE public.tenant_integrations SET integration_type = 'google_analytics' WHERE id = other_id;
+  SELECT access_token INTO got FROM public.integration_secrets WHERE integration_id = other_id;
+  IF got IS DISTINCT FROM 'qa-sumit-key' THEN
+    failures := failures || format('type change copy: got %s, want qa-sumit-key', coalesce(got, 'no row'));
+  END IF;
+
   -- Deleting the connection deletes its secrets.
   DELETE FROM public.tenant_integrations WHERE id = google_id;
   SELECT count(*) INTO n FROM public.integration_secrets WHERE integration_id = google_id;

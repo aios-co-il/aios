@@ -75,10 +75,11 @@ $$;
 
 revoke all on function public.copy_google_integration_secrets() from public, anon, authenticated;
 
--- Every insert, and every update of the token columns, on a Google row.
+-- Every insert, and every update of the token columns or the type (a row
+-- that becomes a Google row gets its secrets row), on a Google row.
 drop trigger if exists copy_google_integration_secrets on public.tenant_integrations;
 create trigger copy_google_integration_secrets
-  after insert or update of api_key, settings, tenant_id on public.tenant_integrations
+  after insert or update of api_key, settings, tenant_id, integration_type on public.tenant_integrations
   for each row
   when (public.is_google_integration_type(new.integration_type))
   execute function public.copy_google_integration_secrets();
