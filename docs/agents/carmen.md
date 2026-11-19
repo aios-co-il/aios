@@ -213,7 +213,7 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 ## SEO / GEO read tools
 
 - `get_seo_overview`, `get_search_console_performance`, `get_ahrefs_snapshot`, `get_seo_program` and `get_ai_visibility` (`run-ai-agent/seo-read/`, names in `_shared/carmen/seo-read-tools.ts`) read stored data only: synced `gsc_keyword_snapshots`, saved `ahrefs_reports`, `seo_geo_*` and `seo_monthly_updates`, and `ai_detection_*` scans. They make no paid call, run no scan and write nothing.
-- Each reads the client in the caller's accessible tenants, then applies `assertCallerCanAccessClient`; a source without data answers with a `status` (`not_connected`, `no_site_mapped`, `no_data`, `domain_mismatch`) and a Hebrew reason. An Ahrefs report for another domain is never quoted as the client's.
+- Each reads the client in the caller's accessible tenants, then applies `assertCallerCanAccessClient`; a source without data answers with a `status` (`not_connected`, `no_site_mapped`, `no_data`, `domain_mismatch`, `no_domain`) and a Hebrew reason. An Ahrefs report is quoted only when its domain matches the client card's site; a client without a site or Ahrefs domain gets `no_domain`, never an unverified report.
 
 ## Pulse refresh (AIO-237)
 

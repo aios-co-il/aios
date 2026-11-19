@@ -171,3 +171,28 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "the brand on the exact host wins over a subdomain brand, in either order",
+  async () => {
+    const exact = {
+      ...t,
+      id: "brand-exact",
+      brand_name: "אבי",
+      url: "https://example.co.il",
+    };
+    const sub = {
+      ...t,
+      id: "brand-shop",
+      brand_name: "חנות אבי",
+      url: "shop.example.co.il",
+    };
+    for (const brands of [
+      [sub, exact],
+      [exact, sub],
+    ]) {
+      const answer = await run({ ai_detection_brands: brands });
+      assertEquals(at(answer, "brand"), "אבי");
+    }
+  },
+);

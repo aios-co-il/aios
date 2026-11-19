@@ -1,5 +1,6 @@
 import type { SeoClient, SeoDb, SeoToolContext } from "./context.ts";
 import { clientRef, throwIfError } from "./context.ts";
+import { normalizeSeoDomain } from "../../_shared/seo-sync.ts";
 import { seoDomainsMatch } from "./client.ts";
 import { latestScan } from "./ai-visibility-scan.ts";
 
@@ -74,8 +75,8 @@ export async function aiVisibility(
 }
 
 /**
- * The AI-detection brand of the client's tenant that tracks it: the same site
- * (brand url vs the client's domain) first, else the same name.
+ * The AI-detection brand of the client's tenant that tracks it: the exact same
+ * host first, then a subdomain or parent of it, else the same name.
  */
 async function trackedBrand(db: SeoDb, client: SeoClient) {
   const { data, error } = await db
@@ -85,9 +86,13 @@ async function trackedBrand(db: SeoDb, client: SeoClient) {
   throwIfError("מותגים במעקב AI", error);
   const brands = data ?? [];
   const name = normalizeName(client.name);
+  // The same host beats a subdomain or parent domain (shop.example.co.il).
   return (
     brands.find(
-      (b) => client.domain && seoDomainsMatch(b.url, client.domain),
+      (b) => !!client.domain && normalizeSeoDomain(b.url) === client.domain,
+    ) ??
+    brands.find(
+      (b) => !!client.domain && seoDomainsMatch(b.url, client.domain),
     ) ??
     brands.find((b) => !!name && normalizeName(b.brand_name) === name) ??
     null

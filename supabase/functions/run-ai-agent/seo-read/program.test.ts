@@ -6,6 +6,7 @@ import {
   TENANT,
   clientRow,
   fakeSeoDb,
+  pluck,
   seoCtx,
 } from "./fake-db.test-fixture.ts";
 
@@ -169,3 +170,26 @@ Deno.test(
 Deno.test("a failed program read throws", async () => {
   await assertRejects(() => run(seed, ["seo_geo_calendar_entries"]));
 });
+
+Deno.test(
+  "calendar counts and lists cover every entry, not the oldest 500",
+  async () => {
+    const old = Array.from({ length: 520 }, (_, i) =>
+      entry(`2025-0${(i % 9) + 1}-10`, `ישן ${i}`, "published", {
+        published_at: `2025-0${(i % 9) + 1}-10T08:00:00Z`,
+      }),
+    );
+    const answer = await run({
+      seo_geo_calendar_entries: [
+        ...old,
+        entry("2026-11-05", "נכשל", "failed", { publish_error: "401" }),
+        entry("2026-11-28", "הבא", "planned"),
+      ],
+    });
+    const calendar = at(answer, "calendar");
+    assertEquals(at(calendar, "total"), 522);
+    assertEquals(at(calendar, "failed_total"), 1);
+    assertEquals(pluck(at(calendar, "upcoming"), "title"), ["הבא"]);
+    assertEquals(pluck(at(calendar, "failed"), "title"), ["נכשל"]);
+  },
+);

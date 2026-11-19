@@ -10,15 +10,20 @@ import { throwIfError } from "./context.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** List length when top_n is not given: the detail tools, and the overview. */
+export const DEFAULT_TOP_N = 10;
+export const OVERVIEW_TOP_N = 5;
+
 /** The validated arguments every SEO read tool takes. */
 export type SeoArgs = { clientId: string; topN: number };
 
 /**
- * Validates `client_id` (a uuid) and `top_n` (1–50, default 10). A bad value is
- * refused, not clamped, so Carmen learns what to send.
+ * Validates `client_id` (a uuid) and `top_n` (1–50, else `defaultTopN`). A bad
+ * value is refused, not clamped, so Carmen learns what to send.
  */
 export function parseSeoArgs(
   args: Record<string, unknown>,
+  defaultTopN: number,
 ): SeoArgs | SeoRefusal {
   const clientId = typeof args.client_id === "string" ? args.client_id : "";
   if (!UUID.test(clientId.trim())) {
@@ -29,7 +34,7 @@ export function parseSeoArgs(
         "נדרש client_id (מזהה לקוח בפורמט uuid). מצאי אותו קודם עם search_entities או list_clients.",
     };
   }
-  const rawTopN = args.top_n ?? 10;
+  const rawTopN = args.top_n ?? defaultTopN;
   const topN = Number(rawTopN);
   if (!Number.isInteger(topN) || topN < 1 || topN > 50) {
     console.warn("[seo-read] rejected top_n:", rawTopN);

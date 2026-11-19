@@ -12,7 +12,7 @@ const seoParams = {
       type: "integer",
       minimum: 1,
       maximum: 50,
-      description: "כמה שורות להחזיר ברשימות (ברירת מחדל 10)",
+      description: "כמה שורות להחזיר ברשימות (ברירת מחדל 10; בסקירה 5)",
     },
   },
   required: ["client_id"],

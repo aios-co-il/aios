@@ -71,7 +71,12 @@ Deno.test(
       },
       program: {
         status: "ok",
-        calendar: { failed: [{}], overdue: 2, awaiting_approval: 0 },
+        calendar: {
+          failed: [{}],
+          failed_total: 3,
+          overdue: 2,
+          awaiting_approval: 0,
+        },
         monthly_updates: [{ month: "2026-10-01", status: "down" }],
       },
       ai: { status: "ok", score_change: -15 },
@@ -80,10 +85,30 @@ Deno.test(
       "ירידה של 30% בקליקים ליום מגוגל (מול חלון לפני חודש).",
       "2 שאילתות במקומות 4–20 עם הרבה חשיפות — הזדמנות לשפר עמודים קיימים.",
       "עלייה של 20% בתנועה האורגנית לפי Ahrefs (מול לפני 3 חודשים).",
-      "1 כתבות בלוח התוכן נכשלו בפרסום.",
+      "3 כתבות בלוח התוכן נכשלו בפרסום.",
       "2 כתבות בלוח התוכן עברו את התאריך ולא פורסמו.",
       "העדכון החודשי האחרון (2026-10-01) מסומן כירידה.",
       "ציון הנראות ב-AI ירד ב-15 נקודות מהשבוע הקודם.",
     ]);
   },
 );
+
+Deno.test("the overview honours top_n and defaults to 5 rows", async () => {
+  const keywords = Array.from({ length: 8 }, (_, i) => ({
+    ...own,
+    work_item_id: "wi",
+    keyword: `ביטוי ${i}`,
+    promoted: true,
+    sort_order: i,
+  }));
+  const db = fakeSeoDb({ clients: [clientRow()], seo_geo_keywords: keywords });
+  const short = await executeSeoReadTool(db, seoCtx(), "get_seo_overview", {
+    client_id: CLIENT_ID,
+    top_n: 2,
+  });
+  assertEquals(at(short, "program", "keywords", "top", "length"), 2);
+  const usual = await executeSeoReadTool(db, seoCtx(), "get_seo_overview", {
+    client_id: CLIENT_ID,
+  });
+  assertEquals(at(usual, "program", "keywords", "top", "length"), 5);
+});

@@ -60,7 +60,8 @@ export function seoSignals(sections: {
   }
   if (program.status === "ok") {
     const calendar = obj(program.calendar);
-    const failed = list(calendar.failed).length;
+    // The total, not the shown list (capped at top_n).
+    const failed = num(calendar.failed_total) ?? 0;
     if (failed > 0) {
       signals.push(`${failed} כתבות בלוח התוכן נכשלו בפרסום.`);
     }

@@ -2,12 +2,20 @@ import { normalizeSeoDomain } from "../../_shared/seo-sync.ts";
 import type { SeoClient, SeoDb } from "./context.ts";
 import { throwIfError } from "./context.ts";
 import { round } from "./numbers.ts";
+import { readAllPages } from "./pages.ts";
 
-const RESULT_ROWS = 300;
+type ScanRow = {
+  prompt_id: string;
+  platform: string;
+  is_mentioned: boolean;
+  citations: Array<string> | null;
+};
 
 /**
  * The newest scan of a brand: mention rate per platform, the prompts where it
  * was not mentioned, the most cited sources and competitors' mention rates.
+ * The newest scan is found first, then all of its rows are read (paged);
+ * `partial` says when the page cap cut them.
  */
 export async function latestScan(
   db: SeoDb,
@@ -15,40 +23,62 @@ export async function latestScan(
   brandId: string,
   topN: number,
 ) {
-  const { data, error } = await db
+  const { data: newest, error } = await db
     .from("ai_detection_results")
-    .select("prompt_id, platform, is_mentioned, citations, scanned_at, scan_id")
+    .select("scanned_at, scan_id")
     .eq("brand_id", brandId)
     .eq("tenant_id", client.tenantId)
     .order("scanned_at", { ascending: false })
-    .limit(RESULT_ROWS);
-  throwIfError("תוצאות סריקת AI", error);
-  const rows = data ?? [];
-  if (!rows.length) {
+    .limit(1)
+    .maybeSingle();
+  throwIfError("סריקת AI אחרונה", error);
+  if (!newest) {
     return null;
   }
-  // Older scans had no scan_id: fall back to the newest scan's day.
-  const newest = rows[0];
-  const scan = rows.filter((r) =>
-    newest.scan_id
-      ? r.scan_id === newest.scan_id
-      : String(r.scanned_at).slice(0, 10) ===
-        String(newest.scanned_at).slice(0, 10),
-  );
+  const scan = await scanRows(db, client, brandId, newest);
+  const competitors = newest.scan_id
+    ? await competitorRates(db, client, brandId, newest.scan_id)
+    : { rates: [], partial: false };
   const missedIds = [
-    ...new Set(scan.filter((r) => !r.is_mentioned).map((r) => r.prompt_id)),
+    ...new Set(
+      scan.rows.filter((r) => !r.is_mentioned).map((r) => r.prompt_id),
+    ),
   ];
   return {
     scanned_at: newest.scanned_at,
-    answers: scan.length,
-    mention_rate_pct_by_platform: mentionRates(scan),
+    answers: scan.rows.length,
+    mention_rate_pct_by_platform: mentionRates(scan.rows),
     missed_prompts: await promptTexts(db, client, missedIds.slice(0, topN)),
     missed_prompts_total: missedIds.length,
-    top_cited_sources: topCitations(scan, topN),
-    competitors: newest.scan_id
-      ? await competitorRates(db, client, brandId, newest.scan_id)
-      : [],
+    top_cited_sources: topCitations(scan.rows, topN),
+    competitors: competitors.rates,
+    partial: scan.partial || competitors.partial,
   };
+}
+
+/** Every answer of the scan: by scan_id, or the scan's UTC day for older scans without one. */
+function scanRows(
+  db: SeoDb,
+  client: SeoClient,
+  brandId: string,
+  newest: { scanned_at: string; scan_id: string | null },
+) {
+  const day = String(newest.scanned_at).slice(0, 10);
+  const next = new Date(`${day}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return readAllPages<ScanRow>("תוצאות סריקת AI", (from, to) => {
+    let query = db
+      .from("ai_detection_results")
+      .select("id, prompt_id, platform, is_mentioned, citations")
+      .eq("brand_id", brandId)
+      .eq("tenant_id", client.tenantId);
+    query = newest.scan_id
+      ? query.eq("scan_id", newest.scan_id)
+      : query
+          .gte("scanned_at", `${day}T00:00:00Z`)
+          .lt("scanned_at", next.toISOString());
+    return query.order("id", { ascending: true }).range(from, to);
+  });
 }
 
 /** Percent of answers mentioning the brand, per platform. */
@@ -98,23 +128,27 @@ async function promptTexts(db: SeoDb, client: SeoClient, ids: Array<string>) {
   return (data ?? []).map((p) => ({ prompt: p.prompt, category: p.category }));
 }
 
-/** Each tracked competitor's mention rate in the same scan. */
+/** Each tracked competitor's mention rate in the same scan (all rows, paged). */
 async function competitorRates(
   db: SeoDb,
   client: SeoClient,
   brandId: string,
   scanId: string,
 ) {
-  const { data, error } = await db
-    .from("ai_detection_competitor_results")
-    .select("competitor_name, is_mentioned")
-    .eq("brand_id", brandId)
-    .eq("scan_id", scanId)
-    .eq("tenant_id", client.tenantId)
-    .limit(1000);
-  throwIfError("תוצאות מתחרים בסריקת AI", error);
-  const rows = data ?? [];
-  return [...new Set(rows.map((r) => r.competitor_name))].map((name) => {
+  const { rows, partial } = await readAllPages<{
+    competitor_name: string;
+    is_mentioned: boolean;
+  }>("תוצאות מתחרים בסריקת AI", (from, to) =>
+    db
+      .from("ai_detection_competitor_results")
+      .select("id, competitor_name, is_mentioned")
+      .eq("brand_id", brandId)
+      .eq("scan_id", scanId)
+      .eq("tenant_id", client.tenantId)
+      .order("id", { ascending: true })
+      .range(from, to),
+  );
+  const rates = [...new Set(rows.map((r) => r.competitor_name))].map((name) => {
     const answers = rows.filter((r) => r.competitor_name === name);
     return {
       competitor: name,
@@ -124,4 +158,5 @@ async function competitorRates(
       ),
     };
   });
+  return { rates, partial };
 }

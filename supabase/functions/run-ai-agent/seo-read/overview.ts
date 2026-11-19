@@ -6,8 +6,6 @@ import { seoProgram } from "./program.ts";
 import { searchConsolePerformance } from "./search-console.ts";
 import { seoSignals } from "./signals.ts";
 
-const OVERVIEW_TOP_N = 5;
-
 /**
  * get_seo_overview: one answer to "how is client X doing in SEO": the headline
  * of each source (Search Console, Ahrefs, SEO program, AI visibility) and
@@ -18,16 +16,15 @@ export async function seoOverview(
   db: SeoDb,
   ctx: SeoToolContext,
   client: SeoClient,
+  topN: number,
 ) {
   const [gsc, ahrefs, program, ai] = await Promise.all([
     section("search_console", () =>
-      searchConsolePerformance(db, ctx, client, OVERVIEW_TOP_N),
+      searchConsolePerformance(db, ctx, client, topN),
     ),
-    section("ahrefs", () => ahrefsSnapshot(db, ctx, client, OVERVIEW_TOP_N)),
-    section("program", () => seoProgram(db, ctx, client, OVERVIEW_TOP_N)),
-    section("ai_visibility", () =>
-      aiVisibility(db, ctx, client, OVERVIEW_TOP_N),
-    ),
+    section("ahrefs", () => ahrefsSnapshot(db, ctx, client, topN)),
+    section("program", () => seoProgram(db, ctx, client, topN)),
+    section("ai_visibility", () => aiVisibility(db, ctx, client, topN)),
   ]);
   return {
     client: clientRef(client),

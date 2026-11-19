@@ -13,6 +13,7 @@ import {
 /** A stored Ahrefs report of the client. */
 function report(domain: string, report_date: string, extra = {}) {
   return {
+    id: `report-${domain}-${report_date}`,
     tenant_id: TENANT,
     client_id: CLIENT_ID,
     domain,
@@ -144,15 +145,51 @@ Deno.test(
 );
 
 Deno.test(
-  "a client with no domain gets the latest report, marked unverified",
+  "a client with no domain gets no_domain, never an unverified report",
   async () => {
     const answer = await run(
       [report("example.co.il", "2026-11-10")],
       clientRow({ website: null }),
     );
-    assertEquals(
-      [at(answer, "status"), at(answer, "domain_verified")],
-      ["ok", false],
-    );
+    assertEquals(at(answer, "status"), "no_domain");
+    assertEquals(at(answer, "metrics"), undefined);
   },
 );
+
+Deno.test(
+  "a newer report without snapshot metrics never hides the real snapshot",
+  async () => {
+    const rankTracker = report("example.co.il", "2026-11-18", {
+      report_type: "rank_tracker",
+      report_data: { tracked_keywords: [{ keyword: "x", position: 3 }] },
+    });
+    const answer = await run([
+      rankTracker,
+      report("example.co.il", "2026-11-10"),
+    ]);
+    assertEquals(at(answer, "status"), "ok");
+    assertEquals(at(answer, "report_date"), "2026-11-10");
+    assertEquals(at(answer, "metrics", "domain_rating"), 30);
+  },
+);
+
+Deno.test(
+  "an older matching report behind many newer rows is still found",
+  async () => {
+    const newer = Array.from({ length: 8 }, (_, i) =>
+      i % 2
+        ? report("other-site.co.il", `2026-11-1${i}`)
+        : report("example.co.il", `2026-11-1${i}`, { report_data: {} }),
+    );
+    const answer = await run([...newer, report("example.co.il", "2026-10-01")]);
+    assertEquals(at(answer, "status"), "ok");
+    assertEquals(at(answer, "report_date"), "2026-10-01");
+  },
+);
+
+Deno.test("stored reports without any snapshot read as no_data", async () => {
+  const answer = await run([
+    report("example.co.il", "2026-11-10", { report_data: {} }),
+  ]);
+  assertEquals(at(answer, "status"), "no_data");
+});

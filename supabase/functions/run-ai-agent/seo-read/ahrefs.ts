@@ -1,6 +1,6 @@
 import type { SeoClient, SeoDb, SeoToolContext } from "./context.ts";
-import { clientRef, throwIfError } from "./context.ts";
-import { seoDomainsMatch } from "./client.ts";
+import { clientRef } from "./context.ts";
+import { pickAhrefsReport } from "./ahrefs-report.ts";
 import {
   topOrganicKeywords,
   topPages,
@@ -11,8 +11,8 @@ import { numberOrNull, pctChange } from "./numbers.ts";
 type Json = Record<string, unknown>;
 
 /**
- * get_ahrefs_snapshot: the client's latest stored Ahrefs report (written by
- * fetch-ahrefs-snapshot / the Ahrefs webhook): DR, organic traffic and
+ * get_ahrefs_snapshot: the client's latest stored Ahrefs report on its own site
+ * that has snapshot metrics (pickAhrefsReport): DR, organic traffic and
  * keywords, backlinks and referring domains against 3 and 12 months ago, top
  * keywords, top pages by traffic and tracked keywords. No live Ahrefs call.
  */
@@ -22,36 +22,9 @@ export async function ahrefsSnapshot(
   client: SeoClient,
   topN: number,
 ) {
-  const { data, error } = await db
-    .from("ahrefs_reports")
-    .select(
-      "domain, report_type, report_date, received_at, report_data, comparison_data",
-    )
-    .eq("client_id", client.id)
-    .in("tenant_id", ctx.accessibleTenantIds)
-    .order("report_date", { ascending: false, nullsFirst: false })
-    .limit(5);
-  throwIfError("דוחות Ahrefs", error);
-  const reports = data ?? [];
-  if (!reports.length) {
-    return {
-      client: clientRef(client),
-      connected: false,
-      status: "no_data",
-      message: `אין תמונת Ahrefs שמורה ל${client.name}. מסנכרנים מדוח ה-SEO של הלקוח (סנכרון צורך יחידות Ahrefs).`,
-    };
-  }
-  // A report for another site must never be quoted as this client's numbers.
-  const report = client.domain
-    ? reports.find((r) => seoDomainsMatch(r.domain, client.domain))
-    : reports[0];
-  if (!report) {
-    return {
-      client: clientRef(client),
-      connected: false,
-      status: "domain_mismatch",
-      message: `הדוח השמור הוא לדומיין ${reports[0].domain} ולא לדומיין של הלקוח (${client.domain}). לא מציגה נתונים של אתר אחר.`,
-    };
+  const report = await pickAhrefsReport(db, ctx, client);
+  if ("status" in report) {
+    return { client: clientRef(client), connected: false, ...report };
   }
   const reportData = asJson(report.report_data);
   const metrics = snapshotMetrics(asJson(reportData.snapshot));
@@ -70,7 +43,6 @@ export async function ahrefsSnapshot(
     status: "ok",
     source: "Ahrefs (תמונה שמורה)",
     domain: report.domain,
-    domain_verified: !!client.domain,
     report_date: report.report_date,
     received_at: report.received_at,
     metrics,

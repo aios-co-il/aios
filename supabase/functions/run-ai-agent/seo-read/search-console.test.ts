@@ -186,3 +186,40 @@ Deno.test("a failed Search Console read throws", async () => {
     ),
   );
 });
+
+Deno.test(
+  "freshness comes from the 90-day window, not a newer comparison window",
+  async () => {
+    const answer = await run({
+      tenant_integrations: [integration()],
+      gsc_keyword_snapshots: [
+        snapshot("current_90d", "2026-08-21", "2026-11-18", current, {
+          synced_at: "2026-11-10T04:00:00Z",
+        }),
+        snapshot("prev_month", "2026-09-22", "2026-10-19", monthAgo),
+      ],
+    }).result;
+    assertEquals(at(answer, "synced_at"), "2026-11-10T04:00:00Z");
+    assertEquals(at(answer, "stale"), true);
+    assertEquals(
+      at(answer, "periods", "1", "synced_at"),
+      "2026-11-19T04:00:00Z",
+    );
+  },
+);
+
+Deno.test("the clicks-per-day change uses unrounded daily rates", async () => {
+  // 10 / 90 = 0.111 and 3 / 28 = 0.107 both round to 0.1 a day.
+  const answer = await run({
+    tenant_integrations: [integration()],
+    gsc_keyword_snapshots: [
+      snapshot("current_90d", "2026-08-21", "2026-11-18", [
+        { keyword: "a", clicks: 10, impressions: 100, ctr: 10, position: 3 },
+      ]),
+      snapshot("prev_month", "2026-09-22", "2026-10-19", [
+        { keyword: "a", clicks: 3, impressions: 100, ctr: 3, position: 3 },
+      ]),
+    ],
+  }).result;
+  assertEquals(at(answer, "clicks_per_day_change_pct"), 3.7);
+});

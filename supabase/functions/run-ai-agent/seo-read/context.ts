@@ -30,7 +30,12 @@ export type SeoClient = {
 
 /** A source that has no data for the client, and why, in Hebrew. */
 export type SeoUnavailable = {
-  status: "not_connected" | "no_site_mapped" | "no_data" | "domain_mismatch";
+  status:
+    | "not_connected"
+    | "no_site_mapped"
+    | "no_data"
+    | "domain_mismatch"
+    | "no_domain";
   message: string;
 };
 

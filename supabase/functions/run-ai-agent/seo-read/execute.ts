@@ -1,6 +1,12 @@
 import type { SeoReadToolName } from "../../_shared/carmen/seo-read-tools.ts";
 import type { SeoClient, SeoDb, SeoToolContext } from "./context.ts";
-import { isRefusal, parseSeoArgs, resolveSeoClient } from "./client.ts";
+import {
+  DEFAULT_TOP_N,
+  OVERVIEW_TOP_N,
+  isRefusal,
+  parseSeoArgs,
+  resolveSeoClient,
+} from "./client.ts";
 import { ahrefsSnapshot } from "./ahrefs.ts";
 import { aiVisibility } from "./ai-visibility.ts";
 import { seoOverview } from "./overview.ts";
@@ -18,7 +24,11 @@ export async function executeSeoReadTool(
   name: SeoReadToolName,
   args: Record<string, unknown>,
 ) {
-  const parsed = parseSeoArgs(args);
+  // The overview keeps its lists short unless top_n asks for more.
+  const parsed = parseSeoArgs(
+    args,
+    name === "get_seo_overview" ? OVERVIEW_TOP_N : DEFAULT_TOP_N,
+  );
   if (isRefusal(parsed)) {
     return parsed;
   }
@@ -38,7 +48,7 @@ const READERS: Record<
     topN: number,
   ) => Promise<unknown>
 > = {
-  get_seo_overview: (db, ctx, client) => seoOverview(db, ctx, client),
+  get_seo_overview: seoOverview,
   get_search_console_performance: searchConsolePerformance,
   get_ahrefs_snapshot: ahrefsSnapshot,
   get_seo_program: seoProgram,

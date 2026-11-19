@@ -33,9 +33,8 @@ export async function searchConsolePerformance(
     const snapshot = byKey.get(key);
     return snapshot ? [periodTotals(snapshot)] : [];
   });
-  const current = periods.find((p) => p.period === "current_90d");
-  const monthAgo = periods.find((p) => p.period === "prev_month");
-  const syncedAt = latestSync(read.snapshots);
+  // Freshness is the main 90-day window's; each comparison window shows its own.
+  const syncedAt = byKey.get("current_90d")?.syncedAt ?? null;
   const ageHours = syncedAt
     ? (nowOf(ctx).getTime() - new Date(syncedAt).getTime()) / 3_600_000
     : null;
@@ -50,10 +49,10 @@ export async function searchConsolePerformance(
     synced_at: syncedAt,
     stale: ageHours === null || ageHours > STALE_HOURS,
     periods,
-    clicks_per_day_change_pct:
-      current && monthAgo
-        ? pctChange(current.clicks_per_day, monthAgo.clicks_per_day)
-        : null,
+    clicks_per_day_change_pct: clicksPerDayChange(
+      byKey.get("current_90d"),
+      byKey.get("prev_month"),
+    ),
     top_queries: topQueries(currentRows, previousRows, topN),
     striking_distance: strikingDistance(currentRows, topN),
     note: "הסכומים לפי שאילתות: גוגל מסתיר שאילתות נדירות, כך שהסה״כ נמוך מעט מהמסך של Search Console. השוואה בין חלונות באורך שונה — לפי ממוצע ליום. נתוני עמודים לא נשמרים בסנכרון.",
@@ -85,7 +84,24 @@ export function periodTotals(snapshot: GscSnapshot) {
     clicks_per_day: round(clicks / days, 1),
     impressions_per_day: round(impressions / days, 1),
     queries: snapshot.rows.length,
+    synced_at: snapshot.syncedAt,
   };
+}
+
+/** Percent change of clicks per day, from unrounded daily rates. */
+function clicksPerDayChange(
+  now: GscSnapshot | undefined,
+  before: GscSnapshot | undefined,
+): number | null {
+  return now && before
+    ? pctChange(dailyClicks(now), dailyClicks(before))
+    : null;
+}
+
+/** Clicks per day of a window, unrounded. */
+function dailyClicks(snapshot: GscSnapshot): number {
+  const clicks = snapshot.rows.reduce((sum, row) => sum + (row.clicks || 0), 0);
+  return clicks / daysBetween(snapshot.startDate, snapshot.endDate);
 }
 
 /** Most-clicked queries, with position change against a month ago (+ = improved). */
@@ -131,13 +147,4 @@ function strikingDistance(rows: Array<GscKeywordRow>, topN: number) {
 function daysBetween(start: string, end: string): number {
   const ms = new Date(end).getTime() - new Date(start).getTime();
   return Number.isFinite(ms) ? Math.max(1, Math.round(ms / 86_400_000) + 1) : 1;
-}
-
-/** The newest sync time among the windows. */
-function latestSync(snapshots: Array<GscSnapshot>): string | null {
-  return snapshots.reduce<string | null>(
-    (latest, s) =>
-      s.syncedAt && (!latest || s.syncedAt > latest) ? s.syncedAt : latest,
-    null,
-  );
 }
