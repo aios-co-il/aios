@@ -1,6 +1,6 @@
 -- Flow delay steps that really wait (AIO-611): 20261119090000_automation_delayed_runs.
 -- Synthetic rows inside one transaction that is rolled back. The statements are
--- the ones trigger-automation's delay-step.ts and automation-delay-worker send
+-- the ones trigger-automation's pause-run.ts and automation-delay-worker send
 -- through PostgREST; the retention statement is read from cron.job when pg_cron
 -- is installed.
 BEGIN;
@@ -49,14 +49,15 @@ BEGIN
     (v_tenant, v_auto, v_step, 'lead-2', '{}', now() + interval '7 days'),
     (v_other_tenant, v_auto, v_step, 'lead-1', '{}', now() + interval '7 days');
 
-  -- Replace: cancelling the open wait frees the key for the new one ----------
+  -- Restart: a new wait for the same lead updates the open row in place -----
   UPDATE public.automation_delayed_runs
-  SET status = 'cancelled', outcome = 'replaced_by_newer_wait', finished_at = now()
+  SET resume_at = now() - interval '1 minute', payload = '{"restarted": true}'
   WHERE tenant_id = v_tenant AND automation_id = v_auto AND delay_step_id = v_step
     AND entity_id = 'lead-1' AND status = 'waiting';
-  INSERT INTO public.automation_delayed_runs
-    (tenant_id, automation_id, delay_step_id, entity_id, payload, resume_at)
-  VALUES (v_tenant, v_auto, v_step, 'lead-1', '{}', now() - interval '1 minute');
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'restart: exactly the lead''s open wait must be restarted, got %', v_rows;
+  END IF;
 
   -- Claim: due waits only, and only once -------------------------------------
   UPDATE public.automation_delayed_runs

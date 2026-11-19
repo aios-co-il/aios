@@ -35,8 +35,8 @@ create table public.automation_delayed_runs (
   created_at timestamptz not null default now()
 );
 
--- One open wait per org, automation, delay step and entity: a new wait replaces
--- the earlier one, so a lead that re-enters a status restarts its timer.
+-- One open wait per org, automation, delay step and entity: a new wait restarts
+-- the open row, so a lead that re-enters a status restarts its timer.
 create unique index automation_delayed_runs_one_waiting_idx
   on public.automation_delayed_runs (tenant_id, automation_id, delay_step_id, entity_id)
   where status = 'waiting';

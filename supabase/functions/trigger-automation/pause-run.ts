@@ -16,91 +16,88 @@ export type DelayedRun = {
   resumeAt: Date;
 };
 
+/** Postgres error code for a unique-index conflict. */
+const UNIQUE_VIOLATION = "23505";
+
 /**
- * Stores a paused run and returns its id. An earlier open wait for the same
- * automation, step and entity is cancelled first, so the timer restarts; when
- * the new wait cannot be stored, the earlier one is put back.
+ * Stores a paused run and returns its id. When the same automation, step and
+ * entity already have an open wait, that row is restarted with the new resume
+ * time, payload and guard. Each write is one statement, so a run that stops
+ * midway never leaves a lead without its wait.
  */
 export async function pauseRunAtDelay(
   supabase: DbClient,
   run: DelayedRun,
 ): Promise<string> {
-  // Built before any write, so a payload that cannot be stored changes nothing.
-  const row = {
-    tenant_id: run.tenantId,
-    automation_id: run.automationId,
-    delay_step_id: run.delayStepId,
-    entity_id: run.entityId,
+  const wait = {
     trigger_type: run.triggerType,
     payload: storedPayload(run.payload),
     status_guard: delayStatusGuard(run.config, run.payload),
     resume_at: run.resumeAt.toISOString(),
   };
-  const replacedIds = await cancelEarlierWait(supabase, run);
+  const restartedId = await restartOpenWait(supabase, run, wait);
+  if (restartedId) {
+    return restartedId;
+  }
 
   // Not an upsert: the one-open-wait key is a partial unique index, which
-  // PostgREST cannot target. A racing second wait fails loudly on that index.
+  // PostgREST cannot target.
   const inserted = await supabase
     .from("automation_delayed_runs")
-    .insert(row)
+    .insert({
+      tenant_id: run.tenantId,
+      automation_id: run.automationId,
+      delay_step_id: run.delayStepId,
+      entity_id: run.entityId,
+      ...wait,
+    })
     .select("id")
     .single();
-  if (inserted.error) {
-    await restoreWaits(supabase, run.tenantId, replacedIds);
-    throw inserted.error;
+  if (!inserted.error) {
+    return inserted.data.id;
   }
-  return inserted.data.id;
+  // A run for the same lead stored its wait between the two statements.
+  const racedId =
+    inserted.error.code === UNIQUE_VIOLATION
+      ? await restartOpenWait(supabase, run, wait)
+      : null;
+  if (racedId) {
+    return racedId;
+  }
+  throw inserted.error;
 }
 
-/** Cancels the open wait for the run's automation, step and entity; returns the cancelled ids. */
-async function cancelEarlierWait(
+/** The columns a restarted wait gets anew. */
+type WaitValues = {
+  trigger_type: string | null;
+  payload: Json;
+  status_guard: Json;
+  resume_at: string;
+};
+
+/** Restarts the open wait of the run's automation, step and entity; null when there is none. */
+async function restartOpenWait(
   supabase: DbClient,
   run: DelayedRun,
-): Promise<Array<string>> {
+  wait: WaitValues,
+): Promise<string | null> {
   if (!run.entityId) {
-    return [];
+    return null;
   }
-  const replaced = await supabase
+  const restarted = await supabase
     .from("automation_delayed_runs")
-    .update({
-      status: "cancelled",
-      outcome: "replaced_by_newer_wait",
-      finished_at: new Date().toISOString(),
-    })
+    .update(wait)
     .eq("tenant_id", run.tenantId)
     .eq("automation_id", run.automationId)
     .eq("delay_step_id", run.delayStepId)
     .eq("entity_id", run.entityId)
     .eq("status", "waiting")
-    .select("id");
-  if (replaced.error) {
-    throw replaced.error;
+    .select("id")
+    .maybeSingle();
+  if (restarted.error) {
+    throw restarted.error;
   }
-  return replaced.data.map((wait) => wait.id);
-}
-
-/** Puts waits back after their replacement failed, so the lead keeps its earlier timer. */
-async function restoreWaits(
-  supabase: DbClient,
-  tenantId: string,
-  ids: Array<string>,
-): Promise<void> {
-  if (ids.length === 0) {
-    return;
-  }
-  const restored = await supabase
-    .from("automation_delayed_runs")
-    .update({ status: "waiting", outcome: null, finished_at: null })
-    .eq("tenant_id", tenantId)
-    .in("id", ids)
-    .eq("status", "cancelled");
-  if (restored.error) {
-    console.error(
-      "[delay-step] could not restore the earlier wait:",
-      ids,
-      restored.error,
-    );
-  }
+  return restarted.data?.id ?? null;
 }
 
 /** The payload without run-scoped `_` keys (Carmen session state, node outputs). */
