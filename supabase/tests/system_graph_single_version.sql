@@ -35,17 +35,23 @@ BEGIN
 
   -- Activation keeps the new version and the staging still uploading ---------
   v_result := public.carmen_activate_system_graph('qa-new', 2, 1);
-  IF (v_result->>'pruned_versions')::int <> 4 THEN
+  IF (v_result->>'pruned_versions')::int IS DISTINCT FROM 4 THEN
     RAISE EXCEPTION 'prune: expected 4 versions removed, got %', v_result->>'pruned_versions';
   END IF;
   IF (SELECT array_agg(version || ':' || status ORDER BY version) FROM public.aios_graph_versions)
-     <> ARRAY['qa-new:active', 'qa-uploading:staging'] THEN
+     IS DISTINCT FROM ARRAY['qa-new:active', 'qa-uploading:staging'] THEN
     RAISE EXCEPTION 'prune: only the active version and a fresh staging may remain, got %',
       (SELECT array_agg(version || ':' || status ORDER BY version) FROM public.aios_graph_versions);
   END IF;
   IF EXISTS (SELECT 1 FROM public.aios_graph_nodes WHERE version NOT IN ('qa-new', 'qa-uploading'))
      OR EXISTS (SELECT 1 FROM public.aios_graph_edges WHERE version NOT IN ('qa-new', 'qa-uploading')) THEN
     RAISE EXCEPTION 'prune: nodes and edges of removed versions must go with them';
+  END IF;
+  IF (SELECT array_agg(version || ':' || id ORDER BY version, id) FROM public.aios_graph_nodes)
+     IS DISTINCT FROM ARRAY['qa-new:a', 'qa-new:b', 'qa-uploading:a', 'qa-uploading:b']
+     OR (SELECT array_agg(version || ':' || edge_key ORDER BY version) FROM public.aios_graph_edges)
+     IS DISTINCT FROM ARRAY['qa-new:a-b', 'qa-uploading:a-b'] THEN
+    RAISE EXCEPTION 'prune: the active version and the upload must keep their nodes and edges';
   END IF;
 
   -- Only service_role may activate -------------------------------------------
