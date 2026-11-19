@@ -1,21 +1,13 @@
 import { useState, type DragEvent } from "react";
-import {
-  moveColumnId,
-  readColumnOrder,
-  writeColumnOrder,
-} from "./resizableTableColumnOrder";
+import { moveColumnId } from "./resizableTableColumnOrder";
 
 /**
- * Drag-and-drop header reordering for ResizableTable, saved per browser under
- * `storageKey`. Without a key the table keeps its default order and headers are
- * not draggable.
+ * Drag-and-drop header state for ResizableTable. Headers are draggable only when
+ * `onReorder` is set; it receives the full new column-id order on each drop.
  */
-export function useColumnReorder(storageKey: string | undefined) {
-  const [order, setOrder] = useState<Array<string>>(() =>
-    storageKey && typeof window !== "undefined"
-      ? readColumnOrder(window.localStorage, storageKey)
-      : [],
-  );
+export function useColumnReorder(
+  onReorder: ((order: Array<string>) => void) | undefined,
+) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -26,7 +18,7 @@ export function useColumnReorder(storageKey: string | undefined) {
 
   /** Drag props for one header; `currentIds` is the order the table shows now. */
   function getHeaderDragProps(columnId: string, currentIds: Array<string>) {
-    if (!storageKey) {
+    if (!onReorder) {
       return {};
     }
     return {
@@ -49,9 +41,7 @@ export function useColumnReorder(storageKey: string | undefined) {
       onDrop: (event: DragEvent<HTMLElement>) => {
         event.preventDefault();
         if (dragId && dragId !== columnId) {
-          const next = moveColumnId(currentIds, dragId, columnId);
-          setOrder(next);
-          writeColumnOrder(window.localStorage, storageKey, next);
+          onReorder(moveColumnId(currentIds, dragId, columnId));
         }
         reset();
       },
@@ -59,5 +49,5 @@ export function useColumnReorder(storageKey: string | undefined) {
     };
   }
 
-  return { order, dragId, overId, getHeaderDragProps };
+  return { dragId, overId, getHeaderDragProps };
 }

@@ -3,8 +3,6 @@ import {
   applyColumnOrder,
   moveColumnId,
   parseColumnOrder,
-  readColumnOrder,
-  writeColumnOrder,
 } from "./resizableTableColumnOrder";
 
 const columns = ["name", "phone", "status", "actions"].map((id) => ({ id }));
@@ -82,17 +80,12 @@ describe("moveColumnId", () => {
   });
 });
 
-describe("column order storage", () => {
-  it("round-trips the order and ignores malformed values", () => {
-    const values = new Map<string, string>();
-    const storage = {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => void values.set(key, value),
-    };
-    writeColumnOrder(storage, "k", ["phone", "name"]);
-    expect(readColumnOrder(storage, "k")).toEqual(["phone", "name"]);
+describe("parseColumnOrder", () => {
+  it("keeps string ids and ignores malformed values", () => {
+    expect(parseColumnOrder('["phone","name"]')).toEqual(["phone", "name"]);
     expect(parseColumnOrder("{bad")).toEqual([]);
     expect(parseColumnOrder('{"a":1}')).toEqual([]);
     expect(parseColumnOrder('["a",2,"b"]')).toEqual(["a", "b"]);
+    expect(parseColumnOrder(null)).toEqual([]);
   });
 });

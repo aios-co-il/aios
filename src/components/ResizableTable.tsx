@@ -40,8 +40,10 @@ interface ResizableTableProps {
   getStickyCellClassName?: (row: any, rowIndex: number) => string;
   /** When set, resized widths are restored on the next CRM visit. */
   columnWidthStorageKey?: string;
-  /** When set, headers drag to reorder and the order is restored on the next visit. */
-  columnOrderStorageKey?: string;
+  /** Saved column-id order; columns it does not list keep their default place. */
+  columnOrder?: Array<string>;
+  /** When set, headers drag to reorder and this receives the new order. */
+  onColumnOrderChange?: (order: Array<string>) => void;
 }
 
 export function ResizableTable({
@@ -52,7 +54,8 @@ export function ResizableTable({
   getRowClassName,
   getStickyCellClassName,
   columnWidthStorageKey,
-  columnOrderStorageKey,
+  columnOrder,
+  onColumnOrderChange,
 }: ResizableTableProps) {
   const [columns, setColumns] = useState<ColumnConfig[]>(() => {
     if (!columnWidthStorageKey || typeof window === "undefined")
@@ -187,18 +190,17 @@ export function ResizableTable({
     [columns, updateColumn],
   );
 
-  const { order, dragId, overId, getHeaderDragProps } = useColumnReorder(
-    columnOrderStorageKey,
-  );
-  const orderedColumns = columnOrderStorageKey
-    ? applyColumnOrder(columns, order)
+  const { dragId, overId, getHeaderDragProps } =
+    useColumnReorder(onColumnOrderChange);
+  const orderedColumns = columnOrder
+    ? applyColumnOrder(columns, columnOrder)
     : columns;
   const orderedIds = orderedColumns.map((c) => c.id);
   const stickyColumns = orderedColumns.filter((c) => c.sticky);
   const regularColumns = orderedColumns.filter((c) => !c.sticky);
   function headerDragClassName(columnId: string) {
     return cn(
-      columnOrderStorageKey && "cursor-grab active:cursor-grabbing",
+      onColumnOrderChange && "cursor-grab active:cursor-grabbing",
       dragId === columnId && "opacity-50",
       overId === columnId &&
         dragId !== columnId &&

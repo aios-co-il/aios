@@ -1,4 +1,4 @@
-/** Reads a saved column-id order; anything malformed reads as no saved order. */
+/** Reads a stored column-id order; anything malformed reads as no saved order. */
 export function parseColumnOrder(
   raw: string | null | undefined,
 ): Array<string> {
@@ -13,31 +13,6 @@ export function parseColumnOrder(
     return parsed.filter((id): id is string => typeof id === "string");
   } catch {
     return [];
-  }
-}
-
-/** The saved order for `key`, or none when storage is unavailable. */
-export function readColumnOrder(
-  storage: Pick<Storage, "getItem"> | null | undefined,
-  key: string,
-): Array<string> {
-  try {
-    return parseColumnOrder(storage?.getItem(key) ?? null);
-  } catch {
-    return [];
-  }
-}
-
-/** Saves the order; a blocked or full storage keeps the order for this visit only. */
-export function writeColumnOrder(
-  storage: Pick<Storage, "setItem"> | null | undefined,
-  key: string,
-  order: Array<string>,
-): void {
-  try {
-    storage?.setItem(key, JSON.stringify(order));
-  } catch (error) {
-    console.warn("Could not save table column order", error);
   }
 }
 

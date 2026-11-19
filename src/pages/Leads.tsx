@@ -89,6 +89,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ResizableTable } from "@/components/ResizableTable";
 import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
+import { useLeadTableColumnOrder } from "@/components/LeadsPage/useLeadTableColumnOrder";
 import { cn } from "@/lib/utils";
 import AddTaskForm from "@/components/forms/AddTaskForm";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
@@ -180,7 +181,6 @@ import {
   getLeadTableCustomColumns,
   isLeadTableColumnVisible,
   LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY,
-  LEAD_TABLE_COLUMN_ORDER_STORAGE_KEY,
   LEAD_TABLE_OPTIONAL_COLUMNS,
   readLeadCustomColumnValue,
   isLeadTableCustomColumnVisible,
@@ -3810,6 +3810,8 @@ function TableWithStickyScroll({
   const { isFieldVisible, getFieldLabel, fieldDefinitions } =
     useCustomFieldLabels("lead");
   const { tenantId } = useCurrentTenant();
+  const { order: columnOrder, setOrder: setColumnOrder } =
+    useLeadTableColumnOrder();
 
   // Fetch sales people for assignment
   const { data: salesPeople = [] } = useQuery({
@@ -4437,7 +4439,8 @@ function TableWithStickyScroll({
       >
         <ResizableTable
           columnWidthStorageKey={LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY}
-          columnOrderStorageKey={LEAD_TABLE_COLUMN_ORDER_STORAGE_KEY}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
           columns={[
             {
               id: "name",

@@ -100,8 +100,6 @@ export const LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY = "leads-table-column-widths";
 export const LEAD_TABLE_COLUMN_WIDTHS_EVENT = "leads-table-column-widths";
 export const LEAD_TABLE_COLUMN_MIN_WIDTH = 80;
 export const LEAD_TABLE_COLUMN_MAX_WIDTH = 800;
-/** Browser-local CRM table column order, saved after a header drag. */
-export const LEAD_TABLE_COLUMN_ORDER_STORAGE_KEY = "leads-table-column-order";
 
 const LEAD_TABLE_WIDTH_COLUMN_IDS = new Set([
   "name",
