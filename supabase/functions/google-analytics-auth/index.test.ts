@@ -32,14 +32,14 @@ const env = {
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-analytics-auth`;
 
 /** Supabase with one tenant, its member and an outsider, and Google's token and userinfo endpoints. */
-function fakeHttp() {
+function fakeHttp(integrations: Array<Record<string, unknown>>) {
   return fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { member: MEMBER, outsider: OUTSIDER },
     tables: {
       tenant_users: [{ tenant_id: TENANT, user_id: MEMBER }],
       tenants: [{ id: TENANT, slug: "acme" }],
-      tenant_integrations: [],
+      tenant_integrations: integrations,
     },
     rpc: { is_super_admin: () => false },
     other: (url) => {
@@ -70,8 +70,11 @@ function authorize(token: string | null, body: Record<string, unknown>) {
 }
 
 /** Runs the real handler against the fake Supabase. */
-async function run(request: Request) {
-  const http = fakeHttp();
+async function run(
+  request: Request,
+  integrations: Array<Record<string, unknown>> = [],
+) {
+  const http = fakeHttp(integrations);
 
   return await withRuntime({ env, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
@@ -245,6 +248,41 @@ Deno.test({
           settings && Reflect.get(settings, "google_email"),
           "owner@example.com",
         );
+      },
+    );
+
+    await t.step(
+      "a reconnect updates only the row version it read, and fails rather than overwrite a change",
+      async () => {
+        const readAt = "2026-11-19T10:00:00.000Z";
+        const { response, http } = await run(
+          completeRequest("member", await memberState()),
+          [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              tenant_id: TENANT,
+              integration_type: "google_analytics",
+              user_id: MEMBER,
+              settings: {
+                google_email: "owner@example.com",
+                property_id: "p1",
+              },
+              updated_at: readAt,
+            },
+          ],
+        );
+        const update = http.calls.find((call) => call.method === "PATCH");
+        assertEquals(
+          update?.url.searchParams.get("updated_at"),
+          `eq.${readAt}`,
+        );
+        assertEquals(
+          update?.body &&
+            Reflect.get(Reflect.get(update.body, "settings"), "property_id"),
+          "p1",
+        );
+        // The fake answers every update with no rows, as a concurrent change would.
+        assertEquals(response.status, 500);
       },
     );
   },
