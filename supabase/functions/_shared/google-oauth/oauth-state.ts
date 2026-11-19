@@ -72,11 +72,7 @@ function toBase64Url(text: string): string {
   return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** The JSON a signed body holds. A body that is not base64url JSON yields undefined, which the schema rejects. */
+/** The JSON a body holds. Called only after the HMAC check, so the body is one signOAuthState wrote. */
 function decodeJson(body: string): unknown {
-  try {
-    return JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
-  } catch {
-    return undefined;
-  }
+  return JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
 }
