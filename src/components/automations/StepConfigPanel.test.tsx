@@ -34,7 +34,7 @@ describe("StepConfigPanel Green API connection choices", () => {
     ).not.toBeInTheDocument();
     await user.click(ownedConnection);
     expect(onUpdate).toHaveBeenCalledWith(node.id, {
-      configuration: { connection_user_id: "u2" },
+      configuration_patch: { connection_user_id: "u2" },
     });
   });
 
@@ -117,4 +117,61 @@ beforeEach(() => {
       is_active: true,
     },
   ];
+});
+
+it("offers only triggers that can be persisted", async () => {
+  const { TRIGGER_CATEGORIES } = await import("./StepConfigPanel");
+  const { isAutomationTrigger } = await import("@/lib/automationTriggers");
+  const options = TRIGGER_CATEGORIES.flatMap((category) => category.options);
+  expect(options.length).toBeGreaterThan(0);
+  expect(options.every((option) => isAutomationTrigger(option.value))).toBe(
+    true,
+  );
+  expect(options.some((option) => option.value === "task_created")).toBe(false);
+});
+
+it("rejects malformed automation test replies and preserves an explicit failure", async () => {
+  const { toTestResult } = await import("./TriggerTestPanel");
+  const { parseTestRunResponse } =
+    await import("../forms/TestAutomationDialog");
+  for (const response of [undefined, null, {}, { success: "yes" }]) {
+    expect(() => toTestResult(response)).toThrow();
+  }
+  expect(toTestResult({ success: false, error: "failed" }).success).toBe(false);
+  expect(() => parseTestRunResponse({})).toThrow();
+  expect(() => parseTestRunResponse(null)).toThrow();
+  expect(() => parseTestRunResponse({ results: [7] })).toThrow(
+    "תגובה לא תקינה",
+  );
+  expect(
+    parseTestRunResponse({ automations_found: 0, results: [] }).results,
+  ).toEqual([]);
+});
+
+it("shows nested executions, skipped rows, failed automations and holds", async () => {
+  const { toTestResult } = await import("./TriggerTestPanel");
+  const { parseTestRunResponse } =
+    await import("../forms/TestAutomationDialog");
+  expect(
+    toTestResult({
+      success: true,
+      results: [
+        {
+          response: {
+            steps: [
+              { step_id: "s", success: true, response: { output: "hello" } },
+            ],
+          },
+        },
+      ],
+    }).steps[0].response?.output,
+  ).toBe("hello");
+  expect(
+    parseTestRunResponse({
+      results: [null, { error: "failed" }, { success: true }],
+    }).results.map((item) => item.success),
+  ).toEqual([false, true]);
+  expect(
+    toTestResult({ held: true, reason: "shabbat_quiet_hours" }),
+  ).toMatchObject({ success: false, held: true, error: "shabbat_quiet_hours" });
 });

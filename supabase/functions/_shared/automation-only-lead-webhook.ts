@@ -5,6 +5,7 @@ import {
   parseQaText,
   resolveLeadClient,
 } from "./lead-routing.ts";
+import type { DbClient } from "./supabase-clients.ts";
 
 export type AutomationOnlyLeadResult = {
   status: number;
@@ -99,7 +100,7 @@ const leadAlertContentKey = (parts: {
   ].join("|");
 
 export async function resolveLeadAlertAutomation(
-  supabase: any,
+  supabase: DbClient,
   tenantId: string,
   explicitAutomationId?: string | null,
   payloadClientId?: unknown,
@@ -150,7 +151,7 @@ export async function resolveLeadAlertAutomation(
     typeof payloadClientId === "string" ? payloadClientId : "";
   if (payloadClient) {
     const matched = steps.find(
-      (step: any) => asRecord(step.configuration).client_id === payloadClient,
+      (step) => asRecord(step.configuration).client_id === payloadClient,
     );
     if (matched) {
       return {
@@ -160,9 +161,7 @@ export async function resolveLeadAlertAutomation(
     }
   }
 
-  const generic = steps.find(
-    (step: any) => !asRecord(step.configuration).client_id,
-  );
+  const generic = steps.find((step) => !asRecord(step.configuration).client_id);
   if (generic) {
     return {
       automationId: generic.automation_id,
@@ -181,7 +180,7 @@ export async function resolveLeadAlertAutomation(
 }
 
 export async function processAutomationOnlyLeadWebhook(
-  supabase: any,
+  supabase: DbClient,
   supabaseUrl: string,
   serviceKey: string,
   options: {
@@ -299,7 +298,7 @@ export async function processAutomationOnlyLeadWebhook(
     .gte("triggered_at", recentCutoff)
     .order("triggered_at", { ascending: false })
     .limit(15);
-  const recentIdenticalRun = (recentRuns || []).some((row: any) => {
+  const recentIdenticalRun = (recentRuns || []).some((row) => {
     const p = asRecord(row.payload);
     return (
       leadAlertContentKey({

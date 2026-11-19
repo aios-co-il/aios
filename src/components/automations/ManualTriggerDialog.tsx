@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   Dialog,
@@ -14,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Bot, User } from "lucide-react";
+import { errorMessage } from "./automationStepConfig";
+import { firstFlowRunResponse } from "./automationRunResults";
 
 interface ManualTriggerDialogProps {
   open: boolean;
@@ -40,26 +41,6 @@ export function ManualTriggerDialog({
   const { toast } = useToast();
   const { tenantId } = useCurrentTenant();
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Fetch flow steps to find agent step
-  const { data: flowSteps } = useQuery({
-    queryKey: ["automation-flow-steps-agent", automationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("automation_flow_steps" as any)
-        .select("*")
-        .eq("automation_id", automationId);
-      if (error) throw error;
-      return data as any[];
-    },
-    enabled: open && !!automationId,
-  });
-
-  // Find agent step and its agent_id
-  const agentStep = flowSteps?.find(
-    (s: any) => s.step_type === "agent" || s.action_type === "agent",
-  );
-  const agentId = agentStep?.configuration?.agent_id;
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -110,22 +91,23 @@ export function ManualTriggerDialog({
       if (error) throw error;
 
       // Extract agent output from flow results
-      const result = data?.results?.[0];
-      const flowResponse = result?.response || result;
+      const flowResponse = firstFlowRunResponse(data);
+      const agentOutput = flowResponse?.agent_output;
+      const flowSteps = flowResponse?.steps;
 
-      if (flowResponse?.flow && flowResponse?.agent_output) {
+      if (flowResponse?.flow && agentOutput) {
         // Flow with agent - show agent output
         const stepsInfo =
-          flowResponse.steps
-            ?.filter((s: any) => s.action_type !== "agent")
-            ?.map((s: any) =>
+          flowSteps
+            ?.filter((s) => s.action_type !== "agent")
+            ?.map((s) =>
               s.success
                 ? `✅ ${s.action_type}`
                 : `❌ ${s.action_type}: ${s.error}`,
             )
             ?.join("\n") || "";
 
-        const agentContent = flowResponse.agent_output;
+        const agentContent = agentOutput;
         const fullContent = stepsInfo
           ? `${agentContent}\n\n---\n${stepsInfo}`
           : agentContent;
@@ -141,8 +123,8 @@ export function ManualTriggerDialog({
       } else if (flowResponse?.flow) {
         // Flow without agent
         const stepsInfo =
-          flowResponse.steps
-            ?.map((s: any) =>
+          flowSteps
+            ?.map((s) =>
               s.success
                 ? `✅ ${s.action_type}`
                 : `❌ ${s.action_type}: ${s.error}`,
@@ -168,17 +150,18 @@ export function ManualTriggerDialog({
           },
         ]);
       }
-    } catch (err: any) {
+    } catch (err) {
+      const message = errorMessage(err) || "שגיאה לא ידועה";
       toast({
         title: "שגיאה בהפעלת הסוכן",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
       setMessages((prev) => [
         ...prev,
         {
           role: "agent",
-          content: `❌ שגיאה: ${err.message}`,
+          content: `❌ שגיאה: ${message}`,
           timestamp: new Date(),
         },
       ]);

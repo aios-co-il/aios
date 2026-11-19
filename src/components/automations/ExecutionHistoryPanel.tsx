@@ -33,11 +33,34 @@ import {
   UserPlus,
   ArrowLeftRight,
   Play,
+  type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { Tables } from "@/integrations/supabase/types";
+import { z } from "zod";
+import {
+  cfgText,
+  errorMessage,
+  optionalTextSchema,
+} from "./automationStepConfig";
+import { parseFlowRunResponse } from "./automationRunResults";
 import { formatDateTime } from "@/lib/formatDateTime";
 import { MAILING_ACTION_ICONS, MAILING_ACTION_LABELS } from "./mailingActions";
+
+/** The payload fields a run summary shows. */
+const runPayloadSchema = z.object({
+  contact_name: optionalTextSchema,
+  company_name: optionalTextSchema,
+  phone: optionalTextSchema,
+  lead_id: z.unknown(),
+  test: z.unknown(),
+});
+
+function parseRunPayload(value: unknown) {
+  const result = runPayloadSchema.safeParse(value);
+  return result.success ? result.data : undefined;
+}
 
 interface ExecutionHistoryPanelProps {
   open: boolean;
@@ -45,7 +68,7 @@ interface ExecutionHistoryPanelProps {
   automationId: string;
 }
 
-const ACTION_ICONS: Record<string, any> = {
+const ACTION_ICONS: Record<string, LucideIcon> = {
   agent: Bot,
   send_whatsapp: Send,
   send_greenapi_message: MessageSquare,
@@ -115,7 +138,10 @@ export function ExecutionHistoryPanel({
     setExpandedLogId((prev) => (prev === logId ? null : logId));
   };
 
-  const handleRerun = async (log: any, e: React.MouseEvent) => {
+  const handleRerun = async (
+    log: Tables<"automation_logs">,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation();
     if (!log.payload) {
       toast({ title: "אין נתונים לריצה חוזרת", variant: "destructive" });
@@ -139,10 +165,10 @@ export function ExecutionHistoryPanel({
         description: "בדוק את ההיסטוריה לתוצאה",
       });
       setTimeout(() => refetch(), 1500);
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "שגיאה בהרצה מחדש",
-        description: err.message,
+        description: errorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -250,11 +276,12 @@ export function ExecutionHistoryPanel({
             <div className="divide-y">
               {logs.map((log) => {
                 const isExpanded = expandedLogId === log.id;
-                const response = log.response as any;
-                const payload = log.payload as any;
-                const flowSteps = response?.steps || [];
-                const isFlow = response?.flow === true;
-                const agentOutput = response?.agent_output;
+                const response = log.response;
+                const runResponse = parseFlowRunResponse(response);
+                const payload = parseRunPayload(log.payload);
+                const flowSteps = runResponse?.steps ?? [];
+                const isFlow = runResponse?.flow === true;
+                const agentOutput = runResponse?.agent_output;
                 const triggeredAt = formatDateTime(log.triggered_at) || "—";
 
                 return (
@@ -286,11 +313,8 @@ export function ExecutionHistoryPanel({
                                 )}
                                 {isFlow && flowSteps.length > 0 && (
                                   <span className="text-xs text-muted-foreground">
-                                    {
-                                      flowSteps.filter((s: any) => s.success)
-                                        .length
-                                    }
-                                    /{flowSteps.length} שלבים
+                                    {flowSteps.filter((s) => s.success).length}/
+                                    {flowSteps.length} שלבים
                                   </span>
                                 )}
                                 {log.error_message && (
@@ -373,7 +397,7 @@ export function ExecutionHistoryPanel({
                                   {payload.phone}
                                 </Badge>
                               )}
-                              {payload.lead_id && (
+                              {!!payload.lead_id && (
                                 <Badge
                                   variant="secondary"
                                   className="text-[10px]"
@@ -381,7 +405,7 @@ export function ExecutionHistoryPanel({
                                   ליד
                                 </Badge>
                               )}
-                              {payload.test && (
+                              {!!payload.test && (
                                 <Badge
                                   variant="secondary"
                                   className="text-[10px]"
@@ -399,14 +423,21 @@ export function ExecutionHistoryPanel({
                             <p className="text-xs font-medium text-muted-foreground">
                               שלבים:
                             </p>
-                            {flowSteps.map((step: any, idx: number) => {
-                              const StepIcon =
-                                ACTION_ICONS[step.action_type] || Zap;
+                            {flowSteps.map((step, idx) => {
+                              const actionType = step.action_type ?? "";
+                              const StepIcon = ACTION_ICONS[actionType] || Zap;
                               const stepLabel =
-                                ACTION_LABELS[step.action_type] ||
-                                step.action_type;
-                              const stepOutput =
-                                step.response?.output || step.response?.message;
+                                ACTION_LABELS[actionType] || step.action_type;
+                              const stepResponse = step.response;
+                              const stepOutput = cfgText(
+                                stepResponse?.output || stepResponse?.message,
+                              );
+                              const commandText = cfgText(
+                                stepResponse?.command_text,
+                              );
+                              const subscriberId = cfgText(
+                                stepResponse?.subscriber_id,
+                              );
 
                               return (
                                 <div
@@ -459,10 +490,10 @@ export function ExecutionHistoryPanel({
 
                                   {/* Agent command sent */}
                                   {step.action_type === "agent" &&
-                                    step.response?.command_text && (
+                                    commandText && (
                                       <div className="mt-1 rounded bg-muted/50 p-1.5">
                                         <p className="text-[10px] text-muted-foreground">
-                                          פקודה: {step.response.command_text}
+                                          פקודה: {commandText}
                                         </p>
                                       </div>
                                     )}
@@ -473,18 +504,17 @@ export function ExecutionHistoryPanel({
                                       "send_greenapi_message" ||
                                     step.action_type ===
                                       "send_meta_whatsapp_message") &&
-                                    step.response && (
+                                    stepResponse && (
                                       <div className="mt-1 text-[10px] text-muted-foreground">
-                                        {step.response.subscriber_id && (
+                                        {subscriberId && (
                                           <span>
-                                            Subscriber:{" "}
-                                            {step.response.subscriber_id}
+                                            Subscriber: {subscriberId}
                                           </span>
                                         )}
-                                        {step.response.message_sent !==
+                                        {stepResponse.message_sent !==
                                           undefined && (
                                           <span className="mr-2">
-                                            {step.response.message_sent
+                                            {stepResponse.message_sent
                                               ? "✅ נשלח"
                                               : "❌ לא נשלח"}
                                           </span>
@@ -507,9 +537,7 @@ export function ExecutionHistoryPanel({
 
                         {/* Agent output summary for quick view */}
                         {agentOutput &&
-                          !flowSteps.some(
-                            (s: any) => s.action_type === "agent",
-                          ) && (
+                          !flowSteps.some((s) => s.action_type === "agent") && (
                             <div className="rounded-md bg-muted p-2">
                               <p className="text-xs font-medium text-muted-foreground mb-1">
                                 תוצאת סוכן AI:
