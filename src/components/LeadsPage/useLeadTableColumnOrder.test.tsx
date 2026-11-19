@@ -62,6 +62,7 @@ beforeEach(() => {
   backend.writeError = null;
   backend.filters = [];
   backend.upsert.mockClear();
+  backend.update.mockClear();
   backend.deferred = null;
   backend.toastError.mockClear();
   window.localStorage.clear();
@@ -261,5 +262,25 @@ describe("useLeadTableColumnOrder", () => {
       ["actions", "name"],
       ["name", "actions"],
     ]);
+  });
+
+  it("moves the browser's old order only where the account has none, in the database", async () => {
+    seedLegacyOrder(["actions", "name"]);
+    await loadedHook();
+    await waitFor(() => expect(backend.update).toHaveBeenCalledTimes(1));
+
+    expect(backend.upsert.mock.calls[0][2]).toEqual({
+      onConflict: "tenant_id,user_id",
+      ignoreDuplicates: true,
+    });
+    expect(backend.update).toHaveBeenCalledWith(
+      "lead_list_defaults",
+      { column_order: ["actions", "name"] },
+      [
+        ["tenant_id", "tenant-psagot"],
+        ["user_id", "user-raya"],
+        ["column_order is", null],
+      ],
+    );
   });
 });

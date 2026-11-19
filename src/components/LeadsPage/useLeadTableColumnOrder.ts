@@ -6,13 +6,18 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   clearLegacyColumnOrder,
   readLegacyColumnOrder,
 } from "./legacyLeadColumnOrder";
+import {
+  fetchColumnOrder,
+  migrateColumnOrder,
+  requireId,
+  saveColumnOrder,
+} from "./leadColumnOrderApi";
 
 /**
  * The signed-in user's own CRM table column order, saved on their
@@ -48,17 +53,15 @@ export function useLeadTableColumnOrder() {
     mutationFn: async ({ order, isMigration }: ColumnOrderSave) => {
       await queryClient.cancelQueries({ queryKey });
       if (isMigration) {
-        // A migration can queue behind a drag (from another mount of this hook);
-        // when it runs, any order already on the account wins over the old one.
-        const current = await fetchColumnOrder(
+        // A migration can queue behind a drag, here or in another tab; any order
+        // already on the account wins over the old browser one.
+        return migrateColumnOrder(
           requireId(tenantId),
           requireId(userId),
+          order,
         );
-        if (current !== null) {
-          return current;
-        }
       }
-      await saveColumnOrder(tenantId, userId, order);
+      await saveColumnOrder(requireId(tenantId), requireId(userId), order);
       return order;
     },
     onSuccess: (order) => {
@@ -125,51 +128,4 @@ interface ColumnOrderSave {
   order: Array<string>;
   /** Moving the browser's old order: skipped when the account already has one. */
   isMigration: boolean;
-}
-
-/** The signed-in user or tenant id; saving without one is a bug, so it throws. */
-function requireId(id: string | null | undefined): string {
-  if (!id) {
-    throw new Error("No signed-in user or organization to save the order for");
-  }
-  return id;
-}
-
-/** The user's saved CRM column order, or null when they have none. */
-async function fetchColumnOrder(
-  tenantId: string,
-  userId: string,
-): Promise<Array<string> | null> {
-  const { data, error } = await supabase
-    .from("lead_list_defaults")
-    .select("column_order")
-    .eq("tenant_id", tenantId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  return data?.column_order ?? null;
-}
-
-/**
- * Upserts the user's own row. Only column_order is sent, so a saved stage scope
- * stays as it was; RLS refuses any other user or tenant.
- */
-async function saveColumnOrder(
-  tenantId: string | null | undefined,
-  userId: string | undefined,
-  order: Array<string>,
-): Promise<void> {
-  const { error } = await supabase.from("lead_list_defaults").upsert(
-    {
-      tenant_id: requireId(tenantId),
-      user_id: requireId(userId),
-      column_order: order,
-    },
-    { onConflict: "tenant_id,user_id" },
-  );
-  if (error) {
-    throw error;
-  }
 }

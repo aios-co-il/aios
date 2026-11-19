@@ -99,6 +99,41 @@ BEGIN
     RAISE EXCEPTION 'A colleague''s save changed the user''s column order to %', v_order;
   END IF;
 
+  -- The browser-order move's conditional writes (insert-if-missing, then
+  -- update-where-empty) never overwrite an order already saved.
+  PERFORM pg_temp.qa_sign_in(v_user);
+  SET LOCAL ROLE authenticated;
+  INSERT INTO public.lead_list_defaults (tenant_id, user_id, column_order)
+  VALUES (v_tenant, v_user, ARRAY['legacy'])
+  ON CONFLICT (tenant_id, user_id) DO NOTHING;
+  UPDATE public.lead_list_defaults AS d SET column_order = ARRAY['legacy']
+  WHERE d.tenant_id = v_tenant AND d.user_id = v_user AND d.column_order IS NULL;
+  RESET ROLE;
+  SELECT d.column_order INTO v_order
+  FROM public.lead_list_defaults AS d
+  WHERE d.tenant_id = v_tenant AND d.user_id = v_user;
+  IF v_order IS DISTINCT FROM ARRAY['status', 'phone', 'name'] THEN
+    RAISE EXCEPTION 'The browser-order move overwrote a saved order with %', v_order;
+  END IF;
+
+  -- On a row with only a stage scope, the same writes fill the empty order.
+  UPDATE public.lead_list_defaults AS d SET column_order = NULL
+  WHERE d.tenant_id = v_tenant AND d.user_id = v_colleague;
+  PERFORM pg_temp.qa_sign_in(v_colleague);
+  SET LOCAL ROLE authenticated;
+  INSERT INTO public.lead_list_defaults (tenant_id, user_id, column_order)
+  VALUES (v_tenant, v_colleague, ARRAY['legacy'])
+  ON CONFLICT (tenant_id, user_id) DO NOTHING;
+  UPDATE public.lead_list_defaults AS d SET column_order = ARRAY['legacy']
+  WHERE d.tenant_id = v_tenant AND d.user_id = v_colleague AND d.column_order IS NULL;
+  RESET ROLE;
+  SELECT d.column_order INTO v_order
+  FROM public.lead_list_defaults AS d
+  WHERE d.tenant_id = v_tenant AND d.user_id = v_colleague;
+  IF v_order IS DISTINCT FROM ARRAY['legacy'] THEN
+    RAISE EXCEPTION 'The browser-order move did not fill an empty order (got %)', v_order;
+  END IF;
+
   -- The order is capped at 200 columns.
   BEGIN
     UPDATE public.lead_list_defaults AS d
@@ -111,5 +146,5 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '', true);
 END
 $test$;
-SELECT 'Lead list defaults column order: order without scope, scope and order kept apart, colleague isolation and size cap passed' AS result;
+SELECT 'Lead list defaults column order: order without scope, scope and order kept apart, colleague isolation, conditional browser-order move and size cap passed' AS result;
 ROLLBACK;

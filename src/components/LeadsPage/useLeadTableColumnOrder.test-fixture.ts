@@ -10,6 +10,7 @@ export const backend = {
   writeError: null as Failure,
   filters: [] as Array<[string, string]>,
   upsert: vi.fn(),
+  update: vi.fn(),
   // When set, each upsert waits on the next deferred result instead of resolving at once.
   deferred: null as Array<{
     resolve: (result: { error: Failure }) => void;
@@ -34,6 +35,24 @@ export const supabaseModule = {
         },
         maybeSingle: () =>
           Promise.resolve({ data: backend.row, error: backend.readError }),
+        update: (row: unknown) => {
+          const filters: Array<[string, unknown]> = [];
+          const write = {
+            eq: (column: string, value: unknown) => {
+              filters.push([column, value]);
+              return write;
+            },
+            is: (column: string, value: unknown) => {
+              filters.push([`${column} is`, value]);
+              return write;
+            },
+            then: (resolve: (result: { error: Failure }) => void) => {
+              backend.update(table, row, filters);
+              resolve({ error: backend.writeError });
+            },
+          };
+          return write;
+        },
         upsert: (row: unknown, options: unknown) => {
           backend.upsert(table, row, options);
           const deferred = backend.deferred;
