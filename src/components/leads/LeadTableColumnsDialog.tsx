@@ -132,7 +132,7 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
           <DialogDescription>
             ההגדרה היא ברמת הארגון. עמודות נוספות כבויות עד שמפעילים אותן, ושדות
             מותאמים אישית מוצגים כברירת מחדל. את הסדר משנים בגרירת כותרת העמודה
-            בטבלה.
+            בטבלה, והוא אישי לכל משתמש.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">

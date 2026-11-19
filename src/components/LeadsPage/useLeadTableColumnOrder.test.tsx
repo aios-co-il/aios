@@ -85,7 +85,8 @@ describe("useLeadTableColumnOrder", () => {
 
   it("saves a dragged order to the user's own row only", async () => {
     const { result } = await loadedHook();
-    act(() => result.current.setOrder(["phone", "name"]));
+    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    act(() => result.current.setOrder?.(["phone", "name"]));
     await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
     expect(backend.upsert).toHaveBeenCalledWith(
       "lead_list_defaults",
@@ -147,6 +148,18 @@ describe("useLeadTableColumnOrder", () => {
     ).not.toBeNull();
   });
 
+  it("reports a failed load and blocks reordering over the default order", async () => {
+    backend.readError = { message: "network down" };
+    const { result } = await loadedHook();
+    await waitFor(() =>
+      expect(backend.toastError).toHaveBeenCalledWith(
+        "לא ניתן לטעון את סדר העמודות השמור",
+      ),
+    );
+    expect(result.current.setOrder).toBeUndefined();
+    expect(backend.upsert).not.toHaveBeenCalled();
+  });
+
   it("rolls back and reports a save that fails", async () => {
     backend.row = { column_order: ["status", "name"] };
     backend.writeError = { message: "permission denied" };
@@ -154,7 +167,7 @@ describe("useLeadTableColumnOrder", () => {
     await waitFor(() =>
       expect(result.current.order).toEqual(["status", "name"]),
     );
-    act(() => result.current.setOrder(["name", "status"]));
+    act(() => result.current.setOrder?.(["name", "status"]));
     await waitFor(() =>
       expect(backend.toastError).toHaveBeenCalledWith(
         "לא ניתן לשמור את סדר העמודות",

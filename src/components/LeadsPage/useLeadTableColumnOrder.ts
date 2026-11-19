@@ -57,6 +57,7 @@ export function useLeadTableColumnOrder() {
   useEffect(() => {
     if (error) {
       console.error("Failed to load CRM column order", error);
+      toast.error("לא ניתן לטעון את סדר העמודות השמור");
     }
   }, [error]);
 
@@ -79,7 +80,11 @@ export function useLeadTableColumnOrder() {
 
   return {
     order: savedOrder ?? legacyOrder,
-    setOrder: (order: Array<string>) => saveOrder(order),
+    // Reordering waits for the saved order: a drag over the default order would
+    // otherwise overwrite the order this user saved on another device.
+    setOrder: isSuccess
+      ? (order: Array<string>) => saveOrder(order)
+      : undefined,
   };
 }
 
