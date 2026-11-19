@@ -21,6 +21,7 @@ import {
   LEAD_TABLE_TOGGLEABLE_COLUMNS,
   getLeadTableCustomColumns,
   isLeadTableColumnVisible,
+  isLeadTableCustomColumnVisible,
   leadTableColumnVisibilityKey,
 } from "@/lib/leadTableColumns";
 import { LEAD_SYSTEM_FIELD_KEYS } from "@/lib/leadCustomFields";
@@ -129,8 +130,9 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
         <DialogHeader>
           <DialogTitle>עמודות טבלת לידים</DialogTitle>
           <DialogDescription>
-            ההגדרה היא ברמת הארגון. העמודות הקיימות נשארות דלוקות, ועמודות חדשות
-            נשארות כבויות עד שמפעילים אותן.
+            ההגדרה היא ברמת הארגון. עמודות נוספות כבויות עד שמפעילים אותן, ושדות
+            מותאמים אישית מוצגים כברירת מחדל. את הסדר משנים בגרירת כותרת העמודה
+            בטבלה.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] space-y-3 overflow-y-auto py-2">
@@ -165,7 +167,10 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
             );
           })}
           {customColumns.map((field) => {
-            const visible = isFieldVisible(field.visibilityKey, false);
+            const visible = isLeadTableCustomColumnVisible(
+              field,
+              isFieldVisible,
+            );
             return (
               <div
                 key={field.field_key}

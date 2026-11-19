@@ -88,6 +88,7 @@ import {
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ResizableTable } from "@/components/ResizableTable";
+import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
 import { cn } from "@/lib/utils";
 import AddTaskForm from "@/components/forms/AddTaskForm";
 import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
@@ -179,8 +180,10 @@ import {
   getLeadTableCustomColumns,
   isLeadTableColumnVisible,
   LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY,
+  LEAD_TABLE_COLUMN_ORDER_STORAGE_KEY,
   LEAD_TABLE_OPTIONAL_COLUMNS,
   readLeadCustomColumnValue,
+  isLeadTableCustomColumnVisible,
 } from "@/lib/leadTableColumns";
 import {
   groupLeadRecordings,
@@ -380,12 +383,11 @@ function LeadCardContent({
         {lead.phone && (
           <div className="flex items-center gap-2 text-xs pb-3 border-b">
             <Phone className="h-3 w-3 text-primary shrink-0" />
-            <a
-              href={`tel:${lead.phone}`}
+            <LeadContactLink
+              kind="phone"
+              value={lead.phone}
               className="hover:underline font-medium text-primary"
-            >
-              {lead.phone}
-            </a>
+            />
           </div>
         )}
 
@@ -3927,7 +3929,7 @@ function TableWithStickyScroll({
   const customTableColumns = getLeadTableCustomColumns(
     fieldDefinitions,
     LEAD_SYSTEM_FIELD_KEYS,
-  ).filter((field) => isFieldVisible(field.visibilityKey, false));
+  ).filter((field) => isLeadTableCustomColumnVisible(field, isFieldVisible));
   const { data: leadRecordingRows } = useQuery({
     queryKey: ["lead-call-recordings", tenantId, visibleLeadIds],
     queryFn: async () => {
@@ -4435,6 +4437,7 @@ function TableWithStickyScroll({
       >
         <ResizableTable
           columnWidthStorageKey={LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY}
+          columnOrderStorageKey={LEAD_TABLE_COLUMN_ORDER_STORAGE_KEY}
           columns={[
             {
               id: "name",
@@ -4641,19 +4644,24 @@ function TableWithStickyScroll({
                   lead[field.key],
                   field.type,
                 );
+                if (field.key === "email" && text !== "—") {
+                  return (
+                    <LeadContactLink
+                      kind="email"
+                      value={text}
+                      className="block max-w-full truncate text-right hover:underline"
+                    />
+                  );
+                }
                 const link =
-                  field.key === "email" && text !== "—"
-                    ? `mailto:${text}`
-                    : field.key === "folder_link" && /^https?:\/\//i.test(text)
-                      ? text
-                      : null;
+                  field.key === "folder_link" && /^https?:\/\//i.test(text)
+                    ? text
+                    : null;
                 if (link) {
                   return (
                     <a
                       href={link}
-                      target={
-                        field.key === "folder_link" ? "_blank" : undefined
-                      }
+                      target="_blank"
                       rel="noreferrer"
                       className="block truncate hover:underline"
                       title={text}
