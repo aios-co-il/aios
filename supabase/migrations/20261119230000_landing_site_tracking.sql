@@ -4,12 +4,14 @@
 -- site's published pages in Production only. The formats match that app's schema
 -- (src/lib/site-meta.ts).
 
+-- "if not exists": this PR's preview database applied the migration once under an earlier version
+-- number, and the rerun under this one must not fail there. Staging and Production see it once.
 alter table public.landing_sites
-  add column gtm_id text
+  add column if not exists gtm_id text
     constraint landing_sites_gtm_id_format check (gtm_id ~ '^GTM-[A-Z0-9]{4,12}$'),
-  add column ga4_id text
+  add column if not exists ga4_id text
     constraint landing_sites_ga4_id_format check (ga4_id ~ '^G-[A-Z0-9]{6,14}$'),
-  add column meta_pixel_id text
+  add column if not exists meta_pixel_id text
     constraint landing_sites_meta_pixel_id_format check (meta_pixel_id ~ '^[0-9]{10,20}$');
 
 -- Saves the tracking ids of a landing project's site as a member of its org. The ids apply to
