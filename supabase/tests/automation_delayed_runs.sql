@@ -59,6 +59,16 @@ BEGIN
     RAISE EXCEPTION 'restart: exactly the lead''s open wait must be restarted, got %', v_rows;
   END IF;
 
+  -- A wait restarted after the worker listed it is no longer due: not claimed.
+  UPDATE public.automation_delayed_runs
+  SET status = 'resuming', claimed_at = now()
+  WHERE tenant_id = v_tenant AND entity_id = 'lead-2'
+    AND status = 'waiting' AND resume_at <= now();
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN
+    RAISE EXCEPTION 'claim: a wait that is not due yet must not be claimed, got %', v_rows;
+  END IF;
+
   -- Claim: due waits only, and only once -------------------------------------
   UPDATE public.automation_delayed_runs
   SET status = 'resuming', claimed_at = now()

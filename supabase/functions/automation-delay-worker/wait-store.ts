@@ -21,13 +21,16 @@ export function waitStore(supabase: DbClient): WaitStore {
       }
       return data.map((wait) => wait.id);
     },
-    // The update matches only a row still `waiting`, so one worker owns the claim.
+    // The update matches only a row still `waiting`, so one worker owns the
+    // claim, and still due: a wait restarted since it was listed stays waiting.
     async claim(id) {
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("automation_delayed_runs")
-        .update({ status: "resuming", claimed_at: new Date().toISOString() })
+        .update({ status: "resuming", claimed_at: now })
         .eq("id", id)
         .eq("status", "waiting")
+        .lte("resume_at", now)
         .select(
           "id, tenant_id, automation_id, delay_step_id, payload, status_guard",
         )
