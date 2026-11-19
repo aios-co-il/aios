@@ -7,7 +7,7 @@ import { seoTools } from "./tool-schemas/seo.ts";
 Deno.test(
   "catalog preserves every schema and its develop ordering",
   async () => {
-    assertEquals(ALL_TOOLS.length, 244);
+    assertEquals(ALL_TOOLS.length, 245);
     // Captured from the original develop catalog before extraction (2fe5ef954), then recaptured
     // when the landing page kind added its two tools and its kind to workshop_start_project
     // (AIO-607), and when the five read-only SEO tools joined before the workshop tail.
@@ -21,7 +21,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "bc4337a9c2e794c426e370b9dea29ee0b4d5e959f498277b7982e7eb5d6ae4f4",
+      "ac8defbade8b841b9c178616b66aadf931abee1fed7f75c7a29cb2b264f9d4a4",
     );
   },
 );

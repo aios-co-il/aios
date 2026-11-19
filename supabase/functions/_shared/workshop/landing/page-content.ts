@@ -15,7 +15,15 @@ export type LandingFormField = (typeof LANDING_FORM_FIELDS)[number];
 export interface LandingForm {
   buttonLabel: string;
   successMessage: string;
+  /** A line under the button, such as what the details are used for. */
+  privacyNote?: string;
   fields?: Array<LandingFormField>;
+}
+
+/** A vertical video and its poster, files already in the pages repository (site/ or assets/). */
+export interface LandingVideo {
+  src: string;
+  poster: string;
 }
 
 /** A card: a title, and a line that explains it to a reader who is not an expert. */
@@ -30,6 +38,8 @@ export type LandingBlock =
       heading: string;
       subheading?: string;
       bullets?: Array<string>;
+      imageUrl?: string;
+      video?: LandingVideo;
       form: LandingForm;
     }
   | {
@@ -38,6 +48,9 @@ export type LandingBlock =
       body: string;
       points?: Array<string>;
       closing?: string;
+      video?: LandingVideo;
+      /** A button under the text; like every call to action, it scrolls to the lead form. */
+      cta?: { label: string };
     }
   | {
       type: "steps";

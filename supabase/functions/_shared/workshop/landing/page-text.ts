@@ -19,6 +19,9 @@ function blockText(entry: LandingBlock): string {
       lines.push(entry.body);
       lines.push(...(entry.points ?? []).map((point) => `✕ ${point}`));
       push(lines, entry.closing);
+      if (entry.cta) {
+        lines.push(`[כפתור: ${entry.cta.label}]`);
+      }
       break;
     case "steps":
       entry.items.forEach((item, index) =>
@@ -96,5 +99,6 @@ function formText(form: LandingForm): string {
     "טלפון",
     ...(form.fields ?? []).map((field) => FIELD_NAMES[field]),
   ];
-  return `[טופס: ${fields.join(", ")} · ${form.buttonLabel}]\nאחרי שליחה: ${form.successMessage}`;
+  const note = form.privacyNote ? `\n${form.privacyNote}` : "";
+  return `[טופס: ${fields.join(", ")} · ${form.buttonLabel}]${note}\nאחרי שליחה: ${form.successMessage}`;
 }

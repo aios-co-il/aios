@@ -66,14 +66,31 @@ export function landingDb(
     const update = builder.update as (value: Loose) => typeof builder;
     builder.update = (value: Loose) => {
       if (table === "marketing_work_items" && value.payload) {
+        // Read back with its keys reordered, as jsonb does.
         (db.script["marketing_work_items:select"] as Loose).payload =
-          value.payload;
+          jsonbOrder(value.payload);
       }
       return update(value);
     };
     return builder;
   };
   return db;
+}
+
+/** A copy of a JSON value with object keys in jsonb's order: shorter keys first, then bytewise. */
+function jsonbOrder(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(jsonbOrder);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  const keys = Object.keys(value).sort((a, b) =>
+    a.length === b.length ? (a < b ? -1 : 1) : a.length - b.length,
+  );
+  return Object.fromEntries(
+    keys.map((key) => [key, jsonbOrder((value as Loose)[key])]),
+  );
 }
 
 /** A fake repository that records what Carmen pushes and opens. */
@@ -102,13 +119,14 @@ export async function run(
   name: string,
   repo?: LandingRepo,
   args: Record<string, unknown> = {},
+  access?: (clientId: string) => Promise<void>,
 ): Promise<Loose> {
   return (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     name,
     { item_id: "item-1", ...args },
-    undefined,
+    access,
     null,
     { landingRepo: repo, sleep: () => Promise.resolve() },
   )) as Loose;

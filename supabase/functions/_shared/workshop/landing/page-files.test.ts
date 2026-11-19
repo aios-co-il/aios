@@ -21,7 +21,7 @@ const input = {
   blocks,
   style,
   status: "draft" as const,
-  createdAt: "2026-11-01",
+  existingPage: null,
   today: "2026-11-19",
   newSite: false,
 };
@@ -50,6 +50,24 @@ Deno.test(
   },
 );
 
+Deno.test("a rebuilt page keeps its title, brief and description", () => {
+  const existingPage = {
+    title: "הכותרת שבאוויר",
+    status: "published",
+    brief: { source: "בריף" },
+    createdBy: "carmen",
+    createdAt: "2026-11-01",
+    updatedAt: "2026-11-02",
+    description: "תיאור לגוגל",
+  };
+  const files = landingPageFiles({ ...input, existingPage });
+  assertEquals(JSON.parse(files["landing-pages/acme/home/page.json"]), {
+    ...existingPage,
+    status: "draft",
+    updatedAt: "2026-11-19",
+  });
+});
+
 Deno.test("an existing site gets only the page's two files", () => {
   const files = landingPageFiles(input);
   assertEquals(Object.keys(files).sort(), [
@@ -61,7 +79,7 @@ Deno.test("an existing site gets only the page's two files", () => {
     status: "draft",
     brief: { source: "Carmen Workshop: פרויקט item-1" },
     createdBy: "carmen",
-    createdAt: "2026-11-01",
+    createdAt: "2026-11-19",
     updatedAt: "2026-11-19",
   });
 });
