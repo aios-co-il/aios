@@ -90,8 +90,11 @@ function lostBlocks(
   return lost;
 }
 
-/** JSON with every object's keys sorted, so equal content compares equal. */
-function canonical(value: unknown): string {
+/**
+ * JSON with every object's keys sorted, so equal content compares equal. The database keeps a
+ * jsonb object's keys in its own order, so a value read back never matches by plain stringify.
+ */
+export function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, inner) =>
     inner && typeof inner === "object" && !Array.isArray(inner)
       ? Object.fromEntries(

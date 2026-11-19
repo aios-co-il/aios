@@ -1,5 +1,6 @@
 /** Fixtures the landing build and publish tests share: an approved project, its settings, a fake repository. */
 import { buildDigest, contentJson } from "../landing/page-files.ts";
+import { canonical } from "../landing/page-import.ts";
 import type { LandingRepo } from "../landing/repo.ts";
 import { executeApprovedWorkshopTool, fakeDb } from "./test-fakes.ts";
 
@@ -66,8 +67,9 @@ export function landingDb(
     const update = builder.update as (value: Loose) => typeof builder;
     builder.update = (value: Loose) => {
       if (table === "marketing_work_items" && value.payload) {
+        // Read back with its keys reordered, as jsonb does.
         (db.script["marketing_work_items:select"] as Loose).payload =
-          value.payload;
+          JSON.parse(canonical(value.payload));
       }
       return update(value);
     };

@@ -1,6 +1,6 @@
 import { pageFolder } from "../landing/page-files.ts";
 import type { LandingBlock } from "../landing/page-content.ts";
-import { importLandingPage } from "../landing/page-import.ts";
+import { canonical, importLandingPage } from "../landing/page-import.ts";
 import { loadLandingTarget } from "../landing/page-target.ts";
 import { type LandingStyle, landingStyleText } from "../landing/page-style.ts";
 import { landingCopyText } from "../landing/page-text.ts";
@@ -77,8 +77,8 @@ export async function workshopImportLandingPage(ctx: ToolContext) {
       // The board would not show the import: empty the project again, so a retry can import it.
       // Only while the project still holds this import: a copy saved since then stays.
       await updateLanding(supabase, tenantId, project.id, (current) =>
-        JSON.stringify([current.blocks, current.style]) ===
-        JSON.stringify([blocks, style])
+        canonical([current.blocks, current.style]) ===
+        canonical([blocks, style])
           ? {
               blocks: saved.before.blocks,
               copy_approved: saved.before.copy_approved,
