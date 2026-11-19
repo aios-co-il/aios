@@ -1,44 +1,7 @@
 import { assertEquals, assertMatch } from "jsr:@std/assert@1";
 import { executeWorkshopTool } from "../../workshop-tools.ts";
-import { fakeDb, project, videoProject } from "./test-fakes.ts";
-
-const SOURCE =
-  "agent-replies/tenant-1/conv-1/0b6f4a10-7a35-4c1e-9d3c-5f1d2c8b9e01-poster.png";
-
-/** Storage that holds one file in the source bucket and records every upload. */
-function fakeStorage(file: Blob | null) {
-  const uploads: Array<{ bucket: string; path: string; type: string }> = [];
-  return {
-    uploads,
-    from(bucket: string) {
-      return {
-        download: (path: string) =>
-          Promise.resolve(
-            bucket === "command-center-files" && path === SOURCE && file
-              ? { data: file, error: null }
-              : { data: null, error: { message: "Object not found" } },
-          ),
-        upload: (
-          path: string,
-          _body: Blob,
-          options: { contentType: string },
-        ) => {
-          uploads.push({ bucket, path, type: options.contentType });
-          return Promise.resolve({ data: { path }, error: null });
-        },
-      };
-    },
-  };
-}
-
-/** A workshop db with storage, answering reads from `script`. */
-function dbWith(script: Record<string, unknown>, file: Blob | null) {
-  const storage = fakeStorage(file);
-  return { db: Object.assign(fakeDb(script), { storage }), storage };
-}
-
-const png = new Blob(["png"], { type: "image/png" });
-const mp4 = new Blob(["mp4"], { type: "video/mp4" });
+import { project, videoProject } from "./test-fakes.ts";
+import { dbWith, mp4, png, SOURCE } from "./import-file.test-fixture.ts";
 
 Deno.test("workshop_import_file", async (t) => {
   await t.step(
@@ -122,6 +85,7 @@ Deno.test("workshop_import_file", async (t) => {
         },
       )) as Record<string, unknown>;
       assertMatch(String(result.error), /אינו קובץ שהועלה/);
+      assertEquals(storage.downloads, []);
       assertEquals(storage.uploads, []);
     },
   );
@@ -232,4 +196,42 @@ Deno.test("workshop_import_file", async (t) => {
       assertEquals(storage.uploads[0].type, "image/png");
     },
   );
+  await t.step("refuses an import on a landing page project", async () => {
+    const landing = {
+      "marketing_work_items:select": {
+        id: "item-1",
+        title: "דף נחיתה",
+        client_id: null,
+        payload: { project_type: "landing", workshop: {} },
+      },
+    };
+    const { db, storage } = dbWith(landing, png);
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_import_file",
+      { item_id: "item-1", kind: "image", path: SOURCE },
+    )) as Record<string, unknown>;
+    assertEquals(typeof result.error, "string");
+    assertEquals(storage.downloads, []);
+  });
+
+  await t.step("a failed placement removes the copy", async () => {
+    const { db, storage } = dbWith(
+      {
+        ...videoProject(),
+        "marketing_video_scenes:select": { id: "scene-2", title: "פתיחה" },
+        "rpc:attach_video_scene_asset:error": "scene locked",
+      },
+      mp4,
+    );
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_import_file",
+      { item_id: "item-1", kind: "clip", scene_id: "scene-2", path: SOURCE },
+    )) as Record<string, unknown>;
+    assertMatch(String(result.error), /scene locked/);
+    assertEquals(storage.removed, [storage.uploads[0].path]);
+  });
 });

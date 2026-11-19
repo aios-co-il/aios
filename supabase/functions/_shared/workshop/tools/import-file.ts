@@ -3,7 +3,7 @@ import { loadProject } from "../project-io.ts";
 import { PRODUCTION_LOCKED, productionRunning } from "../production.ts";
 import { asRecord, recordArtifact } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
-import { copyIntoWorkshop } from "./import-file-copy.ts";
+import { copyIntoWorkshop, removeCopy } from "./import-file-copy.ts";
 import {
   fileNameOf,
   type ImportKind,
@@ -56,6 +56,7 @@ export async function workshopImportFile(ctx: ToolContext) {
     sceneTitle: scene?.title,
   });
   if ("error" in placed) {
+    await removeCopy(supabase, copied.path);
     return placed;
   }
   return {

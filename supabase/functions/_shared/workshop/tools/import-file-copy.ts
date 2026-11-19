@@ -59,3 +59,17 @@ export async function copyIntoWorkshop(
   }
   return { path };
 }
+
+/**
+ * Deletes a copy no board page or scene points at, after its placement failed: a retry copies
+ * again under a new name, so each failure would leave up to 200MB behind. A failed delete is
+ * logged with the path, so the orphan can be found.
+ */
+export async function removeCopy(supabase: Db, path: string): Promise<void> {
+  const { error } = await supabase.storage.from(TARGET_BUCKET).remove([path]);
+  if (error) {
+    console.error(
+      `[workshop_import_file] orphan copy not removed: ${path}: ${error.message}`,
+    );
+  }
+}
