@@ -152,7 +152,9 @@ export function LandingSettingsPanel({
           saved={saved.tracking}
           saves={trackingSaves}
           // Locked until the panel holds the site's current ids, so an older copy is never saved.
-          pending={saveTracking.isPending || settings.isFetching}
+          pending={
+            saveTracking.isPending || settings.isFetching || settings.isPaused
+          }
           onSave={submitTracking}
         />
       ) : (

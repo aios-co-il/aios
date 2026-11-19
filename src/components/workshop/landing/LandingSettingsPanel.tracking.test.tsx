@@ -4,10 +4,26 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
 import { LandingSettingsPanel } from "./LandingSettingsPanel";
 
+/** The client's site as the settings read selects it. */
+interface SiteRow {
+  subdomain: string;
+  gtm_id: string | null;
+  ga4_id: string | null;
+  meta_pixel_id: string | null;
+}
+
+/** The project's page with its site, as the settings read selects it. */
+interface PageRow {
+  slug: string;
+  lead_to_crm: boolean;
+  lead_to_webhook: boolean;
+  landing_sites: SiteRow;
+}
+
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
-  page: null as Record<string, unknown> | null,
-  site: null as Record<string, unknown> | null,
+  page: null as PageRow | null,
+  site: null as SiteRow | null,
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -129,13 +145,12 @@ describe("LandingSettingsPanel tracking", () => {
     rerender(open("p2"));
     await screen.findByLabelText("Google Tag Manager");
     // Project p2 saved a new id for the shared site.
-    mocks.page = {
-      ...mocks.page,
-      landing_sites: {
-        ...(mocks.page?.landing_sites as Record<string, unknown>),
-        gtm_id: "GTM-NEW1234",
-      },
-    };
+    if (mocks.page) {
+      mocks.page = {
+        ...mocks.page,
+        landing_sites: { ...mocks.page.landing_sites, gtm_id: "GTM-NEW1234" },
+      };
+    }
     rerender(open("p1"));
     await waitFor(() =>
       expect(screen.getByLabelText("Google Tag Manager")).toHaveValue(
@@ -148,7 +163,9 @@ describe("LandingSettingsPanel tracking", () => {
     // The save stores the new id, so the settings read after it differ.
     mocks.rpc.mockImplementation(async () => {
       mocks.page = {
-        ...mocks.page,
+        slug: "home",
+        lead_to_crm: true,
+        lead_to_webhook: false,
         landing_sites: {
           subdomain: "acme",
           gtm_id: "GTM-NVKZTXH3",
