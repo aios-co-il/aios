@@ -1,6 +1,5 @@
 /** Fixtures the landing build and publish tests share: an approved project, its settings, a fake repository. */
 import { buildDigest, contentJson } from "../landing/page-files.ts";
-import { canonical } from "../landing/page-import.ts";
 import type { LandingRepo } from "../landing/repo.ts";
 import { executeApprovedWorkshopTool, fakeDb } from "./test-fakes.ts";
 
@@ -69,13 +68,29 @@ export function landingDb(
       if (table === "marketing_work_items" && value.payload) {
         // Read back with its keys reordered, as jsonb does.
         (db.script["marketing_work_items:select"] as Loose).payload =
-          JSON.parse(canonical(value.payload));
+          jsonbOrder(value.payload);
       }
       return update(value);
     };
     return builder;
   };
   return db;
+}
+
+/** A copy of a JSON value with object keys in jsonb's order: shorter keys first, then bytewise. */
+function jsonbOrder(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(jsonbOrder);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  const keys = Object.keys(value).sort((a, b) =>
+    a.length === b.length ? (a < b ? -1 : 1) : a.length - b.length,
+  );
+  return Object.fromEntries(
+    keys.map((key) => [key, jsonbOrder((value as Loose)[key])]),
+  );
 }
 
 /** A fake repository that records what Carmen pushes and opens. */
