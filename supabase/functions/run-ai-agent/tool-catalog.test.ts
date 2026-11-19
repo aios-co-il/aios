@@ -2,14 +2,16 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { ALL_TOOLS } from "./tool-catalog.ts";
 import { WORKSHOP_TOOLS } from "../_shared/workshop-tools.ts";
 import { leadCreationTools, leadMutationTools } from "./lead-tool-schemas.ts";
+import { seoTools } from "./tool-schemas/seo.ts";
 
 Deno.test(
   "catalog preserves every schema and its develop ordering",
   async () => {
-    assertEquals(ALL_TOOLS.length, 239);
+    assertEquals(ALL_TOOLS.length, 244);
     // Captured from the original develop catalog before extraction (2fe5ef954), then recaptured
     // when the landing page kind added its two tools and its kind to workshop_start_project
-    // (AIO-607). Includes descriptions, parameters, required fields, and object-key ordering.
+    // (AIO-607), and when the five read-only SEO tools joined before the workshop tail.
+    // Includes descriptions, parameters, required fields, and object-key ordering.
     const digest = await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode(JSON.stringify(ALL_TOOLS)),
@@ -19,7 +21,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "4dd4464f257c0c67713ded914b6dcf24e72d04a671672ff80854f8f1c28156c6",
+      "bc4337a9c2e794c426e370b9dea29ee0b4d5e959f498277b7982e7eb5d6ae4f4",
     );
   },
 );
@@ -31,4 +33,6 @@ Deno.test("catalog retains lead slots and the workshop tail", () => {
   assertEquals(ALL_TOOLS.slice(leadIndex, leadIndex + 2), leadMutationTools);
   assertEquals(ALL_TOOLS[leadIndex + 2].name, "update_task");
   assertEquals(ALL_TOOLS.slice(-WORKSHOP_TOOLS.length), WORKSHOP_TOOLS);
+  const seoEnd = ALL_TOOLS.length - WORKSHOP_TOOLS.length;
+  assertEquals(ALL_TOOLS.slice(seoEnd - seoTools.length, seoEnd), seoTools);
 });

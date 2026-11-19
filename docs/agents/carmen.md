@@ -208,6 +208,11 @@ Carmen must support voice on **both** her surfaces — keep this true going forw
 
 - AIOS runs agencies with many clients: `leads` holds the agency's own leads, and a client's leads and results come from its reports (`get_latest_campaign_pulse`, `get_facebook_campaign_data`). `run-ai-agent/agency-data/rules-block.ts` appends that block to every Carmen prompt after the pulse rules; bump `AGENCY_DATA_RULES_VERSION` on any change. The `[Carmen]` log line names the version a run got.
 
+## SEO / GEO read tools
+
+- `get_seo_overview`, `get_search_console_performance`, `get_ahrefs_snapshot`, `get_seo_program` and `get_ai_visibility` (`run-ai-agent/seo-read/`, names in `_shared/carmen/seo-read-tools.ts`) read stored data only: synced `gsc_keyword_snapshots`, saved `ahrefs_reports`, `seo_geo_*` and `seo_monthly_updates`, and `ai_detection_*` scans. They make no paid call, run no scan and write nothing.
+- Each reads the client in the caller's accessible tenants, then applies `assertCallerCanAccessClient`; a source without data answers with a `status` (`not_connected`, `no_site_mapped`, `no_data`, `domain_mismatch`) and a Hebrew reason. An Ahrefs report for another domain is never quoted as the client's.
+
 ## Pulse refresh (AIO-237)
 
 - **Rules:** Carmen's pulse rules live in `run-ai-agent/pulse-refresh/rules-block.ts`. `run-ai-agent` appends them after the V1/V2 prompt and every skin, so they win over a tenant `pulse_check` or `ecommerce_pulse` row by placement; `pin_skills_only` sessions get no block. Bump `CARMEN_PULSE_RULES_VERSION` on any change to the rules or their placement; the `pulse_rules=` log line names the version a run got.
