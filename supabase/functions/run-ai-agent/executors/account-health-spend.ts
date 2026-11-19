@@ -1,7 +1,10 @@
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { MetaAdSettings } from "../tool-storage-contracts.ts";
 import { readMetaAdSettings } from "../tool-storage-contracts.ts";
-import { fetchCampaignLevelRecords } from "../../_shared/ads-sync/campaign-records.ts";
+import {
+  fetchCampaignLevelRecords,
+  type RecordsClient,
+} from "../../_shared/ads-sync/campaign-records.ts";
 
 /** Loads and counts the same campaign-level records after Meta status lookup. */
 export async function loadAccountHealthSpend(
@@ -37,7 +40,7 @@ export async function loadAccountHealthSpend(
   if (tableIds.length > 0) {
     // Campaign-level rows of the last 7 days, paged: one unfiltered request
     // stopped at 1000 rows of any level/date and missed real spend.
-    const recs = await fetchCampaignLevelRecords(supabase, {
+    const recs = await fetchCampaignLevelRecords(supabase as RecordsClient, {
       tableIds,
       sinceYmd: d7Str,
       tenantIds: accessibleTenantIds,

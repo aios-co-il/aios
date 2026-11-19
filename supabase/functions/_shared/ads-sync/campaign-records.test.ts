@@ -10,9 +10,8 @@ import {
   fetchCampaignLevelRecords,
   fetchTableRecords,
 } from "./campaign-records.ts";
-import { recordsClient } from "./campaign-records.test-fixture.ts";
 import { isRecord } from "./is-record.ts";
-import { createFakeDb, type Row } from "./tests/fake-postgrest.ts";
+import { createFakeDb, fakeClient, type Row } from "./tests/fake-postgrest.ts";
 
 Deno.test(
   "more than 1000 campaign-level rows are read completely, page by page",
@@ -27,14 +26,12 @@ Deno.test(
     }).length;
     assert(expected > 1000, `fixture has ${expected} matching rows`);
 
-    const rows = await fetchCampaignLevelRecords(recordsClient(db), {
+    const rows = await fetchCampaignLevelRecords(fakeClient(db), {
       tableIds: ["t1", "t2"],
       sinceYmd: "2026-09-21",
     });
-
     assertStrictEquals(rows.length, expected);
     assertStrictEquals(new Set(rows.map((row) => row.id)).size, expected);
-
     const reads = db.calls.filter((call) => call.op === "select");
     const pages = Math.floor(expected / 1000) + 1;
     assertEquals(
@@ -54,7 +51,7 @@ Deno.test(
       "canceling statement due to statement timeout";
     await assertRejects(
       () =>
-        fetchCampaignLevelRecords(recordsClient(db), {
+        fetchCampaignLevelRecords(fakeClient(db), {
           tableIds: ["t1"],
           sinceYmd: "2026-09-21",
         }),
@@ -62,7 +59,7 @@ Deno.test(
       "statement timeout",
     );
     assertEquals(
-      await fetchCampaignLevelRecords(recordsClient(db), {
+      await fetchCampaignLevelRecords(fakeClient(db), {
         tableIds: [],
         sinceYmd: "2026-09-21",
       }),
@@ -80,8 +77,7 @@ Deno.test(
     ).length;
     assert(expected > 1000, `fixture has ${expected} rows in t1`);
 
-    const rows = await fetchTableRecords(recordsClient(db), "t1");
-
+    const rows = await fetchTableRecords(fakeClient(db), "t1");
     assertStrictEquals(rows.length, expected);
     assertStrictEquals(new Set(rows.map((row) => row.id)).size, expected);
     assertEquals(
@@ -107,8 +103,7 @@ Deno.test(
       ],
     });
 
-    const rows = await fetchTableRecords(recordsClient(db), "t1");
-
+    const rows = await fetchTableRecords(fakeClient(db), "t1");
     assertEquals(rows, [
       { id: "r1", table_id: "t1", data: { date: "2026-10-20", spend: 3 } },
       { id: "r2", table_id: "t1", data: null },
@@ -124,7 +119,7 @@ Deno.test("a row without id or table_id throws", async () => {
   });
 
   await assertRejects(
-    () => fetchTableRecords(recordsClient(db), "t1"),
+    () => fetchTableRecords(fakeClient(db), "t1"),
     Error,
     "unexpected row shape",
   );

@@ -1,10 +1,12 @@
-import type { DbClient } from "../_shared/supabase-clients.ts";
 /**
  * The pulse's report tables per client, split by `crm_tables.campaign_active`
  * (AIO-501): active tables feed the campaign numbers and alerts; switched-off
  * tables are read only for their recent spend (report_off_spending).
  */
-import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+import {
+  fetchCampaignLevelRecords,
+  type RecordsClient,
+} from "../_shared/ads-sync/campaign-records.ts";
 import { isRecord } from "../_shared/ads-sync/is-record.ts";
 import { getSpendFromData } from "../_shared/campaign-goal/ads-metrics.ts";
 import { reportCampaignKey } from "../_shared/campaign-goal/campaign-goals.ts";
@@ -61,7 +63,7 @@ export function splitReportTables<T extends PulseReportTable>(
  * spend.
  */
 export async function loadOffReportSpend(
-  client: DbClient,
+  client: RecordsClient,
   offTables: Array<PulseReportTable>,
   window: { start: string; end: string },
   activeRecords: Array<{ data?: unknown }>,
