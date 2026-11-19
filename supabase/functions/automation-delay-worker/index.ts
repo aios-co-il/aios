@@ -1,22 +1,19 @@
 // automation-delay-worker: resumes flow runs a delay step paused (AIO-611).
-// pg_cron calls it every minute while a wait is due. Each call claims the due
-// waits, drops the ones that should no longer run (automation off, delay step
-// removed, lead left the guarded status) and asks trigger-automation to run the
-// steps after the delay. A wait resumes at most once: a failed resume is
+// pg_cron calls it every minute while a wait is due. Each call takes the due
+// waits one at a time, claiming each just before its resume, drops the ones
+// that should no longer run (automation off, delay step removed, lead left the
+// guarded status) and asks trigger-automation to run the steps after the delay. A wait resumes at most once: a failed resume is
 // recorded as failed and never retried, so a lead is never mailed twice.
 import { bearerToken } from "../_shared/automation-run-auth.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
+import { resumeDueRuns } from "./drain.ts";
 import { resumeDeps } from "./resume-deps.ts";
-import {
-  type PausedRun,
-  type ResumeResult,
-  resumePausedRun,
-} from "./resume-run.ts";
+import { waitStore } from "./wait-store.ts";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
-/** Stop starting resumes after this long; the rest go back to waiting. */
+/** Stop starting resumes after this long; the rest stay waiting for the next call. */
 const MAX_RUN_MS = 90_000;
 
 /** A claim older than this belongs to a worker that died mid-resume. */
@@ -37,39 +34,12 @@ Deno.serve(async (req) => {
     const supabase = serviceClient();
     const startedAt = Date.now();
     await failStaleClaims(supabase);
-    const runs = await claimDueRuns(supabase);
-    const deps = resumeDeps(supabase);
-
-    const counts: Record<ResumeResult["status"], number> = {
-      resumed: 0,
-      cancelled: 0,
-      failed: 0,
-    };
-    // Claims no resume was attempted for go back to waiting, whatever happens
-    // to the others; an attempted one is never released, so it cannot run twice.
-    const unstarted = new Set(runs.map((run) => run.id));
-    try {
-      for (const run of runs) {
-        if (Date.now() - startedAt > MAX_RUN_MS) {
-          break;
-        }
-        unstarted.delete(run.id);
-        const result = await resumePausedRun(run, deps);
-        counts[result.status]++;
-        await recordResult(supabase, run, result);
-      }
-    } finally {
-      await releaseClaims(supabase, [...unstarted]);
-    }
-
-    return new Response(
-      JSON.stringify({
-        claimed: runs.length,
-        released: unstarted.size,
-        ...counts,
-      }),
-      { headers: JSON_HEADERS },
+    const counts = await resumeDueRuns(
+      waitStore(supabase),
+      resumeDeps(supabase),
+      () => Date.now() - startedAt > MAX_RUN_MS,
     );
+    return new Response(JSON.stringify(counts), { headers: JSON_HEADERS });
   } catch (error) {
     console.error("[automation-delay-worker] run failed:", error);
     return new Response(JSON.stringify({ error: "worker_failed" }), {
@@ -98,76 +68,6 @@ async function failStaleClaims(supabase: DbClient): Promise<void> {
     console.error(
       "[automation-delay-worker] resumes timed out:",
       data.map((row) => row.id),
-    );
-  }
-}
-
-/**
- * Claims every due wait in one statement. A second worker's update re-checks
- * `status = 'waiting'` after the first commits, so each wait has one owner.
- * Waits of every org are claimed here; each is then handled under its own tenant_id.
- */
-async function claimDueRuns(supabase: DbClient): Promise<Array<PausedRun>> {
-  const now = new Date().toISOString();
-  const { data, error } = await supabase
-    .from("automation_delayed_runs")
-    .update({ status: "resuming", claimed_at: now })
-    .eq("status", "waiting")
-    .lte("resume_at", now)
-    .select(
-      "id, tenant_id, automation_id, delay_step_id, payload, status_guard",
-    );
-  if (error) {
-    throw error;
-  }
-  return data;
-}
-
-/** Puts claimed waits this call had no time for back in the queue. */
-async function releaseClaims(
-  supabase: DbClient,
-  ids: Array<string>,
-): Promise<void> {
-  if (ids.length === 0) {
-    return;
-  }
-  const { error } = await supabase
-    .from("automation_delayed_runs")
-    .update({ status: "waiting", claimed_at: null })
-    .in("id", ids)
-    .eq("status", "resuming");
-  if (error) {
-    throw error;
-  }
-}
-
-/** Writes how a claimed wait ended; a failed write is logged. */
-async function recordResult(
-  supabase: DbClient,
-  run: PausedRun,
-  result: ResumeResult,
-): Promise<void> {
-  if (result.status === "failed") {
-    console.error(
-      `[automation-delay-worker] resume ${run.id} failed:`,
-      result.outcome,
-    );
-  }
-  const { error } = await supabase
-    .from("automation_delayed_runs")
-    .update({
-      status: result.status,
-      outcome: result.outcome,
-      finished_at: new Date().toISOString(),
-    })
-    .eq("id", run.id)
-    .eq("tenant_id", run.tenant_id);
-  // Not thrown: the other claimed waits still get their turn. The row stays
-  // `resuming` and the stale sweep marks it failed, so it is never re-sent.
-  if (error) {
-    console.error(
-      `[automation-delay-worker] result of ${run.id} (${result.status}) not recorded:`,
-      error,
     );
   }
 }
