@@ -55,6 +55,8 @@ import {
   sanitizeCarmenInstructions,
 } from "../_shared/carmen-connection-role.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { withGoogleToken } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { resolveModelId } from "../_shared/models.ts";
 import { defaultGatewayLine, integrationTypesFor } from "./whatsapp-lines.ts";
 import {
@@ -7007,14 +7009,15 @@ async function executeTool(
 
     // ============ GOOGLE ADS — READ TOOLS ============
     case "list_google_ad_accounts": {
-      const { data: gadsInteg } = await supabase
+      const { data: storedGadsInteg } = await supabase
         .from("tenant_integrations")
-        .select("settings")
+        .select("id, settings")
         .in("tenant_id", accessibleTenantIds)
         .eq("integration_type", "google_ads")
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
+      const gadsInteg = await withGoogleToken(serviceClient(), storedGadsInteg);
 
       if (!gadsInteg?.settings?.refresh_token) {
         return {
@@ -7159,14 +7162,15 @@ async function executeTool(
       }
       if (!customerId) return { error: "customer_id או client_id נדרש" };
 
-      const { data: gadsInteg } = await supabase
+      const { data: storedGadsInteg } = await supabase
         .from("tenant_integrations")
-        .select("settings, additional_config, api_key")
+        .select("id, settings, additional_config, api_key")
         .in("tenant_id", accessibleTenantIds)
         .eq("integration_type", "google_ads")
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
+      const gadsInteg = await withGoogleToken(serviceClient(), storedGadsInteg);
       const cfg = {
         ...(gadsInteg?.additional_config || {}),
         ...(gadsInteg?.settings || {}),
