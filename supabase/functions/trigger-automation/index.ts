@@ -77,10 +77,10 @@ import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
 import {
   delayMs,
   MAX_INLINE_DELAY_MS,
-  pauseRunAtDelay,
   resumeDelayStepId,
   stepsAfter,
 } from "./delay-step.ts";
+import { pauseRunAtDelay } from "./pause-run.ts";
 import { prepareAgentRun } from "./agent-run.ts";
 import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 

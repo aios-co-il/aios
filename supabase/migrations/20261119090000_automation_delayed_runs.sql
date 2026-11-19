@@ -7,7 +7,7 @@
 -- 1. automation_delayed_runs: one row per paused run. Only service_role reads
 --    or writes it: the payload is the lead data the run started with.
 -- 2. Cron `automation-delay-worker-every-min` calls the worker only when a wait
---    is due, with the URL and key read from Vault (as broadcast-dispatch does).
+--    is due or a claim went stale, with the URL and key read from Vault (as broadcast-dispatch does).
 -- 3. Cron `cleanup-automation-delayed-runs` deletes finished rows after 30 days.
 --    Waiting rows stay until they resume, however long the delay.
 --
@@ -100,7 +100,9 @@ begin
       )
       where exists (
         select 1 from public.automation_delayed_runs
-        where status = 'waiting' and resume_at <= now()
+        where (status = 'waiting' and resume_at <= now())
+           -- A claim a dead worker left: the worker marks it failed (STALE_CLAIM_MS).
+           or (status = 'resuming' and claimed_at < now() - interval '15 minutes')
       );
     $cron$
   );

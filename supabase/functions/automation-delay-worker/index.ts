@@ -45,22 +45,27 @@ Deno.serve(async (req) => {
       cancelled: 0,
       failed: 0,
     };
-    const unstarted: Array<string> = [];
-    for (const run of runs) {
-      if (Date.now() - startedAt > MAX_RUN_MS) {
-        unstarted.push(run.id);
-        continue;
+    // Claims no resume was attempted for go back to waiting, whatever happens
+    // to the others; an attempted one is never released, so it cannot run twice.
+    const unstarted = new Set(runs.map((run) => run.id));
+    try {
+      for (const run of runs) {
+        if (Date.now() - startedAt > MAX_RUN_MS) {
+          break;
+        }
+        unstarted.delete(run.id);
+        const result = await resumePausedRun(run, deps);
+        counts[result.status]++;
+        await recordResult(supabase, run, result);
       }
-      const result = await resumePausedRun(run, deps);
-      await recordResult(supabase, run, result);
-      counts[result.status]++;
+    } finally {
+      await releaseClaims(supabase, [...unstarted]);
     }
-    await releaseClaims(supabase, unstarted);
 
     return new Response(
       JSON.stringify({
         claimed: runs.length,
-        released: unstarted.length,
+        released: unstarted.size,
         ...counts,
       }),
       { headers: JSON_HEADERS },
@@ -136,7 +141,7 @@ async function releaseClaims(
   }
 }
 
-/** Writes how a claimed wait ended. */
+/** Writes how a claimed wait ended; a failed write is logged. */
 async function recordResult(
   supabase: DbClient,
   run: PausedRun,
@@ -157,7 +162,12 @@ async function recordResult(
     })
     .eq("id", run.id)
     .eq("tenant_id", run.tenant_id);
+  // Not thrown: the other claimed waits still get their turn. The row stays
+  // `resuming` and the stale sweep marks it failed, so it is never re-sent.
   if (error) {
-    throw error;
+    console.error(
+      `[automation-delay-worker] result of ${run.id} (${result.status}) not recorded:`,
+      error,
+    );
   }
 }

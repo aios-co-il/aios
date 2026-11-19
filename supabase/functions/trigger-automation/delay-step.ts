@@ -6,8 +6,6 @@ import {
   type LeadStatusGuard,
   leadStatusGuard,
 } from "../_shared/automation-delay/status-guard.ts";
-import type { DbClient } from "../_shared/supabase-clients.ts";
-import type { Json } from "../_shared/database.types.ts";
 
 /** The longest delay a run waits out itself; longer delays pause the run. */
 export const MAX_INLINE_DELAY_MS = 30_000;
@@ -77,18 +75,6 @@ export function resumeDelayStepId(
   return typeof stepId === "string" && stepId ? stepId : null;
 }
 
-/** What a paused run needs stored to resume later. */
-export type DelayedRun = {
-  tenantId: string;
-  automationId: string;
-  delayStepId: string;
-  entityId: string | null;
-  triggerType: string | null;
-  payload: Record<string, unknown>;
-  config: DelayStepConfig;
-  resumeAt: Date;
-};
-
 /** The status guard a delay step asks for, or null when it resumes unconditionally. */
 export function delayStatusGuard(
   config: DelayStepConfig,
@@ -97,58 +83,4 @@ export function delayStatusGuard(
   return config.delay_require_same_status === true
     ? leadStatusGuard(payload)
     : null;
-}
-
-/**
- * Stores a paused run and returns its id. An earlier open wait for the same
- * automation, step and entity is cancelled first, so the timer restarts.
- */
-export async function pauseRunAtDelay(
-  supabase: DbClient,
-  run: DelayedRun,
-): Promise<string> {
-  if (run.entityId) {
-    const replaced = await supabase
-      .from("automation_delayed_runs")
-      .update({
-        status: "cancelled",
-        outcome: "replaced_by_newer_wait",
-        finished_at: new Date().toISOString(),
-      })
-      .eq("tenant_id", run.tenantId)
-      .eq("automation_id", run.automationId)
-      .eq("delay_step_id", run.delayStepId)
-      .eq("entity_id", run.entityId)
-      .eq("status", "waiting");
-    if (replaced.error) {
-      throw replaced.error;
-    }
-  }
-
-  // Not an upsert: the one-open-wait key is a partial unique index, which
-  // PostgREST cannot target. A racing second wait fails loudly on that index.
-  const inserted = await supabase
-    .from("automation_delayed_runs")
-    .insert({
-      tenant_id: run.tenantId,
-      automation_id: run.automationId,
-      delay_step_id: run.delayStepId,
-      entity_id: run.entityId,
-      trigger_type: run.triggerType,
-      payload: storedPayload(run.payload),
-      status_guard: delayStatusGuard(run.config, run.payload),
-      resume_at: run.resumeAt.toISOString(),
-    })
-    .select("id")
-    .single();
-  if (inserted.error) {
-    throw inserted.error;
-  }
-  return inserted.data.id;
-}
-
-/** The payload without run-scoped `_` keys (Carmen session state, node outputs). */
-function storedPayload(payload: Record<string, unknown>): Json {
-  const kept = Object.entries(payload).filter(([key]) => !key.startsWith("_"));
-  return JSON.parse(JSON.stringify(Object.fromEntries(kept)));
 }
