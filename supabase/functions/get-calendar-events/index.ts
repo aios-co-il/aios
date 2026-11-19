@@ -115,10 +115,13 @@ serve(async (req) => {
               .includes("invalid"))
         ) {
           try {
-            await supabaseClient
-              .from("calendar_tokens")
-              .delete()
-              .eq("user_id", user.id);
+            // Only the owner's own request clears their dead connection; a viewer never disconnects someone else.
+            if (calendarOwnerId === user.id) {
+              await serviceClient
+                .from("calendar_tokens")
+                .delete()
+                .eq("user_id", user.id);
+            }
           } catch (cleanupError) {
             console.error(
               "Failed to cleanup invalid calendar tokens",

@@ -14,6 +14,7 @@ import {
   UserFacingError,
   userFacingMessage,
 } from "../_shared/google-oauth/user-facing-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { storeCalendarConnection } from "./store-connection.ts";
 
@@ -87,15 +88,12 @@ Deno.serve(async (req) => {
       throw new Error("Unauthorized - user not authenticated");
     }
 
+    // calendar_tokens is server-only; every query below filters by this user.
+    const tokensClient = serviceClient();
+
     // Handle disconnect (DELETE method or action: 'disconnect')
     if (req.method === "DELETE") {
-      // Use service role key to delete (bypasses RLS)
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -109,9 +107,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // For non-DELETE requests, use anon client
-    const supabaseClient = anonClient;
 
     const requestBody = await req.json();
     const action = requestBody.action;
@@ -134,12 +129,7 @@ Deno.serve(async (req) => {
 
     // Handle disconnect via action (for POST requests from supabase.functions.invoke)
     if (action === "disconnect") {
-      const serviceClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const { error: deleteError } = await serviceClient
+      const { error: deleteError } = await tokensClient
         .from("calendar_tokens")
         .delete()
         .eq("user_id", user.id);
@@ -168,11 +158,16 @@ Deno.serve(async (req) => {
       // Only force consent on the very first connect (so Google issues a refresh_token).
       // For reconnects we already have a refresh_token, so we skip prompt=consent to
       // avoid Google rotating/invalidating the existing offline grant unnecessarily.
-      const { data: existingToken } = await supabaseClient
+      const { data: existingToken, error: existingError } = await tokensClient
         .from("calendar_tokens")
         .select("refresh_token")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (existingError) {
+        throw new Error(
+          `calendar_tokens lookup failed: ${existingError.message}`,
+        );
+      }
       const hasExistingRefresh = !!existingToken?.refresh_token;
 
       const authUrl = buildCalendarAuthorizeUrl({
@@ -197,11 +192,16 @@ Deno.serve(async (req) => {
 
     // Check connection status
     if (action === "status") {
-      const { data: tokenData } = await supabaseClient
+      const { data: tokenData, error: statusError } = await tokensClient
         .from("calendar_tokens")
-        .select("*")
+        .select("google_email")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
+      if (statusError) {
+        throw new Error(
+          `calendar_tokens status failed: ${statusError.message}`,
+        );
+      }
 
       return new Response(
         JSON.stringify({

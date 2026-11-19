@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,6 +32,9 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
+    // calendar_tokens is server-only; every query below filters by this user.
+    const tokensClient = serviceClient();
+
     const { eventId } = await req.json();
 
     if (!eventId) {
@@ -38,7 +42,7 @@ serve(async (req) => {
     }
 
     // Get user's calendar tokens
-    const { data: tokenData, error: tokenError } = await supabaseClient
+    const { data: tokenData, error: tokenError } = await tokensClient
       .from("calendar_tokens")
       .select("*")
       .eq("user_id", user.id)
@@ -85,7 +89,7 @@ serve(async (req) => {
       accessToken = refreshData.access_token;
       const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000);
 
-      await supabaseClient
+      await tokensClient
         .from("calendar_tokens")
         .update({
           access_token: accessToken,
