@@ -22,6 +22,7 @@ import { workshopCheckConnections } from "./workshop/tools/check-connections.ts"
 import { workshopChooseVoice } from "./workshop/tools/choose-voice.ts";
 import { workshopEditFromAssets } from "./workshop/tools/edit-from-assets.ts";
 import { workshopGetState } from "./workshop/tools/get-state.ts";
+import { workshopImportFile } from "./workshop/tools/import-file.ts";
 import { workshopInspectSite } from "./workshop/tools/inspect-site.ts";
 import { workshopBuildLandingPage } from "./workshop/tools/landing-build.ts";
 import { workshopSaveLandingCopy } from "./workshop/tools/landing-copy.ts";
@@ -51,6 +52,7 @@ const HANDLERS: Record<string, (ctx: ToolContext) => Promise<unknown>> = {
   workshop_assign_client: workshopAssignClient,
   workshop_inspect_site: workshopInspectSite,
   workshop_add_assets: workshopAddAssets,
+  workshop_import_file: workshopImportFile,
   workshop_get_state: workshopGetState,
   workshop_make_creative: workshopMakeCreative,
   workshop_save_concepts: workshopSaveCopy,

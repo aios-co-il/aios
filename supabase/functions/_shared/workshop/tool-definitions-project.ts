@@ -116,6 +116,29 @@ export const PROJECT_TOOLS = [
     },
   },
   {
+    name: "workshop_import_file",
+    description:
+      "מוסיפה ללוח של הפרויקט קובץ מוכן שסוכן חיצוני יצר והעלה בשיחה (upload_aios_file): קריאייטיב (image), קליפ לסצנה (clip, עם scene_id) או הסרט הסופי (film). הקובץ מועתק לפרויקט ונרשם כמו תוצר של הסדנה. לא עולה כסף.",
+    parameters: {
+      type: "object",
+      properties: {
+        item_id: { type: "string", description: "מזהה הפרויקט" },
+        kind: {
+          type: "string",
+          enum: ["image", "clip", "film"],
+          description: "image: קריאייטיב; clip: קליפ לסצנה; film: הסרט הסופי",
+        },
+        path: {
+          type: "string",
+          description: "ה-path שהחזיר upload_aios_file (agent-replies/...)",
+        },
+        scene_id: { type: "string", description: "הסצנה, נדרש ל-clip" },
+        title: { type: "string" },
+      },
+      required: ["item_id", "kind", "path"],
+    },
+  },
+  {
     name: "workshop_get_state",
     description:
       "מצב הפרויקט הפתוח בסדנה: מה כבר נוצר (עמודים בלוח), מה חסר, מה רץ עכשיו. קראי לזה בתחילת שיחה על פרויקט קיים.",
