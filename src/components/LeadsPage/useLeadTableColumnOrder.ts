@@ -45,8 +45,19 @@ export function useLeadTableColumnOrder() {
     // One scope per user and tenant runs saves one at a time, in drag order, so
     // an earlier order can never land after a later one.
     scope: { id: `lead-column-order:${tenantId}:${userId}` },
-    mutationFn: async (order: Array<string>) => {
+    mutationFn: async ({ order, isMigration }: ColumnOrderSave) => {
       await queryClient.cancelQueries({ queryKey });
+      if (isMigration) {
+        // A migration can queue behind a drag (from another mount of this hook);
+        // when it runs, any order already on the account wins over the old one.
+        const current = await fetchColumnOrder(
+          requireId(tenantId),
+          requireId(userId),
+        );
+        if (current !== null) {
+          return current;
+        }
+      }
       await saveColumnOrder(tenantId, userId, order);
       return order;
     },
@@ -57,7 +68,7 @@ export function useLeadTableColumnOrder() {
       console.error("Failed to save CRM column order", saveError);
       toast.error("לא ניתן לשמור את סדר העמודות");
     },
-    onSettled: (_data, _error, order) => {
+    onSettled: (_data, _error, { order }) => {
       // Only the latest drag clears the pending order; an earlier save that
       // settles after a newer drag leaves the newer order on screen.
       if (latestPending.current === order) {
@@ -89,14 +100,17 @@ export function useLeadTableColumnOrder() {
       return;
     }
     // The browser copy stays until the account confirms the write.
-    saveOrder(legacyOrder, { onSuccess: clearLegacyColumnOrder });
+    saveOrder(
+      { order: legacyOrder, isMigration: true },
+      { onSuccess: clearLegacyColumnOrder },
+    );
   }, [isSuccess, savedOrder, legacyOrder, saveOrder]);
 
   /** Shows the dragged order at once and queues its save. */
   function setOrder(order: Array<string>) {
     latestPending.current = order;
     setPendingOrder(order);
-    saveOrder(order);
+    saveOrder({ order, isMigration: false });
   }
 
   return {
@@ -105,6 +119,20 @@ export function useLeadTableColumnOrder() {
     // otherwise overwrite the order this user saved on another device.
     setOrder: isSuccess ? setOrder : undefined,
   };
+}
+
+interface ColumnOrderSave {
+  order: Array<string>;
+  /** Moving the browser's old order: skipped when the account already has one. */
+  isMigration: boolean;
+}
+
+/** The signed-in user or tenant id; saving without one is a bug, so it throws. */
+function requireId(id: string | null | undefined): string {
+  if (!id) {
+    throw new Error("No signed-in user or organization to save the order for");
+  }
+  return id;
 }
 
 /** The user's saved CRM column order, or null when they have none. */
@@ -133,15 +161,14 @@ async function saveColumnOrder(
   userId: string | undefined,
   order: Array<string>,
 ): Promise<void> {
-  if (!tenantId || !userId) {
-    throw new Error("No signed-in user or organization to save the order for");
-  }
-  const { error } = await supabase
-    .from("lead_list_defaults")
-    .upsert(
-      { tenant_id: tenantId, user_id: userId, column_order: order },
-      { onConflict: "tenant_id,user_id" },
-    );
+  const { error } = await supabase.from("lead_list_defaults").upsert(
+    {
+      tenant_id: requireId(tenantId),
+      user_id: requireId(userId),
+      column_order: order,
+    },
+    { onConflict: "tenant_id,user_id" },
+  );
   if (error) {
     throw error;
   }

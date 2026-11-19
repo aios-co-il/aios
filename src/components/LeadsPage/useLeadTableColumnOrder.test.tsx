@@ -268,4 +268,36 @@ describe("useLeadTableColumnOrder", () => {
       window.localStorage.getItem(LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY),
     ).toBe(JSON.stringify(["actions", "name"]));
   });
+
+  it("skips a queued browser-order move once a newer drag is on the account", async () => {
+    window.localStorage.setItem(
+      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
+      JSON.stringify(["actions", "name"]),
+    );
+    backend.deferred = [];
+    const harness = createTestQueryHarness();
+    const first = await loadedHook(harness);
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
+
+    // A drag queues behind the pending move, then the CRM remounts.
+    act(() => first.result.current.setOrder?.(["name", "actions"]));
+    first.unmount();
+    const second = await loadedHook(harness);
+
+    // The first move and the drag commit; the database now holds the drag.
+    await act(async () => backend.deferred?.[0].resolve({ error: null }));
+    backend.row = { column_order: ["actions", "name"] };
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(2));
+    backend.row = { column_order: ["name", "actions"] };
+    await act(async () => backend.deferred?.[1].resolve({ error: null }));
+
+    // The remount's queued move rereads the account and does not write.
+    await waitFor(() =>
+      expect(second.result.current.order).toEqual(["name", "actions"]),
+    );
+    expect(savedOrders()).toEqual([
+      ["actions", "name"],
+      ["name", "actions"],
+    ]);
+  });
 });
