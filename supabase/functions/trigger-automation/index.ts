@@ -3394,7 +3394,8 @@ Deno.serve(async (req) => {
                   // When the step starts status-change automations, one
                   // tenant-scoped compare-and-set writes the status and the
                   // step's date field and yields the exact transition. Without
-                  // a transition the ordinary update runs as before (AIO-611).
+                  // a transition only the date field is left to write: writing
+                  // the status again could undo someone else's change (AIO-611).
                   const statusLeadId = firesStatusTriggers(stepConfig)
                     ? resolveStatusRecordId("lead", stepData)
                     : null;
@@ -3408,7 +3409,13 @@ Deno.serve(async (req) => {
                     : null;
                   stepResponse = statusChange
                     ? { success: true, entity: "lead", ...statusChange }
-                    : await executeStatusUpdate(supabase, stepConfig, stepData);
+                    : await executeStatusUpdate(
+                        supabase,
+                        statusLeadId
+                          ? { ...stepConfig, status: undefined }
+                          : stepConfig,
+                        stepData,
+                      );
                   if (statusChange) {
                     stepResponse.status_triggers = await fireLeadStatusChanged(
                       statusChange,
