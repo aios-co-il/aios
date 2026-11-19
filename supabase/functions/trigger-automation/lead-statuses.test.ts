@@ -24,9 +24,7 @@ function fakeLeads(lead: LeadRow | null, beforeUpdate: () => void = () => {}) {
         return query;
       },
       eq(column: string, value: unknown) {
-        if (column === "status" || column === "response_status") {
-          expected[column] = value;
-        }
+        expected[column] = value;
         return query;
       },
       is(column: string, value: unknown) {
@@ -34,18 +32,25 @@ function fakeLeads(lead: LeadRow | null, beforeUpdate: () => void = () => {}) {
         return query;
       },
       maybeSingle() {
+        if (values) {
+          beforeUpdate();
+        }
+        const stored: Record<string, unknown> | null = lead && {
+          tenant_id: "tenant-1",
+          id: "lead-1",
+          ...lead,
+        };
+        const matches =
+          stored !== null &&
+          Object.entries(expected).every(
+            ([column, value]) => stored[column] === value,
+          );
         if (!values) {
           return Promise.resolve({
-            data: lead ? { ...lead } : null,
+            data: matches && lead ? { ...lead } : null,
             error: null,
           });
         }
-        beforeUpdate();
-        const matches =
-          lead !== null &&
-          Object.entries(expected).every(
-            ([column, value]) => lead[column as keyof LeadRow] === value,
-          );
         if (!matches) {
           return Promise.resolve({ data: null, error: null });
         }
@@ -101,6 +106,36 @@ Deno.test("moveLeadStatus", async (t) => {
       assertEquals(updates, []);
     },
   );
+
+  await t.step("leaves a lead of another org untouched", async () => {
+    const lead = { status: "new", response_status: "week" };
+    const { updates, db } = fakeLeads(lead);
+
+    assertStrictEquals(
+      await moveLeadStatus(db, "tenant-2", "lead-1", toSent),
+      null,
+    );
+    assertStrictEquals(lead.response_status, "week");
+    assertEquals(updates, []);
+  });
+
+  await t.step("writes the step's date field in the same update", async () => {
+    const { updates, db } = fakeLeads({
+      status: "new",
+      response_status: "week",
+    });
+
+    await moveLeadStatus(db, "tenant-1", "lead-1", {
+      ...toSent,
+      update_field: "last_contact_date",
+      update_field_value: "today",
+    });
+
+    assertEquals(Object.keys(updates[0]).sort(), [
+      "last_contact_date",
+      "response_status",
+    ]);
+  });
 
   await t.step("changes nothing when the org has no such lead", async () => {
     const { db } = fakeLeads(null);

@@ -5,6 +5,7 @@ import {
   type LeadStatusChange,
   leadStatusChange,
   type StatusStepConfig,
+  stepDateColumns,
 } from "./status-fanout.ts";
 
 /** How often the move is tried when another writer changes the lead in between. */
@@ -15,7 +16,9 @@ const MAX_ATTEMPTS = 3;
  * made, or null when it made none (the lead already had the status, or the org
  * has no such lead). The update only matches the status that was just read, so
  * the returned old and new values are the transition this step performed, even
- * when someone else changes the lead at the same moment.
+ * when someone else changes the lead at the same moment. The step's date field
+ * is written by the same statement, so the step's writes land together or not
+ * at all.
  */
 export async function moveLeadStatus(
   supabase: DbClient,
@@ -44,7 +47,7 @@ export async function moveLeadStatus(
       change.kind === "response_status" ? "response_status" : "status";
     const update = supabase
       .from("leads")
-      .update({ [column]: change.newStatus })
+      .update({ ...stepDateColumns(config), [column]: change.newStatus })
       .eq("tenant_id", tenantId)
       .eq("id", leadId);
     const moved = await (

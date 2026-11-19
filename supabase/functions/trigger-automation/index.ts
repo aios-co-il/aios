@@ -85,7 +85,7 @@ import {
   automationLoopKey,
   firesStatusTriggers,
   fireLeadStatusChanged,
-  withoutStatus,
+  stepDateColumns,
 } from "./status-fanout.ts";
 import { moveLeadStatus } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
@@ -3391,10 +3391,10 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
-                  // When the step starts status-change automations, the status
-                  // is moved with a tenant-scoped compare-and-set, which yields
-                  // the exact transition; executeStatusUpdate then applies only
-                  // the step's other fields, never the status again (AIO-611).
+                  // When the step starts status-change automations, one
+                  // tenant-scoped compare-and-set writes the status and the
+                  // step's date field and yields the exact transition. Without
+                  // a transition the ordinary update runs as before (AIO-611).
                   const statusLeadId = firesStatusTriggers(stepConfig)
                     ? resolveStatusRecordId("lead", stepData)
                     : null;
@@ -3406,11 +3406,9 @@ Deno.serve(async (req) => {
                         stepConfig,
                       )
                     : null;
-                  stepResponse = await executeStatusUpdate(
-                    supabase,
-                    statusLeadId ? withoutStatus(stepConfig) : stepConfig,
-                    stepData,
-                  );
+                  stepResponse = statusChange
+                    ? { success: true, entity: "lead", ...statusChange }
+                    : await executeStatusUpdate(supabase, stepConfig, stepData);
                   if (statusChange) {
                     stepResponse.status_triggers = await fireLeadStatusChanged(
                       statusChange,
@@ -4414,8 +4412,7 @@ async function executeNotification(config: any, data: any) {
 
 // Execute status update action
 async function executeStatusUpdate(supabase: any, config: any, data: any) {
-  const { entity, status, status_field, update_field, update_field_value } =
-    config;
+  const { entity, status, status_field } = config;
   const recordId = resolveStatusRecordId(entity, data);
 
   if (!recordId) {
@@ -4438,14 +4435,7 @@ async function executeStatusUpdate(supabase: any, config: any, data: any) {
   }
 
   // Update additional date field if specified
-  if (
-    update_field &&
-    update_field !== "none" &&
-    update_field_value === "today"
-  ) {
-    const today = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
-    updateData[update_field] = today;
-  }
+  Object.assign(updateData, stepDateColumns(config));
 
   // Ensure we have something to update
   if (Object.keys(updateData).length === 0) {

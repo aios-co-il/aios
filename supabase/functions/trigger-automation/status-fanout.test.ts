@@ -9,7 +9,7 @@ import {
   firesStatusTriggers,
   leadStatusChange,
   leadStatusChangedRequest,
-  withoutStatus,
+  stepDateColumns,
 } from "./status-fanout.ts";
 
 Deno.test("firesStatusTriggers", async (t) => {
@@ -180,21 +180,31 @@ Deno.test("fanoutResult", async (t) => {
   });
 });
 
-Deno.test("withoutStatus", async (t) => {
-  const config = {
-    entity: "lead",
-    status: "sent",
-    status_field: "response_status",
-    update_field: "last_contact_date",
-    update_field_value: "today",
-  };
+Deno.test("stepDateColumns", async (t) => {
+  const now = new Date("2026-11-19T05:00:00Z");
 
-  await t.step("drops the status and keeps the step's other fields", () => {
-    assertEquals(withoutStatus(config), { ...config, status: undefined });
+  await t.step("sets today's date in the chosen field", () => {
+    assertEquals(
+      stepDateColumns(
+        { update_field: "last_contact_date", update_field_value: "today" },
+        now,
+      ),
+      { last_contact_date: "2026-11-19" },
+    );
   });
 
-  await t.step("leaves the step's own settings untouched", () => {
-    withoutStatus(config);
-    assertStrictEquals(config.status, "sent");
+  await t.step("is empty when the step sets no date field", () => {
+    assertEquals(stepDateColumns({}, now), {});
+    assertEquals(
+      stepDateColumns(
+        { update_field: "none", update_field_value: "today" },
+        now,
+      ),
+      {},
+    );
+    assertEquals(
+      stepDateColumns({ update_field: "last_contact_date" }, now),
+      {},
+    );
   });
 });

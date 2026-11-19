@@ -9,7 +9,26 @@ export type StatusStepConfig = {
   status?: unknown;
   status_field?: unknown;
   fire_status_triggers?: unknown;
+  update_field?: unknown;
+  update_field_value?: unknown;
 };
+
+/**
+ * The date column a "change status" step also sets ("today" in a chosen field),
+ * as column and value, or nothing when the step sets none.
+ */
+export function stepDateColumns(
+  config: StatusStepConfig,
+  now: Date = new Date(),
+): Record<string, string> {
+  const field = config.update_field;
+  if (typeof field !== "string" || !field || field === "none") {
+    return {};
+  }
+  return config.update_field_value === "today"
+    ? { [field]: now.toISOString().split("T")[0] }
+    : {};
+}
 
 /** A lead's two status columns. */
 export type LeadStatuses = {
@@ -53,17 +72,6 @@ export function leadStatusChange(
   return oldStatus === newStatus
     ? null
     : { leadId, kind, oldStatus, newStatus };
-}
-
-/**
- * The step's settings without the status: what is left for the plain update
- * once the status itself was moved, so that update cannot write the status a
- * second time over someone else's change.
- */
-export function withoutStatus<Config extends StatusStepConfig>(
-  config: Config,
-): Config {
-  return { ...config, status: undefined };
 }
 
 /** The fields of a trigger-automation request the loop guard reads. */
