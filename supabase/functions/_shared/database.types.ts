@@ -9273,19 +9273,22 @@ export type Database = {
       };
       lead_list_defaults: {
         Row: {
-          stage_scope: string;
+          column_order: string[] | null;
+          stage_scope: string | null;
           tenant_id: string;
           updated_at: string;
           user_id: string;
         };
         Insert: {
-          stage_scope: string;
+          column_order?: string[] | null;
+          stage_scope?: string | null;
           tenant_id: string;
           updated_at?: string;
           user_id: string;
         };
         Update: {
-          stage_scope?: string;
+          column_order?: string[] | null;
+          stage_scope?: string | null;
           tenant_id?: string;
           updated_at?: string;
           user_id?: string;

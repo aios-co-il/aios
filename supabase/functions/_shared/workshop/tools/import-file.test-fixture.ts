@@ -5,7 +5,7 @@ export const SOURCE =
   "agent-replies/tenant-1/conv-1/0b6f4a10-7a35-4c1e-9d3c-5f1d2c8b9e01-poster.png";
 
 /** Storage that holds one file in the source bucket and records every upload. */
-function fakeStorage(file: Blob | null) {
+function fakeStorage(file: Blob | null, size = file?.size ?? 0) {
   const uploads: Array<{ bucket: string; path: string; type: string }> = [];
   const downloads: Array<string> = [];
   const removed: Array<string> = [];
@@ -15,6 +15,23 @@ function fakeStorage(file: Blob | null) {
     removed,
     from(bucket: string) {
       return {
+        list: (folder: string, options: { search: string }) => {
+          const held =
+            bucket === "command-center-files" &&
+            `${folder}/${options.search}` === SOURCE &&
+            file;
+          return Promise.resolve({
+            data: held
+              ? [
+                  {
+                    name: options.search,
+                    metadata: { mimetype: file.type, size },
+                  },
+                ]
+              : [],
+            error: null,
+          });
+        },
         download: (path: string) => {
           downloads.push(path);
           return Promise.resolve(
@@ -40,9 +57,13 @@ function fakeStorage(file: Blob | null) {
   };
 }
 
-/** A workshop db with storage, answering reads from `script`. */
-export function dbWith(script: Record<string, unknown>, file: Blob | null) {
-  const storage = fakeStorage(file);
+/** A workshop db with storage, answering reads from `script`; `size` overrides the stored size. */
+export function dbWith(
+  script: Record<string, unknown>,
+  file: Blob | null,
+  size?: number,
+) {
+  const storage = fakeStorage(file, size);
   return { db: Object.assign(fakeDb(script), { storage }), storage };
 }
 

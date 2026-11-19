@@ -103,7 +103,7 @@ Deno.test("workshop_import_file", async (t) => {
       },
     )) as Record<string, unknown>;
     assertMatch(String(result.error), /לא מתאים ל-film/);
-    assertEquals(storage.uploads, []);
+    assertEquals(storage.downloads, []);
   });
 
   await t.step("a clip needs a scene of this project", async () => {
@@ -151,6 +151,18 @@ Deno.test("workshop_import_file", async (t) => {
     assertMatch(String(result.error), /הקובץ לא נמצא/);
     assertEquals(storage.uploads, []);
   });
+  await t.step("refuses a file over 200MB before downloading it", async () => {
+    const { db, storage } = dbWith(project, png, 201 * 1024 * 1024);
+    const result = (await executeWorkshopTool(
+      db,
+      "tenant-1",
+      "workshop_import_file",
+      { item_id: "item-1", kind: "image", path: SOURCE },
+    )) as Record<string, unknown>;
+    assertMatch(String(result.error), /200MB/);
+    assertEquals(storage.downloads, []);
+  });
+
   await t.step("no clip or film while the film is being produced", async () => {
     const running = videoProject({
       payload: {
