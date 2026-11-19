@@ -42,7 +42,7 @@ export async function signSessionAttachments(
   store: SessionFileStore,
   session: ChannelSessionRow,
   requested: unknown,
-): Promise<ChannelAttachment[]> {
+): Promise<Array<ChannelAttachment>> {
   if (requested == null) {
     return [];
   }
@@ -68,7 +68,7 @@ export async function replyAttachments(args: {
   conversationId: string;
   requested: unknown;
   alreadyDelivered: () => Promise<boolean>;
-}): Promise<ChannelAttachment[]> {
+}): Promise<Array<ChannelAttachment>> {
   const none =
     args.requested == null ||
     (Array.isArray(args.requested) && args.requested.length === 0);
@@ -101,7 +101,9 @@ export function requireRunningSession(
 export function bucketFileStore(
   sb: Pick<DbClient, "storage">,
 ): SessionFileStore {
-  const bucket = () => sb.storage.from(BUCKET);
+  function bucket() {
+    return sb.storage.from(BUCKET);
+  }
   return {
     async uploadLink(path) {
       const { data, error } = await bucket().createSignedUploadUrl(path);
