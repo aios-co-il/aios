@@ -1,23 +1,33 @@
 /** The landing page tools: the page copy and the visual style, each shown for approval. */
-import { LANDING_BLOCK_TYPES } from "./page-content.ts";
+import { LANDING_BLOCK_TYPES, LANDING_FORM_FIELDS } from "./page-content.ts";
 
 const FORM = {
   type: "object",
-  description: "טופס הלידים (שם וטלפון בלבד)",
+  description:
+    "טופס הלידים: שם וטלפון תמיד. fields מוסיף שדות לפי הבריף; אותם שדות בשני הטפסים של העמוד",
   properties: {
     buttonLabel: { type: "string", description: "הטקסט על כפתור השליחה" },
     successMessage: {
       type: "string",
       description: "הודעת התודה אחרי שליחה",
     },
+    fields: {
+      type: "array",
+      description:
+        "companyName: שם החברה. employees: מספר עובדים (בחירה מטווחים). לעמוד לעסקים",
+      items: { type: "string", enum: [...LANDING_FORM_FIELDS] },
+    },
   },
   required: ["buttonLabel", "successMessage"],
 };
 
+/** A short line of text, for the lists inside a section. */
+const LINES = { type: "array", items: { type: "string" } };
+
 export const SAVE_LANDING_COPY_TOOL = {
   name: "workshop_save_landing_copy",
   description:
-    "שומרת את הקופי של עמוד נחיתה כמקטעים לפי הסדר ומציגה אותו למשתמש עם כפתורי אישור. רק בפרויקט עמוד נחיתה. המקטע הראשון הוא hero עם טופס, ובסוף העמוד מקטע leadForm אחד; כל כפתור בעמוד מוביל לטופס הזה. בין לבין, לפי הצורך: text, features, myths, services, faq, cta. כותבים בעברית, בגוף שפונה לגולש, בלי הבטחות שהלקוח לא נתן. הכלי בודק אורכים ומבנה ומחזיר מה לתקן. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. בקשת שינוי: כתבי את העמוד מחדש ושמרי שוב. לא עולה כסף.",
+    "שומרת את הקופי של עמוד נחיתה כמקטעים לפי הסדר ומציגה אותו למשתמש עם כפתורי אישור. רק בפרויקט עמוד נחיתה. המקטע הראשון הוא hero עם טופס, ובסוף העמוד מקטע leadForm אחד; כל כפתור בעמוד מוביל לטופס הזה. בין לבין, לפי הצורך: text (בעיה, עם points ושורת closing), steps (איך זה עובד, 2 עד 6 שלבים), myths, comparison (השוואה מול האלטרנטיבה), services, testimonials (המלצות וכרטיסי אמון), features, faq, cta. המלצות, מספרים ותקנים רק ממה שהלקוח נתן. כותבים בעברית, בגוף שפונה לגולש, בלי הבטחות שהלקוח לא נתן. הכלי בודק אורכים ומבנה ומחזיר מה לתקן. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. בקשת שינוי: כתבי את העמוד מחדש ושמרי שוב. לא עולה כסף.",
   parameters: {
     type: "object",
     properties: {
@@ -31,6 +41,19 @@ export const SAVE_LANDING_COPY_TOOL = {
             type: { type: "string", enum: [...LANDING_BLOCK_TYPES] },
             heading: { type: "string", description: "כותרת המקטע" },
             subheading: { type: "string", description: "hero: כותרת משנה" },
+            bullets: {
+              ...LINES,
+              description: "hero: עד 4 בולטים קצרים מתחת לכותרת המשנה",
+            },
+            points: {
+              ...LINES,
+              description: "text: עד 8 שורות של מה שמשתבש, אחת לכל תרחיש",
+            },
+            closing: {
+              type: "string",
+              description:
+                "text, steps: המשפט שהקורא צריך לזכור, מודגש בסוף המקטע",
+            },
             body: {
               type: "string",
               description: "text, leadForm, cta: גוף הטקסט",
@@ -38,7 +61,24 @@ export const SAVE_LANDING_COPY_TOOL = {
             items: {
               type: "array",
               description:
-                "features: {title, body}. myths: {myth, answer}. faq: {question, answer}. services: מחרוזות.",
+                "features, steps: {title, body}. myths: {myth, answer}. faq: {question, answer}. testimonials: {quote, name, role}. services: {title, body} עם שורת הסבר לקורא שאינו איש מקצוע, או מחרוזת.",
+              items: {},
+            },
+            badges: {
+              type: "array",
+              description:
+                "testimonials: עד 6 כרטיסי אמון {title, body}, למשל תקן, מספר מומחים, ותק",
+              items: {},
+            },
+            columns: {
+              ...LINES,
+              description:
+                "comparison: שתי כותרות עמודה, הראשונה האלטרנטיבה והשנייה הלקוח",
+            },
+            rows: {
+              type: "array",
+              description:
+                "comparison: עד 12 שורות {label, values: [ערך לאלטרנטיבה, ערך ללקוח]}",
               items: {},
             },
             tagline: { type: "string", description: "services: שורת סיום" },

@@ -13,6 +13,8 @@ const lead: LandingLead = {
   name: "Dana Levi",
   phone: "050-1234567",
   email: null,
+  company: null,
+  employees: null,
 };
 
 function pageWith(leadToCrm: boolean, leadToWebhook: boolean): LandingPage {
@@ -110,6 +112,29 @@ Deno.test("deliverLead", async (t) => {
       assertEquals(calls[0].body.crm_intake, true);
       assertEquals(calls[0].body.source, "landing_page");
       assertEquals(finished, [{ crm: "sent", webhook: "skipped", errors: [] }]);
+    },
+  );
+
+  await t.step(
+    "the form's company and employees answers reach both destinations",
+    async () => {
+      const { deps, calls } = fakeDeps();
+      const answered = { ...lead, company: "Acme Ltd", employees: "51–200" };
+      await deliverLead(pageWith(true, true), answered, deps);
+      const [crm, webhook] = calls;
+      assertEquals(crm.body.company_name, "Acme Ltd");
+      assertEquals(crm.body.form_data, {
+        landing_page: "acme/home",
+        company: "Acme Ltd",
+        employees: "51–200",
+      });
+      assertEquals(webhook.body, {
+        page_name: "Acme home",
+        name: "Dana Levi",
+        phone: "050-1234567",
+        company: "Acme Ltd",
+        employees: "51–200",
+      });
     },
   );
 

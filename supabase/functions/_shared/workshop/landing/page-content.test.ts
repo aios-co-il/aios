@@ -66,7 +66,7 @@ Deno.test(
   "landingCopyText shows every section with its form and buttons",
   () => {
     const text = landingCopyText(parseLandingBlocks(page).blocks);
-    assertStringIncludes(text, "כותרת\nמשנה\n[טופס: שם וטלפון · לתיאום שיחה]");
+    assertStringIncludes(text, "כותרת\nמשנה\n[טופס: שם, טלפון · לתיאום שיחה]");
     assertStringIncludes(text, "• יתרון: פירוט");
     assertStringIncludes(text, "ש: שאלה?\nת: תשובה");
     assertStringIncludes(text, "אחרי שליחה: תודה, נחזור אליכם");
@@ -107,3 +107,79 @@ Deno.test(
     assertEquals(/\[\[|\]\]/.test(landingCopyText(run.blocks)), false);
   },
 );
+
+Deno.test(
+  "the proof sections, hero bullets and form fields are kept in the app's shape",
+  () => {
+    const withFields = { ...form, fields: ["companyName", "employees"] };
+    const { blocks, problems } = parseLandingBlocks([
+      {
+        type: "hero",
+        heading: "כותרת",
+        bullets: ["ספק אחד", "מענה 24/7"],
+        form: withFields,
+      },
+      {
+        type: "text",
+        body: "גוף",
+        points: ["השרת נופל"],
+        closing: "לאף אחד אין אחריות.",
+      },
+      {
+        type: "steps",
+        items: [
+          { title: "שיחה", body: "נבין" },
+          { title: "מעבר", body: "נעביר" },
+        ],
+      },
+      {
+        type: "comparison",
+        columns: ["ענן ציבורי", "אקסיטו"],
+        rows: [{ label: "מי מטפל?", values: ["אתם", "אקסיטו"] }],
+      },
+      {
+        type: "services",
+        items: ["ERP", { title: "גיבוי", body: "בשני אתרים" }],
+      },
+      {
+        type: "testimonials",
+        items: [{ quote: "מעולים", name: "סופי", role: "מנהלת" }],
+        badges: [{ title: "ISO 27001", body: "תקן" }, "מעל 50 מומחים"],
+      },
+      { type: "leadForm", heading: "השאירו פרטים", form: withFields },
+    ]);
+    assertEquals(problems, []);
+    assertEquals(blocks[0], {
+      type: "hero",
+      heading: "כותרת",
+      bullets: ["ספק אחד", "מענה 24/7"],
+      form: withFields,
+    });
+    assertEquals(blocks[3], {
+      type: "comparison",
+      columns: ["ענן ציבורי", "אקסיטו"],
+      rows: [{ label: "מי מטפל?", values: ["אתם", "אקסיטו"] }],
+    });
+    const text = landingCopyText(blocks);
+    assertStringIncludes(text, "[טופס: שם, טלפון, שם החברה, מספר עובדים");
+    assertStringIncludes(text, "✓ ספק אחד");
+    assertStringIncludes(text, "1. שיחה: נבין");
+  },
+);
+
+Deno.test("broken proof sections name what to fix", () => {
+  const { problems } = parseLandingBlocks([
+    { type: "hero", heading: "כ", form: { ...form, fields: ["email"] } },
+    { type: "steps", items: [{ title: "רק אחד", body: "ב" }] },
+    { type: "comparison", columns: ["אחת"], rows: [] },
+    { type: "testimonials" },
+    { type: "leadForm", heading: "ט", form },
+  ]);
+  assertEquals(problems, [
+    "מקטע 1.form: fields מקבל רק companyName, employees",
+    "מקטע 2: steps צריך 2 שלבים לפחות",
+    "מקטע 3: columns צריך שתי עמודות בדיוק, השנייה של הלקוח",
+    "מקטע 3: rows ריק",
+    "מקטע 4: צריך items (המלצות) או badges (כרטיסי אמון)",
+  ]);
+});
