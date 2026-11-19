@@ -107,7 +107,8 @@ export async function saveTenantConnection(
   if (error) {
     throw new Error(`tenant_integrations update failed: ${error.message}`);
   }
-  if (data.length === 0) {
+  // A PATCH that matched nothing returns no rows (an empty body reads as null).
+  if (!data || data.length === 0) {
     throw new Error(
       "tenant_integrations changed while connecting; the connect was not saved",
     );

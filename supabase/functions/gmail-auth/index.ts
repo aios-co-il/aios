@@ -4,6 +4,7 @@ import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
   readCompleteRequest,
+  refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
 import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
 import {
@@ -94,6 +95,14 @@ Deno.serve(async (req) => {
         throw new UserFacingError(
           "This connect link is invalid. Connect Gmail again.",
         );
+      }
+
+      const refusal = await refuseFormerMember(tenantId, userId);
+      if (refusal) {
+        return new Response(JSON.stringify({ error: refusal.error }), {
+          status: refusal.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       await storeGmailConnection(request.code, userId, tenantId);

@@ -47,17 +47,21 @@ export async function storeCalendarConnection(
     );
   }
 
-  const { error: dbError } = await supabase.from("calendar_tokens").upsert({
-    user_id: userId,
-    access_token: tokens.access_token,
-    refresh_token: refreshToken,
-    expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-    updated_at: new Date().toISOString(),
-    google_email: (await googleAccountEmail(tokens.access_token)) || null,
-    needs_reconnect: false,
-    sync_status: "connected",
-    sync_error: null,
-  });
+  // One row per user (calendar_tokens_user_id_key), so a reconnect updates it.
+  const { error: dbError } = await supabase.from("calendar_tokens").upsert(
+    {
+      user_id: userId,
+      access_token: tokens.access_token,
+      refresh_token: refreshToken,
+      expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+      google_email: (await googleAccountEmail(tokens.access_token)) || null,
+      needs_reconnect: false,
+      sync_status: "connected",
+      sync_error: null,
+    },
+    { onConflict: "user_id" },
+  );
   if (dbError) {
     throw new Error(`calendar_tokens upsert failed: ${dbError.message}`);
   }

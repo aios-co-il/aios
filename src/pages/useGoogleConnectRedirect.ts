@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   completeGoogleConnect,
@@ -13,9 +13,12 @@ import {
  * fragment is cleared first, so a reload never sends the code twice.
  */
 export function useGoogleConnectRedirect(): void {
+  const queryClient = useQueryClient();
   const { mutate } = useMutation({
     mutationFn: completeGoogleConnect,
     onSuccess: () => {
+      // The integration badges (useUserIntegrations) may have loaded before the connect was saved.
+      queryClient.invalidateQueries({ queryKey: ["user-integrations"] });
       toast.success("חשבון Google חובר בהצלחה");
     },
     onError: (error) => {

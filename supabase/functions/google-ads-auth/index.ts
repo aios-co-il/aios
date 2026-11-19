@@ -6,6 +6,7 @@ import {
 import {
   isCompleteRefusal,
   readCompleteRequest,
+  refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
 import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
 import {
@@ -13,6 +14,7 @@ import {
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeAdsConnection } from "./store-connection.ts";
 
 const corsHeaders = {
@@ -205,7 +207,8 @@ async function completeConnect(body: unknown, userId: string) {
     });
   }
 
-  if (!request.state.tenantId) {
+  const { tenantId } = request.state;
+  if (!tenantId) {
     return new Response(
       JSON.stringify({ error: "This connect link has no organization" }),
       {
@@ -215,7 +218,23 @@ async function completeConnect(body: unknown, userId: string) {
     );
   }
 
-  await storeAdsConnection(request.code, request.state.tenantId, userId);
+  const refusal = await refuseFormerMember(tenantId, userId);
+  if (refusal) {
+    return new Response(JSON.stringify({ error: refusal.error }), {
+      status: refusal.status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    await storeAdsConnection(request.code, tenantId, userId);
+  } catch (error) {
+    console.error("Google Ads complete failed:", error);
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   return new Response(JSON.stringify({ success: true }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
