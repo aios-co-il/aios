@@ -49,7 +49,7 @@ export async function prepareBuild(
     blocks: state.blocks,
     style: state.style,
     status: options.status,
-    createdAt: createdAtOf(existingPage) ?? options.today,
+    existingPage: pageJsonOf(existingPage),
     today: options.today,
     newSite: existingSite === null,
   });
@@ -84,14 +84,16 @@ function sameOwner(siteJson: string, target: LandingTarget): boolean {
   }
 }
 
-/** The day an existing page was first built, from its page.json. */
-function createdAtOf(pageJson: string | null): string | null {
+/** An existing page's page.json as an object; null for a new page or one that is not JSON. */
+function pageJsonOf(pageJson: string | null): Record<string, unknown> | null {
   if (!pageJson) {
     return null;
   }
   try {
-    const created = (JSON.parse(pageJson) as Record<string, unknown>).createdAt;
-    return typeof created === "string" ? created : null;
+    const parsed: unknown = JSON.parse(pageJson);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
