@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import {
+  oauthStateKey,
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
@@ -17,7 +18,8 @@ const OUTSIDER = "33333333-3333-4333-8333-333333333333";
 
 const TENANT = "22222222-2222-4222-8222-222222222222";
 
-const STATE_SECRET = "test-state-secret";
+/** The handlers sign with this key, derived from GOOGLE_CLIENT_SECRET below. */
+const STATE_SECRET = oauthStateKey("test-secret");
 
 const env = {
   SUPABASE_URL,
@@ -25,7 +27,6 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
-  OAUTH_STATE_SECRET: STATE_SECRET,
 };
 
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gmail-auth`;

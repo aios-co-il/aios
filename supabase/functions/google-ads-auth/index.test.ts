@@ -1,5 +1,8 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { verifyOAuthState } from "../_shared/google-oauth/oauth-state.ts";
+import {
+  oauthStateKey,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -12,7 +15,8 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 const TENANT = "22222222-2222-4222-8222-222222222222";
 
-const STATE_SECRET = "test-state-secret";
+/** The handlers sign with this key, derived from GOOGLE_CLIENT_SECRET below. */
+const STATE_SECRET = oauthStateKey("test-secret");
 
 const env = {
   SUPABASE_URL,
@@ -20,7 +24,6 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
-  OAUTH_STATE_SECRET: STATE_SECRET,
   APP_URL: "https://aios.co.il",
 };
 

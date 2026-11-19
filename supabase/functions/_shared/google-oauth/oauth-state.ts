@@ -7,7 +7,11 @@ import { hmacSha256Hex, timingSafeEqual } from "../security.ts";
 /** How long a user has to finish Google's consent screen. */
 const STATE_TTL_MS = 15 * 60 * 1000;
 
-const STATE_SECRET_ENV = "OAUTH_STATE_SECRET";
+/**
+ * Prefix that turns the Google client secret into the state signing key, so
+ * the key is never the client secret itself and is used for nothing else.
+ */
+const STATE_KEY_PREFIX = "google-oauth-state:";
 
 const oauthStateSchema = z.object({
   userId: z.string().uuid(),
@@ -21,14 +25,19 @@ export type OAuthState = z.infer<typeof oauthStateSchema>;
 
 export type OAuthStateInput = Omit<OAuthState, "exp">;
 
-/** The key that signs OAuth state. Throws when unset, so connects fail closed. */
+/** The key that signs OAuth state, derived from GOOGLE_CLIENT_SECRET. Throws when it is unset, so connects fail closed. */
 export function oauthStateSecret(): string {
-  const secret = Deno.env.get(STATE_SECRET_ENV) ?? "";
-  if (!secret) {
-    throw new Error(`${STATE_SECRET_ENV} is not set`);
+  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "";
+  if (!clientSecret) {
+    throw new Error("GOOGLE_CLIENT_SECRET is not set");
   }
 
-  return secret;
+  return oauthStateKey(clientSecret);
+}
+
+/** The state signing key for a Google client secret. */
+export function oauthStateKey(clientSecret: string): string {
+  return `${STATE_KEY_PREFIX}${clientSecret}`;
 }
 
 /** `<base64url payload>.<hex HMAC>` carrying the input and an expiry. */
