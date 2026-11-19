@@ -114,7 +114,7 @@ export function buildCallbackInstructions(args: {
       : "";
   return (
     `\n\n--- DELIVER THE ANSWER BACK TO AIOS (required) ---\n` +
-    `You are talking to David through Carmen's Command Center. When you finish, ` +
+    `You are talking to the user through Carmen's Command Center. When you finish, ` +
     `return the full answer into the same AIOS conversation. Do NOT call ask_carmen or ask_cursor to deliver it.\n` +
     workspaceDelivery +
     roundLine +
@@ -126,10 +126,14 @@ export function buildCallbackInstructions(args: {
     (args.callbackIntent === "meeting_summary"
       ? `MEETING SUMMARY: do not edit the repository, do not open a pull request, and do not add a preview URL. ` +
         `The content you send back must be only the Hebrew Markdown meeting summary.\n\n`
-      : `Your answer MUST include the Vercel Preview URL for this branch and the PR (or merge) link ` +
-        `so David/Carmen can verify before production publish.\n\n`) +
+      : `When you changed code, your answer MUST include the Vercel Preview URL for this branch and the PR (or merge) link ` +
+        `so the user can verify before production publish.\n\n`) +
     `Preferred: call MCP tool reply_to_aios_session with those ids and content=<your full answer>, ` +
     `plus a one-time idempotency_key.\n\n` +
+    (workspaceDelivery
+      ? ""
+      : `On work that takes more than a few minutes, call MCP tool publish_aios_progress with the same ids ` +
+        `and a one-line status every few steps. It does not end your turn.\n\n`) +
     `Fallback HTTP POST ${supabaseUrl}/functions/v1/agent-channel-callback\n` +
     `Headers:\n` +
     `  Authorization: Bearer ${args.token}\n` +
@@ -140,11 +144,38 @@ export function buildCallbackInstructions(args: {
   );
 }
 
+/** The Command Center sidecar's screen context, as JSON the session can read; "" for anything else. */
+function screenContextBlock(screenContext: unknown): string {
+  if (
+    !screenContext ||
+    typeof screenContext !== "object" ||
+    !("source" in screenContext) ||
+    screenContext.source !== "command_center_sidebar"
+  ) {
+    return "";
+  }
+  return (
+    `\n\nThe screen the user is looking at in AIOS:\n` +
+    `${JSON.stringify(screenContext).slice(0, SCREEN_CONTEXT_MAX)}\n`
+  );
+}
+
+/** Enough for the path, ids and page title; the sidecar's context is small. */
+const SCREEN_CONTEXT_MAX = 2000;
+
+/**
+ * The task as a direct brain reads it. `opening` replaces the default identity lines: Claude
+ * Direct opens a new session with Carmen's identity and a follow-up with none, since the open
+ * session already has it.
+ */
 export function wrapDirectPrompt(args: {
   origin: ChannelProvider;
   userText: string;
   history: Array<{ role: string; content: string }>;
   attachments?: ChannelAttachment[];
+  opening?: string;
+  /** Command Center sidecar context, unvalidated from the browser. */
+  screenContext?: unknown;
 }): string {
   const hist = args.history
     .slice(-12)
@@ -162,12 +193,16 @@ export function wrapDirectPrompt(args: {
             : args.origin === "chatgpt"
               ? "ChatGPT Work Agent"
               : args.origin;
-  return (
+  const opening =
+    args.opening ??
     `[AIOS Command Center · ${who}]\n` +
-    `You are the selected brain for this Carmen conversation. Answer David directly.\n` +
-    `Reply in the user's language. Be concrete.\n\n` +
+      `You are the selected brain for this Carmen conversation. Answer David directly.\n` +
+      `Reply in the user's language. Be concrete.\n\n`;
+  return (
+    opening +
     (hist ? `Recent thread:\n${hist}\n\n` : "") +
     `User:\n${args.userText}\n` +
-    attachmentBlock(args.attachments)
+    attachmentBlock(args.attachments) +
+    screenContextBlock(args.screenContext)
   );
 }
