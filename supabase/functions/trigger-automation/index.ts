@@ -81,6 +81,13 @@ import {
   stepsAfter,
 } from "./delay-step.ts";
 import { pauseRunAtDelay } from "./pause-run.ts";
+import {
+  automationLoopKey,
+  firesStatusTriggers,
+  fireLeadStatusChanged,
+  leadStatusChange,
+} from "./status-fanout.ts";
+import { leadStatusesBefore } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
 import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
@@ -1626,7 +1633,7 @@ Deno.serve(async (req) => {
       requestBody.data?.group_id ||
       requestBody.data?.client_id ||
       "no-entity";
-    const loopKey = `${requestBody.trigger_type || requestBody.automationId}:${entityKey}`;
+    const loopKey = automationLoopKey(requestBody, entityKey);
     if (executionChain.includes(loopKey)) {
       console.error(
         `🛑 SAFETY: Loop detected! Key "${loopKey}" already in execution chain: [${executionChain.join(" → ")}]`,
@@ -3384,11 +3391,41 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
+                  // Read before the update: the change the step makes decides
+                  // whether status-change automations start (AIO-611).
+                  const statusLeadId = firesStatusTriggers(stepConfig)
+                    ? resolveStatusRecordId("lead", stepData)
+                    : null;
+                  const statusesBefore = statusLeadId
+                    ? await leadStatusesBefore(
+                        serviceClient(),
+                        tenantId,
+                        statusLeadId,
+                      )
+                    : null;
                   stepResponse = await executeStatusUpdate(
                     supabase,
                     stepConfig,
                     stepData,
                   );
+                  const statusChange =
+                    statusLeadId && statusesBefore
+                      ? leadStatusChange(
+                          stepConfig,
+                          statusLeadId,
+                          statusesBefore,
+                        )
+                      : null;
+                  if (statusChange) {
+                    stepResponse.status_triggers = await fireLeadStatusChanged(
+                      statusChange,
+                      {
+                        tenantId,
+                        depth: executionDepth,
+                        chain: [...executionChain, loopKey],
+                      },
+                    );
+                  }
                   previousStepOutput = stepResponse;
                 } else if (
                   effectiveActionType === "create_manychat_subscriber"
