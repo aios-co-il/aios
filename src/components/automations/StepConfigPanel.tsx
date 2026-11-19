@@ -74,6 +74,7 @@ import MailingActionConfig from "./MailingActionConfig";
 import { MAILING_ACTION_OPTIONS, isMailingAction } from "./mailingActions";
 import StatusFilterTriggerConfig from "./StatusFilterTriggerConfig";
 import { StatusStageSelect } from "./StatusStageSelect";
+import { StatusTriggersOption } from "./StatusTriggersOption";
 import {
   decodeStatusSelection,
   encodeStoredActionStatus,
@@ -1744,6 +1745,15 @@ export function StepConfigPanel({
                     לעמודה בלוח. לשליחת הסכם בחרו «שלח הסכם».
                   </p>
                 </div>
+                {(!node.configuration?.entity ||
+                  node.configuration.entity === "lead") && (
+                  <StatusTriggersOption
+                    checked={node.configuration?.fire_status_triggers === true}
+                    onChange={(checked) =>
+                      handleConfigChange("fire_status_triggers", checked)
+                    }
+                  />
+                )}
               </>
             )}
           </div>

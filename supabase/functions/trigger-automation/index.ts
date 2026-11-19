@@ -81,6 +81,13 @@ import {
   stepsAfter,
 } from "./delay-step.ts";
 import { pauseRunAtDelay } from "./pause-run.ts";
+import {
+  automationLoopKey,
+  firesStatusTriggers,
+  fireLeadStatusChanged,
+  stepDateColumns,
+} from "./status-fanout.ts";
+import { moveLeadStatus } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
 import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
@@ -1626,7 +1633,7 @@ Deno.serve(async (req) => {
       requestBody.data?.group_id ||
       requestBody.data?.client_id ||
       "no-entity";
-    const loopKey = `${requestBody.trigger_type || requestBody.automationId}:${entityKey}`;
+    const loopKey = automationLoopKey(requestBody, entityKey);
     if (executionChain.includes(loopKey)) {
       console.error(
         `🛑 SAFETY: Loop detected! Key "${loopKey}" already in execution chain: [${executionChain.join(" → ")}]`,
@@ -3384,11 +3391,41 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
-                  stepResponse = await executeStatusUpdate(
-                    supabase,
-                    stepConfig,
-                    stepData,
-                  );
+                  // When the step starts status-change automations, one
+                  // tenant-scoped compare-and-set writes the status and the
+                  // step's date field and yields the exact transition. Without
+                  // a transition only the date field is left to write: writing
+                  // the status again could undo someone else's change (AIO-611).
+                  const statusLeadId = firesStatusTriggers(stepConfig)
+                    ? resolveStatusRecordId("lead", stepData)
+                    : null;
+                  const statusChange = statusLeadId
+                    ? await moveLeadStatus(
+                        serviceClient(),
+                        tenantId,
+                        statusLeadId,
+                        stepConfig,
+                      )
+                    : null;
+                  stepResponse = statusChange
+                    ? { success: true, entity: "lead", ...statusChange }
+                    : await executeStatusUpdate(
+                        supabase,
+                        statusLeadId
+                          ? { ...stepConfig, status: undefined }
+                          : stepConfig,
+                        stepData,
+                      );
+                  if (statusChange) {
+                    stepResponse.status_triggers = await fireLeadStatusChanged(
+                      statusChange,
+                      {
+                        tenantId,
+                        depth: executionDepth,
+                        chain: [...executionChain, loopKey],
+                      },
+                    );
+                  }
                   previousStepOutput = stepResponse;
                 } else if (
                   effectiveActionType === "create_manychat_subscriber"
@@ -4382,8 +4419,7 @@ async function executeNotification(config: any, data: any) {
 
 // Execute status update action
 async function executeStatusUpdate(supabase: any, config: any, data: any) {
-  const { entity, status, status_field, update_field, update_field_value } =
-    config;
+  const { entity, status, status_field } = config;
   const recordId = resolveStatusRecordId(entity, data);
 
   if (!recordId) {
@@ -4406,14 +4442,7 @@ async function executeStatusUpdate(supabase: any, config: any, data: any) {
   }
 
   // Update additional date field if specified
-  if (
-    update_field &&
-    update_field !== "none" &&
-    update_field_value === "today"
-  ) {
-    const today = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
-    updateData[update_field] = today;
-  }
+  Object.assign(updateData, stepDateColumns(config));
 
   // Ensure we have something to update
   if (Object.keys(updateData).length === 0) {
