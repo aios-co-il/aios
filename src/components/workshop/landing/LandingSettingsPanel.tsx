@@ -42,11 +42,17 @@ export function LandingSettingsPanel({
   );
   const saved = settings.data;
   const [draft, setDraft] = useState<LandingSettingsDraft | null>(null);
+  const [saves, setSaves] = useState(0);
+  const [trackingSaves, setTrackingSaves] = useState(0);
+  const savedKey = saved ? JSON.stringify(draftOf(saved)) : null;
 
-  // The form follows what is stored, and starts over when another project opens or a save lands.
+  // The form follows its own stored fields: it starts over when another project opens, when those
+  // fields change or when its own save lands, and keeps unsaved edits when a tracking save
+  // refreshes the settings.
   useEffect(() => {
     setDraft(saved ? draftOf(saved) : null);
-  }, [saved, itemId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- every refresh gives a new `saved`; savedKey is the part this form edits
+  }, [savedKey, itemId, saves]);
 
   if (settings.isLoading) {
     return <Loader2 className="m-4 h-4 w-4 animate-spin" aria-label="טוען" />;
@@ -74,14 +80,20 @@ export function LandingSettingsPanel({
       return;
     }
     save.mutate(draft, {
-      onSuccess: () => toast.success("ההגדרות נשמרו"),
+      onSuccess: () => {
+        setSaves((count) => count + 1);
+        toast.success("ההגדרות נשמרו");
+      },
       onError: (error) => toast.error(error.message || "השמירה נכשלה"),
     });
   }
   /** Saves the site's tracking ids and tells the user how it ended. */
   function submitTracking(tracking: TrackingDraft) {
     saveTracking.mutate(tracking, {
-      onSuccess: () => toast.success("קודי המעקב נשמרו"),
+      onSuccess: () => {
+        setTrackingSaves((count) => count + 1);
+        toast.success("קודי המעקב נשמרו");
+      },
       onError: (error) => toast.error(error.message || "השמירה נכשלה"),
     });
   }
@@ -136,6 +148,7 @@ export function LandingSettingsPanel({
       {saved.siteExists ? (
         <LandingTrackingFields
           saved={saved.tracking}
+          saves={trackingSaves}
           pending={saveTracking.isPending}
           onSave={submitTracking}
         />

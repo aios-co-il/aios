@@ -26,6 +26,7 @@ export const approved = {
 export const digest = await buildDigest(
   { subdomain: "acme", slug: "offer", title: "מבצע" },
   contentJson(blocks, style),
+  {},
 );
 export const built = {
   branch: "page/acme/offer",

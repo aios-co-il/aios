@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { contentJson, landingPageFiles } from "./page-files.ts";
+import { buildDigest, contentJson, landingPageFiles } from "./page-files.ts";
 
 const form = { buttonLabel: "לתיאום שיחה", successMessage: "תודה" };
 const blocks = [
@@ -141,3 +141,19 @@ Deno.test(
     assertEquals("landing-pages/acme/assets/.gitkeep" in files, false);
   },
 );
+
+Deno.test("the build fingerprint covers the site's tracking ids", async () => {
+  const target = { subdomain: "acme", slug: "home", title: "עמוד הבית" };
+  const content = contentJson(blocks, style);
+  const none = await buildDigest(target, content, {});
+  const tagged = await buildDigest(target, content, { gtmId: "GTM-ABCD12" });
+  assertEquals(none === tagged, false);
+  assertEquals(
+    await buildDigest(target, content, { gtmId: " GTM-ABCD12 " }),
+    tagged,
+  );
+  assertEquals(
+    (await buildDigest(target, content, { gtmId: "GTM-ABCD99" })) === tagged,
+    false,
+  );
+});

@@ -181,6 +181,7 @@ Deno.test(
     });
     await run(db, "workshop_build_landing_page", repo);
     assertEquals("landing-pages/acme/site.json" in pushes[0].files, false);
-    assertEquals(savedLanding(db).build.digest, digest);
+    // The tags a publish makes live are part of what the user approves, written or not.
+    assertEquals(savedLanding(db).build.digest === digest, false);
   },
 );

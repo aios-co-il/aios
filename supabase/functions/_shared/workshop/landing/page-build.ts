@@ -60,11 +60,10 @@ export async function prepareBuild(
     today: options.today,
     existingSite,
   });
-  const site = files[siteFile(subdomain)] ?? null;
   const digest = await buildDigest(
     { subdomain, slug: target.slug, title: target.title },
     files[`${folder}/content.json`],
-    site,
+    target.site.tracking,
   );
   return {
     files,
@@ -77,7 +76,7 @@ export async function prepareBuild(
         ? `page/${subdomain}/${target.slug}`
         : `publish/${subdomain}/${target.slug}-${digest.slice(0, 12)}`,
     newSite: existingSite === null,
-    writesSite: site !== null,
+    writesSite: siteFile(subdomain) in files,
   };
 }
 

@@ -57,6 +57,12 @@ export function siteWithTracking(
   );
 }
 
+/** The ids that are set, in a fixed order; empty when the site has none. */
+export function trackingFingerprint(tracking: SiteTracking): string {
+  const clean = cleanTracking(tracking);
+  return Object.keys(clean).length > 0 ? JSON.stringify(clean) : "";
+}
+
 /** The ids that are set, trimmed, in the app's key order. */
 function cleanTracking(tracking: SiteTracking): SiteTracking {
   const clean: SiteTracking = {};

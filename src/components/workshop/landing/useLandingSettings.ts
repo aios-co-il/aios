@@ -20,9 +20,12 @@ import {
 /** The site columns the panel reads: its address and its tracking ids. */
 const SITE_COLUMNS = "subdomain, gtm_id, ga4_id, meta_pixel_id" as const;
 
+/** The prefix of every project's landing settings query. */
+const LANDING_SETTINGS = "workshop-landing-settings";
+
 /** The query key of one project's landing settings. */
 function landingSettingsKey(tenantId: string, itemId: string) {
-  return ["workshop-landing-settings", tenantId, itemId] as const;
+  return [LANDING_SETTINGS, tenantId, itemId] as const;
 }
 
 /** Reads the project's page, or the client's site when the project has no page yet. */
@@ -141,10 +144,13 @@ export function useLandingSettings(
         throw error;
       }
     },
-    onSuccess: refresh,
+    // The ids belong to the site, which other projects of the client share: every cached
+    // project reads them again.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: [LANDING_SETTINGS] }),
   });
 
-  /** Reads the settings again after a save. */
+  /** Reads this project's settings again after a save. */
   function refresh() {
     return enabled
       ? queryClient.invalidateQueries({

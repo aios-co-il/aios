@@ -7,7 +7,11 @@
  */
 import type { LandingBlock } from "./page-content.ts";
 import type { LandingStyle } from "./page-style.ts";
-import { type SiteTracking, siteWithTracking } from "./site-tracking.ts";
+import {
+  type SiteTracking,
+  siteWithTracking,
+  trackingFingerprint,
+} from "./site-tracking.ts";
 
 /** Every call to action on the page scrolls to its lead form. */
 const LEAD_FORM = "#lead-form";
@@ -145,20 +149,22 @@ function json(value: unknown): string {
 }
 
 /**
- * The fingerprint of a build: the page's address, its title, its content.json and the site.json
- * it writes, if any. What the user saw in the preview is what gets published, at the address it
- * was previewed for, with the site's tracking it was built with. The status is left out on
- * purpose: publishing changes it and nothing else.
+ * The fingerprint of a build: the page's address, its title, its content.json and the site's
+ * tracking ids. What the user saw in the preview is what gets published, at the address it was
+ * previewed for, with the tags a publish makes live. The status is left out on purpose:
+ * publishing changes it and nothing else. A site without tracking ids keeps the fingerprint it
+ * had before tracking existed.
  */
 export async function buildDigest(
   target: { subdomain: string; slug: string; title: string },
   content: string,
-  site: string | null = null,
+  tracking: SiteTracking,
 ): Promise<string> {
+  const ids = trackingFingerprint(tracking);
   const hash = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(
-      `${target.subdomain}/${target.slug}\n${target.title}\n${content}${site === null ? "" : `\n${site}`}`,
+      `${target.subdomain}/${target.slug}\n${target.title}\n${content}${ids ? `\n${ids}` : ""}`,
     ),
   );
   return Array.from(new Uint8Array(hash), (byte) =>

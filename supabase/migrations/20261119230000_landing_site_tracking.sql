@@ -15,8 +15,9 @@ alter table public.landing_sites
     constraint landing_sites_meta_pixel_id_format check (meta_pixel_id ~ '^[0-9]{10,20}$');
 
 -- Saves the tracking ids of a landing project's site as a member of its org. The ids apply to
--- every page of the client's site; an empty id clears it. The site must exist: the project's
--- first settings save creates it.
+-- every page of the client's site; an empty id clears it. The site is the one the project's page
+-- lives on, which is where the build reads the ids from; a project without a page yet uses its
+-- client's site. The site must exist: the project's first settings save creates it.
 create or replace function public.landing_site_save_tracking(
   p_item_id uuid,
   p_gtm_id text,
@@ -31,6 +32,7 @@ as $$
 declare
   v_item public.marketing_work_items%rowtype;
   v_site_id uuid;
+  v_site_client uuid;
   v_constraint text;
 begin
   select * into v_item from public.marketing_work_items where id = p_item_id;
@@ -47,8 +49,18 @@ begin
     raise exception 'צריך לשייך את הפרויקט ללקוח לפני שמגדירים עמוד נחיתה' using errcode = '22023';
   end if;
 
-  select id into v_site_id from public.landing_sites
-   where tenant_id = v_item.tenant_id and client_id = v_item.client_id;
+  select s.id, s.client_id into v_site_id, v_site_client
+    from public.landing_pages p
+    join public.landing_sites s on s.id = p.site_id and s.tenant_id = p.tenant_id
+   where p.tenant_id = v_item.tenant_id and p.work_item_id = v_item.id;
+  if v_site_id is null then
+    select id, client_id into v_site_id, v_site_client from public.landing_sites
+     where tenant_id = v_item.tenant_id and client_id = v_item.client_id;
+  end if;
+  if v_site_id is not null and v_site_client <> v_item.client_id then
+    raise exception 'העמוד של הפרויקט נמצא באתר של לקוח אחר. צריך להחזיר את הפרויקט ללקוח של העמוד לפני ששומרים קודי מעקב'
+      using errcode = '22023';
+  end if;
   if v_site_id is null then
     raise exception 'צריך לשמור קודם את כתובת האתר' using errcode = '22023';
   end if;

@@ -16,19 +16,25 @@ import {
  */
 export function LandingTrackingFields({
   saved,
+  saves,
   pending,
   onSave,
 }: {
   saved: TrackingDraft;
+  /** How many tracking saves have landed: each one starts the fields over. */
+  saves: number;
   pending: boolean;
   onSave: (draft: TrackingDraft) => void;
 }) {
   const [draft, setDraft] = useState(saved);
+  const savedKey = JSON.stringify(saved);
 
-  // The fields follow what is stored, and start over when a save lands.
+  // The fields follow the stored ids: they start over when the ids change or a tracking save
+  // lands, and keep unsaved edits when an address or lead save refreshes the settings.
   useEffect(() => {
     setDraft(saved);
-  }, [saved]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- every refresh gives a new `saved`; savedKey is its content
+  }, [savedKey, saves]);
 
   const problem = trackingProblem(draft);
   return (
@@ -50,6 +56,7 @@ export function LandingTrackingFields({
               autoComplete="off"
               placeholder={TRACKING_FIELDS[key].example}
               value={draft[key]}
+              disabled={pending}
               onChange={(event) =>
                 setDraft({ ...draft, [key]: event.target.value.toUpperCase() })
               }

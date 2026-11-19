@@ -142,6 +142,64 @@ describe("LandingSettingsPanel tracking", () => {
     });
   });
 
+  test("a tracking save keeps unsaved lead destination edits", async () => {
+    // The save stores the new id, so the settings read after it differ.
+    mocks.rpc.mockImplementation(async () => {
+      mocks.page = {
+        ...mocks.page,
+        landing_sites: {
+          subdomain: "acme",
+          gtm_id: "GTM-NVKZTXH3",
+          ga4_id: "G-ABC1234",
+          meta_pixel_id: null,
+        },
+      };
+      return { error: null };
+    });
+    const user = userEvent.setup();
+    panel();
+    await user.click(await screen.findByRole("switch", { name: "לוובהוק" }));
+    await user.type(
+      screen.getByLabelText("כתובת הוובהוק"),
+      "https://hooks.example/a",
+    );
+    await user.type(screen.getByLabelText("Google Analytics 4"), "G-ABC1234");
+    await user.click(screen.getByRole("button", { name: "שמירת קודי מעקב" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "שמירת קודי מעקב" }),
+      ).toBeEnabled(),
+    );
+    expect(screen.getByLabelText("כתובת הוובהוק")).toHaveValue(
+      "https://hooks.example/a",
+    );
+    expect(screen.getByRole("switch", { name: "לוובהוק" })).toBeChecked();
+  });
+
+  test("the ids cannot be edited while their save is on its way", async () => {
+    let answer: ((value: { error: null }) => void) | undefined;
+    mocks.rpc.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    panel();
+    await user.type(
+      await screen.findByLabelText("Google Analytics 4"),
+      "G-ABC1234",
+    );
+    await user.click(screen.getByRole("button", { name: "שמירת קודי מעקב" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Google Analytics 4")).toBeDisabled(),
+    );
+    answer?.({ error: null });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Google Analytics 4")).toBeEnabled(),
+    );
+  });
+
   test("an id in the wrong format cannot be saved", async () => {
     const user = userEvent.setup();
     panel();
