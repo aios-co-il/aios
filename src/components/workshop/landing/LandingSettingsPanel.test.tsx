@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
 import { LandingSettingsPanel } from "./LandingSettingsPanel";
 
 const mocks = vi.hoisted(() => ({
@@ -140,6 +140,35 @@ describe("LandingSettingsPanel tracking", () => {
       p_ga4_id: "G-ABC1234",
       p_meta_pixel_id: "",
     });
+  });
+
+  test("an unsaved id typed in one project does not follow to the next", async () => {
+    const user = userEvent.setup();
+    const { queryClient, wrapper: Provider } = createTestQueryHarness();
+    // Keep a closed project's settings cached, as the app does between projects.
+    queryClient.setDefaultOptions({
+      queries: { retry: false, gcTime: Infinity },
+    });
+    /** The panel of one project, inside one shared cache. */
+    function open(itemId: string) {
+      return (
+        <Provider>
+          <LandingSettingsPanel tenantId="t1" itemId={itemId} clientId="c1" />
+        </Provider>
+      );
+    }
+    // Both projects are in the cache before the switch, as after browsing between them.
+    const { rerender } = render(open("p2"));
+    await screen.findByLabelText("Google Analytics 4");
+    rerender(open("p1"));
+    await user.type(
+      await screen.findByLabelText("Google Analytics 4"),
+      "G-ABC1234",
+    );
+    rerender(open("p2"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Google Analytics 4")).toHaveValue(""),
+    );
   });
 
   test("a tracking save keeps unsaved lead destination edits", async () => {

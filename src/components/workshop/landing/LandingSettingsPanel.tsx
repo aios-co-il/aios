@@ -147,6 +147,8 @@ export function LandingSettingsPanel({
 
       {saved.siteExists ? (
         <LandingTrackingFields
+          // A new project starts from its own saved ids: an unsaved draft never carries over.
+          key={itemId}
           saved={saved.tracking}
           saves={trackingSaves}
           pending={saveTracking.isPending}
