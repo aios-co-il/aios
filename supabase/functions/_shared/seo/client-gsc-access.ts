@@ -4,11 +4,10 @@
 // client when it belongs to the client's organization or to one linked to the
 // client's agency through agency_tenant_access.
 import { z } from "npm:zod@3.25.76";
-import { tenantUserAccess } from "../auth/tenant-access.ts";
 import { serviceClient, userClient } from "../supabase-clients.ts";
 
 /** Client and integration ids are uuids. */
-const uuidSchema = z.string().uuid();
+export const uuidSchema = z.string().uuid();
 
 /** The signed-in caller and the organizations whose connections may serve the client. */
 export type ClientGscAccess = { userId: string; tenantIds: Array<string> };
@@ -58,80 +57,6 @@ export async function readClientGscAccess(
   };
 }
 
-/**
- * Why the caller may not list a Search Console connection's sites, or null
- * when they may: a member of its organization or a super admin, someone it is
- * shared with (user_has_integration_permission), or someone who sees a client
- * it serves.
- */
-export async function refuseGscSitesAccess(
-  authHeader: string | null,
-  integrationId: unknown,
-  clientId: unknown,
-): Promise<GscRefusal | null> {
-  if (!authHeader) {
-    return { status: 401, error: "Missing authorization header" };
-  }
-
-  const {
-    data: { user },
-    error: userError,
-  } = await userClient(authHeader).auth.getUser();
-  if (userError || !user) {
-    return { status: 401, error: "Not signed in" };
-  }
-
-  const id = uuidSchema.safeParse(integrationId);
-  if (!id.success) {
-    return { status: 400, error: "Missing or invalid integrationId" };
-  }
-
-  const sb = serviceClient();
-  const { data: integration, error } = await sb
-    .from("tenant_integrations")
-    .select("id, tenant_id")
-    .eq("id", id.data)
-    .eq("integration_type", "google_search_console")
-    .maybeSingle();
-  if (error) {
-    throw accessCheckFailed("tenant_integrations lookup", error.message);
-  }
-  if (!integration) {
-    return { status: 403, error: "Integration not found or access denied" };
-  }
-
-  const access = await tenantUserAccess(sb, integration.tenant_id, user.id);
-  if (access.member || access.superAdmin) {
-    return null;
-  }
-
-  const { data: shared, error: sharedError } = await sb.rpc(
-    "user_has_integration_permission",
-    { p_user_id: user.id, p_integration_id: integration.id },
-  );
-  if (sharedError) {
-    throw accessCheckFailed(
-      "user_has_integration_permission",
-      sharedError.message,
-    );
-  }
-  if (shared) {
-    return null;
-  }
-
-  if (clientId !== undefined) {
-    const clientAccess = await readClientGscAccess(authHeader, clientId);
-    if (
-      !isGscRefusal(clientAccess) &&
-      clientAccess.tenantIds.includes(integration.tenant_id)
-    ) {
-      return null;
-    }
-  }
-
-  return { status: 403, error: "Integration not found or access denied" };
-}
-
 /** Whether access was refused. */
 export function isGscRefusal(
   result: ClientGscAccess | GscRefusal,
@@ -169,7 +94,7 @@ async function clientGscTenantIds(
  * An error for a failed access lookup. The database message goes to the log
  * only: the functions return error messages to the browser.
  */
-function accessCheckFailed(step: string, detail: string): Error {
+export function accessCheckFailed(step: string, detail: string): Error {
   console.error(`GSC access check: ${step} failed:`, detail);
 
   return new Error("Access check failed");

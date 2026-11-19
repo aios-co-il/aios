@@ -1,11 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { fakeSupabaseHttp } from "../testing/fake-supabase-http.ts";
 import { withRuntime } from "../testing/served-handler.ts";
-import {
-  isGscRefusal,
-  readClientGscAccess,
-  refuseGscSitesAccess,
-} from "./client-gsc-access.ts";
+import { isGscRefusal, readClientGscAccess } from "./client-gsc-access.ts";
 
 const SUPABASE_URL = "https://gsc-test.supabase.co";
 
@@ -111,42 +107,6 @@ Deno.test(
         await run(() => readClientGscAccess("Bearer outsider", CLIENT), false),
       ),
       403,
-    );
-  },
-);
-
-Deno.test("listing sites needs a session", async () => {
-  assertEquals(
-    (await run(() => refuseGscSitesAccess(null, AGENCY_GSC, undefined)))
-      ?.status,
-    401,
-  );
-});
-
-Deno.test("an outsider cannot list another organization's sites", async () => {
-  assertEquals(
-    (
-      await run(() =>
-        refuseGscSitesAccess("Bearer outsider", OTHER_GSC, undefined),
-      )
-    )?.status,
-    403,
-  );
-  assertEquals(
-    (await run(() => refuseGscSitesAccess("Bearer member", OTHER_GSC, CLIENT)))
-      ?.status,
-    403,
-  );
-});
-
-Deno.test(
-  "a caller who sees the client lists sites of a connection serving it",
-  async () => {
-    assertEquals(
-      await run(() =>
-        refuseGscSitesAccess("Bearer member", AGENCY_GSC, CLIENT),
-      ),
-      null,
     );
   },
 );

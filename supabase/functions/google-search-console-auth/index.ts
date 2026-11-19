@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { refuseGscSitesAccess } from "../_shared/seo/client-gsc-access.ts";
+import { refuseGscSitesAccess } from "./sites-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
