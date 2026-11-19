@@ -5,6 +5,8 @@ type Row = Record<string, unknown>;
 export const TENANT = "11111111-1111-4111-8111-111111111111";
 export const OTHER_TENANT = "22222222-2222-4222-8222-222222222222";
 export const CLIENT_ID = "33333333-3333-4333-8333-333333333333";
+export const AGENCY_A = "44444444-4444-4444-8444-444444444444";
+export const AGENCY_B = "55555555-5555-4555-8555-555555555555";
 
 /** The client every test reads, on example.co.il. */
 export function clientRow(overrides: Row = {}): Row {
@@ -12,6 +14,7 @@ export function clientRow(overrides: Row = {}): Row {
     id: CLIENT_ID,
     name: "שיפוצי אבי",
     tenant_id: TENANT,
+    agency_id: AGENCY_A,
     website: "https://www.example.co.il/",
     ahrefs_domain: null,
     gsc_site_url: null,

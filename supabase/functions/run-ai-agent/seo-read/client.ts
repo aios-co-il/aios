@@ -1,5 +1,6 @@
 import { AccessDeniedError } from "../../_shared/auth-helpers.ts";
 import { normalizeSeoDomain } from "../../_shared/seo-sync.ts";
+import { callerCanReadClientCard } from "../client-card-scope.ts";
 import type {
   SeoClient,
   SeoDb,
@@ -9,6 +10,11 @@ import type {
 import { throwIfError } from "./context.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const CLIENT_NOT_FOUND: SeoRefusal = {
+  error: "client_not_found",
+  message: "הלקוח לא נמצא בארגון שלך.",
+};
 
 /** List length when top_n is not given: the detail tools, and the overview. */
 export const DEFAULT_TOP_N = 10;
@@ -47,14 +53,25 @@ export function parseSeoArgs(
 }
 
 /**
- * The client, read only in the caller's tenants and only when the caller may
- * reach it (campaigners: their client_team; team managers: their agencies).
+ * The client, only when the caller's tenant holds it (its own, or the exact
+ * agency shared with it: callerCanReadClientCard) and the caller may reach it
+ * (campaigners: their client_team; team managers: their agencies).
  */
 export async function resolveSeoClient(
   db: SeoDb,
   ctx: SeoToolContext,
   clientId: string,
 ): Promise<SeoClient | SeoRefusal> {
+  // An agency share opens only that agency's clients, for managers too:
+  // accessibleTenantIds alone would open the sharing tenant's other agencies.
+  const readable = await callerCanReadClientCard(db, {
+    clientId,
+    tenantId: ctx.tenantId,
+    accessibleTenantIds: ctx.accessibleTenantIds,
+  });
+  if (!readable) {
+    return CLIENT_NOT_FOUND;
+  }
   const { data, error } = await db
     .from("clients")
     .select("id, name, tenant_id, website, ahrefs_domain, gsc_site_url")
@@ -63,10 +80,7 @@ export async function resolveSeoClient(
     .maybeSingle();
   throwIfError("הלקוח", error);
   if (!data) {
-    return {
-      error: "client_not_found",
-      message: "הלקוח לא נמצא בארגון שלך.",
-    };
+    return CLIENT_NOT_FOUND;
   }
   try {
     await ctx.assertClientAccess(clientId);

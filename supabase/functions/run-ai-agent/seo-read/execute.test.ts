@@ -63,7 +63,8 @@ Deno.test(
       error: "access_denied",
       message: "הלקוח לא משויך אליך",
     });
-    assertEquals(db.reads.length, 1);
+    // The tenant scope check and the client read; nothing past the refusal.
+    assertEquals(db.reads.length, 2);
   },
 );
 
