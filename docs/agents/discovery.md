@@ -1,6 +1,6 @@
 # Codebase discovery and Graphify
 
-The central system graph is rebuilt in CI after merges to `main` by `.github/workflows/sync-system-graph.yml`. A local graph may also be available at `graphify-out/` with community structure and cross-file relationships.
+The central system graph is rebuilt in CI after merges to `main` by `.github/workflows/sync-system-graph.yml`. A local graph may also be available at `graphify-out/` with community structure and cross-file relationships. Activation keeps only the active version (and a staging version under a day old, which may still be uploading); no history is stored.
 
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
 
