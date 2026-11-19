@@ -119,3 +119,26 @@ Deno.test(
     assertEquals(pushes, []);
   },
 );
+
+Deno.test(
+  "a build does not put itself back over a copy saved while it was pushing",
+  async () => {
+    const db = landingDb(approved);
+    const { repo } = fakeRepo({ "landing-pages/acme/site.json": OUR_SITE });
+    const push = repo.pushFiles;
+    repo.pushFiles = (...call) => {
+      // The user's new copy lands while the build is on its way to GitHub.
+      const item = db.script["marketing_work_items:select"] as {
+        payload: { landing: Record<string, unknown> };
+      };
+      item.payload.landing = { ...approved, copy_approved: false };
+      return push(...call);
+    };
+    const result = await run(db, "workshop_build_landing_page", repo);
+    assertStringIncludes(result.error, "השתנה בזמן הבנייה");
+    assertEquals(
+      db.calls.some((call) => call.op === "update"),
+      false,
+    );
+  },
+);

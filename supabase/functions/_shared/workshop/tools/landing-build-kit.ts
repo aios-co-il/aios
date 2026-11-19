@@ -40,7 +40,7 @@ export function landingDb(
   state: Record<string, unknown>,
   page: Loose | null = {},
 ) {
-  return fakeDb({
+  const db = fakeDb({
     "marketing_work_items:select": {
       id: "item-1",
       title: "מבצע",
@@ -58,6 +58,22 @@ export function landingDb(
     "landing_sites:select": { subdomain: "acme", client_id: "client-1" },
     "clients:select": { name: "Acme" },
   });
+  // A saved project is what the next read returns, as in the real database: the build tool
+  // reads the project again before each write.
+  const from = db.from.bind(db);
+  db.from = (table: string) => {
+    const builder = from(table);
+    const update = builder.update as (value: Loose) => typeof builder;
+    builder.update = (value: Loose) => {
+      if (table === "marketing_work_items" && value.payload) {
+        (db.script["marketing_work_items:select"] as Loose).payload =
+          value.payload;
+      }
+      return update(value);
+    };
+    return builder;
+  };
+  return db;
 }
 
 /** A fake repository that records what Carmen pushes and opens. */

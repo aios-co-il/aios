@@ -17,6 +17,9 @@ const PREVIEW_POLL_MS = 5_000;
 export const NO_REPO =
   "בנייה ופרסום של עמודים זמינים רק ב-Production, כשמוגדר שם החיבור לריפו של העמודים (LANDING_PAGES_GITHUB_TOKEN). אמרי למשתמש שהקופי והסגנון שמורים ומוכנים לבנייה.";
 
+const PROJECT_CHANGED =
+  "הפרויקט השתנה בזמן הבנייה (קופי, סגנון או בנייה אחרת). קראי שוב ל-workshop_build_landing_page.";
+
 /**
  * Builds the project's approved copy and style as a draft page on the page's own branch and
  * returns the preview link with the publish question. Calling it again for the same content
@@ -66,15 +69,46 @@ export async function workshopBuildLandingPage(ctx: ToolContext) {
             digest: prepared.digest,
             ...(prepared.newSite ? { new_site: true } : {}),
           };
+    const { commit } = build;
     if (build !== state.build) {
       // Saved before the wait: if the preview check fails, the next call resumes this commit.
-      await updateLanding(supabase, tenantId, project.id, () => ({ build }));
+      // Only onto the project this build was made from: a copy or style saved meanwhile cleared
+      // the build, and this write must not put an older one back.
+      const pushed = build;
+      const saved = await updateLanding(
+        supabase,
+        tenantId,
+        project.id,
+        (current) =>
+          current.copy_approved &&
+          current.style_approved &&
+          current.build?.commit === state.build?.commit
+            ? { build: pushed }
+            : null,
+      );
+      if (!saved.changed) {
+        return { error: PROJECT_CHANGED };
+      }
     }
     if (!build.preview_url) {
-      const base = await waitForPreview(ctx, build.commit);
+      const base = await waitForPreview(ctx, commit);
       if (base) {
-        build = { ...build, preview_url: previewPageUrl(base, target) };
-        await updateLanding(supabase, tenantId, project.id, () => ({ build }));
+        const previewed = {
+          ...build,
+          preview_url: previewPageUrl(base, target),
+        };
+        // A newer build may have replaced this one during the wait; its preview is not ours.
+        const saved = await updateLanding(
+          supabase,
+          tenantId,
+          project.id,
+          (current) =>
+            current.build?.commit === commit ? { build: previewed } : null,
+        );
+        if (!saved.changed) {
+          return { error: PROJECT_CHANGED };
+        }
+        build = previewed;
       }
     }
     if (!build.preview_url) {
