@@ -174,6 +174,7 @@ import {
   workshopToolRefusal,
 } from "../_shared/workshop/blocked-tools.ts";
 import { skinForTool } from "../_shared/workshop/artifacts.ts";
+import { landingRepoFromEnv } from "../_shared/workshop/landing/repo-env.ts";
 import { ROLE_PERSONA, ROLE_SKILL } from "../_shared/workshop/roles.ts";
 import {
   workshopArtifactIdFrom,
@@ -2126,6 +2127,7 @@ async function executeTool(
           }
         },
         fetchPublic: (url, options) => fetchPublic(url, options),
+        landingRepo: landingRepoFromEnv((name) => Deno.env.get(name)),
         voiceSample: (voiceId) =>
           workshopVoiceSample(supabase, tenantId, voiceId),
         importImage: (url, scope) =>

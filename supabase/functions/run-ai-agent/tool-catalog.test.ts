@@ -6,7 +6,7 @@ import { leadCreationTools, leadMutationTools } from "./lead-tool-schemas.ts";
 Deno.test(
   "catalog preserves every schema and its develop ordering",
   async () => {
-    assertEquals(ALL_TOOLS.length, 237);
+    assertEquals(ALL_TOOLS.length, 239);
     // Captured from the original develop catalog before extraction (2fe5ef954), then recaptured
     // when the landing page kind added its two tools and its kind to workshop_start_project
     // (AIO-607). Includes descriptions, parameters, required fields, and object-key ordering.
@@ -19,7 +19,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "822336d5adc678fd8a180848ef9ca5cbcac9f72a91981f5625cc08f85011657e",
+      "d898de9a932771e9b21d0d85cf34b4525ea8fef49c5ee92e0615ef7f7e31505c",
     );
   },
 );

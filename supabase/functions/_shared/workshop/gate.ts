@@ -18,6 +18,7 @@ import {
 import { type Db } from "./db.ts";
 import { type Format } from "./defaults.ts";
 import { type ImageProvider } from "./image-providers.ts";
+import { type LandingRepo } from "./landing/repo.ts";
 import { savePayload } from "./project-io.ts";
 import { asRecord } from "./record.ts";
 import { type SceneEngine, type VideoConnections } from "./scene-engine.ts";
@@ -72,6 +73,8 @@ export interface WorkshopDeps {
   /** The project open on the board; a new project needs the user to ask for one (start-project.ts). */
   openItemId?: string | null;
   newToken?: () => string;
+  /** The landing-pages repository; absent where its token is not configured. */
+  landingRepo?: LandingRepo;
   /** Waits between polls (narration-review.ts waits for the take); tests pass one that returns at once. */
   sleep?: (ms: number) => Promise<void>;
 }

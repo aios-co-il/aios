@@ -1,6 +1,6 @@
 import { parseLandingBlocks } from "../landing/page-content.ts";
 import { landingCopyText } from "../landing/page-text.ts";
-import { COPY_CHOICE } from "../landing/project.ts";
+import { BUILD_CLEARED, COPY_CHOICE } from "../landing/project.ts";
 import { updateLanding } from "../landing/store.ts";
 import { recordArtifact } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
@@ -29,6 +29,7 @@ export async function workshopSaveLandingCopy(ctx: ToolContext) {
     const saved = await updateLanding(supabase, tenantId, project.id, () => ({
       blocks,
       copy_approved: false,
+      ...BUILD_CLEARED,
     }));
     const artifact = await recordArtifact(supabase, {
       tenantId,
@@ -42,6 +43,8 @@ export async function workshopSaveLandingCopy(ctx: ToolContext) {
       await updateLanding(supabase, tenantId, project.id, () => ({
         blocks: saved.before.blocks,
         copy_approved: saved.before.copy_approved,
+        build: saved.before.build,
+        publish_approved: saved.before.publish_approved,
       })).catch((restoreError) =>
         console.error(
           `landing copy: previous copy of project ${project.id} not restored: ${restoreError instanceof Error ? restoreError.message : "unknown error"}`,

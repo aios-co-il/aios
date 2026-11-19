@@ -23,7 +23,9 @@ import { workshopChooseVoice } from "./workshop/tools/choose-voice.ts";
 import { workshopEditFromAssets } from "./workshop/tools/edit-from-assets.ts";
 import { workshopGetState } from "./workshop/tools/get-state.ts";
 import { workshopInspectSite } from "./workshop/tools/inspect-site.ts";
+import { workshopBuildLandingPage } from "./workshop/tools/landing-build.ts";
 import { workshopSaveLandingCopy } from "./workshop/tools/landing-copy.ts";
+import { workshopPublishLandingPage } from "./workshop/tools/landing-publish.ts";
 import { workshopSaveLandingStyle } from "./workshop/tools/landing-style.ts";
 import { workshopMakeCreative } from "./workshop/tools/make-creative.ts";
 import { workshopMakeStills } from "./workshop/tools/make-stills.ts";
@@ -63,6 +65,8 @@ const HANDLERS: Record<string, (ctx: ToolContext) => Promise<unknown>> = {
   workshop_produce_video: workshopProduceVideo,
   workshop_save_landing_copy: workshopSaveLandingCopy,
   workshop_save_landing_style: workshopSaveLandingStyle,
+  workshop_build_landing_page: workshopBuildLandingPage,
+  workshop_publish_landing_page: workshopPublishLandingPage,
 };
 
 export async function executeWorkshopTool(
