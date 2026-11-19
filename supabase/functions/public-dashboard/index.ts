@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   dedupeWooOrdersById,
   filterWooOrdersForRevenue,
@@ -536,7 +538,7 @@ Deno.serve(async (req) => {
     // Multi-period GSC — only when we have a site URL (SEO ranking deltas).
     if (seoLinkedGscSiteUrl && seoTenantIdList.length > 0) {
       try {
-        const { data: integrations } = await supabase
+        const { data: storedIntegrations } = await supabase
           .from("tenant_integrations")
           .select("id, api_key, settings")
           .eq("integration_type", "google_search_console")
@@ -544,6 +546,10 @@ Deno.serve(async (req) => {
           .in("tenant_id", seoTenantIdList)
           .order("updated_at", { ascending: false })
           .limit(5);
+        const integrations = await withGoogleTokens(
+          serviceClient(),
+          storedIntegrations ?? [],
+        );
 
         const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID") || "";
         const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";

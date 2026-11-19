@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "../_shared/google-oauth/integration-tokens.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import {
   gaHostsMatch,
   listedPropertyMatchesDomain,
@@ -205,7 +207,7 @@ serve(async (req) => {
         console.error("Failed to fetch Google user info:", e);
       }
 
-      const { data: allGa, error: allGaError } = await supabase
+      const { data: storedGa, error: allGaError } = await supabase
         .from("tenant_integrations")
         .select("id, user_id, settings")
         .eq("tenant_id", tenantId)
@@ -214,6 +216,7 @@ serve(async (req) => {
       if (allGaError) {
         throw allGaError;
       }
+      const allGa = await withGoogleTokens(serviceClient(), storedGa ?? []);
 
       const existingForUser =
         allGa?.find((row: any) => row.user_id === userId) || null;
@@ -352,17 +355,21 @@ serve(async (req) => {
         );
       }
 
-      const { data: integration, error: integrationError } = await supabase
-        .from("tenant_integrations")
-        .select("*")
-        .eq("id", integrationId)
-        .eq("integration_type", "google_analytics")
-        .eq("is_active", true)
-        .single();
+      const { data: storedIntegration, error: integrationError } =
+        await supabase
+          .from("tenant_integrations")
+          .select("*")
+          .eq("id", integrationId)
+          .eq("integration_type", "google_analytics")
+          .eq("is_active", true)
+          .single();
 
-      if (integrationError || !integration) {
+      if (integrationError || !storedIntegration) {
         throw new Error("Integration not found");
       }
+      const [integration] = await withGoogleTokens(serviceClient(), [
+        storedIntegration,
+      ]);
 
       let accessToken = integration.api_key;
       let settings = integration.settings as any;

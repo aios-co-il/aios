@@ -2,6 +2,8 @@ import {
   createClient,
   type SupabaseClient,
 } from "https://esm.sh/@supabase/supabase-js@2";
+import { withGoogleTokens } from "./google-oauth/integration-tokens.ts";
+import { serviceClient } from "./supabase-clients.ts";
 
 export type GscKeywordRow = {
   keyword: string;
@@ -112,7 +114,7 @@ export async function resolveGscAccessToken(
 ): Promise<string | null> {
   const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID") || "";
   const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
-  const { data: integrations } = await supabase
+  const { data: storedIntegrations } = await supabase
     .from("tenant_integrations")
     .select("id, api_key, settings")
     .eq("integration_type", "google_search_console")
@@ -120,8 +122,12 @@ export async function resolveGscAccessToken(
     .in("tenant_id", tenantIdList)
     .order("updated_at", { ascending: false })
     .limit(5);
+  const integrations = await withGoogleTokens(
+    serviceClient(),
+    storedIntegrations ?? [],
+  );
 
-  for (const integration of integrations || []) {
+  for (const integration of integrations) {
     try {
       let tok = integration.api_key as string;
       const intSettings: Record<string, unknown> =

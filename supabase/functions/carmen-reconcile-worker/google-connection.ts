@@ -3,6 +3,10 @@
  * sync-google-ads-data finds it: the pinned one, else the newest usable one of
  * the table's tenant or the tenants that share an agency with it.
  */
+import {
+  withGoogleToken,
+  withGoogleTokens,
+} from "../_shared/google-oauth/integration-tokens.ts";
 import { asRecord } from "../_shared/reconcile/json.ts";
 import type { ReconcileTable } from "../_shared/reconcile/types.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
@@ -24,8 +28,9 @@ export async function findGoogleConnection(
     if (error) {
       throw new Error(`tenant_integrations: ${error.message}`);
     }
-    if (data?.is_active && data?.api_key) {
-      return data;
+    const connection = await withGoogleToken(db, data);
+    if (connection?.is_active && connection?.api_key) {
+      return connection;
     }
   }
   const tenants = [
@@ -42,7 +47,9 @@ export async function findGoogleConnection(
   if (error) {
     throw new Error(`tenant_integrations: ${error.message}`);
   }
-  const usable = (data || []).filter((i) => i?.api_key);
+  const usable = (await withGoogleTokens(db, data || [])).filter(
+    (i) => i?.api_key,
+  );
   return (
     usable.find((i) => !asRecord(i.settings).needs_reauth) || usable[0] || null
   );
