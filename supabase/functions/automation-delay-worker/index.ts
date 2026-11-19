@@ -2,11 +2,11 @@
 // pg_cron calls it every minute while a wait is due. Each call takes the due
 // waits one at a time, claiming each just before its resume, drops the ones
 // that should no longer run (automation off, delay step removed, lead left the
-// guarded status) and asks trigger-automation to run the steps after the delay. A wait resumes at most once: a failed resume is
-// recorded as failed and never retried, so a lead is never mailed twice.
-import { bearerToken } from "../_shared/automation-run-auth.ts";
+// guarded status) and asks trigger-automation to run the steps after the delay.
+// A wait resumes at most once: a failed resume is recorded as failed and never
+// retried, so a lead is never mailed twice.
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
-import { isServiceKey } from "../_shared/timing-safe-equal.ts";
+import { isCronCaller } from "./cron-caller.ts";
 import { resumeDueRuns } from "./drain.ts";
 import { resumeDeps } from "./resume-deps.ts";
 import { waitStore } from "./wait-store.ts";
@@ -20,9 +20,13 @@ const MAX_RUN_MS = 90_000;
 const STALE_CLAIM_MS = 15 * 60_000;
 
 Deno.serve(async (req) => {
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  // The cron sends the key Vault holds, which on Staging is a new secret key
+  // and need not equal SUPABASE_SERVICE_ROLE_KEY (AIO-503). This function is
+  // behind the JWT gateway (verify_jwt = true), which the check relies on.
   if (
-    !isServiceKey(bearerToken(req.headers.get("Authorization")), serviceKey)
+    !isCronCaller(req.headers.get("Authorization"), (name) =>
+      Deno.env.get(name),
+    )
   ) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
