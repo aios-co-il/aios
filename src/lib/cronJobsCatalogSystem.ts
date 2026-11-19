@@ -62,6 +62,14 @@ export const SYSTEM_CRON_JOBS: Record<string, CronJobMeta> = {
     icon: "🧹",
     sends: "none",
   },
+  "cleanup-cron-run-history": {
+    label: "ניקוי היסטוריית משימות מתוזמנות",
+    description:
+      "כל לילה: מוחק רישומי ריצה של משימות מתוזמנות שהתחילו לפני יותר מ-7 ימים.",
+    category: "system",
+    icon: "🧹",
+    sends: "none",
+  },
   "cleanup-carmen-memory-outbox": {
     label: "ניקוי תור הזיכרון של כרמן",
     description:
