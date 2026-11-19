@@ -55,6 +55,17 @@ export function leadStatusChange(
     : { leadId, kind, oldStatus, newStatus };
 }
 
+/**
+ * The step's settings without the status: what is left for the plain update
+ * once the status itself was moved, so that update cannot write the status a
+ * second time over someone else's change.
+ */
+export function withoutStatus<Config extends StatusStepConfig>(
+  config: Config,
+): Config {
+  return { ...config, status: undefined };
+}
+
 /** The fields of a trigger-automation request the loop guard reads. */
 type LoopKeyRequest = {
   trigger_type?: unknown;

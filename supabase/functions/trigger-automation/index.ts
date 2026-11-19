@@ -85,6 +85,7 @@ import {
   automationLoopKey,
   firesStatusTriggers,
   fireLeadStatusChanged,
+  withoutStatus,
 } from "./status-fanout.ts";
 import { moveLeadStatus } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
@@ -3391,9 +3392,9 @@ Deno.serve(async (req) => {
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
                   // When the step starts status-change automations, the status
-                  // is moved first with a compare-and-set, which yields the
-                  // exact transition; executeStatusUpdate then finds the status
-                  // already set and applies the step's other fields (AIO-611).
+                  // is moved with a tenant-scoped compare-and-set, which yields
+                  // the exact transition; executeStatusUpdate then applies only
+                  // the step's other fields, never the status again (AIO-611).
                   const statusLeadId = firesStatusTriggers(stepConfig)
                     ? resolveStatusRecordId("lead", stepData)
                     : null;
@@ -3407,7 +3408,7 @@ Deno.serve(async (req) => {
                     : null;
                   stepResponse = await executeStatusUpdate(
                     supabase,
-                    stepConfig,
+                    statusLeadId ? withoutStatus(stepConfig) : stepConfig,
                     stepData,
                   );
                   if (statusChange) {
