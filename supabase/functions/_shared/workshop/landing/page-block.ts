@@ -1,5 +1,14 @@
 import { LANDING_BLOCK_TYPES, type LandingBlock } from "./page-content.ts";
-import { form, items, optional, record, text } from "./page-fields.ts";
+import { parseProofBlock } from "./page-block-more.ts";
+import {
+  card,
+  form,
+  items,
+  lines,
+  optional,
+  record,
+  text,
+} from "./page-fields.ts";
 
 /** Validates one section; null when its type is unknown. */
 export function parseBlock(
@@ -20,6 +29,10 @@ export function parseBlock(
           "subheading",
           text(raw, "subheading", 500, where, problems, false),
         ),
+        ...listed(
+          "bullets",
+          lines(raw, "bullets", { max: 4, itemMax: 120 }, where, problems),
+        ),
         form: form(raw, where, problems),
       };
     case "text":
@@ -27,6 +40,14 @@ export function parseBlock(
         type: "text",
         ...optional("heading", heading(false)),
         body: text(raw, "body", 10000, where, problems),
+        ...listed(
+          "points",
+          lines(raw, "points", { max: 8, itemMax: 200 }, where, problems),
+        ),
+        ...optional(
+          "closing",
+          text(raw, "closing", 300, where, problems, false),
+        ),
       };
     case "features":
       return {
@@ -59,7 +80,7 @@ export function parseBlock(
         type: "services",
         ...optional("heading", heading(false)),
         items: items(raw, 16, where, problems).map((item, index) =>
-          text({ item }, "item", 120, `${where}.items.${index + 1}`, problems),
+          card(item, 120, `${where}.items.${index + 1}`, problems),
         ),
         ...optional(
           "tagline",
@@ -93,10 +114,21 @@ export function parseBlock(
         ...optional("body", text(raw, "body", 1000, where, problems, false)),
         label: text(raw, "label", 80, where, problems),
       };
+    case "steps":
+    case "testimonials":
+    case "comparison":
+      return parseProofBlock(raw, where, problems);
     default:
       problems.push(
         `${where}: סוג לא מוכר${typeof raw.type === "string" ? ` "${raw.type}"` : ""}. הסוגים: ${LANDING_BLOCK_TYPES.join(", ")}`,
       );
       return null;
   }
+}
+
+/** An optional list: present only when it has lines. */
+function listed<K extends string>(key: K, value: Array<string>) {
+  return (value.length > 0 ? { [key]: value } : {}) as {
+    [P in K]?: Array<string>;
+  };
 }
