@@ -2,11 +2,33 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { ingestChannelReply } from "../_shared/agent-channel/ingest.ts";
 import { resolveCallbackOrigin } from "../_shared/agent-channel/logic.ts";
 import { mcpBearer } from "../_shared/agent-channel/hmac.ts";
-import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
+import {
+  findMessageByIdempotency,
+  loadSession,
+  serviceClient,
+} from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
 } from "../_shared/agent-channel/types.ts";
+import {
+  bucketFileStore,
+  createSessionUpload,
+  replyAttachments,
+  requireRunningSession,
+} from "./session-files.ts";
+
+/** Files the agent made, shown under its message: each one uploaded with upload_aios_file first. */
+const ATTACHMENTS_SCHEMA = {
+  type: "array",
+  description:
+    "Files to show under the message, each uploaded first with upload_aios_file: [{ path, name }].",
+  items: {
+    type: "object",
+    properties: { path: { type: "string" }, name: { type: "string" } },
+    required: ["path"],
+  },
+};
 
 const SERVER_INFO = { name: "agent-channel-mcp", version: "1.0.0" };
 const PROTOCOL_VERSION = "2024-11-05";
@@ -33,8 +55,25 @@ const TOOLS = [
         },
         idempotency_key: { type: "string" },
         parliament_round: { type: "number" },
+        attachments: ATTACHMENTS_SCHEMA,
       },
       required: ["conversation_id", "content"],
+    },
+  },
+  {
+    name: "upload_aios_file",
+    description:
+      "Get a link to upload one file you made (image, video, audio, document) into this AIOS conversation. " +
+      "PUT the file bytes to upload_url with its Content-Type header, then name the returned path in " +
+      "attachments of reply_to_aios_session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        conversation_id: { type: "string" },
+        session_id: { type: "string" },
+        file_name: { type: "string" },
+      },
+      required: ["conversation_id", "session_id", "file_name"],
     },
   },
   {
@@ -118,13 +157,34 @@ async function handleTool(
   const conversationId = String(
     args?.conversation_id ?? args?.conversationId ?? "",
   ).trim();
-  const content = String(args?.content ?? args?.message ?? "").trim();
-  if (!conversationId || !content)
-    throw new Error("conversation_id and content are required");
-
   const sb = serviceClient();
   const sessionId = String(args?.session_id ?? args?.sessionId ?? "").trim();
   const session = sessionId ? await loadSession(sb, sessionId) : null;
+  if (name === "upload_aios_file") {
+    return await uploadLinkText(sb, session, conversationId, args?.file_name);
+  }
+
+  const content = String(args?.content ?? args?.message ?? "").trim();
+  if (!conversationId || !content)
+    throw new Error("conversation_id and content are required");
+  if (args?.attachments != null && name !== "reply_to_aios_session") {
+    throw new Error("attachments go with reply_to_aios_session");
+  }
+  const idempotencyKey = args?.idempotency_key
+    ? String(args.idempotency_key)
+    : undefined;
+  const attachments = await replyAttachments({
+    store: bucketFileStore(sb),
+    session,
+    conversationId,
+    requested: args?.attachments,
+    alreadyDelivered: async () =>
+      Boolean(
+        idempotencyKey &&
+        session &&
+        (await findMessageByIdempotency(sb, session.tenant_id, idempotencyKey)),
+      ),
+  });
   const tenantId =
     String(args?.tenant_id ?? args?.tenantId ?? "").trim() ||
     session?.tenant_id;
@@ -144,13 +204,12 @@ async function handleTool(
     origin,
     content,
     event_type: eventType,
-    idempotency_key: args?.idempotency_key
-      ? String(args.idempotency_key)
-      : undefined,
+    idempotency_key: idempotencyKey,
     parliament_round:
       args?.parliament_round != null
         ? Number(args.parliament_round)
         : undefined,
+    metadata: attachments.length ? { attachments } : undefined,
   };
   const result = await ingestChannelReply(payload);
   if (result.duplicate)
@@ -160,6 +219,29 @@ async function handleTool(
   if (eventType === "progress")
     return "Progress note posted to the AIOS conversation.";
   return "Answer delivered to the AIOS Carmen conversation.";
+}
+
+/** The upload link for one file, as the JSON text the agent reads. */
+async function uploadLinkText(
+  sb: ReturnType<typeof serviceClient>,
+  session: Awaited<ReturnType<typeof loadSession>>,
+  conversationId: string,
+  fileName: unknown,
+): Promise<string> {
+  if (typeof fileName !== "string" || !fileName.trim()) {
+    throw new Error("file_name is required");
+  }
+  const upload = await createSessionUpload(
+    bucketFileStore(sb),
+    requireRunningSession(session, conversationId),
+    fileName,
+  );
+  return JSON.stringify({
+    ...upload,
+    next:
+      "PUT the file bytes to upload_url with the file's Content-Type header, then pass " +
+      "{ path, name } in attachments of reply_to_aios_session.",
+  });
 }
 
 Deno.serve(async (req) => {

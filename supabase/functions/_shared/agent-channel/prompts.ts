@@ -133,7 +133,9 @@ export function buildCallbackInstructions(args: {
     (workspaceDelivery
       ? ""
       : `On work that takes more than a few minutes, call MCP tool publish_aios_progress with the same ids ` +
-        `and a one-line status every few steps. It does not end your turn.\n\n`) +
+        `and a one-line status every few steps. It does not end your turn.\n` +
+        `To return a file you made (image, video, audio, document), call MCP tool upload_aios_file, ` +
+        `PUT the bytes to its upload_url, and list its path in attachments of reply_to_aios_session.\n\n`) +
     `Fallback HTTP POST ${supabaseUrl}/functions/v1/agent-channel-callback\n` +
     `Headers:\n` +
     `  Authorization: Bearer ${args.token}\n` +
