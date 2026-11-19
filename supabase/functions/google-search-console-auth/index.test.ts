@@ -17,7 +17,6 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
-  OAUTH_STATE_SECRET: "test-state-secret",
   APP_URL: "https://aios.co.il",
 };
 

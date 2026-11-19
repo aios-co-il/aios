@@ -1,5 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import {
+  oauthStateKey,
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
@@ -32,7 +33,8 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 
 const TENANT_ID = "22222222-2222-4222-8222-222222222222";
 
-const STATE_SECRET = "test-state-secret";
+/** The handlers sign with this key, derived from GOOGLE_CLIENT_SECRET below. */
+const STATE_SECRET = oauthStateKey("test-secret");
 
 const env = {
   SUPABASE_URL,
@@ -40,7 +42,6 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
-  OAUTH_STATE_SECRET: STATE_SECRET,
 };
 
 Deno.test({
