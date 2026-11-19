@@ -1,25 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryHarness } from "@/test/withTestQuery";
-import {
-  LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-  useLeadTableColumnOrder,
-} from "./useLeadTableColumnOrder";
-
-type Failure = { message: string } | null;
-
-const backend = vi.hoisted(() => ({
-  row: null as { column_order: Array<string> | null } | null,
-  readError: null as Failure,
-  writeError: null as Failure,
-  filters: [] as Array<[string, string]>,
-  upsert: vi.fn(),
-  // When set, each upsert waits on the next deferred result instead of resolving at once.
-  deferred: null as Array<{
-    resolve: (result: { error: Failure }) => void;
-  }> | null,
-  toastError: vi.fn(),
-}));
+import { LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY } from "./legacyLeadColumnOrder";
+import { useLeadTableColumnOrder } from "./useLeadTableColumnOrder";
+import { backend } from "./useLeadTableColumnOrder.test-fixture";
 
 vi.mock("@/hooks/useCurrentTenant", () => ({
   useCurrentTenant: () => ({ tenantId: "tenant-psagot" }),
@@ -29,36 +13,17 @@ vi.mock("@/hooks/useCurrentUser", () => ({
   useCurrentUser: () => ({ userId: "user-raya" }),
 }));
 
-vi.mock("sonner", () => ({
-  toast: { error: backend.toastError, success: vi.fn() },
-}));
+vi.mock(
+  "sonner",
+  async () =>
+    (await import("./useLeadTableColumnOrder.test-fixture")).sonnerModule,
+);
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (table: string) => {
-      const query = {
-        select: () => query,
-        eq: (column: string, value: string) => {
-          backend.filters.push([column, value]);
-          return query;
-        },
-        maybeSingle: () =>
-          Promise.resolve({ data: backend.row, error: backend.readError }),
-        upsert: (row: unknown, options: unknown) => {
-          backend.upsert(table, row, options);
-          const deferred = backend.deferred;
-          if (deferred) {
-            return new Promise<{ error: Failure }>((resolve) => {
-              deferred.push({ resolve });
-            });
-          }
-          return Promise.resolve({ error: backend.writeError });
-        },
-      };
-      return query;
-    },
-  },
-}));
+vi.mock(
+  "@/integrations/supabase/client",
+  async () =>
+    (await import("./useLeadTableColumnOrder.test-fixture")).supabaseModule,
+);
 
 /** The hook once the account's saved order has loaded. */
 async function loadedHook(harness = createTestQueryHarness()) {
@@ -67,6 +32,21 @@ async function loadedHook(harness = createTestQueryHarness()) {
   });
   await waitFor(() => expect(backend.filters.length).toBeGreaterThan(0));
   return hook;
+}
+
+/** The hook once reordering is allowed (the saved order has loaded). */
+async function reorderableHook() {
+  const hook = await loadedHook();
+  await waitFor(() => expect(hook.result.current.setOrder).toBeDefined());
+  return hook;
+}
+
+/** Stores an order the way this browser kept it before the account did. */
+function seedLegacyOrder(order: Array<string>) {
+  window.localStorage.setItem(
+    LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
+    JSON.stringify(order),
+  );
 }
 
 /** The column order sent by each upsert so far. */
@@ -103,8 +83,7 @@ describe("useLeadTableColumnOrder", () => {
   });
 
   it("saves a dragged order to the user's own row only", async () => {
-    const { result } = await loadedHook();
-    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    const { result } = await reorderableHook();
     act(() => result.current.setOrder?.(["phone", "name"]));
     await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
     expect(backend.upsert).toHaveBeenCalledWith(
@@ -120,10 +99,7 @@ describe("useLeadTableColumnOrder", () => {
   });
 
   it("moves the browser's old order to the account once and clears it", async () => {
-    window.localStorage.setItem(
-      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-      JSON.stringify(["actions", "name"]),
-    );
+    seedLegacyOrder(["actions", "name"]);
     const { result, rerender } = await loadedHook();
     expect(result.current.order).toEqual(["actions", "name"]);
     await waitFor(() =>
@@ -140,10 +116,7 @@ describe("useLeadTableColumnOrder", () => {
 
   it("keeps the account's order over an old browser order", async () => {
     backend.row = { column_order: ["status", "name"] };
-    window.localStorage.setItem(
-      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-      JSON.stringify(["actions", "name"]),
-    );
+    seedLegacyOrder(["actions", "name"]);
     const { result } = await loadedHook();
     await waitFor(() =>
       expect(result.current.order).toEqual(["status", "name"]),
@@ -156,10 +129,7 @@ describe("useLeadTableColumnOrder", () => {
 
   it("keeps the browser's old order when moving it fails, to retry next visit", async () => {
     backend.writeError = { message: "permission denied" };
-    window.localStorage.setItem(
-      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-      JSON.stringify(["actions", "name"]),
-    );
+    seedLegacyOrder(["actions", "name"]);
     await loadedHook();
     await waitFor(() => expect(backend.toastError).toHaveBeenCalled());
     expect(
@@ -197,8 +167,7 @@ describe("useLeadTableColumnOrder", () => {
 
   it("saves two quick drags one at a time, so the later order wins", async () => {
     backend.row = { column_order: ["name", "phone", "status"] };
-    const { result } = await loadedHook();
-    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    const { result } = await reorderableHook();
     backend.deferred = [];
 
     act(() => result.current.setOrder?.(["phone", "name", "status"]));
@@ -220,8 +189,7 @@ describe("useLeadTableColumnOrder", () => {
 
   it("keeps the newer drag on screen when an earlier save fails", async () => {
     backend.row = { column_order: ["name", "phone"] };
-    const { result } = await loadedHook();
-    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    const { result } = await reorderableHook();
     backend.deferred = [];
 
     act(() => result.current.setOrder?.(["phone", "name"]));
@@ -241,10 +209,7 @@ describe("useLeadTableColumnOrder", () => {
   });
 
   it("keeps the browser's old order when a remount happens before the move is confirmed", async () => {
-    window.localStorage.setItem(
-      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-      JSON.stringify(["actions", "name"]),
-    );
+    seedLegacyOrder(["actions", "name"]);
     backend.deferred = [];
     const harness = createTestQueryHarness();
     const first = await loadedHook(harness);
@@ -270,10 +235,7 @@ describe("useLeadTableColumnOrder", () => {
   });
 
   it("skips a queued browser-order move once a newer drag is on the account", async () => {
-    window.localStorage.setItem(
-      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
-      JSON.stringify(["actions", "name"]),
-    );
+    seedLegacyOrder(["actions", "name"]);
     backend.deferred = [];
     const harness = createTestQueryHarness();
     const first = await loadedHook(harness);

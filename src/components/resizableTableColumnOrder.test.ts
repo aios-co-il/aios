@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  applyColumnOrder,
-  moveColumnId,
-  parseColumnOrder,
-} from "./resizableTableColumnOrder";
+import { applyColumnOrder, moveColumnId } from "./resizableTableColumnOrder";
 
 const columns = ["name", "phone", "status", "actions"].map((id) => ({ id }));
 
@@ -77,15 +73,5 @@ describe("moveColumnId", () => {
   it("ignores unknown ids", () => {
     const ids = ["name", "phone"];
     expect(moveColumnId(ids, "missing", "phone")).toBe(ids);
-  });
-});
-
-describe("parseColumnOrder", () => {
-  it("keeps string ids and ignores malformed values", () => {
-    expect(parseColumnOrder('["phone","name"]')).toEqual(["phone", "name"]);
-    expect(parseColumnOrder("{bad")).toEqual([]);
-    expect(parseColumnOrder('{"a":1}')).toEqual([]);
-    expect(parseColumnOrder('["a",2,"b"]')).toEqual(["a", "b"]);
-    expect(parseColumnOrder(null)).toEqual([]);
   });
 });

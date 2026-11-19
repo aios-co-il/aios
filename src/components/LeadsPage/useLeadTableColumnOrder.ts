@@ -9,10 +9,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { parseColumnOrder } from "@/components/resizableTableColumnOrder";
-
-/** Where this browser kept the order before it moved to the user's account. */
-export const LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY = "leads-table-column-order";
+import {
+  clearLegacyColumnOrder,
+  readLegacyColumnOrder,
+} from "./legacyLeadColumnOrder";
 
 /**
  * The signed-in user's own CRM table column order, saved on their
@@ -171,25 +171,5 @@ async function saveColumnOrder(
   );
   if (error) {
     throw error;
-  }
-}
-
-/** The order this browser saved before; none when storage is blocked. */
-function readLegacyColumnOrder(): Array<string> {
-  try {
-    return parseColumnOrder(
-      window.localStorage.getItem(LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY),
-    );
-  } catch {
-    return [];
-  }
-}
-
-/** Removes the browser copy once the account holds the order. */
-function clearLegacyColumnOrder(): void {
-  try {
-    window.localStorage.removeItem(LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY);
-  } catch (error) {
-    console.warn("Could not clear the old browser column order", error);
   }
 }

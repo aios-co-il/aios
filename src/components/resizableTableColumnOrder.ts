@@ -1,21 +1,3 @@
-/** Reads a stored column-id order; anything malformed reads as no saved order. */
-export function parseColumnOrder(
-  raw: string | null | undefined,
-): Array<string> {
-  if (!raw) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((id): id is string => typeof id === "string");
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Puts columns in the saved order. A column missing from the saved order (one the
  * org turned on later) stays right after the column it follows by default.
