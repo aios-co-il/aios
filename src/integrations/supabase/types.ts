@@ -18561,6 +18561,10 @@ export type Database = {
         Args: { p_channel_id: string; p_user_id: string };
         Returns: boolean;
       };
+      is_google_integration_type: {
+        Args: { p_type: string };
+        Returns: boolean;
+      };
       is_public_team_channel: {
         Args: { p_channel_id: string; p_user_id: string };
         Returns: boolean;

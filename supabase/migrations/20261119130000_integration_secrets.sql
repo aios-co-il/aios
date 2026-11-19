@@ -17,6 +17,23 @@
 --
 -- No data changes in tenant_integrations.
 
+-- The integration types whose tokens are Google OAuth tokens: the one list the
+-- trigger, the backfill and step 3 use (src/lib/tenantIntegrationsClient.ts
+-- GOOGLE_INTEGRATION_TYPES names the same three for the browser).
+create or replace function public.is_google_integration_type(p_type text)
+returns boolean
+language sql
+immutable
+set search_path to 'public'
+as $$
+  select p_type in ('google_analytics', 'google_search_console', 'google_ads')
+$$;
+
+-- The trigger's WHEN clause runs as whoever writes the row, members editing
+-- from the browser included, so authenticated may call it; it reads nothing.
+revoke all on function public.is_google_integration_type(text) from public, anon;
+grant execute on function public.is_google_integration_type(text) to authenticated, service_role;
+
 -- One row per Google connection: the tokens that used to live on it.
 create table if not exists public.integration_secrets (
   integration_id uuid primary key
@@ -63,14 +80,14 @@ drop trigger if exists copy_google_integration_secrets on public.tenant_integrat
 create trigger copy_google_integration_secrets
   after insert or update of api_key, settings, tenant_id on public.tenant_integrations
   for each row
-  when (new.integration_type in ('google_analytics', 'google_search_console', 'google_ads'))
+  when (public.is_google_integration_type(new.integration_type))
   execute function public.copy_google_integration_secrets();
 
 -- Backfill: the tokens of every existing Google connection.
 insert into public.integration_secrets (integration_id, tenant_id, access_token, refresh_token, updated_at)
 select ti.id, ti.tenant_id, ti.api_key, ti.settings ->> 'refresh_token', now()
 from public.tenant_integrations ti
-where ti.integration_type in ('google_analytics', 'google_search_console', 'google_ads')
+where public.is_google_integration_type(ti.integration_type)
 on conflict (integration_id) do update
   set tenant_id = excluded.tenant_id,
       access_token = excluded.access_token,
@@ -99,7 +116,7 @@ begin
 
   if exists (
     select 1 from public.tenant_integrations ti
-    where ti.integration_type in ('google_analytics', 'google_search_console', 'google_ads')
+    where public.is_google_integration_type(ti.integration_type)
       and not exists (
         select 1 from public.integration_secrets s where s.integration_id = ti.id
       )

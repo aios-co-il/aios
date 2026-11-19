@@ -82,9 +82,18 @@ BEGIN
     RESET ROLE;
   END LOOP;
 
-  -- Other integration types are not copied.
-  INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, api_key)
-  VALUES (tenant_id_, owner_id, 'sumit', 'qa-sumit-key') RETURNING id INTO other_id;
+  -- Other integration types are not copied, and the trigger's type check does
+  -- not stop a member saving one from the browser.
+  PERFORM set_config('request.jwt.claims',
+    jsonb_build_object('sub', owner_id, 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    INSERT INTO public.tenant_integrations (tenant_id, user_id, integration_type, api_key)
+    VALUES (tenant_id_, owner_id, 'sumit', 'qa-sumit-key') RETURNING id INTO other_id;
+  EXCEPTION WHEN insufficient_privilege THEN
+    failures := failures || 'the owner could not save a non-Google integration';
+  END;
+  RESET ROLE;
   SELECT count(*) INTO n FROM public.integration_secrets WHERE integration_id = other_id;
   IF n <> 0 THEN
     failures := failures || 'a non-Google row was copied';
