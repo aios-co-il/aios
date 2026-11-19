@@ -1,5 +1,11 @@
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  CONNECT_CODE_MESSAGE,
+  CONNECT_FRAGMENT_KEY,
+  GOOGLE_CONNECT_FUNCTIONS,
+  type GoogleConnectFunction,
+} from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
 
 /**
  * Finishing a Google connect in the signed-in app. Google's redirect reaches
@@ -9,18 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
  * whose connect another user started.
  */
 
-const CONNECT_FUNCTIONS = [
-  "google-calendar-auth",
-  "gmail-auth",
-  "google-analytics-auth",
-  "google-search-console-auth",
-  "google-ads-auth",
-] as const;
-
-export type GoogleConnectFunction = (typeof CONNECT_FUNCTIONS)[number];
-
 const connectCodeSchema = z.object({
-  provider: z.enum(CONNECT_FUNCTIONS),
+  provider: z.enum(GOOGLE_CONNECT_FUNCTIONS),
   code: z.string().min(1),
   state: z.string().min(1),
 });
@@ -28,7 +24,7 @@ const connectCodeSchema = z.object({
 export type GoogleConnectCode = z.infer<typeof connectCodeSchema>;
 
 const popupMessageSchema = connectCodeSchema.extend({
-  type: z.literal("google_connect_code"),
+  type: z.literal(CONNECT_CODE_MESSAGE),
 });
 
 /** How often to check whether the user closed the popup. */
@@ -117,7 +113,7 @@ export function connectGoogleInPopup(
 export function fragmentConnectCode(hash: string): GoogleConnectCode | null {
   const params = new URLSearchParams(hash.replace(/^#/, ""));
   const code = connectCodeSchema.safeParse({
-    provider: params.get("google_connect"),
+    provider: params.get(CONNECT_FRAGMENT_KEY),
     code: params.get("code"),
     state: params.get("state"),
   });

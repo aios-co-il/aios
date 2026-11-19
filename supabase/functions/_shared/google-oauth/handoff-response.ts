@@ -3,17 +3,16 @@
 // post it to the window that opened the popup; full-page flows put it in the
 // URL fragment of the integrations page, which never reaches a server.
 import { appReturnOrigin } from "./app-origin.ts";
+import {
+  CONNECT_CODE_MESSAGE,
+  CONNECT_FRAGMENT_KEY,
+  type GoogleConnectFunction,
+} from "./handoff-contract.ts";
 import type { OAuthState } from "./oauth-state.ts";
-
-/** The message the popup posts to the app window that opened it (src/lib/googleConnect.ts reads it). */
-const CONNECT_CODE_MESSAGE = "google_connect_code";
-
-/** The URL fragment key the full-page flows carry the code in (src/lib/googleConnect.ts reads it). */
-const CONNECT_FRAGMENT_KEY = "google_connect";
 
 /** The popup's last page: posts the code and state to the app window that opened it, and closes. */
 export function popupHandoffPage(
-  provider: string,
+  provider: GoogleConnectFunction,
   state: OAuthState,
   code: string,
   rawState: string,
@@ -46,7 +45,7 @@ export function popupHandoffPage(
 
 /** A 302 to the tenant's integrations page with the code and state in the fragment. */
 export function redirectHandoff(
-  provider: string,
+  provider: GoogleConnectFunction,
   state: OAuthState,
   tenantSlug: string,
   code: string,
