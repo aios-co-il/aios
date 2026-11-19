@@ -4,7 +4,11 @@ import {
   pageFolder,
   siteFile,
 } from "./page-files.ts";
-import { type LoadPageAsset, withPageAssets } from "./page-assets.ts";
+import {
+  type LoadPageAsset,
+  mediaFingerprint,
+  withPageAssets,
+} from "./page-assets.ts";
 import type { LandingTarget } from "./page-target.ts";
 import type { LandingState } from "./project.ts";
 import type { LandingRepo } from "./repo.ts";
@@ -65,11 +69,9 @@ export async function prepareBuild(
   });
   const digest = await buildDigest(
     { subdomain, slug: target.slug, title: target.title },
-    files[`${folder}/content.json`],
+    files[`${folder}/content.json`] + (await mediaFingerprint(media.files)),
   );
   return {
-    // The copied assets' paths are in content.json and an asset's file never changes, so the
-    // digest of content.json covers them.
     files: { ...files, ...media.files },
     digest,
     // A draft lives on the page's own branch, which every rebuild replaces. A publish gets a

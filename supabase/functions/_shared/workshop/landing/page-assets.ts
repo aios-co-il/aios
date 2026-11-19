@@ -62,7 +62,7 @@ export async function withPageAssets(
         error: `הנכס ${id} הוא ${asset.kind === "video" ? "סרטון" : "תמונה"}, ובמקום הזה צריך ${kind === "video" ? "סרטון mp4" : "תמונה"}`,
       };
     }
-    const path = `assets/asset-${id.replaceAll("-", "").slice(0, 12)}.${asset.ext}`;
+    const path = `assets/asset-${id.replaceAll("-", "")}.${asset.ext}`;
     files[`${folder}/${path}`] = asset.bytes;
     return path;
   }
@@ -106,6 +106,28 @@ export async function withPageAssets(
 }
 
 /**
+ * A fingerprint of the copied files' bytes, empty when there are none. The build digest includes
+ * it, so a publish ships exactly the media of the preview the user approved, even if an asset's
+ * stored file changes under the same id.
+ */
+export async function mediaFingerprint(
+  files: Record<string, Uint8Array>,
+): Promise<string> {
+  const lines = [];
+  for (const path of Object.keys(files).sort()) {
+    const hash = await crypto.subtle.digest(
+      "SHA-256",
+      files[path] as Uint8Array<ArrayBuffer>,
+    );
+    const hex = Array.from(new Uint8Array(hash), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
+    lines.push(`\n${path} ${hex}`);
+  }
+  return lines.join("");
+}
+
+/**
  * Loads a project's asset for its page: only a file uploaded to this project (tenant and project
  * keyed), an image or an mp4 video within the repository's size limits.
  */
@@ -129,6 +151,14 @@ export function projectAssetLoader(
       return { error: `הנכס ${assetId} לא נמצא בנכסי הפרויקט` };
     }
     const path = typeof data.storage_path === "string" ? data.storage_path : "";
+    // The download runs as the service role, past storage's own policies: a row may only name an
+    // object in this org's folder, never another org's file.
+    if (path && path.split("/")[0] !== tenantId) {
+      console.error(
+        `landing assets: asset ${assetId} names a file outside org ${tenantId}`,
+      );
+      return { error: `הנכס ${assetId} לא שייך לחשבון הזה` };
+    }
     const kind = kindOf(data.asset_type, path);
     if (!path || !kind) {
       return {

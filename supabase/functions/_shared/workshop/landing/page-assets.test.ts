@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   type LoadPageAsset,
+  mediaFingerprint,
   type PageAssetFile,
   projectAssetLoader,
   withPageAssets,
@@ -59,10 +60,10 @@ Deno.test("withPageAssets", async (t) => {
           {
             type: "hero",
             heading: "כותרת",
-            imageUrl: "assets/asset-111111112222.jpg",
+            imageUrl: "assets/asset-11111111222243338444555555555555.jpg",
             video: {
-              src: "assets/asset-aaaaaaaabbbb.mp4",
-              poster: "assets/asset-111111112222.jpg",
+              src: "assets/asset-aaaaaaaabbbb4ccc8dddeeeeeeeeeeee.mp4",
+              poster: "assets/asset-11111111222243338444555555555555.jpg",
             },
             form,
           },
@@ -73,8 +74,10 @@ Deno.test("withPageAssets", async (t) => {
           },
         ],
         files: {
-          [`${folder}/assets/asset-111111112222.jpg`]: picture.bytes,
-          [`${folder}/assets/asset-aaaaaaaabbbb.mp4`]: film.bytes,
+          [`${folder}/assets/asset-11111111222243338444555555555555.jpg`]:
+            picture.bytes,
+          [`${folder}/assets/asset-aaaaaaaabbbb4ccc8dddeeeeeeeeeeee.mp4`]:
+            film.bytes,
         },
       });
       assertEquals(reads, [FILM, PICTURE]);
@@ -167,6 +170,30 @@ Deno.test("projectAssetLoader", async (t) => {
     },
   );
 
+  await t.step(
+    "a row that names another org's file is refused before any download",
+    async () => {
+      const { supabase } = assetDb({
+        asset_type: "image",
+        storage_path: "t-2/workshop/item-9/1_photo.png",
+      });
+      let downloaded = false;
+      supabase.storage.from = () => ({
+        download: () => {
+          downloaded = true;
+          return Promise.resolve({ data: new Blob([]), error: null });
+        },
+      });
+      const asset = await projectAssetLoader(
+        supabase,
+        "t-1",
+        "item-1",
+      )(PICTURE);
+      assertEquals("error" in asset, true);
+      assertEquals(downloaded, false);
+    },
+  );
+
   await t.step("an asset of another project is not found", async () => {
     const { supabase } = assetDb(null);
     const asset = await projectAssetLoader(supabase, "t-1", "item-1")(PICTURE);
@@ -196,3 +223,17 @@ Deno.test("projectAssetLoader", async (t) => {
     assertEquals("error" in asset && asset.error.includes("גדול"), true);
   });
 });
+
+Deno.test(
+  "mediaFingerprint changes with the bytes and is empty without media",
+  async () => {
+    assertEquals(await mediaFingerprint({}), "");
+    const one = await mediaFingerprint({
+      "a/assets/x.png": new Uint8Array([1]),
+    });
+    const other = await mediaFingerprint({
+      "a/assets/x.png": new Uint8Array([2]),
+    });
+    assertEquals(one === other, false);
+  },
+);

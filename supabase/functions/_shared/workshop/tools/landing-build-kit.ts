@@ -95,7 +95,10 @@ function jsonbOrder(value: unknown): unknown {
 
 /** A fake repository that records what Carmen pushes and opens. */
 export function fakeRepo(files: Record<string, string> = {}, preview = true) {
-  const pushes: Array<{ branch: string; files: Loose }> = [];
+  const pushes: Array<{
+    branch: string;
+    files: Parameters<LandingRepo["pushFiles"]>[1];
+  }> = [];
   const pulls: Array<string> = [];
   const repo: LandingRepo = {
     readFile: (path) => Promise.resolve(files[path] ?? null),
@@ -136,4 +139,16 @@ export async function run(
 export function savedLanding(db: ReturnType<typeof fakeDb>): Loose {
   const update = db.calls.findLast((call) => call.op === "update");
   return (update?.value as Loose).payload.landing;
+}
+
+/** A pushed text file parsed as JSON; fails the test when the file is missing or bytes. */
+export function pushedJson(
+  files: Parameters<LandingRepo["pushFiles"]>[1],
+  path: string,
+): Loose {
+  const file = files[path];
+  if (typeof file !== "string") {
+    throw new Error(`${path} was not pushed as text`);
+  }
+  return JSON.parse(file);
 }
