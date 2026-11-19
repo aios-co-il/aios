@@ -1,5 +1,8 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
-import { verifyOAuthState } from "../_shared/google-oauth/oauth-state.ts";
+import {
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -98,6 +101,35 @@ Deno.test({
         const { error } = await response.json();
         assertStringIncludes(error, "invalid or has expired");
         assertEquals(http.calls.length, 0);
+      },
+    );
+
+    await t.step(
+      "a mailbox cannot be completed into another user's account",
+      async () => {
+        const attackerState = await signOAuthState(
+          { userId: MEMBER, tenantId: TENANT, origin: null, addNew: false },
+          STATE_SECRET,
+        );
+        const { response, http } = await run(
+          new Request(FUNCTION_URL, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer outsider",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "complete",
+              code: "victim-code",
+              state: attackerState,
+            }),
+          }),
+        );
+        assertEquals(response.status, 403);
+        assertEquals(
+          http.calls.some((call) => call.url.pathname.startsWith("/rest/")),
+          false,
+        );
       },
     );
   },

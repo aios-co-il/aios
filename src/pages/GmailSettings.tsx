@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
+import { z } from "zod";
+import { connectGoogleInPopup } from "@/lib/googleConnect";
 import {
   Card,
   CardContent,
@@ -29,6 +30,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
+
+/** gmail-auth `init`: the consent screen to open. */
+const gmailInitSchema = z.object({ authUrl: z.string().url() });
 
 export default function GmailSettings() {
   const { tenantId } = useCurrentTenant();
@@ -80,32 +84,30 @@ export default function GmailSettings() {
     enabled: !!userId,
   });
 
-  // Connect Gmail
-  const connectGmail = async () => {
-    try {
+  const connectGmailMutation = useMutation({
+    mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "init", tenantId },
       });
-      if (error) throw error;
-      if (data?.authUrl) {
-        window.open(data.authUrl, "gmail-auth", "width=600,height=700");
+      if (error) {
+        throw error;
       }
-    } catch (e) {
+      const { authUrl } = gmailInitSchema.parse(data);
+      await connectGoogleInPopup(authUrl, "gmail-auth");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gmail-status", userId] });
+      toast.success("Gmail התחבר בהצלחה!");
+    },
+    onError: (error) => {
+      console.error("Gmail connect failed:", error);
       toast.error("שגיאה בחיבור Gmail");
-    }
-  };
+    },
+  });
 
-  // Listen for OAuth callback
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (isOAuthPopupMessage(event, "gmail_connected")) {
-        queryClient.invalidateQueries({ queryKey: ["gmail-status", userId] });
-        toast.success("Gmail התחבר בהצלחה!");
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [queryClient]);
+  function connectGmail() {
+    connectGmailMutation.mutate();
+  }
 
   // Disconnect
   const disconnectMutation = useMutation({

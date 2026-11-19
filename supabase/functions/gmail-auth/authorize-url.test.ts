@@ -100,7 +100,7 @@ Deno.test({
       ["https://www.googleapis.com/auth/gmail.modify", true],
     ] as const) {
       await t.step(
-        `callback scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
+        `complete with scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
         async () => {
           const existing = {
             user_id: USER_ID,
@@ -109,6 +109,7 @@ Deno.test({
           };
           const http = fakeSupabaseHttp({
             supabaseUrl: SUPABASE_URL,
+            users: { session: USER_ID },
             tables: { gmail_tokens: [existing] },
             other: (url) => {
               if (url.href === "https://oauth2.googleapis.com/token") {
@@ -142,9 +143,18 @@ Deno.test({
               STATE_SECRET,
             );
             const response = await handle(
-              new Request(
-                `${SUPABASE_URL}/functions/v1/gmail-auth?action=callback&code=code&state=${encodeURIComponent(state)}`,
-              ),
+              new Request(SUPABASE_URL, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer session",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  action: "complete",
+                  code: "code",
+                  state,
+                }),
+              }),
             );
             const writes = http.calls.filter(
               (call) =>
@@ -154,7 +164,11 @@ Deno.test({
             assertEquals(writes.length, accepted ? 1 : 0);
             if (accepted) {
               assertEquals(response.status, 200);
-              assertStringIncludes(await response.text(), "gmail_connected");
+              assertEquals(await response.json(), { success: true });
+              assertEquals(
+                writes[0].body && Reflect.get(writes[0].body, "tenant_id"),
+                TENANT_ID,
+              );
               assertEquals(
                 writes[0].body && Reflect.get(writes[0].body, "google_email"),
                 "mailbox@example.com",

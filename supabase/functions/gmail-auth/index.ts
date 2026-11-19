@@ -1,23 +1,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
 import {
-  allowedAppOrigin,
-  appReturnOrigin,
-} from "../_shared/google-oauth/app-origin.ts";
-import { missingGrantedScopes } from "../_shared/google-oauth/granted-scopes.ts";
+  isCompleteRefusal,
+  readCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
 import {
   oauthStateSecret,
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
-import { tokenErrorSummary } from "../_shared/google-oauth/token-error.ts";
 import {
   UserFacingError,
   userFacingMessage,
 } from "../_shared/google-oauth/user-facing-error.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
-import { GMAIL_SCOPES } from "./scopes.ts";
+import { storeGmailConnection } from "./store-connection.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -52,108 +52,11 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { userId, tenantId } = state;
-
-      const supabaseClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      );
-
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-      const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
-      if (!clientId || !clientSecret)
-        throw new Error("Missing Google credentials");
-
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-      if (!tokens.access_token || !tokens.refresh_token) {
-        console.error("Token error:", tokenErrorSummary(tokens));
-        throw new Error("Failed to get tokens from Google");
-      }
-
-      const missingScopes = missingGrantedScopes(tokens, GMAIL_SCOPES);
-      if (missingScopes.length > 0) {
-        throw new UserFacingError(
-          "Gmail permission is missing. Close this window and connect Gmail again, allowing Gmail access.",
-        );
-      }
-
-      // Gmail profile uses the same permission as mailbox operations.
-      let googleEmail = null;
-      try {
-        const res = await fetch(
-          "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        if (res.ok) {
-          const info = await res.json();
-          googleEmail = info.emailAddress;
-        }
-      } catch (e) {
-        console.error("Failed to fetch Gmail profile:", e);
-      }
-
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      const { error: dbError } = await supabaseClient
-        .from("gmail_tokens")
-        .upsert(
-          {
-            user_id: userId,
-            tenant_id: tenantId,
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_at: expiresAt.toISOString(),
-            google_email: googleEmail,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id" },
-        );
-
-      if (dbError) {
-        console.error("DB error:", dbError);
-        throw dbError;
-      }
-
-      return new Response(
-        `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Gmail Connected</title>
-            <script>
-              window.opener?.postMessage({ type: 'gmail_connected' }, ${JSON.stringify(appReturnOrigin(state.origin))});
-              setTimeout(() => window.close(), 1000);
-            </script>
-          </head>
-          <body style="font-family: system-ui; text-align: center; padding: 50px;">
-            <h1>✅ Gmail התחבר בהצלחה!</h1>
-            <p>החלון ייסגר אוטומטית...</p>
-          </body>
-        </html>
-      `,
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html; charset=utf-8",
-          },
-        },
+      return popupHandoffPage(
+        "gmail-auth",
+        state,
+        code,
+        url.searchParams.get("state") ?? "",
       );
     }
 
@@ -176,6 +79,29 @@ Deno.serve(async (req) => {
 
     const requestBody = await req.json();
     const action = requestBody.action;
+
+    if (action === "complete") {
+      const request = await readCompleteRequest(requestBody, user.id);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { userId, tenantId } = request.state;
+      if (!tenantId) {
+        throw new UserFacingError(
+          "This connect link is invalid. Connect Gmail again.",
+        );
+      }
+
+      await storeGmailConnection(request.code, userId, tenantId);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (action === "init") {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");

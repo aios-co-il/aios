@@ -1,6 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { redirectToIntegrations } from "../_shared/google-oauth/app-origin.ts";
 import {
+  isCompleteRefusal,
+  readTenantCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
+import {
   isConnectRefusal,
   readConnectRequest,
 } from "../_shared/google-oauth/connect-request.ts";
@@ -9,7 +14,7 @@ import {
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
-import { tokenErrorSummary } from "../_shared/google-oauth/token-error.ts";
+import { storeSearchConsoleConnection } from "./store-connection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,130 +122,54 @@ Deno.serve(async (req) => {
       return redirectToIntegrations(null, "app", { error: "invalid_state" });
     }
 
-    const { tenantId, userId, origin } = state;
-    const tenantSlug = await getTenantSlug(tenantId);
+    const tenantSlug = await getTenantSlug(state.tenantId);
 
     if (error) {
-      return redirectToIntegrations(origin, tenantSlug, { error });
+      return redirectToIntegrations(state.origin, tenantSlug, { error });
     }
 
     if (!code) {
       return new Response("Missing code", { status: 400 });
     }
 
+    return redirectHandoff(
+      "google-search-console-auth",
+      state,
+      tenantSlug,
+      code,
+      url.searchParams.get("state") ?? "",
+    );
+  }
+
+  // Finish a connect from the signed-in app (see connect-handoff.ts)
+  if (action === "complete") {
     try {
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-
-      if (tokens.error) {
-        console.error("Token exchange error:", tokenErrorSummary(tokens));
-        throw new Error(tokens.error_description || tokens.error);
-      }
-
-      const expiresAt = new Date(
-        Date.now() + tokens.expires_in * 1000,
-      ).toISOString();
-
-      // Fetch the Google email to identify which Google account was authorized
-      let googleEmail = "";
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        const userInfo = await userInfoResponse.json();
-        googleEmail = userInfo.email || "";
-      } catch (e) {
-        console.error("Failed to fetch Google user info:", e);
-      }
-
-      // Find an existing GSC integration in this tenant: prefer same google_email,
-      // then same user_id; otherwise insert a new row (multi-account, multi-user).
-      const { data: allGsc, error: allGscError } = await supabase
-        .from("tenant_integrations")
-        .select("id, user_id, settings")
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "google_search_console");
-
-      if (allGscError) {
-        throw allGscError;
-      }
-
-      const existingForEmail = googleEmail
-        ? allGsc?.find(
-            (row: any) => (row.settings as any)?.google_email === googleEmail,
-          ) || null
-        : null;
-      const existingForUser =
-        allGsc?.find((row: any) => row.user_id === userId) || null;
-      const existingIntegration = existingForEmail || existingForUser;
-      const existingSettings =
-        (existingIntegration?.settings as Record<string, unknown> | null) ||
-        null;
-
-      const integrationData = {
-        is_active: true,
-        api_key: tokens.access_token,
-        settings: {
-          ...(existingSettings || {}),
-          refresh_token:
-            tokens.refresh_token || (existingSettings as any)?.refresh_token,
-          expires_at: expiresAt,
-          connected_at: new Date().toISOString(),
-          google_email:
-            googleEmail || (existingSettings as any)?.google_email || "",
-          // Clear any stale reconnect flags on successful re-authorization
-          needs_reauth: false,
-          reauth_reason: null,
-          reauth_marked_at: null,
-        },
-        updated_at: new Date().toISOString(),
-      };
-
-      let saveError;
-      if (existingIntegration) {
-        const { error } = await supabase
-          .from("tenant_integrations")
-          .update(integrationData)
-          .eq("id", existingIntegration.id);
-        saveError = error;
-      } else {
-        const { error } = await supabase.from("tenant_integrations").insert({
-          tenant_id: tenantId,
-          user_id: userId,
-          integration_type: "google_search_console",
-          ...integrationData,
+      const request = await readTenantCompleteRequest(req);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        saveError = error;
       }
 
-      if (saveError) {
-        console.error("Error saving tokens:", saveError);
-        throw saveError;
-      }
+      await storeSearchConsoleConnection(
+        request.code,
+        request.tenantId,
+        request.state.userId,
+      );
 
-      return redirectToIntegrations(origin, tenantSlug, {
-        google_search_console: "connected",
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (error) {
-      console.error("OAuth callback error:", error);
-      return redirectToIntegrations(origin, tenantSlug, {
-        error: "auth_failed",
-      });
+      console.error("Search Console complete failed:", error);
+      return new Response(
+        JSON.stringify({ error: "Could not connect Google Search Console" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
   }
 

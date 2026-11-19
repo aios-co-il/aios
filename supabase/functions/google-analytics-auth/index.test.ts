@@ -31,7 +31,7 @@ const env = {
 
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-analytics-auth`;
 
-/** Supabase with one tenant, its member and an outsider; Google is never called. */
+/** Supabase with one tenant, its member and an outsider, and Google's token and userinfo endpoints. */
 function fakeHttp() {
   return fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
@@ -43,6 +43,16 @@ function fakeHttp() {
     },
     rpc: { is_super_admin: () => false },
     other: (url) => {
+      if (url.href === "https://oauth2.googleapis.com/token") {
+        return Response.json({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+          expires_in: 3600,
+        });
+      }
+      if (url.href === "https://www.googleapis.com/oauth2/v2/userinfo") {
+        return Response.json({ email: "owner@example.com" });
+      }
       throw new Error(`Unexpected provider request: ${url.href}`);
     },
   });
@@ -169,5 +179,98 @@ Deno.test({
         );
       },
     );
+
+    await t.step(
+      "the callback hands the code to the app in the URL fragment",
+      async () => {
+        const state = await memberState();
+        const { response, http } = await run(
+          new Request(
+            `${FUNCTION_URL}?action=oauth_callback&code=the-code&state=${encodeURIComponent(state)}`,
+          ),
+        );
+        const location = new URL(response.headers.get("Location") ?? "");
+        assertEquals(
+          location.origin + location.pathname,
+          "https://staging.aios.co.il/t/acme/integrations",
+        );
+        assertEquals(location.search, "");
+        const fragment = new URLSearchParams(location.hash.slice(1));
+        assertEquals(fragment.get("google_connect"), "google-analytics-auth");
+        assertEquals(fragment.get("code"), "the-code");
+        assertEquals(fragment.get("state"), state);
+        assertEquals(
+          http.calls.some((call) =>
+            call.url.hostname.endsWith("googleapis.com"),
+          ),
+          false,
+        );
+      },
+    );
+
+    await t.step("complete by another user is 403", async () => {
+      const { response, http } = await run(
+        completeRequest("outsider", await memberState()),
+      );
+      assertEquals(response.status, 403);
+      assertEquals(
+        http.calls.some((call) => call.url.pathname.startsWith("/rest/")),
+        false,
+      );
+    });
+
+    await t.step(
+      "complete by the member saves the org connection",
+      async () => {
+        const { response, http } = await run(
+          completeRequest("member", await memberState()),
+        );
+        assertEquals(response.status, 200);
+        const inserts = http.calls.filter(
+          (call) =>
+            call.method === "POST" &&
+            call.url.pathname === "/rest/v1/tenant_integrations",
+        );
+        assertEquals(inserts.length, 1);
+        const row = inserts[0].body;
+        assertEquals(row && Reflect.get(row, "tenant_id"), TENANT);
+        assertEquals(row && Reflect.get(row, "user_id"), MEMBER);
+        assertEquals(row && Reflect.get(row, "connection_visibility"), "org");
+        const settings = row && Reflect.get(row, "settings");
+        assertEquals(
+          settings && Reflect.get(settings, "refresh_token"),
+          "new-refresh",
+        );
+        assertEquals(
+          settings && Reflect.get(settings, "google_email"),
+          "owner@example.com",
+        );
+      },
+    );
   },
 });
+
+/** A state the member signed for the tenant, started on Staging. */
+async function memberState() {
+  return await signOAuthState(
+    {
+      userId: MEMBER,
+      tenantId: TENANT,
+      origin: "https://staging.aios.co.il",
+      addNew: false,
+    },
+    STATE_SECRET,
+  );
+}
+
+/** The app's `complete` call, signed in with the given session. */
+function completeRequest(token: string, state: string) {
+  return new Request(`${FUNCTION_URL}?action=complete`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "complete", code: "the-code", state }),
+  });
+}
