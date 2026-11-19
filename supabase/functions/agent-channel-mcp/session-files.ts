@@ -57,6 +57,31 @@ export async function signSessionAttachments(
   );
 }
 
+/**
+ * The attachments a reply carries. An empty list needs no session. A retry of a reply already
+ * delivered signs nothing new, so ingest can return its duplicate answer even after the reply
+ * completed the session; any other reply with files needs its session still running.
+ */
+export async function replyAttachments(args: {
+  store: SessionFileStore;
+  session: ChannelSessionRow | null;
+  conversationId: string;
+  requested: unknown;
+  alreadyDelivered: () => Promise<boolean>;
+}): Promise<ChannelAttachment[]> {
+  const none =
+    args.requested == null ||
+    (Array.isArray(args.requested) && args.requested.length === 0);
+  if (none || (await args.alreadyDelivered())) {
+    return [];
+  }
+  return await signSessionAttachments(
+    args.store,
+    requireRunningSession(args.session, args.conversationId),
+    args.requested,
+  );
+}
+
 /** The session the call names, when it is running in the conversation the call names. */
 export function requireRunningSession(
   session: ChannelSessionRow | null,
@@ -130,5 +155,11 @@ function sessionFolder(session: ChannelSessionRow): string {
 
 /** The Command Center's own rule for stored file names: letters, digits, dot, dash, underscore. */
 function safeFileName(fileName: string): string {
-  return fileName.trim().replace(/[^a-zA-Z0-9._-]/g, "_") || "file";
+  // A run of dots becomes one, so the path never reads as ".." and a reply can attach it.
+  return (
+    fileName
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .replace(/\.{2,}/g, ".") || "file"
+  );
 }

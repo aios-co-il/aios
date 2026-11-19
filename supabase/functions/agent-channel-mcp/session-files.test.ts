@@ -7,6 +7,7 @@ import {
 import type { ChannelSessionRow } from "../_shared/agent-channel/types.ts";
 import {
   createSessionUpload,
+  replyAttachments,
   requireRunningSession,
   type SessionFileStore,
   signSessionAttachments,
@@ -150,4 +151,57 @@ Deno.test("session files", async (t) => {
       );
     },
   );
+  await t.step("a name with a run of dots uploads and attaches", async () => {
+    const store = fakeStore();
+    const upload = await createSessionUpload(store, session, "report..pdf");
+    assertMatch(upload.path, /-report\.pdf$/);
+    const [attachment] = await signSessionAttachments(store, session, [
+      { path: upload.path },
+    ]);
+    assertEquals(attachment.path, upload.path);
+  });
+
+  await t.step(
+    "a retry of a delivered reply signs nothing, even after the session completed",
+    async () => {
+      const store = fakeStore();
+      const attachments = await replyAttachments({
+        store,
+        session: { ...session, status: "completed" },
+        conversationId: "conv-1",
+        requested: [{ path: `${folder}a.png` }],
+        alreadyDelivered: () => Promise.resolve(true),
+      });
+      assertEquals(attachments, []);
+      assertEquals(store.signed, []);
+    },
+  );
+
+  await t.step("a new reply with files needs its session running", async () => {
+    await assertRejects(
+      () =>
+        replyAttachments({
+          store: fakeStore(),
+          session: { ...session, status: "completed" },
+          conversationId: "conv-1",
+          requested: [{ path: `${folder}a.png` }],
+          alreadyDelivered: () => Promise.resolve(false),
+        }),
+      Error,
+      "not a running session",
+    );
+  });
+
+  await t.step("an empty list needs no session", async () => {
+    assertEquals(
+      await replyAttachments({
+        store: fakeStore(),
+        session: null,
+        conversationId: "conv-1",
+        requested: [],
+        alreadyDelivered: () => Promise.resolve(false),
+      }),
+      [],
+    );
+  });
 });

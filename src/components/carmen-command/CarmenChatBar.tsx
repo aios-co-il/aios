@@ -1416,6 +1416,8 @@ export const CarmenChatBar = forwardRef<
                 return prev;
             } else if (
               row.role === "assistant" &&
+              // Same words with files of their own are a different reply.
+              !row.metadata?.attachments?.length &&
               replyShownThisTurn(prev, row.content)
             )
               return prev;

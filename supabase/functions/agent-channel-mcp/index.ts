@@ -2,7 +2,11 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { ingestChannelReply } from "../_shared/agent-channel/ingest.ts";
 import { resolveCallbackOrigin } from "../_shared/agent-channel/logic.ts";
 import { mcpBearer } from "../_shared/agent-channel/hmac.ts";
-import { loadSession, serviceClient } from "../_shared/agent-channel/store.ts";
+import {
+  findMessageByIdempotency,
+  loadSession,
+  serviceClient,
+} from "../_shared/agent-channel/store.ts";
 import type {
   CallbackPayload,
   ChannelProvider,
@@ -10,8 +14,8 @@ import type {
 import {
   bucketFileStore,
   createSessionUpload,
+  replyAttachments,
   requireRunningSession,
-  signSessionAttachments,
 } from "./session-files.ts";
 
 /** Files the agent made, shown under its message: each one uploaded with upload_aios_file first. */
@@ -166,14 +170,21 @@ async function handleTool(
   if (args?.attachments != null && name !== "reply_to_aios_session") {
     throw new Error("attachments go with reply_to_aios_session");
   }
-  const attachments =
-    args?.attachments == null
-      ? []
-      : await signSessionAttachments(
-          bucketFileStore(sb),
-          requireRunningSession(session, conversationId),
-          args.attachments,
-        );
+  const idempotencyKey = args?.idempotency_key
+    ? String(args.idempotency_key)
+    : undefined;
+  const attachments = await replyAttachments({
+    store: bucketFileStore(sb),
+    session,
+    conversationId,
+    requested: args?.attachments,
+    alreadyDelivered: async () =>
+      Boolean(
+        idempotencyKey &&
+        session &&
+        (await findMessageByIdempotency(sb, session.tenant_id, idempotencyKey)),
+      ),
+  });
   const tenantId =
     String(args?.tenant_id ?? args?.tenantId ?? "").trim() ||
     session?.tenant_id;
@@ -193,9 +204,7 @@ async function handleTool(
     origin,
     content,
     event_type: eventType,
-    idempotency_key: args?.idempotency_key
-      ? String(args.idempotency_key)
-      : undefined,
+    idempotency_key: idempotencyKey,
     parliament_round:
       args?.parliament_round != null
         ? Number(args.parliament_round)
