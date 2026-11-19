@@ -1430,6 +1430,10 @@ export const CarmenChatBar = forwardRef<
                       ? "tool_call"
                       : "assistant",
                 content: row.content,
+                // A direct brain's files (upload_aios_file) show as soon as its reply lands.
+                attachments: Array.isArray(row.metadata?.attachments)
+                  ? row.metadata.attachments
+                  : undefined,
                 tool:
                   row.event_type === "progress" || row.event_type === "system"
                     ? row.content

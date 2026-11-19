@@ -156,6 +156,7 @@ Deno.test("callback instructions", async (t) => {
   await t.step("asks MCP brains for progress updates", () => {
     const text = buildCallbackInstructions({ ...base, origin: "claude" });
     assertMatch(text, /publish_aios_progress/);
+    assertMatch(text, /upload_aios_file/);
   });
 
   await t.step(
@@ -163,6 +164,7 @@ Deno.test("callback instructions", async (t) => {
     () => {
       const text = buildCallbackInstructions({ ...base, origin: "codex" });
       assertNotMatch(text, /publish_aios_progress/);
+      assertNotMatch(text, /upload_aios_file/);
     },
   );
 });

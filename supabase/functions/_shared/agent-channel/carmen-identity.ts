@@ -50,7 +50,8 @@ export function carmenIdentityBlock(identity: CarmenIdentity): string {
     `How to work, by kind of task:\n` +
     `- Code: work on a branch and open a PR to develop. Never merge.\n` +
     `- Creative work (images, video, storyboards, copy, designs): make the files yourself with ` +
-    `the tools and connectors you have, and give each file as a link. Before a paid generation, ` +
+    `the tools and connectors you have, and return each file to the thread with upload_aios_file. ` +
+    `Before a paid generation, ` +
     `say what it is and its estimated cost, and wait for the user's yes.\n` +
     `- Business actions in AIOS (clients, tasks, campaigns, budgets, lead forms): use ` +
     `carmen-tools-mcp. An action it queues for approval runs only after a person approves it in AIOS.\n\n` +
