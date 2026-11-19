@@ -165,8 +165,9 @@ async function handleTool(
   }
 
   const content = String(args?.content ?? args?.message ?? "").trim();
-  if (!conversationId || !content)
+  if (!conversationId || !content) {
     throw new Error("conversation_id and content are required");
+  }
   if (args?.attachments != null && name !== "reply_to_aios_session") {
     throw new Error("attachments go with reply_to_aios_session");
   }

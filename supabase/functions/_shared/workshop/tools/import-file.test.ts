@@ -213,4 +213,23 @@ Deno.test("workshop_import_file", async (t) => {
     assertEquals(result.production_running, true);
     assertEquals(storage.uploads, []);
   });
+  await t.step(
+    "a file uploaded without a type is known by its extension",
+    async () => {
+      const untyped = new Blob(["png"], { type: "application/octet-stream" });
+      const { db, storage } = dbWith(project, untyped);
+      const result = (await executeWorkshopTool(
+        db,
+        "tenant-1",
+        "workshop_import_file",
+        {
+          item_id: "item-1",
+          kind: "image",
+          path: SOURCE,
+        },
+      )) as Record<string, unknown>;
+      assertEquals(result.success, true);
+      assertEquals(storage.uploads[0].type, "image/png");
+    },
+  );
 });
