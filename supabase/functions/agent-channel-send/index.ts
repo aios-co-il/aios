@@ -400,6 +400,7 @@ Deno.serve(async (req) => {
       history: Array.isArray(body.conversation_history)
         ? body.conversation_history
         : [],
+      screenContext: body.context_metadata,
     });
     await setConversationStatus(sb, conv.id, result.status);
     await sb

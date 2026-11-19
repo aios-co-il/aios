@@ -115,9 +115,13 @@ async function sendToCrm(
         contact_name: lead.name,
         phone: lead.phone,
         ...(lead.email ? { email: lead.email } : {}),
+        ...(lead.company ? { company_name: lead.company } : {}),
         source: "landing_page",
         campaign_name: page.title,
-        form_data: { landing_page: `${page.subdomain}/${page.slug}` },
+        form_data: {
+          landing_page: `${page.subdomain}/${page.slug}`,
+          ...answers(lead),
+        },
       }),
     },
   );
@@ -126,7 +130,18 @@ async function sendToCrm(
   }
 }
 
-/** Posts the lead to the page's webhook with the three fields its scenarios expect. */
+/** The form's optional answers, under the names a webhook reads; absent when not asked. */
+function answers(lead: LandingLead) {
+  return {
+    ...(lead.company ? { company: lead.company } : {}),
+    ...(lead.employees ? { employees: lead.employees } : {}),
+  };
+}
+
+/**
+ * Posts the lead to the page's webhook: the three fields its scenarios expect, and the form's
+ * optional answers when it asked for them.
+ */
 async function sendToWebhook(
   page: LandingPage,
   lead: LandingLead,
@@ -143,6 +158,7 @@ async function sendToWebhook(
       page_name: page.title,
       name: lead.name,
       phone: lead.phone,
+      ...answers(lead),
     }),
   });
   if (!response.ok) {
