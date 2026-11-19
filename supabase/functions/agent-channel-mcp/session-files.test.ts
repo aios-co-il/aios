@@ -31,8 +31,8 @@ const session: ChannelSessionRow = {
 };
 
 /** A store that hands out predictable links and records what it signed. */
-function fakeStore(): SessionFileStore & { signed: string[] } {
-  const signed: string[] = [];
+function fakeStore(): SessionFileStore & { signed: Array<string> } {
+  const signed: Array<string> = [];
   return {
     signed,
     uploadLink: (path) => Promise.resolve(`https://upload/${path}`),

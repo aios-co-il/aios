@@ -225,6 +225,18 @@ export function getLeadTableCustomColumns<
     }));
 }
 
+/**
+ * A tenant custom field is shown as a table column unless the org hid that column.
+ * Without a column preference it follows the field's own visibility, so a field
+ * the edit dialog shows also appears in the table.
+ */
+export function isLeadTableCustomColumnVisible(
+  field: { visibilityKey: string; is_visible?: boolean },
+  isFieldVisible: (key: string, defaultVisible?: boolean) => boolean,
+): boolean {
+  return isFieldVisible(field.visibilityKey, field.is_visible ?? true);
+}
+
 export function formatLeadTableFieldValue(
   value: unknown,
   type = "text",
