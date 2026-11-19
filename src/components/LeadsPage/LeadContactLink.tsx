@@ -52,7 +52,7 @@ export function LeadContactLink({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="gap-2"
-          onSelect={() => copyContactValue(kind, value)}
+          onSelect={() => void copyContactValue(kind, value)}
         >
           <Copy className="h-4 w-4" />
           {isPhone ? "העתק טלפון" : "העתק אימייל"}
@@ -62,14 +62,21 @@ export function LeadContactLink({
   );
 }
 
-/** Copies the value and reports the outcome in a toast. */
-function copyContactValue(kind: LeadContactKind, value: string) {
+/**
+ * Copies the value and reports the outcome in a toast. The Clipboard API is
+ * missing outside secure contexts and in some embedded browsers, so its absence
+ * reports a failure instead of throwing.
+ */
+async function copyContactValue(kind: LeadContactKind, value: string) {
   const label = kind === "phone" ? "הטלפון" : "האימייל";
-  navigator.clipboard
-    .writeText(value)
-    .then(() => toast.success(`${label} הועתק`))
-    .catch((error: unknown) => {
-      console.error("Failed to copy lead contact", error);
-      toast.error(`לא ניתן להעתיק את ${label}`);
-    });
+  try {
+    if (!navigator.clipboard) {
+      throw new Error("Clipboard API is unavailable");
+    }
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} הועתק`);
+  } catch (error) {
+    console.error("Failed to copy lead contact", error);
+    toast.error(`לא ניתן להעתיק את ${label}`);
+  }
 }

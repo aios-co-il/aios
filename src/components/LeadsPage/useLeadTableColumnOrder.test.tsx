@@ -14,6 +14,10 @@ const backend = vi.hoisted(() => ({
   writeError: null as Failure,
   filters: [] as Array<[string, string]>,
   upsert: vi.fn(),
+  // When set, each upsert waits on the next deferred result instead of resolving at once.
+  deferred: null as Array<{
+    resolve: (result: { error: Failure }) => void;
+  }> | null,
   toastError: vi.fn(),
 }));
 
@@ -42,6 +46,12 @@ vi.mock("@/integrations/supabase/client", () => ({
           Promise.resolve({ data: backend.row, error: backend.readError }),
         upsert: (row: unknown, options: unknown) => {
           backend.upsert(table, row, options);
+          const deferred = backend.deferred;
+          if (deferred) {
+            return new Promise<{ error: Failure }>((resolve) => {
+              deferred.push({ resolve });
+            });
+          }
           return Promise.resolve({ error: backend.writeError });
         },
       };
@@ -51,11 +61,19 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 /** The hook once the account's saved order has loaded. */
-async function loadedHook() {
-  const { wrapper } = createTestQueryHarness();
-  const hook = renderHook(() => useLeadTableColumnOrder(), { wrapper });
+async function loadedHook(harness = createTestQueryHarness()) {
+  const hook = renderHook(() => useLeadTableColumnOrder(), {
+    wrapper: harness.wrapper,
+  });
   await waitFor(() => expect(backend.filters.length).toBeGreaterThan(0));
   return hook;
+}
+
+/** The column order sent by each upsert so far. */
+function savedOrders() {
+  return backend.upsert.mock.calls.map(
+    (call) => (call[1] as { column_order: Array<string> }).column_order,
+  );
 }
 
 beforeEach(() => {
@@ -64,6 +82,7 @@ beforeEach(() => {
   backend.writeError = null;
   backend.filters = [];
   backend.upsert.mockClear();
+  backend.deferred = null;
   backend.toastError.mockClear();
   window.localStorage.clear();
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -174,5 +193,79 @@ describe("useLeadTableColumnOrder", () => {
       ),
     );
     expect(result.current.order).toEqual(["status", "name"]);
+  });
+
+  it("saves two quick drags one at a time, so the later order wins", async () => {
+    backend.row = { column_order: ["name", "phone", "status"] };
+    const { result } = await loadedHook();
+    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    backend.deferred = [];
+
+    act(() => result.current.setOrder?.(["phone", "name", "status"]));
+    act(() => result.current.setOrder?.(["status", "phone", "name"]));
+    expect(result.current.order).toEqual(["status", "phone", "name"]);
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
+    expect(savedOrders()).toEqual([["phone", "name", "status"]]);
+
+    await act(async () => backend.deferred?.[0].resolve({ error: null }));
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(2));
+    expect(result.current.order).toEqual(["status", "phone", "name"]);
+
+    await act(async () => backend.deferred?.[1].resolve({ error: null }));
+    await waitFor(() =>
+      expect(result.current.order).toEqual(["status", "phone", "name"]),
+    );
+    expect(savedOrders()[1]).toEqual(["status", "phone", "name"]);
+  });
+
+  it("keeps the newer drag on screen when an earlier save fails", async () => {
+    backend.row = { column_order: ["name", "phone"] };
+    const { result } = await loadedHook();
+    await waitFor(() => expect(result.current.setOrder).toBeDefined());
+    backend.deferred = [];
+
+    act(() => result.current.setOrder?.(["phone", "name"]));
+    act(() => result.current.setOrder?.(["name", "phone", "status"]));
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
+    await act(async () =>
+      backend.deferred?.[0].resolve({ error: { message: "timeout" } }),
+    );
+    await waitFor(() => expect(backend.toastError).toHaveBeenCalled());
+    expect(result.current.order).toEqual(["name", "phone", "status"]);
+
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(2));
+    await act(async () => backend.deferred?.[1].resolve({ error: null }));
+    await waitFor(() =>
+      expect(result.current.order).toEqual(["name", "phone", "status"]),
+    );
+  });
+
+  it("keeps the browser's old order when a remount happens before the move is confirmed", async () => {
+    window.localStorage.setItem(
+      LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY,
+      JSON.stringify(["actions", "name"]),
+    );
+    backend.deferred = [];
+    const harness = createTestQueryHarness();
+    const first = await loadedHook(harness);
+    await waitFor(() => expect(backend.upsert).toHaveBeenCalledTimes(1));
+
+    first.unmount();
+    await loadedHook(harness);
+    for (const pending of backend.deferred ?? []) {
+      await act(async () =>
+        pending.resolve({ error: { message: "permission denied" } }),
+      );
+    }
+    await waitFor(() => expect(backend.toastError).toHaveBeenCalled());
+    await act(async () => {
+      for (const pending of backend.deferred ?? []) {
+        pending.resolve({ error: { message: "permission denied" } });
+      }
+    });
+
+    expect(
+      window.localStorage.getItem(LEGACY_LEAD_COLUMN_ORDER_STORAGE_KEY),
+    ).toBe(JSON.stringify(["actions", "name"]));
   });
 });

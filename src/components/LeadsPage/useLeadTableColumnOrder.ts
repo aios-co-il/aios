@@ -24,8 +24,11 @@ export function useLeadTableColumnOrder() {
   const { tenantId } = useCurrentTenant();
   const { userId } = useCurrentUser();
   const queryClient = useQueryClient();
+  // Holds only orders the database confirmed; a pending drag lives in pendingOrder.
   const queryKey = ["lead-column-order", tenantId, userId] as const;
   const [legacyOrder] = useState(readLegacyColumnOrder);
+  const [pendingOrder, setPendingOrder] = useState<Array<string> | null>(null);
+  const latestPending = useRef<Array<string> | null>(null);
   const legacyChecked = useRef(false);
 
   const {
@@ -39,18 +42,28 @@ export function useLeadTableColumnOrder() {
   });
 
   const { mutate: saveOrder } = useMutation({
-    mutationFn: (order: Array<string>) =>
-      saveColumnOrder(tenantId, userId, order),
-    onMutate: async (order) => {
+    // One scope per user and tenant runs saves one at a time, in drag order, so
+    // an earlier order can never land after a later one.
+    scope: { id: `lead-column-order:${tenantId}:${userId}` },
+    mutationFn: async (order: Array<string>) => {
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<Array<string> | null>(queryKey);
-      queryClient.setQueryData(queryKey, order);
-      return { previous };
+      await saveColumnOrder(tenantId, userId, order);
+      return order;
     },
-    onError: (saveError, _order, context) => {
+    onSuccess: (order) => {
+      queryClient.setQueryData(queryKey, order);
+    },
+    onError: (saveError) => {
       console.error("Failed to save CRM column order", saveError);
-      queryClient.setQueryData(queryKey, context?.previous ?? null);
       toast.error("לא ניתן לשמור את סדר העמודות");
+    },
+    onSettled: (_data, _error, order) => {
+      // Only the latest drag clears the pending order; an earlier save that
+      // settles after a newer drag leaves the newer order on screen.
+      if (latestPending.current === order) {
+        latestPending.current = null;
+        setPendingOrder(null);
+      }
     },
   });
 
@@ -71,20 +84,26 @@ export function useLeadTableColumnOrder() {
       return;
     }
     if (savedOrder !== null) {
-      // The account already has an order, from this or another device; it wins.
+      // The database already holds an order, from this or another device; it wins.
       clearLegacyColumnOrder();
       return;
     }
+    // The browser copy stays until the account confirms the write.
     saveOrder(legacyOrder, { onSuccess: clearLegacyColumnOrder });
   }, [isSuccess, savedOrder, legacyOrder, saveOrder]);
 
+  /** Shows the dragged order at once and queues its save. */
+  function setOrder(order: Array<string>) {
+    latestPending.current = order;
+    setPendingOrder(order);
+    saveOrder(order);
+  }
+
   return {
-    order: savedOrder ?? legacyOrder,
+    order: pendingOrder ?? savedOrder ?? legacyOrder,
     // Reordering waits for the saved order: a drag over the default order would
     // otherwise overwrite the order this user saved on another device.
-    setOrder: isSuccess
-      ? (order: Array<string>) => saveOrder(order)
-      : undefined,
+    setOrder: isSuccess ? setOrder : undefined,
   };
 }
 

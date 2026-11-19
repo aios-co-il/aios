@@ -3,21 +3,32 @@ import { moveColumnId } from "./resizableTableColumnOrder";
 
 /**
  * Drag-and-drop header state for ResizableTable. Headers are draggable only when
- * `onReorder` is set; it receives the full new column-id order on each drop.
+ * `onReorder` is set; it receives the full new column-id order on each drop. A
+ * column moves only within its group (pinned or not), because the table always
+ * renders pinned columns first and a cross-group drop would not show.
  */
 export function useColumnReorder(
   onReorder: ((order: Array<string>) => void) | undefined,
 ) {
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragGroup, setDragGroup] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
   function reset() {
     setDragId(null);
+    setDragGroup(null);
     setOverId(null);
   }
 
-  /** Drag props for one header; `currentIds` is the order the table shows now. */
-  function getHeaderDragProps(columnId: string, currentIds: Array<string>) {
+  /**
+   * Drag props for one header. `currentIds` is the order the table shows now and
+   * `group` names the header's group; drops are accepted only within one group.
+   */
+  function getHeaderDragProps(
+    columnId: string,
+    currentIds: Array<string>,
+    group: string,
+  ) {
     if (!onReorder) {
       return {};
     }
@@ -27,9 +38,10 @@ export function useColumnReorder(
         event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("text/plain", columnId);
         setDragId(columnId);
+        setDragGroup(group);
       },
       onDragOver: (event: DragEvent<HTMLElement>) => {
-        if (!dragId) {
+        if (!dragId || dragGroup !== group) {
           return;
         }
         event.preventDefault();
@@ -40,7 +52,7 @@ export function useColumnReorder(
       },
       onDrop: (event: DragEvent<HTMLElement>) => {
         event.preventDefault();
-        if (dragId && dragId !== columnId) {
+        if (dragId && dragId !== columnId && dragGroup === group) {
           onReorder(moveColumnId(currentIds, dragId, columnId));
         }
         reset();

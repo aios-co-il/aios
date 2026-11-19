@@ -30,9 +30,12 @@ export function LeadCustomFieldsCard({
         {fields.map((field) => (
           <div
             key={field.id}
-            className="flex items-center justify-end gap-2 min-w-0"
+            className="flex items-start justify-end gap-2 min-w-0"
           >
-            <span className="font-medium truncate" dir="auto">
+            <span
+              className="font-medium min-w-0 whitespace-pre-wrap break-words"
+              dir="auto"
+            >
               {formatLeadTableFieldValue(
                 readLeadCustomColumnValue(formData, field.field_key),
                 field.field_type,

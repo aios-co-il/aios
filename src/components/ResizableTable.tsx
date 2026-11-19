@@ -195,9 +195,10 @@ export function ResizableTable({
   const orderedColumns = columnOrder
     ? applyColumnOrder(columns, columnOrder)
     : columns;
-  const orderedIds = orderedColumns.map((c) => c.id);
   const stickyColumns = orderedColumns.filter((c) => c.sticky);
   const regularColumns = orderedColumns.filter((c) => !c.sticky);
+  // The order as rendered (pinned first), so a saved drop matches the screen.
+  const displayedIds = [...stickyColumns, ...regularColumns].map((c) => c.id);
   function headerDragClassName(columnId: string) {
     return cn(
       onColumnOrderChange && "cursor-grab active:cursor-grabbing",
@@ -237,7 +238,7 @@ export function ResizableTable({
               return (
                 <th
                   key={column.id}
-                  {...getHeaderDragProps(column.id, orderedIds)}
+                  {...getHeaderDragProps(column.id, displayedIds, "pinned")}
                   className={cn(
                     "group relative sticky z-20 overflow-hidden border-l border-border/60 bg-muted px-3 py-2 text-right",
                     headerDragClassName(column.id),
@@ -283,7 +284,7 @@ export function ResizableTable({
             {regularColumns.map((column) => (
               <th
                 key={column.id}
-                {...getHeaderDragProps(column.id, orderedIds)}
+                {...getHeaderDragProps(column.id, displayedIds, "regular")}
                 className={cn(
                   "group relative border-l border-border/60 bg-muted px-3 py-2 text-right",
                   headerDragClassName(column.id),
