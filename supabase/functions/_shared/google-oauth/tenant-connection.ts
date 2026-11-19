@@ -26,6 +26,8 @@ export type StoredConnection = {
   id: string;
   user_id: string | null;
   settings: StoredSettings;
+  /** The version the settings were read at; the update applies only if it is unchanged. */
+  updated_at: string;
 };
 
 /** The tenant's rows of this Google integration type. */
@@ -35,7 +37,7 @@ export async function tenantConnections(
 ): Promise<Array<StoredConnection>> {
   const { data, error } = await serviceClient()
     .from("tenant_integrations")
-    .select("id, user_id, settings")
+    .select("id, user_id, settings, updated_at")
     .eq("tenant_id", tenantId)
     .eq("integration_type", integrationType);
   if (error) {
@@ -46,6 +48,7 @@ export async function tenantConnections(
     id: row.id,
     user_id: row.user_id,
     settings: storedSettingsSchema.parse(row.settings) ?? {},
+    updated_at: row.updated_at,
   }));
 }
 
@@ -59,38 +62,55 @@ export type SaveConnection = {
   visibility?: "org";
 };
 
-/** Updates the existing row with fresh tokens, or inserts one for the user. */
+/**
+ * Updates the existing row with fresh tokens, or inserts one for the user.
+ * The settings merge is read-modify-write, so the update applies only when the
+ * row is still at the version it was read at; a concurrent change makes the
+ * connect fail (the user connects again) instead of overwriting it.
+ */
 export async function saveTenantConnection(
   connection: SaveConnection,
 ): Promise<void> {
   const { tenantId, userId, integrationType, existing, tokens } = connection;
-  const now = new Date().toISOString();
   const values = {
     is_active: true,
     api_key: tokens.access_token,
     settings: connectedSettings(connection),
-    updated_at: now,
+    updated_at: new Date().toISOString(),
     ...(connection.visibility
       ? { connection_visibility: connection.visibility }
       : {}),
   };
 
-  const { error } = existing
-    ? await serviceClient()
-        .from("tenant_integrations")
-        .update(values)
-        .eq("id", existing.id)
-        .eq("tenant_id", tenantId)
-    : await serviceClient()
-        .from("tenant_integrations")
-        .insert({
-          ...values,
-          tenant_id: tenantId,
-          user_id: userId,
-          integration_type: integrationType,
-        });
+  if (!existing) {
+    const { error } = await serviceClient()
+      .from("tenant_integrations")
+      .insert({
+        ...values,
+        tenant_id: tenantId,
+        user_id: userId,
+        integration_type: integrationType,
+      });
+    if (error) {
+      throw new Error(`tenant_integrations insert failed: ${error.message}`);
+    }
+    return;
+  }
+
+  const { data, error } = await serviceClient()
+    .from("tenant_integrations")
+    .update(values)
+    .eq("id", existing.id)
+    .eq("tenant_id", tenantId)
+    .eq("updated_at", existing.updated_at)
+    .select("id");
   if (error) {
-    throw new Error(`tenant_integrations save failed: ${error.message}`);
+    throw new Error(`tenant_integrations update failed: ${error.message}`);
+  }
+  if (data.length === 0) {
+    throw new Error(
+      "tenant_integrations changed while connecting; the connect was not saved",
+    );
   }
 }
 
