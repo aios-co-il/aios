@@ -288,7 +288,7 @@ export function GscIntegration({
       const response = await supabase.functions.invoke(
         "google-search-console-auth?action=get_sites",
         {
-          body: { integrationId: gscIntegration.id },
+          body: { integrationId: gscIntegration.id, clientId },
           headers: { Authorization: `Bearer ${session.access_token}` },
         },
       );
@@ -448,6 +448,7 @@ export function GscIntegration({
 
       const response = await supabase.functions.invoke("fetch-gsc-data", {
         body: {
+          clientId,
           integrationId: gscIntegration!.id,
           siteUrl: effectiveSiteUrl,
           keywords: keywords || [],
@@ -528,6 +529,7 @@ export function GscIntegration({
         entries.map(([, p]) =>
           supabase.functions.invoke("fetch-gsc-data", {
             body: {
+              clientId,
               integrationId: gscIntegration!.id,
               siteUrl: effectiveSiteUrl,
               startDate: dateMinus(p.startOffset),
