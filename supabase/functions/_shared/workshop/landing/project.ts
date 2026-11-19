@@ -147,7 +147,7 @@ export function landingTurnLines(
   ];
   if (!state.blocks) {
     lines.push(
-      "השלב הבא: קופי העמוד. חסר מידע שאי אפשר להסיק (מה מציעים, למי, מה הגולש משאיר)? שאלי שאלה אחת. אחרת כתבי את העמוד ושמרי ב-workshop_save_landing_copy.",
+      "השלב הבא: קופי העמוד. עמוד שכבר באוויר (עריכה של עמוד קיים): קודם workshop_import_landing_page, ואז משנים. עמוד חדש: חסר מידע שאי אפשר להסיק (מה מציעים, למי, מה הגולש משאיר)? שאלי שאלה אחת. אחרת כתבי את העמוד ושמרי ב-workshop_save_landing_copy.",
     );
   } else if (!state.copy_approved) {
     lines.push(

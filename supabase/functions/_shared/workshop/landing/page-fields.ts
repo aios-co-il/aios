@@ -63,9 +63,11 @@ export function form(
   const raw = record(source.form);
   const at = `${where}.form`;
   const fields = formFields(raw.fields, at, problems);
+  const privacyNote = text(raw, "privacyNote", 300, at, problems, false);
   return {
     buttonLabel: text(raw, "buttonLabel", 60, at, problems),
     successMessage: text(raw, "successMessage", 300, at, problems),
+    ...(privacyNote ? { privacyNote } : {}),
     ...(fields.length > 0 ? { fields } : {}),
   };
 }
