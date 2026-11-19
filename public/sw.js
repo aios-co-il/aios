@@ -1,4 +1,4 @@
-const CACHE_NAME = "afterlead-v3";
+const CACHE_NAME = "aios-v4";
 const STATIC_ASSETS = [
   "/favicon.png",
   "/icons/icon-192x192.png",

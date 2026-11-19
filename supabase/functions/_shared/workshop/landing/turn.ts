@@ -54,5 +54,8 @@ function approvalPatch(
   return {
     copy_approved: after.copy_approved,
     style_approved: after.style_approved,
+    ...(after.publish_approved
+      ? { publish_approved: after.publish_approved }
+      : {}),
   };
 }

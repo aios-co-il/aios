@@ -73,7 +73,21 @@ import {
   authorizeTenantCaller,
   bearerToken,
 } from "../_shared/automation-run-auth.ts";
-import { userClient } from "../_shared/supabase-clients.ts";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import {
+  delayMs,
+  MAX_INLINE_DELAY_MS,
+  resumeDelayStepId,
+  stepsAfter,
+} from "./delay-step.ts";
+import { pauseRunAtDelay } from "./pause-run.ts";
+import {
+  automationLoopKey,
+  firesStatusTriggers,
+  fireLeadStatusChanged,
+  stepDateColumns,
+} from "./status-fanout.ts";
+import { moveLeadStatus } from "./lead-statuses.ts";
 import { prepareAgentRun } from "./agent-run.ts";
 import { automationRunCaller, type AutomationRunCaller } from "./run-caller.ts";
 
@@ -1496,6 +1510,9 @@ Deno.serve(async (req) => {
     // provider webhook relayed. Any other run (lead intake, flow webhooks, cron)
     // acts for no one, so Carmen never takes an identity from outside data.
     let runCaller: AutomationRunCaller | null = null;
+    // The delay step this request resumes after (AIO-611), set only when the
+    // service role asked: automation-delay-worker is the one caller.
+    let resumeAfterStepId: string | null = null;
 
     // Running one automation by id (tests, manual triggers, reruns) is limited
     // to the service role and to users who may manage that automation.
@@ -1524,6 +1541,7 @@ Deno.serve(async (req) => {
         });
       }
       runCaller = automationRunCaller(requestBody, decision.caller);
+      resumeAfterStepId = resumeDelayStepId(requestBody, decision.caller);
     }
 
     // Backward-compat alias: old name → new name
@@ -1615,7 +1633,7 @@ Deno.serve(async (req) => {
       requestBody.data?.group_id ||
       requestBody.data?.client_id ||
       "no-entity";
-    const loopKey = `${requestBody.trigger_type || requestBody.automationId}:${entityKey}`;
+    const loopKey = automationLoopKey(requestBody, entityKey);
     if (executionChain.includes(loopKey)) {
       console.error(
         `🛑 SAFETY: Loop detected! Key "${loopKey}" already in execution chain: [${executionChain.join(" → ")}]`,
@@ -1898,7 +1916,12 @@ Deno.serve(async (req) => {
       automations = [automation];
       // Support both 'payload' and 'data' field names for the actual data
       payloadData = requestBody.payload || requestBody.data || requestBody;
-      tenantId = automation.tenant_id;
+      // A resumed run keeps the org it paused in: a shared automation runs in
+      // the org whose lead triggered it, not in its owner's.
+      tenantId =
+        resumeAfterStepId && typeof requestBody.tenant_id === "string"
+          ? requestBody.tenant_id
+          : automation.tenant_id;
     } else {
       // Standard trigger mode - find automations by trigger_type
       const payload = requestBody as AutomationPayload;
@@ -2256,7 +2279,8 @@ Deno.serve(async (req) => {
 
           const isTestRunForDedup =
             Boolean(requestBody.automationId) && Boolean(payloadData?.test);
-          if (facebookLeadgenId && !isTestRunForDedup) {
+          // A resumed run's lead was claimed when the run started.
+          if (facebookLeadgenId && !isTestRunForDedup && !resumeAfterStepId) {
             const claim = await claimFacebookLeadAutomationRun(supabase, {
               tenantId,
               automationId: automation.id,
@@ -2331,7 +2355,13 @@ Deno.serve(async (req) => {
                 carmenSessionActive,
               ).matches;
             });
-            if (triggerSteps.length > 0 && !isTestRun && !triggerStep) {
+            // A resumed run already matched its trigger when it started.
+            if (
+              triggerSteps.length > 0 &&
+              !isTestRun &&
+              !resumeAfterStepId &&
+              !triggerStep
+            ) {
               await releaseOwnedClaim();
               await supabase.from("automation_logs").insert({
                 automation_id: automation.id,
@@ -2432,6 +2462,10 @@ Deno.serve(async (req) => {
             const stepResults: any[] = [];
             let actionCount = 0;
             let previousStepOutput: any = null;
+            // A resumed run executes only the steps after its delay step.
+            const resumedSteps = resumeAfterStepId
+              ? stepsAfter(outEdges, resumeAfterStepId)
+              : null;
 
             for (const stepId of topoOrder) {
               const step = stepMap[stepId];
@@ -2468,6 +2502,11 @@ Deno.serve(async (req) => {
               // Skip trigger steps
               if (step.step_type === "trigger") {
                 nodeOutputs[step.id] = payloadData;
+                continue;
+              }
+
+              // Steps before the delay ran when the run started.
+              if (resumedSteps && !resumedSteps.has(step.id)) {
                 continue;
               }
 
@@ -2688,16 +2727,42 @@ Deno.serve(async (req) => {
 
                 // ── DELAY ───────────────────────────────────────────────────
                 if (step.step_type === "delay") {
-                  const amount = parseInt(stepConfig.delay_amount || "1", 10);
-                  const unit = stepConfig.delay_unit || "minutes";
-                  const ms =
-                    unit === "minutes"
-                      ? amount * 60000
-                      : unit === "hours"
-                        ? amount * 3600000
-                        : amount * 86400000;
-                  if (ms <= 30000) await new Promise((r) => setTimeout(r, ms));
-                  stepResponse = { delayed_ms: ms };
+                  const ms = delayMs(stepConfig);
+                  if (ms <= MAX_INLINE_DELAY_MS) {
+                    await new Promise((r) => setTimeout(r, ms));
+                    stepResponse = { delayed_ms: ms };
+                  } else if (isTestRun) {
+                    // A test run shows the whole flow now instead of pausing.
+                    stepResponse = { delayed_ms: ms, skipped_in_test: true };
+                  } else {
+                    // Pause: store the run and stop this branch here.
+                    // automation-delay-worker runs the next steps at resume_at.
+                    // The branch is cut before the write, so a failed pause
+                    // fails this step instead of sending right away.
+                    for (const edge of outEdges[step.id] || []) {
+                      skippedNodes.add(edge.targetId);
+                    }
+                    const resumeAt = new Date(Date.now() + ms);
+                    const delayedRunId = await pauseRunAtDelay(
+                      serviceClient(),
+                      {
+                        tenantId,
+                        automationId: automation.id,
+                        delayStepId: step.id,
+                        entityId: entityKey !== "no-entity" ? entityKey : null,
+                        triggerType:
+                          requestBody.trigger_type || automation.trigger_type,
+                        payload: payloadData,
+                        config: stepConfig,
+                        resumeAt,
+                      },
+                    );
+                    stepResponse = {
+                      delayed_ms: ms,
+                      waiting_until: resumeAt.toISOString(),
+                      delayed_run_id: delayedRunId,
+                    };
+                  }
                   nodeOutputs[step.id] = stepData;
                   actionCount++;
                   stepResults.push({
@@ -3326,11 +3391,41 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (effectiveActionType === "update_status") {
-                  stepResponse = await executeStatusUpdate(
-                    supabase,
-                    stepConfig,
-                    stepData,
-                  );
+                  // When the step starts status-change automations, one
+                  // tenant-scoped compare-and-set writes the status and the
+                  // step's date field and yields the exact transition. Without
+                  // a transition only the date field is left to write: writing
+                  // the status again could undo someone else's change (AIO-611).
+                  const statusLeadId = firesStatusTriggers(stepConfig)
+                    ? resolveStatusRecordId("lead", stepData)
+                    : null;
+                  const statusChange = statusLeadId
+                    ? await moveLeadStatus(
+                        serviceClient(),
+                        tenantId,
+                        statusLeadId,
+                        stepConfig,
+                      )
+                    : null;
+                  stepResponse = statusChange
+                    ? { success: true, entity: "lead", ...statusChange }
+                    : await executeStatusUpdate(
+                        supabase,
+                        statusLeadId
+                          ? { ...stepConfig, status: undefined }
+                          : stepConfig,
+                        stepData,
+                      );
+                  if (statusChange) {
+                    stepResponse.status_triggers = await fireLeadStatusChanged(
+                      statusChange,
+                      {
+                        tenantId,
+                        depth: executionDepth,
+                        chain: [...executionChain, loopKey],
+                      },
+                    );
+                  }
                   previousStepOutput = stepResponse;
                 } else if (
                   effectiveActionType === "create_manychat_subscriber"
@@ -4324,8 +4419,7 @@ async function executeNotification(config: any, data: any) {
 
 // Execute status update action
 async function executeStatusUpdate(supabase: any, config: any, data: any) {
-  const { entity, status, status_field, update_field, update_field_value } =
-    config;
+  const { entity, status, status_field } = config;
   const recordId = resolveStatusRecordId(entity, data);
 
   if (!recordId) {
@@ -4348,14 +4442,7 @@ async function executeStatusUpdate(supabase: any, config: any, data: any) {
   }
 
   // Update additional date field if specified
-  if (
-    update_field &&
-    update_field !== "none" &&
-    update_field_value === "today"
-  ) {
-    const today = new Date().toISOString().split("T")[0]; // Format: YYYY-MM-DD
-    updateData[update_field] = today;
-  }
+  Object.assign(updateData, stepDateColumns(config));
 
   // Ensure we have something to update
   if (Object.keys(updateData).length === 0) {

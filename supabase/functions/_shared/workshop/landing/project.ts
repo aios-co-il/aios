@@ -21,6 +21,22 @@ export interface LandingState {
   copy_approved?: boolean;
   style?: LandingStyle;
   style_approved?: boolean;
+  /** The last build pushed to the page's branch; `digest` names the content it holds. */
+  build?: LandingBuild;
+  /** The digest of the build the user approved for publishing. */
+  publish_approved?: string;
+  /** The build that was sent to go live. */
+  published?: { digest: string; pull_url: string; live_url: string };
+}
+
+export interface LandingBuild {
+  branch: string;
+  commit: string;
+  digest: string;
+  /** The page inside the Vercel preview, once it is built. */
+  preview_url?: string;
+  /** True when this build also creates the client's site, which a person merges. */
+  new_site?: boolean;
 }
 
 export const COPY_LABEL = "הקופי";
@@ -30,6 +46,18 @@ export const APPROVE_STYLE = "הסגנון מאושר";
 const CHANGE = "לתקן";
 /** The tap question that ends the copy Carmen shows. */
 export const COPY_CHOICE = `[[בחירה: ${COPY_LABEL} | ${APPROVE_COPY} | ${CHANGE}]]`;
+export const PUBLISH_LABEL = "פרסום";
+export const APPROVE_PUBLISH = "לפרסם את העמוד";
+/** The tap question that ends the preview Carmen shows. */
+export const PUBLISH_CHOICE = `[[בחירה: ${PUBLISH_LABEL} | ${APPROVE_PUBLISH} | עוד לא]]`;
+/**
+ * The short name of a build, shown with its preview. An approval counts only when Carmen's
+ * message carries the name of the build the project holds now, so a tap on an older message never
+ * approves a build the user has not seen.
+ */
+export function buildTag(digest: string): string {
+  return `גרסה ${digest.slice(0, 8)}`;
+}
 /** The tap question that ends the style Carmen shows. */
 export const STYLE_CHOICE = `[[בחירה: ${STYLE_LABEL} | ${APPROVE_STYLE} | ${CHANGE}]]`;
 
@@ -40,6 +68,15 @@ export function landingStateOf(payload: Record<string, unknown>): LandingState {
     ? (raw as LandingState)
     : {};
 }
+
+/**
+ * What a new copy or style does to the build: the build and its publish approval describe the
+ * old content, so both go. The page must be built and approved again.
+ */
+export const BUILD_CLEARED: LandingState = {
+  build: undefined,
+  publish_approved: undefined,
+};
 
 /** The payload with part of its landing state replaced. */
 export function withLanding(
@@ -70,6 +107,21 @@ export function withLandingApprovals(
   }
   if (state.style && !state.style_approved && style.asked && style.approved) {
     patch.style_approved = true;
+  }
+  // Publishing is approved for one build: the preview the user was shown with the question.
+  const publish = answer(PUBLISH_LABEL, APPROVE_PUBLISH);
+  const built =
+    state.build?.preview_url &&
+    turn.lastAssistant.includes(buildTag(state.build.digest))
+      ? state.build.digest
+      : undefined;
+  if (
+    built &&
+    state.publish_approved !== built &&
+    publish.asked &&
+    publish.approved
+  ) {
+    patch.publish_approved = built;
   }
   const changed = Object.keys(patch).length > 0;
   return { payload: changed ? withLanding(payload, patch) : payload, changed };
@@ -105,9 +157,25 @@ export function landingTurnLines(
       `הסגנון השמור:\n${landingStyleText(state.style)}`,
     );
   } else {
-    lines.push(
-      "הקופי והסגנון אושרו. בניית העמוד ופרסומו עוד לא זמינים מכאן: אמרי למשתמש שהעמוד מוכן לבנייה ושההגדרות (כתובת ויעד הלידים) נמצאות בראש הפרויקט.",
-    );
+    lines.push(buildStepLine(state));
   }
   return lines;
+}
+
+/** The next step once the copy and the style are approved: build, preview, publish. */
+function buildStepLine(state: LandingState): string {
+  const build = state.build;
+  if (!build) {
+    return "הקופי והסגנון אושרו. השלב הבא: בניית העמוד (workshop_build_landing_page). הכתובת ויעד הלידים נקבעים בהגדרות שבראש הפרויקט; אם הכלי מחזיר שחסרה כתובת, בקשי מהמשתמש להגדיר אותה שם.";
+  }
+  if (!build.preview_url) {
+    return "העמוד נבנה והתצוגה המקדימה עוד עולה. קראי שוב ל-workshop_build_landing_page כדי לקבל את הקישור.";
+  }
+  if (state.published?.digest === build.digest) {
+    return `העמוד נשלח לפרסום: ${state.published.live_url}. שינוי בעמוד: שמרי קופי או סגנון חדש, קבלי אישור ובני מחדש.`;
+  }
+  if (state.publish_approved === build.digest) {
+    return "המשתמש אישר לפרסם את העמוד. פרסמי אותו: workshop_publish_landing_page.";
+  }
+  return `העמוד נבנה ומחכה לאישור פרסום. תצוגה מקדימה: ${build.preview_url}. המשתמש ביקש שינוי: שמרי קופי או סגנון מתוקן, קבלי אישור ובני מחדש. אחרת: שלחי לו את הקישור עם שם הבנייה "${buildTag(build.digest)}" כמו שהוא, סיימי בשורה ${PUBLISH_CHOICE} ועצרי. מפרסמים רק אחרי האישור שלו.`;
 }

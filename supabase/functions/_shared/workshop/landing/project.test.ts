@@ -7,6 +7,7 @@ import { inferKind, planProject } from "../defaults.ts";
 import { workshopRole } from "../roles.ts";
 import {
   COPY_CHOICE,
+  PUBLISH_CHOICE,
   STYLE_CHOICE,
   asksForLanding,
   landingStateOf,
@@ -130,6 +131,46 @@ Deno.test("withLandingApprovals", async (t) => {
   );
 });
 
+Deno.test(
+  "publishing is approved for the build whose preview was shown",
+  () => {
+    const turn = {
+      lastAssistant: `העמוד נבנה (גרסה d1d1d1d1).\n${PUBLISH_CHOICE}`,
+      userText: "לפרסם את העמוד",
+    };
+    const done = { blocks, copy_approved: true, style, style_approved: true };
+    const build = { branch: "b", commit: "c", digest: "d1d1d1d1d1" };
+    // No preview yet: there is nothing the user could have seen.
+    assertEquals(
+      withLandingApprovals(landing({ ...done, build }), turn).changed,
+      false,
+    );
+    const shown = { ...build, preview_url: "https://preview.example/x" };
+    const approved = withLandingApprovals(
+      landing({ ...done, build: shown }),
+      turn,
+    );
+    assertEquals(
+      landingStateOf(approved.payload).publish_approved,
+      "d1d1d1d1d1",
+    );
+    // The question was asked about another build: the project was rebuilt since.
+    const rebuilt = { ...shown, digest: "e2e2e2e2e2" };
+    assertEquals(
+      withLandingApprovals(landing({ ...done, build: rebuilt }), turn).changed,
+      false,
+    );
+    // "Not yet" approves nothing.
+    assertEquals(
+      withLandingApprovals(landing({ ...done, build: shown }), {
+        ...turn,
+        userText: "עוד לא",
+      }).changed,
+      false,
+    );
+  },
+);
+
 Deno.test("landingTurnLines names the next step at every stage", () => {
   /** The line that names the next step for a project in the given state. */
   function next(state: Record<string, unknown>) {
@@ -153,8 +194,19 @@ Deno.test("landingTurnLines names the next step at every stage", () => {
     next({ blocks, copy_approved: true, style }),
     "הסגנון נשמר ועוד לא אושר",
   );
+  const done = { blocks, copy_approved: true, style, style_approved: true };
+  const build = { branch: "b", commit: "c", digest: "d1" };
+  const shown = { ...build, preview_url: "https://preview.example/x" };
+  assertStringIncludes(next(done), "workshop_build_landing_page");
+  assertStringIncludes(next({ ...done, build }), "עוד עולה");
+  assertStringIncludes(next({ ...done, build: shown }), PUBLISH_CHOICE);
   assertStringIncludes(
-    next({ blocks, copy_approved: true, style, style_approved: true }),
-    "מוכן לבנייה",
+    next({ ...done, build: shown, publish_approved: "d1" }),
+    "workshop_publish_landing_page",
+  );
+  // An approval given to an earlier build does not publish a newer one.
+  assertStringIncludes(
+    next({ ...done, build: shown, publish_approved: "d0" }),
+    PUBLISH_CHOICE,
   );
 });

@@ -1,5 +1,5 @@
 import { landingStyleText, parseLandingStyle } from "../landing/page-style.ts";
-import { STYLE_CHOICE } from "../landing/project.ts";
+import { BUILD_CLEARED, STYLE_CHOICE } from "../landing/project.ts";
 import { updateLanding } from "../landing/store.ts";
 import { recordArtifact } from "../record.ts";
 import { type ToolContext } from "../tool-context.ts";
@@ -33,7 +33,9 @@ export async function workshopSaveLandingStyle(ctx: ToolContext) {
       tenantId,
       project.id,
       (current) =>
-        current.copy_approved ? { style, style_approved: false } : null,
+        current.copy_approved
+          ? { style, style_approved: false, ...BUILD_CLEARED }
+          : null,
     );
     if (!saved.changed) {
       return { error: saved.after.blocks ? COPY_WAITS : NO_COPY };
@@ -50,6 +52,8 @@ export async function workshopSaveLandingStyle(ctx: ToolContext) {
       await updateLanding(supabase, tenantId, project.id, () => ({
         style: saved.before.style,
         style_approved: saved.before.style_approved,
+        build: saved.before.build,
+        publish_approved: saved.before.publish_approved,
       })).catch((restoreError) =>
         console.error(
           `landing style: previous style of project ${project.id} not restored: ${restoreError instanceof Error ? restoreError.message : "unknown error"}`,
