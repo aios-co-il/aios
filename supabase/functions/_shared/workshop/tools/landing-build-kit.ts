@@ -95,7 +95,7 @@ function jsonbOrder(value: unknown): unknown {
 
 /** A fake repository that records what Carmen pushes and opens. */
 export function fakeRepo(files: Record<string, string> = {}, preview = true) {
-  const pushes: Array<{ branch: string; files: Record<string, string> }> = [];
+  const pushes: Array<{ branch: string; files: Loose }> = [];
   const pulls: Array<string> = [];
   const repo: LandingRepo = {
     readFile: (path) => Promise.resolve(files[path] ?? null),

@@ -6,6 +6,7 @@ import {
   digest,
   fakeRepo,
   landingDb,
+  type Loose,
   OUR_SITE,
   run,
   savedLanding,
@@ -139,6 +140,42 @@ Deno.test(
     assertEquals(
       db.calls.some((call) => call.op === "update"),
       false,
+    );
+  },
+);
+
+Deno.test(
+  "a picture from the project's assets is copied into the page and shown in the hero",
+  async () => {
+    const id = "11111111-2222-4333-8444-555555555555";
+    const db = landingDb({
+      ...approved,
+      blocks: [{ ...blocks[0], imageUrl: `asset:${id}` }, blocks[1]],
+    });
+    db.script["workshop_assets:select"] = {
+      asset_type: "image",
+      storage_path: "tenant-1/workshop/item-1/1_photo.png",
+    };
+    (db as Loose).storage = {
+      from: () => ({
+        download: () =>
+          Promise.resolve({
+            data: new Blob([new Uint8Array([7])]),
+            error: null,
+          }),
+      }),
+    };
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json": OUR_SITE,
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    const files = pushes[0].files;
+    const hero = JSON.parse(files["landing-pages/acme/offer/content.json"])
+      .blocks[0];
+    assertEquals(hero.imageUrl, "assets/asset-111111112222.png");
+    assertEquals(
+      files["landing-pages/acme/offer/assets/asset-111111112222.png"],
+      new Uint8Array([7]),
     );
   },
 );

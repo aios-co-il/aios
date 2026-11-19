@@ -4,13 +4,14 @@ import {
   pageFolder,
   siteFile,
 } from "./page-files.ts";
+import { type LoadPageAsset, withPageAssets } from "./page-assets.ts";
 import type { LandingTarget } from "./page-target.ts";
 import type { LandingState } from "./project.ts";
 import type { LandingRepo } from "./repo.ts";
 
 /** A page's files for one status, ready to push, and what the repository already holds. */
 export interface PreparedBuild {
-  files: Record<string, string>;
+  files: Record<string, string | Uint8Array>;
   digest: string;
   branch: string;
   newSite: boolean;
@@ -24,7 +25,12 @@ export async function prepareBuild(
   repo: LandingRepo,
   target: LandingTarget,
   state: LandingState,
-  options: { itemId: string; status: "draft" | "published"; today: string },
+  options: {
+    itemId: string;
+    status: "draft" | "published";
+    today: string;
+    loadAsset: LoadPageAsset;
+  },
 ): Promise<PreparedBuild | { error: string }> {
   if (!state.blocks || !state.style) {
     return { error: "אין קופי וסגנון מאושרים לבנות מהם" };
@@ -40,13 +46,17 @@ export async function prepareBuild(
     };
   }
   const folder = pageFolder(subdomain, target.slug);
+  const media = await withPageAssets(state.blocks, folder, options.loadAsset);
+  if ("error" in media) {
+    return media;
+  }
   const existingPage = await repo.readFile(`${folder}/page.json`);
   const files = landingPageFiles({
     site: target.site,
     slug: target.slug,
     title: target.title,
     itemId: options.itemId,
-    blocks: state.blocks,
+    blocks: media.blocks,
     style: state.style,
     status: options.status,
     existingPage: pageJsonOf(existingPage),
@@ -58,7 +68,9 @@ export async function prepareBuild(
     files[`${folder}/content.json`],
   );
   return {
-    files,
+    // The copied assets' paths are in content.json and an asset's file never changes, so the
+    // digest of content.json covers them.
+    files: { ...files, ...media.files },
     digest,
     // A draft lives on the page's own branch, which every rebuild replaces. A publish gets a
     // branch named after its build, so no later draft can change what a publishing pull request

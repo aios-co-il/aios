@@ -65,6 +65,30 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "pushFiles stores a picture's bytes as a blob and puts it in the tree",
+  async () => {
+    const { repo, sent } = fakeGitHub({
+      ...base,
+      "POST /git/blobs": { sha: "blob-1" },
+      "POST /git/refs": {},
+    });
+    await repo.pushFiles(
+      "page/acme/home",
+      { "a.json": "{}", "assets/a.png": new Uint8Array([1, 2, 3]) },
+      "m",
+    );
+    assertEquals(sent.find((call) => call.path === "/git/blobs")?.body, {
+      content: "AQID",
+      encoding: "base64",
+    });
+    assertEquals(sent.find((call) => call.path === "/git/trees")?.body?.tree, [
+      { path: "a.json", mode: "100644", type: "blob", content: "{}" },
+      { path: "assets/a.png", mode: "100644", type: "blob", sha: "blob-1" },
+    ]);
+  },
+);
+
 Deno.test("pushFiles replaces a branch that already exists", async () => {
   const { repo, sent } = fakeGitHub({
     ...base,
