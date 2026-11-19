@@ -67,6 +67,7 @@ import {
   RecipientsListEditor,
   migrateLegacyRecipients,
 } from "./RecipientsListEditor";
+import { DelayStepConfig } from "./DelayStepConfig";
 import { EmailActionConfig } from "./EmailActionConfig";
 import SendSignatureActionConfig from "./SendSignatureActionConfig";
 import MailingActionConfig from "./MailingActionConfig";
@@ -203,12 +204,6 @@ const ACTION_OPTIONS = [
   { value: "notification", label: "התראה" },
   { value: "run_manus_task", label: "🤖 הרץ משימת Manus (ברקע)" },
   { value: "send_manus_direct", label: "💬 שלח הודעה ישירה ל-Manus" },
-];
-
-const DELAY_UNITS = [
-  { value: "minutes", label: "דקות" },
-  { value: "hours", label: "שעות" },
-  { value: "days", label: "ימים" },
 ];
 
 const LEAD_SOURCE_OPTIONS = [
@@ -1194,42 +1189,10 @@ export function StepConfigPanel({
 
             {/* Delay config */}
             {node.step_type === "delay" && (
-              <>
-                <div className="space-y-2">
-                  <Label className="text-right block">זמן המתנה</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={node.configuration?.delay_value || ""}
-                    onChange={(e) =>
-                      handleConfigChange(
-                        "delay_value",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    placeholder="כמות"
-                    className="text-right"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-right block">יחידה</Label>
-                  <Select
-                    value={node.configuration?.delay_unit || "minutes"}
-                    onValueChange={(v) => handleConfigChange("delay_unit", v)}
-                  >
-                    <SelectTrigger className="text-right">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DELAY_UNITS.map((u) => (
-                        <SelectItem key={u.value} value={u.value}>
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+              <DelayStepConfig
+                configuration={node.configuration}
+                onChange={handleConfigChange}
+              />
             )}
 
             {/* ── CONDITION (IF) config ── */}

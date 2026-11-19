@@ -2,6 +2,14 @@
 import type { CronJobMeta } from "./cronJobsCatalog";
 
 export const SYSTEM_CRON_JOBS: Record<string, CronJobMeta> = {
+  "automation-delay-worker-every-min": {
+    label: "המשך אוטומציות אחרי המתנה",
+    description:
+      "כל דקה: ממשיך אוטומציות ששלב ההמתנה שלהן הסתיים, ושולח את מה שהשלבים הבאים מגדירים.",
+    category: "messaging",
+    icon: "⏳",
+    sends: "whatsapp_email",
+  },
   "broadcast-dispatch-every-min": {
     label: "שליחת דיוורים",
     description: "כל דקה: שולח את הדיוורים שתוזמנו, בקצב מוגבל.",
@@ -45,6 +53,14 @@ export const SYSTEM_CRON_JOBS: Record<string, CronJobMeta> = {
     category: "telegram",
     icon: "✈️",
     sends: "telegram",
+  },
+  "cleanup-automation-delayed-runs": {
+    label: "ניקוי המתנות של אוטומציות",
+    description:
+      "כל לילה: מוחק המתנות של אוטומציות שהסתיימו לפני יותר מ-30 יום.",
+    category: "system",
+    icon: "🧹",
+    sends: "none",
   },
   "cleanup-automation-executions": {
     label: "ניקוי היסטוריית אוטומציות",

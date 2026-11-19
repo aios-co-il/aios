@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { getNodeIconConfig, NodeIconDisplay } from "./nodeIcons";
 import { MAILING_ACTION_LABELS } from "./mailingActions";
+import { delayUnitLabel } from "./delayUnits";
 
 export interface FlowNodeData {
   id: string;
@@ -412,7 +413,7 @@ export const FlowNodeRF = memo(function FlowNodeRF({
           nodeData.configuration?.delay_value && (
             <p className="text-xs text-muted-foreground">
               {nodeData.configuration.delay_value}{" "}
-              {nodeData.configuration.delay_unit || "דקות"}
+              {delayUnitLabel(nodeData.configuration.delay_unit)}
             </p>
           )}
 

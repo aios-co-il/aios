@@ -475,6 +475,11 @@ verify_jwt = true
 [functions.client-follow-up-worker]
 verify_jwt = true
 
+# Resumes flow runs paused by a delay step (AIO-611). Called every minute by
+# pg_cron with the service key; the function accepts no other caller.
+[functions.automation-delay-worker]
+verify_jwt = true
+
 # Carmen's manager round (AIO-251): called every 15 minutes by the
 # carmen-manager-round-15m cron; refuses any caller but the service role.
 [functions.carmen-manager-round]

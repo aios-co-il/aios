@@ -2142,6 +2142,72 @@ export type Database = {
         };
         Relationships: [];
       };
+      automation_delayed_runs: {
+        Row: {
+          automation_id: string;
+          claimed_at: string | null;
+          created_at: string;
+          delay_step_id: string;
+          entity_id: string | null;
+          finished_at: string | null;
+          id: string;
+          outcome: string | null;
+          payload: Json;
+          resume_at: string;
+          status: string;
+          status_guard: Json | null;
+          tenant_id: string;
+          trigger_type: string | null;
+        };
+        Insert: {
+          automation_id: string;
+          claimed_at?: string | null;
+          created_at?: string;
+          delay_step_id: string;
+          entity_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          outcome?: string | null;
+          payload: Json;
+          resume_at: string;
+          status?: string;
+          status_guard?: Json | null;
+          tenant_id: string;
+          trigger_type?: string | null;
+        };
+        Update: {
+          automation_id?: string;
+          claimed_at?: string | null;
+          created_at?: string;
+          delay_step_id?: string;
+          entity_id?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          outcome?: string | null;
+          payload?: Json;
+          resume_at?: string;
+          status?: string;
+          status_guard?: Json | null;
+          tenant_id?: string;
+          trigger_type?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "automation_delayed_runs_automation_id_fkey";
+            columns: ["automation_id"];
+            isOneToOne: false;
+            referencedRelation: "automations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "automation_delayed_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       automation_executions: {
         Row: {
           actions_count: number;
