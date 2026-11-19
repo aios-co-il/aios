@@ -3,7 +3,7 @@ import {
   listenForUnifiedConnection,
   openUnifiedCalendarConnection,
 } from "@/lib/unifiedCalendarConnection";
-import { isOAuthPopupMessage } from "./oauthPopupMessage";
+import { connectGoogleInPopup } from "./googleConnect";
 
 /**
  * Dual-mode Calendar API.
@@ -200,32 +200,8 @@ export function startCalendarOAuth(
           return;
         }
         const { authUrl } = await initDirectGoogleAuth();
-        const popup = window.open(
-          authUrl,
-          "google-calendar-auth",
-          "width=600,height=700",
-        );
-        if (!popup) {
-          throw new Error(
-            "חלון הקופץ נחסם. נא לאפשר חלונות קופצים ולנסות שוב.",
-          );
-        }
-        let closedTimer = 0;
-        const handler = (event: MessageEvent) => {
-          if (!isOAuthPopupMessage(event, "calendar_connected")) {
-            return;
-          }
-          window.removeEventListener("message", handler);
-          window.clearInterval(closedTimer);
-          resolve();
-        };
-        closedTimer = window.setInterval(() => {
-          if (!popup.closed) return;
-          window.clearInterval(closedTimer);
-          window.removeEventListener("message", handler);
-          reject(new Error("חיבור היומן בוטל"));
-        }, 600);
-        window.addEventListener("message", handler);
+        await connectGoogleInPopup(authUrl, "google-calendar-auth");
+        resolve();
       } catch (error) {
         reject(error);
       }

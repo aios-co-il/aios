@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
-import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
+import { connectGoogleInPopup } from "@/lib/googleConnect";
 import {
   checkCalendarConnection,
   addCalendarEvent,
@@ -110,36 +110,16 @@ export function CalendarIframeSettings() {
   const connectDirectMutation = useMutation({
     mutationFn: async () => {
       const { authUrl } = await initDirectGoogleAuth();
-      // Open popup for OAuth
-      const popup = window.open(
-        authUrl,
-        "google-calendar-auth",
-        "width=600,height=700",
-      );
-      return new Promise<void>((resolve, reject) => {
-        const handler = (event: MessageEvent) => {
-          if (isOAuthPopupMessage(event, "calendar_connected")) {
-            window.removeEventListener("message", handler);
-            queryClient.invalidateQueries({
-              queryKey: ["calendar-status", userId, tenantId],
-            });
-            queryClient.invalidateQueries({
-              queryKey: ["calendar-events", tenantId],
-            });
-            toast.success("היומן חובר בהצלחה ישירות לגוגל!");
-            resolve();
-          }
-        };
-        window.addEventListener("message", handler);
-        // Timeout after 5 minutes
-        setTimeout(
-          () => {
-            window.removeEventListener("message", handler);
-            reject(new Error("Timeout"));
-          },
-          5 * 60 * 1000,
-        );
+      await connectGoogleInPopup(authUrl, "google-calendar-auth");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["calendar-status", userId, tenantId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["calendar-events", tenantId],
+      });
+      toast.success("היומן חובר בהצלחה ישירות לגוגל!");
     },
     onError: (error) => {
       toast.error("שגיאה בהתחברות ישירה לגוגל: " + (error as Error).message);
