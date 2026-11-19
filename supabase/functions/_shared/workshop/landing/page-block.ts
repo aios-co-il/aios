@@ -9,6 +9,7 @@ import {
   record,
   text,
 } from "./page-fields.ts";
+import { imageUrl, video } from "./page-media.ts";
 
 /** Validates one section; null when its type is unknown. */
 export function parseBlock(
@@ -33,6 +34,8 @@ export function parseBlock(
           "bullets",
           lines(raw, "bullets", { max: 4, itemMax: 120 }, where, problems),
         ),
+        ...imageUrl(raw, where, problems),
+        ...video(raw, where, problems),
         form: form(raw, where, problems),
       };
     case "text":
@@ -48,6 +51,8 @@ export function parseBlock(
           "closing",
           text(raw, "closing", 300, where, problems, false),
         ),
+        ...video(raw, where, problems),
+        ...button(raw, where, problems),
       };
     case "features":
       return {
@@ -131,4 +136,17 @@ function listed<K extends string>(key: K, value: Array<string>) {
   return (value.length > 0 ? { [key]: value } : {}) as {
     [P in K]?: Array<string>;
   };
+}
+
+/** A text section's button: none, or its label (it always leads to the lead form). */
+function button(
+  raw: Record<string, unknown>,
+  where: string,
+  problems: Array<string>,
+): { cta?: { label: string } } {
+  if (raw.cta === undefined || raw.cta === null) {
+    return {};
+  }
+  const label = text(record(raw.cta), "label", 80, `${where}.cta`, problems);
+  return label ? { cta: { label } } : {};
 }

@@ -19,6 +19,9 @@ function blockText(entry: LandingBlock): string {
       lines.push(entry.body);
       lines.push(...(entry.points ?? []).map((point) => `✕ ${point}`));
       push(lines, entry.closing);
+      if (entry.cta) {
+        lines.push(`[כפתור: ${entry.cta.label}]`);
+      }
       break;
     case "steps":
       entry.items.forEach((item, index) =>

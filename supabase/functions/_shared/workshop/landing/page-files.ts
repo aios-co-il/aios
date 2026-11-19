@@ -25,8 +25,11 @@ export interface LandingPageFilesInput {
   blocks: Array<LandingBlock>;
   style: LandingStyle;
   status: "draft" | "published";
-  /** The day the page was first built, kept when it is rebuilt; today for a new page. */
-  createdAt: string;
+  /**
+   * The page.json the repository holds now, for a page that already exists: its title, brief and
+   * description stay as they are, and only the status and the date change.
+   */
+  existingPage: Record<string, unknown> | null;
   today: string;
   /** True for the client's first page: the site folder does not exist yet. */
   newSite: boolean;
@@ -66,14 +69,22 @@ export function landingPageFiles(
   const folder = pageFolder(input.site.subdomain, input.slug);
   const files: Record<string, string> = {
     [`${folder}/content.json`]: contentJson(input.blocks, input.style),
-    [`${folder}/page.json`]: json({
-      title: input.title,
-      status: input.status,
-      brief: { source: `Carmen Workshop: פרויקט ${input.itemId}` },
-      createdBy: "carmen",
-      createdAt: input.createdAt,
-      updatedAt: input.today,
-    }),
+    [`${folder}/page.json`]: json(
+      input.existingPage
+        ? {
+            ...input.existingPage,
+            status: input.status,
+            updatedAt: input.today,
+          }
+        : {
+            title: input.title,
+            status: input.status,
+            brief: { source: `Carmen Workshop: פרויקט ${input.itemId}` },
+            createdBy: "carmen",
+            createdAt: input.today,
+            updatedAt: input.today,
+          },
+    ),
   };
   if (input.newSite) {
     // A new site's leads go to AIOS, which delivers them by the page's settings.
@@ -88,8 +99,11 @@ export function landingPageFiles(
   return files;
 }
 
-/** A section in the app's shape: only the call to action differs from how Carmen saves it. */
+/** A section in the app's shape: every button leads to the lead form. */
 function appBlock(block: LandingBlock): Record<string, unknown> {
+  if (block.type === "text" && block.cta) {
+    return { ...block, cta: { label: block.cta.label, href: LEAD_FORM } };
+  }
   if (block.type !== "cta") {
     return block;
   }
