@@ -155,6 +155,7 @@ export function useSeoMonthlyGsc(params: {
           const { startDate, endDate } = monthBounds(w.month);
           return supabase.functions.invoke("fetch-gsc-data", {
             body: {
+              clientId,
               integrationId,
               siteUrl,
               startDate,

@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { refuseGscSitesAccess } from "./sites-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -290,7 +290,19 @@ serve(async (req) => {
     }
 
     try {
-      const { integrationId } = await req.json();
+      const { integrationId, clientId: seoClientId } = await req.json();
+
+      const refusal = await refuseGscSitesAccess(
+        authHeader,
+        integrationId,
+        seoClientId,
+      );
+      if (refusal) {
+        return new Response(JSON.stringify({ error: refusal.error }), {
+          status: refusal.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
