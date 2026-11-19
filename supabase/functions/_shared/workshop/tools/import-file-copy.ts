@@ -32,6 +32,21 @@ export async function copyIntoWorkshop(
   request: ImportRequest,
   scope: { tenantId: string; clientId: string | null },
 ): Promise<{ path: string } | { error: string }> {
+  // Type and size come from the object's metadata, so a wrong or oversized file is refused
+  // before it is loaded into the function's memory (smaller than some uploads).
+  const stored = await storedFile(supabase, request.source);
+  if ("error" in stored) {
+    return stored;
+  }
+  const type = fileType(stored.mimetype, request.source);
+  if (!type.startsWith(MIME_PREFIX[request.kind])) {
+    return {
+      error: `הקובץ (${type || "סוג לא ידוע"}) לא מתאים ל-${request.kind}`,
+    };
+  }
+  if (stored.size > MAX_BYTES) {
+    return { error: "הקובץ גדול מ-200MB" };
+  }
   const downloaded = await supabase.storage
     .from(SOURCE_BUCKET)
     .download(request.source);
@@ -41,15 +56,6 @@ export async function copyIntoWorkshop(
     };
   }
   const file: Blob = downloaded.data;
-  const type = fileType(file.type, request.source);
-  if (!type.startsWith(MIME_PREFIX[request.kind])) {
-    return {
-      error: `הקובץ (${type || "סוג לא ידוע"}) לא מתאים ל-${request.kind}`,
-    };
-  }
-  if (file.size > MAX_BYTES) {
-    return { error: "הקובץ גדול מ-200MB" };
-  }
   const path = `${scope.tenantId}/${scope.clientId ?? "no-client"}/${request.itemId}/imports/${crypto.randomUUID()}-${fileNameOf(request.source)}`;
   const uploaded = await supabase.storage
     .from(TARGET_BUCKET)
@@ -58,6 +64,35 @@ export async function copyIntoWorkshop(
     return { error: uploaded.error.message };
   }
   return { path };
+}
+
+/** A row of a storage folder listing: the object's name and what storage knows about it. */
+interface StoredEntry {
+  name: string;
+  metadata?: { mimetype?: string; size?: number };
+}
+
+/** The source object's stored type and size, read from its folder listing without downloading it. */
+async function storedFile(
+  supabase: Db,
+  source: string,
+): Promise<{ mimetype: string; size: number } | { error: string }> {
+  const slash = source.lastIndexOf("/");
+  const folder = source.slice(0, slash);
+  const name = source.slice(slash + 1);
+  const { data, error } = await supabase.storage
+    .from(SOURCE_BUCKET)
+    .list(folder, { search: name, limit: 100 });
+  const entry: StoredEntry | undefined = (data ?? []).find(
+    (row: StoredEntry) => row.name === name,
+  );
+  if (error || !entry) {
+    return { error: `הקובץ לא נמצא: ${error?.message ?? source}` };
+  }
+  return {
+    mimetype: String(entry.metadata?.mimetype ?? ""),
+    size: Number(entry.metadata?.size ?? 0),
+  };
 }
 
 /**
