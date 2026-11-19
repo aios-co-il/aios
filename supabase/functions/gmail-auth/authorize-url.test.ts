@@ -111,7 +111,11 @@ Deno.test({
           const http = fakeSupabaseHttp({
             supabaseUrl: SUPABASE_URL,
             users: { session: USER_ID },
-            tables: { gmail_tokens: [existing] },
+            tables: {
+              gmail_tokens: [existing],
+              tenant_users: [{ tenant_id: TENANT_ID, user_id: USER_ID }],
+            },
+            rpc: { is_super_admin: () => false },
             other: (url) => {
               if (url.href === "https://oauth2.googleapis.com/token") {
                 return Response.json({
@@ -187,8 +191,8 @@ Deno.test({
                 false,
               );
               assertEquals(
-                http.calls.filter((call) =>
-                  call.url.pathname.startsWith("/rest/"),
+                http.calls.filter(
+                  (call) => call.url.pathname === "/rest/v1/gmail_tokens",
                 ).length,
                 0,
               );

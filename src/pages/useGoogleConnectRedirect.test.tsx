@@ -1,8 +1,12 @@
 import { render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withTestQuery } from "@/test/withTestQuery";
+import { toast } from "sonner";
+import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
 import { completeGoogleConnect } from "@/lib/googleConnect";
 import { useGoogleConnectRedirect } from "./useGoogleConnectRedirect";
+
+const CONNECT_URL =
+  "/t/acme/integrations#google_connect=google-analytics-auth&code=c&state=s";
 
 describe("useGoogleConnectRedirect", () => {
   beforeEach(() => {
@@ -15,11 +19,7 @@ describe("useGoogleConnectRedirect", () => {
   });
 
   it("completes the connect from the fragment and clears it", async () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/t/acme/integrations#google_connect=google-analytics-auth&code=c&state=s",
-    );
+    window.history.replaceState(null, "", CONNECT_URL);
 
     render(withTestQuery(<RedirectConsumer />));
 
@@ -31,6 +31,36 @@ describe("useGoogleConnectRedirect", () => {
     );
     expect(window.location.hash).toBe("");
     expect(window.location.pathname).toBe("/t/acme/integrations");
+  });
+
+  it("refreshes the integration status after the connect is saved", async () => {
+    window.history.replaceState(null, "", CONNECT_URL);
+    const { queryClient, wrapper: Provider } = createTestQueryHarness();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    render(
+      <Provider>
+        <RedirectConsumer />
+      </Provider>,
+    );
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["user-integrations"],
+    });
+  });
+
+  it("shows the error when the connect is refused, and still clears the fragment", async () => {
+    vi.mocked(completeGoogleConnect).mockRejectedValue(
+      new Error("This connect was started by another user."),
+    );
+    window.history.replaceState(null, "", CONNECT_URL);
+
+    render(withTestQuery(<RedirectConsumer />));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe("");
   });
 
   it("does nothing without a connect fragment", () => {

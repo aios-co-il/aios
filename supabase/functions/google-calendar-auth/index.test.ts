@@ -142,7 +142,9 @@ Deno.test({
           );
           const page = await response.text();
           assertStringIncludes(page, '"type":"google_connect_code"');
+          assertStringIncludes(page, '"provider":"google-calendar-auth"');
           assertStringIncludes(page, '"code":"the-code"');
+          assertStringIncludes(page, `"state":${JSON.stringify(state)}`);
           assertStringIncludes(page, '"https://aios.co.il")');
           assertEquals(http.calls.length, 0);
         });

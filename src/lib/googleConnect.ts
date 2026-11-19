@@ -45,10 +45,15 @@ export async function completeGoogleConnect({
   }
 }
 
-/** The code the popup posted for this function, when the message came from our edge function. */
+/**
+ * The code the popup posted for this connect attempt: from our edge function,
+ * for this function, and carrying the state this attempt sent to Google, so
+ * two overlapping attempts never complete the same code.
+ */
 export function popupConnectCode(
   event: MessageEvent,
   provider: GoogleConnectFunction,
+  attemptState: string | null,
   supabaseUrl: string = import.meta.env.VITE_SUPABASE_URL,
 ): GoogleConnectCode | null {
   if (
@@ -59,7 +64,11 @@ export function popupConnectCode(
   }
 
   const message = popupMessageSchema.safeParse(event.data);
-  if (!message.success || message.data.provider !== provider) {
+  if (
+    !message.success ||
+    message.data.provider !== provider ||
+    message.data.state !== attemptState
+  ) {
     return null;
   }
 
@@ -84,6 +93,8 @@ export function connectGoogleInPopup(
     );
   }
 
+  const attemptState = new URL(authUrl).searchParams.get("state");
+
   return new Promise<void>((resolve, reject) => {
     let closedTimer = 0;
     function stop() {
@@ -91,7 +102,7 @@ export function connectGoogleInPopup(
       window.clearInterval(closedTimer);
     }
     function onMessage(event: MessageEvent) {
-      const code = popupConnectCode(event, provider);
+      const code = popupConnectCode(event, provider, attemptState);
       if (!code) {
         return;
       }

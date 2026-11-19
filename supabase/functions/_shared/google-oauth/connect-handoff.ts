@@ -5,7 +5,8 @@
 // Without this, a signed state could be sent to someone else, who would
 // connect their Google account into the sender's AIOS account.
 import { z } from "npm:zod@3.25.76";
-import { userClient } from "../supabase-clients.ts";
+import { tenantUserAccess } from "../auth/tenant-access.ts";
+import { serviceClient, userClient } from "../supabase-clients.ts";
 import {
   oauthStateSecret,
   type OAuthState,
@@ -81,7 +82,28 @@ export async function readTenantCompleteRequest(
     return { status: 400, error: "This connect link has no organization" };
   }
 
+  const refusal = await refuseFormerMember(request.state.tenantId, user.id);
+  if (refusal) {
+    return refusal;
+  }
+
   return { ...request, tenantId: request.state.tenantId };
+}
+
+/**
+ * A refusal when the user is no longer a member (or a super admin) of the
+ * tenant the connect was started for: membership is checked at `authorize`,
+ * and the user may have been removed in the minutes before `complete`.
+ */
+export async function refuseFormerMember(
+  tenantId: string,
+  userId: string,
+): Promise<CompleteRefusal | null> {
+  const access = await tenantUserAccess(serviceClient(), tenantId, userId);
+
+  return access.member || access.superAdmin
+    ? null
+    : { status: 403, error: "You are not a member of this organization" };
 }
 
 /** Whether `complete` was refused. */

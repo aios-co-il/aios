@@ -1,4 +1,5 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { stub } from "jsr:@std/testing@1/mock";
 import {
   oauthStateKey,
   signOAuthState,
@@ -256,6 +257,7 @@ Deno.test({
       "a reconnect updates only the row version it read, and fails rather than overwrite a change",
       async () => {
         const readAt = "2026-11-19T10:00:00.000Z";
+        const logged = stub(console, "error");
         const { response, http } = await run(
           completeRequest("member", await memberState()),
           [
@@ -271,7 +273,7 @@ Deno.test({
               updated_at: readAt,
             },
           ],
-        );
+        ).finally(() => logged.restore());
         const update = http.calls.find((call) => call.method === "PATCH");
         assertEquals(
           update?.url.searchParams.get("updated_at"),
@@ -284,6 +286,10 @@ Deno.test({
         );
         // The fake answers every update with no rows, as a concurrent change would.
         assertEquals(response.status, 500);
+        assertStringIncludes(
+          String(logged.calls.at(-1)?.args[1]),
+          "changed while connecting",
+        );
       },
     );
   },
