@@ -6,10 +6,12 @@ import { leadCreationTools, leadMutationTools } from "./lead-tool-schemas.ts";
 Deno.test(
   "catalog preserves every schema and its develop ordering",
   async () => {
-    assertEquals(ALL_TOOLS.length, 240);
+    assertEquals(ALL_TOOLS.length, 241);
     // Captured from the original develop catalog before extraction (2fe5ef954), then recaptured
     // when the landing page kind added its two tools and its kind to workshop_start_project
-    // (AIO-607). Includes descriptions, parameters, required fields, and object-key ordering.
+    // (AIO-607), then workshop_import_landing_page, and when workshop_import_file let a direct
+    // brain put its files on the board.
+    // Includes descriptions, parameters, required fields, and object-key ordering.
     const digest = await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode(JSON.stringify(ALL_TOOLS)),
@@ -19,7 +21,7 @@ Deno.test(
     ).join("");
     assertEquals(
       hex,
-      "447c7d46ee262b74c86ed7ac09ef4993d27494fae876ba8825b0abdd6fa468a2",
+      "102c53dc56544d5e231a73070f7aae8f7739d8c6f361e4d2047842d4c31298ce",
     );
   },
 );

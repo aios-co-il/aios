@@ -36,6 +36,7 @@ Deno.test("carmen identity", async (t) => {
     assertMatch(block, /המשתמש בשיחה: דוד/);
     assertMatch(block, /recall_memory in carmen-tools-mcp/);
     assertMatch(block, /estimated cost, and wait for the user's yes/);
+    assertMatch(block, /workshop_import_file/);
   });
 
   await t.step("leaves the organization out when its name is unknown", () => {

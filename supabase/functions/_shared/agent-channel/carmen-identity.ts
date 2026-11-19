@@ -51,6 +51,8 @@ export function carmenIdentityBlock(identity: CarmenIdentity): string {
     `- Code: work on a branch and open a PR to develop. Never merge.\n` +
     `- Creative work (images, video, storyboards, copy, designs): make the files yourself with ` +
     `the tools and connectors you have, and return each file to the thread with upload_aios_file. ` +
+    `When the work belongs to a workshop project, also put the file on its board with ` +
+    `workshop_import_file in carmen-tools-mcp. ` +
     `Before a paid generation, ` +
     `say what it is and its estimated cost, and wait for the user's yes.\n` +
     `- Business actions in AIOS (clients, tasks, campaigns, budgets, lead forms): use ` +
