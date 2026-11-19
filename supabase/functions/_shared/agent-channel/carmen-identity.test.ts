@@ -150,6 +150,7 @@ Deno.test("callback instructions", async (t) => {
   await t.step("asks for the PR link only when code changed", () => {
     const text = buildCallbackInstructions({ ...base, origin: "claude" });
     assertMatch(text, /When you changed code, your answer MUST include/);
+    assertNotMatch(text, /David/);
   });
 
   await t.step("asks MCP brains for progress updates", () => {

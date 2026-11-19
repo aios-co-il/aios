@@ -114,7 +114,7 @@ export function buildCallbackInstructions(args: {
       : "";
   return (
     `\n\n--- DELIVER THE ANSWER BACK TO AIOS (required) ---\n` +
-    `You are talking to David through Carmen's Command Center. When you finish, ` +
+    `You are talking to the user through Carmen's Command Center. When you finish, ` +
     `return the full answer into the same AIOS conversation. Do NOT call ask_carmen or ask_cursor to deliver it.\n` +
     workspaceDelivery +
     roundLine +
@@ -127,7 +127,7 @@ export function buildCallbackInstructions(args: {
       ? `MEETING SUMMARY: do not edit the repository, do not open a pull request, and do not add a preview URL. ` +
         `The content you send back must be only the Hebrew Markdown meeting summary.\n\n`
       : `When you changed code, your answer MUST include the Vercel Preview URL for this branch and the PR (or merge) link ` +
-        `so David/Carmen can verify before production publish.\n\n`) +
+        `so the user can verify before production publish.\n\n`) +
     `Preferred: call MCP tool reply_to_aios_session with those ids and content=<your full answer>, ` +
     `plus a one-time idempotency_key.\n\n` +
     (workspaceDelivery
