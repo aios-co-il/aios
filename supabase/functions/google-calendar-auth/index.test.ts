@@ -187,6 +187,72 @@ Deno.test({
       },
     );
 
+    for (const [storedEmail, reused] of [
+      ["mailbox@example.com", true],
+      ["other@example.com", false],
+    ] as const) {
+      await t.step(
+        `a reconnect without a new refresh token ${reused ? "reuses" : "refuses"} the stored one for ${storedEmail}`,
+        async () => {
+          const http = fakeSupabaseHttp({
+            supabaseUrl: SUPABASE_URL,
+            users: { session: USER_ID },
+            tables: {
+              calendar_tokens: [
+                {
+                  user_id: USER_ID,
+                  refresh_token: "stored-refresh",
+                  google_email: storedEmail,
+                },
+              ],
+            },
+            other: (url) => {
+              if (url.href === "https://oauth2.googleapis.com/token") {
+                return Response.json({
+                  access_token: "new-access",
+                  expires_in: 3600,
+                  scope: "https://www.googleapis.com/auth/calendar",
+                });
+              }
+              if (
+                url.href === "https://www.googleapis.com/oauth2/v2/userinfo"
+              ) {
+                return Response.json({ email: "mailbox@example.com" });
+              }
+              throw new Error(`Unexpected provider request: ${url.href}`);
+            },
+          });
+          await withRuntime({ env, fetch: http.fetch }, async () => {
+            const handle = await servedHandler(
+              new URL("./index.ts", import.meta.url),
+            );
+            const state = await signOAuthState(
+              { userId: USER_ID, tenantId: null, origin: null, addNew: false },
+              STATE_SECRET,
+            );
+            const response = await handle(complete(state));
+            const writes = http.calls.filter(
+              (call) =>
+                call.method === "POST" &&
+                call.url.pathname === "/rest/v1/calendar_tokens",
+            );
+            if (reused) {
+              assertEquals(response.status, 200);
+              assertEquals(
+                writes[0]?.body && Reflect.get(writes[0].body, "refresh_token"),
+                "stored-refresh",
+              );
+            } else {
+              assertEquals(response.status, 500);
+              const { error } = await response.json();
+              assertStringIncludes(error, "different Google account");
+              assertEquals(writes.length, 0);
+            }
+          });
+        },
+      );
+    }
+
     for (const [scope, accepted] of [
       [undefined, false],
       ["", false],

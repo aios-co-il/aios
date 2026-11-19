@@ -27,25 +27,9 @@ export async function storeCalendarConnection(
   }
 
   const supabase = serviceClient();
-
-  // Google omits refresh_token on a re-auth without prompt=consent; keep the stored one.
-  let refreshToken = tokens.refresh_token ?? null;
-  if (!refreshToken) {
-    const { data: existing, error } = await supabase
-      .from("calendar_tokens")
-      .select("refresh_token")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) {
-      throw new Error(`calendar_tokens lookup failed: ${error.message}`);
-    }
-    refreshToken = existing?.refresh_token || null;
-  }
-  if (!refreshToken) {
-    throw new UserFacingError(
-      "No refresh token available. Please disconnect and reconnect granting offline access.",
-    );
-  }
+  const googleEmail = await googleAccountEmail(tokens.access_token);
+  const refreshToken =
+    tokens.refresh_token ?? (await storedRefreshToken(userId, googleEmail));
 
   // One row per user (calendar_tokens_user_id_key), so a reconnect updates it.
   const { error: dbError } = await supabase.from("calendar_tokens").upsert(
@@ -55,7 +39,7 @@ export async function storeCalendarConnection(
       refresh_token: refreshToken,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       updated_at: new Date().toISOString(),
-      google_email: (await googleAccountEmail(tokens.access_token)) || null,
+      google_email: googleEmail || null,
       needs_reconnect: false,
       sync_status: "connected",
       sync_error: null,
@@ -67,6 +51,41 @@ export async function storeCalendarConnection(
   }
 
   await startWatch(userId);
+}
+
+/**
+ * The stored refresh token, for a reconnect where Google sent none (no
+ * prompt=consent). Only for the same Google account: another account's token
+ * would sit beside this account's access token and email. Throws otherwise,
+ * leaving the existing connection untouched; after a disconnect the next
+ * connect asks for consent and Google sends a fresh token.
+ */
+async function storedRefreshToken(
+  userId: string,
+  googleEmail: string,
+): Promise<string> {
+  const { data: existing, error } = await serviceClient()
+    .from("calendar_tokens")
+    .select("refresh_token, google_email")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`calendar_tokens lookup failed: ${error.message}`);
+  }
+
+  if (!existing?.refresh_token) {
+    throw new UserFacingError(
+      "No refresh token available. Please disconnect and reconnect granting offline access.",
+    );
+  }
+
+  if (!googleEmail || existing.google_email !== googleEmail) {
+    throw new UserFacingError(
+      "This is a different Google account than the connected one. Disconnect Calendar first, then connect the new account.",
+    );
+  }
+
+  return existing.refresh_token;
 }
 
 /** Starts (or renews) the push channel so changes made in Google flow back. A failure leaves the connection in place. */

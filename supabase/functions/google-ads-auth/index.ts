@@ -218,15 +218,16 @@ async function completeConnect(body: unknown, userId: string) {
     );
   }
 
-  const refusal = await refuseFormerMember(tenantId, userId);
-  if (refusal) {
-    return new Response(JSON.stringify({ error: refusal.error }), {
-      status: refusal.status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
+  // Membership lookup and storage share the catch, so a database error never reaches the browser.
   try {
+    const refusal = await refuseFormerMember(tenantId, userId);
+    if (refusal) {
+      return new Response(JSON.stringify({ error: refusal.error }), {
+        status: refusal.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     await storeAdsConnection(request.code, tenantId, userId);
   } catch (error) {
     console.error("Google Ads complete failed:", error);
