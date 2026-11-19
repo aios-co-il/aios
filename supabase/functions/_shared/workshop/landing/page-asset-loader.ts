@@ -62,7 +62,14 @@ export function projectAssetLoader(
       };
     }
     const ext = (path.split(".").pop() ?? "").toLowerCase();
-    return { kind, ext: ext === "jpeg" ? "jpg" : ext, bytes };
+    const normalized = ext === "jpeg" ? "jpg" : ext;
+    if (!looksLike(normalized, bytes)) {
+      console.error(
+        `landing assets: asset ${assetId} is not the ${normalized} its name says`,
+      );
+      return { error: `הקובץ של הנכס ${assetId} אינו ${normalized} תקין` };
+    }
+    return { kind, ext: normalized, bytes };
   };
 }
 
@@ -75,4 +82,29 @@ function kindOf(assetType: unknown, path: string): AssetKind | null {
     return "video";
   }
   return null;
+}
+
+/**
+ * True when the bytes start like a file of this extension. The name and the asset type come from
+ * the uploader; the repository publishes the bytes, so the content itself must match.
+ */
+function looksLike(ext: string, bytes: Uint8Array): boolean {
+  /** The bytes from `from` to `to` read as ASCII. */
+  function text(from: number, to: number): string {
+    return String.fromCharCode(...bytes.subarray(from, to));
+  }
+  switch (ext) {
+    case "png":
+      return bytes[0] === 0x89 && text(1, 4) === "PNG";
+    case "jpg":
+      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    case "gif":
+      return text(0, 4) === "GIF8";
+    case "webp":
+      return text(0, 4) === "RIFF" && text(8, 12) === "WEBP";
+    case "mp4":
+      return text(4, 8) === "ftyp";
+    default:
+      return false;
+  }
 }

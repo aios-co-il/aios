@@ -161,7 +161,7 @@ Deno.test(
       from: () => ({
         download: () =>
           Promise.resolve({
-            data: new Blob([new Uint8Array([7])]),
+            data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7])]),
             error: null,
           }),
       }),
@@ -181,7 +181,7 @@ Deno.test(
       files[
         "landing-pages/acme/offer/assets/asset-11111111222243338444555555555555.png"
       ],
-      new Uint8Array([7]),
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7]),
     );
   },
 );
@@ -215,7 +215,7 @@ function assetBuildDb(byte: number) {
     from: () => ({
       download: () =>
         Promise.resolve({
-          data: new Blob([new Uint8Array([byte])]),
+          data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, byte])]),
           error: null,
         }),
     }),
