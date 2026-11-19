@@ -113,7 +113,7 @@ Deno.test("throws when integration_secrets cannot be read", async () => {
 
 /** A typed client whose integration_secrets table holds `secrets`. */
 function secretsClient(
-  secrets: Database["public"]["Tables"]["integration_secrets"]["Insert"][],
+  secrets: Array<Database["public"]["Tables"]["integration_secrets"]["Insert"]>,
   failure?: string,
 ) {
   const http = fakeSupabaseHttp({

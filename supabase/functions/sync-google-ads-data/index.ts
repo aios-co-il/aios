@@ -291,7 +291,9 @@ Deno.serve(async (req) => {
       const pinned = await withGoogleToken(serviceClient(), data);
       // Only use it if it's still active and usable; otherwise fall through to the resolver
       // so a disabled/removed connection doesn't hard-fail an existing table.
-      if (pinned?.is_active && pinned?.api_key) integration = pinned;
+      if (pinned?.is_active && pinned?.api_key) {
+        integration = pinned;
+      }
     }
 
     if (!integration) {
@@ -318,7 +320,7 @@ Deno.serve(async (req) => {
 
       const usable = (
         await withGoogleTokens(serviceClient(), candidates || [])
-      ).filter((i: any) => i?.api_key);
+      ).filter((i) => i?.api_key);
       integration =
         usable.find((i: any) => !i.settings?.needs_reauth) || usable[0] || null;
     }

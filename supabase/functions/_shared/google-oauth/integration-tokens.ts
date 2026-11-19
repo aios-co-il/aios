@@ -26,8 +26,8 @@ const settingsSchema = z.record(z.unknown());
  */
 export async function withGoogleTokens<T extends TokenRow>(
   sb: Pick<DbClient, "from">,
-  rows: T[],
-): Promise<T[]> {
+  rows: Array<T>,
+): Promise<Array<T>> {
   if (rows.length === 0) {
     return rows;
   }
