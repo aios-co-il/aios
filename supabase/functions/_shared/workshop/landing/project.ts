@@ -50,6 +50,14 @@ export const PUBLISH_LABEL = "פרסום";
 export const APPROVE_PUBLISH = "לפרסם את העמוד";
 /** The tap question that ends the preview Carmen shows. */
 export const PUBLISH_CHOICE = `[[בחירה: ${PUBLISH_LABEL} | ${APPROVE_PUBLISH} | עוד לא]]`;
+/**
+ * The short name of a build, shown with its preview. An approval counts only when Carmen's
+ * message carries the name of the build the project holds now, so a tap on an older message never
+ * approves a build the user has not seen.
+ */
+export function buildTag(digest: string): string {
+  return `גרסה ${digest.slice(0, 8)}`;
+}
 /** The tap question that ends the style Carmen shows. */
 export const STYLE_CHOICE = `[[בחירה: ${STYLE_LABEL} | ${APPROVE_STYLE} | ${CHANGE}]]`;
 
@@ -60,6 +68,15 @@ export function landingStateOf(payload: Record<string, unknown>): LandingState {
     ? (raw as LandingState)
     : {};
 }
+
+/**
+ * What a new copy or style does to the build: the build and its publish approval describe the
+ * old content, so both go. The page must be built and approved again.
+ */
+export const BUILD_CLEARED: LandingState = {
+  build: undefined,
+  publish_approved: undefined,
+};
 
 /** The payload with part of its landing state replaced. */
 export function withLanding(
@@ -93,7 +110,11 @@ export function withLandingApprovals(
   }
   // Publishing is approved for one build: the preview the user was shown with the question.
   const publish = answer(PUBLISH_LABEL, APPROVE_PUBLISH);
-  const built = state.build?.preview_url ? state.build.digest : undefined;
+  const built =
+    state.build?.preview_url &&
+    turn.lastAssistant.includes(buildTag(state.build.digest))
+      ? state.build.digest
+      : undefined;
   if (
     built &&
     state.publish_approved !== built &&
@@ -156,5 +177,5 @@ function buildStepLine(state: LandingState): string {
   if (state.publish_approved === build.digest) {
     return "המשתמש אישר לפרסם את העמוד. פרסמי אותו: workshop_publish_landing_page.";
   }
-  return `העמוד נבנה ומחכה לאישור פרסום. תצוגה מקדימה: ${build.preview_url}. המשתמש ביקש שינוי: שמרי קופי או סגנון מתוקן, קבלי אישור ובני מחדש. אחרת: שלחי לו את הקישור, סיימי בשורה ${PUBLISH_CHOICE} ועצרי. מפרסמים רק אחרי האישור שלו.`;
+  return `העמוד נבנה ומחכה לאישור פרסום. תצוגה מקדימה: ${build.preview_url}. המשתמש ביקש שינוי: שמרי קופי או סגנון מתוקן, קבלי אישור ובני מחדש. אחרת: שלחי לו את הקישור עם שם הבנייה "${buildTag(build.digest)}" כמו שהוא, סיימי בשורה ${PUBLISH_CHOICE} ועצרי. מפרסמים רק אחרי האישור שלו.`;
 }

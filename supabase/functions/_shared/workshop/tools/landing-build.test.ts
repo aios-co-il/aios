@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
-import { contentDigest, contentJson } from "../landing/page-files.ts";
-import { PUBLISH_CHOICE } from "../landing/project.ts";
+import { buildDigest, contentJson } from "../landing/page-files.ts";
+import { buildTag, PUBLISH_CHOICE } from "../landing/project.ts";
 import type { LandingRepo } from "../landing/repo.ts";
 import { executeApprovedWorkshopTool, fakeDb } from "./test-fakes.ts";
 
@@ -19,7 +19,10 @@ const style = {
   direction: "נקי",
 };
 const approved = { blocks, copy_approved: true, style, style_approved: true };
-const digest = await contentDigest(contentJson(blocks, style));
+const digest = await buildDigest(
+  { subdomain: "acme", slug: "offer", title: "מבצע" },
+  contentJson(blocks, style),
+);
 const built = {
   branch: "page/acme/offer",
   commit: "commit-1",
@@ -75,12 +78,13 @@ async function run(
   db: ReturnType<typeof fakeDb>,
   name: string,
   repo?: LandingRepo,
+  args: Record<string, unknown> = {},
 ): Promise<Loose> {
   return (await executeApprovedWorkshopTool(
     db,
     "tenant-1",
     name,
-    { item_id: "item-1" },
+    { item_id: "item-1", ...args },
     undefined,
     null,
     { landingRepo: repo, sleep: () => Promise.resolve() },
@@ -112,6 +116,8 @@ Deno.test(
       "https://preview.example/offer?site=acme",
     );
     assertStringIncludes(result.say_to_user, PUBLISH_CHOICE);
+    // The message names the build, which is what ties the user's tap to this preview.
+    assertStringIncludes(result.say_to_user, buildTag(digest));
     assertEquals(savedLanding(db).build, built);
   },
 );
@@ -125,6 +131,45 @@ Deno.test("building the same content again pushes nothing", async () => {
   assertEquals(pushes, []);
   assertEquals(result.preview_ready, true);
 });
+
+Deno.test(
+  "a build previewed at one address is not reused after the address changes",
+  async () => {
+    // Same copy and style, built and approved for /offer; the settings now say /sale.
+    const db = landingDb(
+      { ...approved, build: built, publish_approved: digest },
+      { slug: "sale" },
+    );
+    const { repo, pushes, pulls } = fakeRepo({
+      "landing-pages/acme/site.json": OUR_SITE,
+    });
+    const refused = await run(db, "workshop_publish_landing_page", repo);
+    assertStringIncludes(refused.error, "השתנו מאז התצוגה");
+    assertEquals([pushes, pulls], [[], []]);
+    await run(db, "workshop_build_landing_page", repo);
+    assertEquals(pushes[0].branch, "page/acme/sale");
+  },
+);
+
+Deno.test("a new copy drops the build and its publish approval", async () => {
+  const db = landingDb({ ...approved, build: built, publish_approved: digest });
+  await run(db, "workshop_save_landing_copy", undefined, { blocks });
+  const saved = savedLanding(db);
+  assertEquals(saved.copy_approved, false);
+  assertEquals([saved.build, saved.publish_approved], [undefined, undefined]);
+});
+
+Deno.test(
+  "the pushed commit is saved even when the preview check fails",
+  async () => {
+    const db = landingDb(approved);
+    const { repo } = fakeRepo({ "landing-pages/acme/site.json": OUR_SITE });
+    repo.previewUrl = () => Promise.reject(new Error("GitHub is down"));
+    const result = await run(db, "workshop_build_landing_page", repo);
+    assertStringIncludes(result.error, "GitHub is down");
+    assertEquals(savedLanding(db).build.commit, "commit-1");
+  },
+);
 
 Deno.test(
   "a preview that is still building is reported without the publish question",
@@ -237,7 +282,9 @@ Deno.test(
       JSON.parse(pushes[0].files["landing-pages/acme/offer/page.json"]).status,
       "published",
     );
-    assertEquals(pulls, ["page/acme/offer"]);
+    // The publishing branch is named after the build, so a later draft cannot change it.
+    assertEquals(pulls, [`publish/acme/offer-${digest.slice(0, 12)}`]);
+    assertEquals(pushes[0].branch, pulls[0]);
     assertEquals(result.live_url, "https://acme.aios.co.il/offer");
     assertEquals(savedLanding(db).published, {
       digest,

@@ -1,5 +1,5 @@
 import {
-  contentDigest,
+  buildDigest,
   landingPageFiles,
   pageFolder,
   siteFile,
@@ -53,10 +53,20 @@ export async function prepareBuild(
     today: options.today,
     newSite: existingSite === null,
   });
+  const digest = await buildDigest(
+    { subdomain, slug: target.slug, title: target.title },
+    files[`${folder}/content.json`],
+  );
   return {
     files,
-    digest: await contentDigest(files[`${folder}/content.json`]),
-    branch: `page/${subdomain}/${target.slug}`,
+    digest,
+    // A draft lives on the page's own branch, which every rebuild replaces. A publish gets a
+    // branch named after its build, so no later draft can change what a publishing pull request
+    // holds.
+    branch:
+      options.status === "draft"
+        ? `page/${subdomain}/${target.slug}`
+        : `publish/${subdomain}/${target.slug}-${digest.slice(0, 12)}`,
     newSite: existingSite === null,
   };
 }

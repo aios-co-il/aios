@@ -1,6 +1,7 @@
 import { prepareBuild } from "../landing/page-build.ts";
 import { loadLandingTarget, previewPageUrl } from "../landing/page-target.ts";
 import {
+  buildTag,
   type LandingBuild,
   landingStateOf,
   PUBLISH_CHOICE,
@@ -65,13 +66,17 @@ export async function workshopBuildLandingPage(ctx: ToolContext) {
             digest: prepared.digest,
             ...(prepared.newSite ? { new_site: true } : {}),
           };
+    if (build !== state.build) {
+      // Saved before the wait: if the preview check fails, the next call resumes this commit.
+      await updateLanding(supabase, tenantId, project.id, () => ({ build }));
+    }
     if (!build.preview_url) {
       const base = await waitForPreview(ctx, build.commit);
       if (base) {
         build = { ...build, preview_url: previewPageUrl(base, target) };
+        await updateLanding(supabase, tenantId, project.id, () => ({ build }));
       }
     }
-    await updateLanding(supabase, tenantId, project.id, () => ({ build }));
     if (!build.preview_url) {
       return {
         success: true,
@@ -84,7 +89,7 @@ export async function workshopBuildLandingPage(ctx: ToolContext) {
       success: true,
       preview_ready: true,
       preview_url: build.preview_url,
-      say_to_user: `העמוד נבנה. תצוגה מקדימה: ${build.preview_url}${target.hasLeadDestination ? "" : "\nשימו לב: עוד לא הוגדר יעד ללידים בהגדרות שבראש הפרויקט, ובלעדיו אי אפשר לפרסם."}\n\n${PUBLISH_CHOICE}`,
+      say_to_user: `העמוד נבנה (${buildTag(build.digest)}). תצוגה מקדימה: ${build.preview_url}${target.hasLeadDestination ? "" : "\nשימו לב: עוד לא הוגדר יעד ללידים בהגדרות שבראש הפרויקט, ובלעדיו אי אפשר לפרסם."}\n\n${PUBLISH_CHOICE}`,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";

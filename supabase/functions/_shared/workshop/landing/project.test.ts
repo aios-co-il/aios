@@ -134,9 +134,12 @@ Deno.test("withLandingApprovals", async (t) => {
 Deno.test(
   "publishing is approved for the build whose preview was shown",
   () => {
-    const turn = { lastAssistant: PUBLISH_CHOICE, userText: "לפרסם את העמוד" };
+    const turn = {
+      lastAssistant: `העמוד נבנה (גרסה d1d1d1d1).\n${PUBLISH_CHOICE}`,
+      userText: "לפרסם את העמוד",
+    };
     const done = { blocks, copy_approved: true, style, style_approved: true };
-    const build = { branch: "b", commit: "c", digest: "d1" };
+    const build = { branch: "b", commit: "c", digest: "d1d1d1d1d1" };
     // No preview yet: there is nothing the user could have seen.
     assertEquals(
       withLandingApprovals(landing({ ...done, build }), turn).changed,
@@ -147,7 +150,16 @@ Deno.test(
       landing({ ...done, build: shown }),
       turn,
     );
-    assertEquals(landingStateOf(approved.payload).publish_approved, "d1");
+    assertEquals(
+      landingStateOf(approved.payload).publish_approved,
+      "d1d1d1d1d1",
+    );
+    // The question was asked about another build: the project was rebuilt since.
+    const rebuilt = { ...shown, digest: "e2e2e2e2e2" };
+    assertEquals(
+      withLandingApprovals(landing({ ...done, build: rebuilt }), turn).changed,
+      false,
+    );
     // "Not yet" approves nothing.
     assertEquals(
       withLandingApprovals(landing({ ...done, build: shown }), {

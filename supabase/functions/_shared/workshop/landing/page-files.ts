@@ -106,11 +106,20 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-/** A short fingerprint of a content.json: what the user saw is what gets published. */
-export async function contentDigest(content: string): Promise<string> {
+/**
+ * The fingerprint of a build: the page's address, its title and its content.json. What the user
+ * saw in the preview is what gets published, at the address it was previewed for. The status is
+ * left out on purpose: publishing changes it and nothing else.
+ */
+export async function buildDigest(
+  target: { subdomain: string; slug: string; title: string },
+  content: string,
+): Promise<string> {
   const hash = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(content),
+    new TextEncoder().encode(
+      `${target.subdomain}/${target.slug}\n${target.title}\n${content}`,
+    ),
   );
   return Array.from(new Uint8Array(hash), (byte) =>
     byte.toString(16).padStart(2, "0"),
