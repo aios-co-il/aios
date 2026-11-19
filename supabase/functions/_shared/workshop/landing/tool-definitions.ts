@@ -85,4 +85,31 @@ export const SAVE_LANDING_STYLE_TOOL = {
   },
 };
 
-export const LANDING_TOOLS = [SAVE_LANDING_COPY_TOOL, SAVE_LANDING_STYLE_TOOL];
+export const BUILD_LANDING_PAGE_TOOL = {
+  name: "workshop_build_landing_page",
+  description:
+    "בונה את עמוד הנחיתה מהקופי והסגנון שהמשתמש אישר, כטיוטה, ומחזירה קישור לתצוגה מקדימה עם כפתורי אישור פרסום. רק אחרי אישור הקופי ואישור הסגנון, ורק כשלעמוד יש כתובת בהגדרות שבראש הפרויקט. אם התצוגה עוד עולה, קראי לכלי שוב כעבור דקה: קריאה חוזרת לא בונה מחדש. say_to_user נשלח למשתמש כמו שהוא; עצרי אחריו. לא עולה כסף.",
+  parameters: {
+    type: "object",
+    properties: { item_id: { type: "string" } },
+    required: ["item_id"],
+  },
+};
+
+export const PUBLISH_LANDING_PAGE_TOOL = {
+  name: "workshop_publish_landing_page",
+  description:
+    "מפרסמת את עמוד הנחיתה שהמשתמש ראה בתצוגה המקדימה ואישר לפרסם. רק אחרי שהמשתמש אישר את הפרסום בעצמו; בלי האישור הכלי מסרב. העמוד עולה לאוויר בכתובת שבהגדרות. say_to_user נשלח למשתמש כמו שהוא. לא עולה כסף.",
+  parameters: {
+    type: "object",
+    properties: { item_id: { type: "string" } },
+    required: ["item_id"],
+  },
+};
+
+export const LANDING_TOOLS = [
+  SAVE_LANDING_COPY_TOOL,
+  SAVE_LANDING_STYLE_TOOL,
+  BUILD_LANDING_PAGE_TOOL,
+  PUBLISH_LANDING_PAGE_TOOL,
+];
