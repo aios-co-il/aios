@@ -128,6 +128,13 @@ export function withLandingApprovals(
 }
 
 /**
+ * How the project's assets (the Assets tab, workshop_get_state's assets) reach the page: the ones
+ * marked as reference steer the style, and an uploaded picture or video can be shown on the page.
+ */
+const LANDING_ASSETS =
+  "נכסי הפרויקט (assets ב-workshop_get_state): הסגנון נשען על הנכסים המסומנים כרפרנס (use_as_reference). תמונה או סרטון mp4 שהועלו לנכסים נכנסים לעמוד כ-asset:<id> (imageUrl של hero, או video עם src ו-poster של תמונה), והבנייה מעתיקה אותם לעמוד. השתמשי רק במזהה של נכס שקיים בפרויקט.";
+
+/**
  * What Carmen does with a request the page's sections cannot hold: the landing-pages app is code,
  * and a coding agent extends it. The new section or feature then becomes part of the page.
  */
@@ -143,7 +150,7 @@ export function landingTurnLines(
 ): Array<string> {
   const state = landingStateOf(payload);
   const lines = [
-    `זה פרויקט עמוד נחיתה. הסדר: בריף ורפרנסים, קופי העמוד (workshop_save_landing_copy), אישור הקופי, סגנון עיצובי (workshop_save_landing_style), אישור הסגנון, ואז בנייה. בפרויקט הזה לא יוצרים תמונות, סטוריבורד או סרטון. ${LANDING_BEYOND_SECTIONS}`,
+    `זה פרויקט עמוד נחיתה. הסדר: בריף ורפרנסים, קופי העמוד (workshop_save_landing_copy), אישור הקופי, סגנון עיצובי (workshop_save_landing_style), אישור הסגנון, ואז בנייה. בפרויקט הזה לא יוצרים תמונות, סטוריבורד או סרטון. ${LANDING_ASSETS} ${LANDING_BEYOND_SECTIONS}`,
   ];
   if (!state.blocks) {
     lines.push(

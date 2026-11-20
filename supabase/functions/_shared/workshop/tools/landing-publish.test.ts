@@ -6,6 +6,7 @@ import {
   digest,
   fakeRepo,
   landingDb,
+  pushedJson,
   OUR_SITE,
   run,
   savedLanding,
@@ -85,7 +86,7 @@ Deno.test(
     });
     const result = await run(db, "workshop_publish_landing_page", repo);
     assertEquals(
-      JSON.parse(pushes[0].files["landing-pages/acme/offer/page.json"]).status,
+      pushedJson(pushes[0].files, "landing-pages/acme/offer/page.json").status,
       "published",
     );
     // The publishing branch is named after the build, so a later draft cannot change it.
