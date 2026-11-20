@@ -6,6 +6,10 @@ import { readMetaResponse } from "../meta-response.ts";
 import { fetchCampaignInsights } from "./campaign-insights.ts";
 import { fetchCampaignAds } from "./campaign-ads.ts";
 import { cplFrom } from "./campaign-cpl.ts";
+import { metaAccountLinksToClient } from "./client-ad-links.ts";
+
+/** Returned when the campaign's ad account is not linked to the named client. */
+export const CAMPAIGN_NOT_OF_CLIENT = "campaign_not_linked_to_client";
 
 /** Deep single-campaign analysis + ad-level CPL (inline Graph; no edge-fn dependency). */
 export async function fbAnalyzeCampaignInline(
@@ -27,7 +31,7 @@ export async function fbAnalyzeCampaignInline(
     "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
 
   const metaRes = await fetch(
-    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
+    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${campaignId}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info,account_id&access_token=${token}`,
   );
   const metaResult = await readMetaResponse(metaRes);
   if (!metaResult.ok) {
@@ -36,6 +40,10 @@ export async function fbAnalyzeCampaignInline(
   const meta = metaResult.value;
   if (meta?.error) {
     return { error: "fb_api_error", fb_error: meta.error };
+  }
+  // The tenant token can read every client's campaigns: bind this one to clientId.
+  if (!(await metaAccountLinksToClient(supabase, meta.account_id, clientId))) {
+    return { error: CAMPAIGN_NOT_OF_CLIENT };
   }
 
   const [today, last7, last30, ads] = await Promise.all([
