@@ -21,7 +21,7 @@ export function isSeoReadTool(name: string): name is SeoReadToolName {
 
 // Hebrew and English ways people ask about organic search or AI visibility.
 const SEO_INTENT =
-  /(\bseo\b|סיאו|אס\s*אי\s*או|קידום\s*אורגני|תנועה\s*אורגנית|אורגני|search\s*console|סרץ'?\s*קונסול|\bgsc\b|ahrefs|אהרפס|\bdr\b|דומיין\s*רייטינג|בקלינק|backlink|מילות\s*מפתח|ביטויים\s*במעקב|מיקומים\s*בגוגל|דירוג\s*בגוגל|\bgeo\b|נראות\s*ב-?\s*(ai|בינה)|chatgpt|צ'?אט\s*ג'?יפיטי|perplexity|gemini|לוח\s*תוכן|כתבות\s*seo|עדכון\s*חודשי)/i;
+  /(\bseo\b|סיאו|אס\s*אי\s*או|קידום\s*אורגני|תנועה\s*אורגנית|אורגני|search\s*console|סרץ'?\s*קונסול|\bgsc\b|ahrefs|אהרפס|\bdr\b|דומיין\s*רייטינג|בקלינק|backlink|מילות\s*מפתח|ביטויים\s*במעקב|מיקומים\s*בגוגל|דירוג\s*בגוגל|\bgeo\b|נראות\s*ב-?\s*(ai|בינה)|chatgpt|צ'?אט\s*ג'?יפיטי|perplexity|gemini|לוח\s*תוכן|כתבות\s*seo|מאמר|כתבה|עדכון\s*חודשי)/i;
 
 /** True when the message asks about SEO, Search Console, Ahrefs or GEO. */
 export function hasSeoIntent(text: string): boolean {

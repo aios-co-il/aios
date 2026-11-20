@@ -52,6 +52,10 @@ const APPROVAL_RISK_BY_TOOL: Readonly<Record<string, RiskClass>> =
     delete_expense_payment: "money",
     update_client_retainer: "money",
     create_finance_entry: "money",
+    // SEO / GEO spend (OpenAI calls, paid SERP searches)
+    run_ai_visibility_scan: "money",
+    check_serp_rankings: "money",
+    generate_seo_article_draft: "money",
     // Messages that leave the agency
     send_broadcast_now: "external_send",
     schedule_broadcast: "external_send",
@@ -64,6 +68,8 @@ const APPROVAL_RISK_BY_TOOL: Readonly<Record<string, RiskClass>> =
     update_calendar_invite: "external_send",
     cancel_calendar_invite: "external_send",
     join_meeting_for_client: "external_send",
+    // A public post on the client's website
+    publish_seo_article: "external_send",
     // Messages to staff
     send_whatsapp_to_staff: "notify_staff",
     send_message_to_campaigner: "notify_staff",
@@ -94,6 +100,8 @@ const APPROVAL_RISK_BY_TOOL: Readonly<Record<string, RiskClass>> =
     delete_memory: "destructive",
     // Internal, reversible
     cancel_broadcast: "internal_write",
+    // Phrases in a client's SEO plan: free and editable again any time.
+    upsert_seo_keywords: "internal_write",
     // AIO-236: a pulse target only changes which campaigns alert; the manager or
     // campaigner who asked for it approves it, and it can be changed again any time.
     set_pulse_target: "internal_write",

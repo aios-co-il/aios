@@ -1,6 +1,6 @@
 /**
  * An in-memory stand-in for the supabase-js reads the SEO tools make: select
- * (with `alias:column->key` JSON paths and head counts), eq, neq, in, gte, lt,
+ * (with `alias:column->key` JSON paths and head counts), eq, neq, in, gte, gt, lt,
  * order, limit, range, maybeSingle and await. Records each read's filters so
  * tests can assert tenant scoping.
  */
@@ -26,6 +26,7 @@ type Query = {
   neq: (column: string, value: unknown) => Query;
   in: (column: string, values: Array<unknown>) => Query;
   gte: (column: string, value: string) => Query;
+  gt: (column: string, value: string) => Query;
   lt: (column: string, value: string) => Query;
   order: (column: string, options?: { ascending?: boolean }) => Query;
   limit: (count: number) => Query;
@@ -91,6 +92,7 @@ export function fakeSeoDb(
       neq: (column, value) => filter(column, (v) => v !== value),
       in: (column, values) => filter(column, (v) => values.includes(v)),
       gte: (column, value) => filter(column, (v) => String(v ?? "") >= value),
+      gt: (column, value) => filter(column, (v) => String(v ?? "") > value),
       lt: (column, value) => filter(column, (v) => String(v ?? "") < value),
       order(column, options) {
         sorts.push({ column, ascending: options?.ascending ?? true });

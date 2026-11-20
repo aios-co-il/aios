@@ -96,6 +96,31 @@ export const AGENT_TOOLS_CATALOG: AgentToolEntry[] = [
   { name: "get_ahrefs_snapshot", label: "תמונת Ahrefs שמורה", group: "SEO" },
   { name: "get_seo_program", label: "תוכנית SEO ולוח תוכן", group: "SEO" },
   { name: "get_ai_visibility", label: "נראות ב-AI (GEO)", group: "SEO" },
+  {
+    name: "run_ai_visibility_scan",
+    label: "סריקת נראות ב-AI (באישור)",
+    group: "SEO",
+  },
+  {
+    name: "check_serp_rankings",
+    label: "בדיקת מיקומים בגוגל (באישור)",
+    group: "SEO",
+  },
+  {
+    name: "upsert_seo_keywords",
+    label: "עדכון ביטויי SEO (באישור)",
+    group: "SEO",
+  },
+  {
+    name: "generate_seo_article_draft",
+    label: "כתיבת טיוטת מאמר (באישור)",
+    group: "SEO",
+  },
+  {
+    name: "publish_seo_article",
+    label: "פרסום מאמר באתר (באישור)",
+    group: "SEO",
+  },
   { name: "list_agents", label: "רשימת סוכנים", group: "ניהול AI" },
   { name: "create_agent", label: "יצירת סוכן", group: "ניהול AI" },
   { name: "update_agent", label: "עדכון סוכן", group: "ניהול AI" },
