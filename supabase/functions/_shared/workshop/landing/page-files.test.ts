@@ -20,6 +20,8 @@ const input = {
     clientId: "c-1",
     name: "Acme",
     tracking: {},
+    customDomain: null,
+    customDomainVerified: false,
   },
   slug: "home",
   title: "עמוד הבית",
@@ -145,15 +147,27 @@ Deno.test(
 Deno.test("the build fingerprint covers the site's tracking ids", async () => {
   const target = { subdomain: "acme", slug: "home", title: "עמוד הבית" };
   const content = contentJson(blocks, style);
-  const none = await buildDigest(target, content, {});
-  const tagged = await buildDigest(target, content, { gtmId: "GTM-ABCD12" });
+  const none = await buildDigest(target, content, {
+    tracking: {},
+    customDomain: null,
+  });
+  const tagged = await buildDigest(target, content, {
+    tracking: { gtmId: "GTM-ABCD12" },
+    customDomain: null,
+  });
   assertEquals(none === tagged, false);
   assertEquals(
-    await buildDigest(target, content, { gtmId: " GTM-ABCD12 " }),
+    await buildDigest(target, content, {
+      tracking: { gtmId: " GTM-ABCD12 " },
+      customDomain: null,
+    }),
     tagged,
   );
   assertEquals(
-    (await buildDigest(target, content, { gtmId: "GTM-ABCD99" })) === tagged,
+    (await buildDigest(target, content, {
+      tracking: { gtmId: "GTM-ABCD99" },
+      customDomain: null,
+    })) === tagged,
     false,
   );
 });

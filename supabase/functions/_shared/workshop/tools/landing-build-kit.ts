@@ -26,7 +26,7 @@ export const approved = {
 export const digest = await buildDigest(
   { subdomain: "acme", slug: "offer", title: "מבצע" },
   contentJson(blocks, style),
-  {},
+  { tracking: {}, customDomain: null },
 );
 export const built = {
   branch: "page/acme/offer",
@@ -63,6 +63,8 @@ export function landingDb(
       gtm_id: null,
       ga4_id: null,
       meta_pixel_id: null,
+      custom_domain: null,
+      custom_domain_verified_at: null,
       ...site,
     },
     "clients:select": { name: "Acme" },

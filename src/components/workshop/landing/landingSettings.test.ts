@@ -16,6 +16,8 @@ const saved: LandingSettings = {
   siteExists: true,
   pageExists: true,
   tracking: NO_TRACKING,
+  customDomain: "",
+  customDomainVerified: false,
 };
 
 const draft: LandingSettingsDraft = {

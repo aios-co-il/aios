@@ -20,7 +20,7 @@ export interface PreparedBuild {
   branch: string;
   newSite: boolean;
   /**
-   * True when the build writes site.json (a new site, or new tracking ids). The landing-pages
+   * True when the build writes site.json (a new site, new tracking ids or a new domain). The landing-pages
    * repository merges by itself only a pull request that changes exactly one page folder, so a
    * person merges this one.
    */
@@ -77,7 +77,7 @@ export async function prepareBuild(
   const digest = await buildDigest(
     { subdomain, slug: target.slug, title: target.title },
     files[`${folder}/content.json`] + (await mediaFingerprint(media.files)),
-    target.site.tracking,
+    target.site,
   );
   return {
     files: { ...files, ...media.files },

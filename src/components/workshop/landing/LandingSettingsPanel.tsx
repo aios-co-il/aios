@@ -3,29 +3,22 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
+  draftOf,
   draftProblem,
   landingPageUrl,
-  type LandingSettings,
   type LandingSettingsDraft,
   type TrackingDraft,
 } from "./landingSettings";
 import { LandingAddressFields } from "./LandingAddressFields";
+import { LandingDomainSection } from "./LandingDomainSection";
 import { LandingTrackingFields } from "./LandingTrackingFields";
 import { LeadDestinationFields } from "./LeadDestinationFields";
 import { useLandingSettings } from "./useLandingSettings";
 
-/** The form's starting values: what is stored, with the webhook URL always blank. */
-function draftOf(saved: LandingSettings): LandingSettingsDraft {
-  return {
-    subdomain: saved.subdomain,
-    slug: saved.slug,
-    leadToCrm: saved.leadToCrm,
-    leadToWebhook: saved.leadToWebhook,
-    webhookUrl: "",
-  };
-}
-
-/** A landing project's settings: its address, where its leads go and its site's tracking ids. */
+/**
+ * A landing project's settings: its address, where its leads go, and its site's tracking ids and
+ * custom domain.
+ */
 export function LandingSettingsPanel({
   tenantId,
   itemId,
@@ -73,6 +66,9 @@ export function LandingSettingsPanel({
   }
 
   const problem = draftProblem(draft, saved);
+  // The site's sections wait while the panel reads the settings again, so an older copy of the
+  // site's values is never saved.
+  const siteBusy = settings.isFetching || settings.isPaused;
   const hasStoredUrl = saved.pageExists && saved.leadToWebhook;
   /** Saves the draft and tells the user how it ended. */
   function submit() {
@@ -151,17 +147,24 @@ export function LandingSettingsPanel({
           key={itemId}
           saved={saved.tracking}
           saves={trackingSaves}
-          // Locked until the panel holds the site's current ids, so an older copy is never saved.
-          pending={
-            saveTracking.isPending || settings.isFetching || settings.isPaused
-          }
+          pending={saveTracking.isPending || siteBusy}
           onSave={submitTracking}
         />
       ) : (
         <p className="text-xs text-muted-foreground">
-          אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב.
+          אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב ודומיין.
         </p>
       )}
+
+      {saved.siteExists ? (
+        <LandingDomainSection
+          // Its own state per project: an answer or a draft never carries over.
+          key={`domain-${itemId}`}
+          itemId={itemId}
+          saved={saved}
+          settingsBusy={siteBusy}
+        />
+      ) : null}
     </section>
   );
 }

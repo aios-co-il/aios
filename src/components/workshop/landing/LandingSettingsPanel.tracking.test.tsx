@@ -234,7 +234,7 @@ describe("LandingSettingsPanel tracking", () => {
     panel();
     expect(
       await screen.findByText(
-        "אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב.",
+        "אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב ודומיין.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Google Tag Manager")).toBeNull();
