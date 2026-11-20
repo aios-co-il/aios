@@ -1,7 +1,13 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 
-import { fixedSizeChunks, TUS_CHUNK_BYTES, tusUpload } from "./tus-upload.ts";
+import {
+  fixedSizeChunks,
+  isPermanentUploadError,
+  TUS_CHUNK_BYTES,
+  TusUploadError,
+  tusUpload,
+} from "./tus-upload.ts";
 
 const ENDPOINT = "https://db.test/storage/v1/upload/resumable";
 
@@ -179,22 +185,29 @@ describe("tusUpload", () => {
     );
   });
 
-  it("throws when the create request fails", async () => {
+  it("throws a retryable TusUploadError when the create request fails", async () => {
     const storage = fakeStorage({ failCreate: true });
-    await assertRejects(
+
+    const err = await assertRejects(
       () => upload(storage, 10, 4),
-      Error,
+      TusUploadError,
       "TUS create failed (404)",
     );
+
+    assertEquals(err.status, 404);
+    assertEquals(isPermanentUploadError(err), false);
   });
 
-  it("throws on a failed PATCH and sends no further chunks", async () => {
+  it("throws a permanent error on a 413 PATCH and sends no further chunks", async () => {
     const storage = fakeStorage({ failPatchAt: 1 });
-    await assertRejects(
+
+    const err = await assertRejects(
       () => upload(storage, 10, 4),
-      Error,
+      TusUploadError,
       "TUS PATCH at offset 4 failed (413)",
     );
+
+    assertEquals(isPermanentUploadError(err), true);
     assertEquals(storage.requests.length, 3);
   });
 
