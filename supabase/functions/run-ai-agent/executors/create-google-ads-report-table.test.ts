@@ -11,7 +11,11 @@ describe("executeCreateGoogleAdsReportTable", () => {
     const fixture = executorClient(
       (url) => {
         if (url.pathname.endsWith("/clients")) {
-          return null;
+          // PostgREST answers .single() with 406 when no row matches.
+          return new Response(
+            JSON.stringify({ code: "PGRST116", message: "no rows" }),
+            { status: 406, headers: { "Content-Type": "application/json" } },
+          );
         }
         return [];
       },
