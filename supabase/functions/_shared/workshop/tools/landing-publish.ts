@@ -1,3 +1,4 @@
+import { projectAssetLoader } from "../landing/page-asset-loader.ts";
 import { prepareBuild } from "../landing/page-build.ts";
 import { liveUrl, loadLandingTarget } from "../landing/page-target.ts";
 import { landingStateOf } from "../landing/project.ts";
@@ -46,6 +47,7 @@ export async function workshopPublishLandingPage(ctx: ToolContext) {
       itemId: project.id,
       status: "published",
       today: new Date().toISOString().slice(0, 10),
+      loadAsset: projectAssetLoader(supabase, tenantId, project.id),
     });
     if ("error" in prepared) {
       return prepared;

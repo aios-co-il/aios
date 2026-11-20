@@ -61,11 +61,11 @@ export const SAVE_LANDING_COPY_TOOL = {
             video: {
               type: "object",
               description:
-                "hero, text: סרטון אנכי שכבר בריפו {src: site/x.mp4, poster: site/x.jpg}",
+                "hero, text: סרטון אנכי {src, poster}. כל אחד נכס מהפרויקט (asset:<id> של סרטון mp4 ושל תמונה) או קובץ שכבר בריפו (site/x.mp4, site/x.jpg)",
             },
             imageUrl: {
               type: "string",
-              description: "hero: תמונה מהריפו (site/x.jpg) או כתובת https",
+              description: "hero: תמונה: נכס (asset:<id>), site/x.jpg או https",
             },
             closing: {
               type: "string",

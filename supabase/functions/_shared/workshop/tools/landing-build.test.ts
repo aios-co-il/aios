@@ -6,6 +6,8 @@ import {
   digest,
   fakeRepo,
   landingDb,
+  pushedJson,
+  type Loose,
   OUR_SITE,
   run,
   savedLanding,
@@ -23,7 +25,7 @@ Deno.test(
     assertEquals(pushes.length, 1);
     assertEquals(pushes[0].branch, "page/acme/offer");
     assertEquals(
-      JSON.parse(pushes[0].files["landing-pages/acme/offer/page.json"]).status,
+      pushedJson(pushes[0].files, "landing-pages/acme/offer/page.json").status,
       "draft",
     );
     assertStringIncludes(
@@ -142,3 +144,81 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "a picture from the project's assets is copied into the page and shown in the hero",
+  async () => {
+    const id = "11111111-2222-4333-8444-555555555555";
+    const db = landingDb({
+      ...approved,
+      blocks: [{ ...blocks[0], imageUrl: `asset:${id}` }, blocks[1]],
+    });
+    db.script["workshop_assets:select"] = {
+      asset_type: "image",
+      storage_path: "tenant-1/workshop/item-1/1_photo.png",
+    };
+    (db as Loose).storage = {
+      from: () => ({
+        download: () =>
+          Promise.resolve({
+            data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7])]),
+            error: null,
+          }),
+      }),
+    };
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json": OUR_SITE,
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    const files = pushes[0].files;
+    const hero = pushedJson(files, "landing-pages/acme/offer/content.json")
+      .blocks[0];
+    assertEquals(
+      hero.imageUrl,
+      "assets/asset-11111111222243338444555555555555.png",
+    );
+    assertEquals(
+      files[
+        "landing-pages/acme/offer/assets/asset-11111111222243338444555555555555.png"
+      ],
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7]),
+    );
+  },
+);
+
+Deno.test(
+  "a changed file behind the same asset changes the build, so publish never ships unseen media",
+  async () => {
+    const digests = [];
+    for (const byte of [7, 8]) {
+      const db = assetBuildDb(byte);
+      const { repo } = fakeRepo({ "landing-pages/acme/site.json": OUR_SITE });
+      await run(db, "workshop_build_landing_page", repo);
+      digests.push(savedLanding(db).build.digest);
+    }
+    assertEquals(digests[0] === digests[1], false);
+  },
+);
+
+/** A project whose hero shows an uploaded picture with the given single byte. */
+function assetBuildDb(byte: number) {
+  const id = "11111111-2222-4333-8444-555555555555";
+  const db = landingDb({
+    ...approved,
+    blocks: [{ ...blocks[0], imageUrl: `asset:${id}` }, blocks[1]],
+  });
+  db.script["workshop_assets:select"] = {
+    asset_type: "image",
+    storage_path: "tenant-1/workshop/item-1/1_photo.png",
+  };
+  (db as Loose).storage = {
+    from: () => ({
+      download: () =>
+        Promise.resolve({
+          data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, byte])]),
+          error: null,
+        }),
+    }),
+  };
+  return db;
+}
