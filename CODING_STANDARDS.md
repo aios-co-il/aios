@@ -1,6 +1,6 @@
 # Work standard
 
-Each rule applies to the lines your change adds or edits. Rules for one area live in `.claude/rules/` (mirrored to `.cursor/rules/`) and load when you touch its paths: `typescript`, `edge-functions`, `migrations`, `frontend`, `tests`.
+Each rule applies to the lines your change adds or edits. Rules for one area live in `.claude/rules/` (mirrored to `.cursor/rules/`) and load when you touch its paths: `typescript`, `edge-functions`, `migrations`, `frontend`, `tests`; general code spacing lives in `.claude/rules/readability.md`.
 
 ## Steps
 

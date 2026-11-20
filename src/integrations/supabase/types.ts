@@ -9144,26 +9144,44 @@ export type Database = {
         Row: {
           client_id: string;
           created_at: string;
+          custom_domain: string | null;
+          custom_domain_verified_at: string | null;
+          ga4_id: string | null;
+          gtm_id: string | null;
           id: string;
+          meta_pixel_id: string | null;
           subdomain: string;
           tenant_id: string;
           updated_at: string;
+          vercel_domain: string | null;
         };
         Insert: {
           client_id: string;
           created_at?: string;
+          custom_domain?: string | null;
+          custom_domain_verified_at?: string | null;
+          ga4_id?: string | null;
+          gtm_id?: string | null;
           id?: string;
+          meta_pixel_id?: string | null;
           subdomain: string;
           tenant_id: string;
           updated_at?: string;
+          vercel_domain?: string | null;
         };
         Update: {
           client_id?: string;
           created_at?: string;
+          custom_domain?: string | null;
+          custom_domain_verified_at?: string | null;
+          ga4_id?: string | null;
+          gtm_id?: string | null;
           id?: string;
+          meta_pixel_id?: string | null;
           subdomain?: string;
           tenant_id?: string;
           updated_at?: string;
+          vercel_domain?: string | null;
         };
         Relationships: [
           {
@@ -9273,19 +9291,22 @@ export type Database = {
       };
       lead_list_defaults: {
         Row: {
-          stage_scope: string;
+          column_order: string[] | null;
+          stage_scope: string | null;
           tenant_id: string;
           updated_at: string;
           user_id: string;
         };
         Insert: {
-          stage_scope: string;
+          column_order?: string[] | null;
+          stage_scope?: string | null;
           tenant_id: string;
           updated_at?: string;
           user_id: string;
         };
         Update: {
-          stage_scope?: string;
+          column_order?: string[] | null;
+          stage_scope?: string | null;
           tenant_id?: string;
           updated_at?: string;
           user_id?: string;
@@ -18582,6 +18603,26 @@ export type Database = {
           p_webhook_url?: string;
         };
         Returns: string;
+      };
+      landing_site_of_project: {
+        Args: { p_item_id: string };
+        Returns: {
+          site_id: string;
+          tenant_id: string;
+        }[];
+      };
+      landing_site_save_domain: {
+        Args: { p_domain: string; p_item_id: string };
+        Returns: undefined;
+      };
+      landing_site_save_tracking: {
+        Args: {
+          p_ga4_id: string;
+          p_gtm_id: string;
+          p_item_id: string;
+          p_meta_pixel_id: string;
+        };
+        Returns: undefined;
       };
       lead_origin_tag_names: {
         Args: { p_campaign_name: string; p_source: string };

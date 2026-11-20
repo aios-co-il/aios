@@ -1,4 +1,5 @@
-import { prepareBuild } from "../landing/page-build.ts";
+import { projectAssetLoader } from "../landing/page-asset-loader.ts";
+import { prepareBuild, type PreparedBuild } from "../landing/page-build.ts";
 import { liveUrl, loadLandingTarget } from "../landing/page-target.ts";
 import { landingStateOf } from "../landing/project.ts";
 import { updateLanding } from "../landing/store.ts";
@@ -9,7 +10,8 @@ import { loadLandingProject } from "./landing-project.ts";
 /**
  * Publishes the build the user approved: marks the page published on its branch and opens the
  * pull request. The repository merges a single-page change by itself once its checks pass; a
- * client's first page also creates the site, which a person merges. Carmen never merges.
+ * publish that also writes site.json (a client's first page, new tracking ids or a new domain) waits for a
+ * person to merge it. Carmen never merges.
  */
 export async function workshopPublishLandingPage(ctx: ToolContext) {
   const { supabase, tenantId, deps } = ctx;
@@ -46,6 +48,7 @@ export async function workshopPublishLandingPage(ctx: ToolContext) {
       itemId: project.id,
       status: "published",
       today: new Date().toISOString().slice(0, 10),
+      loadAsset: projectAssetLoader(supabase, tenantId, project.id),
     });
     if ("error" in prepared) {
       return prepared;
@@ -76,13 +79,26 @@ export async function workshopPublishLandingPage(ctx: ToolContext) {
     return {
       success: true,
       ...published,
-      say_to_user: prepared.newSite
-        ? `שלחתי את העמוד לפרסום. זה העמוד הראשון של הלקוח, ולכן הוא מחכה לאישור ידני בריפו: ${pullUrl}\nאחרי האישור הוא יעלה ב-${published.live_url}`
-        : `שלחתי את העמוד לפרסום. אם הבדיקות עוברות הוא עולה לאוויר בתוך כמה דקות: ${published.live_url}`,
+      say_to_user: publishMessage(prepared, pullUrl, published.live_url),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     console.error(`landing publish: project ${project.id} failed: ${message}`);
     return { error: `פרסום העמוד נכשל: ${message}` };
   }
+}
+
+/** What Carmen tells the user: when the site's file changes too, the pull request waits for a person. */
+function publishMessage(
+  prepared: PreparedBuild,
+  pullUrl: string,
+  live: string,
+): string {
+  if (!prepared.writesSite) {
+    return `שלחתי את העמוד לפרסום. אם הבדיקות עוברות הוא עולה לאוויר בתוך כמה דקות: ${live}`;
+  }
+  const why = prepared.newSite
+    ? "זה העמוד הראשון של הלקוח"
+    : "הפרסום מעדכן גם את הגדרות האתר (קודי מעקב או דומיין)";
+  return `שלחתי את העמוד לפרסום. ${why}, ולכן הוא מחכה לאישור ידני בריפו: ${pullUrl}\nאחרי האישור הוא יעלה ב-${live}`;
 }

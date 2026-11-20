@@ -12,6 +12,7 @@ const NOT_FOR_LANDING = new Set([
   "workshop_save_script",
   "workshop_storyboard",
   "workshop_edit_from_assets",
+  "workshop_import_file",
 ]);
 
 /**
