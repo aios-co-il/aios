@@ -1,5 +1,5 @@
 -- CRM column order on the Leads-screen default
--- (20261119130000_lead_list_defaults_column_order): a user saves a column order
+-- (20261120090000_lead_list_defaults_column_order): a user saves a column order
 -- without a stage scope, the column order and the stage scope update without
 -- clearing each other, and a colleague neither reads nor changes the user's
 -- order. Synthetic users and tenants inside one transaction that is rolled back.
