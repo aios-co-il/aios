@@ -10,7 +10,7 @@ import { loadLandingProject } from "./landing-project.ts";
 /**
  * Publishes the build the user approved: marks the page published on its branch and opens the
  * pull request. The repository merges a single-page change by itself once its checks pass; a
- * publish that also writes site.json (a client's first page, or new tracking ids) waits for a
+ * publish that also writes site.json (a client's first page, new tracking ids or a new domain) waits for a
  * person to merge it. Carmen never merges.
  */
 export async function workshopPublishLandingPage(ctx: ToolContext) {
@@ -99,6 +99,6 @@ function publishMessage(
   }
   const why = prepared.newSite
     ? "זה העמוד הראשון של הלקוח"
-    : "הפרסום מעדכן גם את קודי המעקב של האתר";
+    : "הפרסום מעדכן גם את הגדרות האתר (קודי מעקב או דומיין)";
   return `שלחתי את העמוד לפרסום. ${why}, ולכן הוא מחכה לאישור ידני בריפו: ${pullUrl}\nאחרי האישור הוא יעלה ב-${live}`;
 }

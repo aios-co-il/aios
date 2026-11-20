@@ -1,11 +1,11 @@
+import { LANDING_ROOT_DOMAIN } from "../../../../supabase/functions/_shared/workshop/landing/site-domain.ts";
 import {
   TRACKING_ID_KEYS,
   TRACKING_ID_PATTERNS,
   type TrackingIdKey,
 } from "../../../../supabase/functions/_shared/workshop/landing/site-tracking.ts";
 
-/** The root domain every client's landing site is served under. */
-export const LANDING_ROOT_DOMAIN = "aios.co.il";
+export { LANDING_ROOT_DOMAIN };
 
 /** The slug of a site's home page, which is served on "/". */
 export const HOME_SLUG = "home";
@@ -25,6 +25,10 @@ export interface LandingSettings {
   pageExists: boolean;
   /** The site's tracking ids; an empty string is an id that is not set. */
   tracking: TrackingDraft;
+  /** The site's custom domain; an empty string when it has none. */
+  customDomain: string;
+  /** True once Vercel verified the custom domain, so the site is served on it. */
+  customDomainVerified: boolean;
 }
 
 /** A site's tracking ids as the panel edits them; an empty string clears an id. */
@@ -54,6 +58,17 @@ export interface LandingSettingsDraft {
   leadToCrm: boolean;
   leadToWebhook: boolean;
   webhookUrl: string;
+}
+
+/** The form's starting values: what is stored, with the webhook URL always blank. */
+export function draftOf(saved: LandingSettings): LandingSettingsDraft {
+  return {
+    subdomain: saved.subdomain,
+    slug: saved.slug,
+    leadToCrm: saved.leadToCrm,
+    leadToWebhook: saved.leadToWebhook,
+    webhookUrl: "",
+  };
 }
 
 /** The public address of a page. */

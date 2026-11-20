@@ -119,7 +119,47 @@ Deno.test(
       JSON.parse(pushes[1].files["landing-pages/acme/site.json"]).tracking,
       { ga4Id: "G-ABC1234" },
     );
-    assertStringIncludes(result.say_to_user, "קודי המעקב");
+    assertStringIncludes(result.say_to_user, "קודי מעקב");
+    assertStringIncludes(result.say_to_user, "אישור ידני");
+  },
+);
+
+Deno.test(
+  "a verified custom domain is the page's live address, and an unverified one is not yet",
+  async () => {
+    const files = {
+      "landing-pages/acme/site.json":
+        '{"tenantId":"tenant-1","clientId":"client-1","domains":["lp.acme.co.il"]}',
+    };
+    const verified = await buildThenPublish(files, {
+      custom_domain: "lp.acme.co.il",
+      custom_domain_verified_at: "2026-11-20T10:00:00Z",
+    });
+    assertEquals(verified.result.live_url, "https://lp.acme.co.il/offer");
+    assertStringIncludes(
+      verified.result.say_to_user,
+      "https://lp.acme.co.il/offer",
+    );
+    const pending = await buildThenPublish(files, {
+      custom_domain: "lp.acme.co.il",
+      custom_domain_verified_at: null,
+    });
+    assertEquals(pending.result.live_url, "https://acme.aios.co.il/offer");
+  },
+);
+
+Deno.test(
+  "a publish that sets the site's domain writes it and says a person merges it",
+  async () => {
+    const { result, pushes } = await buildThenPublish(
+      { "landing-pages/acme/site.json": OUR_SITE },
+      { custom_domain: "lp.acme.co.il" },
+    );
+    assertEquals(
+      pushedJson(pushes[1].files, "landing-pages/acme/site.json").domains,
+      ["lp.acme.co.il"],
+    );
+    assertStringIncludes(result.say_to_user, "דומיין");
     assertStringIncludes(result.say_to_user, "אישור ידני");
   },
 );
