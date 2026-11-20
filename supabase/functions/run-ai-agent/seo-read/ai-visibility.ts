@@ -78,7 +78,7 @@ export async function aiVisibility(
  * The AI-detection brand of the client's tenant that tracks it: the exact same
  * host first, then a subdomain or parent of it, else the same name.
  */
-async function trackedBrand(db: SeoDb, client: SeoClient) {
+export async function trackedBrand(db: SeoDb, client: SeoClient) {
   const { data, error } = await db
     .from("ai_detection_brands")
     .select("id, brand_name, url, competitor_names")

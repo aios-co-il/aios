@@ -238,6 +238,9 @@ import {
 import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
 import { isSeoReadTool } from "../_shared/carmen/seo-read-tools.ts";
 import { executeSeoReadTool } from "./seo-read/execute.ts";
+import { isSeoActionTool } from "../_shared/carmen/seo-action-tools.ts";
+import { executeSeoActionTool } from "./seo-actions/execute.ts";
+import { invokeServiceFunction } from "./seo-actions/invoke.ts";
 import {
   spawnSubagent,
   getSubagentResult,
@@ -2248,6 +2251,24 @@ async function executeTool(
         accessibleTenantIds,
         assertClientAccess: (clientId) =>
           assertCallerCanAccessClient(supabase, clientId, callerScope),
+      },
+      name,
+      args,
+    );
+  }
+  if (isSeoActionTool(name)) {
+    // Queues an approval row; runs only for an approved row (approval.outOfBand).
+    return executeSeoActionTool(
+      supabase,
+      {
+        tenantId,
+        accessibleTenantIds,
+        assertClientAccess: (clientId) =>
+          assertCallerCanAccessClient(supabase, clientId, callerScope),
+        actorUserId,
+        agentId: agentId || null,
+        approved: approval.outOfBand === true,
+        invoke: invokeServiceFunction,
       },
       name,
       args,

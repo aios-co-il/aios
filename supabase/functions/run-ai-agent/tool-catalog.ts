@@ -53,6 +53,7 @@ import { calendarTools } from "./tool-schemas/calendar.ts";
 import { calendarCancellationTools } from "./tool-schemas/calendar-cancellation.ts";
 import { meetingsTools } from "./tool-schemas/meetings.ts";
 import { seoTools } from "./tool-schemas/seo.ts";
+import { seoActionTools } from "./tool-schemas/seo-actions.ts";
 import { WORKSHOP_TOOLS } from "../_shared/workshop-tools.ts";
 
 export const ALL_TOOLS = [
@@ -111,5 +112,6 @@ export const ALL_TOOLS = [
   ...calendarCancellationTools,
   ...meetingsTools,
   ...seoTools,
+  ...seoActionTools,
   ...WORKSHOP_TOOLS,
 ];
