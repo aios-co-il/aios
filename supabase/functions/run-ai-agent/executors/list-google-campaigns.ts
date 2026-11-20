@@ -3,9 +3,10 @@ import type { ListGoogleCampaignsArgs } from "./google-ad-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { googleResolveClientCustomerId } from "../../_shared/client-report-sync.ts";
+import { assertCallerCanAccessGoogleCustomer } from "./client-ad-links.ts";
 import { readGoogleAdsCampaignRow } from "../tool-contracts-admin.ts";
 
-/** Preserves the existing list_google_campaigns executor and side-effect order. */
+/** Runs the list_google_campaigns tool after checking the caller can reach the client. */
 export async function executeListGoogleCampaigns(
   args: ListGoogleCampaignsArgs,
   context: ToolExecutionContext,
@@ -28,6 +29,13 @@ export async function executeListGoogleCampaigns(
   }
   if (!customerId) {
     return { error: "customer_id או client_id נדרש" };
+  }
+  if (args.customer_id) {
+    await assertCallerCanAccessGoogleCustomer(
+      supabase,
+      customerId,
+      callerScope,
+    );
   }
 
   const { data: gadsInteg } = await supabase

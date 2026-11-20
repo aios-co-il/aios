@@ -3,7 +3,7 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { syncClientCardFromReportTable } from "../../_shared/client-report-sync.ts";
 
-/** Preserves the existing create_google_ads_report_table executor and side-effect order. */
+/** Runs the create_google_ads_report_table tool after checking the caller can reach the client. */
 export async function executeCreateGoogleAdsReportTable(
   args: CreateGoogleAdsReportTableArgs,
   context: ToolExecutionContext,
@@ -36,6 +36,8 @@ export async function executeCreateGoogleAdsReportTable(
     .from("clients")
     .select("name, agency_id")
     .eq("id", client_id)
+    // Managers pass assertCallerCanAccessClient without a tenant check.
+    .in("tenant_id", accessibleTenantIds)
     .single();
   if (!client) {
     return { error: "לקוח לא נמצא" };
