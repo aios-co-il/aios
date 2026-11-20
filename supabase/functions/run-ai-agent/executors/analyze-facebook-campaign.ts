@@ -1,10 +1,13 @@
 import type { AnalyzeFacebookCampaignArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
-import { fbAnalyzeCampaignInline } from "./campaign-analysis.ts";
+import {
+  CAMPAIGN_NOT_OF_CLIENT,
+  fbAnalyzeCampaignInline,
+} from "./campaign-analysis.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
 
-/** Preserves the existing analyze_facebook_campaign executor and side-effect order. */
+/** Runs the analyze_facebook_campaign tool after checking the caller can reach the client. */
 export async function executeAnalyzeFacebookCampaign(
   args: AnalyzeFacebookCampaignArgs,
   context: ToolExecutionContext,
@@ -22,7 +25,8 @@ export async function executeAnalyzeFacebookCampaign(
     args.client_id,
     args.campaign_id,
   );
-  if (inline && !inline.error) {
+  // An ownership refusal is final: the fallback below does not check it.
+  if (!inline.error || inline.error === CAMPAIGN_NOT_OF_CLIENT) {
     return inline;
   }
   const targetTenantId = await resolveClientTenantId(

@@ -2,7 +2,7 @@ import type { SyncFacebookInsightsArgs } from "./google-ad-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 
-/** Preserves the existing sync_facebook_insights executor and side-effect order. */
+/** Runs the sync_facebook_insights tool after checking the caller can reach the client. */
 export async function executeSyncFacebookInsights(
   args: SyncFacebookInsightsArgs,
   context: ToolExecutionContext,
@@ -33,12 +33,21 @@ export async function executeSyncFacebookInsights(
   }
   const { data: table } = await supabase
     .from("crm_tables")
-    .select("id, name, tenant_id, integration_type")
+    .select("id, name, tenant_id, integration_type, client_id")
     .eq("id", tableId)
     .in("tenant_id", accessibleTenantIds)
     .maybeSingle();
   if (!table) {
     return { error: "טבלה לא נמצאה" };
+  }
+  // A table_id names its client only through the table, so check it here too.
+  if (table.client_id) {
+    await assertCallerCanAccessClient(supabase, table.client_id, callerScope);
+  } else if (
+    !callerScope.isManagerRole &&
+    (callerScope.isTeamManager || callerScope.callerCampaignerId)
+  ) {
+    return { error: "לטבלה זו אין לקוח משויך — רק מנהל יכול לסנכרן אותה" };
   }
   if (table.integration_type !== integType) {
     return {

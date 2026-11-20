@@ -1,15 +1,18 @@
 import type { CreateFacebookReportTableArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { syncClientCardFromReportTable } from "../../_shared/client-report-sync.ts";
 
-/** Preserves the existing create_facebook_report_table executor and side-effect order. */
+/** Runs the create_facebook_report_table tool after checking the caller can reach the client. */
 export async function executeCreateFacebookReportTable(
   args: CreateFacebookReportTableArgs,
   context: ToolExecutionContext,
 ) {
-  const { supabase, tenantId, userId, accessibleTenantIds } = context;
+  const { supabase, tenantId, userId, accessibleTenantIds, callerScope } =
+    context;
 
   const { client_id, ad_account_id, ad_account_name } = args;
+  await assertCallerCanAccessClient(supabase, client_id, callerScope);
   // Check if table already exists for this client
   const { data: existing } = await supabase
     .from("crm_tables")
@@ -31,6 +34,7 @@ export async function executeCreateFacebookReportTable(
     .from("clients")
     .select("name, agency_id")
     .eq("id", client_id)
+    .in("tenant_id", accessibleTenantIds)
     .single();
   if (!client) {
     return { error: "לקוח לא נמצא" };
