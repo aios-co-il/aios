@@ -6,6 +6,7 @@ import {
   digest,
   fakeRepo,
   landingDb,
+  pushedJson,
   OUR_SITE,
   run,
   savedLanding,
@@ -85,7 +86,7 @@ Deno.test(
     });
     const result = await run(db, "workshop_publish_landing_page", repo);
     assertEquals(
-      JSON.parse(pushes[0].files["landing-pages/acme/offer/page.json"]).status,
+      pushedJson(pushes[0].files, "landing-pages/acme/offer/page.json").status,
       "published",
     );
     // The publishing branch is named after the build, so a later draft cannot change it.
@@ -101,9 +102,39 @@ Deno.test(
 );
 
 Deno.test("a client's first page says a person merges it", async () => {
-  const db = landingDb({ ...approved, build: built, publish_approved: digest });
-  const { repo, pushes } = fakeRepo();
-  const result = await run(db, "workshop_publish_landing_page", repo);
-  assertEquals("landing-pages/acme/site.json" in pushes[0].files, true);
+  const { result, pushes } = await buildThenPublish({});
+  assertEquals("landing-pages/acme/site.json" in pushes[1].files, true);
+  assertStringIncludes(result.say_to_user, "העמוד הראשון");
   assertStringIncludes(result.say_to_user, "אישור ידני");
 });
+
+Deno.test(
+  "a publish that changes the site's tracking says a person merges it",
+  async () => {
+    const { result, pushes } = await buildThenPublish(
+      { "landing-pages/acme/site.json": OUR_SITE },
+      { ga4_id: "G-ABC1234" },
+    );
+    assertEquals(
+      JSON.parse(pushes[1].files["landing-pages/acme/site.json"]).tracking,
+      { ga4Id: "G-ABC1234" },
+    );
+    assertStringIncludes(result.say_to_user, "קודי המעקב");
+    assertStringIncludes(result.say_to_user, "אישור ידני");
+  },
+);
+
+/** Builds the approved project, approves that build's preview and publishes it. */
+async function buildThenPublish(files: Record<string, string>, site = {}) {
+  const db = landingDb(approved, {}, site);
+  const { repo, pushes } = fakeRepo(files);
+  await run(db, "workshop_build_landing_page", repo);
+  const build = savedLanding(db).build;
+  const approvedDb = landingDb(
+    { ...approved, build, publish_approved: build.digest },
+    {},
+    site,
+  );
+  const result = await run(approvedDb, "workshop_publish_landing_page", repo);
+  return { result, pushes };
+}

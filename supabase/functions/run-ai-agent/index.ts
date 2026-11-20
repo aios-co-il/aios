@@ -236,6 +236,8 @@ import {
   isPulseTargetTool,
 } from "../_shared/carmen/pulse-targets/tool-defs.ts";
 import { executePulseTargetTool } from "../_shared/carmen/pulse-targets/execute.ts";
+import { isSeoReadTool } from "../_shared/carmen/seo-read-tools.ts";
+import { executeSeoReadTool } from "./seo-read/execute.ts";
 import {
   spawnSubagent,
   getSubagentResult,
@@ -2231,6 +2233,19 @@ async function executeTool(
         isTeamManager,
         managedAgencyIds,
         callerCampaignerId: callerCampaignerId || null,
+        assertClientAccess: (clientId) =>
+          assertCallerCanAccessClient(supabase, clientId, callerScope),
+      },
+      name,
+      args,
+    );
+  }
+  if (isSeoReadTool(name)) {
+    return executeSeoReadTool(
+      supabase,
+      {
+        tenantId,
+        accessibleTenantIds,
         assertClientAccess: (clientId) =>
           assertCallerCanAccessClient(supabase, clientId, callerScope),
       },

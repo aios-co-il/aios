@@ -1,5 +1,6 @@
 import type { Db } from "../db.ts";
 import type { LandingSite } from "./page-files.ts";
+import { siteTrackingOf } from "./site-tracking.ts";
 
 /** Where a landing page project lives on the web, as set in the project's settings panel. */
 export interface LandingTarget {
@@ -13,7 +14,10 @@ export interface LandingTarget {
 export const NO_ADDRESS =
   "לעמוד עוד אין כתובת. בקשי מהמשתמש להגדיר כתובת ויעד ללידים בהגדרות שבראש הפרויקט, ואז בני שוב.";
 
-/** Reads the project's page, its site and the client's name; an error when no address is set. */
+/**
+ * Reads the project's page, its site with its tracking ids and the client's name; an error when
+ * no address is set.
+ */
 export async function loadLandingTarget(
   supabase: Db,
   tenantId: string,
@@ -33,7 +37,7 @@ export async function loadLandingTarget(
   }
   const site = await supabase
     .from("landing_sites")
-    .select("subdomain, client_id")
+    .select("subdomain, client_id, gtm_id, ga4_id, meta_pixel_id")
     .eq("tenant_id", tenantId)
     .eq("id", page.data.site_id)
     .maybeSingle();
@@ -59,6 +63,7 @@ export async function loadLandingTarget(
       tenantId,
       clientId: String(site.data.client_id),
       name: String(client.data.name),
+      tracking: siteTrackingOf(site.data),
     },
     slug: String(page.data.slug),
     title: String(page.data.title),

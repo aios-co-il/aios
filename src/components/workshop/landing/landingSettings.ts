@@ -1,3 +1,9 @@
+import {
+  TRACKING_ID_KEYS,
+  TRACKING_ID_PATTERNS,
+  type TrackingIdKey,
+} from "../../../../supabase/functions/_shared/workshop/landing/site-tracking.ts";
+
 /** The root domain every client's landing site is served under. */
 export const LANDING_ROOT_DOMAIN = "aios.co.il";
 
@@ -17,7 +23,29 @@ export interface LandingSettings {
   siteExists: boolean;
   /** The project already has a page: its address is fixed, and a webhook URL may be stored. */
   pageExists: boolean;
+  /** The site's tracking ids; an empty string is an id that is not set. */
+  tracking: TrackingDraft;
 }
+
+/** A site's tracking ids as the panel edits them; an empty string clears an id. */
+export type TrackingDraft = Record<TrackingIdKey, string>;
+
+/** Each tracking id's label and an example of its format, for the panel. */
+export const TRACKING_FIELDS: Record<
+  TrackingIdKey,
+  { label: string; example: string }
+> = {
+  gtmId: { label: "Google Tag Manager", example: "GTM-ABC123" },
+  ga4Id: { label: "Google Analytics 4", example: "G-ABC123XYZ" },
+  metaPixelId: { label: "Meta Pixel", example: "1234567890123456" },
+};
+
+/** No tracking ids at all. */
+export const NO_TRACKING: TrackingDraft = {
+  gtmId: "",
+  ga4Id: "",
+  metaPixelId: "",
+};
 
 /** What the panel sends when saving; an empty webhook URL keeps the stored one. */
 export interface LandingSettingsDraft {
@@ -52,6 +80,18 @@ export function draftProblem(
   const hasStoredUrl = saved.pageExists && saved.leadToWebhook;
   if (draft.leadToWebhook && !url && !hasStoredUrl) {
     return "צריך להזין כתובת וובהוק";
+  }
+  return null;
+}
+
+/** Why the tracking ids cannot be saved, in Hebrew; null when they can. */
+export function trackingProblem(draft: TrackingDraft): string | null {
+  for (const key of TRACKING_ID_KEYS) {
+    const id = draft[key].trim();
+    if (id && !TRACKING_ID_PATTERNS[key].test(id)) {
+      const field = TRACKING_FIELDS[key];
+      return `מזהה ${field.label} לא תקין (למשל ${field.example})`;
+    }
   }
   return null;
 }

@@ -26,6 +26,7 @@ export const approved = {
 export const digest = await buildDigest(
   { subdomain: "acme", slug: "offer", title: "מבצע" },
   contentJson(blocks, style),
+  {},
 );
 export const built = {
   branch: "page/acme/offer",
@@ -35,10 +36,11 @@ export const built = {
 };
 export const OUR_SITE = '{"tenantId":"tenant-1","clientId":"client-1"}';
 
-/** A fake database: a landing project in the given state, with its page settings. */
+/** A fake database: a landing project in the given state, with its page and site settings. */
 export function landingDb(
   state: Record<string, unknown>,
   page: Loose | null = {},
+  site: Loose = {},
 ) {
   const db = fakeDb({
     "marketing_work_items:select": {
@@ -55,7 +57,14 @@ export function landingDb(
       lead_to_webhook: false,
       ...page,
     },
-    "landing_sites:select": { subdomain: "acme", client_id: "client-1" },
+    "landing_sites:select": {
+      subdomain: "acme",
+      client_id: "client-1",
+      gtm_id: null,
+      ga4_id: null,
+      meta_pixel_id: null,
+      ...site,
+    },
     "clients:select": { name: "Acme" },
   });
   // A saved project is what the next read returns, as in the real database: the build tool
@@ -95,7 +104,10 @@ function jsonbOrder(value: unknown): unknown {
 
 /** A fake repository that records what Carmen pushes and opens. */
 export function fakeRepo(files: Record<string, string> = {}, preview = true) {
-  const pushes: Array<{ branch: string; files: Record<string, string> }> = [];
+  const pushes: Array<{
+    branch: string;
+    files: Parameters<LandingRepo["pushFiles"]>[1];
+  }> = [];
   const pulls: Array<string> = [];
   const repo: LandingRepo = {
     readFile: (path) => Promise.resolve(files[path] ?? null),
@@ -136,4 +148,16 @@ export async function run(
 export function savedLanding(db: ReturnType<typeof fakeDb>): Loose {
   const update = db.calls.findLast((call) => call.op === "update");
   return (update?.value as Loose).payload.landing;
+}
+
+/** A pushed text file parsed as JSON; fails the test when the file is missing or bytes. */
+export function pushedJson(
+  files: Parameters<LandingRepo["pushFiles"]>[1],
+  path: string,
+): Loose {
+  const file = files[path];
+  if (typeof file !== "string") {
+    throw new Error(`${path} was not pushed as text`);
+  }
+  return JSON.parse(file);
 }
