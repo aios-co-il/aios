@@ -19180,6 +19180,10 @@ export type Database = {
         Returns: string;
       };
       tenant_ancestors: { Args: { p_tenant_id: string }; Returns: string[] };
+      tenant_can_read_client: {
+        Args: { p_client: string; p_tenant: string };
+        Returns: boolean;
+      };
       tenant_can_use_integration: {
         Args: { p_integration_id: string; p_tenant_id: string };
         Returns: boolean;
@@ -19211,6 +19215,10 @@ export type Database = {
           full_name: string;
           user_id: string;
         }[];
+      };
+      tenant_shared_agency_ids: {
+        Args: { p_tenant: string };
+        Returns: string[];
       };
       try_acquire_manychat_destination_lock: {
         Args: { p_destination_key: string; p_ttl_seconds?: number };
