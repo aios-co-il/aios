@@ -21,8 +21,11 @@ export interface SiteDomainStore {
   read(site: SiteRef): Promise<SiteDomainState>;
   /** True when any site, in any org, has saved the domain. */
   domainClaimed(domain: string): Promise<boolean>;
-  /** Records the domain attached to the Vercel project now. */
-  recordAttached(site: SiteRef, domain: string | null): Promise<void>;
+  /**
+   * Records the domain the Vercel project holds for the site, only while it is still the site's
+   * saved domain; false when the saved domain changed meanwhile.
+   */
+  recordAttached(site: SiteRef, domain: string | null): Promise<boolean>;
   /** Records the saved domain's verification, unless the domain changed meanwhile. */
   recordVerification(
     site: SiteRef,
@@ -66,14 +69,20 @@ export function siteDomainStore(db: DbClient): SiteDomainStore {
     },
 
     async recordAttached(site, domain) {
-      const { error } = await db
+      const update = db
         .from("landing_sites")
         .update({ vercel_domain: domain })
         .eq("id", site.siteId)
         .eq("tenant_id", site.tenantId);
+      const { data, error } = await (
+        domain === null
+          ? update.is("custom_domain", null)
+          : update.eq("custom_domain", domain)
+      ).select("id");
       if (error) {
         throw new Error(`attached domain not recorded: ${error.message}`);
       }
+      return data.length > 0;
     },
 
     async recordVerification(site, domain, verifiedAt) {
