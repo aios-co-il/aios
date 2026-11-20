@@ -55,9 +55,23 @@ export function LandingDomainSection({
       saves={saves}
       pending={saveDomain.isPending || settingsBusy}
       checking={checkDomain.isPending}
-      result={result}
+      result={resultFor(result, saved.customDomain)}
       onSave={submit}
       onCheck={check}
     />
   );
+}
+
+/**
+ * The answer while it still describes the saved domain; an answer about a domain saved over since
+ * (a late check, or a save whose connection failed) is not shown for the new one.
+ */
+function resultFor(
+  result: LandingDomainResult | undefined,
+  saved: string,
+): LandingDomainResult | undefined {
+  if (!result?.available) {
+    return result;
+  }
+  return (result.domain ?? "") === saved ? result : undefined;
 }

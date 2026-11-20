@@ -90,7 +90,10 @@ function parseRequest(
 
 /**
  * Makes the Vercel project hold the site's saved domain: detaches the domain it attached before
- * when that changed or was removed, attaches the saved one, and records what is attached now.
+ * when that changed or was removed, then records the saved one and attaches it. Recording before
+ * attaching means a failed request never leaves a domain attached that the site does not name: a
+ * recorded domain that did not attach is attached by the next connect, or detached (Vercel's 404
+ * counts as detached) once the person clears it.
  */
 async function connectDomain(
   site: SiteRef,
@@ -108,11 +111,18 @@ async function connectDomain(
       await vercel.removeDomain(vercelDomain);
     }
   }
+  if (customDomain !== vercelDomain) {
+    // Only while the saved domain is still the one read above: a save made meanwhile has its own
+    // connect, and this request must not attach the older domain after it.
+    if (!(await store.recordAttached(site, customDomain))) {
+      console.info(
+        `landing-domain: site ${site.siteId} changed its domain meanwhile, left to its own connect`,
+      );
+      return;
+    }
+  }
   if (customDomain) {
     await vercel.addDomain(customDomain);
-  }
-  if (customDomain !== vercelDomain) {
-    await store.recordAttached(site, customDomain);
   }
 }
 
