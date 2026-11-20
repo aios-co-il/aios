@@ -1,5 +1,5 @@
 -- Which clients a tenant may read through Carmen
--- (20261119230000_tenant_client_read_scope): its own, and those of the agencies
+-- (20261120113700_tenant_client_read_scope): its own, and those of the agencies
 -- shared with it, re-shares included, and nothing once the share is revoked.
 -- Staging only: the test's own tenants, agencies, clients and shares, and a
 -- full rollback.
