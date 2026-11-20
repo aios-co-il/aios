@@ -9144,7 +9144,10 @@ export type Database = {
         Row: {
           client_id: string;
           created_at: string;
+          ga4_id: string | null;
+          gtm_id: string | null;
           id: string;
+          meta_pixel_id: string | null;
           subdomain: string;
           tenant_id: string;
           updated_at: string;
@@ -9152,7 +9155,10 @@ export type Database = {
         Insert: {
           client_id: string;
           created_at?: string;
+          ga4_id?: string | null;
+          gtm_id?: string | null;
           id?: string;
+          meta_pixel_id?: string | null;
           subdomain: string;
           tenant_id: string;
           updated_at?: string;
@@ -9160,7 +9166,10 @@ export type Database = {
         Update: {
           client_id?: string;
           created_at?: string;
+          ga4_id?: string | null;
+          gtm_id?: string | null;
           id?: string;
+          meta_pixel_id?: string | null;
           subdomain?: string;
           tenant_id?: string;
           updated_at?: string;
@@ -18585,6 +18594,15 @@ export type Database = {
           p_webhook_url?: string;
         };
         Returns: string;
+      };
+      landing_site_save_tracking: {
+        Args: {
+          p_ga4_id: string;
+          p_gtm_id: string;
+          p_item_id: string;
+          p_meta_pixel_id: string;
+        };
+        Returns: undefined;
       };
       lead_origin_tag_names: {
         Args: { p_campaign_name: string; p_source: string };
