@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
 import {
   Card,
   CardContent,
@@ -97,7 +98,7 @@ export default function GmailSettings() {
   // Listen for OAuth callback
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.data?.type === "gmail_connected") {
+      if (isOAuthPopupMessage(event, "gmail_connected")) {
         queryClient.invalidateQueries({ queryKey: ["gmail-status", userId] });
         toast.success("Gmail התחבר בהצלחה!");
       }
