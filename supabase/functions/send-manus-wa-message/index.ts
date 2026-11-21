@@ -2,6 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { senderAccess, senderLine } from "./sender-access.ts";
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
+import {
+  readGatewayResponse,
+  parseJsonOrRaw,
+  thrownMessage,
+  thrownName,
+} from "../_shared/manus/contracts.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
 import { sendKindColumns } from "../_shared/client-card/send-kind.ts";
 import { refuseClientSend } from "../_shared/client-send/sender-step.ts";
@@ -262,8 +268,8 @@ Deno.serve(async (req) => {
     const FETCH_TIMEOUT_MS = 60000; // was 25s — too short; Manus can take 30-40s on slow paths
     let res: Response | null = null;
     let respText = "";
-    let respData: any = null;
-    let lastErr: any = null;
+    let respData: ReturnType<typeof parseJsonOrRaw> = null;
+    let lastErr: unknown = null;
     let abortedOnce = false;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -279,11 +285,7 @@ Deno.serve(async (req) => {
         });
         clearTimeout(timer);
         respText = await res.text();
-        try {
-          respData = JSON.parse(respText);
-        } catch {
-          respData = { raw: respText };
-        }
+        respData = parseJsonOrRaw(respText);
         const elapsed = Date.now() - started;
         console.log("[send-manus-wa] attempt", attempt, "response", {
           status: res.status,
@@ -293,10 +295,13 @@ Deno.serve(async (req) => {
         });
 
         // Manus-internal timeout in body (e.g. "timeout of 8000ms exceeded") => Manus itself reports failure, retry is safer.
+        const respError = readGatewayResponse(respData).error;
         const isManusTimeout =
-          typeof respData?.error === "string" &&
-          /timeout of \d+ms exceeded/i.test(respData.error);
-        if (res.ok && respData?.success !== false) break;
+          typeof respError === "string" &&
+          /timeout of \d+ms exceeded/i.test(respError);
+        if (res.ok && readGatewayResponse(respData).success !== false) {
+          break;
+        }
         if (!isManusTimeout && res.status < 500) {
           // non-retryable client error
           break;
@@ -304,17 +309,17 @@ Deno.serve(async (req) => {
         lastErr = new Error(
           `Manus WA error [${res.status}]: ${respText.slice(0, 300)}`,
         );
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         const elapsed = Date.now() - started;
-        const isAbort = err?.name === "AbortError";
+        const isAbort = thrownName(err) === "AbortError";
         console.error(
           "[send-manus-wa] attempt",
           attempt,
           isAbort
             ? "aborted (timeout) — NOT retrying to avoid duplicate delivery"
             : "fetch error",
-          { elapsedMs: elapsed, msg: err?.message },
+          { elapsedMs: elapsed, msg: thrownMessage(err) },
         );
         lastErr = err;
         if (isAbort) {
@@ -349,7 +354,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!res || !res.ok || respData?.success === false) {
+    const respObject = readGatewayResponse(respData);
+    if (!res || !res.ok || respObject?.success === false) {
       throw (
         lastErr ||
         new Error(
@@ -378,7 +384,7 @@ Deno.serve(async (req) => {
     if (insertError) console.error("Failed to save message:", insertError);
 
     return new Response(
-      JSON.stringify({ success: true, messageId: respData.messageId }),
+      JSON.stringify({ success: true, messageId: respObject?.messageId }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },

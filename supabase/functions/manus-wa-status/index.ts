@@ -1,5 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { syncManusGroupsForTenant } from "../_shared/manus-wa-sync-groups-core.mjs";
+import {
+  readManusSettings,
+  mergeManusSettings,
+  readGatewayResponse,
+  parseJsonOrRaw,
+} from "../_shared/manus/contracts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,7 +98,7 @@ Deno.serve(async (req) => {
     }
 
     const { instanceId, apiKey, integrationId } = body;
-    let realInstanceId = instanceId;
+    let realInstanceId: string | undefined = instanceId;
     let realApiKey = apiKey;
 
     if (!realApiKey && integrationId) {
@@ -103,7 +109,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (integ) {
         realApiKey = integ.api_key;
-        realInstanceId = (integ.settings as any)?.instance_id || realInstanceId;
+        realInstanceId =
+          readManusSettings(integ.settings).instance_id || realInstanceId;
       }
     }
 
@@ -126,12 +133,8 @@ Deno.serve(async (req) => {
     );
 
     const text = await res.text();
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
-    }
+    const data = parseJsonOrRaw(text);
+    const dataObject = readGatewayResponse(data);
 
     if (!res.ok) {
       return new Response(
@@ -148,7 +151,7 @@ Deno.serve(async (req) => {
     }
 
     // Persist status + phone_number to settings if integrationId provided
-    if (integrationId && data?.success) {
+    if (integrationId && dataObject?.success) {
       const supabaseSvc = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -158,11 +161,10 @@ Deno.serve(async (req) => {
         .select("settings")
         .eq("id", integrationId)
         .maybeSingle();
-      const merged = {
-        ...((cur?.settings as any) || {}),
-        status: data.status,
-        phone_number: data.phoneNumber,
-      };
+      const merged = mergeManusSettings(cur?.settings, {
+        status: dataObject.status,
+        phone_number: dataObject.phoneNumber,
+      });
       await supabaseSvc
         .from("tenant_integrations")
         .update({ settings: merged })

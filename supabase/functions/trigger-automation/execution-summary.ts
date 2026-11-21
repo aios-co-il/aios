@@ -54,6 +54,7 @@ function automationResult(value: unknown): AutomationResult | null {
 }
 
 /** An error's message, a string as is, anything else as JSON. */
+/** Return readable execution errors without object coercion. */
 function errorText(value: unknown): string {
   if (value instanceof Error) {
     return value.message;
