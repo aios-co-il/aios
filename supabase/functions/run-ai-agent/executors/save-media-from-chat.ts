@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type SaveMediaFromChatArgs = {
@@ -15,24 +16,14 @@ export async function executeSaveMediaFromChat(
   args: SaveMediaFromChatArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, userId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
-
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/carmen-save-media`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      "Content-Type": "application/json",
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-    },
-    body: JSON.stringify({
-      tenant_id: tenantId,
-      created_by: userId,
-      ...args,
-    }),
+  const { supabase, tenantId, userId } = context;
+  const result = await invokeExecutorFunction(supabase, "carmen-save-media", {
+    ...args,
+    tenant_id: tenantId,
+    created_by: userId,
   });
-  const j = await r.json();
-  if (!r.ok) {
-    throw new Error(j?.error || "save_media_failed");
+  if (!result.ok) {
+    throw new Error(result.data?.error || "save_media_failed");
   }
-  return j;
+  return result.data;
 }

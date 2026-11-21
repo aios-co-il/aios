@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { executeCreateSocialPost } from "./create-social-post.ts";
-import { executeUpdateClientRetainer } from "./update-client-retainer.ts";
+import { executeGetAccountingOverview } from "./get-accounting-overview.ts";
 import { loadAccountingClients } from "./accounting-clients.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
 
@@ -34,47 +34,23 @@ Deno.test(
 
 Deno.test("a failed social draft never creates a planning copy", async () => {
   const fixture = executorClient([{ message: "denied" }], 403);
-  await assertRejects(async () => {
+  const error = await assertRejects(async () => {
     await executeCreateSocialPost(
       { title: "Title", content: "Copy" },
       fixture.context,
     );
   });
+  assertEquals(error.message, "denied");
   assertEquals(fixture.calls.length, 1);
+  assertEquals(fixture.calls[0].method, "POST");
+  assertEquals(
+    new URL(fixture.calls[0].url).pathname,
+    "/rest/v1/social_media_posts",
+  );
 });
 
 Deno.test(
-  "accounting mutation aliases queue approval without writing financial records",
-  async () => {
-    const fixture = executorClient([{ id: "approval" }], 200, {
-      name: "record_income_payment",
-      agentId: "agent",
-      actorUserId: "user",
-    });
-    const args = { amount: 125, payment_month: "2026-11" };
-    const result = await executeUpdateClientRetainer(args, fixture.context);
-    assertEquals(result.pending_approval, true);
-    assertEquals(result.action, "record_income_payment");
-    assertEquals(fixture.calls.length, 1);
-    assertEquals(
-      new URL(fixture.calls[0].url).pathname,
-      "/rest/v1/agent_approval_queue",
-    );
-    const body = fixture.calls[0].body as {
-      tool_input: unknown;
-      requested_by: string;
-      status: string;
-      tool_name: string;
-    };
-    assertEquals(body.tool_input, args);
-    assertEquals(body.requested_by, "user");
-    assertEquals(body.status, "pending");
-    assertEquals(body.tool_name, "record_income_payment");
-  },
-);
-
-Deno.test(
-  "accounting overlays are tenant-specific and precede payment reads",
+  "accounting overlays are tenant-specific and preserve a zero retainer",
   async () => {
     const fixture = executorClient([
       [
@@ -97,5 +73,61 @@ Deno.test(
     assertEquals(queries[0].searchParams.get("tenant_id"), "in.(t1,shared)");
     assertEquals(queries[1].pathname, "/rest/v1/client_tenant_financial_data");
     assertEquals(queries[1].searchParams.get("tenant_id"), "eq.t1");
+  },
+);
+
+Deno.test(
+  "accounting overview loads tenant overlays before payments",
+  async () => {
+    const fixture = executorClient([
+      [{ id: "client", name: "Client", status: "active", retainer: 50 }],
+      [{ client_id: "client", retainer: 0 }],
+      [],
+      [],
+      [],
+    ]);
+    const result = await executeGetAccountingOverview(
+      { month: "2026-11" },
+      fixture.context,
+    );
+    assertEquals(result.expected_retainers, 0);
+    assertEquals(
+      fixture.calls.map((call) => new URL(call.url).pathname),
+      [
+        "/rest/v1/clients",
+        "/rest/v1/client_tenant_financial_data",
+        "/rest/v1/one_time_incomes",
+        "/rest/v1/income_payments",
+        "/rest/v1/expense_payments",
+      ],
+    );
+  },
+);
+
+Deno.test(
+  "planning insert waits for the successful draft response",
+  async () => {
+    const draft = Promise.withResolvers<unknown>();
+    const started = Promise.withResolvers<void>();
+    const fixture = executorClient([draft.promise, {}], 200, {}, () =>
+      started.resolve(),
+    );
+    const pending = executeCreateSocialPost(
+      { title: "Title", content: "Copy" },
+      fixture.context,
+    );
+    await started.promise;
+    assertEquals(fixture.calls.length, 1);
+    assertEquals(
+      new URL(fixture.calls[0].url).pathname,
+      "/rest/v1/social_media_posts",
+    );
+    draft.resolve({ id: "post" });
+    assertEquals((await pending).success, true);
+    assertEquals(fixture.calls.length, 2);
+    assertEquals(
+      new URL(fixture.calls[1].url).pathname,
+      "/rest/v1/social_gantt_posts",
+    );
   },
 );

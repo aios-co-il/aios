@@ -35,7 +35,8 @@ export async function executeHandoffMarketingWorkItem(
   const { data: stages } = await supabase
     .from("marketing_pipeline_stages")
     .select("id, name, stage_type")
-    .eq("pipeline_id", item.pipeline_id as string);
+    .eq("pipeline_id", item.pipeline_id as string)
+    .eq("tenant_id", tenantId);
   const stageRows: Array<Omit<MarketingStageSummary, "sort_order">> =
     stages || [];
   const target = stageRows.find((s) => s.stage_type === args.to_stage_type);
@@ -45,7 +46,8 @@ export async function executeHandoffMarketingWorkItem(
       available: stageRows.map((s) => s.stage_type),
     };
   }
-  const { data: updated, error } = await supabase
+  // Compare the payload in the same UPDATE so a completed concurrent edit cannot be lost.
+  const update = supabase
     .from("marketing_work_items")
     .update({
       current_stage_id: target.id,
@@ -65,10 +67,19 @@ export async function executeHandoffMarketingWorkItem(
       updated_at: new Date().toISOString(),
     })
     .eq("id", args.item_id)
+    .eq("tenant_id", tenantId);
+  const currentPayload =
+    item.payload === null
+      ? update.is("payload", null)
+      : update.eq("payload", JSON.stringify(item.payload));
+  const { data: updated, error } = await currentPayload
     .select("id, title, current_stage_id, status")
-    .single();
+    .maybeSingle();
   if (error) {
     throw error;
+  }
+  if (!updated) {
+    throw new Error("העבודה השתנתה בזמן ההעברה; יש לנסות שוב");
   }
   return {
     success: true,

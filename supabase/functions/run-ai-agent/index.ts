@@ -30,7 +30,7 @@ import { executeListOneTimeIncomes } from "./executors/list-one-time-incomes.ts"
 import { executeListIncomePayments } from "./executors/list-income-payments.ts";
 import { executeListExpensePayments } from "./executors/list-expense-payments.ts";
 import { executeListInvoiceUploads } from "./executors/list-invoice-uploads.ts";
-import { executeUpdateClientRetainer } from "./executors/update-client-retainer.ts";
+import { dispatchAccountingTool } from "./executors/accounting-dispatch.ts";
 import { executeListUpdates } from "./executors/list-updates.ts";
 import { executeSaveMediaFromChat } from "./executors/save-media-from-chat.ts";
 import { executeListClientMedia } from "./executors/list-client-media.ts";
@@ -1644,6 +1644,10 @@ async function executeTool(
       args,
     );
   }
+  const accounting = await dispatchAccountingTool(name, args, toolContext);
+  if (accounting) {
+    return accounting.result;
+  }
   // Preserve legacy argument acceptance; domain modules expose named input contracts.
   switch (name) {
     case "query_system_graph": {
@@ -3065,17 +3069,6 @@ async function executeTool(
     case "list_invoice_uploads":
       return executeListInvoiceUploads(
         args as Parameters<typeof executeListInvoiceUploads>[0],
-        toolContext,
-      );
-    case "create_one_time_income":
-    case "delete_one_time_income":
-    case "record_income_payment":
-    case "delete_income_payment":
-    case "record_expense_payment":
-    case "delete_expense_payment":
-    case "update_client_retainer":
-      return executeUpdateClientRetainer(
-        args as Parameters<typeof executeUpdateClientRetainer>[0],
         toolContext,
       );
     // UPDATES

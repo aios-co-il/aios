@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessEntityClient } from "../../_shared/auth-helpers.ts";
 
@@ -29,24 +30,13 @@ export async function executePublishSocialPost(
       message: "אישור משתמש מפורש נדרש (confirmed=true)",
     };
   }
-  const targetTenantId = accessibleTenantIds[0];
-  const r = await fetch(
-    `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-publish`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        tenant_id: targetTenantId,
-        page_id: args.page_id,
-        post_type: args.post_type,
-        caption: args.caption,
-        media_url: args.media_url,
-        link: args.link,
-      }),
-    },
-  );
-  return await r.json();
+  const result = await invokeExecutorFunction(supabase, "social-publish", {
+    tenant_id: accessibleTenantIds[0],
+    page_id: args.page_id,
+    post_type: args.post_type,
+    caption: args.caption,
+    media_url: args.media_url,
+    link: args.link,
+  });
+  return result.data;
 }
