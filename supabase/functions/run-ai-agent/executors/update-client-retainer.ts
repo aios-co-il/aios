@@ -1,6 +1,20 @@
-import type { AccountingApprovalArgs } from "./accounting-approval-input.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type AccountingApprovalArgs = {
+  client_id?: string;
+  product_name?: string;
+  amount?: number;
+  payment_month?: string;
+  notes?: string;
+  income_id?: string;
+  payment_id?: string;
+  expense_type?: string;
+  expense_id?: string;
+  expense_name?: string;
+  retainer?: number;
+  monthly_budget?: number;
+};
 
 /** Preserves the existing update_client_retainer executor and side-effect order. */
 export async function executeUpdateClientRetainer(

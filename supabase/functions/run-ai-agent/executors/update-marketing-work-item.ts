@@ -1,7 +1,15 @@
+import type { Json } from "../../_shared/database.types.ts";
 import type { Database } from "../../_shared/database.types.ts";
-import type { UpdateMarketingWorkItemArgs } from "./marketing-work-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { stripServerOnlyPayloadKeys } from "../../_shared/workshop/blocked-tools.ts";
+
+type UpdateMarketingWorkItemArgs = {
+  item_id: string;
+  title?: string;
+  status?: "draft" | "in_progress" | "review" | "approved" | "archived";
+  payload_patch?: Json;
+};
 
 /** Preserves the existing update_marketing_work_item executor and side-effect order. */
 export async function executeUpdateMarketingWorkItem(

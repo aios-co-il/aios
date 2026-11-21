@@ -1,5 +1,11 @@
-import type { CreateAgencyArgs } from "./business-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateAgencyArgs = {
+  name: string;
+  contact_name?: string;
+  phone?: string;
+  email?: string;
+};
 
 /** Preserves the existing create_agency executor and side-effect order. */
 export async function executeCreateAgency(

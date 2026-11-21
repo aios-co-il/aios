@@ -1,5 +1,6 @@
-import type { FetchSocialCommentsArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type FetchSocialCommentsArgs = { page_id: string };
 
 /** Preserves the existing fetch_social_comments executor and side-effect order. */
 export async function executeFetchSocialComments(

@@ -1,7 +1,9 @@
 import type { MarketingWorkItemListRow } from "../tool-contracts-marketing.ts";
-import type { GetMarketingWorkItemArgs } from "./marketing-work-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { MarketingStageSummary } from "../tool-contracts-marketing.ts";
+
+type GetMarketingWorkItemArgs = { item_id: string };
 
 /** Preserves the existing get_marketing_work_item executor and side-effect order. */
 export async function executeGetMarketingWorkItem(

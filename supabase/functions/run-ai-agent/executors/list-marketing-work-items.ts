@@ -1,7 +1,13 @@
-import type { ListMarketingWorkItemsArgs } from "./marketing-work-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { MarketingWorkItemListRow } from "../tool-contracts-marketing.ts";
 import { readMarketingWorkItemPayload } from "../tool-storage-contracts.ts";
+
+type ListMarketingWorkItemsArgs = {
+  client_id?: string;
+  department?: "copy" | "creative" | "seo";
+  status?: string;
+  limit?: number;
+};
 
 /** Preserves the existing list_marketing_work_items executor and side-effect order. */
 export async function executeListMarketingWorkItems(

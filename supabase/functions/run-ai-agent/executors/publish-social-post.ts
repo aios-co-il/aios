@@ -1,6 +1,14 @@
-import type { PublishSocialPostArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessEntityClient } from "../../_shared/auth-helpers.ts";
+
+type PublishSocialPostArgs = {
+  page_id: string;
+  post_type: "post" | "photo" | "video" | "reel" | "story" | "link";
+  caption?: string;
+  media_url?: string;
+  link?: string;
+  confirmed: boolean;
+};
 
 /** Preserves the existing publish_social_post executor and side-effect order. */
 export async function executePublishSocialPost(

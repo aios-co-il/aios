@@ -1,7 +1,8 @@
-import type { ListFacebookAdsArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { fbAnalyzeCampaignInline } from "./campaign-analysis.ts";
+
+type ListFacebookAdsArgs = { client_id: string; campaign_id: string };
 
 /** Preserves the existing list_facebook_ads executor and side-effect order. */
 export async function executeListFacebookAds(

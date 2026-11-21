@@ -1,5 +1,10 @@
-import type { ListCampaignSchedulesArgs } from "./campaign-schedule-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListCampaignSchedulesArgs = {
+  client_id?: string;
+  only_enabled?: boolean;
+  limit?: number;
+};
 
 /** Preserves the existing list_campaign_schedules executor and side-effect order. */
 export async function executeListCampaignSchedules(

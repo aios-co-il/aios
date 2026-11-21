@@ -1,5 +1,11 @@
-import type { CreateCampaignerArgs } from "./business-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateCampaignerArgs = {
+  full_name: string;
+  phone?: string;
+  email?: string;
+  role?: Array<string>;
+};
 
 /** Preserves the existing create_campaigner executor and side-effect order. */
 export async function executeCreateCampaigner(

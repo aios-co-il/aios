@@ -1,6 +1,11 @@
-import type { ListFinanceArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { FinanceListRow } from "../tool-contracts-marketing.ts";
+
+type ListFinanceArgs = {
+  client_id?: string;
+  type?: "income" | "expense";
+  limit?: number;
+};
 
 /** Preserves the existing list_finance executor and side-effect order. */
 export async function executeListFinance(

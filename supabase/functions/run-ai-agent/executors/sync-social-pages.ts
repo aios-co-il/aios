@@ -1,5 +1,6 @@
-import type { SyncSocialPagesArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type SyncSocialPagesArgs = { client_id?: string };
 
 /** Preserves the existing sync_social_pages executor and side-effect order. */
 export async function executeSyncSocialPages(

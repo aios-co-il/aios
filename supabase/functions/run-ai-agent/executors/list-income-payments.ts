@@ -1,6 +1,7 @@
-import type { ListIncomePaymentsArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
+
+type ListIncomePaymentsArgs = { month?: string; client_id?: string };
 
 /** Preserves the existing list_income_payments executor and side-effect order. */
 export async function executeListIncomePayments(

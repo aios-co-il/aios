@@ -1,8 +1,20 @@
 import type { Database } from "../../_shared/database.types.ts";
-import type { HandoffMarketingWorkItemArgs } from "./marketing-work-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { MarketingStageSummary } from "../tool-contracts-marketing.ts";
 import { readMarketingWorkItemPayload } from "../tool-storage-contracts.ts";
+
+type HandoffMarketingWorkItemArgs = {
+  item_id: string;
+  to_stage_type:
+    | "strategy"
+    | "copy"
+    | "creative"
+    | "target_paid"
+    | "target_seo"
+    | "target_organic"
+    | "measurement";
+};
 
 /** Preserves the existing handoff_marketing_work_item executor and side-effect order. */
 export async function executeHandoffMarketingWorkItem(

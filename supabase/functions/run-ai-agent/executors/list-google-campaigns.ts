@@ -1,9 +1,16 @@
 import type { GoogleAdsIntegrationProjection } from "./google-ads-auth-types.ts";
-import type { ListGoogleCampaignsArgs } from "./google-ad-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { googleResolveClientCustomerId } from "../../_shared/client-report-sync.ts";
 import { readGoogleAdsCampaignRow } from "../tool-contracts-admin.ts";
+
+type ListGoogleCampaignsArgs = {
+  customer_id?: string;
+  client_id?: string;
+  name_search?: string;
+  status?: "ENABLED" | "PAUSED" | "REMOVED" | "ALL";
+};
 
 /** Preserves the existing list_google_campaigns executor and side-effect order. */
 export async function executeListGoogleCampaigns(

@@ -1,6 +1,14 @@
 import type { Database } from "../../_shared/database.types.ts";
-import type { CreateFinanceEntryArgs } from "./finance-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateFinanceEntryArgs = {
+  client_id?: string;
+  amount: number;
+  type: "income" | "expense";
+  description: string;
+  date?: string;
+};
 
 /** Preserves the existing create_finance_entry executor and side-effect order. */
 export async function executeCreateFinanceEntry(

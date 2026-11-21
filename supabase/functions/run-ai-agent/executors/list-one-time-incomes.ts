@@ -1,7 +1,8 @@
-import type { ListOneTimeIncomesArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
 import type { OneTimeIncomeRow } from "../tool-contracts-marketing.ts";
+
+type ListOneTimeIncomesArgs = { month?: string; client_id?: string };
 
 /** Preserves the existing list_one_time_incomes executor and side-effect order. */
 export async function executeListOneTimeIncomes(

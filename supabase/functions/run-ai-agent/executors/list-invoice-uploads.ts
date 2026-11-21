@@ -1,5 +1,9 @@
-import type { ListInvoiceUploadsArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListInvoiceUploadsArgs = {
+  status?: "pending" | "processed" | "linked" | "failed";
+  limit?: number;
+};
 
 /** Preserves the existing list_invoice_uploads executor and side-effect order. */
 export async function executeListInvoiceUploads(

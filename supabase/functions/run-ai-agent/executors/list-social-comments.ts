@@ -1,5 +1,10 @@
-import type { ListSocialCommentsArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListSocialCommentsArgs = {
+  page_id?: string;
+  client_id?: string;
+  only_unreplied?: boolean;
+};
 
 /** Preserves the existing list_social_comments executor and side-effect order. */
 export async function executeListSocialComments(

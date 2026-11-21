@@ -1,5 +1,12 @@
-import type { ListClientMediaArgs } from "./media-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListClientMediaArgs = {
+  client_id?: string;
+  lead_id?: string;
+  only_ad_ready?: boolean;
+  tags?: Array<string>;
+  limit?: number;
+};
 
 /** Preserves the existing list_client_media executor and side-effect order. */
 export async function executeListClientMedia(

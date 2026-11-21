@@ -1,6 +1,7 @@
-import type { GetFinanceSummaryArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
+
+type GetFinanceSummaryArgs = { month?: string };
 
 /** Preserves the existing get_finance_summary executor and side-effect order. */
 export async function executeGetFinanceSummary(

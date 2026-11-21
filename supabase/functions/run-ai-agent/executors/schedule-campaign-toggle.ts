@@ -1,5 +1,15 @@
-import type { ScheduleCampaignToggleArgs } from "./campaign-schedule-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ScheduleCampaignToggleArgs = {
+  entity_id: string;
+  entity_type: "fb_campaign" | "fb_adset" | "fb_ad" | "google_campaign";
+  action: "pause" | "resume";
+  cron_expression?: string;
+  run_at?: string;
+  timezone?: string;
+  client_id?: string;
+  notes?: string;
+};
 
 /** Preserves the existing schedule_campaign_toggle executor and side-effect order. */
 export async function executeScheduleCampaignToggle(

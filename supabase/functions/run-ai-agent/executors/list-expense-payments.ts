@@ -1,6 +1,7 @@
-import type { ListExpensePaymentsArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
+
+type ListExpensePaymentsArgs = { month?: string; expense_type?: string };
 
 /** Preserves the existing list_expense_payments executor and side-effect order. */
 export async function executeListExpensePayments(

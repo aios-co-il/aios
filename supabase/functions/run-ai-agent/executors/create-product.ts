@@ -1,5 +1,10 @@
-import type { CreateProductArgs } from "./business-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateProductArgs = {
+  name: string;
+  description?: string;
+  price: number;
+};
 
 /** Preserves the existing create_product executor and side-effect order. */
 export async function executeCreateProduct(

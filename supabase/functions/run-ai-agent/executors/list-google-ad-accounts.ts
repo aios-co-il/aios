@@ -1,7 +1,9 @@
 import type { GoogleAdsIntegrationProjection } from "./google-ads-auth-types.ts";
-import type { ListGoogleAdAccountsArgs } from "./google-ad-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { buildGoogleCustomerClientMap } from "../../_shared/client-report-sync.ts";
+
+type ListGoogleAdAccountsArgs = { client_id?: string };
 
 /** Preserves the existing list_google_ad_accounts executor and side-effect order. */
 export async function executeListGoogleAdAccounts(

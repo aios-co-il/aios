@@ -1,5 +1,9 @@
-import type { ListSocialPagesArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListSocialPagesArgs = {
+  platform?: "facebook" | "instagram";
+  client_id?: string;
+};
 
 /** Preserves the existing list_social_pages executor and side-effect order. */
 export async function executeListSocialPages(

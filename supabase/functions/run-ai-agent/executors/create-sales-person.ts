@@ -1,6 +1,12 @@
 import type { Database } from "../../_shared/database.types.ts";
-import type { CreateSalesPersonArgs } from "./business-record-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateSalesPersonArgs = {
+  full_name: string;
+  phone?: string;
+  email?: string;
+};
 
 /** Preserves the existing create_sales_person executor and side-effect order. */
 export async function executeCreateSalesPerson(

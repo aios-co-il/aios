@@ -1,7 +1,12 @@
-import type { ListUpdatesArgs } from "./business-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { listUpdates } from "../list-updates.ts";
+
+type ListUpdatesArgs = {
+  entity_type: "client" | "lead";
+  entity_id: string;
+  limit?: number;
+};
 
 /** Preserves the existing list_updates executor and side-effect order. */
 export async function executeListUpdates(

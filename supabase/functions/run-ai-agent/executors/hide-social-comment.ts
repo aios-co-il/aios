@@ -1,6 +1,10 @@
-import type { HideSocialCommentArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessEntityClient } from "../../_shared/auth-helpers.ts";
+
+type HideSocialCommentArgs = {
+  comment_row_id: string;
+  confirmed: boolean;
+};
 
 /** Preserves the existing hide_social_comment executor and side-effect order. */
 export async function executeHideSocialComment(

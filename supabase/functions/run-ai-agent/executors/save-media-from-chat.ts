@@ -1,5 +1,14 @@
-import type { SaveMediaFromChatArgs } from "./media-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type SaveMediaFromChatArgs = {
+  message_id?: string;
+  media_url?: string;
+  mime_type?: string;
+  client_id?: string;
+  lead_id?: string;
+  caption?: string;
+  tags?: Array<string>;
+};
 
 /** Preserves the existing save_media_from_chat executor and side-effect order. */
 export async function executeSaveMediaFromChat(

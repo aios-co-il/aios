@@ -1,6 +1,10 @@
-import type { GetClientRetainerArgs } from "./finance-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type GetClientRetainerArgs = {
+  client_id?: string;
+  client_name?: string;
+};
 
 /** Preserves the existing get_client_retainer executor and side-effect order. */
 export async function executeGetClientRetainer(

@@ -1,7 +1,13 @@
-import type { CreateGoogleAdsReportTableArgs } from "./google-ad-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { syncClientCardFromReportTable } from "../../_shared/client-report-sync.ts";
+
+type CreateGoogleAdsReportTableArgs = {
+  client_id: string;
+  customer_id: string;
+  account_name?: string;
+  date_range?: string;
+};
 
 /** Preserves the existing create_google_ads_report_table executor and side-effect order. */
 export async function executeCreateGoogleAdsReportTable(

@@ -1,5 +1,11 @@
-import type { CreateSocialPostArgs } from "./social-publishing-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateSocialPostArgs = {
+  title: string;
+  content: string;
+  post_type?: "text" | "image" | "video" | "carousel";
+  media_urls?: Array<string>;
+};
 
 /** Preserves the existing create_social_post executor and side-effect order. */
 export async function executeCreateSocialPost(

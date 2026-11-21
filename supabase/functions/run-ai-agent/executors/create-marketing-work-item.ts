@@ -1,8 +1,17 @@
-import type { CreateMarketingWorkItemArgs } from "./marketing-work-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { findOrCreateClientPipeline } from "../../_shared/marketing-client-pipeline.ts";
 import type { MarketingStageSummary } from "../tool-contracts-marketing.ts";
+
+type CreateMarketingWorkItemArgs = {
+  client_id: string;
+  title: string;
+  brief: string;
+  department?: "copy" | "creative" | "seo";
+  content_type?: string;
+  channel?: string;
+  instructions?: string;
+};
 
 /** Preserves the existing create_marketing_work_item executor and side-effect order. */
 export async function executeCreateMarketingWorkItem(

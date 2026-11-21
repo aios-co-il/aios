@@ -1,5 +1,6 @@
-import type { ListSuppliersArgs } from "./business-record-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListSuppliersArgs = { limit?: number };
 
 /** Preserves the existing list_suppliers executor and side-effect order. */
 export async function executeListSuppliers(
