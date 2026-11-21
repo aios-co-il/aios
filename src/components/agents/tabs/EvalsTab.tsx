@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
+import { readEvalDataset, readEvalResults } from "../agentUiModels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +35,12 @@ import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { requireTenantId } from "@/lib/requireTenantId";
 import { parseEvalDataset } from "./parseEvalDataset";
 
-export function EvalsTab({ agent }: { agent: any }) {
+/** Render evals tab from its typed view data. */
+export function EvalsTab({
+  agent,
+}: {
+  agent: Pick<Tables<"ai_agents">, "id">;
+}) {
   const qc = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [open, setOpen] = useState(false);
@@ -76,6 +83,7 @@ export function EvalsTab({ agent }: { agent: any }) {
         name,
       };
       const { error } = await supabase.from("agent_evals").insert(payload);
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -84,7 +92,7 @@ export function EvalsTab({ agent }: { agent: any }) {
       setName("");
       toast.success("Eval נוצר");
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const runEval = useMutation({
@@ -104,7 +112,7 @@ export function EvalsTab({ agent }: { agent: any }) {
       );
       qc.invalidateQueries({ queryKey: ["agent-eval-runs", tenantId] });
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const removeEval = useMutation({
@@ -169,12 +177,13 @@ export function EvalsTab({ agent }: { agent: any }) {
       </div>
 
       <div className="space-y-2">
-        {(evals ?? []).map((e: any) => (
+        {(evals ?? []).map((e) => (
           <Card key={e.id} className="p-3 flex items-center gap-3">
             <div className="flex-1">
               <div className="font-medium">{e.name}</div>
               <div className="text-xs text-muted-foreground">
-                {(e.dataset ?? []).length} מקרים • סף {e.pass_threshold}
+                {readEvalDataset(e.dataset).length} מקרים • סף{" "}
+                {e.pass_threshold}
               </div>
             </div>
             <Button
@@ -205,7 +214,7 @@ export function EvalsTab({ agent }: { agent: any }) {
       <div className="pt-4 border-t">
         <h4 className="font-medium mb-2">ריצות אחרונות</h4>
         <Accordion type="single" collapsible>
-          {(runs ?? []).map((r: any) => (
+          {(runs ?? []).map((r) => (
             <AccordionItem key={r.id} value={r.id}>
               <AccordionTrigger>
                 <div className="flex items-center gap-2 flex-1">
@@ -227,30 +236,32 @@ export function EvalsTab({ agent }: { agent: any }) {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="space-y-2">
-                  {(r.results ?? []).map((res: any, i: number) => (
-                    <Card key={i} className="p-2 text-xs">
-                      <div className="flex items-center gap-2 mb-1">
-                        {res.passed ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-destructive" />
+                  {readEvalResults(r.results).map((res, i) => {
+                    return (
+                      <Card key={i} className="p-2 text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          {res.passed ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          )}
+                          <Badge variant="outline">{res.score}</Badge>
+                          <span className="font-medium truncate">
+                            {res.input}
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          צפוי: {res.expected}
+                        </div>
+                        <div className="text-muted-foreground">
+                          בפועל: {res.actual}
+                        </div>
+                        {res.reasoning && (
+                          <div className="italic mt-1">{res.reasoning}</div>
                         )}
-                        <Badge variant="outline">{res.score}</Badge>
-                        <span className="font-medium truncate">
-                          {res.input}
-                        </span>
-                      </div>
-                      <div className="text-muted-foreground">
-                        צפוי: {res.expected}
-                      </div>
-                      <div className="text-muted-foreground">
-                        בפועל: {res.actual}
-                      </div>
-                      {res.reasoning && (
-                        <div className="italic mt-1">{res.reasoning}</div>
-                      )}
-                    </Card>
-                  ))}
+                      </Card>
+                    );
+                  })}
                 </div>
               </AccordionContent>
             </AccordionItem>

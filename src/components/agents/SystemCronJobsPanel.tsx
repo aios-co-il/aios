@@ -123,7 +123,7 @@ export function SystemCronJobsPanel({
       toast.success("הסטטוס עודכן");
       qc.invalidateQueries({ queryKey: ["system-cron-jobs", tenantId] });
     },
-    onError: (e: any) => toast.error(e.message || "שגיאה"),
+    onError: (e) => toast.error(e.message || "שגיאה"),
   });
 
   const updateJob = useMutation({
@@ -144,7 +144,7 @@ export function SystemCronJobsPanel({
       qc.invalidateQueries({ queryKey: ["system-cron-jobs", tenantId] });
       setEditing(null);
     },
-    onError: (e: any) => toast.error(e.message || "שגיאה"),
+    onError: (e) => toast.error(e.message || "שגיאה"),
   });
 
   const runNow = useMutation({
@@ -162,7 +162,7 @@ export function SystemCronJobsPanel({
         2000,
       );
     },
-    onError: (e: any) => toast.error(e.message || "שגיאה בהפעלה"),
+    onError: (e) => toast.error(e.message || "שגיאה בהפעלה"),
   });
 
   const openEdit = (job: CronJob) => {
@@ -444,7 +444,7 @@ function HistoryList({
         p_limit: 50,
       });
       if (error) throw error;
-      return data as any[];
+      return data;
     },
   });
 
@@ -466,7 +466,7 @@ function HistoryList({
       }
     >
       <div className="space-y-2 pl-2">
-        {rows.map((r: any) => {
+        {rows.map((r) => {
           const ok = r.status === "succeeded";
           return (
             <div

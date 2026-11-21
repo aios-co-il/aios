@@ -1,3 +1,4 @@
+import { validateEvalDataset } from "../agentUiModels";
 /** Preserve the eval editor's JSON syntax and array-shape errors. */
 export function parseEvalDataset(value: string) {
   let dataset: unknown;
@@ -9,5 +10,5 @@ export function parseEvalDataset(value: string) {
   if (!Array.isArray(dataset)) {
     throw new Error("ה-dataset חייב להיות מערך");
   }
-  return dataset;
+  return validateEvalDataset(dataset);
 }
