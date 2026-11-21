@@ -1,7 +1,18 @@
 // run-agent-supervisor — routes a goal to one or more sub-agents and aggregates results.
 // Body: { supervisor_agent_id, goal, context?, tenant_id, user_id? }
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { type Delegation, parseRoutingDelegations } from "./delegations.ts";
+import { errorMessage } from "../_shared/error-message.ts";
 import { resolveModelId } from "../_shared/models.ts";
+import type { Database, Tables } from "../_shared/database.types.ts";
+
+type SupervisorAgent = Pick<Tables<"ai_agents">, "name" | "engine">;
+type SupervisorChild = Pick<
+  Tables<"agent_supervisors">,
+  "child_agent_id" | "routing_hint"
+> & {
+  child: Pick<Tables<"ai_agents">, "name" | "talent" | "system_prompt">;
+};
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +25,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const AI_GATEWAY_URL = "https://api.openai.com/v1/chat/completions";
 
-function jsonResponse(body: any, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -22,11 +33,11 @@ function jsonResponse(body: any, status = 200) {
 }
 
 async function route(
-  supervisor: any,
-  children: any[],
+  supervisor: SupervisorAgent,
+  children: SupervisorChild[],
   goal: string,
-  context: any,
-) {
+  context: unknown,
+): Promise<Delegation[]> {
   // Ask LLM to pick which child agent(s) should handle the goal.
   const childDescriptions = children
     .map(
@@ -60,13 +71,7 @@ async function route(
     throw new Error(`routing LLM ${resp.status}: ${await resp.text()}`);
   const data = await resp.json();
   const content = data.choices?.[0]?.message?.content ?? "{}";
-  let parsed: any;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    parsed = { delegations: [] };
-  }
-  return Array.isArray(parsed.delegations) ? parsed.delegations : [];
+  return parseRoutingDelegations(content);
 }
 
 Deno.serve(async (req) => {
@@ -83,7 +88,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient<Database>(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    );
 
     const { data: supervisor } = await supabase
       .from("ai_agents")
@@ -141,9 +149,9 @@ Deno.serve(async (req) => {
 
     // Invoke children in parallel
     const childResults = await Promise.all(
-      delegations.map(async (d: any) => {
+      delegations.map(async (d) => {
         const validChild = children.find(
-          (c: any) => c.child_agent_id === d.agent_id,
+          (c) => c.child_agent_id === d.agent_id,
         );
         if (!validChild)
           return { agent_id: d.agent_id, error: "child not authorized" };
@@ -164,8 +172,8 @@ Deno.serve(async (req) => {
           );
           if (error) throw error;
           return { agent_id: d.agent_id, ...data };
-        } catch (e: any) {
-          return { agent_id: d.agent_id, error: String(e?.message ?? e) };
+        } catch (e) {
+          return { agent_id: d.agent_id, error: String(errorMessage(e) ?? e) };
         }
       }),
     );
@@ -184,8 +192,8 @@ Deno.serve(async (req) => {
       parent_run_id: parentRun.id,
       delegations: childResults,
     });
-  } catch (e: any) {
-    console.error("[run-agent-supervisor]", e?.message);
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+  } catch (e) {
+    console.error("[run-agent-supervisor]", errorMessage(e));
+    return jsonResponse({ error: String(errorMessage(e) ?? e) }, 500);
   }
 });

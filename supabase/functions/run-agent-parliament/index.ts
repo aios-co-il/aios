@@ -23,6 +23,11 @@ import {
   serviceClient,
   userHasTenantAccess,
 } from "../_shared/agent-channel/store.ts";
+import {
+  type ParliamentRequest,
+  readHistory,
+  readParliamentRequest,
+} from "./request.ts";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -40,21 +45,21 @@ Deno.serve(async (req) => {
   if (!auth || auth.kind !== "user" || !auth.userId)
     return json(401, { error: "Unauthorized" });
 
-  let body: any;
+  let body: ParliamentRequest;
   try {
-    body = await req.json();
+    body = readParliamentRequest(await req.json());
   } catch {
     return json(400, { error: "Invalid JSON" });
   }
 
-  const tenantId = String(body.tenant_id || "").trim();
+  const tenantId = (body.tenant_id || "").trim();
   if (!tenantId) return json(400, { error: "tenant_id is required" });
   const sb = serviceClient();
   if (!(await userHasTenantAccess(sb, auth.userId, tenantId)))
     return json(403, { error: "Forbidden" });
 
-  const action = String(body.action || "start");
-  const conversationId = String(body.conversation_id || "");
+  const action = body.action || "start";
+  const conversationId = body.conversation_id || "";
   if (action === "cancel") {
     if (!conversationId)
       return json(400, { error: "conversation_id is required" });
@@ -84,8 +89,8 @@ Deno.serve(async (req) => {
     return json(200, await forceSynthesizeParliament(conversationId));
   }
   if (action === "clarify") {
-    const provider = String(body.provider || "");
-    const question = String(body.content || body.question || "").trim();
+    const provider = body.provider || "";
+    const question = (body.content || body.question || "").trim();
     if (!conversationId || !question)
       return json(400, { error: "conversation_id and content are required" });
     if (provider !== "cursor" && provider !== "grok")
@@ -96,15 +101,16 @@ Deno.serve(async (req) => {
     );
   }
 
-  const content = String(body.content || body.goal || "").trim();
+  const content = (body.content || body.goal || "").trim();
   if (!content) return json(400, { error: "content is required" });
   const route = await loadRoute(sb, tenantId, {
     slug: "parliament",
-    routeId: body.brain_route_id,
+    routeId:
+      typeof body.brain_route_id === "string" ? body.brain_route_id : null,
   });
   if (!route) return json(400, { error: "parliament route missing" });
   const conv = await ensureConversation(sb, {
-    conversationId: body.conversation_id || null,
+    conversationId: conversationId || null,
     tenantId,
     userId: auth.userId,
     agentId: carmen.id,
@@ -119,10 +125,8 @@ Deno.serve(async (req) => {
     route,
     content: limit(content),
     inputMode: "typed",
-    idempotencyKey: String(body.idempotency_key || crypto.randomUUID()),
-    history: Array.isArray(body.conversation_history)
-      ? body.conversation_history
-      : [],
+    idempotencyKey: body.idempotency_key || crypto.randomUUID(),
+    history: readHistory(body.conversation_history),
   });
   return json(200, result);
 });
