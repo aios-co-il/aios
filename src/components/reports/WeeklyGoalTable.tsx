@@ -18,10 +18,12 @@ import {
   weeklyGoalColumnsFor,
   type WeeklyGoalColumn,
 } from "./weeklyGoalColumns";
+import { WeeklyTotalCells } from "./WeeklyTotalCells";
 
 type Props = {
   group: WeeklyGoalGroup;
-  currency: string;
+  /** The currency symbol of a platform's campaigns. */
+  currencyOf: (source: WeeklyAdsSource) => string;
   showPlatform: boolean;
   /** Heading and goal total label; used when the week has several goals. */
   showTitle: boolean;
@@ -34,7 +36,7 @@ type Props = {
  */
 export function WeeklyGoalTable({
   group,
-  currency,
+  currencyOf,
   showPlatform,
   showTitle,
 }: Props) {
@@ -65,10 +67,10 @@ export function WeeklyGoalTable({
                 ? CAMPAIGN_GOAL_TOTAL_LABELS[group.kind]
                 : "סה״כ שבועי"}
             </ReportTd>
-            <MetricCells
-              metrics={group.totals}
+            <WeeklyTotalCells
+              group={group}
+              currencyOf={currencyOf}
               columns={columns}
-              currency={currency}
             />
           </>
         }
@@ -77,7 +79,11 @@ export function WeeklyGoalTable({
           <ReportTr key={row.key}>
             {showPlatform && <ReportTd>{sourceLabel[row.source]}</ReportTd>}
             <ReportNameCell name={row.campaign} on={!row.off} />
-            <MetricCells metrics={row} columns={columns} currency={currency} />
+            <MetricCells
+              metrics={row}
+              columns={columns}
+              currency={currencyOf(row.source)}
+            />
           </ReportTr>
         ))}
       </ReportTable>

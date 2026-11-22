@@ -1,10 +1,13 @@
 import type { ReportCampaignGoal } from "@/lib/campaignGoals";
-import type { CurrencyCode } from "@/lib/currency";
+import type {
+  AdsChannel,
+  DashboardCurrencies,
+} from "@/lib/dashboardCurrencies";
 import type { ReportFigures } from "../metrics/reportFigures";
 import type { ReportScope } from "../metrics/reportMetricTypes";
 
 /** An ads channel of a report; both Facebook table kinds show as Meta. */
-export type ReportChannel = "facebook" | "google_ads";
+export type ReportChannel = AdsChannel;
 
 /** One campaign of a goal's table. */
 export type ReportCampaignRow = {
@@ -22,6 +25,11 @@ export type ReportPeriodScope = {
   channels: Array<{ channel: ReportChannel; figures: ReportFigures }>;
   /** A day per date that has rows, oldest first. */
   daily: Array<{ date: string; figures: ReportFigures }>;
+  /** Each channel's days, for a trend that cannot add the channels' currencies. */
+  dailyByChannel: Array<{
+    channel: ReportChannel;
+    daily: Array<{ date: string; figures: ReportFigures }>;
+  }>;
   campaigns: Array<ReportCampaignRow>;
 };
 
@@ -41,7 +49,7 @@ export type ReportScopeData = ReportPeriodScope & {
 
 /** Everything a report layout renders from. */
 export type ReportData = {
-  currency: CurrencyCode;
+  currencies: DashboardCurrencies;
   goals: Array<ReportCampaignGoal>;
   scopes: Partial<Record<ReportScope, ReportScopeData>>;
   /** Whether the report offers "בקש תובנה מכרמן"; shared reports do not. */
@@ -52,7 +60,7 @@ export type ReportData = {
 export function reportDataOf(input: {
   current: ReportPeriod;
   previous: ReportPeriod | null;
-  currency: CurrencyCode;
+  currencies: DashboardCurrencies;
   askCarmen?: boolean;
 }): ReportData {
   const scopes: Partial<Record<ReportScope, ReportScopeData>> = {};
@@ -66,7 +74,7 @@ export function reportDataOf(input: {
     };
   }
   return {
-    currency: input.currency,
+    currencies: input.currencies,
     goals: input.current.goals,
     scopes,
     askCarmen: input.askCarmen ?? false,
