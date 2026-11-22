@@ -537,6 +537,16 @@ export default function ManusWhatsAppSettings({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
+                  {s.webhook_error?.reason === "secret_mismatch" && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        הודעות נכנסות נדחות: הסוד ש-Manus שולח לא תואם ל-Webhook
+                        Secret שבכרטיס הזה. לחץ "סנכרן סוד" ושלח הודעת בדיקה, או
+                        הזן ב-Manus את הסוד שבכרטיס.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {s.instance_id && !inboundOk && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
