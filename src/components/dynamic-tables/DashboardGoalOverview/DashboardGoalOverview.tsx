@@ -1,6 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CAMPAIGN_GOAL_TITLES } from "@/lib/campaignGoals";
 import type { DashboardCombinedSales } from "@/lib/dashboardCombinedFigures";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
+import {
+  formatGoalMoney,
+  goalMoneyParts,
+  goalSalesMoney,
+} from "@/lib/dashboardGoalMoney";
 import type { DashboardGoalSummary } from "@/lib/dashboardGoalSummary";
 import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
 import type { PlatformLabelOf } from "../DashboardPlatformBreakdown/BreakdownCells";
@@ -17,6 +23,10 @@ type Props = {
   delivery: { spend: number; impressions: number; clicks: number };
   platformLabel: PlatformLabelOf;
   format: GoogleAdsFormatters;
+  /** Each platform in its own currency; totals never add currencies. */
+  currencies: DashboardCurrencies;
+  /** Whether the sales are the store's (dashboardStore). */
+  hasStore: boolean;
 };
 
 /**
@@ -32,9 +42,17 @@ export function DashboardGoalOverview({
   delivery,
   platformLabel,
   format,
+  currencies,
+  hasStore,
 }: Props) {
+  const spendParts = goalMoneyParts(summary.rows, currencies);
   const deliveryFigures: GoalFigure[] = [
-    { label: "הוצאה כוללת", value: format.formatCurrency(delivery.spend) },
+    {
+      label: "הוצאה כוללת",
+      value: spendParts
+        ? formatGoalMoney(spendParts, (m) => m.spend)
+        : format.formatCurrency(delivery.spend),
+    },
     { label: "סה״כ חשיפות", value: format.formatNumber(delivery.impressions) },
     { label: "סה״כ קליקים", value: format.formatNumber(delivery.clicks) },
   ];
@@ -61,38 +79,45 @@ export function DashboardGoalOverview({
           <CombinedRoasCard
             sales={sales}
             formatCurrency={format.formatCurrency}
+            money={goalSalesMoney(summary, hasStore, currencies)}
           />
         )}
       </div>
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
-        {goalPanels({ summary, sales, leads, platformLabel, format }).map(
-          (panel) => (
-            <Card key={panel.goal}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  {CAMPAIGN_GOAL_TITLES[panel.goal]}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  {panel.figures.map((figure) => (
-                    <div key={figure.label}>
-                      <p className="text-xs text-muted-foreground">
-                        {figure.label}
-                      </p>
-                      <p className="text-xl font-bold mt-1">{figure.value}</p>
-                    </div>
-                  ))}
-                </div>
-                {panel.note && (
-                  <p className="text-xs text-muted-foreground mt-3 text-center">
-                    {panel.note}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ),
-        )}
+        {goalPanels({
+          summary,
+          sales,
+          leads,
+          platformLabel,
+          format,
+          currencies,
+          hasStore,
+        }).map((panel) => (
+          <Card key={panel.goal}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">
+                {CAMPAIGN_GOAL_TITLES[panel.goal]}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {panel.figures.map((figure) => (
+                  <div key={figure.label}>
+                    <p className="text-xs text-muted-foreground">
+                      {figure.label}
+                    </p>
+                    <p className="text-xl font-bold mt-1">{figure.value}</p>
+                  </div>
+                ))}
+              </div>
+              {panel.note && (
+                <p className="text-xs text-muted-foreground mt-3 text-center">
+                  {panel.note}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );

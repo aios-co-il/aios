@@ -58,4 +58,17 @@ export type ReportMetric = {
   whyEmpty?: (figures: ReportFigures) => string;
   /** Where the value comes from, when the source can vary. */
   source?: (figures: ReportFigures) => string | null;
+  /**
+   * Whose currency the value depends on; without it the value is a count or
+   * the site's (store, Analytics) amount.
+   */
+  money?: (figures: ReportFigures) => ReportMoneyKind;
 };
+
+/**
+ * "ads": an ads platform amount, in that platform's currency, so a dashboard
+ * whose platforms use different currencies shows it per currency.
+ * "spendVsSite": spend set against the site's sales, which has no single
+ * currency when the platforms' differ. "site": the store's or Analytics'.
+ */
+export type ReportMoneyKind = "ads" | "spendVsSite" | "site";
