@@ -13,20 +13,20 @@ Deno.test(
     const fixture = executorClient([
       { id: "item", pipeline_id: "pipeline", payload },
       [{ id: "stage", name: "Measurement", stage_type: "measurement" }],
-      [
-        {
-          id: "item",
-          title: "Work",
-          current_stage_id: "stage",
-          status: "draft",
-        },
-      ],
+      {
+        id: "item",
+        title: "Work",
+        current_stage_id: "stage",
+        status: "draft",
+      },
     ]);
     const result = await executeHandoffMarketingWorkItem(
       { item_id: "item", to_stage_type: "measurement" },
       fixture.context,
     );
     assertEquals(result.success, true);
+    assertEquals(result.item_id, "item");
+    assertEquals(result.title, "Work");
     const stageQuery = new URL(fixture.calls[1].url).searchParams;
     assertEquals(stageQuery.get("tenant_id"), "eq.t1");
     const query = new URL(fixture.calls[2].url).searchParams;
@@ -45,7 +45,19 @@ Deno.test(
     const fixture = executorClient([
       { id: "item", pipeline_id: "pipeline", payload: null },
       [{ id: "stage", name: "Copy", stage_type: "copy" }],
-      [],
+      // PATCH maybeSingle requests PostgREST's singular representation.
+      new Response(
+        JSON.stringify({
+          code: "PGRST116",
+          details: "The result contains 0 rows",
+          hint: null,
+          message: "JSON object requested, multiple (or no) rows returned",
+        }),
+        {
+          status: 406,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     ]);
     await assertRejects(
       () =>
