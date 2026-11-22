@@ -1,6 +1,15 @@
-import type { FacebookCampaignMutationArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type FacebookCampaignMutationArgs = {
+  client_id?: string;
+  campaign_id?: string;
+  status?: "ACTIVE" | "PAUSED";
+  level?: "campaign" | "adset" | "ad";
+  daily_budget?: number;
+  lifetime_budget?: number;
+  name_suffix?: string;
+};
 
 /** Preserves the existing duplicate_facebook_campaign executor and side-effect order. */
 export async function executeFacebookCampaignMutation(

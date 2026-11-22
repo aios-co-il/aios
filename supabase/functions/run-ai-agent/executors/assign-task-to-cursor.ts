@@ -1,7 +1,9 @@
 import type { TablesUpdate } from "../../_shared/database.types.ts";
-import type { AssignTaskToCursorArgs } from "./developer-task-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { errorMessage } from "../error-message.ts";
+
+type AssignTaskToCursorArgs = { task_id: string; notes?: string };
 
 /** Preserves the existing assign_task_to_cursor executor and side-effect order. */
 export async function executeAssignTaskToCursor(

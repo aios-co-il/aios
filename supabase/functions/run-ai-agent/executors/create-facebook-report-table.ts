@@ -1,6 +1,11 @@
-import type { CreateFacebookReportTableArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { syncClientCardFromReportTable } from "../../_shared/client-report-sync.ts";
+
+type CreateFacebookReportTableArgs = {
+  client_id: string;
+  ad_account_id: string;
+  ad_account_name: string;
+};
 
 /** Preserves the existing create_facebook_report_table executor and side-effect order. */
 export async function executeCreateFacebookReportTable(

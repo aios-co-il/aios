@@ -2,7 +2,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 import type {
   CampaignTableMatch,
   PerformanceScopeClient,
-  RankedPerformanceEntry,
 } from "./campaign-performance-types.ts";
 import type { readCampaignGoalTables } from "../goal-tables.ts";
 import type { DisconnectedClient } from "../helper-results.ts";
@@ -11,6 +10,10 @@ import { fetchCampaignLevelRecords } from "../../_shared/ads-sync/campaign-recor
 import { staleClientEntry } from "../stale-client-entry.ts";
 import { clientPerformanceEntry } from "../client-performance.ts";
 import { errorMessage } from "../error-message.ts";
+
+type RankedPerformanceEntry = ReturnType<typeof clientPerformanceEntry> & {
+  spend_change_pct?: number | null;
+};
 
 /** Collects each client sequentially and preserves failed/stale-record fallback. */
 export async function collectCampaignPerformance(

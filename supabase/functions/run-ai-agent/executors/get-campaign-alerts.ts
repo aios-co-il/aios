@@ -1,5 +1,10 @@
-import type { GetCampaignAlertsArgs } from "./campaign-alert-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type GetCampaignAlertsArgs = {
+  client_id?: string;
+  severity?: "info" | "warning" | "critical";
+  only_open?: boolean;
+};
 
 /** Preserves the existing get_campaign_alerts executor and side-effect order. */
 export async function executeGetCampaignAlerts(

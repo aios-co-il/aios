@@ -5,10 +5,14 @@ type RetentionPulseRow = Pick<
   "client_id" | "status" | "flags" | "last_client_call_at" | "calculated_at"
 >;
 
-import type { GetClientRetentionScanArgs } from "./pulse-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { buildRetentionScan } from "../../_shared/client-retention.ts";
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
+
+type GetClientRetentionScanArgs = {
+  client_id?: string;
+  client_name?: string;
+};
 
 /** Preserves the existing get_client_retention_scan executor and side-effect order. */
 export async function executeGetClientRetentionScan(

@@ -1,7 +1,8 @@
-import type { ListFacebookAdAccountsArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { GraphAdAccount } from "../tool-contracts-marketing.ts";
 import { readGraphAdAccountsPage } from "../tool-contracts-marketing.ts";
+
+type ListFacebookAdAccountsArgs = unknown;
 
 /** Preserves the existing list_facebook_ad_accounts executor and side-effect order. */
 export async function executeListFacebookAdAccounts(

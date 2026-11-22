@@ -1,5 +1,33 @@
-import type { AdActionApprovalArgs } from "./ad-action-inputs.ts";
+import type { Json } from "../../_shared/database.types.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type AdActionApprovalArgs = {
+  client_id?: string;
+  name?: string;
+  objective?: string;
+  daily_budget?: number;
+  special_ad_categories?: Array<string>;
+  campaign_id?: string;
+  billing_event?: string;
+  optimization_goal?: string;
+  targeting?: Json;
+  start_time?: string;
+  end_time?: string;
+  media_id?: string;
+  page_id?: string;
+  message?: string;
+  link?: string;
+  call_to_action_type?: string;
+  lead_form_id?: string;
+  adset_id?: string;
+  creative_id?: string;
+  ad_id?: string;
+  new_form_id?: string;
+  entity_id?: string;
+  lifetime_budget?: number;
+  customer_id?: string;
+};
 
 /** Preserves the existing gads_update_budget executor and side-effect order. */
 export async function queueAdActionApproval(

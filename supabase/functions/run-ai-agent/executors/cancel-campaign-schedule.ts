@@ -1,5 +1,6 @@
-import type { CancelCampaignScheduleArgs } from "./campaign-schedule-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CancelCampaignScheduleArgs = { schedule_id: string };
 
 /** Preserves the existing cancel_campaign_schedule executor and side-effect order. */
 export async function executeCancelCampaignSchedule(

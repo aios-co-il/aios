@@ -1,6 +1,7 @@
-import type { FindExecutionGoalDuplicatesArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { findDuplicateGoals } from "../../_shared/goal-execution.ts";
+
+type FindExecutionGoalDuplicatesArgs = { title: string };
 
 /** Preserves the existing find_execution_goal_duplicates executor and side-effect order. */
 export async function executeFindExecutionGoalDuplicates(

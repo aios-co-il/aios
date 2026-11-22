@@ -1,6 +1,10 @@
-import type { GetExecutionGoalReportArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { getGoalExecutionReport } from "../../_shared/goal-execution.ts";
+
+type GetExecutionGoalReportArgs = {
+  goal_id: string;
+  since_hours?: number;
+};
 
 /** Preserves the existing get_execution_goal_report executor and side-effect order. */
 export async function executeGetExecutionGoalReport(

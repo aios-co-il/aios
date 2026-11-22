@@ -1,4 +1,3 @@
-import type { GetFacebookCampaignDataArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
@@ -6,6 +5,8 @@ import { fbLiveCampaignInsights } from "./meta-live-insights.ts";
 import { fetchCampaignLevelRecords } from "../../_shared/ads-sync/campaign-records.ts";
 import { readCampaignGoalTables } from "../goal-tables.ts";
 import { storedCampaignRows } from "../campaign-rows.ts";
+
+type GetFacebookCampaignDataArgs = { client_id?: string; days?: number };
 
 /** Preserves the existing get_facebook_campaign_data executor and side-effect order. */
 export async function executeGetFacebookCampaignData(

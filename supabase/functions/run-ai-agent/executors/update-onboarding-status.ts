@@ -1,5 +1,11 @@
-import type { UpdateOnboardingStatusArgs } from "./onboarding-inputs.ts";
+import type { AgentRow } from "../database-contracts.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type UpdateOnboardingStatusArgs = {
+  onboarding_id: string;
+  status: AgentRow<"client_onboarding">["status"];
+};
 
 /** Preserves the existing update_onboarding_status executor and side-effect order. */
 export async function executeUpdateOnboardingStatus(

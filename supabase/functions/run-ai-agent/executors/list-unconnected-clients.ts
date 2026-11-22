@@ -1,6 +1,7 @@
-import type { ListUnconnectedClientsArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentDatabaseClient } from "../database-contracts.ts";
+
+type ListUnconnectedClientsArgs = unknown;
 
 /** Preserves the existing list_unconnected_clients executor and side-effect order. */
 export async function executeListUnconnectedClients(

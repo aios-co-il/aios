@@ -1,8 +1,12 @@
-import type { AnalyzeFacebookCampaignArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { fbAnalyzeCampaignInline } from "./campaign-analysis.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
+
+type AnalyzeFacebookCampaignArgs = {
+  client_id: string;
+  campaign_id: string;
+};
 
 /** Preserves the existing analyze_facebook_campaign executor and side-effect order. */
 export async function executeAnalyzeFacebookCampaign(

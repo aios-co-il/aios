@@ -1,5 +1,6 @@
-import type { ResolveCampaignAlertArgs } from "./campaign-alert-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ResolveCampaignAlertArgs = { alert_id: string };
 
 /** Preserves the existing resolve_campaign_alert executor and side-effect order. */
 export async function executeResolveCampaignAlert(

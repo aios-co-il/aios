@@ -1,10 +1,11 @@
-import type { InspectFacebookAdArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
 import { fbGetToken } from "./meta-token.ts";
 import { FB_GRAPH_VERSION } from "./meta-api-version.ts";
 import { summarizeSourceAd } from "../../_shared/fb-ad-duplicate.ts";
+
+type InspectFacebookAdArgs = { client_id: string; ad_id: string };
 
 /** Preserves the existing inspect_facebook_ad executor and side-effect order. */
 export async function executeInspectFacebookAd(
