@@ -7,10 +7,7 @@ import type {
 import type { readCampaignGoalTables } from "../goal-tables.ts";
 import type { DisconnectedClient } from "../helper-results.ts";
 import type { CampaignGoalRecord } from "../../_shared/campaign-goal/campaign-goals.ts";
-import {
-  fetchCampaignLevelRecords,
-  type RecordsClient,
-} from "../../_shared/ads-sync/campaign-records.ts";
+import { fetchCampaignLevelRecords } from "../../_shared/ads-sync/campaign-records.ts";
 import { staleClientEntry } from "../stale-client-entry.ts";
 import { clientPerformanceEntry } from "../client-performance.ts";
 import { errorMessage } from "../error-message.ts";
@@ -51,7 +48,7 @@ export async function collectCampaignPerformance(
     // rows repeat the campaign's spend and results), paged past 1000 rows.
     let records: Array<CampaignGoalRecord>;
     try {
-      records = await fetchCampaignLevelRecords(supabase as RecordsClient, {
+      records = await fetchCampaignLevelRecords(supabase, {
         tableIds,
         sinceYmd: d30Str,
         tenantIds: accessibleTenantIds,
