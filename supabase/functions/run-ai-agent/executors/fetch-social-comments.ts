@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type FetchSocialCommentsArgs = { page_id: string };
@@ -7,23 +8,13 @@ export async function executeFetchSocialComments(
   args: FetchSocialCommentsArgs,
   context: ToolExecutionContext,
 ) {
-  const { accessibleTenantIds } = context;
+  const { supabase, accessibleTenantIds } = context;
 
   const targetTenantId = accessibleTenantIds[0];
-  const r = await fetch(
-    `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-comments`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        action: "fetch",
-        tenant_id: targetTenantId,
-        page_id: args.page_id,
-      }),
-    },
-  );
-  return await r.json();
+  const result = await invokeExecutorFunction(supabase, "social-comments", {
+    action: "fetch",
+    tenant_id: targetTenantId,
+    page_id: args.page_id,
+  });
+  return result.data;
 }

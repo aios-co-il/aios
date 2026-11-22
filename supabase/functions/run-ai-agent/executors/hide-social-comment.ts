@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessEntityClient } from "../../_shared/auth-helpers.ts";
 
@@ -24,21 +25,11 @@ export async function executeHideSocialComment(
   }
   const targetTenantId = accessibleTenantIds[0];
   const action = name === "reply_to_social_comment" ? "reply" : "hide";
-  const r = await fetch(
-    `${Deno.env.get("SUPABASE_URL")}/functions/v1/social-comments`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        action,
-        tenant_id: targetTenantId,
-        comment_row_id: args.comment_row_id,
-        message: args.message,
-      }),
-    },
-  );
-  return await r.json();
+  const result = await invokeExecutorFunction(supabase, "social-comments", {
+    action,
+    tenant_id: targetTenantId,
+    comment_row_id: args.comment_row_id,
+    message: args.message,
+  });
+  return result.data;
 }
