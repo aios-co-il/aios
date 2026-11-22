@@ -5,7 +5,6 @@ import {
   isAdsTableType,
   withDashboardCampaignRows,
 } from "./dashboard-rows.ts";
-import type { RecordsClient } from "./campaign-records.ts";
 import { createFakeDb, fakeClient, type Row } from "./tests/fake-postgrest.ts";
 
 /**
@@ -33,7 +32,7 @@ const LEVELS: Array<[Row["data"], boolean]> = [
 async function keptIds(filter: string): Promise<Array<string>> {
   const rows = LEVELS.map(([data], index) => ({ id: `r${index}`, data }));
   const db = createFakeDb({ crm_records: rows });
-  const client: RecordsClient = fakeClient(db);
+  const client = fakeClient(db);
   const { data } = await client
     .from("crm_records")
     .select("id, data")

@@ -4,7 +4,6 @@ import {
   CAMPAIGN_ROWS_ONLY_TYPES,
   DASHBOARD_CAMPAIGN_ROWS_FILTER,
 } from "@functions/_shared/ads-sync/dashboard-rows.ts";
-import type { RecordsClient } from "@functions/_shared/ads-sync/campaign-records.ts";
 import {
   createFakeDb,
   fakeClient,
@@ -66,7 +65,7 @@ async function readSummedRows(
   rows: Array<FixtureRecord>,
 ): Promise<Array<FixtureRecord>> {
   const db = createFakeDb({ crm_records: rows });
-  const client: RecordsClient = fakeClient(db);
+  const client = fakeClient(db);
   const { data } = await client
     .from("crm_records")
     .select("id, data")
