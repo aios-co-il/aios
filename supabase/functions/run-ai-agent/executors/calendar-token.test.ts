@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
-import { executorClient } from "./test-client.ts";
+import { executorClient } from "./executor-client.test-fixture.ts";
 
 const token = {
   access_token: "calendar-token",
