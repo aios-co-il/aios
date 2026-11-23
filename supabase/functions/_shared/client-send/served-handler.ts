@@ -54,6 +54,7 @@ export async function callServedHandler(
   request: Request,
   routes: Record<string, unknown>,
   providerReply: unknown,
+  observeRequest?: (url: URL) => void,
 ) {
   const rest: BackendCall[] = [];
   const provider: BackendCall[] = [];
@@ -62,6 +63,7 @@ export async function callServedHandler(
   globalThis.fetch = async (input, init) => {
     const call = new Request(input, init);
     const url = new URL(call.url);
+    observeRequest?.(url);
     const record = {
       method: call.method,
       path: url.origin === SUPABASE_URL ? url.pathname : url.href,

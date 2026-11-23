@@ -114,3 +114,40 @@ Deno.test("senderCalls finds each call of a guarded sender", async (t) => {
     );
   });
 });
+
+Deno.test("SDK calls of guarded senders remain inventoried", () => {
+  assertEquals(
+    senderCalls(
+      'await supabase.functions.invoke("send-x", { body: { phoneNumber: "x" } });',
+      ["send-x"],
+    ).map((call) => call.stamped),
+    [false],
+  );
+  assertEquals(
+    senderCalls(
+      'await invokeExecutorFunction(db, "send-x", { sendKind: "staff_alert" });',
+      ["send-x"],
+    ).map((call) => call.stamped),
+    [true],
+  );
+});
+
+Deno.test("SDK sender constants resolve their invocation arguments", () => {
+  for (const invoke of [
+    'supabase.functions.invoke(sender, { body: { sendKind: "staff_alert" } })',
+    'invokeExecutorFunction(db, sender, { sendKind: "staff_alert" })',
+  ]) {
+    const code = `const sender = "send-x";\nawait ${invoke};`;
+    assertEquals(
+      senderCalls(code, ["send-x"]).map((call) => [call.line, call.stamped]),
+      [[2, true]],
+    );
+  }
+  assertEquals(
+    senderCalls(
+      'const sender = "send-x";\nawait supabase.functions.invoke(sender, { body: {} });',
+      ["send-x"],
+    ).map((call) => call.stamped),
+    [false],
+  );
+});

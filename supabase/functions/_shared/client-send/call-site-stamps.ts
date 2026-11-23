@@ -41,7 +41,9 @@ function senderSites(src: MaskedSource, senders: string[]) {
   const names = senders.map((name) => name.replace(/[-$]/g, "\\$&")).join("|");
   const literal = new RegExp(`functions/v1/(?:${names})(?![\\w-])`, "g");
   const quoted = new RegExp(`["'\`](?:${names})["'\`]`, "g");
-  const builds = src.plain.includes("functions/v1/${");
+  const builds =
+    src.plain.includes("functions/v1/${") ||
+    /\.functions\.invoke\s*\(|\binvokeExecutorFunction\s*\(/.test(src.code);
   return [
     ...[...src.plain.matchAll(literal)].map((m) => ({
       at: m.index,
@@ -107,6 +109,9 @@ function requestCalls(src: MaskedSource, pattern: RegExp, within: Span) {
 function isRequest(src: MaskedSource, call: Span): boolean {
   return (
     /fetch$/i.test(calleeOf(src.code, call.open)) ||
+    /(?:\.functions\.invoke|\binvokeExecutorFunction)\s*$/.test(
+      src.code.slice(0, call.open),
+    ) ||
     src.plain.slice(call.open, call.close).includes("functions/v1/")
   );
 }

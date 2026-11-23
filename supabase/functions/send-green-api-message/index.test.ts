@@ -22,6 +22,8 @@ function send(
   body: Record<string, unknown>,
   recipient: ResolverRow,
   token = SERVICE_ROLE_KEY,
+  contactExists = true,
+  member = true,
 ) {
   const request = new Request("http://functions.test/send-green-api-message", {
     method: "POST",
@@ -42,7 +44,9 @@ function send(
     request,
     {
       "GET /auth/v1/user": { id: SENDER },
-      "GET /tenant_users": [{ user_id: SENDER }],
+      "GET /clients": contactExists ? { id: CLIENT } : null,
+      "GET /leads": contactExists ? { id: CLIENT } : null,
+      "GET /tenant_users": member ? [{ user_id: SENDER }] : [],
       "POST /rpc/is_super_admin": false,
       "GET /tenant_integrations": [
         {
@@ -56,6 +60,15 @@ function send(
       "POST /rpc/resolve_send_recipient": [recipient],
     },
     { idMessage: "green-1" },
+    (url) => {
+      if (["/rest/v1/clients", "/rest/v1/leads"].includes(url.pathname)) {
+        assertEquals(
+          url.searchParams.get("tenant_id"),
+          `eq.${body.tenantId || TENANT}`,
+        );
+        assertEquals(url.searchParams.get("id"), `eq.${CLIENT}`);
+      }
+    },
   );
 }
 
@@ -138,6 +151,45 @@ Deno.test(
     assertEquals(provider.length, 1);
     assertEquals(
       rest.some((call) => call.path === "/rpc/resolve_send_recipient"),
+      false,
+    );
+  },
+);
+
+Deno.test(
+  "mismatched contact tenant is refused before provider or message writes",
+  async () => {
+    for (const body of [{ clientId: CLIENT }, { leadId: CLIENT }]) {
+      const { response, provider, rest } = await send(
+        body,
+        resolved("client", [CLIENT]),
+        SERVICE_ROLE_KEY,
+        false,
+      );
+      assertEquals(response.status, 400);
+      assertEquals(provider, []);
+      assertEquals(
+        rest.some((call) => call.path === "/chat_messages"),
+        false,
+      );
+    }
+  },
+);
+
+Deno.test(
+  "shared tenant without sender membership stays forbidden at the endpoint",
+  async () => {
+    const { response, provider, rest } = await send(
+      { clientId: CLIENT, tenantId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+      resolved("client", [CLIENT]),
+      SERVICE_ROLE_KEY,
+      true,
+      false,
+    );
+    assertEquals(response.status, 403);
+    assertEquals(provider, []);
+    assertEquals(
+      rest.some((call) => call.path === "/chat_messages"),
       false,
     );
   },

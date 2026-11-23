@@ -3,7 +3,8 @@
 // and commit mode (insert broadcast_recipients with per-recipient merge vars).
 //
 // Audience filter shape: see _shared/broadcast/audience/resolve.ts.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { writeEnqueueStats } from "./stats.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import type { Recipient } from "../_shared/broadcast/audience/types.ts";
 import { filterReachable } from "../_shared/broadcast/audience/reachability.ts";
@@ -16,8 +17,6 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-const SB_URL = Deno.env.get("SUPABASE_URL")!;
-const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const json = (body: unknown, status = 200) =>
@@ -42,16 +41,12 @@ Deno.serve(async (req) => {
     const isServiceRole = isServiceKey(token, SB_SERVICE);
 
     // User-scoped client respects RLS so a user can only enqueue their own tenant's data.
-    const db = isServiceRole
-      ? createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } })
-      : createClient(SB_URL, SB_ANON, {
-          global: { headers: { Authorization: authHeader } },
-          auth: { persistSession: false },
-        });
+    const db = isServiceRole ? serviceClient() : userClient(authHeader);
 
     const {
       broadcastId,
       dryRun,
+      claimRevision,
       filter: inlineFilter,
       channel: inlineChannel,
       tenantId: inlineTenant,
@@ -61,12 +56,24 @@ Deno.serve(async (req) => {
     let channel: string = inlineChannel || "whatsapp";
     let tenantId: string | undefined = inlineTenant;
 
+    if (
+      claimRevision !== undefined &&
+      (!isServiceRole ||
+        typeof claimRevision !== "string" ||
+        !claimRevision ||
+        !broadcastId)
+    ) {
+      return json({ error: "invalid_claim" }, 403);
+    }
     if (broadcastId) {
-      const { data: b, error } = await db
+      let query = db
         .from("broadcasts")
         .select("id, tenant_id, channel, audience_filter, status")
-        .eq("id", broadcastId)
-        .single();
+        .eq("id", broadcastId);
+      if (claimRevision) {
+        query = query.eq("status", "paused").eq("updated_at", claimRevision);
+      }
+      const { data: b, error } = await query.single();
       if (error || !b) return json({ error: "broadcast_not_found" }, 404);
       filter = b.audience_filter || {};
       channel = b.channel;
@@ -131,14 +138,14 @@ Deno.serve(async (req) => {
       if (error && !String(error.message).includes("duplicate")) throw error;
     }
 
-    await db
-      .from("broadcasts")
-      .update({
-        stats: { total, sent: 0, delivered: 0, failed: 0, opted_out: 0 },
-      })
-      .eq("id", broadcastId);
-
-    return json({ success: true, total, sample });
+    const revision = await writeEnqueueStats(
+      db,
+      tenantId,
+      broadcastId,
+      total,
+      claimRevision,
+    );
+    return json({ success: true, total, sample, revision });
   } catch (e) {
     console.error("[broadcast-enqueue]", e);
     return json({ error: String((e as Error)?.message || e) }, 500);
