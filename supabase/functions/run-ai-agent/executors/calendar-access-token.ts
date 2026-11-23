@@ -1,4 +1,3 @@
-import { resolveGoogleCalendarUserId } from "./calendar-user-id.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 // Resolve a usable Google Calendar access token for the tenant: caller's user →
@@ -64,4 +63,67 @@ export async function resolveCalendarAccessToken(
       .eq("user_id", calTokenUserId);
   }
   return { accessToken };
+}
+
+/** Select the calendar owner in caller, explicit user, campaigner, then tenant-owner order. */
+async function resolveGoogleCalendarUserId(
+  supabase: DbClient,
+  tenantId: string,
+  callerCampaignerId: string | null,
+  userId: string | null,
+): Promise<string | null> {
+  if (callerCampaignerId) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("campaigner_id", callerCampaignerId)
+      .maybeSingle();
+    if (prof?.id) {
+      return prof.id;
+    }
+  }
+  if (userId && userId !== "system") {
+    return userId;
+  }
+  const { data: tenantCampaigners } = await supabase
+    .from("campaigners")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .limit(20);
+  for (const c of tenantCampaigners || []) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("campaigner_id", c.id)
+      .maybeSingle();
+    if (!prof?.id) {
+      continue;
+    }
+    const { data: tok } = await supabase
+      .from("calendar_tokens")
+      .select("user_id")
+      .eq("user_id", prof.id)
+      .maybeSingle();
+    if (tok?.user_id) {
+      return tok.user_id;
+    }
+  }
+  // Owners without a campaigner row are the final fallback.
+  const { data: owners } = await supabase
+    .from("tenant_users")
+    .select("user_id")
+    .eq("tenant_id", tenantId)
+    .in("role", ["owner", "admin"])
+    .limit(10);
+  for (const o of owners || []) {
+    const { data: tok } = await supabase
+      .from("calendar_tokens")
+      .select("user_id")
+      .eq("user_id", o.user_id)
+      .maybeSingle();
+    if (tok?.user_id) {
+      return o.user_id;
+    }
+  }
+  return null;
 }

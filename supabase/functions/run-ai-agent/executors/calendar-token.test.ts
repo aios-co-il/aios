@@ -92,3 +92,33 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "calendar returns the first campaigner token before checking tenant owners",
+  async () => {
+    const fixture = executorClient([
+      [{ id: "staff" }],
+      { id: "profile" },
+      { user_id: "profile" },
+      token,
+    ]);
+    assertEquals(
+      await resolveCalendarAccessToken(
+        fixture.context.supabase,
+        "t1",
+        null,
+        "system",
+      ),
+      { accessToken: "calendar-token" },
+    );
+    assertEquals(
+      fixture.calls.map((call) => new URL(call.url).pathname),
+      [
+        "/rest/v1/campaigners",
+        "/rest/v1/profiles",
+        "/rest/v1/calendar_tokens",
+        "/rest/v1/calendar_tokens",
+      ],
+    );
+  },
+);

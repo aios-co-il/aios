@@ -1,4 +1,3 @@
-import type { Database } from "../../_shared/database.types.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { aiEmbed } from "../../_shared/ai.ts";
 
@@ -6,20 +5,21 @@ import { aiEmbed } from "../../_shared/ai.ts";
 export async function executeKbSearch(
   args: KbSearchArgs,
   context: ToolExecutionContext,
+  embed: typeof aiEmbed = aiEmbed,
 ) {
   const { supabase, tenantId, accessibleTenantIds } = context;
 
   // Try semantic via embedding; fall back to text ILIKE on title/summary
   try {
-    const vec = await aiEmbed(args.query);
+    const vec = await embed(args.query);
     if (vec) {
       const { data, error } = await supabase.rpc("kb_match_pointers", {
         p_tenant_id: tenantId,
-        p_query_embedding: vec,
-        p_category: args.category || null,
-        p_since_days: args.since_days || null,
+        p_query_embedding: JSON.stringify(vec),
+        p_category: args.category || undefined,
+        p_since_days: args.since_days || undefined,
         p_limit: args.limit || 20,
-      } as unknown as Database["public"]["Functions"]["kb_match_pointers"]["Args"]);
+      });
       if (error) {
         console.error("[kb-search] semantic query failed", error);
       }

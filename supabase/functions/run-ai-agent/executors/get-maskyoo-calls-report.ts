@@ -46,7 +46,7 @@ export async function executeGetMaskyooCallsReport(
   }
 
   // Query seo_call_snapshots for given period
-  const snapshotQuery = db
+  const snapshotQuery = supabase
     .from("seo_call_snapshots")
     .select(
       "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
@@ -111,7 +111,7 @@ export async function executeGetMaskyooCallsReport(
       .toISOString()
       .split("T")[0];
 
-    const prevQuery = db
+    const prevQuery = supabase
       .from("seo_call_snapshots")
       .select("client_id, category, incoming_count")
       .in("tenant_id", accessibleTenantIds)
