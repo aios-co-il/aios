@@ -11,7 +11,7 @@ Each rule applies to the lines your change adds or edits. Rules for one area liv
 2. **While writing.** Done when each file you create satisfies the scoped rules for its path at its first commit.
 3. **Before every push: self-review.** Done when all of these pass on the current diff:
    - Verification per `docs/agents/development.md` passes, `pnpm format:check` passes, and `pnpm exec eslint <changed files>` shows no warning on lines you add or edit (Lint and language).
-   - You walked every rule below and the scoped rules matching your diff over `git diff origin/develop...` (or ran `/code-review origin/develop`) and fixed each hit.
+   - You ran `/code-review origin/develop` on the current diff (or walked every rule below and the scoped rules matching it over `git diff origin/develop...`), fixed or answered each finding, and recorded the review with `node .claude/hooks/push-review-gate.ts record`. In Claude Code, `.claude/hooks/push-review-gate.ts` refuses `git push` until the branch's current changes have a recorded review.
    - `git merge-tree --write-tree HEAD origin/<branch>` against each open PR that touches your files shows no conflict, or the PR body says which lands first.
 4. **Open or update the PR** with `/create-pr`. Done when the PR and its Linear issue meet `AGENTS.md` § Pull requests and `docs/agents/releases.md`.
 5. **When asked to address review**, answer every open human and bot thread with the commit that fixes it or the reason no change is needed (`/pr-review-fixer`). Routines follow `docs/agents/autonomic-issues.md`.
