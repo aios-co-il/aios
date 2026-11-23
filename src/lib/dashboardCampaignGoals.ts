@@ -30,7 +30,8 @@ export type DashboardRecordGoalOf = (
   record: DashboardAdsRecord,
 ) => ReportCampaignGoal | null;
 
-const META_SOURCES: ReadonlySet<string> = new Set([
+/** The integration types whose records are Meta (Facebook) ads. */
+export const META_SOURCES: ReadonlySet<string> = new Set([
   "facebook_insights",
   "facebook_ecommerce",
 ]);

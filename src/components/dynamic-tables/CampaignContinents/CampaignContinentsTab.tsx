@@ -7,6 +7,7 @@ import type {
   GoogleAdsFormatters,
 } from "../GoogleAdsCampaignSection/types";
 import { ContinentOverview } from "./ContinentOverview";
+import { continentAnchor } from "./continentInputs";
 import { continentSections, type ContinentSection } from "./continentSections";
 
 type Props = GoogleAdsFormatters & {
@@ -44,11 +45,16 @@ export function CampaignContinentsTab({ campaigns, ...formats }: Props) {
   );
 }
 
-/** One continent's campaigns: one table, or one per goal when it has both. */
-function ContinentTables({
+/**
+ * One continent's campaigns: one table, or one per goal when it has both.
+ * `anchored` gives it the id the summary links to; off when a combined view
+ * anchors the continent itself.
+ */
+export function ContinentTables({
   section,
+  anchored = true,
   ...formats
-}: GoogleAdsFormatters & { section: ContinentSection }) {
+}: GoogleAdsFormatters & { section: ContinentSection; anchored?: boolean }) {
   const ecommerce = section.campaigns.filter((c) => c.goal === "ecommerce");
   const leads = section.campaigns.filter((c) => c.goal !== "ecommerce");
   const mixed = ecommerce.length > 0 && leads.length > 0;
@@ -56,7 +62,10 @@ function ContinentTables({
   const icon = <Globe className="h-5 w-5 text-sky-600" />;
   const shared = { store, mixed, icon, ...formats };
   return (
-    <div id={`continent-${section.continent}`} className="space-y-4">
+    <div
+      id={anchored ? continentAnchor(section.continent) : undefined}
+      className="space-y-4"
+    >
       {ecommerce.length > 0 && (
         <GoogleAdsCampaignTable
           rows={ecommerce}

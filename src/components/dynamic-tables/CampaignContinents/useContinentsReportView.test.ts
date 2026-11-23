@@ -59,14 +59,19 @@ describe("useContinentsReportView", () => {
     expect(result.current.view).toBe("summary");
   });
 
-  it("never offers the tab outside Google Ads", () => {
-    const { result } = renderHook(() =>
-      useContinentsReportView({
-        integrationType: "facebook_insights",
-        records: ECHO,
-        ready: true,
-      }),
-    );
-    expect(result.current.hasContinentsTab).toBe(false);
+  it("offers the tab to Facebook reports too, never to other tables", () => {
+    function viewOf(integrationType: string) {
+      return renderHook(() =>
+        useContinentsReportView({
+          integrationType,
+          records: ECHO,
+          ready: true,
+        }),
+      ).result.current.hasContinentsTab;
+    }
+
+    expect(viewOf("facebook_insights")).toBe(true);
+    expect(viewOf("facebook_ecommerce")).toBe(true);
+    expect(viewOf("google_analytics")).toBe(false);
   });
 });
