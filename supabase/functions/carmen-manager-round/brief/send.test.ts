@@ -1,46 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
-import { resolveManagerSettings } from "../../_shared/manager-round/settings.ts";
 import { RoundBudget } from "../budget.ts";
-import type { Recipient } from "../findings/types.ts";
 import { deps } from "../tests/fakes.ts";
-import { finding, TENANT, type World, world } from "../tests/fake-world.ts";
-import { briefed, sendBriefIfDue } from "./send.ts";
-
-const david: Recipient = {
-  key: "user:david",
-  user_id: "david",
-  name: "דוד",
-  phone: "972503333333",
-  role: "owner",
-};
-const SINCE = "2026-10-01T00:00:00Z";
-// Sunday 08:07 Israel time.
-const SLOT_TIME = new Date("2026-11-01T06:07:00Z");
-
-/** sendBriefIfDue for David over `w` with these manager settings; `fields` override the run. */
-function brief(
-  w: World,
-  manager: Record<string, unknown>,
-  fields: {
-    dryRun?: boolean;
-    recipients?: Recipient[];
-    budget?: RoundBudget;
-    ports?: ReturnType<typeof deps>;
-    settingsChanged?: () => boolean;
-  } = {},
-) {
-  return sendBriefIfDue(fields.ports ?? deps(w), {
-    tenantId: TENANT,
-    settings: resolveManagerSettings({ manager }),
-    now: w.now,
-    recipients: () => Promise.resolve(fields.recipients ?? [david]),
-    state: w.state,
-    floors: {},
-    budget: fields.budget ?? RoundBudget.create(140_000, 0),
-    settingsChanged: () => Promise.resolve(fields.settingsChanged?.() ?? false),
-    dryRun: fields.dryRun ?? false,
-  });
-}
+import { finding, world } from "../tests/fake-world.ts";
+import { briefed } from "./send.ts";
+import { brief, david, SINCE, SLOT_TIME } from "./send.test-fixture.ts";
 
 Deno.test("sendBriefIfDue", async (t) => {
   await t.step(
@@ -134,6 +97,40 @@ Deno.test("sendBriefIfDue", async (t) => {
       assertEquals(
         w.deliveries.map((d) => [d.finding_id, d.slot, d.status]),
         [[atOwner.id, "brief", "sent"]],
+      );
+    },
+  );
+
+  await t.step(
+    "card drafts are one counted line with the page link, never recorded as listed",
+    async () => {
+      const w = world({ now: SLOT_TIME });
+      const level = { escalation_level: 2, status: "notified" };
+      const atOwner = finding({
+        ...level,
+        short_code: 5,
+        summary_he: "ברמת בעלים",
+      });
+      w.findings.push(
+        atOwner,
+        ...[11, 12].map((short_code) =>
+          finding({ ...level, short_code, kind: "card_stale_group" }),
+        ),
+      );
+      const ports = deps(w);
+      const link = "https://aios.test/t/acme/card-drafts";
+      ports.cardDraftsLink = () => Promise.resolve(link);
+
+      await brief(w, { mode: "david_only", notify_since: SINCE }, { ports });
+
+      assertEquals(w.sent[0].message.split("\n").slice(1), [
+        "דורש החלטה שלך:",
+        "1) #5 ברמת בעלים",
+        `📝 2 עדכונים לכרטיסי לקוחות מחכים לאישור: ${link}`,
+      ]);
+      assertEquals(
+        w.deliveries.map((d) => d.finding_id),
+        [atOwner.id],
       );
     },
   );

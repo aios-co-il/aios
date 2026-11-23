@@ -1,8 +1,9 @@
 /**
  * The morning brief (BRIEF_CRON) for the brief recipients: at most
  * BRIEF_MAX_LINES lines, deterministic. Sections: what needs the reader's
- * decision (up to five items with short codes), the team's open items (team
- * mode) and what Carmen already did in the last 24 hours. Read-only: the
+ * decision (up to five items with short codes), one line counting the
+ * client-card drafts waiting for approval with a link to the page that
+ * approves them, the team's open items (team mode) and what Carmen already did in the last 24 hours. Read-only: the
  * short codes point at findings in the app; a parser for replies to the brief
  * is AIO-251 phase 2.
  */
@@ -19,6 +20,8 @@ export type BriefInput = {
   recipientName: string;
   now: Date;
   decisions: BriefItem[];
+  /** Live card_stale_group drafts the reader may approve; `link` opens the card-drafts page. */
+  pendingDrafts: { count: number; link: string | null };
   team: { name: string; open: number }[];
   activity: { autoCleared: number; messages: number };
 };
@@ -29,6 +32,7 @@ export function composeMorningBrief(input: BriefInput): string {
   const day = dayMonth(input.now);
   const lines = [`בוקר טוב${name ? ` ${name}` : ""}, הסיכום של כרמן ל־${day}:`];
   lines.push(...decisionLines(input.decisions));
+  lines.push(...draftLines(input.pendingDrafts));
   lines.push(...teamLines(input.team));
   lines.push(...activityLines(input.activity));
   return lines.slice(0, BRIEF_MAX_LINES).join("\n");
@@ -48,6 +52,21 @@ function decisionLines(decisions: BriefItem[]): string[] {
     ),
     ...(more > 0 ? [`ועוד ${more} פתוחים במערכת`] : []),
   ];
+}
+
+/** One line counting the drafts waiting for approval; nothing when none waits. */
+function draftLines({
+  count,
+  link,
+}: BriefInput["pendingDrafts"]): Array<string> {
+  if (count <= 0) {
+    return [];
+  }
+  const waiting =
+    count === 1
+      ? "📝 עדכון אחד לכרטיס לקוח מחכה לאישור"
+      : `📝 ${count} עדכונים לכרטיסי לקוחות מחכים לאישור`;
+  return [link ? `${waiting}: ${link}` : `${waiting} במערכת`];
 }
 
 /** The busiest people first, at most BRIEF_MAX_TEAM_LINES. */

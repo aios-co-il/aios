@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
     const deps = createRoundDeps(serviceClient(), {
       supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "",
       serviceRoleKey: serviceKey,
+      appUrl: Deno.env.get("APP_URL") ?? null,
     });
     return json(200, await runRound(deps, parsed.request));
   } catch (error) {
