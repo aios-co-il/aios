@@ -9,6 +9,10 @@ import {
   assignInvitedClients,
   supabaseClientAssignmentStore,
 } from "./assign-clients.ts";
+import {
+  joinExistingUser,
+  supabaseExistingUserStore,
+} from "./join-existing-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +35,10 @@ interface InviteUserRequest {
   baseUrl?: string;
   /** When true, provision tenant access without sending another email (multi-org invite). */
   skipEmail?: boolean;
-  /** When false, do not overwrite profiles.campaigner_id / sales_person_id (secondary org). */
+  /**
+   * When false, do not overwrite profiles.campaigner_id / sales_person_id (secondary org).
+   * The profile link is also kept when the user already belongs to another tenant.
+   */
   updateProfileTeamLinks?: boolean;
 }
 
@@ -534,38 +541,29 @@ serve(async (req: Request) => {
     if (existingUserId) {
       const userId = existingUserId;
 
-      await supabaseAdmin
-        .from("profiles")
-        .upsert(
-          { id: userId, email, full_name: fullName || null, status: "pending" },
-          { onConflict: "id" },
-        );
+      await joinExistingUser(supabaseExistingUserStore(supabaseAdmin), {
+        userId,
+        email,
+        tenantId: tenantIdFinal,
+        fullName,
+        teamLinks: {
+          ...(effectiveCampaignerId && {
+            campaigner_id: effectiveCampaignerId,
+          }),
+          ...(effectiveSalesPersonId && {
+            sales_person_id: effectiveSalesPersonId,
+          }),
+        },
+        modulePermissions,
+      });
 
-      if (fullName) {
-        await supabaseAdmin
-          .from("profiles")
-          .update({ full_name: fullName })
-          .eq("id", userId);
-      }
-
-      if (updateProfileTeamLinks && effectiveCampaignerId) {
-        await supabaseAdmin
-          .from("profiles")
-          .update({ campaigner_id: effectiveCampaignerId })
-          .eq("id", userId);
+      if (effectiveCampaignerId) {
         await absorbEmailCardIntoAssigned(
           supabaseAdmin,
           tenantIdFinal,
           email,
           effectiveCampaignerId,
         );
-      }
-
-      if (updateProfileTeamLinks && effectiveSalesPersonId) {
-        await supabaseAdmin
-          .from("profiles")
-          .update({ sales_person_id: effectiveSalesPersonId })
-          .eq("id", userId);
       }
 
       if (role) {
@@ -578,21 +576,6 @@ serve(async (req: Request) => {
         await supabaseAdmin
           .from("user_roles")
           .insert({ user_id: userId, role, tenant_id: tenantIdFinal });
-      }
-
-      if (modulePermissions && modulePermissions.length > 0) {
-        await supabaseAdmin
-          .from("user_permissions")
-          .delete()
-          .eq("user_id", userId);
-        const permissionsToInsert = modulePermissions.map((module) => ({
-          user_id: userId,
-          module,
-          can_access: true,
-        }));
-        await supabaseAdmin
-          .from("user_permissions")
-          .insert(permissionsToInsert);
       }
 
       await linkStaffAgencies(
