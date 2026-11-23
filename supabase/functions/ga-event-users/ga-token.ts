@@ -11,6 +11,7 @@ type Integration = {
   id: string;
   api_key: string | null;
   settings: Json | null;
+  updated_at: string;
 };
 
 /** The connection's access token, refreshed when it is about to expire. */
@@ -51,15 +52,15 @@ export async function freshGaToken(
   settings.expires_at = new Date(
     Date.now() + Number(data.expires_in ?? 3600) * 1000,
   ).toISOString();
-  // Saved only while the connection still holds the token read above, so a
-  // reconnect that lands during the refresh keeps its own settings.
-  const update = db
+  // Saved only while the connection is unchanged since it was read, so a
+  // reconnect that lands during the refresh keeps its own settings. The row's
+  // api_key is empty once the tokens live in integration_secrets, so
+  // updated_at is the version to compare.
+  const { error } = await db
     .from("tenant_integrations")
     .update({ api_key: data.access_token, settings: settings as Json })
-    .eq("id", integration.id);
-  const { error } = await (integration.api_key === null
-    ? update.is("api_key", null)
-    : update.eq("api_key", integration.api_key));
+    .eq("id", integration.id)
+    .eq("updated_at", integration.updated_at);
   if (error) {
     console.error("[ga-event-users] token not saved:", error.message);
   }
