@@ -1,11 +1,11 @@
 ---
-name: aio-26-backlog
+name: fix-lint-issues
 description: Claim one small slice of the AIO-26 ESLint and TypeScript backlog, fix it, and open one reviewable PR. Pass a number to run that many parallel agents, one PR each.
 argument-hint: "[N parallel agents, default 1]"
 disable-model-invocation: true
 ---
 
-# AIO-26 backlog slice
+# Fix lint issues
 
 Work AIO-26 (reduce the ESLint and TypeScript backlog): claim one **slice**, fix it, open one PR. `$ARGUMENTS` is the number of parallel agents; empty or `1` means you do the work yourself.
 
