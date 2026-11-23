@@ -13,6 +13,8 @@ export function leadStore(db: DbClient): LeadStore {
           name: lead.name,
           phone: lead.phone,
           email: lead.email,
+          company: lead.company,
+          employees: lead.employees,
         })
         .select("id")
         .single();

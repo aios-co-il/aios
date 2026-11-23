@@ -1,5 +1,6 @@
-import type { ListGoalsArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListGoalsArgs = { status?: string; limit?: number };
 
 /** Preserves the existing list_goals executor and side-effect order. */
 export async function executeListGoals(

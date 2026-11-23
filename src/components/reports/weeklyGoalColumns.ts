@@ -15,6 +15,8 @@ import type {
 export type WeeklyGoalColumn = {
   label: string;
   value: (metrics: WeeklyGoalTotals, currency: string) => string;
+  /** Read from spend or revenue, so a total of several currencies shows each apart. */
+  money?: true;
   className?: string;
 };
 
@@ -50,6 +52,7 @@ const clicks: WeeklyGoalColumn = {
 const spend: WeeklyGoalColumn = {
   label: "הוצאה",
   value: (m, currency) => `${currency}${formatReportNumber(m.spend)}`,
+  money: true,
 };
 /** The goal's result count (purchases or leads) under its own label. */
 const results = (label: string): WeeklyGoalColumn => ({
@@ -65,6 +68,7 @@ const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
       ? `${currency}${formatReportNumber(m.costPerResult, digits)}`
       : "—",
   className: "font-medium",
+  money: true,
 });
 
 /** Each goal shows only its own metrics: no revenue or ROAS outside sales. */
@@ -79,10 +83,12 @@ const WEEKLY_GOAL_COLUMNS: Record<ReportCampaignGoal, WeeklyGoalColumn[]> = {
       label: "הכנסה",
       value: (m, currency) =>
         m.revenue > 0 ? `${currency}${formatReportNumber(m.revenue)}` : "—",
+      money: true,
     },
     {
       label: "ROAS",
       value: (m) => (m.roas > 0 ? `${formatReportNumber(m.roas, 2)}x` : "—"),
+      money: true,
     },
   ],
   leads: [
@@ -121,4 +127,5 @@ const costPerFollowerColumn: WeeklyGoalColumn = {
       (cost) => `${currency}${formatReportNumber(cost, 2)}`,
     ),
   className: "font-medium",
+  money: true,
 };

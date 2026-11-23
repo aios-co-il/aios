@@ -1,6 +1,13 @@
 import type { TablesInsert } from "../../_shared/database.types.ts";
-import type { CreateOnboardingArgs } from "./onboarding-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateOnboardingArgs = {
+  title: string;
+  client_id: string;
+  campaigner_id?: string;
+  notes?: string;
+};
 
 /** Preserves the existing create_onboarding executor and side-effect order. */
 export async function executeCreateOnboarding(

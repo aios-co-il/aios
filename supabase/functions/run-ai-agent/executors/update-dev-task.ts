@@ -1,7 +1,17 @@
 import type { TablesUpdate } from "../../_shared/database.types.ts";
-import type { UpdateDevTaskArgs } from "./developer-task-inputs.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { logDevTaskEvent } from "../../_shared/dev-tasks.ts";
+
+type UpdateDevTaskArgs = {
+  title?: string;
+  dev_task_id: string;
+  pr_url?: string;
+  status?: string;
+  priority?: string;
+  problem?: string;
+  acceptance_criteria?: string;
+};
 
 /** Preserves the existing update_dev_task executor and side-effect order. */
 export async function executeUpdateDevTask(

@@ -11,6 +11,13 @@ Deno.test(
       ["https://api.resend.com/emails", "POST"],
       ["https://api.telegram.org/bot123/sendMessage", "GET"],
       ["https://example.com/webhook", "POST"],
+      // landing-domain: Staging never attaches or reads domains on the live Vercel project.
+      ["https://api.vercel.com/v10/projects/prj_1/domains", "POST"],
+      [
+        "https://api.vercel.com/v9/projects/prj_1/domains/lp.example.com",
+        "GET",
+      ],
+      ["https://api.vercel.com/v6/domains/lp.example.com/config", "GET"],
       ["https://production.supabase.co/functions/v1/trigger-automation", "GET"],
       ["https://graph.facebook.com/v22/123/messages", "POST"],
       ["https://graph.facebook.com/123/feed", "GET"],

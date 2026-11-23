@@ -7,6 +7,7 @@ import {
   fakeClient,
   type FakeDb,
 } from "../_shared/ads-sync/tests/fake-postgrest.ts";
+import { recordsClient } from "../_shared/ads-sync/campaign-records.test-fixture.ts";
 import { writeAdsWindow } from "../_shared/ads-sync/write-window.ts";
 import {
   carryStoredVerifiedLeads,
@@ -53,7 +54,7 @@ Deno.test("carryStoredVerifiedLeads", async (t) => {
         { date: "2026-06-03", campaign_id: "c1", verified_leads: 1 },
       ];
 
-      await carryStoredVerifiedLeads(fakeClient(db), {
+      await carryStoredVerifiedLeads(recordsClient(db), {
         tableId: "t1",
         tenantId: "tenant-1",
         records,
@@ -96,7 +97,7 @@ Deno.test("carryStoredVerifiedLeads", async (t) => {
         { date: "2026-06-01", campaign_id: "c1" },
       ];
 
-      await carryStoredVerifiedLeads(fakeClient(db), {
+      await carryStoredVerifiedLeads(recordsClient(db), {
         tableId: "t1",
         tenantId: "tenant-1",
         records,
@@ -105,7 +106,7 @@ Deno.test("carryStoredVerifiedLeads", async (t) => {
       assertEquals(records[0], { date: "2026-06-01", campaign_id: "c1" });
 
       db.calls.length = 0;
-      await carryStoredVerifiedLeads(fakeClient(db), {
+      await carryStoredVerifiedLeads(recordsClient(db), {
         tableId: "t1",
         tenantId: "tenant-1",
         records,
@@ -123,7 +124,7 @@ Deno.test("carryStoredVerifiedLeads", async (t) => {
 
       await assertRejects(
         () =>
-          carryStoredVerifiedLeads(fakeClient(db), {
+          carryStoredVerifiedLeads(recordsClient(db), {
             tableId: "t1",
             tenantId: "tenant-1",
             records: [{ date: "2026-06-01", campaign_id: "c1" }],
