@@ -32,6 +32,13 @@ declare
   v_access text := nullif(new.api_key, '');
   v_refresh text := nullif(new.settings ->> 'refresh_token', '');
 begin
+  -- An insert with an existing connection's id is refused here: under ON
+  -- CONFLICT DO NOTHING the insert is skipped only after this trigger has run,
+  -- so a member could otherwise replace another member's tokens.
+  if tg_op = 'INSERT' and exists (select 1 from public.tenant_integrations ti where ti.id = new.id) then
+    raise exception 'connection % already exists', new.id using errcode = 'unique_violation';
+  end if;
+
   insert into public.integration_secrets (integration_id, tenant_id, access_token, refresh_token, updated_at)
   values (new.id, new.tenant_id, v_access, v_refresh, now())
   on conflict (integration_id) do update
@@ -70,10 +77,11 @@ create trigger move_google_integration_secrets
 update public.tenant_integrations ti
 set api_key = ti.api_key,
     settings = case
-      when jsonb_typeof(ti.settings) = 'object'
+      when (nullif(ti.api_key, '') is not null or nullif(ti.settings ->> 'refresh_token', '') is not null)
+        and jsonb_typeof(coalesce(ti.settings, '{}'::jsonb)) = 'object'
         and nullif(ti.settings ->> 'google_email', '') is null
         and nullif(ti.settings ->> 'connected_at', '') is null
-      then ti.settings || jsonb_build_object('connected_at', coalesce(ti.updated_at, ti.created_at))
+      then coalesce(ti.settings, '{}'::jsonb) || jsonb_build_object('connected_at', coalesce(ti.updated_at, ti.created_at))
       else ti.settings
     end
 where public.is_google_integration_type(ti.integration_type)
