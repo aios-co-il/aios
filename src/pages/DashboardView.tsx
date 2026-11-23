@@ -1,5 +1,6 @@
 import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
 import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
+import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
@@ -682,9 +683,9 @@ export default function DashboardView() {
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
-      setPlatformFilter("google_ads");
+      setPlatformFilter(continentsFallbackFilter(availablePlatforms));
     }
-  }, [platformFilter, hasContinentsTab]);
+  }, [platformFilter, hasContinentsTab, availablePlatforms]);
 
   const platformTabItems = useMemo((): ResponsiveTabItem[] => {
     const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
