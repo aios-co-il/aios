@@ -1,6 +1,8 @@
+import type { UseMutationResult } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { useIsManagerOwner } from "../pulse/manager-round/useIsManagerOwner";
 import { CardDraftItem } from "./CardDraftItem";
 import { CardDraftsToolbar } from "./CardDraftsToolbar";
 import {
@@ -25,24 +27,17 @@ export function CardDraftsPage() {
   const selection = useDraftSelection(ids);
   const approve = useApproveCardDrafts(tenantId);
   const dismiss = useDismissCardDrafts(tenantId);
+  const isOwner = useIsManagerOwner(tenantId).data === true;
   const busy = approve.isPending || dismiss.isPending;
 
-  /** Approves the checked drafts and reports each outcome. */
-  function onApprove() {
-    approve.mutate(selection.selected, {
-      onSuccess: (results) => {
-        showFeedback(approveFeedback(results));
-        selection.clear();
-      },
-      onError: (error) => toast.error(error.message),
-    });
-  }
-
-  /** Dismisses the checked drafts and reports each outcome. */
-  function onDismiss() {
-    dismiss.mutate(selection.selected, {
-      onSuccess: (results) => {
-        showFeedback(dismissFeedback(results));
+  /** Runs `action` on the checked drafts, then reports each outcome. */
+  function act<Result>(
+    action: UseMutationResult<Result, Error, Array<string>>,
+    feedback: (result: Result) => DraftFeedback,
+  ) {
+    action.mutate(selection.selected, {
+      onSuccess: (result) => {
+        showFeedback(feedback(result));
         selection.clear();
       },
       onError: (error) => toast.error(error.message),
@@ -77,9 +72,10 @@ export function CardDraftsPage() {
             selectedCount={selection.selected.length}
             allSelected={selection.allSelected}
             busy={busy}
+            canDismiss={isOwner}
             onToggleAll={selection.toggleAll}
-            onApprove={onApprove}
-            onDismiss={onDismiss}
+            onApprove={() => act(approve, approveFeedback)}
+            onDismiss={() => act(dismiss, dismissFeedback)}
           />
         </>
       )}

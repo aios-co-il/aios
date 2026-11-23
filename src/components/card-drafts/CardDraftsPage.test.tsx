@@ -7,6 +7,8 @@ import { CardDraftsPage } from "./CardDraftsPage";
 const mocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   rpc: vi.fn(),
+  dismiss: vi.fn(),
+  owner: { current: true },
   rows: { current: [] as Array<unknown> },
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -55,6 +57,12 @@ function row(id: string, shortCode: number, client: string, content: string) {
 describe("CardDraftsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.owner.current = true;
+    mocks.rpc.mockImplementation((name: string, args: unknown) =>
+      name === "carmen_manager_is_owner"
+        ? Promise.resolve({ data: mocks.owner.current, error: null })
+        : mocks.dismiss(name, args),
+    );
     mocks.rows.current = [
       row("f1", 31, "אקמה", "[כרמן · סיכום קבוצה] אישר תקציב"),
       row("f2", 32, "בטא", "[כרמן · סיכום קבוצה] ביקש דוח"),
@@ -90,28 +98,72 @@ describe("CardDraftsPage", () => {
     );
   });
 
+  it("approves a selection over the function's limit in batches", async () => {
+    mocks.rows.current = Array.from({ length: 51 }, (_, i) =>
+      row(`f${i}`, i, "אקמה", `טיוטה ${i}`),
+    );
+    mocks.invoke.mockImplementation(
+      (_name: string, { body }: { body: { finding_ids: Array<string> } }) =>
+        Promise.resolve({
+          data: {
+            results: body.finding_ids.map((id) => ({ id, status: "approved" })),
+          },
+          error: null,
+        }),
+    );
+    const user = userEvent.setup();
+    render(withTestQuery(<CardDraftsPage />));
+
+    await user.click(await screen.findByLabelText("בחירת הכל"));
+    await user.click(screen.getByRole("button", { name: "אשר נבחרים (51)" }));
+
+    expect(
+      mocks.invoke.mock.calls.map(([, { body }]) => body.finding_ids.length),
+    ).toEqual([50, 1]);
+    expect(mocks.toast.success).toHaveBeenCalledWith(
+      "51 עדכונים נרשמו בכרטיס הלקוח",
+    );
+  });
+
   it("dismisses every draft after select all, and names a refusal", async () => {
-    mocks.rpc
+    mocks.dismiss
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: null, error: { message: "owner_only" } });
     const user = userEvent.setup();
     render(withTestQuery(<CardDraftsPage />));
 
     await user.click(await screen.findByLabelText("בחירת הכל"));
-    await user.click(screen.getByRole("button", { name: "דחה נבחרים (2)" }));
+    await user.click(
+      await screen.findByRole("button", { name: "דחה נבחרים (2)" }),
+    );
 
-    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "carmen_finding_set_status", {
-      p_finding_id: "f1",
-      p_status: "dismissed",
-    });
-    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "carmen_finding_set_status", {
-      p_finding_id: "f2",
-      p_status: "dismissed",
-    });
+    expect(mocks.dismiss.mock.calls).toEqual([
+      [
+        "carmen_finding_set_status",
+        { p_finding_id: "f1", p_status: "dismissed" },
+      ],
+      [
+        "carmen_finding_set_status",
+        { p_finding_id: "f2", p_status: "dismissed" },
+      ],
+    ]);
     expect(mocks.toast.success).toHaveBeenCalledWith("עדכון אחד נדחה");
     expect(mocks.toast.error).toHaveBeenCalledWith(
       "עדכון אחד לא נדחה: רק בעלי הארגון יכולים לדחות עדכונים",
     );
+  });
+
+  it("offers dismissal to owners only", async () => {
+    mocks.owner.current = false;
+    render(withTestQuery(<CardDraftsPage />));
+
+    expect(
+      await screen.findByRole("button", { name: "אשר נבחרים (0)" }),
+    ).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("carmen_manager_is_owner", {
+      p_tenant_id: "t1",
+    });
+    expect(screen.queryByRole("button", { name: /דחה נבחרים/ })).toBeNull();
   });
 
   it("says nothing waits when there are no drafts", async () => {

@@ -5,6 +5,8 @@ type CardDraftsToolbarProps = {
   selectedCount: number;
   allSelected: boolean;
   busy: boolean;
+  /** Only owners may dismiss (carmen_finding_set_status); others see no dismiss button. */
+  canDismiss: boolean;
   onToggleAll: () => void;
   onApprove: () => void;
   onDismiss: () => void;
@@ -15,6 +17,7 @@ export function CardDraftsToolbar({
   selectedCount,
   allSelected,
   busy,
+  canDismiss,
   onToggleAll,
   onApprove,
   onDismiss,
@@ -32,13 +35,15 @@ export function CardDraftsToolbar({
         />
         בחירת הכל
       </label>
-      <div className="grid grid-cols-2 gap-2">
+      <div className={canDismiss ? "grid grid-cols-2 gap-2" : "grid gap-2"}>
         <Button onClick={onApprove} disabled={idle}>
           אשר נבחרים ({selectedCount})
         </Button>
-        <Button variant="outline" onClick={onDismiss} disabled={idle}>
-          דחה נבחרים ({selectedCount})
-        </Button>
+        {canDismiss && (
+          <Button variant="outline" onClick={onDismiss} disabled={idle}>
+            דחה נבחרים ({selectedCount})
+          </Button>
+        )}
       </div>
     </div>
   );
