@@ -84,6 +84,37 @@ Deno.test({
       },
     );
 
+    await t.step(
+      "init sends Google the custom-domain callback when PUBLIC_API_URL is set",
+      async () => {
+        const http = fakeSupabaseHttp({
+          supabaseUrl: SUPABASE_URL,
+          users: { session: USER_ID },
+        });
+        const publicEnv = { ...env, PUBLIC_API_URL: "https://api.aios.co.il" };
+        await withRuntime({ env: publicEnv, fetch: http.fetch }, async () => {
+          const handle = await servedHandler(
+            new URL("./index.ts", import.meta.url),
+          );
+          const response = await handle(
+            new Request(SUPABASE_URL, {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer session",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ action: "init", tenantId: "tenant-1" }),
+            }),
+          );
+          const { authUrl } = await response.json();
+          assertEquals(
+            new URL(authUrl).searchParams.get("redirect_uri"),
+            "https://api.aios.co.il/functions/v1/google-calendar-auth?action=callback",
+          );
+        });
+      },
+    );
+
     for (const forged of [USER_ID, btoa(JSON.stringify({ userId: USER_ID }))]) {
       await t.step(
         `callback refuses an unsigned state before exchanging the code: ${forged.slice(0, 8)}`,
