@@ -1,4 +1,8 @@
-import { sendApprovedBroadcast } from "./send-broadcast.ts";
+import {
+  sendApprovedBroadcast,
+  invokeBroadcastEnqueue,
+  BroadcastEnqueueError,
+} from "./send-broadcast.ts";
 // Carmen Approval Execute — runs a pending row from agent_approval_queue.
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by the
@@ -358,23 +362,25 @@ Deno.serve(async (req) => {
       ) {
         throw new Error("missing_broadcast_id");
       }
-      const result = await sendApprovedBroadcast(
-        supabase,
-        row.tenant_id,
-        inp.broadcast_id,
-        async () => {
-          const { data, error } = await supabase.functions.invoke(
-            "broadcast-enqueue",
-            {
-              body: { broadcastId: inp.broadcast_id, dryRun: false },
-            },
-          );
-          if (error) {
-            throw error;
-          }
-          return data;
-        },
-      );
+      let result;
+      try {
+        result = await sendApprovedBroadcast(
+          supabase,
+          row.tenant_id,
+          inp.broadcast_id,
+          (revision) =>
+            invokeBroadcastEnqueue(supabase, inp.broadcast_id, revision),
+        );
+      } catch (error) {
+        if (!(error instanceof BroadcastEnqueueError)) {
+          throw error;
+        }
+        await markApprovalFailed(supabase, row, error.detail);
+        return reply({
+          status: 400,
+          body: { error: "enqueue_failed", detail: error.detail },
+        });
+      }
       await supabase
         .from("agent_approval_queue")
         .update({

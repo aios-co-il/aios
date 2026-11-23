@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { executeGetMaskyooCallsReport } from "./get-maskyoo-calls-report.ts";
 import { executorClient } from "./executor-client.test-fixture.ts";
 
@@ -53,5 +53,53 @@ Deno.test(
     }
     assertEquals(result.results, []);
     assertEquals(f.calls.length, 1);
+  },
+);
+
+Deno.test(
+  "Maskyoo client lookup failure is not reported as no match",
+  async () => {
+    const f = executorClient([
+      new Response(JSON.stringify({ message: "lookup failed" }), {
+        status: 500,
+      }),
+    ]);
+    await assertRejects(() =>
+      executeGetMaskyooCallsReport({ client_name: "test" }, f.context),
+    );
+  },
+);
+
+Deno.test(
+  "Maskyoo comparison failure is not reported as empty results",
+  async () => {
+    const f = executorClient([
+      [],
+      new Response(JSON.stringify({ message: "comparison failed" }), {
+        status: 500,
+      }),
+    ]);
+    await assertRejects(() =>
+      executeGetMaskyooCallsReport({ period_compare: true }, f.context),
+    );
+  },
+);
+
+Deno.test(
+  "Maskyoo enrichment scopes client names and falls back to raw ID",
+  async () => {
+    const f = executorClient([
+      [{ client_id: "foreign", incoming_count: 1 }],
+      [],
+    ]);
+    const result = await executeGetMaskyooCallsReport({}, f.context);
+    if (!("results" in result)) {
+      throw new Error("Expected report");
+    }
+    assertEquals(
+      new URL(f.calls[1].url).searchParams.get("tenant_id"),
+      "in.(t1,shared)",
+    );
+    assertEquals(result.results[0].client_name, "foreign");
   },
 );

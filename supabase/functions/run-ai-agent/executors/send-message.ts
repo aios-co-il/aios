@@ -1,3 +1,4 @@
+import { tenantUserAccess } from "../../_shared/auth/tenant-access.ts";
 import { FunctionsHttpError } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { sendTargetFor } from "../chat-scope/send-target.ts";
@@ -23,12 +24,22 @@ export async function executeSendMessage(
   if (!phone) {
     return { success: false, error: "לא נמצא מספר טלפון" };
   }
+  const senderUserId = actorUserId || userId;
+  if (contactTenantId && contactTenantId !== tenantId) {
+    const access = senderUserId
+      ? await tenantUserAccess(supabase, contactTenantId, senderUserId)
+      : { member: false, superAdmin: false };
+    if (!access.member && !access.superAdmin) {
+      console.warn("[send_message] shared tenant send requires membership");
+      return { success: false, error: "shared_tenant_send_not_authorized" };
+    }
+  }
   const { error } = await supabase.functions.invoke("send-green-api-message", {
     body: {
       phoneNumber: phone,
       message: args.message_text,
       tenantId: contactTenantId || tenantId,
-      senderUserId: actorUserId || userId,
+      senderUserId,
       ...(args.contact_type === "client"
         ? { clientId: args.contact_id }
         : { leadId: args.contact_id }),

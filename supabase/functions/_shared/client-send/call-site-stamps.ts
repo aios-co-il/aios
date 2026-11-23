@@ -109,6 +109,9 @@ function requestCalls(src: MaskedSource, pattern: RegExp, within: Span) {
 function isRequest(src: MaskedSource, call: Span): boolean {
   return (
     /fetch$/i.test(calleeOf(src.code, call.open)) ||
+    /(?:\.functions\.invoke|\binvokeExecutorFunction)\s*$/.test(
+      src.code.slice(0, call.open),
+    ) ||
     src.plain.slice(call.open, call.close).includes("functions/v1/")
   );
 }

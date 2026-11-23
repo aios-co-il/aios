@@ -26,12 +26,15 @@ export async function executeGetMaskyooCallsReport(
   // Resolve client_id by name if not given
   let resolvedClientId = argClientId;
   if (!resolvedClientId && client_name) {
-    const { data: found } = await supabase
+    const { data: found, error: lookupError } = await supabase
       .from("clients")
       .select("id, name")
       .in("tenant_id", accessibleTenantIds)
       .ilike("name", `%${client_name}%`)
       .limit(5);
+    if (lookupError) {
+      throw lookupError;
+    }
     if (!found?.length) {
       return { error: `לא נמצא לקוח בשם "${client_name}"` };
     }
@@ -73,10 +76,14 @@ export async function executeGetMaskyooCallsReport(
   const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
   const clientNames: Record<string, string> = {};
   if (clientIds.length) {
-    const { data: clients } = await supabase
+    const { data: clients, error: namesError } = await supabase
       .from("clients")
       .select("id, name")
+      .in("tenant_id", accessibleTenantIds)
       .in("id", clientIds);
+    if (namesError) {
+      throw namesError;
+    }
     clients?.forEach((c) => {
       clientNames[c.id] = c.name;
     });
@@ -123,7 +130,10 @@ export async function executeGetMaskyooCallsReport(
     if (category && category !== "all") {
       prevQuery.eq("category", category);
     }
-    const { data: prev } = await prevQuery;
+    const { data: prev, error: previousError } = await prevQuery;
+    if (previousError) {
+      throw previousError;
+    }
     prevRows = (prev || []).map((p) => ({
       client_id: p.client_id,
       category: p.category,
