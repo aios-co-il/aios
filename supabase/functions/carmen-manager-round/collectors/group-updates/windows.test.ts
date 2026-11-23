@@ -17,14 +17,15 @@ const messages = [
   message("a", "2026-10-31T23:00:00Z", "לפני הרצפה"),
   message("b", "2026-11-01T09:00:00Z", "מתי עולה הקמפיין?"),
   message("c", "2026-11-01T09:05:00Z", "עולה מחר בבוקר", { key: STAFF_KEY }),
-  message("d", "2026-11-01T09:10:00Z", "שלחתי מהמערכת", {
+  message("d", "2026-11-01T09:10:00Z", "שלחתי מהטלפון של הקו", {
     out: true,
     key: null,
+    typedOnPhone: true,
   }),
   message("e", "2026-11-01T09:15:00Z", "[תמונה]", { key: null }),
 ];
 
-/** An automated lead notification sent from a monitored line. */
+/** A lead notification an outside automation sent through a line's API. */
 function lead(id: string, at: string) {
   return message(id, at, "ליד מקמפיין פייסבוק: - עברית\nשם מלא: נועה", {
     out: true,
@@ -56,7 +57,7 @@ Deno.test("groupWindows", async (t) => {
   );
 
   await t.step(
-    "a lead notification is left out but still moves the watermark",
+    "an automated send is left out but still moves the watermark",
     () => {
       const [mixed] = groupWindows(
         [
