@@ -4,13 +4,18 @@
  * request that publishes it. The repository's CI decides what merges; she never merges.
  */
 
+import { treeEntries } from "./repo-tree.ts";
+
 export interface LandingRepo {
   /** A file on the default branch, or null when it is not there. */
   readFile(path: string): Promise<string | null>;
-  /** Puts `files` on `branch` as one commit on top of the default branch; returns the commit. */
+  /**
+   * Puts `files` on `branch` as one commit on top of the default branch; returns the commit. A
+   * file is text, or bytes for a picture or a video.
+   */
   pushFiles(
     branch: string,
-    files: Record<string, string>,
+    files: Record<string, string | Uint8Array>,
     message: string,
   ): Promise<string>;
   /** The address of the preview built for `commit`, or null while it is still building. */
@@ -95,12 +100,13 @@ export function githubLandingRepo(options: {
       };
       const tree = (await call("POST", "/git/trees", {
         base_tree: parent.tree.sha,
-        tree: Object.entries(files).map(([path, content]) => ({
-          path,
-          mode: "100644",
-          type: "blob",
-          content,
-        })),
+        tree: await treeEntries(files, async (content) => {
+          const made = (await call("POST", "/git/blobs", {
+            content,
+            encoding: "base64",
+          })) as { sha: string };
+          return made.sha;
+        }),
       })) as { sha: string };
       const commit = (await call("POST", "/git/commits", {
         message,

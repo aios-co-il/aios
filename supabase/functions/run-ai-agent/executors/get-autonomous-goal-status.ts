@@ -1,6 +1,7 @@
-import type { GetAutonomousGoalStatusArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { getGoalExecutionReport } from "../../_shared/goal-execution.ts";
+
+type GetAutonomousGoalStatusArgs = { goal_id: string };
 
 /** Preserves the existing get_autonomous_goal_status executor and side-effect order. */
 export async function executeGetAutonomousGoalStatus(

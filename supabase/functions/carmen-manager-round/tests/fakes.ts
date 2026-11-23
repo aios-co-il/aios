@@ -35,6 +35,7 @@ export function deps(
         phone,
       });
     },
+    cardDraftsLink: () => Promise.resolve(null),
     collectors,
     clock: () => w.now,
   };

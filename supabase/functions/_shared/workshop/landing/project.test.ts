@@ -171,6 +171,16 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "every turn tells Carmen where a feature beyond the sections goes",
+  () => {
+    assertStringIncludes(
+      landingTurnLines(landing({}))[0],
+      "aios-co-il/landing-pages",
+    );
+  },
+);
+
 Deno.test("landingTurnLines names the next step at every stage", () => {
   /** The line that names the next step for a project in the given state. */
   function next(state: Record<string, unknown>) {

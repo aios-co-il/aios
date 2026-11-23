@@ -6,6 +6,8 @@ import {
   digest,
   fakeRepo,
   landingDb,
+  pushedJson,
+  type Loose,
   OUR_SITE,
   run,
   savedLanding,
@@ -23,7 +25,7 @@ Deno.test(
     assertEquals(pushes.length, 1);
     assertEquals(pushes[0].branch, "page/acme/offer");
     assertEquals(
-      JSON.parse(pushes[0].files["landing-pages/acme/offer/page.json"]).status,
+      pushedJson(pushes[0].files, "landing-pages/acme/offer/page.json").status,
       "draft",
     );
     assertStringIncludes(
@@ -140,5 +142,126 @@ Deno.test(
       db.calls.some((call) => call.op === "update"),
       false,
     );
+  },
+);
+
+Deno.test(
+  "a picture from the project's assets is copied into the page and shown in the hero",
+  async () => {
+    const id = "11111111-2222-4333-8444-555555555555";
+    const db = landingDb({
+      ...approved,
+      blocks: [{ ...blocks[0], imageUrl: `asset:${id}` }, blocks[1]],
+    });
+    db.script["workshop_assets:select"] = {
+      asset_type: "image",
+      storage_path: "tenant-1/workshop/item-1/1_photo.png",
+    };
+    (db as Loose).storage = {
+      from: () => ({
+        download: () =>
+          Promise.resolve({
+            data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7])]),
+            error: null,
+          }),
+      }),
+    };
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json": OUR_SITE,
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    const files = pushes[0].files;
+    const hero = pushedJson(files, "landing-pages/acme/offer/content.json")
+      .blocks[0];
+    assertEquals(
+      hero.imageUrl,
+      "assets/asset-11111111222243338444555555555555.png",
+    );
+    assertEquals(
+      files[
+        "landing-pages/acme/offer/assets/asset-11111111222243338444555555555555.png"
+      ],
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 7]),
+    );
+  },
+);
+
+Deno.test(
+  "a changed file behind the same asset changes the build, so publish never ships unseen media",
+  async () => {
+    const digests = [];
+    for (const byte of [7, 8]) {
+      const db = assetBuildDb(byte);
+      const { repo } = fakeRepo({ "landing-pages/acme/site.json": OUR_SITE });
+      await run(db, "workshop_build_landing_page", repo);
+      digests.push(savedLanding(db).build.digest);
+    }
+    assertEquals(digests[0] === digests[1], false);
+  },
+);
+
+/** A project whose hero shows an uploaded picture with the given single byte. */
+function assetBuildDb(byte: number) {
+  const id = "11111111-2222-4333-8444-555555555555";
+  const db = landingDb({
+    ...approved,
+    blocks: [{ ...blocks[0], imageUrl: `asset:${id}` }, blocks[1]],
+  });
+  db.script["workshop_assets:select"] = {
+    asset_type: "image",
+    storage_path: "tenant-1/workshop/item-1/1_photo.png",
+  };
+  (db as Loose).storage = {
+    from: () => ({
+      download: () =>
+        Promise.resolve({
+          data: new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, byte])]),
+          error: null,
+        }),
+    }),
+  };
+  return db;
+}
+
+Deno.test(
+  "new tracking ids in AIOS rebuild with site.json, keeping its other keys",
+  async () => {
+    const db = landingDb(
+      { ...approved, build: built },
+      {},
+      { ga4_id: "G-ABC1234" },
+    );
+    const site = {
+      tenantId: "tenant-1",
+      clientId: "client-1",
+      leads: { destination: "webhook" },
+      tracking: { gtmId: "GTM-NVKZTXH3" },
+    };
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json": JSON.stringify(site),
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    assertEquals(pushes.length, 1);
+    assertEquals(pushedJson(pushes[0].files, "landing-pages/acme/site.json"), {
+      ...site,
+      tracking: { ga4Id: "G-ABC1234" },
+    });
+    // The site.json is part of what the user approves, so the build is a new one.
+    assertEquals(savedLanding(db).build.digest === digest, false);
+  },
+);
+
+Deno.test(
+  "tracking the repository already holds leaves site.json out of the build",
+  async () => {
+    const db = landingDb(approved, {}, { gtm_id: "GTM-NVKZTXH3" });
+    const { repo, pushes } = fakeRepo({
+      "landing-pages/acme/site.json":
+        '{"tracking":{"gtmId":"GTM-NVKZTXH3"},"clientId":"client-1","tenantId":"tenant-1"}',
+    });
+    await run(db, "workshop_build_landing_page", repo);
+    assertEquals("landing-pages/acme/site.json" in pushes[0].files, false);
+    // The tags a publish makes live are part of what the user approves, written or not.
+    assertEquals(savedLanding(db).build.digest === digest, false);
   },
 );

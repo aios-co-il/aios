@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect, ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Pin, PinOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { applyColumnOrder } from "./resizableTableColumnOrder";
+import { useColumnReorder } from "./useColumnReorder";
 import {
   applyLeadTableColumnWidths,
   LEAD_TABLE_COLUMN_MIN_WIDTH,
@@ -37,6 +40,10 @@ interface ResizableTableProps {
   getStickyCellClassName?: (row: any, rowIndex: number) => string;
   /** When set, resized widths are restored on the next CRM visit. */
   columnWidthStorageKey?: string;
+  /** Saved column-id order; columns it does not list keep their default place. */
+  columnOrder?: Array<string>;
+  /** When set, headers drag to reorder and this receives the new order. */
+  onColumnOrderChange?: (order: Array<string>) => void;
 }
 
 export function ResizableTable({
@@ -47,6 +54,8 @@ export function ResizableTable({
   getRowClassName,
   getStickyCellClassName,
   columnWidthStorageKey,
+  columnOrder,
+  onColumnOrderChange,
 }: ResizableTableProps) {
   const [columns, setColumns] = useState<ColumnConfig[]>(() => {
     if (!columnWidthStorageKey || typeof window === "undefined")
@@ -181,8 +190,24 @@ export function ResizableTable({
     [columns, updateColumn],
   );
 
-  const stickyColumns = columns.filter((c) => c.sticky);
-  const regularColumns = columns.filter((c) => !c.sticky);
+  const { dragId, overId, getHeaderDragProps } =
+    useColumnReorder(onColumnOrderChange);
+  const orderedColumns = columnOrder
+    ? applyColumnOrder(columns, columnOrder)
+    : columns;
+  const stickyColumns = orderedColumns.filter((c) => c.sticky);
+  const regularColumns = orderedColumns.filter((c) => !c.sticky);
+  // The order as rendered (pinned first), so a saved drop matches the screen.
+  const displayedIds = [...stickyColumns, ...regularColumns].map((c) => c.id);
+  function headerDragClassName(columnId: string) {
+    return cn(
+      onColumnOrderChange && "cursor-grab active:cursor-grabbing",
+      dragId === columnId && "opacity-50",
+      overId === columnId &&
+        dragId !== columnId &&
+        "outline outline-2 -outline-offset-2 outline-primary",
+    );
+  }
 
   const getStickyOffset = (columnId: string) => {
     const stickyIndex = stickyColumns.findIndex((c) => c.id === columnId);
@@ -213,7 +238,11 @@ export function ResizableTable({
               return (
                 <th
                   key={column.id}
-                  className="group relative sticky z-20 overflow-hidden border-l border-border/60 bg-muted px-3 py-2 text-right"
+                  {...getHeaderDragProps(column.id, displayedIds, "pinned")}
+                  className={cn(
+                    "group relative sticky z-20 overflow-hidden border-l border-border/60 bg-muted px-3 py-2 text-right",
+                    headerDragClassName(column.id),
+                  )}
                   style={{
                     width: column.width,
                     minWidth: column.minWidth || 80,
@@ -255,7 +284,11 @@ export function ResizableTable({
             {regularColumns.map((column) => (
               <th
                 key={column.id}
-                className="group relative border-l border-border/60 bg-muted px-3 py-2 text-right"
+                {...getHeaderDragProps(column.id, displayedIds, "regular")}
+                className={cn(
+                  "group relative border-l border-border/60 bg-muted px-3 py-2 text-right",
+                  headerDragClassName(column.id),
+                )}
                 style={{ width: column.width }}
               >
                 <div className="flex items-center justify-between gap-2">

@@ -67,17 +67,3 @@ export async function monitoredLines(
     skipped: all.length - ids.length,
   };
 }
-
-/** The tenant's URL slug, for links into its Chat page. */
-export async function tenantSlug(
-  db: DbClient,
-  tenantId: string,
-): Promise<string | null> {
-  const { data, error } = await db
-    .from("tenants")
-    .select("slug")
-    .eq("id", tenantId)
-    .maybeSingle();
-  throwIf(error, "tenants");
-  return data?.slug ?? null;
-}

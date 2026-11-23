@@ -33,6 +33,8 @@ export interface UserRowActions {
   viewAs: (user: ManagedUser) => void;
   resendInvite: (user: ManagedUser) => void;
   deleteUser: (user: ManagedUser) => void;
+  /** Adds the user to another organization; absent when there is none to offer. */
+  assignTenant?: (user: ManagedUser) => void;
 }
 
 /** Shared inputs for the desktop table and the mobile cards. */

@@ -1,6 +1,12 @@
-import type { ListOnboardingArgs } from "./onboarding-inputs.ts";
+import type { AgentRow } from "../database-contracts.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { OnboardingListRow } from "../tool-contracts-marketing.ts";
+
+type ListOnboardingArgs = {
+  status?: AgentRow<"client_onboarding">["status"];
+  limit?: number;
+};
 
 /** Preserves the existing list_onboarding executor and side-effect order. */
 export async function executeListOnboarding(
