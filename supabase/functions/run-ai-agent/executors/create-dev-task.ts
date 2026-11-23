@@ -1,8 +1,27 @@
-import type { CreateDevTaskArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { resolveDevTaskActorUserId } from "../../_shared/dev-escalation-auth.ts";
 import { findDuplicateDevTasks } from "../../_shared/dev-tasks.ts";
 import { createDevTask } from "../../_shared/dev-tasks.ts";
+
+type CreateDevTaskArgs = {
+  source_conversation_id?: string;
+  title: string;
+  problem?: string;
+  expected_behavior?: string;
+  current_behavior?: string;
+  scope?: string;
+  affected_areas?: string;
+  constraints?: string;
+  acceptance_criteria?: string;
+  base_branch?: string;
+  environment?: string;
+  requested_by?: string;
+  priority?: "urgent" | "high" | "normal" | "low";
+  assigned_agent?: "cursor" | "grok" | "manus" | "claude";
+  dedup_of?: string;
+  goal_id?: string;
+  source_message?: string;
+};
 
 /** Preserves the existing create_dev_task executor and side-effect order. */
 export async function executeCreateDevTask(

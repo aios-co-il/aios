@@ -1,9 +1,17 @@
-import type {
-  ClientToolContext,
-  ClientRecordRequest,
-} from "./client-contracts.ts";
+import type { ClientToolContext } from "./client-contracts.ts";
 import type { TablesUpdate } from "../../_shared/database.types.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type ClientRecordRequest =
+  | {
+      name: "create_client";
+      args: ClientFields & { name: string; agency_id?: string };
+    }
+  | { name: "update_client"; args: ClientFields & { client_id: string } }
+  | {
+      name: "update_client_status";
+      args: { client_id: string; status: NonNullable<ClientFields["status"]> };
+    };
 
 /** Executes client record operations without changing guard order. */
 export async function executeClientRecordTool(

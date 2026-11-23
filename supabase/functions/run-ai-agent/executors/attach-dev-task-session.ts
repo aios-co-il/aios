@@ -1,6 +1,11 @@
-import type { AttachDevTaskSessionArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { attachDevTaskSession } from "../../_shared/dev-tasks.ts";
+
+type AttachDevTaskSessionArgs = {
+  dev_task_id: string;
+  cursor_session_id: string;
+  cursor_session_url?: string;
+};
 
 /** Preserves the existing attach_dev_task_session executor and side-effect order. */
 export async function executeAttachDevTaskSession(

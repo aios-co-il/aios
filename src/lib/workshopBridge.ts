@@ -151,6 +151,7 @@ const TOOL_LABELS: Record<string, string> = {
   workshop_check_connections: "בודקת אילו מפתחות מחוברים",
   workshop_inspect_site: "קוראת את האתר",
   workshop_add_assets: "מוסיפה נכסים לפרויקט",
+  workshop_import_file: "מוסיפה קובץ מוכן ללוח",
 };
 
 /** The line shown in the chat while a workshop tool runs; other tools keep their own name. */

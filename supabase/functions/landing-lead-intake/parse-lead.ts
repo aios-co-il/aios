@@ -5,6 +5,9 @@ export interface LandingLead {
   name: string;
   phone: string;
   email: string | null;
+  /** The form's optional answers (landing-pages `form.fields`); null when the form did not ask. */
+  company: string | null;
+  employees: string | null;
 }
 
 const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -17,10 +20,8 @@ export function parseLandingLead(body: unknown): LandingLead | null {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return null;
   }
-  const { subdomain, slug, name, phone, email } = body as Record<
-    string,
-    unknown
-  >;
+  const { subdomain, slug, name, phone, email, company, employees } =
+    body as Record<string, unknown>;
   if (typeof subdomain !== "string" || !SUBDOMAIN.test(subdomain)) {
     return null;
   }
@@ -41,11 +42,34 @@ export function parseLandingLead(body: unknown): LandingLead | null {
     return null;
   }
 
+  const extra = {
+    company: optionalText(company, 120),
+    employees: optionalText(employees, 40),
+  };
+  if (extra.company === undefined || extra.employees === undefined) {
+    return null;
+  }
+  const base = { subdomain, slug, name: cleanName, phone: cleanPhone };
   if (email === undefined || email === null || email === "") {
-    return { subdomain, slug, name: cleanName, phone: cleanPhone, email: null };
+    return { ...base, email: null, ...extra };
   }
   if (typeof email !== "string" || email.length > 120 || !EMAIL.test(email)) {
     return null;
   }
-  return { subdomain, slug, name: cleanName, phone: cleanPhone, email };
+  return { ...base, email, ...extra };
+}
+
+/** An optional answer: null when absent or blank, undefined (invalid) when not short text. */
+function optionalText(value: unknown, max: number): string | null | undefined {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const clean = value.trim();
+  if (clean.length > max) {
+    return undefined;
+  }
+  return clean || null;
 }

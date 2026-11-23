@@ -1,10 +1,26 @@
-import type {
-  ClientToolContext,
-  ClientAccessRequest,
-} from "./client-contracts.ts";
+import type { ClientToolContext } from "./client-contracts.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import type { AgentRow } from "../database-contracts.ts";
 import { addClientUpdateFromCarmen } from "../carmen-client-card-tools.ts";
+
+type ClientAccessRequest =
+  | {
+      name: "get_client_info";
+      args: { client_id: string; all_scopes?: boolean };
+    }
+  | {
+      name: "add_client_update";
+      args: { client_id: string; content: unknown; update_type?: unknown };
+    }
+  | {
+      name: "set_campaign_table_active";
+      args: {
+        client_id?: string;
+        table_id?: string;
+        table_name?: string;
+        active: boolean;
+      };
+    };
 
 /** Executes client access and card operations without changing guard order. */
 export async function executeClientAccessTool(

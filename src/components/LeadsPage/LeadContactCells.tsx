@@ -1,4 +1,5 @@
 import { Building2, Phone } from "lucide-react";
+import { LeadContactLink } from "./LeadContactLink";
 
 /** The lead's name with an initials avatar; opens the lead record. */
 export function LeadNameCell({
@@ -28,21 +29,22 @@ export function LeadNameCell({
   );
 }
 
-/** A dialable phone number, kept left-to-right inside the RTL row. */
+/** A phone number, kept left-to-right inside the RTL row; click to call or copy. */
 export function LeadPhoneCell({ phone }: { phone: string | null | undefined }) {
   if (!phone) {
     return <span className="text-muted-foreground">-</span>;
   }
   return (
-    <a
-      href={`tel:${phone}`}
+    <LeadContactLink
+      kind="phone"
+      value={phone}
       className="flex min-w-0 items-center gap-1.5 text-foreground hover:text-brand-accent-700 dark:hover:text-brand-accent-300"
     >
       <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       <span dir="ltr" className="truncate tabular-nums">
         {phone}
       </span>
-    </a>
+    </LeadContactLink>
   );
 }
 

@@ -1,8 +1,5 @@
-import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
-import {
-  googleCampaignNames,
-  namesCampaignsByDestination,
-} from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
+import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
@@ -122,8 +119,13 @@ import {
   formatCurrency as formatCurrencyAmount,
   formatUnitCost as formatUnitCostAmount,
   getCurrencySymbol,
-  resolveDashboardCurrency,
 } from "@/lib/currency";
+import {
+  currencyOfSource,
+  resolveDashboardCurrencies,
+  spendKeyOf,
+} from "@/lib/dashboardCurrencies";
+import { dashboardMoneyView } from "@/components/dynamic-tables/dashboardMoneyView";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import { getDashboardDateRange } from "@/lib/dashboardDateFilters";
 import { formatReportDate, getReportCoverageGap } from "@/lib/reportCoverage";
@@ -670,10 +672,13 @@ export default function DashboardView() {
   }, [tables, hasSeoReports, hasWooCommerce]);
 
   // Travel accounts name each campaign by its destination; they get a tab per continent.
-  const hasContinentsTab = useMemo(
-    () => namesCampaignsByDestination(googleCampaignNames(displayAllRecords)),
+  // Meta and Google each earn a continents view when their campaign names
+  // name destinations; the tab shows when either does.
+  const continentsBy = useMemo(
+    () => continentPlatforms(displayAllRecords),
     [displayAllRecords],
   );
+  const hasContinentsTab = continentsBy.facebook || continentsBy.google;
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
@@ -706,13 +711,13 @@ export default function DashboardView() {
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
-      if (hasContinentsTab) {
-        items.push({
-          value: "continents",
-          label: "לפי יבשות",
-          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
-        });
-      }
+    }
+    if (hasContinentsTab) {
+      items.push({
+        value: "continents",
+        label: "לפי יבשות",
+        iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+      });
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -1049,6 +1054,13 @@ export default function DashboardView() {
       .sort((a, b) => b.sessions - a.sessions);
   }, [displayAllRecords]);
 
+  // Each ads platform keeps its account's currency; amounts are never added
+  // across currencies (resolveDashboardCurrencies).
+  const currencies = useMemo(
+    () => resolveDashboardCurrencies(tables),
+    [tables],
+  );
+
   // Daily chart data
   const dailyChartData = useMemo(() => {
     const byDate: Record<string, any> = {};
@@ -1079,7 +1091,10 @@ export default function DashboardView() {
         byDate[date].addToCart += getAddToCartFromData(data);
         byDate[date].sessions += getSessionsFromData(data);
       } else if (isAdsPlatform(source)) {
+        const spendKey = spendKeyOf(currencyOfSource(currencies, source));
         byDate[date].spend += getSpendFromData(data);
+        byDate[date][spendKey] =
+          (byDate[date][spendKey] ?? 0) + getSpendFromData(data);
         byDate[date].clicks += Number(data.clicks) || 0;
         byDate[date].impressions += Number(data.impressions) || 0;
         byDate[date].leads += dashboardRecordLeads(record, recordGoalOf);
@@ -1099,7 +1114,7 @@ export default function DashboardView() {
         }),
         roas: d.spend > 0 ? d.revenue / d.spend : 0,
       }));
-  }, [filteredRecords, recordGoalOf]);
+  }, [filteredRecords, recordGoalOf, currencies]);
 
   // Get raw records and fields for platform-specific tabs
   const platformRawData = useMemo(() => {
@@ -1145,7 +1160,9 @@ export default function DashboardView() {
   const facebookCampaignGroups = useMemo(
     () =>
       dashboardFacebookCampaigns(
-        platformFilter === "facebook" || platformFilter === "all"
+        platformFilter === "facebook" ||
+          platformFilter === "all" ||
+          platformFilter === "continents"
           ? filteredRecords
           : [],
         recordGoalOf,
@@ -1223,15 +1240,24 @@ export default function DashboardView() {
     [dashboard?.settings, tables],
   );
 
-  // Display currency follows ads report settings (e.g. USD Google Ads), not a hard-coded ₪.
-  const dashboardCurrency = useMemo(
-    () => resolveDashboardCurrency(tables),
-    [tables],
-  );
+  // Amounts outside one platform (store, Analytics) follow the dashboard's
+  // primary currency; each platform's own amounts use its account's.
+  const dashboardCurrency = currencies.primary;
   const formatCurrency = (num: number) =>
     formatCurrencyAmount(num, dashboardCurrency);
   const formatUnitCost = (num: number) =>
     formatUnitCostAmount(num, dashboardCurrency);
+  const money = dashboardMoneyView({
+    currencies,
+    spendBySource: Object.entries(summaryByPlatform).map(([source, data]) => ({
+      source,
+      spend: data.spend,
+    })),
+    goals: dashboardGoals,
+    store,
+    totalSpend: totalSummary.spend,
+    leadCpl: combinedLeads.cpl,
+  });
 
   // Group records by date for table
   const recordsByDate = useMemo(() => {
@@ -1666,16 +1692,28 @@ export default function DashboardView() {
       ) : (
         <>
           {platformFilter === "continents" ? (
-            <CampaignContinentsTab
-              campaigns={googleAdsSummary.campaigns}
-              formatCurrency={formatCurrency}
-              formatNumber={formatNumber}
-              formatUnitCost={formatUnitCost}
+            <DashboardContinentsView
+              platforms={continentsBy}
+              facebook={{
+                campaigns: facebookCampaignGroups,
+                records: filteredRecords,
+                tables,
+                formatNumber,
+                ...money.facebook,
+              }}
+              google={{
+                campaigns: googleAdsSummary.campaigns,
+                formatNumber,
+                ...money.google,
+              }}
             />
           ) : platformFilter === "weekly" ? (
             <WeeklyCampaignComparison
               records={weeklyRecords}
               currency={getCurrencySymbol(dashboardCurrency)}
+              currencyOf={(source) =>
+                getCurrencySymbol(currencyOfSource(currencies, source))
+              }
               isLoading={weeklyRecordsPending}
               tables={tables}
               sourceModes={weeklySourceModesForTables(tables)}
@@ -1739,7 +1777,8 @@ export default function DashboardView() {
               <DashboardTrackedEvents
                 records={displayAllRecords}
                 settings={dashboard?.settings}
-                adsSpend={globalAdsMetrics.spend}
+                // Spend in several currencies has no single cost per event.
+                adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
                 formatCurrency={formatCurrency}
                 formatNumber={formatNumber}
                 source={dashboardId ? { dashboardId } : null}
@@ -1763,7 +1802,7 @@ export default function DashboardView() {
                 <GoalReportOverview
                   current={reportCurrent}
                   previous={comparePrevious ? reportPrevious : null}
-                  currency={dashboardCurrency}
+                  currencies={currencies}
                   askCarmen
                 />
               )}
@@ -1779,6 +1818,8 @@ export default function DashboardView() {
                     icon: getIntegrationIcon(platform),
                   })}
                   format={{ formatCurrency, formatNumber, formatUnitCost }}
+                  currencies={currencies}
+                  hasStore={store !== null}
                 />
               )}
               {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
@@ -1787,7 +1828,7 @@ export default function DashboardView() {
                     <ReportKpiCard
                       icon={Wallet}
                       label="הוצאה כוללת"
-                      value={formatCurrency(totalSummary.spend)}
+                      value={money.totalSpendText}
                     />
                   )}
 
@@ -1821,7 +1862,7 @@ export default function DashboardView() {
                         <ReportKpiCard
                           icon={Tag}
                           label="עלות לליד (CPL)"
-                          value={formatCurrency(combinedLeads.cpl)}
+                          value={money.leadCplText}
                         />
                       )}
 
@@ -1883,6 +1924,7 @@ export default function DashboardView() {
                         <CombinedRoasCard
                           sales={combinedSales}
                           formatCurrency={formatCurrency}
+                          money={money.salesMoney}
                         />
                       )}
                     </>
@@ -1908,7 +1950,7 @@ export default function DashboardView() {
                         <ReportKpiCard
                           icon={Tag}
                           label="עלות לליד (CPL)"
-                          value={formatCurrency(combinedLeads.cpl)}
+                          value={money.leadCplText}
                         />
                       )}
 
@@ -1930,9 +1972,9 @@ export default function DashboardView() {
                   records={filteredRecords}
                   tables={tables}
                   previous={comparePrevious ? previousTabs.facebook : null}
-                  formatCurrency={formatCurrency}
+                  formatCurrency={money.facebook.formatCurrency}
                   formatNumber={formatNumber}
-                  formatUnitCost={formatUnitCost}
+                  formatUnitCost={money.facebook.formatUnitCost}
                 />
               )}
 
@@ -1940,9 +1982,9 @@ export default function DashboardView() {
                 <GoogleAdsCampaignSection
                   summary={googleAdsSummary}
                   icon={getIntegrationIcon("google_ads")}
-                  formatCurrency={formatCurrency}
+                  formatCurrency={money.google.formatCurrency}
                   formatNumber={formatNumber}
-                  formatUnitCost={formatUnitCost}
+                  formatUnitCost={money.google.formatUnitCost}
                   woo={useGoogleWooOverlay ? googleWooAttribution : null}
                   previous={comparePrevious ? previousTabs.google : null}
                 />
@@ -2004,7 +2046,13 @@ export default function DashboardView() {
                                           "cost_per_lead",
                                         ].includes(field.key)
                                       ) {
-                                        displayVal = formatCurrency(val);
+                                        displayVal = formatCurrencyAmount(
+                                          val,
+                                          currencyOfSource(
+                                            currencies,
+                                            platformFilter,
+                                          ),
+                                        );
                                       } else if (
                                         [
                                           "roas",
@@ -2067,6 +2115,7 @@ export default function DashboardView() {
                     icon: getIntegrationIcon(platform),
                   })}
                   format={{ formatCurrency, formatNumber, formatUnitCost }}
+                  currencies={currencies}
                 />
               )}
 
@@ -2297,7 +2346,9 @@ export default function DashboardView() {
                               <XAxis dataKey="dateLabel" fontSize={12} />
                               <YAxis fontSize={12} />
                               <Tooltip
-                                formatter={(v: number) => formatCurrency(v)}
+                                formatter={(v: number, _name, item) =>
+                                  money.formatChartAmount(v, item.dataKey)
+                                }
                               />
                               <Legend />
                               {showAnalyticsCards && (
@@ -2310,13 +2361,7 @@ export default function DashboardView() {
                                   fillOpacity={0.3}
                                 />
                               )}
-                              {showAdsCards && (
-                                <Bar
-                                  dataKey="spend"
-                                  name="הוצאה"
-                                  fill="#3b82f6"
-                                />
-                              )}
+                              {showAdsCards && money.spendBars()}
                             </ComposedChart>
                           </ResponsiveContainer>
                         </CardContent>
@@ -2364,13 +2409,11 @@ export default function DashboardView() {
                               <XAxis dataKey="dateLabel" fontSize={12} />
                               <YAxis fontSize={12} />
                               <Tooltip
-                                formatter={(v: number) => formatCurrency(v)}
+                                formatter={(v: number, _name, item) =>
+                                  money.formatChartAmount(v, item.dataKey)
+                                }
                               />
-                              <Bar
-                                dataKey="spend"
-                                name="הוצאה"
-                                fill="#3b82f6"
-                              />
+                              {money.spendBars()}
                             </BarChart>
                           </ResponsiveContainer>
                         </CardContent>
