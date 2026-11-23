@@ -1,4 +1,4 @@
-import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useUserRole } from "./useUserRole";
@@ -31,14 +31,18 @@ export function useUserPermissions() {
     isError: permissionsError,
     isFetchedAfterMount: permissionsFetchedAfterMount,
   } = useQuery({
-    queryKey: ["user-permissions", userId],
+    queryKey: ["user-permissions", userId, tenantId],
     queryFn: async () => {
-      if (!userId) return { permissions: null, hasAnyPermissions: false };
+      if (!userId || !tenantId) {
+        return { tenantId, permissions: null, hasAnyPermissions: false };
+      }
 
+      // Modules are granted per tenant: read only the active tenant's.
       const { data, error } = await supabase
         .from("user_permissions")
         .select("module, can_access")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId);
 
       if (error) {
         console.error("Error fetching permissions:", error);
@@ -51,6 +55,7 @@ export function useUserPermissions() {
       });
 
       return {
+        tenantId,
         permissions: permissionsMap,
         hasAnyPermissions: !!data && data.length > 0,
       };
@@ -58,7 +63,10 @@ export function useUserPermissions() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
+    // Keep the previous result only within the same tenant: after a switch,
+    // the other tenant's modules must not show while the new ones load.
+    placeholderData: (previous) =>
+      previous?.tenantId === tenantId ? previous : undefined,
   });
 
   // Block only on first load — keep using cached permissions during background refetch.

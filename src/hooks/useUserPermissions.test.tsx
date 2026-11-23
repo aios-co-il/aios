@@ -31,11 +31,24 @@ describe("useUserPermissions finance access", () => {
   });
 });
 
+describe("useUserPermissions modules", () => {
+  it("reads only the active tenant's modules", async () => {
+    const { result } = renderPermissions();
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(db.filters).toEqual([
+      ["user_id", "user-1"],
+      ["tenant_id", "tenant-1"],
+    ]);
+  });
+});
+
 type Answer = { data: boolean | null; error: { message: string } | null };
 
 const db = vi.hoisted(() => {
   const state = {
     rpcCalls: [] as { name: string; args: unknown }[],
+    filters: [] as Array<[string, unknown]>,
     pending: [] as ((answer: Answer) => void)[],
     answer(access: { read: boolean; write: boolean }) {
       state.rpcCalls.forEach((call, index) => {
@@ -56,6 +69,7 @@ const db = vi.hoisted(() => {
 beforeEach(() => {
   db.rpcCalls = [];
   db.pending = [];
+  db.filters = [];
 });
 
 function renderPermissions() {
@@ -64,9 +78,14 @@ function renderPermissions() {
 }
 
 vi.mock("@/integrations/supabase/client", () => {
+  const result = Promise.resolve({ data: [], error: null });
   const permissionsQuery = {
     select: () => permissionsQuery,
-    eq: () => Promise.resolve({ data: [], error: null }),
+    eq: (column: string, value: unknown) => {
+      db.filters.push([column, value]);
+      return permissionsQuery;
+    },
+    then: result.then.bind(result),
   };
   return {
     supabase: {
