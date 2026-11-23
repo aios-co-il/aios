@@ -75,6 +75,24 @@ BEGIN
   END IF;
   RESET ROLE;
 
+  -- A member inserts with the owner's connection id and skips the conflict:
+  -- refused, and the owner's tokens and tenant stay.
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    INSERT INTO public.tenant_integrations (id, tenant_id, user_id, integration_type, api_key)
+    VALUES (google_id, tenant_id_, member_id, 'google_search_console', 'stolen')
+    ON CONFLICT (id) DO NOTHING;
+    failures := failures || 'a member''s insert with the owner''s connection id was accepted';
+  EXCEPTION WHEN unique_violation THEN
+    NULL;
+  END;
+  RESET ROLE;
+  SELECT access_token || '/' || tenant_id::text INTO got
+  FROM public.integration_secrets WHERE integration_id = google_id;
+  IF got IS DISTINCT FROM 'access-1/' || tenant_id_::text THEN
+    failures := failures || format('a member''s conflicting insert changed the secrets: got %s', coalesce(got, 'no row'));
+  END IF;
+
   SELECT refresh_token INTO got FROM public.integration_secrets WHERE integration_id = google_id;
   IF got IS DISTINCT FROM 'refresh-1' THEN
     failures := failures || format('a save without a token dropped it: got %s, want refresh-1', coalesce(got, 'null'));
