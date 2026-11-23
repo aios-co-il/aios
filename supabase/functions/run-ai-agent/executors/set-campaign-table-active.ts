@@ -10,13 +10,33 @@ type SetCampaignTableActiveArgs = {
 
 /** Preserves the existing set_campaign_table_active executor and side-effect order. */
 export async function executeSetCampaignTableActive(
-  args: SetCampaignTableActiveArgs,
+  args: SetCampaignTableActiveArgs & {
+    all_scopes?: boolean;
+    content?: unknown;
+    update_type?: unknown;
+  },
   context: ToolExecutionContext,
 ) {
+  if (context.name === "get_client_info") {
+    if (!args.client_id) {
+      throw new Error("client_id required");
+    }
+    return executeClientAccessTool(
+      { name: context.name, args: { ...args, client_id: args.client_id } },
+      context,
+    );
+  }
+  if (context.name === "add_client_update") {
+    if (!args.client_id) {
+      throw new Error("client_id required");
+    }
+    return executeClientAccessTool(
+      { name: context.name, args: { ...args, client_id: args.client_id } },
+      context,
+    );
+  }
   return executeClientAccessTool(
-    { name: context.name, args } as Parameters<
-      typeof executeClientAccessTool
-    >[0],
+    { name: "set_campaign_table_active", args },
     context,
   );
 }

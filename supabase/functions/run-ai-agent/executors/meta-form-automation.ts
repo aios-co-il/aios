@@ -1,10 +1,9 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
-import type { AgentRow } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
 
 /** Preserves the existing findAutomationForMetaForm behavior at its extracted boundary. */
 export async function findAutomationForMetaForm(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantIds: Array<string>,
   automationId?: unknown,
   automationName?: unknown,
@@ -17,13 +16,7 @@ export async function findAutomationForMetaForm(
   if (automationId) {
     query = query.eq("id", String(automationId));
   }
-  const { data, error } = await query.order("name").limit(100).returns<
-    Array<
-      Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
-        tenant_id: string | null;
-      }
-    >
-  >();
+  const { data, error } = await query.order("name").limit(100);
   if (error) {
     throw error;
   }

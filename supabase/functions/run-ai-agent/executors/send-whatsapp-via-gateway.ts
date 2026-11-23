@@ -1,3 +1,5 @@
+import { assertGatewayLineAccess } from "./gateway-line-access.ts";
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { defaultGatewayLine } from "../whatsapp-lines.ts";
 
@@ -12,8 +14,7 @@ export async function executeSendWhatsappViaGateway(
   args: SendWhatsappViaGatewayArgs,
   context: ToolExecutionContext,
 ) {
-  const { supabase, tenantId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } =
-    context;
+  const { supabase, tenantId } = context;
 
   const integrationId =
     args.integrationId || (await defaultGatewayLine(supabase, tenantId));
@@ -23,20 +24,14 @@ export async function executeSendWhatsappViaGateway(
         "לארגון אין קו manus_wa פעיל לשליחת וואטסאפ. אפשר לחבר קו בהגדרות האינטגרציות.",
     };
   }
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
-      action: "send_message",
-      integrationId,
-      phone: args.phone,
-      message: args.message,
-    }),
+  await assertGatewayLineAccess(context, integrationId, true);
+  const res = await invokeExecutorFunction(supabase, "manage-manus-wa", {
+    action: "send_message",
+    integrationId,
+    phone: args.phone,
+    message: args.message,
   });
-  const data = await res.json();
+  const data = res.data;
   if (!res.ok) {
     return {
       error: data.error || `send_whatsapp_via_gateway failed [${res.status}]`,

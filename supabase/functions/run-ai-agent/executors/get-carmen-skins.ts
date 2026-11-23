@@ -26,6 +26,9 @@ export async function executeGetCarmenSkins(
       const { data, error } = await supabase.storage
         .from("entity-attachments")
         .createSignedUrl(path, 3600);
+      if (error) {
+        console.error("[get_carmen_skins] signing failed", error);
+      }
       if (!error && data?.signedUrl) {
         signed[path] = data.signedUrl;
       }

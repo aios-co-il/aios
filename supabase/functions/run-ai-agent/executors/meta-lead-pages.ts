@@ -1,5 +1,5 @@
 import type { MetaLeadPage } from "./meta-lead-types.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { metaLeadIntegrations } from "../meta-lead-integrations.ts";
 import { configuredPages } from "../meta-lead-settings.ts";
 import type { MetaNode } from "../meta-response.ts";
@@ -8,7 +8,7 @@ import { readMetaResponse } from "../meta-response.ts";
 
 /** Preserves the existing metaLeadPages behavior at its extracted boundary. */
 export async function metaLeadPages(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<Array<MetaLeadPage>> {
   const integrations = await metaLeadIntegrations(supabase, tenantId);

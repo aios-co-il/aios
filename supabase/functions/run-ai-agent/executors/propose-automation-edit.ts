@@ -29,12 +29,15 @@ export async function executeProposeAutomationEdit(
   if (!args.automation_id) {
     return { error: "automation_id נדרש" };
   }
-  const { data: auto } = await supabase
+  const { data: auto, error: lookupError } = await supabase
     .from("automations")
     .select("id, name, active")
     .eq("id", args.automation_id)
     .in("tenant_id", accessibleTenantIds)
     .maybeSingle();
+  if (lookupError) {
+    throw lookupError;
+  }
   if (!auto) {
     return { error: "אוטומציה לא נמצאה" };
   }

@@ -1,3 +1,4 @@
+import { subagentNotify } from "./subagent-notify.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { parallelTaskArgs } from "../tool-contracts-admin.ts";
 import { spawnSubagentBatch } from "../../_shared/subagent.ts";
@@ -45,10 +46,7 @@ export async function executeDelegateParallel(
       tenantId,
       taskMode: "background",
       createdBy: userId !== "system" ? userId : null,
-      notify:
-        waNotify && waNotify.surface === "whatsapp"
-          ? (waNotify as Parameters<typeof spawnSubagentBatch>[1]["notify"])
-          : null,
+      notify: subagentNotify(waNotify),
     },
     cleaned,
     batchId,

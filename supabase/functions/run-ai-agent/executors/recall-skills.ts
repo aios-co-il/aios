@@ -26,9 +26,12 @@ export async function executeRecallSkills(
       config: "simple",
     })
     .limit(limit);
+  if (error) {
+    console.error("[recall_skills] full-text search failed", error);
+  }
   let data = matchedSkills;
   if (error || !data || data.length === 0) {
-    const { data: fb } = await supabase
+    const { data: fb, error: fallbackError } = await supabase
       .from("ai_skills")
       .select(
         "id, name, description, steps, trigger_phrases, usage_count, version, last_used_at",
@@ -37,6 +40,9 @@ export async function executeRecallSkills(
       .eq("is_active", true)
       .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
       .limit(limit);
+    if (fallbackError) {
+      throw fallbackError;
+    }
     data = fb || [];
   }
   return { count: data?.length || 0, skills: data || [] };

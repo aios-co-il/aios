@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type DelegateToGithubAgentArgs = {
@@ -10,27 +11,27 @@ export async function executeDelegateToGithubAgent(
   args: DelegateToGithubAgentArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
+  const { tenantId, supabase } = context;
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/github-agent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
+  const res = await invokeExecutorFunction(
+    supabase,
+    "github-agent",
+    {
       action: args.action || "chat_support",
       tenant_id: tenantId,
       message: args.message,
-    }),
-  });
-  const txt = await res.text();
+    },
+    "text",
+  );
+  const txt =
+    typeof res.data === "string" ? res.data : JSON.stringify(res.data);
   if (!res.ok) {
     return { error: `github-agent failed [${res.status}]: ${txt}` };
   }
   try {
     return JSON.parse(txt);
-  } catch {
+  } catch (error) {
+    console.warn("[github-agent] non-JSON response", error);
     return { response: txt };
   }
 }

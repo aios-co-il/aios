@@ -18,14 +18,15 @@ export async function executeUpdateAgent(
 ) {
   const { supabase, accessibleTenantIds } = context;
 
-  const updates: Record<string, string | boolean> = {};
+  const updates: TablesUpdate<"ai_agents"> = {
+    ...(args.active !== undefined ? { active: args.active } : {}),
+  };
   for (const k of [
     "name",
     "talent",
     "personality",
     "soul",
     "engine",
-    "active",
   ] as const) {
     if (args[k] !== undefined) {
       updates[k] = args[k];
@@ -33,7 +34,7 @@ export async function executeUpdateAgent(
   }
   const { data, error } = await supabase
     .from("ai_agents")
-    .update(updates as TablesUpdate<"ai_agents">)
+    .update(updates)
     .eq("id", args.agent_id)
     .in("tenant_id", accessibleTenantIds)
     .select("id, name, active")

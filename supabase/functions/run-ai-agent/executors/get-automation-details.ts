@@ -14,15 +14,18 @@ export async function executeGetAutomationDetails(
 ) {
   const { supabase, accessibleTenantIds } = context;
 
-  let automationId = args.automation_id as string | undefined;
+  let automationId = args.automation_id;
   if (!automationId && args.name_search) {
-    const { data: found } = await supabase
+    const { data: found, error: lookupError } = await supabase
       .from("automations")
       .select("id")
       .in("tenant_id", accessibleTenantIds)
       .ilike("name", `%${args.name_search}%`)
       .limit(1)
       .maybeSingle();
+    if (lookupError) {
+      throw lookupError;
+    }
     automationId = found?.id;
   }
   if (!automationId) {
@@ -36,16 +39,22 @@ export async function executeGetAutomationDetails(
     .eq("id", automationId)
     .in("tenant_id", accessibleTenantIds)
     .maybeSingle();
-  if (error || !auto) {
+  if (error) {
+    throw error;
+  }
+  if (!auto) {
     return { error: "אוטומציה לא נמצאה" };
   }
-  const { data: steps } = await supabase
+  const { data: steps, error: stepsError } = await supabase
     .from("automation_flow_steps")
     .select(
       "id, step_type, action_type, label, configuration, sort_order, parent_step_id, condition_branch, position_x, position_y",
     )
     .eq("automation_id", automationId)
     .order("sort_order", { ascending: true });
+  if (stepsError) {
+    throw stepsError;
+  }
   const stepRows: Array<AutomationFlowStepRow> = steps || [];
   return {
     automation: auto,

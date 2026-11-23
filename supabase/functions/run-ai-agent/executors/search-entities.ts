@@ -47,10 +47,13 @@ export async function executeSearchEntities(
   if (args.entity_type === "client") {
     let clientIdsFilter: Array<string> | null = null;
     if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
-      const { data: links } = await supabase
+      const { data: links, error: linksError } = await supabase
         .from("client_team")
         .select("client_id")
         .eq("campaigner_id", callerCampaignerId);
+      if (linksError) {
+        throw linksError;
+      }
       clientIdsFilter = (links || []).map((l) => l.client_id);
       if (clientIdsFilter.length === 0) {
         return {

@@ -1,5 +1,4 @@
 import type { ToolExecutionContext } from "../tool-context.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
 import { integrationTypesFor } from "../whatsapp-lines.ts";
 
 type ListIntegrationsArgs = { type?: string; only_active?: boolean };
@@ -11,8 +10,7 @@ export async function executeListIntegrations(
 ) {
   const { supabase, accessibleTenantIds } = context;
 
-  const db: AgentDatabaseClient = supabase;
-  let q = db
+  let q = supabase
     .from("tenant_integrations")
     .select(
       "id, integration_type, is_active, settings, last_sync_at, created_at",

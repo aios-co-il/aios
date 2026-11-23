@@ -1,13 +1,20 @@
 import { assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import { executeCreateMetaLeadForm } from "./create-meta-lead-form.ts";
 import { normalizeMetaLeadQuestions } from "./meta-lead-questions.ts";
-import { executorClient } from "./test-client.ts";
+import { executorClient } from "./executor-client.test-fixture.ts";
 
 Deno.test(
   "Meta form creation checks confirmation then permission before questions and network",
   async () => {
     const fixture = executorClient([]);
-    const args = {} as Parameters<typeof executeCreateMetaLeadForm>[0];
+    const args = {
+      page_name: "test",
+      form_name: "test",
+      questions: [],
+      privacy_policy_url: "https://example.com/privacy",
+      follow_up_action_url: "https://example.com/next",
+      confirmed: false,
+    };
     await assertRejects(
       () => executeCreateMetaLeadForm(args, fixture.context),
       Error,

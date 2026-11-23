@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type DelegateToManusArgs = { prompt: string; context_data?: string };
@@ -7,7 +8,7 @@ export async function executeDelegateToManus(
   args: DelegateToManusArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
+  const { tenantId, supabase } = context;
 
   // Call the existing manus-api edge function
   const manusBody = {
@@ -19,22 +20,20 @@ export async function executeDelegateToManus(
     manusBody.prompt = `${args.prompt}\n\nנתוני הקשר:\n${args.context_data}`;
   }
 
-  const manusRes = await fetch(`${SUPABASE_URL}/functions/v1/manus-api`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify(manusBody),
-  });
+  const manusRes = await invokeExecutorFunction(
+    supabase,
+    "manus-api",
+    manusBody,
+    "text",
+  );
 
   if (!manusRes.ok) {
-    const errText = await manusRes.text();
+    const errText = manusRes.data;
     let parsed = null;
     try {
       parsed = JSON.parse(errText);
-    } catch {
-      /* ignore */
+    } catch (error) {
+      console.warn("[manus-api] non-JSON error response", error);
     }
     const detail = parsed?.error || errText;
     // Distinguish between local config errors and real Manus API errors
@@ -52,7 +51,10 @@ export async function executeDelegateToManus(
     throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
   }
 
-  const manusData = await manusRes.json();
+  const manusData =
+    typeof manusRes.data === "string"
+      ? JSON.parse(manusRes.data)
+      : manusRes.data;
   return {
     success: true,
     task_id: manusData.task_id,

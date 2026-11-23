@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type SendMessageToManusArgs = { message: string; task_id?: string };
@@ -7,9 +8,8 @@ export async function executeSendMessageToManus(
   args: SendMessageToManusArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
+  const { tenantId, supabase } = context;
 
-  const manusApiUrl = `${SUPABASE_URL}/functions/v1/manus-api`;
   const msgBody: {
     action: string;
     tenantId: string;
@@ -23,19 +23,18 @@ export async function executeSendMessageToManus(
   if (args.task_id) {
     msgBody.task_id = args.task_id;
   }
-  const msgRes = await fetch(manusApiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify(msgBody),
-  });
+  const msgRes = await invokeExecutorFunction(
+    supabase,
+    "manus-api",
+    msgBody,
+    "text",
+  );
   if (!msgRes.ok) {
-    const errText = await msgRes.text();
+    const errText = msgRes.data;
     throw new Error(`Manus send_message error [${msgRes.status}]: ${errText}`);
   }
-  const msgData = await msgRes.json();
+  const msgData =
+    typeof msgRes.data === "string" ? JSON.parse(msgRes.data) : msgRes.data;
   return {
     success: true,
     task_id: msgData.task_id,

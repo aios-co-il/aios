@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type CreateWhatsappInstanceArgs = {
@@ -10,22 +11,15 @@ export async function executeCreateWhatsappInstance(
   args: CreateWhatsappInstanceArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
+  const { tenantId, supabase } = context;
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
-      action: "create_instance",
-      tenantId,
-      displayName: args.displayName,
-      countryCode: args.countryCode,
-    }),
+  const res = await invokeExecutorFunction(supabase, "manage-manus-wa", {
+    action: "create_instance",
+    tenantId,
+    displayName: args.displayName,
+    countryCode: args.countryCode,
   });
-  const data = await res.json();
+  const data = res.data;
   if (!res.ok) {
     return {
       error: data.error || `create_instance failed [${res.status}]`,

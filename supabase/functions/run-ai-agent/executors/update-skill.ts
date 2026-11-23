@@ -15,12 +15,15 @@ export async function executeUpdateSkill(
 ) {
   const { supabase, tenantId } = context;
 
-  const { data: current } = await supabase
+  const { data: current, error: lookupError } = await supabase
     .from("ai_skills")
     .select("id, version, name")
     .eq("id", args.skill_id)
     .eq("tenant_id", tenantId)
-    .single();
+    .maybeSingle();
+  if (lookupError) {
+    throw lookupError;
+  }
   if (!current) {
     return { error: "Skill not found" };
   }

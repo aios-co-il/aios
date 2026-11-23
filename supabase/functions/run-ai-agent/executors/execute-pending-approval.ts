@@ -29,7 +29,7 @@ export async function executeExecutePendingApproval(
     userId: actorUserId,
     surface,
     conversationId,
-    waChatId: waNotify?.chat_id as string | null | undefined,
+    waChatId: waNotify?.chat_id,
     phone: callerPhone,
   });
   const wantedId = asUuidOrNull(args.approval_id);

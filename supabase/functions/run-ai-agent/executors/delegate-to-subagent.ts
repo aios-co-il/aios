@@ -1,3 +1,4 @@
+import { subagentNotify } from "./subagent-notify.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { spawnSubagent } from "../../_shared/subagent.ts";
 
@@ -37,9 +38,6 @@ export async function executeDelegateToSubagent(
     // When the caller is on WhatsApp, propagate the chat target so the
     // subagent can deliver its final result back to the same WA chat
     // instead of dying silently.
-    notify:
-      waNotify && waNotify.surface === "whatsapp"
-        ? (waNotify as Parameters<typeof spawnSubagent>[1]["notify"])
-        : null,
+    notify: subagentNotify(waNotify),
   });
 }

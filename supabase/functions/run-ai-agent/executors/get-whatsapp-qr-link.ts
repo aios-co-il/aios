@@ -1,3 +1,5 @@
+import { assertGatewayLineAccess } from "./gateway-line-access.ts";
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type GetWhatsappQrLinkArgs = { integrationId: string };
@@ -7,20 +9,14 @@ export async function executeGetWhatsappQrLink(
   args: GetWhatsappQrLinkArgs,
   context: ToolExecutionContext,
 ) {
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = context;
+  const { supabase } = context;
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/manage-manus-wa`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-    },
-    body: JSON.stringify({
-      action: "get_qr_link",
-      integrationId: args.integrationId,
-    }),
+  await assertGatewayLineAccess(context, args.integrationId);
+  const res = await invokeExecutorFunction(supabase, "manage-manus-wa", {
+    action: "get_qr_link",
+    integrationId: args.integrationId,
   });
-  const data = await res.json();
+  const data = res.data;
   if (!res.ok) {
     return { error: data.error || `get_qr_link failed [${res.status}]` };
   }

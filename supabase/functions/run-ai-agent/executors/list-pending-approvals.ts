@@ -24,7 +24,7 @@ export async function executeListPendingApprovals(
     userId: actorUserId,
     surface,
     conversationId,
-    waChatId: waNotify?.chat_id as string | null | undefined,
+    waChatId: waNotify?.chat_id,
     phone: callerPhone,
   });
   const approvals = pick.pickable.slice(0, args.limit || 10).map((r) => ({
