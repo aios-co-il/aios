@@ -6,14 +6,17 @@
  * (run-ai-agent/card-draft-approval/approve.ts), reported contact included.
  *
  * Who may approve is the database's rule, not this function's: the findings
- * are read as the caller, so the carmen_findings RLS (carmen_finding_role_of,
- * the rule "אשר" applies) decides which ones exist for them. An id they
- * cannot see is reported not_found and never written. Only the rows read
- * that way, within the requested tenant, reach the service-role write.
+ * are read as the caller, so the carmen_findings RLS decides which ones exist
+ * for them, and each is then checked with carmen_finding_role_of for that
+ * person, exactly as "אשר" checks it. The RLS lets a super admin see every
+ * finding, but the closing function refuses one without a role, so without
+ * this check the card would be written and the finding left open. An id that
+ * fails either check is reported not_found and never written. Only the rows
+ * read that way, within the requested tenant, reach the service-role write.
  */
 import { ClientCardEntryError } from "../_shared/client-card/entry-types.ts";
 import { corsHeaders } from "../_shared/cors.ts";
-import type { Tables } from "../_shared/database.types.ts";
+import type { DraftFinding } from "../_shared/manager-round/card-draft-approval.ts";
 import { cardDraftOf } from "../_shared/manager-round/card-draft.ts";
 import {
   type CardDraftWritePorts,
@@ -23,16 +26,12 @@ import type {
   CardDraftApproveResult,
   CardDraftsApproveResponse,
 } from "../_shared/manager-round/card-drafts-approve.ts";
+import type { requireAuth } from "../_shared/security.ts";
 import { type ApproveRequest, parseApproveRequest } from "./request.ts";
 
-export type DraftFinding = Pick<
-  Tables<"carmen_findings">,
-  "id" | "client_id" | "short_code" | "evidence"
->;
-
 export type ApproveDeps = {
-  /** The caller's user id, or null when the token is not a signed-in user. */
-  userId: (authorization: string) => Promise<string | null>;
+  /** Who the request proved to be (requireAuth); only a signed-in user may approve. */
+  caller: typeof requireAuth;
   /**
    * The requested live card_stale_group findings of the tenant, read as the
    * caller so RLS leaves out the ones they may not see.
@@ -41,6 +40,12 @@ export type ApproveDeps = {
     authorization: string,
     request: ApproveRequest,
   ) => Promise<Array<DraftFinding>>;
+  /** The person's role for the finding (findingRoleOf, with the service key); null without one. */
+  roleOf: (
+    tenantId: string,
+    finding: Pick<DraftFinding, "client_id" | "agency_id">,
+    userId: string,
+  ) => Promise<string | null>;
   /** The card write and the finding's closing, over the service-role client. */
   write: CardDraftWritePorts;
 };
@@ -56,22 +61,25 @@ export async function handleApprove(
   if (req.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
   }
-  const authorization = req.headers.get("Authorization") ?? "";
-  const userId = authorization.startsWith("Bearer ")
-    ? await deps.userId(authorization)
-    : null;
-  if (!userId) {
+
+  const caller = await deps.caller(req);
+  if (caller?.kind !== "user" || !caller.userId) {
     return reply({ error: "unauthorized" }, 401);
   }
+  const userId = caller.userId;
+
   const parsed = parseApproveRequest(await req.json().catch(() => null));
   if (!parsed.ok) {
     console.warn(`[carmen-card-drafts-approve] refused: ${parsed.error}`);
     return reply({ error: parsed.error }, 400);
   }
+
+  const authorization = req.headers.get("Authorization") ?? "";
   const visible = await readVisible(deps, authorization, parsed.request);
   if (!visible) {
     return reply({ error: "read_failed" }, 502);
   }
+
   const response: CardDraftsApproveResponse = {
     results: await approveAll(deps, parsed.request, visible, userId),
   };
@@ -118,19 +126,24 @@ async function approveAll(
   return results;
 }
 
-/** Writes one finding's draft as the person's approval. */
+/** Writes one finding's draft as the person's approval, when they may give it. */
 async function approveOne(
   deps: ApproveDeps,
   tenantId: string,
   finding: DraftFinding,
   userId: string,
 ): Promise<CardDraftApproveResult> {
-  const draft = cardDraftOf(finding.evidence);
-  const clientId = finding.client_id;
-  if (!draft || !clientId) {
-    return { id: finding.id, status: "no_draft" };
-  }
   try {
+    if (!(await deps.roleOf(tenantId, finding, userId))) {
+      return { id: finding.id, status: "not_found" };
+    }
+
+    const draft = cardDraftOf(finding.evidence);
+    const clientId = finding.client_id;
+    if (!draft || !clientId) {
+      return { id: finding.id, status: "no_draft" };
+    }
+
     await writeCardDraft(deps.write, {
       tenantId,
       finding: {

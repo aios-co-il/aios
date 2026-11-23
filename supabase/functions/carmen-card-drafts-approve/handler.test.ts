@@ -3,11 +3,8 @@ import {
   ClientCardEntryError,
   type ClientCardEntryInput,
 } from "../_shared/client-card/entry-types.ts";
-import {
-  type ApproveDeps,
-  type DraftFinding,
-  handleApprove,
-} from "./handler.ts";
+import type { DraftFinding } from "../_shared/manager-round/card-draft-approval.ts";
+import { type ApproveDeps, handleApprove } from "./handler.ts";
 import type { ApproveRequest } from "./request.ts";
 
 const TENANT = "2dcdaac6-41bf-42cc-86bf-9a0b4b2e6019";
@@ -18,6 +15,7 @@ const ID = {
   broken: "00000000-0000-4000-8000-000000000004",
   refused: "00000000-0000-4000-8000-000000000005",
   hidden: "00000000-0000-4000-8000-000000000006",
+  noRole: "00000000-0000-4000-8000-000000000007",
 };
 
 const draft = {
@@ -34,24 +32,32 @@ function visible(
     card_draft: { ...draft, source_ref: `g1:${id}` },
   },
 ): DraftFinding {
-  return { id, client_id: "c1", short_code: 31, evidence };
+  return { id, client_id: "c1", agency_id: "a1", short_code: 31, evidence };
 }
 
 /**
- * Deps over the findings RLS lets the caller see; the broken draft's write
- * throws and the refused one's is a card refusal.
+ * Deps over the findings RLS lets the caller see; carmen_finding_role_of
+ * gives Dana no role for the noRole finding, the broken draft's write throws
+ * and the refused one's is a card refusal.
  */
 function deps(seen: Array<DraftFinding>, overrides: Partial<ApproveDeps> = {}) {
   const reads: Array<ApproveRequest> = [];
   const written: Array<ClientCardEntryInput> = [];
   const closed: Array<string> = [];
+  const roles: Array<string> = [];
   const d: ApproveDeps = {
-    userId: () => Promise.resolve("dana"),
+    caller: () => Promise.resolve({ kind: "user", userId: "dana" }),
     visibleDrafts: (_authorization, request) => {
       reads.push(request);
       return Promise.resolve(
         seen.filter((finding) => request.findingIds.includes(finding.id)),
       );
+    },
+    roleOf: (tenantId, finding, userId) => {
+      roles.push(
+        `${tenantId}:${finding.client_id}:${finding.agency_id}:${userId}`,
+      );
+      return Promise.resolve(finding === noRoleFinding ? null : "campaigner");
     },
     write: {
       writeEntry(input) {
@@ -78,8 +84,10 @@ function deps(seen: Array<DraftFinding>, overrides: Partial<ApproveDeps> = {}) {
     },
     ...overrides,
   };
-  return { d, reads, written, closed };
+  return { d, reads, written, closed, roles };
 }
+
+const noRoleFinding = visible(ID.noRole);
 
 /** A POST with a bearer token and `body`. */
 function post(body: unknown, token = "Bearer t"): Request {
@@ -93,7 +101,7 @@ function post(body: unknown, token = "Bearer t"): Request {
 Deno.test("handleApprove", async (t) => {
   await t.step("a signed-out caller gets 401 and nothing is read", async () => {
     const { d, reads } = deps([visible(ID.ok)], {
-      userId: () => Promise.resolve(null),
+      caller: () => Promise.resolve(null),
     });
 
     const response = await handleApprove(
@@ -143,6 +151,38 @@ Deno.test("handleApprove", async (t) => {
       assertEquals([written, closed], [[], []]);
     },
   );
+
+  await t.step(
+    "a visible draft the person has no role for is not_found and never written",
+    async () => {
+      const { d, written, closed, roles } = deps([noRoleFinding]);
+
+      const response = await handleApprove(
+        post({ tenant_id: TENANT, finding_ids: [ID.noRole] }),
+        d,
+      );
+
+      assertEquals(await response.json(), {
+        results: [{ id: ID.noRole, status: "not_found" }],
+      });
+      assertEquals(roles, [`${TENANT}:c1:a1:dana`]);
+      assertEquals([written, closed], [[], []]);
+    },
+  );
+
+  await t.step("the service key is not a person and gets 401", async () => {
+    const { d, reads } = deps([visible(ID.ok)], {
+      caller: () => Promise.resolve({ kind: "service", userId: null }),
+    });
+
+    const response = await handleApprove(
+      post({ tenant_id: TENANT, finding_ids: [ID.ok] }),
+      d,
+    );
+
+    assertEquals(response.status, 401);
+    assertEquals(reads, []);
+  });
 
   await t.step(
     "approves each visible draft as the caller and reports the rest per id",

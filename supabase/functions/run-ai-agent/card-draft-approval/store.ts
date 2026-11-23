@@ -3,6 +3,7 @@
  * the live finding by its code, the person's role for it (the database's
  * rule), and the card write with the finding's closing (card-draft-write.ts).
  */
+import { findingRoleOf } from "../../_shared/manager-round/card-draft-approval.ts";
 import { cardDraftWritePorts } from "../../_shared/manager-round/card-draft-write.ts";
 import { throwIf } from "../../_shared/manager-round/db-error.ts";
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
@@ -24,16 +25,8 @@ export function approvalPorts(db: DbClient): ApprovalPorts {
       return data;
     },
 
-    async roleOf(tenantId, finding, userId) {
-      const { data, error } = await db.rpc("carmen_finding_role_of", {
-        p_user_id: userId,
-        p_tenant_id: tenantId,
-        p_client_id: finding.client_id ?? undefined,
-        p_agency_id: finding.agency_id ?? undefined,
-      });
-      throwIf(error, "carmen_finding_role_of");
-      return data ?? null;
-    },
+    roleOf: (tenantId, finding, userId) =>
+      findingRoleOf(db, tenantId, finding, userId),
 
     write: cardDraftWritePorts(db),
   };

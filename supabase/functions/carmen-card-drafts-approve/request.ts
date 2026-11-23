@@ -15,14 +15,17 @@ export function parseApproveRequest(
     body && typeof body === "object" && !Array.isArray(body)
       ? (body as Record<string, unknown>)
       : {};
+
   const tenantId = asUuidOrNull(input.tenant_id);
   if (!tenantId) {
     return { ok: false, error: "invalid_tenant_id" };
   }
+
   const findingIds = findingIdsOf(input.finding_ids);
   if (!findingIds) {
     return { ok: false, error: "invalid_finding_ids" };
   }
+
   return { ok: true, request: { tenantId, findingIds } };
 }
 
