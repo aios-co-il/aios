@@ -231,11 +231,15 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenantId)
         .limit(1);
     if (permissionsReadError) {
-      throw new Error(
-        `Loading permissions failed: ${permissionsReadError.message}`,
+      console.error(
+        "process-chat-invite: loading permissions",
+        permissionsReadError,
       );
+      throw new Error("Loading permissions failed");
     }
 
+    // Select-then-insert on purpose: the chat-only grant applies only when the
+    // user has no modules in this tenant, which an upsert cannot express.
     if (!existingPermissions || existingPermissions.length === 0) {
       // Only grant team_chat - user will only see the chat module
       const { error: grantError } = await adminClient
@@ -247,7 +251,8 @@ Deno.serve(async (req) => {
           can_access: true,
         });
       if (grantError) {
-        throw new Error(`Granting team chat failed: ${grantError.message}`);
+        console.error("process-chat-invite: granting team chat", grantError);
+        throw new Error("Granting team chat failed");
       }
     }
 

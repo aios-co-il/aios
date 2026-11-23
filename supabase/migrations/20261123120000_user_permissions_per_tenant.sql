@@ -85,6 +85,9 @@ AS $function$
     )
 $function$;
 
+REVOKE ALL ON FUNCTION public.has_finance_permission(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.has_finance_permission(uuid) TO authenticated, service_role;
+
 -- Write finance: owner, super admin, or finance in the active tenant.
 CREATE OR REPLACE FUNCTION public.has_finance_write_permission(_user_id uuid)
 RETURNS boolean
@@ -103,6 +106,9 @@ AS $function$
         and can_access
     )
 $function$;
+
+REVOKE ALL ON FUNCTION public.has_finance_write_permission(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.has_finance_write_permission(uuid) TO authenticated, service_role;
 
 -- New auth user: profile, orphan merge, and the open invitation's tenant, role and modules.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -265,6 +271,10 @@ BEGIN
   DELETE FROM public.profiles WHERE id = v_orphan_id;
 END;
 $function$;
+
+-- Only handle_new_user calls it.
+REVOKE ALL ON FUNCTION public.merge_orphan_profile_by_email(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.merge_orphan_profile_by_email(uuid, text) TO service_role;
 
 -- Caller may set this user's modules in this tenant: a super admin, or an owner of the tenant the user is a member of.
 CREATE OR REPLACE FUNCTION public.caller_manages_tenant_permissions(_user_id uuid, _tenant_id uuid)

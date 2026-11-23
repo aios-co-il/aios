@@ -6,12 +6,7 @@ import { replaceTenantPermissions } from "./tenant-permissions.ts";
 /** Runs the helper against a recording client that answers reads with `rows`. */
 async function run(modules: Array<string>, rows: Array<{ module: string }>) {
   const { db, calls } = recordingDb(rows);
-  await replaceTenantPermissions(
-    db as unknown as Parameters<typeof replaceTenantPermissions>[0],
-    "u1",
-    "tenant-b",
-    modules,
-  );
+  await replaceTenantPermissions(db, "u1", "tenant-b", modules);
   return calls;
 }
 

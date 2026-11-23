@@ -34,7 +34,7 @@ export function useUserPermissions() {
     queryKey: ["user-permissions", userId, tenantId],
     queryFn: async () => {
       if (!userId || !tenantId) {
-        return { permissions: null, hasAnyPermissions: false };
+        return { tenantId, permissions: null, hasAnyPermissions: false };
       }
 
       // Modules are granted per tenant: read only the active tenant's.
@@ -55,6 +55,7 @@ export function useUserPermissions() {
       });
 
       return {
+        tenantId,
         permissions: permissionsMap,
         hasAnyPermissions: !!data && data.length > 0,
       };
@@ -64,8 +65,8 @@ export function useUserPermissions() {
     refetchOnWindowFocus: false,
     // Keep the previous result only within the same tenant: after a switch,
     // the other tenant's modules must not show while the new ones load.
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[2] === tenantId ? previous : undefined,
+    placeholderData: (previous) =>
+      previous?.tenantId === tenantId ? previous : undefined,
   });
 
   // Block only on first load — keep using cached permissions during background refetch.

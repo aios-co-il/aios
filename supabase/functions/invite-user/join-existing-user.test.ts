@@ -50,9 +50,7 @@ function fakeStore(
 /** Store backed by a recording client, for asserting the queries it sends. */
 function recordingStore(rows: Array<Record<string, unknown>> = []) {
   const { db, calls } = recordingDb(rows);
-  const store = supabaseExistingUserStore(
-    db as unknown as Parameters<typeof supabaseExistingUserStore>[0],
-  );
+  const store = supabaseExistingUserStore(db);
   return { store, calls };
 }
 
