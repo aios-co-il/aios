@@ -7,6 +7,7 @@ import type {
   GoogleAdsFormatters,
 } from "../GoogleAdsCampaignSection/types";
 import { ContinentOverview } from "./ContinentOverview";
+import { continentAnchor } from "./continentInputs";
 import { continentSections, type ContinentSection } from "./continentSections";
 
 type Props = GoogleAdsFormatters & {
@@ -62,7 +63,7 @@ export function ContinentTables({
   const shared = { store, mixed, icon, ...formats };
   return (
     <div
-      id={anchored ? `continent-${section.continent}` : undefined}
+      id={anchored ? continentAnchor(section.continent) : undefined}
       className="space-y-4"
     >
       {ecommerce.length > 0 && (

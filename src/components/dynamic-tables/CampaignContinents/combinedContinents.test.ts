@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GoogleAdsCampaignSummaryRow } from "../GoogleAdsCampaignSection/types";
-import { combinedContinents } from "./combinedContinents";
+import { combinedContinents, continentPlatforms } from "./combinedContinents";
 import { continentSections } from "./continentSections";
 import { facebookContinentSections } from "./facebookContinentSections";
 
@@ -24,7 +24,7 @@ function googleCampaign(
 }
 
 describe("combinedContinents", () => {
-  it("lists every continent either platform has, by results, with כללי last", () => {
+  it("lists Meta's continents, then Google-only ones, with כללי last", () => {
     const japan = {
       name: "טיול ליפן",
       impressions: 0,
@@ -55,9 +55,47 @@ describe("combinedContinents", () => {
         own !== null,
       ]),
     ).toStrictEqual([
-      ["דרום אמריקה", false, true],
       ["אסיה", true, false],
+      ["דרום אמריקה", false, true],
       ["כללי", false, true],
     ]);
+  });
+});
+
+describe("continentPlatforms", () => {
+  /** A campaign row of this source and name. */
+  function row(
+    _source: string,
+    campaign_name: string,
+    entity_level = "campaign",
+  ) {
+    return { _source, data: { campaign_name, entity_level } };
+  }
+
+  it("leaves a client whose campaigns name no destinations without the tab", () => {
+    expect(
+      continentPlatforms([
+        row("facebook_insights", "לידים | קהל דומה"),
+        row("facebook_insights", "רימרקטינג"),
+        row("google_ads", "Brand search"),
+      ]),
+    ).toStrictEqual({ facebook: false, google: false });
+  });
+
+  it("reads each platform on its own, Meta from campaign rows only", () => {
+    const platforms = continentPlatforms([
+      row("facebook_ecommerce", "טיול ליפן | לידים"),
+      row("facebook_ecommerce", "טיול לפרו | לידים"),
+      row("facebook_insights", "טיול לאיטליה", "adset"),
+      row("google_ads", "Brand search"),
+    ]);
+
+    expect(platforms).toStrictEqual({ facebook: true, google: false });
+    expect(
+      continentPlatforms([
+        row("facebook_insights", "טיול ליפן", "adset"),
+        row("facebook_insights", "טיול לפרו", "adset"),
+      ]).facebook,
+    ).toBe(false);
   });
 });

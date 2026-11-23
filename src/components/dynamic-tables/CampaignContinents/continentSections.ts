@@ -8,12 +8,12 @@ import type {
   GoogleAdsFormatters,
   GoogleAdsTotals,
 } from "../GoogleAdsCampaignSection/types";
-import { facebookCampaignNames } from "./facebookContinentSections";
 import {
   CONTINENT_TITLES,
   campaignContinent,
   type Continent,
 } from "./campaignContinent";
+import { generalLast } from "./continentInputs";
 
 /** One continent's campaigns and their totals. */
 export type ContinentSection = {
@@ -57,8 +57,7 @@ export function continentSections(
   }
   return [...byContinent.values()].sort(
     (a, b) =>
-      Number(a.continent === "general") - Number(b.continent === "general") ||
-      b.totals.spend - a.totals.spend,
+      generalLast(a.continent, b.continent) || b.totals.spend - a.totals.spend,
   );
 }
 
@@ -124,17 +123,4 @@ export function recordCampaignNames(
       String(record.data?.campaign_name || record.data?.campaign || ""),
     )
     .filter(Boolean);
-}
-
-/**
- * Which platforms' campaigns name destinations among a dashboard's records:
- * each earns its own "לפי יבשות" view, and both together the combined one.
- */
-export function continentPlatforms(
-  records: Array<{ _source?: string; data?: Record<string, unknown> | null }>,
-): { facebook: boolean; google: boolean } {
-  return {
-    facebook: namesCampaignsByDestination(facebookCampaignNames(records)),
-    google: namesCampaignsByDestination(googleCampaignNames(records)),
-  };
 }

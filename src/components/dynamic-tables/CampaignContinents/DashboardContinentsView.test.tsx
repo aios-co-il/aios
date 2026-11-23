@@ -52,7 +52,11 @@ function tabLabels() {
 describe("DashboardContinentsView", () => {
   it("opens the combined view with each platform's spend in its currency", () => {
     render(
-      <DashboardContinentsView facebook={facebookProps} google={googleProps} />,
+      <DashboardContinentsView
+        platforms={{ facebook: true, google: true }}
+        facebook={facebookProps}
+        google={googleProps}
+      />,
     );
 
     expect(tabLabels()).toStrictEqual(["משולב", "Facebook", "Google Ads"]);
@@ -65,7 +69,11 @@ describe("DashboardContinentsView", () => {
   it("switches to Meta's continents alone", async () => {
     const user = userEvent.setup();
     render(
-      <DashboardContinentsView facebook={facebookProps} google={googleProps} />,
+      <DashboardContinentsView
+        platforms={{ facebook: true, google: true }}
+        facebook={facebookProps}
+        google={googleProps}
+      />,
     );
 
     await user.click(screen.getByRole("tab", { name: "Facebook" }));
@@ -75,9 +83,16 @@ describe("DashboardContinentsView", () => {
   });
 
   it("shows only Meta's continents, without tabs, when Google names none", () => {
-    render(<DashboardContinentsView facebook={facebookProps} google={null} />);
+    render(
+      <DashboardContinentsView
+        platforms={{ facebook: true, google: false }}
+        facebook={facebookProps}
+        google={googleProps}
+      />,
+    );
 
     expect(tabLabels()).toStrictEqual([]);
     expect(screen.getByText("אסיה - Facebook לידים")).toBeTruthy();
+    expect(screen.queryByText("$300")).toBeNull();
   });
 });

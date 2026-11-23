@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { getCurrencySymbol } from "@/lib/currency";
+import { META_SOURCES } from "@/lib/dashboardCampaignGoals";
 import type {
   GoogleReportRecord,
   GoogleReportTable,
@@ -22,7 +23,7 @@ type Props = {
  * from this table's records.
  */
 export function TableContinentsView({ records, table }: Props) {
-  if (table.integration_type !== "google_ads") {
+  if (META_SOURCES.has(table.integration_type ?? "")) {
     return <FacebookTableContinentsView records={records} table={table} />;
   }
   return <GoogleTableContinentsView records={records} table={table} />;

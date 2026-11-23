@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Continent } from "./campaignContinent";
+import { continentAnchor } from "./continentInputs";
 
 /** One continent's row: its name and already formatted cells. */
 export type ContinentSummaryRow = {
@@ -63,7 +64,7 @@ export function ContinentSummaryTable({ rows, headers, groups }: Props) {
                 <TableRow key={continent}>
                   <TableCell className="font-medium">
                     <a
-                      href={`#continent-${continent}`}
+                      href={`#${continentAnchor(continent)}`}
                       className="text-primary hover:underline"
                     >
                       {title}

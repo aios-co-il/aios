@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { META_SOURCES } from "@/lib/dashboardCampaignGoals";
 import {
   namesCampaignsByDestination,
   recordCampaignNames,
@@ -7,8 +8,7 @@ import {
 /** The ads reports whose campaign names can earn the "לפי יבשות" tab. */
 const CONTINENT_REPORT_TYPES: ReadonlySet<string> = new Set([
   "google_ads",
-  "facebook_insights",
-  "facebook_ecommerce",
+  ...META_SOURCES,
 ]);
 
 /** The views of an ads table report: the report, the weekly comparison and, for travel accounts, by continent. */

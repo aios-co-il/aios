@@ -1,80 +1,77 @@
 import { useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { CampaignOffTable } from "@/lib/campaignOffState";
-import type { DashboardFacebookCampaigns } from "@/lib/dashboardCampaignGoals";
-import type { FacebookTabFormatters } from "@/components/FacebookReportTab/facebookColumns";
-import type { FacebookTabRecord } from "@/components/FacebookReportTab/facebookTabFigures";
-import type {
-  GoogleAdsCampaignSummaryRow,
-  GoogleAdsFormatters,
-} from "../GoogleAdsCampaignSection/types";
 import { CampaignContinentsTab } from "./CampaignContinentsTab";
 import { CombinedContinentsTab } from "./CombinedContinentsTab";
+import type {
+  ContinentPlatforms,
+  FacebookContinentsInput,
+  GoogleContinentsInput,
+} from "./continentInputs";
 import { FacebookContinentsTab } from "./FacebookContinentsTab";
 
-type ContinentsPlatform = "combined" | "facebook" | "google";
+type ContinentsView = "combined" | "facebook" | "google";
 
 type Props = {
-  /** Meta's campaigns, or null when their names do not name destinations. */
-  facebook:
-    | (FacebookTabFormatters & {
-        campaigns: DashboardFacebookCampaigns;
-        records: Array<FacebookTabRecord>;
-        tables: Array<CampaignOffTable>;
-      })
-    | null;
-  /** Google's campaigns, or null when their names do not name destinations. */
-  google:
-    | (GoogleAdsFormatters & { campaigns: Array<GoogleAdsCampaignSummaryRow> })
-    | null;
+  /** Which platforms' campaign names name destinations (continentPlatforms). */
+  platforms: ContinentPlatforms;
+  facebook: FacebookContinentsInput;
+  google: GoogleContinentsInput;
 };
 
-/**
- * The dashboard's "לפי יבשות" tab: a view per platform whose campaigns name
- * destinations, and a combined one when both do, opened first.
- */
-export function DashboardContinentsView({ facebook, google }: Props) {
-  const platforms = availablePlatforms(facebook !== null, google !== null);
-  const [picked, setPicked] = useState<ContinentsPlatform>(platforms[0]);
-  const shown = platforms.includes(picked) ? picked : platforms[0];
-  return (
-    <div className="space-y-4">
-      {platforms.length > 1 && (
-        <Tabs
-          value={shown}
-          onValueChange={(value) => setPicked(value as ContinentsPlatform)}
-        >
-          <TabsList dir="rtl">
-            {platforms.map((platform) => (
-              <TabsTrigger key={platform} value={platform}>
-                {PLATFORM_LABELS[platform]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      )}
-      {shown === "combined" && facebook && google && (
-        <CombinedContinentsTab facebook={facebook} google={google} />
-      )}
-      {shown === "facebook" && facebook && (
-        <FacebookContinentsTab {...facebook} />
-      )}
-      {shown === "google" && google && <CampaignContinentsTab {...google} />}
-    </div>
-  );
-}
-
-const PLATFORM_LABELS: Record<ContinentsPlatform, string> = {
+const VIEW_LABELS: Record<ContinentsView, string> = {
   combined: "משולב",
   facebook: "Facebook",
   google: "Google Ads",
 };
 
+/**
+ * The dashboard's "לפי יבשות" tab: a view per platform whose campaigns name
+ * destinations, and a combined one, opened first, when both do. A dashboard
+ * where only Google qualifies sees Google's view alone, as before.
+ */
+export function DashboardContinentsView({
+  platforms,
+  facebook,
+  google,
+}: Props) {
+  const views = availableViews(platforms);
+  const [picked, setPicked] = useState<ContinentsView>(views[0]);
+  const shown = views.includes(picked) ? picked : views[0];
+  return (
+    <div className="space-y-4">
+      {views.length > 1 && (
+        <Tabs
+          value={shown}
+          onValueChange={(value) => {
+            const view = views.find((candidate) => candidate === value);
+            if (view) {
+              setPicked(view);
+            }
+          }}
+        >
+          <TabsList dir="rtl">
+            {views.map((view) => (
+              <TabsTrigger key={view} value={view}>
+                {VIEW_LABELS[view]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
+      {shown === "combined" && (
+        <CombinedContinentsTab facebook={facebook} google={google} />
+      )}
+      {shown === "facebook" && <FacebookContinentsTab {...facebook} />}
+      {shown === "google" && <CampaignContinentsTab {...google} />}
+    </div>
+  );
+}
+
 /** The views the platforms earn: combined first when both do. */
-function availablePlatforms(
-  facebook: boolean,
-  google: boolean,
-): Array<ContinentsPlatform> {
+function availableViews({
+  facebook,
+  google,
+}: ContinentPlatforms): Array<ContinentsView> {
   return [
     ...(facebook && google ? (["combined"] as const) : []),
     ...(facebook ? (["facebook"] as const) : []),

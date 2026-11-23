@@ -1,7 +1,5 @@
 import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import type { CampaignOffTable } from "@/lib/campaignOffState";
-import type { DashboardFacebookCampaigns } from "@/lib/dashboardCampaignGoals";
 import { FacebookGoalTable } from "@/components/FacebookReportTab/FacebookGoalTable";
 import {
   leadsColumns,
@@ -9,8 +7,11 @@ import {
   trafficColumns,
   type FacebookTabFormatters,
 } from "@/components/FacebookReportTab/facebookColumns";
-import type { FacebookTabRecord } from "@/components/FacebookReportTab/facebookTabFigures";
 import { ContinentSummaryTable } from "./ContinentSummaryTable";
+import {
+  continentAnchor,
+  type FacebookContinentsInput,
+} from "./continentInputs";
 import {
   FACEBOOK_SUMMARY_HEADERS,
   facebookContinentSections,
@@ -18,14 +19,6 @@ import {
   type FacebookContinentSection,
 } from "./facebookContinentSections";
 import { useFacebookOnOf } from "./useFacebookOnOf";
-
-type Props = FacebookTabFormatters & {
-  /** The Meta campaigns of the period, by goal (dashboardFacebookCampaigns). */
-  campaigns: DashboardFacebookCampaigns;
-  /** The period's records; their Meta rows mark each campaign on or off. */
-  records: Array<FacebookTabRecord>;
-  tables: Array<CampaignOffTable>;
-};
 
 /**
  * The Meta side of "לפי יבשות": a summary row per continent, then each
@@ -36,7 +29,7 @@ export function FacebookContinentsTab({
   records,
   tables,
   ...formats
-}: Props) {
+}: FacebookContinentsInput) {
   const sections = useMemo(
     () => facebookContinentSections(campaigns),
     [campaigns],
@@ -64,7 +57,7 @@ export function FacebookContinentsTab({
       {sections.map((section) => (
         <div
           key={section.continent}
-          id={`continent-${section.continent}`}
+          id={continentAnchor(section.continent)}
           className="space-y-4"
         >
           <FacebookContinentTables section={section} onOf={onOf} {...formats} />

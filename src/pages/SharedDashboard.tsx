@@ -1,5 +1,5 @@
 import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
-import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
@@ -1107,26 +1107,19 @@ export default function SharedDashboard({
 
       {platformFilter === "continents" ? (
         <DashboardContinentsView
-          facebook={
-            continentsBy.facebook
-              ? {
-                  campaigns: facebookCampaignGroups,
-                  records: filteredRecords,
-                  tables,
-                  formatNumber,
-                  ...money.facebook,
-                }
-              : null
-          }
-          google={
-            continentsBy.google
-              ? {
-                  campaigns: googleAdsSummary.campaigns,
-                  formatNumber,
-                  ...money.google,
-                }
-              : null
-          }
+          platforms={continentsBy}
+          facebook={{
+            campaigns: facebookCampaignGroups,
+            records: filteredRecords,
+            tables,
+            formatNumber,
+            ...money.facebook,
+          }}
+          google={{
+            campaigns: googleAdsSummary.campaigns,
+            formatNumber,
+            ...money.google,
+          }}
         />
       ) : platformFilter === "weekly" ? (
         <WeeklyCampaignComparison

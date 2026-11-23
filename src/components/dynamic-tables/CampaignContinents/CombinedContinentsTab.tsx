@@ -1,36 +1,27 @@
 import { useMemo } from "react";
-import type { DashboardFacebookCampaigns } from "@/lib/dashboardCampaignGoals";
-import type { CampaignOffTable } from "@/lib/campaignOffState";
-import type { FacebookTabFormatters } from "@/components/FacebookReportTab/facebookColumns";
-import type { FacebookTabRecord } from "@/components/FacebookReportTab/facebookTabFigures";
-import type {
-  GoogleAdsCampaignSummaryRow,
-  GoogleAdsFormatters,
-} from "../GoogleAdsCampaignSection/types";
 import { ContinentTables } from "./CampaignContinentsTab";
 import { ContinentSummaryTable } from "./ContinentSummaryTable";
-import { combinedContinents, combinedResults } from "./combinedContinents";
+import { combinedContinents } from "./combinedContinents";
+import {
+  continentAnchor,
+  type FacebookContinentsInput,
+  type GoogleContinentsInput,
+} from "./continentInputs";
 import { continentSections } from "./continentSections";
 import { facebookContinentSections } from "./facebookContinentSections";
 import { FacebookContinentTables } from "./FacebookContinentsTab";
 import { useFacebookOnOf } from "./useFacebookOnOf";
 
 type Props = {
-  facebook: FacebookTabFormatters & {
-    campaigns: DashboardFacebookCampaigns;
-    records: Array<FacebookTabRecord>;
-    tables: Array<CampaignOffTable>;
-  };
-  /** Each platform's formatters are in its own account's currency. */
-  google: GoogleAdsFormatters & {
-    campaigns: Array<GoogleAdsCampaignSummaryRow>;
-  };
+  facebook: FacebookContinentsInput;
+  google: GoogleContinentsInput;
 };
 
 /**
- * Meta and Google Ads by continent on one page: a summary row per continent
- * with each platform's spend in its own currency (never added) and their
- * results together, then each continent's Meta tables and Google tables.
+ * Facebook and Google Ads by continent on one page: a summary row per
+ * continent with each platform's spend and results side by side, each in its
+ * own currency and never added together, then each continent's Facebook
+ * tables and Google tables.
  */
 export function CombinedContinentsTab({ facebook, google }: Props) {
   const {
@@ -53,46 +44,44 @@ export function CombinedContinentsTab({ facebook, google }: Props) {
     <div className="space-y-4">
       <ContinentSummaryTable
         groups={[
-          { label: "Meta", span: 2 },
+          { label: "Facebook", span: 2 },
           { label: "Google Ads", span: 2 },
-          { label: "סה״כ", span: 1 },
         ]}
-        headers={["הוצאה", "תוצאות", "הוצאה", "המרות", "תוצאות"]}
-        rows={continents.map(({ continent, title, facebook, google }) => ({
-          continent,
-          title,
-          cells: [
-            facebook
-              ? facebookFormat.formatCurrency(facebook.totals.spend)
-              : "-",
-            facebook
-              ? facebookFormat.formatNumber(
-                  facebook.totals.leads + facebook.totals.purchases,
-                )
-              : "-",
-            google ? googleFormat.formatCurrency(google.totals.spend) : "-",
-            google ? googleFormat.formatNumber(google.totals.conversions) : "-",
-            googleFormat.formatNumber(combinedResults({ facebook, google })),
-          ],
-        }))}
+        headers={["הוצאה", "תוצאות", "הוצאה", "המרות"]}
+        rows={continents.map(
+          ({ continent, title, facebook: meta, google: ads }) => ({
+            continent,
+            title,
+            cells: [
+              meta ? facebookFormat.formatCurrency(meta.totals.spend) : "-",
+              meta
+                ? facebookFormat.formatNumber(
+                    meta.totals.leads + meta.totals.purchases,
+                  )
+                : "-",
+              ads ? googleFormat.formatCurrency(ads.totals.spend) : "-",
+              ads ? googleFormat.formatNumber(ads.totals.conversions) : "-",
+            ],
+          }),
+        )}
       />
-      {continents.map(({ continent, title, facebook, google }) => (
+      {continents.map(({ continent, title, facebook: meta, google: ads }) => (
         <section
           key={continent}
-          id={`continent-${continent}`}
+          id={continentAnchor(continent)}
           className="space-y-4"
         >
           <h3 className="border-t pt-4 text-lg font-bold">{title}</h3>
-          {facebook && (
+          {meta && (
             <FacebookContinentTables
-              section={facebook}
+              section={meta}
               onOf={onOf}
               {...facebookFormat}
             />
           )}
-          {google && (
+          {ads && (
             <ContinentTables
-              section={{ ...google, title: `${title} - Google Ads` }}
+              section={{ ...ads, title: `${title} - Google Ads` }}
               anchored={false}
               {...googleFormat}
             />

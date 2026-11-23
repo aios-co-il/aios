@@ -1,6 +1,10 @@
 import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import { REPORT_CAMPAIGN_GOALS } from "@/lib/campaignGoals";
-import type { DashboardFacebookCampaigns } from "@/lib/dashboardCampaignGoals";
+import { shouldIncludeInAdsDashboardAggregate } from "@/lib/adsEntityLevel";
+import {
+  META_SOURCES,
+  type DashboardFacebookCampaigns,
+} from "@/lib/dashboardCampaignGoals";
 import type { FacebookTabFormatters } from "@/components/FacebookReportTab/facebookColumns";
 import {
   facebookTabTotals,
@@ -11,6 +15,8 @@ import {
   campaignContinent,
   type Continent,
 } from "./campaignContinent";
+import { generalLast } from "./continentInputs";
+import { recordCampaignNames } from "./continentSections";
 
 /** One continent's Meta campaigns, by goal, and their totals. */
 export type FacebookContinentSection = {
@@ -21,11 +27,6 @@ export type FacebookContinentSection = {
   /** Spend on lead and sales campaigns: what their results are set against. */
   resultSpend: number;
 };
-
-const META_SOURCES: ReadonlySet<string> = new Set([
-  "facebook_insights",
-  "facebook_ecommerce",
-]);
 
 /**
  * The Meta campaigns grouped by the continent their name names, as the Google
@@ -56,8 +57,7 @@ export function facebookContinentSections(
   }));
   return sections.sort(
     (a, b) =>
-      Number(a.continent === "general") - Number(b.continent === "general") ||
-      b.totals.spend - a.totals.spend,
+      generalLast(a.continent, b.continent) || b.totals.spend - a.totals.spend,
   );
 }
 
@@ -86,16 +86,20 @@ export function facebookSummaryCells(
   ];
 }
 
-/** The Meta campaign names among records tagged with their source. */
+/**
+ * The Meta campaign names among records tagged with their source: campaign
+ * rows only, the rows the continents view itself adds up.
+ */
 export function facebookCampaignNames(
   records: Array<{ _source?: string; data?: Record<string, unknown> | null }>,
 ): Array<string> {
-  return records
-    .filter((record) => META_SOURCES.has(record._source ?? ""))
-    .map((record) =>
-      String(record.data?.campaign_name || record.data?.campaign || ""),
-    )
-    .filter(Boolean);
+  return recordCampaignNames(
+    records.filter(
+      (record) =>
+        META_SOURCES.has(record._source ?? "") &&
+        shouldIncludeInAdsDashboardAggregate(record.data, record._source),
+    ),
+  );
 }
 
 /** The continent's section, created empty on first use. */
