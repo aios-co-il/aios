@@ -20,8 +20,8 @@ A **slice** is one rule or root cause in one directory or feature, at most ~15 f
 ## 1. Claim
 
 1. Remeasure lint and typecheck on fresh `origin/develop`. Counts in the issues are history.
-2. List every sub-issue of AIO-26 and the children of each (for example AIO-52's AIO-86 to AIO-92) with status, assignee, and linked PR. Search Linear issues and open PRs by the rule name too, since some rules live outside AIO-26 (for example AIO-258 covers `curly`, `func-style`, `no-non-null-assertion`). A slice is **taken** when any of these holds:
-   - its issue or one of its children is In Progress, In Review, or assigned to someone else (for example AIO-52, `no-explicit-any`, Stas). A parent issue that only groups work, such as AIO-258 in Backlog with no assignee or PR, does not take a slice;
+2. List every sub-issue of AIO-26 and the children of each with status, assignee, and linked PR. Search Linear issues and open PRs by the rule name too, since some rules live in issues outside AIO-26. A slice is **taken** when any of these holds:
+   - its issue or one of its children is In Progress, In Review, or assigned to someone else. A parent issue that only groups work, with no assignee, no PR, and no In Progress child, does not take a slice;
    - an open PR, remote branch, or merged commit already covers the same rule and files;
    - it needs a runtime bug fix (AIO-19: agent mood/voice `tenantId`) or test-infrastructure repair (AIO-21: missing test dependencies, broken test imports), because other issues own those.
 3. Pick untaken slices. Cut oversized rules (`no-explicit-any`, `DynamicTableView`, broadcast hooks) down to one directory or file. With N > 1, pick N slices that share no files and no rule within one directory.
@@ -35,7 +35,7 @@ Start one agent per claimed slice with `isolation: "worktree"`, branched from fr
 
 ## 3. Fix
 
-Fix the cause: real types, runtime validation where data is untrusted, schema checked before touching generated Supabase types. Behavior stays identical; add a focused test only where runtime logic changes. Touch only the slice's files. Suppressions, casts, and rule-disables hide the cause, so each fix removes the diagnostic at its source. Lower the TypeScript baseline for the diagnostics you fixed. When your PR clears a rule's last occurrence, restore that rule's default severity in `eslint.config.js`.
+Fix the cause: real types, runtime validation where data is untrusted, schema checked before touching generated Supabase types. Behavior stays identical; add a focused test only where runtime logic changes. Touch only the slice's files. Suppressions, casts, and rule-disables hide the cause, so each fix removes the diagnostic at its source. Lower the TypeScript baseline for the diagnostics you fixed with `pnpm typecheck:update`. When your PR clears a rule's last occurrence, restore that rule's default severity in `eslint.config.js`.
 
 Done when every diagnostic in your file list is gone and the baseline reflects it.
 
@@ -47,6 +47,6 @@ Done when the slice is **green**, the whole-repo count is lower, and nothing new
 
 ## 5. Hand off
 
-Open one PR to `develop` from the Linear branch name, titled `fix(eslint): <what> [AIO-xxx]` (`fix(types):` for TypeScript slices). The body states: the slice and why it was chosen, before/after counts, how to review (for example "mechanical, same change in every file"), and the verification run. Set the sub-issue to In Review, link the PR, leave AIO-26 open, and stop at the PR link.
+Open one PR to `develop` from the Linear branch name, titled per `docs/git-conventions.md`, with the feature the slice touches as scope (for example `fix(carmen): <what> [AIO-xxx]`). The body states: the slice and why it was chosen, before/after counts, how to review (for example "mechanical, same change in every file"), and the verification run. Set the sub-issue to In Review, link the PR, leave AIO-26 open, and stop at the PR link.
 
 Report in at most 5 lines: slice, PR link, before/after, anything skipped and why.
