@@ -1,7 +1,15 @@
-import type { DelegateParallelArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { parallelTaskArgs } from "../tool-contracts-admin.ts";
 import { spawnSubagentBatch } from "../../_shared/subagent.ts";
+
+type DelegateParallelArgs = {
+  tasks: Array<{
+    title: string;
+    prompt: string;
+    task_skills?: Array<string>;
+    side_effects?: boolean;
+  }>;
+};
 
 /** Preserves the existing delegate_parallel executor and side-effect order. */
 export async function executeDelegateParallel(

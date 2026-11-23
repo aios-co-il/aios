@@ -1,5 +1,9 @@
-import type { CreateWhatsappInstanceArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateWhatsappInstanceArgs = {
+  displayName: string;
+  countryCode?: string;
+};
 
 /** Preserves the existing create_whatsapp_instance executor and side-effect order. */
 export async function executeCreateWhatsappInstance(

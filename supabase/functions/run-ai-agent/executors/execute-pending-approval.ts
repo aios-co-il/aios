@@ -1,9 +1,13 @@
-import type { ExecutePendingApprovalArgs } from "./approval-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { loadApprovalPick } from "../approvals/pick.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 import { approvalPickToolResult } from "../approvals/tool-result.ts";
 import { runApprovalExecutor } from "../approvals/executor.ts";
+
+type ExecutePendingApprovalArgs = {
+  approval_id?: string;
+  tool_name?: string;
+};
 
 /** Preserves the existing execute_pending_approval executor and side-effect order. */
 export async function executeExecutePendingApproval(

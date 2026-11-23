@@ -1,5 +1,9 @@
-import type { DelegateToGithubAgentArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type DelegateToGithubAgentArgs = {
+  message: string;
+  action?: "chat_support" | "analyze_error" | "fix_code" | "check_permissions";
+};
 
 /** Preserves the existing delegate_to_github_agent executor and side-effect order. */
 export async function executeDelegateToGithubAgent(

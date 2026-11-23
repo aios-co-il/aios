@@ -1,6 +1,21 @@
-import type { ProposeAutomationArgs } from "./automation-tool-inputs.ts";
+import type { Json } from "../../_shared/database.types.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { automationStepArg } from "../tool-contracts-admin.ts";
+
+type ProposeAutomationArgs = {
+  name: string;
+  description?: string;
+  trigger_type: string;
+  trigger_config?: Json;
+  steps: Array<{
+    type: "agent" | "action" | "condition" | "delay" | "merge";
+    skin?: string;
+    instruction?: string;
+    action_type?: string;
+    config?: Json;
+    label?: string;
+  }>;
+};
 
 /** Preserves the existing propose_automation executor and side-effect order. */
 export async function executeProposeAutomation(

@@ -1,7 +1,11 @@
-import type { RejectPendingApprovalArgs } from "./approval-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 import { postApprovalDecision } from "../approvals/executor.ts";
+
+type RejectPendingApprovalArgs = {
+  approval_id: string;
+  reason?: string;
+};
 
 /** Preserves the existing reject_pending_approval executor and side-effect order. */
 export async function executeRejectPendingApproval(

@@ -1,5 +1,10 @@
-import type { ListAutomationsArgs } from "./automation-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListAutomationsArgs = {
+  limit?: number;
+  active_only?: boolean;
+  name_search?: string;
+};
 
 /** Preserves the existing list_automations executor and side-effect order. */
 export async function executeListAutomations(

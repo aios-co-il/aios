@@ -1,5 +1,9 @@
-import type { ToggleIntegrationArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ToggleIntegrationArgs = {
+  integration_id: string;
+  is_active: boolean;
+};
 
 /** Preserves the existing toggle_integration executor and side-effect order. */
 export async function executeToggleIntegration(

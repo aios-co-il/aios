@@ -1,6 +1,15 @@
-import type { UpdateAgentArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { TablesUpdate } from "../../_shared/database.types.ts";
+
+type UpdateAgentArgs = {
+  agent_id: string;
+  name?: string;
+  talent?: string;
+  personality?: string;
+  soul?: string;
+  engine?: string;
+  active?: boolean;
+};
 
 /** Preserves the existing update_agent executor and side-effect order. */
 export async function executeUpdateAgent(

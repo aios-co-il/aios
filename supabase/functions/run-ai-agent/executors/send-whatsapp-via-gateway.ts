@@ -1,6 +1,11 @@
-import type { SendWhatsappViaGatewayArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { defaultGatewayLine } from "../whatsapp-lines.ts";
+
+type SendWhatsappViaGatewayArgs = {
+  integrationId?: string;
+  phone: string;
+  message: string;
+};
 
 /** Preserves the existing send_whatsapp_via_gateway executor and side-effect order. */
 export async function executeSendWhatsappViaGateway(

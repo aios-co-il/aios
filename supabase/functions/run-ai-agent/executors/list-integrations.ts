@@ -1,7 +1,8 @@
-import type { ListIntegrationsArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentDatabaseClient } from "../database-contracts.ts";
 import { integrationTypesFor } from "../whatsapp-lines.ts";
+
+type ListIntegrationsArgs = { type?: string; only_active?: boolean };
 
 /** Preserves the existing list_integrations executor and side-effect order. */
 export async function executeListIntegrations(

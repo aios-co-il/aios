@@ -1,7 +1,8 @@
-import type { ListPendingApprovalsArgs } from "./approval-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { loadApprovalPick } from "../approvals/pick.ts";
 import { approvalDisplayCode } from "../approvals/codes.ts";
+
+type ListPendingApprovalsArgs = { limit?: number };
 
 /** Preserves the existing list_pending_approvals executor and side-effect order. */
 export async function executeListPendingApprovals(

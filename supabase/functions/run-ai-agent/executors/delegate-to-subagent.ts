@@ -1,6 +1,19 @@
-import type { DelegateToSubagentArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { spawnSubagent } from "../../_shared/subagent.ts";
+
+type DelegateToSubagentArgs = {
+  title: string;
+  prompt: string;
+  task_mode?:
+    | "analyst"
+    | "sales"
+    | "support"
+    | "copywriting"
+    | "scheduler"
+    | "onboarding";
+  task_skills?: Array<string>;
+  priority?: number;
+};
 
 /** Preserves the existing delegate_to_subagent executor and side-effect order. */
 export async function executeDelegateToSubagent(

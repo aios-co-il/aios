@@ -1,10 +1,15 @@
 import { metaLeadFormsForPage } from "./meta-lead-forms.ts";
 import { metaLeadPages } from "./meta-lead-pages.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
-import type { InspectMetaLeadFormsArgs } from "./automation-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
 import { readAutomationStepSummary } from "../tool-storage-contracts.ts";
+
+type InspectMetaLeadFormsArgs = {
+  automation_name?: string;
+  page_name?: string;
+  form_name?: string;
+};
 
 /** Preserves the existing inspect_meta_lead_forms executor and side-effect order. */
 export async function executeInspectMetaLeadForms(

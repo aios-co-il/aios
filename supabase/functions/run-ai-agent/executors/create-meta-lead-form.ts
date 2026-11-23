@@ -6,10 +6,21 @@ import { metaLeadFormsForPage } from "./meta-lead-forms.ts";
 import { metaLeadPages } from "./meta-lead-pages.ts";
 import { assertHttpsUrl } from "./https-url.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
-import type { CreateMetaLeadFormArgs } from "./automation-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 import { FB_GRAPH_VERSION } from "../executors/meta-api-version.ts";
+
+type CreateMetaLeadFormArgs = {
+  page_name: string;
+  form_name: string;
+  questions: Array<{ type: string; label?: string }>;
+  privacy_policy_url: string;
+  privacy_policy_link_text?: string;
+  follow_up_action_url: string;
+  automation_id?: string;
+  automation_name?: string;
+  confirmed: boolean;
+};
 
 /** Preserves the existing create_meta_lead_form executor and side-effect order. */
 export async function executeCreateMetaLeadForm(

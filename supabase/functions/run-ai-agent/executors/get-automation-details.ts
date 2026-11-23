@@ -1,7 +1,11 @@
-import type { GetAutomationDetailsArgs } from "./automation-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AutomationFlowStepRow } from "../tool-contracts-marketing.ts";
 import { readAutomationStepSummary } from "../tool-storage-contracts.ts";
+
+type GetAutomationDetailsArgs = {
+  automation_id?: string;
+  name_search?: string;
+};
 
 /** Preserves the existing get_automation_details executor and side-effect order. */
 export async function executeGetAutomationDetails(

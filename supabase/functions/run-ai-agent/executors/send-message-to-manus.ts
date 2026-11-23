@@ -1,5 +1,6 @@
-import type { SendMessageToManusArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type SendMessageToManusArgs = { message: string; task_id?: string };
 
 /** Preserves the existing send_message_to_manus executor and side-effect order. */
 export async function executeSendMessageToManus(

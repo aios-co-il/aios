@@ -1,5 +1,12 @@
-import type { CreateAgentArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateAgentArgs = {
+  name: string;
+  talent: string;
+  personality?: string;
+  soul?: string;
+  engine?: string;
+};
 
 /** Preserves the existing create_agent executor and side-effect order. */
 export async function executeCreateAgent(

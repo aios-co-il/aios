@@ -1,5 +1,14 @@
-import type { ProposeAutomationEditArgs } from "./automation-tool-inputs.ts";
+import type { Json } from "../../_shared/database.types.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ProposeAutomationEditArgs = {
+  automation_id: string;
+  name?: string;
+  description?: string;
+  trigger_type?: string;
+  trigger_config?: Json;
+  steps?: Array<Json>;
+};
 
 /** Preserves the existing propose_automation_edit executor and side-effect order. */
 export async function executeProposeAutomationEdit(

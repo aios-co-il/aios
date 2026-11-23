@@ -1,6 +1,12 @@
-import type { UpdateSkillArgs } from "./skill-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { TablesUpdate } from "../../_shared/database.types.ts";
+
+type UpdateSkillArgs = {
+  skill_id: string;
+  body: string;
+  description?: string;
+  change_note?: string;
+};
 
 /** Preserves the existing update_skill executor and side-effect order. */
 export async function executeUpdateSkill(

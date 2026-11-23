@@ -1,5 +1,6 @@
-import type { DelegateToManusArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type DelegateToManusArgs = { prompt: string; context_data?: string };
 
 /** Preserves the existing delegate_to_manus executor and side-effect order. */
 export async function executeDelegateToManus(

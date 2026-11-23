@@ -1,5 +1,11 @@
-import type { CreateSkillArgs } from "./skill-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateSkillArgs = {
+  name: string;
+  description: string;
+  body: string;
+  trigger_phrases?: Array<string>;
+};
 
 /** Preserves the existing create_skill executor and side-effect order. */
 export async function executeCreateSkill(

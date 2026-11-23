@@ -1,5 +1,10 @@
-import type { QuerySystemGraphArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type QuerySystemGraphArgs = {
+  query: string;
+  depth?: number;
+  limit?: number;
+};
 
 /** Preserves the existing query_system_graph executor and side-effect order. */
 export async function executeQuerySystemGraph(

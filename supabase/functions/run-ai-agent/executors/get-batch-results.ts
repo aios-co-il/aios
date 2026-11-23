@@ -1,6 +1,7 @@
-import type { GetBatchResultsArgs } from "./delegation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { getBatchResults } from "../../_shared/subagent.ts";
+
+type GetBatchResultsArgs = { batch_id: string };
 
 /** Preserves the existing get_batch_results executor and side-effect order. */
 export async function executeGetBatchResults(

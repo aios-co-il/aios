@@ -1,11 +1,12 @@
 import { loadCarmenAgent } from "../../_shared/carmen/load-carmen-agent.ts";
-import type { GetCarmenSkinsArgs } from "./skill-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { customSkinPaths } from "../../_shared/carmen/skin-gallery.ts";
 import { pathsToSign } from "../../_shared/carmen/skin-gallery.ts";
 import { carmenSkinsResult } from "../../_shared/carmen/skin-gallery.ts";
 import { carmenSkinEntries } from "../../_shared/carmen/skin-gallery.ts";
 import { appOrigin } from "../../_shared/carmen/skin-gallery.ts";
+
+type GetCarmenSkinsArgs = unknown;
 
 /** Preserves the existing get_carmen_skins executor and side-effect order. */
 export async function executeGetCarmenSkins(

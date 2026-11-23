@@ -1,6 +1,13 @@
-import type { SearchEntitiesArgs } from "./admin-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { searchClientsBroadly } from "../executors/client-search.ts";
+
+type SearchEntitiesArgs = {
+  entity_type: "agency" | "client" | "campaigner" | "sales_person" | "lead";
+  search_term: string;
+  agency_id?: string;
+  all_scopes?: boolean;
+  include_inactive?: boolean;
+};
 
 /** Preserves the existing search_entities executor and side-effect order. */
 export async function executeSearchEntities(

@@ -3,8 +3,15 @@ import { findAutomationForMetaForm } from "./meta-form-automation.ts";
 import { metaLeadFormsForPage } from "./meta-lead-forms.ts";
 import { metaLeadPages } from "./meta-lead-pages.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
-import type { SetAutomationMetaLeadFormArgs } from "./automation-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type SetAutomationMetaLeadFormArgs = {
+  automation_id?: string;
+  automation_name?: string;
+  form_name: string;
+  page_name?: string;
+  confirmed: boolean;
+};
 
 /** Preserves the existing set_automation_meta_lead_form executor and side-effect order. */
 export async function executeSetAutomationMetaLeadForm(
