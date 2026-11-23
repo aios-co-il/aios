@@ -1,56 +1,47 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import {
-  pushDecision,
-  pushesCommits,
-  recordReview,
-} from "./push-review-gate.ts";
+import { afterEach, describe, expect, it } from "vitest";
+import { pushDecision, recordReview } from "./push-review-gate.ts";
+
+const repos: Array<string> = [];
+
+afterEach(() => {
+  for (const dir of repos.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/** Runs git in `dir`. */
+function git(dir: string, ...args: Array<string>): string {
+  return execFileSync("git", args, { cwd: dir, encoding: "utf8" });
+}
 
 /** A clone whose origin/develop has one commit, on a branch with one more. */
 function repoWithChange(): string {
   const dir = mkdtempSync(join(tmpdir(), "push-review-gate-"));
-  function git(...args: Array<string>) {
-    return execFileSync("git", args, { cwd: dir, encoding: "utf8" });
-  }
-  git("init", "-q", "-b", "develop");
-  git("config", "user.email", "test@example.com");
-  git("config", "user.name", "Test");
-  writeFileSync(join(dir, "a.txt"), "base\n");
-  git("add", ".");
-  git("commit", "-q", "-m", "base");
-  git("update-ref", "refs/remotes/origin/develop", "HEAD");
-  git("checkout", "-q", "-b", "feature");
-  writeFileSync(join(dir, "a.txt"), "base\nchange\n");
-  git("commit", "-q", "-am", "change");
+  repos.push(dir);
+  git(dir, "init", "-q", "-b", "develop");
+  git(dir, "config", "user.email", "test@example.com");
+  git(dir, "config", "user.name", "Test");
+  writeFileSync(join(dir, "a.txt"), "one\ntwo\nthree\nfour\nfive\nsix\n");
+  git(dir, "add", ".");
+  git(dir, "commit", "-q", "-m", "base");
+  git(dir, "update-ref", "refs/remotes/origin/develop", "HEAD");
+  git(dir, "checkout", "-q", "-b", "feature");
+  writeFileSync(
+    join(dir, "a.txt"),
+    "one\ntwo\nthree\nfour\nfive\nsix\nchange\n",
+  );
+  git(dir, "commit", "-q", "-am", "change");
   return dir;
 }
 
-/** The gate's decision for this command in this clone. */
+/** The gate's decision for this command run in this clone. */
 function decisionFor(dir: string, command: string) {
-  return pushDecision({ cwd: dir, tool_input: { command } });
+  return pushDecision(JSON.stringify({ cwd: dir, tool_input: { command } }));
 }
-
-describe("pushesCommits", () => {
-  it.each([
-    "git push -u origin feature",
-    "cd repo && git push",
-    "git -C repo push origin HEAD",
-  ])("reads %s as a push", (command) => {
-    expect(pushesCommits(command)).toBe(true);
-  });
-
-  it.each([
-    "git status",
-    "git push origin --delete old-branch",
-    "git push origin :old-branch",
-    "echo pushing",
-  ])("leaves %s alone", (command) => {
-    expect(pushesCommits(command)).toBe(false);
-  });
-});
 
 describe("pushDecision", () => {
   it("blocks a push of changes no review recorded", () => {
@@ -66,18 +57,44 @@ describe("pushDecision", () => {
 
   it("lets a reviewed push through, and blocks it again once the code changes", () => {
     const dir = repoWithChange();
-    recordReview(dir);
+    expect(recordReview(dir)).toContain("Review recorded");
 
     expect(decisionFor(dir, "git push")).toBeNull();
 
-    writeFileSync(join(dir, "a.txt"), "base\nchange\nmore\n");
-    execFileSync("git", ["commit", "-q", "-am", "more"], { cwd: dir });
+    writeFileSync(
+      join(dir, "a.txt"),
+      "one\ntwo\nthree\nfour\nfive\nsix\nchange\nmore\n",
+    );
+    git(dir, "commit", "-q", "-am", "more");
     expect(decisionFor(dir, "git push")).not.toBeNull();
   });
 
-  it("never judges a call that is not a push", () => {
+  it("keeps the record when develop changes a line within the change's context", () => {
     const dir = repoWithChange();
+    recordReview(dir);
+    git(dir, "checkout", "-q", "develop");
+    writeFileSync(join(dir, "a.txt"), "one\ntwo\nthree\nFOUR\nfive\nsix\n");
+    git(dir, "commit", "-q", "-am", "develop moves on");
+    git(dir, "update-ref", "refs/remotes/origin/develop", "HEAD");
+    git(dir, "checkout", "-q", "feature");
 
-    expect(decisionFor(dir, "git log --oneline")).toBeNull();
+    git(dir, "rebase", "-q", "origin/develop");
+
+    expect(decisionFor(dir, "git push")).toBeNull();
+  });
+
+  it("asks for a fetch when origin/develop is missing", () => {
+    const dir = repoWithChange();
+    git(dir, "update-ref", "-d", "refs/remotes/origin/develop");
+
+    const reason = decisionFor(dir, "git push")?.hookSpecificOutput
+      .permissionDecisionReason;
+
+    expect(reason).toContain("git fetch origin develop");
+  });
+
+  it("blocks a push it cannot read, and nothing else", () => {
+    expect(pushDecision("not json git push")).not.toBeNull();
+    expect(pushDecision("not json")).toBeNull();
   });
 });

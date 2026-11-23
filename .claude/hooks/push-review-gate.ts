@@ -5,11 +5,13 @@
  * CODING_STANDARDS.md step 3 asks for a self-review against the work
  * standard before every push. Lint and tests cannot check rules such as
  * "one source of truth", so this hook makes the step a gate: a `git push`
- * runs only once `/code-review` recorded a review of the branch's exact
- * changes from `origin/develop` (`node .claude/hooks/push-review-gate.ts
- * record`). A later code change needs a new review; a rebase that keeps the
- * changes keeps the record.
+ * runs only once `/code-review` recorded a review of the branch's changes
+ * from `origin/develop` (`node .claude/hooks/push-review-gate.ts record`).
+ * The record is keyed on the changed lines alone, so a rebase or merge from
+ * develop that leaves them as they were keeps it.
  *
+ * `git push --no-verify` skips the gate, as it skips git's own pre-push
+ * hooks; docs/agents/autonomic-issues.md names the one case that uses it.
  * Records live in the clone's git directory, never in the repository.
  */
 import { execFileSync } from "node:child_process";
@@ -20,14 +22,9 @@ import {
   realpathSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-
-/** The hook payload Claude Code sends a PreToolUse command hook. */
-type HookPayload = {
-  cwd?: string;
-  tool_input?: { command?: unknown };
-};
+import { gatedPushes } from "./push-command.ts";
 
 /** A PreToolUse decision that stops the tool call and says why. */
 type DenyDecision = {
@@ -40,8 +37,7 @@ type DenyDecision = {
 
 const BASE = "origin/develop";
 
-const DENY_REASON =
-  "Push blocked until the work standard review is done (CODING_STANDARDS.md step 3): " +
+const REVIEW_STEPS =
   "run `/code-review origin/develop`, fix or answer every finding, then record it with " +
   "`node .claude/hooks/push-review-gate.ts record` and push again.";
 
@@ -55,79 +51,87 @@ if (
 /** `record` saves a review of the current changes; otherwise it judges a hook payload. */
 function main(command: string | undefined) {
   if (command === "record") {
-    recordReview(process.cwd());
+    console.log(recordReview(process.cwd()));
     return;
   }
-  const decision = pushDecision(readPayload());
+  const decision = pushDecision(readFileSync(0, "utf8"));
   if (decision) {
     process.stdout.write(JSON.stringify(decision));
   }
 }
 
 /**
- * The decision for one Bash call: a deny for a push whose changes have no
- * recorded review, null for anything else.
+ * The decision for one Bash call, from the raw hook payload: a deny for a
+ * push whose changes have no recorded review, null for anything else. A
+ * payload it cannot read is denied when it mentions a push.
  */
-export function pushDecision(payload: HookPayload | null): DenyDecision | null {
-  const command = payload?.tool_input?.command;
-  if (typeof command !== "string" || !pushesCommits(command)) {
-    return null;
+export function pushDecision(rawPayload: string): DenyDecision | null {
+  const payload = parsePayload(rawPayload);
+  if (!payload) {
+    return /\bgit\b.*\bpush\b/.test(rawPayload)
+      ? deny(
+          `Push blocked: the review gate could not read this call. ${REVIEW_STEPS}`,
+        )
+      : null;
   }
-  const cwd = payload?.cwd ?? process.cwd();
+  for (const push of gatedPushes(payload.command, payload.cwd)) {
+    const reason = unreviewedReason(push.cwd);
+    if (reason) {
+      return deny(reason);
+    }
+  }
+  return null;
+}
+
+/** Records that the current changes from origin/develop were reviewed; says what it did. */
+export function recordReview(cwd: string): string {
+  const key = changesKey(cwd);
+  if (key === null) {
+    return "No changes from origin/develop to record.";
+  }
+  const path = recordPath(cwd, key);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${new Date().toISOString()}\n`);
+  return `Review recorded for these changes (${key.slice(0, 12)}).`;
+}
+
+/** Why a push from this directory is blocked; null when its changes were reviewed. */
+function unreviewedReason(cwd: string): string | null {
+  if (!hasBase(cwd)) {
+    return `Push blocked: ${BASE} is missing in ${cwd}, so the review gate cannot see the branch's changes. Run \`git fetch origin develop\`, then ${REVIEW_STEPS}`;
+  }
   try {
     const key = changesKey(cwd);
     return key === null || existsSync(recordPath(cwd, key))
       ? null
-      : deny(DENY_REASON);
+      : `Push blocked until the work standard review is done (CODING_STANDARDS.md step 3): ${REVIEW_STEPS}`;
   } catch (error) {
-    return deny(
-      `Push blocked: the review gate could not read the branch (${String(error)}). ${DENY_REASON}`,
-    );
+    return `Push blocked: the review gate could not read the branch in ${cwd} (${String(error)}). ${REVIEW_STEPS}`;
   }
 }
 
-/** Records that the current changes from origin/develop were reviewed. */
-export function recordReview(cwd: string): string {
-  const key = changesKey(cwd);
-  if (key === null) {
-    console.log("No changes from origin/develop to record.");
-    return "";
+/** Whether origin/develop exists in this clone. */
+function hasBase(cwd: string): boolean {
+  try {
+    git(cwd, ["rev-parse", "--verify", "--quiet", `${BASE}^{commit}`]);
+    return true;
+  } catch {
+    return false;
   }
-  const path = recordPath(cwd, key);
-  mkdirSync(join(path, ".."), { recursive: true });
-  writeFileSync(path, `${new Date().toISOString()}\n`);
-  console.log(`Review recorded for these changes (${key.slice(0, 12)}).`);
-  return path;
-}
-
-/** True for a `git push` that sends commits; deleting a remote branch sends none. */
-export function pushesCommits(command: string): boolean {
-  return command
-    .split(/&&|\|\||;|\|/)
-    .some(
-      (part) =>
-        /\bgit\s+(?:-C\s+\S+\s+)?push\b/.test(part) &&
-        !/\s(?:--delete|-d)(?:\s|$)/.test(part) &&
-        !/\s:\S+/.test(part),
-    );
 }
 
 /**
- * A key for the branch's changes from its merge-base with origin/develop
- * (`git patch-id --stable`), so a rebase that keeps them keeps the key; null
- * when there are none.
+ * A key for the branch's changed lines since its merge-base with
+ * origin/develop (`git patch-id --stable` over a diff without context
+ * lines); null when nothing changed.
  */
 function changesKey(cwd: string): string | null {
   const base = git(cwd, ["merge-base", "HEAD", BASE]).trim();
-  const diff = git(cwd, ["diff", base, "HEAD"]);
+  const diff = git(cwd, ["diff", "--unified=0", base, "HEAD"]);
   if (diff.trim() === "") {
     return null;
   }
-  const patchId = execFileSync("git", ["patch-id", "--stable"], {
-    cwd,
-    input: diff,
-    encoding: "utf8",
-  });
+  const patchId = git(cwd, ["patch-id", "--stable"], diff);
   return patchId.split(/\s+/)[0] || null;
 }
 
@@ -141,13 +145,39 @@ function recordPath(cwd: string, key: string): string {
   return join(gitDir.trim(), "claude-review", key);
 }
 
-/** Runs git in `cwd` and returns its output. */
-function git(cwd: string, args: Array<string>): string {
+/** Runs git in `cwd`, with `input` on stdin, and returns its output. */
+function git(cwd: string, args: Array<string>, input?: string): string {
   return execFileSync("git", args, {
     cwd,
+    input,
     encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
     maxBuffer: 256 * 1024 * 1024,
   });
+}
+
+/** The command and directory of a Bash hook payload; null when it has none. */
+function parsePayload(raw: string): { command: string; cwd: string } | null {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const input = fieldOf(payload, "tool_input");
+  const command = fieldOf(input, "command");
+  const cwd = fieldOf(payload, "cwd");
+  if (typeof command !== "string") {
+    return null;
+  }
+  return { command, cwd: typeof cwd === "string" ? cwd : process.cwd() };
+}
+
+/** A field of a parsed JSON object; undefined when it is not an object. */
+function fieldOf(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null && key in value
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
 }
 
 /** A PreToolUse deny with this reason. */
@@ -159,13 +189,4 @@ function deny(reason: string): DenyDecision {
       permissionDecisionReason: reason,
     },
   };
-}
-
-/** Parses the hook payload from stdin; null when it is not JSON. */
-function readPayload(): HookPayload | null {
-  try {
-    return JSON.parse(readFileSync(0, "utf8")) as HookPayload;
-  } catch {
-    return null;
-  }
 }

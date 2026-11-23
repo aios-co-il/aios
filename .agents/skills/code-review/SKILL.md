@@ -81,7 +81,7 @@ End with a one-line summary: total findings per axis, and the worst issue _withi
 
 ### 6. Record the review
 
-When the fixed point is `origin/develop` and every finding is fixed or answered, run `node .claude/hooks/push-review-gate.ts record`. Done when it prints "Review recorded". The record covers the branch's exact changes from `origin/develop`, which is what the pre-push gate checks; any later code change needs a new review before `git push` runs.
+When the fixed point is `origin/develop` and every finding is fixed or answered, record the review for `CODING_STANDARDS.md` step 3: run `node .claude/hooks/push-review-gate.ts record`. Done when it prints "Review recorded".
 
 ## Why two axes
 
