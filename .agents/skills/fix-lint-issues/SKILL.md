@@ -15,7 +15,7 @@ The CI gates already exist (AIO-24 TypeScript diagnostic baseline, AIO-25 ESLint
 
 `pnpm typecheck` understates the type backlog: it checks only `src/`, leaves `noUnusedLocals` and `noUnusedParameters` off, and counts `any` as typed. Measure a TypeScript slice with its own flag or rule, before and after, as well as with `pnpm typecheck`.
 
-A **slice** is one rule or root cause in one directory or feature, at most ~15 files or ~100 changed lines, so a reviewer can verify it by reading the diff.
+A **slice** is every occurrence of one rule or root cause in one directory or feature: 10 to 30 files, up to ~300 changed lines, all the same kind of change, so a reviewer checks the pattern once and scans the rest. Fewer than 10 files is too thin. Widen to the parent directory or the next feature until the slice reaches 10 files, or add the next-largest untaken rule in the same directory.
 
 ## 1. Claim
 
@@ -24,7 +24,7 @@ A **slice** is one rule or root cause in one directory or feature, at most ~15 f
    - its issue or one of its children is In Progress, In Review, or assigned to someone else. A parent issue that only groups work, with no assignee, no PR, and no In Progress child, does not take a slice;
    - an open PR, remote branch, or merged commit already covers the same rule and files;
    - it needs a runtime bug fix (AIO-19: agent mood/voice `tenantId`) or test-infrastructure repair (AIO-21: missing test dependencies, broken test imports), because other issues own those.
-3. Pick untaken slices. Cut oversized rules (`no-explicit-any`, `DynamicTableView`, broadcast hooks) down to one directory or file. With N > 1, pick N slices that share no files and no rule within one directory.
+3. Pick untaken slices. Count occurrences per directory from `pnpm exec eslint . -f json` and take whole directories, cutting an oversized rule at a directory boundary and never mid-directory. With N > 1, pick N slices that share no files and no rule within one directory.
 4. **Claim** each one: use the matching Backlog/Todo sub-issue, or create one under AIO-26 (search first for duplicates). Assign it to yourself, set it In Progress, and comment the rule, file list, and before-count. Then re-list the sub-issues. If an overlapping claim appeared, release yours and pick again.
 
 Done when every chosen sub-issue is In Progress with your comment, and no other sub-issue or PR overlaps its files. If every slice is taken, report that and stop.
@@ -37,7 +37,7 @@ Start one agent per claimed slice with `isolation: "worktree"`, branched from fr
 
 Fix the cause: real types, runtime validation where data is untrusted, schema checked before touching generated Supabase types. Behavior stays identical; add a focused test only where runtime logic changes. Touch only the slice's files. Suppressions, casts, and rule-disables hide the cause, so each fix removes the diagnostic at its source. Lower the TypeScript baseline for the diagnostics you fixed with `pnpm typecheck:update`. When your PR clears a rule's last occurrence, restore that rule's default severity in `eslint.config.js`.
 
-Done when every diagnostic in your file list is gone and the baseline reflects it.
+Done when lint scoped to the slice's directory reports zero occurrences of the slice's rule, and the baseline reflects it. Two fixed places out of ten means the step is not done.
 
 ## 4. Verify
 
