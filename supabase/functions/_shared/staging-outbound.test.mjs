@@ -32,6 +32,35 @@ Deno.test(
   },
 );
 Deno.test(
+  "Production's custom API domain and other AIOS API hosts are blocked",
+  () => {
+    for (const url of [
+      "https://api.aios.co.il/functions/v1/trigger-automation",
+      "https://api.aios.co.il/rest/v1/clients",
+      "https://API.aios.co.il/storage/v1/object/public/x.png",
+      "https://api-staging.aios.co.il/functions/v1/claude-notify",
+    ]) {
+      for (const method of ["GET", "POST"]) {
+        assertStrictEquals(outboundAllowed(url, method, own), false, url);
+      }
+    }
+
+    const customOwn = "https://api-staging.aios.co.il";
+    assertStrictEquals(
+      outboundAllowed(`${customOwn}/rest/v1/clients`, "POST", customOwn),
+      true,
+    );
+    assertStrictEquals(
+      outboundAllowed(
+        "https://api.aios.co.il/rest/v1/clients",
+        "GET",
+        customOwn,
+      ),
+      false,
+    );
+  },
+);
+Deno.test(
   "Google reporting and token refresh work without allowing calendar/email writes",
   () => {
     for (const url of [

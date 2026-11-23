@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { mcpPresetFunctionUrl } from "@/lib/mcpPresetUrl";
+import { isSupabaseFunctionUrl } from "@functions/_shared/public-api/hosts.ts";
 
 export function McpConnectionsTab({ agent }: { agent: any }) {
   const qc = useQueryClient();
@@ -250,7 +251,10 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
                 <Wrench className="h-3 w-3 me-1" />
                 {(c.available_tools ?? []).length}
               </Badge>
-              {c.url?.includes(".supabase.co/functions/v1/") && (
+              {isSupabaseFunctionUrl(
+                c.url ?? "",
+                import.meta.env.VITE_SUPABASE_URL,
+              ) && (
                 <Button
                   variant="ghost"
                   size="icon"

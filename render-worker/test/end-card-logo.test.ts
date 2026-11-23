@@ -47,6 +47,17 @@ test("a link to the project's entity-attachments bucket reads as its bucket and 
   expect(privateStorageObject(attachment(`${TENANT}/a.png`), "")).toBe(null);
 });
 
+test("a link on the project's custom domain reads as its bucket and path", () => {
+  const custom = "https://api.aios.co.il";
+  const link = `${custom}/storage/v1/object/public/entity-attachments/${TENANT}/a.png`;
+
+  expect(privateStorageObject(link, [PROJECT, custom])).toStrictEqual({
+    bucket: "entity-attachments",
+    path: `${TENANT}/a.png`,
+  });
+  expect(privateStorageObject(link, [PROJECT, undefined])).toBe(null);
+});
+
 /** The mean colour [r, g, b] of a small box at (x, y) as shares of the frame, at `atS`. */
 const colourAt = (file: string, atS: number, x: number, y: number) => {
   const out = spawnSync(

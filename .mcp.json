@@ -2,7 +2,7 @@
   "mcpServers": {
     "aios-system-graph": {
       "type": "http",
-      "url": "https://zvoijyneresvkadpprel.supabase.co/functions/v1/system-graph-mcp",
+      "url": "https://api.aios.co.il/functions/v1/system-graph-mcp",
       "headers": {
         "Authorization": "Bearer ${AIOS_GRAPH_MCP_BEARER}"
       },
@@ -10,7 +10,7 @@
     },
     "Grok": {
       "type": "http",
-      "url": "https://zvoijyneresvkadpprel.supabase.co/functions/v1/grok-mcp/mcp",
+      "url": "https://api.aios.co.il/functions/v1/grok-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${GROK_MCP_BEARER}"
       },

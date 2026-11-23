@@ -1,5 +1,7 @@
 /** PBN magazine HTML generators — baked into Vercel api/home.js + api/article.js at deploy time. */
 
+import { publicFunctionUrl } from "./public-api/url.ts";
+
 export type MagazineTheme = {
   id: number;
   name: string;
@@ -226,7 +228,7 @@ const homeShell = (
 ${sharedHelpers}
 module.exports = async (request, response) => {
   const feedUrl = process.env.PUBLISHING_FEED_URL ||
-    "https://zvoijyneresvkadpprel.supabase.co/functions/v1/publishing-feed";
+    ${JSON.stringify(publicFunctionUrl("publishing-feed"))};
   const feedResponse = await fetch(feedUrl + "?site_id=${siteId}", {
     headers: process.env.PUBLISHING_FEED_TOKEN ? { "x-publishing-token": process.env.PUBLISHING_FEED_TOKEN } : {}
   });
@@ -605,7 +607,7 @@ const magazineImg = (src, alt = "", attrs = "") => {
 module.exports = async (request, response) => {
   const slug = String(request.query?.slug ?? "").replace(/^\\/+|\\/+$/g, "");
   const feedUrl = process.env.PUBLISHING_FEED_URL ||
-    "https://zvoijyneresvkadpprel.supabase.co/functions/v1/publishing-feed";
+    ${JSON.stringify(publicFunctionUrl("publishing-feed"))};
   const feedResponse = await fetch(feedUrl + "?site_id=${siteId}", {
     headers: process.env.PUBLISHING_FEED_TOKEN ? { "x-publishing-token": process.env.PUBLISHING_FEED_TOKEN } : {}
   });

@@ -353,6 +353,30 @@ test("worker guards keep paths in the tenant folder and fetches on media hosts",
   );
 });
 
+test("media links on the project's custom API domain are allowed over https only", async () => {
+  const { assertMediaUrl } = await import("../src/guard.ts");
+  const before = process.env.PUBLIC_API_URL;
+  process.env.PUBLIC_API_URL = "https://api.aios.co.il";
+
+  try {
+    expect(assertMediaUrl("https://api.aios.co.il/storage/v1/x")).toBe(
+      "https://api.aios.co.il/storage/v1/x",
+    );
+    expect(() => assertMediaUrl("http://api.aios.co.il/storage/v1/x")).toThrow(
+      /not allowed/,
+    );
+    expect(() => assertMediaUrl("https://evil.aios.co.il/x")).toThrow(
+      /not allowed/,
+    );
+  } finally {
+    if (before === undefined) {
+      delete process.env.PUBLIC_API_URL;
+    } else {
+      process.env.PUBLIC_API_URL = before;
+    }
+  }
+});
+
 test("a clip run for a scene outside the run's tenant is refused before any provider call", async () => {
   const db = fakeDb({ still: new Uint8Array([1]) });
   let submitted = false;

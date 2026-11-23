@@ -55,6 +55,7 @@ import {
 } from "../_shared/cursor-session-tracker.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
 import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -69,8 +70,7 @@ const corsHeaders = {
 };
 
 const SERVER_INFO = { name: "cursor-mcp", version: "1.4.2" };
-const CURSOR_MCP_STREAMABLE_URL =
-  "https://zvoijyneresvkadpprel.supabase.co/functions/v1/cursor-mcp/mcp";
+const CURSOR_MCP_STREAMABLE_URL = publicFunctionUrl("cursor-mcp/mcp");
 const PROTOCOL_VERSION = "2024-11-05";
 const MAX_TEXT = 100_000;
 const STICKY_ENABLED =

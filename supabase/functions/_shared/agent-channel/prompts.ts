@@ -1,4 +1,5 @@
 import type { ChannelAttachment, ChannelProvider } from "./types.ts";
+import { publicApiUrl } from "../public-api/url.ts";
 
 export function aiosEnvironmentLabel(): "staging" | "production" {
   const env = String(
@@ -99,8 +100,7 @@ export function buildCallbackInstructions(args: {
   readOnly?: boolean;
   callbackIntent?: "default" | "meeting_summary";
 }): string {
-  const supabaseUrl =
-    Deno.env.get("SUPABASE_URL") || "https://zvoijyneresvkadpprel.supabase.co";
+  const supabaseUrl = publicApiUrl();
   const roundLine = args.parliamentRound
     ? `This is parliament round ${args.parliamentRound}. Do not open another parliament.\n`
     : "";

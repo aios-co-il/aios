@@ -2,6 +2,9 @@
 // Preview/Staging: resync also repoints cloned prod MCP URLs to this project's host.
 // Keeps agent_mcp_connections.oauth_tokens.bearer aligned with Edge secrets when they drift.
 
+import { isSupabaseFunctionUrl } from "./public-api/hosts.ts";
+import { publicApiUrl } from "./public-api/url.ts";
+
 export const PRESET_SECRETS: Record<string, string> = {
   cursor: "CURSOR_MCP_BEARER",
   grok: "GROK_MCP_BEARER",
@@ -21,16 +24,9 @@ export function secretForConnectionName(name: string): string | undefined {
   return Deno.env.get(key) || undefined;
 }
 
+/** An edge function of an AIOS project: a supabase.co host, an api*.aios.co.il custom domain or this project's PUBLIC_API_URL. */
 export function isInternalMcpUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    return (
-      u.hostname.endsWith(".supabase.co") &&
-      u.pathname.includes("/functions/v1/")
-    );
-  } catch {
-    return false;
-  }
+  return isSupabaseFunctionUrl(url, publicApiUrl());
 }
 
 const PRESET_FUNCTION_SLUGS: Record<string, string> = {
