@@ -39,22 +39,25 @@ export async function analyzeReference({
   const bucket = "creative-video";
   const item = await loadRunItem(db, run);
   const path = assertTenantPath(run.tenant_id, run.input?.path);
-  if (!path.startsWith(`${item.folder}/`))
+  if (!path.startsWith(`${item.folder}/`)) {
     throw new Error(
       "reference path is outside the run's project (is required)",
     );
+  }
   const dir = await mkdtemp(join(tmpdir(), "reference-"));
   const startedAt = Date.now();
   try {
     const videoFile = join(dir, "reference");
     await writeFile(videoFile, await db.download(bucket, path));
     const info = await probe(videoFile);
-    if (!info.duration)
+    if (!info.duration) {
       throw new Error("Could not read the reference video duration");
-    if (info.duration > MAX_SECONDS)
+    }
+    if (info.duration > MAX_SECONDS) {
       throw new Error(
         `Reference video is ${Math.round(info.duration)}s; the limit is ${MAX_SECONDS}s`,
       );
+    }
     log(
       `[reference] ${run.id}: ${info.duration.toFixed(1)}s ${info.width}x${info.height}`,
     );

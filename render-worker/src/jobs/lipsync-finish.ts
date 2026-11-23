@@ -54,23 +54,26 @@ export async function finishLipsync({
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
   while (result.status === "pending") {
-    if (Date.now() > deadline)
+    if (Date.now() > deadline) {
       throw new Error(`${provider.name} lip-sync job ${jobId} timed out`);
+    }
     await sleep(POLL_EVERY_MS());
     result = await provider.poll(jobId);
   }
-  if (result.status !== "succeeded")
+  if (result.status !== "succeeded") {
     throw finalError(
       result.error || `${provider.name} lip-sync job ${jobId} failed`,
     );
+  }
   let bytes = result.bytes;
   if (!bytes) {
     // A succeeded job without bytes carries its link (fetch reads a missing one as "undefined").
     const response = await fetch(String(result.url));
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         `lipsync download ${response.status} (job ${jobId} kept for retry)`,
       );
+    }
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const seconds = (await videoSeconds(bytes)) ?? durationS;
