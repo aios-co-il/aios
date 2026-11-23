@@ -2,13 +2,10 @@
  * What an approval needs from the database, always within the run's tenant;
  * store.ts implements it over the service-role client.
  */
+import type { DraftFinding } from "../../_shared/manager-round/card-draft-approval.ts";
 import type { CardDraftWritePorts } from "../../_shared/manager-round/card-draft-write.ts";
-import type { Tables } from "../../_shared/database.types.ts";
 
-export type DraftFinding = Pick<
-  Tables<"carmen_findings">,
-  "id" | "client_id" | "agency_id" | "short_code" | "evidence"
->;
+export type { DraftFinding };
 
 export type ApprovalPorts = {
   /** The live finding with this code in the tenant, or null. */

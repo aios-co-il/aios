@@ -1,7 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { TENANT } from "../../tests/fake-world.ts";
 import { recordingClient } from "../../tests/recording-client.ts";
-import { monitoredLines, tenantSlug } from "./connections.ts";
+import { monitoredLines } from "./connections.ts";
 
 Deno.test("monitoredLines", async (t) => {
   await t.step(
@@ -58,12 +58,4 @@ Deno.test("monitoredLines", async (t) => {
       }
     },
   );
-});
-
-Deno.test("tenantSlug", async (t) => {
-  await t.step("reads the tenant's own slug", async () => {
-    const { db, calls } = recordingClient(() => ({ slug: "acme" }));
-    assertEquals(await tenantSlug(db, TENANT), "acme");
-    assertEquals(calls[0].query.get("id"), `eq.${TENANT}`);
-  });
 });
