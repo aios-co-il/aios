@@ -64,6 +64,12 @@ declare
   v_access text := nullif(new.api_key, '');
   v_refresh text := nullif(new.settings ->> 'refresh_token', '');
 begin
+  -- Step 3's check: an insert with an existing connection's id would store its
+  -- tokens before ON CONFLICT DO NOTHING skips it.
+  if tg_op = 'INSERT' and exists (select 1 from public.tenant_integrations ti where ti.id = new.id) then
+    raise exception 'connection % already exists', new.id using errcode = 'unique_violation';
+  end if;
+
   insert into public.integration_secrets (integration_id, tenant_id, access_token, refresh_token, updated_at)
   values (new.id, new.tenant_id, v_access, v_refresh, now())
   on conflict (integration_id) do update
