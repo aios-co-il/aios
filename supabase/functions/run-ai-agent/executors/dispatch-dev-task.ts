@@ -1,8 +1,9 @@
-import type { DispatchDevTaskArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { devTaskApprovalRefusal } from "./dev-task-approval.ts";
 import { dispatchDevTask } from "../../_shared/dev-tasks.ts";
 import { DevTaskNotApprovedError } from "../../_shared/dev-tasks.ts";
+
+type DispatchDevTaskArgs = { dev_task_id: string };
 
 /** Preserves the existing dispatch_dev_task executor and side-effect order. */
 export async function executeDispatchDevTask(

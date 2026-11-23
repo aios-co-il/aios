@@ -66,14 +66,20 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       // The tool runs with executeTool's caller and scope.
       assertMatch(
         runAiAgent,
-        /case REFRESH_PULSE_TOOL_NAME: \{\s*return await executeRefreshCampaignPulse\(\s*\{[^}]*actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
+        /case REFRESH_PULSE_TOOL_NAME:\s*return executeRefreshCampaignPulseTool\(/,
       );
+      assertMatch(
+        read("./executors/refresh-campaign-pulse.ts"),
+        /actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
+      );
+
       const priority = runAiAgent.slice(
         runAiAgent.indexOf("const PRIORITY_TOOLS = new Set(["),
         runAiAgent.indexOf("function capToolsForTarget("),
       );
       assert(priority.includes("  REFRESH_PULSE_TOOL_NAME,\n"));
       assert(ALL_TOOLS.includes(REFRESH_CAMPAIGN_PULSE_TOOL));
+
       const catalog = read("../../../src/lib/agentToolsCatalog.ts");
       assert(catalog.includes("name: REFRESH_PULSE_TOOL_NAME,"));
     },
@@ -138,6 +144,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         turn,
         /messages\s*\[\s*0\s*\]|messages\.(unshift|splice)\(/,
       );
+
       // A narrow allowed_tools still offers both pulse tools to Carmen,
       // before the router picks this message's tools, and on direct_tool.
       const keep = runAiAgent.indexOf(
@@ -162,6 +169,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         runAiAgent,
         /const skinDisabledTools = skinToolDenylist\(disabledTools, \{\s*surface,\s*callerCampaignerId,\s*callerUserId,\s*\}\);/,
       );
+
       const skinPromotions = [
         ...runAiAgent.matchAll(
           /missingEnabledTools\(\s*filteredTools,\s*ALL_TOOLS,\s*[^,]+,\s*(\w+),\s*\)/g,

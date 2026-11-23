@@ -2,30 +2,23 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  LANDING_ROOT_DOMAIN,
+  draftOf,
   draftProblem,
   landingPageUrl,
-  type LandingSettings,
   type LandingSettingsDraft,
+  type TrackingDraft,
 } from "./landingSettings";
+import { LandingAddressFields } from "./LandingAddressFields";
+import { LandingDomainSection } from "./LandingDomainSection";
+import { LandingTrackingFields } from "./LandingTrackingFields";
 import { LeadDestinationFields } from "./LeadDestinationFields";
 import { useLandingSettings } from "./useLandingSettings";
 
-/** The form's starting values: what is stored, with the webhook URL always blank. */
-function draftOf(saved: LandingSettings): LandingSettingsDraft {
-  return {
-    subdomain: saved.subdomain,
-    slug: saved.slug,
-    leadToCrm: saved.leadToCrm,
-    leadToWebhook: saved.leadToWebhook,
-    webhookUrl: "",
-  };
-}
-
-/** A landing project's settings: its address and where its leads go. */
+/**
+ * A landing project's settings: its address, where its leads go, and its site's tracking ids and
+ * custom domain.
+ */
 export function LandingSettingsPanel({
   tenantId,
   itemId,
@@ -35,14 +28,24 @@ export function LandingSettingsPanel({
   itemId: string;
   clientId: string | null;
 }) {
-  const { settings, save } = useLandingSettings(tenantId, itemId, clientId);
+  const { settings, save, saveTracking } = useLandingSettings(
+    tenantId,
+    itemId,
+    clientId,
+  );
   const saved = settings.data;
   const [draft, setDraft] = useState<LandingSettingsDraft | null>(null);
+  const [saves, setSaves] = useState(0);
+  const [trackingSaves, setTrackingSaves] = useState(0);
+  const savedKey = saved ? JSON.stringify(draftOf(saved)) : null;
 
-  // The form follows what is stored, and starts over when another project opens or a save lands.
+  // The form follows its own stored fields: it starts over when another project opens, when those
+  // fields change or when its own save lands, and keeps unsaved edits when a tracking save
+  // refreshes the settings.
   useEffect(() => {
     setDraft(saved ? draftOf(saved) : null);
-  }, [saved, itemId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- every refresh gives a new `saved`; savedKey is the part this form edits
+  }, [savedKey, itemId, saves]);
 
   if (settings.isLoading) {
     return <Loader2 className="m-4 h-4 w-4 animate-spin" aria-label="טוען" />;
@@ -63,6 +66,9 @@ export function LandingSettingsPanel({
   }
 
   const problem = draftProblem(draft, saved);
+  // The site's sections wait while the panel reads the settings again, so an older copy of the
+  // site's values is never saved.
+  const siteBusy = settings.isFetching || settings.isPaused;
   const hasStoredUrl = saved.pageExists && saved.leadToWebhook;
   /** Saves the draft and tells the user how it ended. */
   function submit() {
@@ -70,7 +76,20 @@ export function LandingSettingsPanel({
       return;
     }
     save.mutate(draft, {
-      onSuccess: () => toast.success("ההגדרות נשמרו"),
+      onSuccess: () => {
+        setSaves((count) => count + 1);
+        toast.success("ההגדרות נשמרו");
+      },
+      onError: (error) => toast.error(error.message || "השמירה נכשלה"),
+    });
+  }
+  /** Saves the site's tracking ids and tells the user how it ended. */
+  function submitTracking(tracking: TrackingDraft) {
+    saveTracking.mutate(tracking, {
+      onSuccess: () => {
+        setTrackingSaves((count) => count + 1);
+        toast.success("קודי המעקב נשמרו");
+      },
       onError: (error) => toast.error(error.message || "השמירה נכשלה"),
     });
   }
@@ -99,42 +118,7 @@ export function LandingSettingsPanel({
         ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="landing-subdomain">תת־דומיין של הלקוח</Label>
-          <div className="flex items-center gap-1" dir="ltr">
-            <Input
-              id="landing-subdomain"
-              value={draft.subdomain}
-              disabled={saved.siteExists}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  subdomain: event.target.value.toLowerCase(),
-                })
-              }
-            />
-            <span className="shrink-0 text-sm text-muted-foreground">
-              .{LANDING_ROOT_DOMAIN}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="landing-slug">כתובת העמוד</Label>
-          <Input
-            id="landing-slug"
-            dir="ltr"
-            value={draft.slug}
-            disabled={saved.pageExists}
-            onChange={(event) =>
-              setDraft({ ...draft, slug: event.target.value.toLowerCase() })
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            home הוא העמוד הראשי של האתר.
-          </p>
-        </div>
-      </div>
+      <LandingAddressFields draft={draft} saved={saved} onChange={setDraft} />
 
       <LeadDestinationFields
         draft={draft}
@@ -156,6 +140,31 @@ export function LandingSettingsPanel({
           <p className="text-sm text-muted-foreground">{problem}</p>
         ) : null}
       </div>
+
+      {saved.siteExists ? (
+        <LandingTrackingFields
+          // A new project starts from its own saved ids: an unsaved draft never carries over.
+          key={itemId}
+          saved={saved.tracking}
+          saves={trackingSaves}
+          pending={saveTracking.isPending || siteBusy}
+          onSave={submitTracking}
+        />
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          אחרי שמירת כתובת האתר אפשר להוסיף לו קודי מעקב ודומיין.
+        </p>
+      )}
+
+      {saved.siteExists ? (
+        <LandingDomainSection
+          // Its own state per project: an answer or a draft never carries over.
+          key={`domain-${itemId}`}
+          itemId={itemId}
+          saved={saved}
+          settingsBusy={siteBusy}
+        />
+      ) : null}
     </section>
   );
 }

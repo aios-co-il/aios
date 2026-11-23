@@ -6,7 +6,10 @@ import {
   fakeDb,
   ok,
 } from "../_shared/meeting-bot/video-storage-db.test-fixture.ts";
-import { VIDEO_RETENTION_MS } from "../_shared/meeting-bot/video-storage.ts";
+import {
+  VIDEO_RETENTION_MS,
+  VIDEO_STORE_MAX_ATTEMPTS,
+} from "../_shared/meeting-bot/video-storage.ts";
 import {
   findUnstoredVideos,
   retryVideoStorage,
@@ -21,19 +24,31 @@ function iso(ms: number): string {
 }
 
 describe("findUnstoredVideos", () => {
-  it("selects done sessions with Recall's video, no file_path, inside the window", async () => {
+  it("selects retryable done sessions with Recall's video, no file_path, inside the window", async () => {
     const { client, calls } = fakeDb({
       meeting_bot_sessions: [
-        ok([{ id: "s-1", tenant_id: "t-1", zoom_recordings: {} }]),
+        ok([
+          {
+            id: "s-1",
+            tenant_id: "t-1",
+            video_store_attempts: 2,
+            zoom_recordings: {},
+          },
+        ]),
       ],
     });
 
     const found = await findUnstoredVideos(client, NOW);
 
-    assertEquals(found, [{ id: "s-1", tenant_id: "t-1" }]);
+    assertEquals(found, [
+      { id: "s-1", tenant_id: "t-1", video_store_attempts: 2 },
+    ]);
     assertEquals(callsOn(calls, "meeting_bot_sessions").slice(1), [
       ["eq", "status", "done"],
       ["not", "external_bot_id", "is", null],
+      // A copy Storage rejected as too large is never queued again.
+      ["is", "video_store_failed_at", null],
+      ["lt", "video_store_attempts", VIDEO_STORE_MAX_ATTEMPTS],
       ["is", "zoom_recordings.file_path", null],
       ["not", "zoom_recordings.recording_url", "is", null],
       ["gte", "ended_at", iso(NOW - VIDEO_RETENTION_MS)],
@@ -64,8 +79,8 @@ describe("retryVideoStorage", () => {
     const { client, calls } = fakeDb({
       meeting_bot_sessions: [
         ok([
-          { id: "s-1", tenant_id: "t-1" },
-          { id: "s-2", tenant_id: "t-2" },
+          { id: "s-1", tenant_id: "t-1", video_store_attempts: 0 },
+          { id: "s-2", tenant_id: "t-2", video_store_attempts: 3 },
         ]),
         ok([{ id: "s-1", tenant_id: "t-1" }]),
         // Another sweep claimed s-2 in between.
@@ -90,21 +105,23 @@ describe("retryVideoStorage", () => {
     ]);
     const sessionCalls = callsOn(calls, "meeting_bot_sessions");
     const firstClaim = sessionCalls.findIndex((call) => call[0] === "update");
-    assertEquals(sessionCalls.slice(firstClaim, firstClaim + 10), [
-      ["update", { updated_at: iso(NOW) }],
+    assertEquals(sessionCalls.slice(firstClaim, firstClaim + 12), [
+      ["update", { updated_at: iso(NOW), video_store_attempts: 1 }],
       ["eq", "id", "s-1"],
       ["eq", "tenant_id", "t-1"],
+      ["eq", "video_store_attempts", 0],
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
       ["select", "id, tenant_id"],
-      ["update", { updated_at: iso(NOW) }],
+      ["update", { updated_at: iso(NOW), video_store_attempts: 4 }],
       ["eq", "id", "s-2"],
       ["eq", "tenant_id", "t-2"],
+      ["eq", "video_store_attempts", 3],
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
       ["select", "id, tenant_id"],
     ]);
   });
 
-  it("fails sessions that waited on their video past the window", async () => {
+  it("fails waiting sessions past the window, given up, or out of attempts", async () => {
     const { client, calls } = fakeDb({
       meeting_bot_sessions: [
         ok([]),
@@ -118,15 +135,16 @@ describe("retryVideoStorage", () => {
 
     assertEquals(result, { requeued: [], resumed: 0, expired: 1 });
     const sessionCalls = callsOn(calls, "meeting_bot_sessions");
-    const expiryLookup = sessionCalls.findIndex(
-      (call) => call[0] === "lt" && call[1] === "ended_at",
-    );
+    const expiryLookup = sessionCalls.findIndex((call) => call[0] === "or");
     assertEquals(sessionCalls.slice(expiryLookup - 3, expiryLookup + 2), [
       ["eq", "status", "done"],
       ["eq", "status_detail", "awaiting_video"],
       // A stored video is resumed, never expired.
       ["is", "zoom_recordings.file_path", null],
-      ["lt", "ended_at", iso(NOW - VIDEO_RETENTION_MS)],
+      [
+        "or",
+        `ended_at.lt.${iso(NOW - VIDEO_RETENTION_MS)},video_store_failed_at.not.is.null,video_store_attempts.gte.${VIDEO_STORE_MAX_ATTEMPTS}`,
+      ],
       // An upload leased in the last interval may still be running.
       ["lt", "updated_at", iso(NOW - VIDEO_RETRY_INTERVAL_MS)],
     ]);

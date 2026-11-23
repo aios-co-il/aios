@@ -3,12 +3,15 @@
 // Runs on reconcile's scheduled sweep while Recall still holds the media, and
 // fails sessions that waited on their video past that window.
 import {
-  AWAITING_VIDEO,
   startVideoStorage,
   VIDEO_RETENTION_MS,
-  VIDEO_STORED,
+  VIDEO_STORE_MAX_ATTEMPTS,
 } from "../_shared/meeting-bot/video-storage.ts";
 import { type DbClient, serviceClient } from "../_shared/supabase-clients.ts";
+import {
+  failExpiredVideoWaits,
+  resumeStoredVideoWaits,
+} from "./video-waits.ts";
 
 /**
  * Minimum gap between two copies of one session. Longer than an edge
@@ -62,21 +65,29 @@ interface SessionKey {
   tenant_id: string;
 }
 
+/** A retry candidate with the copies already queued for it. */
+interface RetryCandidate extends SessionKey {
+  video_store_attempts: number;
+}
+
 /**
  * Done sessions whose recording has Recall's video but no file_path, that
- * ended inside the retention window and were not touched for a retry interval.
+ * ended inside the retention window, were not touched for a retry interval,
+ * and whose copy has neither failed permanently nor used up its attempts.
  */
 export async function findUnstoredVideos(
   admin: DbClient,
   now: number,
-): Promise<Array<SessionKey>> {
+): Promise<Array<RetryCandidate>> {
   const { data, error } = await admin
     .from("meeting_bot_sessions")
     .select(
-      "id, tenant_id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path, recording_url)",
+      "id, tenant_id, video_store_attempts, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path, recording_url)",
     )
     .eq("status", "done")
     .not("external_bot_id", "is", null)
+    .is("video_store_failed_at", null)
+    .lt("video_store_attempts", VIDEO_STORE_MAX_ATTEMPTS)
     .is("zoom_recordings.file_path", null)
     .not("zoom_recordings.recording_url", "is", null)
     .gte("ended_at", new Date(now - VIDEO_RETENTION_MS).toISOString())
@@ -86,25 +97,34 @@ export async function findUnstoredVideos(
   if (error) {
     throw new Error(`find unstored videos failed: ${error.message}`);
   }
-  return (data ?? []).map(({ id, tenant_id }) => ({ id, tenant_id }));
+  return (data ?? []).map(({ id, tenant_id, video_store_attempts }) => ({
+    id,
+    tenant_id,
+    video_store_attempts,
+  }));
 }
 
 /**
- * Bumps updated_at on the candidates still past the retry interval and returns
- * those rows: a lease, so two overlapping sweeps never queue one copy twice.
+ * Bumps updated_at and counts the attempt on the candidates still past the
+ * retry interval and returns those rows: a lease, so two overlapping sweeps
+ * never queue one copy twice.
  */
 async function claimRetries(
   admin: DbClient,
-  candidates: Array<SessionKey>,
+  candidates: Array<RetryCandidate>,
   now: number,
 ): Promise<Array<SessionKey>> {
   const claimed: Array<SessionKey> = [];
   for (const candidate of candidates) {
     const { data, error } = await admin
       .from("meeting_bot_sessions")
-      .update({ updated_at: new Date(now).toISOString() })
+      .update({
+        updated_at: new Date(now).toISOString(),
+        video_store_attempts: candidate.video_store_attempts + 1,
+      })
       .eq("id", candidate.id)
       .eq("tenant_id", candidate.tenant_id)
+      .eq("video_store_attempts", candidate.video_store_attempts)
       .lt("updated_at", new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString())
       .select("id, tenant_id");
     if (error) {
@@ -113,96 +133,4 @@ async function claimRetries(
     claimed.push(...(data ?? []));
   }
   return claimed;
-}
-
-/**
- * Hands back to reconcile the sessions whose video is stored but still wait on
- * it: the store function saved file_path and then failed to resume them.
- */
-async function resumeStoredVideoWaits(
-  admin: DbClient,
-  now: number,
-): Promise<number> {
-  const { data: stored, error: findError } = await admin
-    .from("meeting_bot_sessions")
-    .select(
-      "id, tenant_id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
-    )
-    .eq("status", "done")
-    .eq("status_detail", AWAITING_VIDEO)
-    .not("zoom_recordings.file_path", "is", null)
-    .limit(VIDEO_RETRY_BATCH_SIZE);
-  if (findError) {
-    throw new Error(`find stored video waits failed: ${findError.message}`);
-  }
-  let resumed = 0;
-  for (const session of stored ?? []) {
-    const { data, error } = await admin
-      .from("meeting_bot_sessions")
-      .update({
-        status: "processing",
-        status_detail: VIDEO_STORED,
-        updated_at: new Date(now).toISOString(),
-      })
-      .eq("id", session.id)
-      .eq("tenant_id", session.tenant_id)
-      .eq("status", "done")
-      .eq("status_detail", AWAITING_VIDEO)
-      .select("id");
-    if (error) {
-      throw new Error(`resume stored video waits failed: ${error.message}`);
-    }
-    resumed += data?.length ?? 0;
-  }
-  return resumed;
-}
-
-/**
- * Fails sessions still waiting on their video once Recall's media is gone. A
- * session leased for a retry within the last interval is left to finish.
- */
-async function failExpiredVideoWaits(
-  admin: DbClient,
-  now: number,
-): Promise<number> {
-  const retentionCutoff = new Date(now - VIDEO_RETENTION_MS).toISOString();
-  const leaseCutoff = new Date(now - VIDEO_RETRY_INTERVAL_MS).toISOString();
-  // Only sessions whose video never reached Storage; a stored one waits for
-  // resumeStoredVideoWaits however many sweeps that takes.
-  const { data: unstored, error: findError } = await admin
-    .from("meeting_bot_sessions")
-    .select(
-      "id, tenant_id, zoom_recordings!meeting_bot_sessions_zoom_recording_id_fkey!inner(file_path)",
-    )
-    .eq("status", "done")
-    .eq("status_detail", AWAITING_VIDEO)
-    .is("zoom_recordings.file_path", null)
-    .lt("ended_at", retentionCutoff)
-    .lt("updated_at", leaseCutoff)
-    .limit(VIDEO_RETRY_BATCH_SIZE);
-  if (findError) {
-    throw new Error(`find expired video waits failed: ${findError.message}`);
-  }
-  let expired = 0;
-  for (const session of unstored ?? []) {
-    const { data, error } = await admin
-      .from("meeting_bot_sessions")
-      .update({
-        status: "failed",
-        error:
-          "no transcript from Recall, no usable audio, and the video was never stored",
-        updated_at: new Date(now).toISOString(),
-      })
-      .eq("id", session.id)
-      .eq("tenant_id", session.tenant_id)
-      .eq("status", "done")
-      .eq("status_detail", AWAITING_VIDEO)
-      .lt("updated_at", leaseCutoff)
-      .select("id");
-    if (error) {
-      throw new Error(`fail expired video waits failed: ${error.message}`);
-    }
-    expired += data?.length ?? 0;
-  }
-  return expired;
 }

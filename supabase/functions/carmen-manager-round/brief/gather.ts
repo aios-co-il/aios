@@ -1,4 +1,8 @@
-/** The morning brief's content: decisions, team load and the last day's activity. */
+/**
+ * The morning brief's content: decisions, the client-card drafts waiting for
+ * approval (one counted line with a link, never one line each), team load and
+ * the last day's activity.
+ */
 import { isFindingKind } from "../../_shared/manager-round/kinds.ts";
 import { isSendingMode, kindMode } from "../../_shared/manager-round/modes.ts";
 import type { ManagerSettings } from "../../_shared/manager-round/settings.ts";
@@ -7,15 +11,17 @@ import type { FindingsStore } from "../findings/store.ts";
 import type { FindingRow } from "../findings/types.ts";
 import type { PeopleDirectory } from "../recipients/directory.ts";
 import { isDeliverable, type NotifyFloors } from "../router/route.ts";
-import type { BriefInput } from "./compose.ts";
+import type { BriefInput, CardDraftsLink, PendingDrafts } from "./compose.ts";
 
 const BRIEF_SCAN_LIMIT = 300;
 const DAY_MS = 86_400_000;
 
 export type GatherDeps = {
-  findings: FindingsStore;
-  deliveries: DeliveriesStore;
+  findings: Pick<FindingsStore, "listLive">;
+  deliveries: Pick<DeliveriesStore, "activitySince">;
   directory: PeopleDirectory;
+  /** `<APP_URL>/t/<slug>/card-drafts`, or null without APP_URL or a slug. */
+  cardDraftsLink: CardDraftsLink;
 };
 
 /** What every recipient's brief is composed from. */
@@ -33,7 +39,7 @@ export type GatherInput = {
   floors: NotifyFloors;
 };
 
-/** The brief's content: decisions, team load and the last day's activity. */
+/** The brief's content: decisions, pending drafts, team load and the last day's activity. */
 export async function gatherBrief(
   deps: GatherDeps,
   run: GatherInput,
@@ -41,8 +47,10 @@ export async function gatherBrief(
   const live = (
     await deps.findings.listLive(run.tenantId, BRIEF_SCAN_LIMIT)
   ).filter((f) => f.status !== "acknowledged");
-  const decisions = live
-    .filter((finding) => needsDecision(finding, run))
+  const due = live.filter((finding) => needsDecision(finding, run));
+  const draftCount = due.filter(isCardDraft).length;
+  const decisions = due
+    .filter((finding) => !isCardDraft(finding))
     .sort(
       (a, b) =>
         Number(b.severity === "critical") - Number(a.severity === "critical") ||
@@ -54,9 +62,40 @@ export async function gatherBrief(
   );
   return {
     decisions,
+    pendingDrafts: {
+      count: draftCount,
+      link: draftCount ? await draftsLink(deps, run.tenantId) : null,
+    },
     team: await teamLoad(deps.directory, live, run.settings),
     activity,
   };
+}
+
+/**
+ * A drafted client-card entry: approved on the card-drafts page, so the brief
+ * counts it instead of listing it as a decision.
+ */
+function isCardDraft(finding: FindingRow): boolean {
+  return finding.kind === "card_stale_group";
+}
+
+/**
+ * The card-drafts page link; null when it cannot be built. A failed read
+ * only drops the link (logged): the brief still says drafts are waiting.
+ */
+async function draftsLink(
+  deps: GatherDeps,
+  tenantId: string,
+): Promise<PendingDrafts["link"]> {
+  try {
+    return await deps.cardDraftsLink(tenantId);
+  } catch (error) {
+    console.error(
+      `[carmen-manager-round] card-drafts link for ${tenantId} failed`,
+      error,
+    );
+    return null;
+  }
 }
 
 /** Owner-level or critical findings the tenant may already be told about. */

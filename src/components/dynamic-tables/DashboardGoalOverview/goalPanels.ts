@@ -7,6 +7,16 @@ import {
   unvaluedPurchaseCost,
   type DashboardCombinedSales,
 } from "@/lib/dashboardCombinedFigures";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
+import { moneyFormatters } from "@/lib/dashboardCurrencies";
+import {
+  formatGoalMoney,
+  formatSplitSalesMeasure,
+  goalRowCurrency,
+  goalRowsMoney,
+  goalSalesMoney,
+  type GoalMoneyPart,
+} from "@/lib/dashboardGoalMoney";
 import type { DashboardGoalSummary } from "@/lib/dashboardGoalSummary";
 import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
 import type { PlatformLabelOf } from "../DashboardPlatformBreakdown/BreakdownCells";
@@ -27,6 +37,10 @@ type PanelInput = {
   leads: { leads: number; cpl: number };
   platformLabel: PlatformLabelOf;
   format: GoogleAdsFormatters;
+  /** Each platform in its own currency; a goal's totals never add currencies. */
+  currencies: DashboardCurrencies;
+  /** Whether the sales are the store's (dashboardStore). */
+  hasStore: boolean;
 };
 
 /** A panel per goal that has campaigns, in report order. */
@@ -47,29 +61,35 @@ const PANELS: Record<ReportCampaignGoal, (input: PanelInput) => GoalPanel> = {
  * Spend, purchases and ROAS; cost per purchase instead of ROAS when the
  * purchases carry no value. The revenue goes under the figures.
  */
-function salesPanel({ summary, sales, format }: PanelInput): GoalPanel {
+function salesPanel(input: PanelInput): GoalPanel {
+  const { summary, sales, format } = input;
+  const money = goalSalesMoney(summary, input.hasStore, input.currencies);
   const purchaseCost = unvaluedPurchaseCost(sales);
+  const label = purchaseCost !== null ? "עלות לרכישה" : "ROAS";
   const measure: GoalFigure =
-    purchaseCost !== null
-      ? { label: "עלות לרכישה", value: format.formatCurrency(purchaseCost) }
-      : {
-          label: "ROAS",
-          value: sales.roas === null ? "-" : sales.roas.toFixed(2),
-        };
+    money.split || money.unmeasurable
+      ? { label, value: formatSplitSalesMeasure(money, purchaseCost !== null) }
+      : purchaseCost !== null
+        ? { label, value: format.formatCurrency(purchaseCost) }
+        : { label, value: sales.roas === null ? "-" : sales.roas.toFixed(2) };
+  const revenue = money.split
+    ? formatGoalMoney(money.split, (m) => m.revenue)
+    : format.formatCurrency(sales.revenue);
   return {
     goal: "ecommerce",
     figures: [
       {
         label: "הוצאה",
-        value: format.formatCurrency(summary.goals.ecommerce.spend),
+        value: goalSpend(
+          input,
+          goalRowsMoney(summary, "ecommerce", input.currencies),
+          "ecommerce",
+        ),
       },
       { label: "רכישות", value: format.formatNumber(sales.purchases) },
       measure,
     ],
-    note:
-      sales.revenue > 0
-        ? `הכנסות: ${format.formatCurrency(sales.revenue)}`
-        : null,
+    note: sales.revenue > 0 ? `הכנסות: ${revenue}` : null,
   };
 }
 
@@ -77,30 +97,30 @@ function salesPanel({ summary, sales, format }: PanelInput): GoalPanel {
  * Spend, leads and cost per lead; when leads come from several platforms,
  * each platform's cost per lead under the figures.
  */
-function leadsPanel({
-  summary,
-  leads,
-  platformLabel,
-  format,
-}: PanelInput): GoalPanel {
+function leadsPanel(input: PanelInput): GoalPanel {
+  const { summary, leads, platformLabel, format, currencies } = input;
   const leadRows = summary.rows.filter((row) => row.goal === "leads");
   const perPlatform = leadRows
     .filter((row) => row.metrics.leads > 0)
-    .map(
-      (row) =>
-        `${platformLabel(row.platform).name} ${format.formatCurrency(goalCpl(row.metrics))}`,
-    );
+    .map((row) => {
+      const own = currencies.mixed
+        ? moneyFormatters(goalRowCurrency(row.platform, currencies))
+        : format;
+      return `${platformLabel(row.platform).name} ${own.formatCurrency(goalCpl(row.metrics))}`;
+    });
+  const parts = goalRowsMoney(summary, "leads", currencies);
   return {
     goal: "leads",
     figures: [
-      {
-        label: "הוצאה",
-        value: format.formatCurrency(summary.goals.leads.spend),
-      },
+      { label: "הוצאה", value: goalSpend(input, parts, "leads") },
       { label: "לידים", value: format.formatNumber(leads.leads) },
       {
         label: "עלות לליד",
-        value: leads.cpl > 0 ? format.formatCurrency(leads.cpl) : "-",
+        value: parts
+          ? formatGoalMoney(parts, (m) => m.spend, { count: (m) => m.leads })
+          : leads.cpl > 0
+            ? format.formatCurrency(leads.cpl)
+            : "-",
       },
     ],
     note:
@@ -111,21 +131,38 @@ function leadsPanel({
 }
 
 /** Spend, clicks and cost per click. */
-function trafficPanel({ summary, format }: PanelInput): GoalPanel {
+function trafficPanel(input: PanelInput): GoalPanel {
+  const { summary, format } = input;
   const traffic = summary.goals.traffic;
+  const parts = goalRowsMoney(summary, "traffic", input.currencies);
   return {
     goal: "traffic",
     figures: [
-      { label: "הוצאה", value: format.formatCurrency(traffic.spend) },
+      { label: "הוצאה", value: goalSpend(input, parts, "traffic") },
       { label: "קליקים", value: format.formatNumber(traffic.clicks) },
       {
         label: "עלות לקליק",
-        value:
-          traffic.clicks > 0
+        value: parts
+          ? formatGoalMoney(parts, (m) => m.spend, {
+              count: (m) => m.clicks,
+              unitCost: true,
+            })
+          : traffic.clicks > 0
             ? format.formatUnitCost(traffic.spend / traffic.clicks)
             : "-",
       },
     ],
     note: null,
   };
+}
+
+/** A goal's spend, per currency when its platforms' currencies differ. */
+function goalSpend(
+  { summary, format }: PanelInput,
+  parts: Array<GoalMoneyPart> | null,
+  goal: ReportCampaignGoal,
+): string {
+  return parts
+    ? formatGoalMoney(parts, (m) => m.spend)
+    : format.formatCurrency(summary.goals[goal].spend);
 }

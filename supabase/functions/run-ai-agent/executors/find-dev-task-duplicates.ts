@@ -1,6 +1,7 @@
-import type { FindDevTaskDuplicatesArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { findDuplicateDevTasks } from "../../_shared/dev-tasks.ts";
+
+type FindDevTaskDuplicatesArgs = { title: string };
 
 /** Preserves the existing find_dev_task_duplicates executor and side-effect order. */
 export async function executeFindDevTaskDuplicates(

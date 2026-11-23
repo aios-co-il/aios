@@ -39,6 +39,7 @@ const DynamicTables = lazy(() => import("@/pages/DynamicTables"));
 const DynamicTableView = lazy(() => import("@/pages/DynamicTableView"));
 const DashboardView = lazy(() => import("@/pages/DashboardView"));
 const Chat = lazy(() => import("@/pages/Chat"));
+const CardDrafts = lazy(() => import("@/pages/CardDrafts"));
 const ManyChatSettings = lazy(() => import("@/pages/ManyChatSettings"));
 const ChatIntegrations = lazy(() => import("@/pages/ChatIntegrations"));
 const GreenAPISettings = lazy(() => import("@/pages/GreenAPISettings"));
@@ -194,6 +195,7 @@ export function tenantRoutes() {
         <Route path="dashboard/:dashboardId" element={<DashboardView />} />
         <Route path="chat" element={<Chat />} />
         <Route path="chat/:clientId" element={<Chat />} />
+        <Route path="card-drafts" element={<CardDrafts />} />
         <Route path="chat-integrations" element={<ChatIntegrations />} />
         <Route path="manychat-settings" element={<ManyChatSettings />} />
         <Route path="green-api-settings" element={<GreenAPISettings />} />

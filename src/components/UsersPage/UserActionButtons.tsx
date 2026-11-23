@@ -1,5 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { Eye, Lock, Mail, Settings, Shield, Trash2 } from "lucide-react";
+import {
+  Building2,
+  Eye,
+  Lock,
+  Mail,
+  Settings,
+  Shield,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DeactivateMemberButton } from "./DeactivateMemberButton";
@@ -14,7 +22,7 @@ type ActionButtonsProps = Pick<
   compact?: boolean;
 };
 
-/** Per-user actions: agencies, permissions, password, view-as, resend invite, deactivate, remove. */
+/** Per-user actions: agencies, permissions, another organization, password, view-as, resend invite, deactivate, remove. */
 export function UserActionButtons({
   user,
   actions,
@@ -54,6 +62,15 @@ export function UserActionButtons({
         compact={compact}
         onClick={() => actions.editPermissions(user)}
       />
+      {actions.assignTenant && (
+        <ActionButton
+          icon={Building2}
+          label="ארגון נוסף"
+          title="שייך לארגון נוסף"
+          compact={compact}
+          onClick={() => actions.assignTenant?.(user)}
+        />
+      )}
       <ActionButton
         icon={Shield}
         label="סיסמה"

@@ -6,7 +6,8 @@ import { MetricKpiGrid } from "../blocks/MetricKpiGrid";
 import { MetricTrendChart } from "../blocks/MetricTrendChart";
 import type { ReportData, ReportScopeData } from "../data/reportData";
 import type { ReportScope } from "../metrics/reportMetricTypes";
-import type { CurrencyCode } from "@/lib/currency";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
+import { reportMoneyOf } from "../metrics/reportMoney";
 import { chartMetrics } from "./chartWidget";
 import type { ReportWidget } from "./reportLayout";
 
@@ -82,7 +83,7 @@ function WidgetBlock({
   scope: ReportScopeData;
   data: ReportData;
 }) {
-  const { currency } = data;
+  const { currencies } = data;
   switch (widget.kind) {
     case "kpis":
       return (
@@ -90,12 +91,14 @@ function WidgetBlock({
           metrics={widget.metrics}
           current={scope.figures}
           previous={scope.previous}
-          currency={currency}
+          money={reportMoneyOf(scope.channels, currencies)}
         />
       );
     case "channels":
     case "trend":
-      return <ChartBlock widget={widget} scope={scope} currency={currency} />;
+      return (
+        <ChartBlock widget={widget} scope={scope} currencies={currencies} />
+      );
     case "campaigns":
       // A campaign table belongs to a goal; "all" has none.
       return scopeName === "all" ? null : (
@@ -103,7 +106,7 @@ function WidgetBlock({
           goal={scopeName}
           scope={scope}
           metrics={widget.metrics}
-          currency={currency}
+          currencies={currencies}
         />
       );
     case "insight":
@@ -115,11 +118,11 @@ function WidgetBlock({
 function ChartBlock({
   widget,
   scope,
-  currency,
+  currencies,
 }: {
   widget: Extract<ReportWidget, { kind: "channels" | "trend" }>;
   scope: ReportScopeData;
-  currency: CurrencyCode;
+  currencies: DashboardCurrencies;
 }) {
   const metrics = chartMetrics(widget, scope);
   if (!metrics) {
@@ -130,14 +133,14 @@ function ChartBlock({
       scope={scope}
       metric={metrics.metric}
       detail={metrics.second}
-      currency={currency}
+      currencies={currencies}
     />
   ) : (
     <MetricTrendChart
       scope={scope}
       metric={metrics.metric}
       compare={metrics.second}
-      currency={currency}
+      currencies={currencies}
     />
   );
 }
