@@ -23,6 +23,13 @@ const AGENCY_GSC = "88888888-8888-4888-8888-888888888888";
 
 const OTHER_GSC = "99999999-9999-4999-8999-999999999999";
 
+/** A clients row as the access check reads it. */
+type ClientRow = {
+  id: string;
+  tenant_id: string | null;
+  agency_id: string | null;
+};
+
 const env = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY: "test-anon",
@@ -36,7 +43,7 @@ const env = {
  */
 async function run<T>(
   fn: () => Promise<T>,
-  clients: Array<Record<string, string | null>> = [
+  clients: Array<ClientRow> = [
     { id: CLIENT, tenant_id: CLIENT_TENANT, agency_id: AGENCY },
   ],
 ): Promise<T> {
