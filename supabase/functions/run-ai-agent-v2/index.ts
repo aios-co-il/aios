@@ -100,7 +100,10 @@ async function logStep(
   });
 }
 
-async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
+async function loadTools(
+  supabase: any,
+  tenantId: string,
+): Promise<Array<ToolRow>> {
   const { data } = await supabase
     .from("agent_tools")
     .select("*")
@@ -109,7 +112,7 @@ async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
   return data ?? [];
 }
 
-function buildOpenAITools(tools: ToolRow[]) {
+function buildOpenAITools(tools: Array<ToolRow>) {
   return tools.map((t) => ({
     type: "function",
     function: {
@@ -126,7 +129,7 @@ async function reconstructMessages(
   run: RunRow,
   systemPrompt: string,
 ) {
-  const messages: any[] = [
+  const messages: Array<any> = [
     { role: "system", content: systemPrompt },
     { role: "user", content: run.goal },
   ];
@@ -166,7 +169,11 @@ async function reconstructMessages(
   return messages;
 }
 
-async function callLLM(model: string, messages: any[], openaiTools: any[]) {
+async function callLLM(
+  model: string,
+  messages: Array<any>,
+  openaiTools: Array<any>,
+) {
   const t0 = Date.now();
   const resp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
@@ -419,7 +426,7 @@ Deno.serve(async (req) => {
       .eq("tenant_id", run.tenant_id)
       .eq("state", "ready")
       .or(`agent_id.eq.${run.agent_id},agent_id.is.null`);
-    const mcpTools: ToolRow[] = [];
+    const mcpTools: Array<ToolRow> = [];
     for (const c of mcpConns ?? []) {
       const list = Array.isArray(c.available_tools) ? c.available_tools : [];
       for (const t of list) {

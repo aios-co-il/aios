@@ -72,10 +72,10 @@ export function isCreativeDepartmentItem(
 }
 
 export function filterCreativeDepartmentItems<T extends WorkItemLike>(
-  items: T[],
+  items: Array<T>,
   creativeStageIds: Iterable<string> = [],
   socialPipelineIds: Iterable<string> = [],
-): T[] {
+): Array<T> {
   const ids = new Set(creativeStageIds);
   const social = new Set(socialPipelineIds);
   return items.filter((item) => {

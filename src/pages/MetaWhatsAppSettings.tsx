@@ -198,9 +198,9 @@ export default function MetaWhatsAppSettings({
   const [manualPin, setManualPin] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualBusinessId, setManualBusinessId] = useState("");
-  const [assets, setAssets] = useState<MetaAsset[] | null>(null);
+  const [assets, setAssets] = useState<Array<MetaAsset> | null>(null);
   const [metaAppId, setMetaAppId] = useState("");
-  const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
+  const [selectedPhones, setSelectedPhones] = useState<Array<string>>([]);
   const [discovery, setDiscovery] = useState<unknown>(null);
   const [discoveryLimited, setDiscoveryLimited] = useState(false);
   const [sharingIntegration, setSharingIntegration] =
@@ -239,7 +239,7 @@ export default function MetaWhatsAppSettings({
         .eq("integration_type", "meta_whatsapp")
         .order("created_at");
       if (error) throw error;
-      return (data ?? []) as unknown as Integration[];
+      return (data ?? []) as unknown as Array<Integration>;
     },
   });
 
@@ -448,7 +448,7 @@ export default function MetaWhatsAppSettings({
       }
       setMetaAppId(String(data.app_id ?? ""));
       setDiscoveryLimited(Boolean(data.discovery_limited));
-      return (data.accounts ?? []) as MetaAsset[];
+      return (data.accounts ?? []) as Array<MetaAsset>;
     },
     onSuccess: (accounts) => {
       setDiscovery(null);

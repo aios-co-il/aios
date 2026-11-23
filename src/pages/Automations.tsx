@@ -139,7 +139,7 @@ export default function Automations() {
       if (shareErr) throw shareErr;
 
       const sharedIds = (shareRows || []).map((r: any) => r.automation_id);
-      let shared: any[] = [];
+      let shared: Array<any> = [];
       if (sharedIds.length > 0) {
         const { data: sharedAutos, error: sharedErr } = await supabase
           .from("automations")
@@ -326,9 +326,9 @@ export default function Automations() {
       // Use Carmen as the routing agent — she has manus-mcp connected and will
       // forward the request to Manus via ask_manus / request_dev_task tools.
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        ) || ((agentsList as Array<any>) || [])[0];
       if (!carmenAgent)
         throw new Error("לא נמצאה כרמן פעילה. ודא שסוכן כרמן קיים.");
       const { data, error } = await supabase
@@ -487,9 +487,9 @@ export default function Automations() {
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmen =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        ) || ((agentsList as Array<any>) || [])[0];
       if (!carmen) throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
 
       const { data: automation, error: autoErr } = await supabase
@@ -618,9 +618,9 @@ export default function Automations() {
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        ) || ((agentsList as Array<any>) || [])[0];
       // Create the automation header
       const { data, error } = await supabase
         .from("automations")
@@ -1085,7 +1085,7 @@ export default function Automations() {
           const configuredTriggers = Array.isArray(
             (automation as any).configuration?.trigger_types,
           )
-            ? ((automation as any).configuration.trigger_types as string[])
+            ? ((automation as any).configuration.trigger_types as Array<string>)
             : [];
           const triggerType = automation.trigger_type;
           const triggerLabel =

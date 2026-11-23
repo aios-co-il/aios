@@ -107,12 +107,12 @@ Deno.serve(async (req) => {
       mode?: string;
       protocol?: string;
       projectId?: string | number;
-      gsc_keywords?: string[];
+      gsc_keywords?: Array<string>;
       tracked_only?: boolean;
     };
     let projectId: string | number | undefined = projectIdFromBody;
 
-    const gscKeywords: string[] = Array.isArray(gscKeywordsRaw)
+    const gscKeywords: Array<string> = Array.isArray(gscKeywordsRaw)
       ? Array.from(
           new Set(
             gscKeywordsRaw
@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
         )
         .order("updated_at", { ascending: false })
         .limit(20);
-      for (const table of (seoTables as any[]) || []) {
+      for (const table of (seoTables as Array<any>) || []) {
         const settings = (table?.integration_settings || {}) as Record<
           string,
           unknown
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
         .not("metadata->ahrefs_project_id", "is", null)
         .order("report_date", { ascending: false })
         .limit(20);
-      const rows = (lastWithProject as any[]) || [];
+      const rows = (lastWithProject as Array<any>) || [];
       const match =
         rows.find((r: any) => normalizeDomain(r.domain) === domain) || rows[0];
       const meta = match?.metadata as any;
@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
     // Helper: pull tracked keywords from Rank Tracker (FREE endpoints).
     const fetchTrackedKeywords = async (
       pid: string | number,
-    ): Promise<{ tracked: any[]; source: string | null }> => {
+    ): Promise<{ tracked: Array<any>; source: string | null }> => {
       const trackedByKey = new Map<string, any>();
       const normalizeTracked = (k: any, source: string, device?: string) => ({
         keyword: String(k.keyword || "").trim(),
@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
         _source: source,
         _device: device ?? null,
       });
-      const addRows = (rows: any[], source: string, device?: string) => {
+      const addRows = (rows: Array<any>, source: string, device?: string) => {
         for (const row of rows) {
           if (!row || typeof row.keyword !== "string" || !row.keyword.trim())
             continue;
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
         "tags",
       ].join(",");
       const today = new Date().toISOString().split("T")[0];
-      const trackerDates: string[] = [];
+      const trackerDates: Array<string> = [];
       for (let i = 0; i <= 14; i++) {
         const d = new Date(`${today}T00:00:00Z`);
         d.setUTCDate(d.getUTCDate() - i);
@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
 
     // Rank Tracker can fail and leave a keyword list with no positions.
     // Keep ranks already stored on earlier reports for this domain.
-    const fillTrackedFromHistory = async (rows: any[]) => {
+    const fillTrackedFromHistory = async (rows: Array<any>) => {
       const { data: prevReports } = await supabase
         .from("ahrefs_reports")
         .select("report_data, domain")
@@ -400,7 +400,7 @@ Deno.serve(async (req) => {
         .eq("client_id", client.id)
         .order("report_date", { ascending: false })
         .limit(20);
-      const all = (prevReports as any[]) || [];
+      const all = (prevReports as Array<any>) || [];
       const sameDomain = all.filter(
         (r) => normalizeDomain(r.domain) === domain,
       );
@@ -450,9 +450,9 @@ Deno.serve(async (req) => {
         .order("report_date", { ascending: false })
         .limit(20);
       const latest =
-        ((latestReports as any[]) || []).find(
+        ((latestReports as Array<any>) || []).find(
           (r: any) => normalizeDomain(r.domain) === domain,
-        ) || ((latestReports as any[]) || [])[0];
+        ) || ((latestReports as Array<any>) || [])[0];
 
       if (latest) {
         const mergedReportData = {
@@ -529,7 +529,7 @@ Deno.serve(async (req) => {
     // For new Ahrefs projects there might be no historical snapshot for the
     // exact target/protocol/mode combo, so we fall back gracefully.
     const today = new Date().toISOString().split("T")[0];
-    const tryDates: string[] = [today];
+    const tryDates: Array<string> = [today];
     for (let i = 1; i <= 14; i++) {
       const d = new Date();
       d.setUTCDate(d.getUTCDate() - i);
@@ -638,7 +638,7 @@ Deno.serve(async (req) => {
 
     // 2) Organic keywords (top ~500) — use the same mode/protocol that worked
     // NOTE: Ahrefs v3 organic-keywords returns best_position / sum_traffic (not position / traffic).
-    const mapOrganicRows = (rows: any[]) =>
+    const mapOrganicRows = (rows: Array<any>) =>
       (rows || []).map((k: any) => ({
         keyword: k.keyword,
         position: k.best_position ?? k.position ?? null,
@@ -649,7 +649,9 @@ Deno.serve(async (req) => {
         url: k.best_position_url ?? k.url ?? "",
       }));
 
-    const fetchOrganicKeywords = async (target: string): Promise<any[]> => {
+    const fetchOrganicKeywords = async (
+      target: string,
+    ): Promise<Array<any>> => {
       const kwUrl = `https://api.ahrefs.com/v3/site-explorer/organic-keywords?target=${encodeURIComponent(target)}&date=${reportDate}&country=${country}&protocol=${usedProtocol}&mode=${usedMode}&output=json&limit=500&select=keyword,volume,keyword_difficulty,cpc,sum_traffic,best_position,best_position_url`;
       const kwRes = await fetch(kwUrl, {
         headers: {
@@ -668,7 +670,7 @@ Deno.serve(async (req) => {
       return mapOrganicRows(kwJson?.keywords || []);
     };
 
-    let organic_keywords: any[] = await fetchOrganicKeywords(domain);
+    let organic_keywords: Array<any> = await fetchOrganicKeywords(domain);
     if (organic_keywords.length === 0 && !domain.startsWith("www.")) {
       const wwwRows = await fetchOrganicKeywords(`www.${domain}`);
       if (wwwRows.length > 0) organic_keywords = wwwRows;
@@ -742,7 +744,7 @@ Deno.serve(async (req) => {
     };
 
     // 4) Tracked (Rank Tracker) keywords — auto-resolved project above when possible.
-    let tracked_keywords: any[] = [];
+    let tracked_keywords: Array<any> = [];
     let trackedSource: string | null = null;
     if (projectId) {
       try {

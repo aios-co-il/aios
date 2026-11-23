@@ -17,7 +17,7 @@ async function findExistingStaff(
     .select("id, email, full_name, active, created_at")
     .eq("tenant_id", tenantId);
   if (error || !data) return null;
-  return pickExistingTeamMember(data as TeamMemberCandidate[], {
+  return pickExistingTeamMember(data as Array<TeamMemberCandidate>, {
     email,
     fullName,
   });

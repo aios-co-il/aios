@@ -14,7 +14,7 @@ const json = (body: unknown, status = 200) =>
 Deno.test(
   "Higgsfield uses Soul 2 text-to-image, or image-to-image with a reference link",
   async () => {
-    const seen: { url: string; body?: Record<string, any> }[] = [];
+    const seen: Array<{ url: string; body?: Record<string, any> }> = [];
     const fetchImpl = (async (url: string, init?: RequestInit) => {
       if (init?.method === "POST") {
         seen.push({ url, body: JSON.parse(String(init.body)) });
@@ -57,7 +57,7 @@ Deno.test(
 Deno.test(
   "a Higgsfield job that was accepted and then failed does not fall through",
   async () => {
-    const hosts: string[] = [];
+    const hosts: Array<string> = [];
     await assertRejects(
       () =>
         generateStill(

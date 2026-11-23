@@ -40,9 +40,9 @@ export async function resolveBuiltinKeys(
   sb: SecretClient,
   tenantId: string,
   project: Env,
-): Promise<BuiltinKeys[]> {
+): Promise<Array<BuiltinKeys>> {
   const loaded = await loadSources(sb, tenantId);
-  const out: BuiltinKeys[] = [];
+  const out: Array<BuiltinKeys> = [];
   for (const spec of BUILTIN_BRAIN_KEYS) {
     out.push(await resolveOne(sb, spec, tenantId, loaded, project));
   }
@@ -59,7 +59,7 @@ export function withoutBuiltinEnv(project: Env): Env {
 }
 
 /** The env a send reads: project env minus brain keys, plus resolved keys. */
-export function brainEnvFrom(project: Env, keys: BuiltinKeys[]): Env {
+export function brainEnvFrom(project: Env, keys: Array<BuiltinKeys>): Env {
   const out = withoutBuiltinEnv(project);
   for (const k of keys) Object.assign(out, k.env);
   return out;

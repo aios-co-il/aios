@@ -206,7 +206,7 @@ export function AppSidebar() {
 
   // Apply Visual-Workspace overrides (tab/section labels + module reassignment)
   const overlay = computeSidebarOverlay(dbMenuItems);
-  const effectiveTabs: MenuTab[] = BASE_MENU_TABS.map((tab) => ({
+  const effectiveTabs: Array<MenuTab> = BASE_MENU_TABS.map((tab) => ({
     ...tab,
     label: overlay.tabLabels.get(tab.id) || tab.label,
     sections: tab.sections.map((section) => ({

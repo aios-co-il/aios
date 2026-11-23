@@ -49,17 +49,17 @@ export function GraphCanvas({
   onSelect,
   selectedId,
 }: {
-  nodes: GraphifyNode[];
-  edges: GraphifyEdge[];
+  nodes: Array<GraphifyNode>;
+  edges: Array<GraphifyEdge>;
   onSelect?: (node: GraphifyNode | null) => void;
   selectedId?: string | null;
 }) {
-  const [layout, setLayout] = useState<SimNode[] | null>(null);
+  const [layout, setLayout] = useState<Array<SimNode> | null>(null);
   const [viewBox, setViewBox] = useState("0 0 1000 700");
   const dragRef = useRef<{
     startX: number;
     startY: number;
-    vb: number[];
+    vb: Array<number>;
   } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -76,7 +76,7 @@ export function GraphCanvas({
     const W = 1000,
       H = 700;
     // Seed on a phyllotaxis spiral for stable, overlap-free starting positions.
-    const sim: SimNode[] = nodes.map((n, i) => {
+    const sim: Array<SimNode> = nodes.map((n, i) => {
       const r = 14 * Math.sqrt(i + 1);
       const a = i * 2.399963;
       return {
@@ -154,7 +154,7 @@ export function GraphCanvas({
 
   const positioned = useMemo(() => {
     if (!layout)
-      return { byId: new Map<string, SimNode>(), list: [] as SimNode[] };
+      return { byId: new Map<string, SimNode>(), list: [] as Array<SimNode> };
     return { byId: new Map(layout.map((n) => [n.id, n])), list: layout };
   }, [layout]);
 
@@ -256,7 +256,7 @@ export function GraphCanvas({
 }
 
 export function GraphLegend() {
-  const entries: [string, string][] = [
+  const entries: Array<[string, string]> = [
     ["component", "קומפוננטה"],
     ["hook", "Hook"],
     ["page", "עמוד"],

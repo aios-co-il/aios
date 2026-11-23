@@ -11,8 +11,8 @@ export async function saveAgencyShares(
   input: {
     sourceTenantId: string;
     accessingTenantId: string;
-    saved: string[];
-    picked: string[];
+    saved: Array<string>;
+    picked: Array<string>;
   },
 ) {
   const picked = new Set(input.picked);

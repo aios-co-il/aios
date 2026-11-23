@@ -83,12 +83,12 @@ serve(async (req) => {
       .select("*, social_media_channels(*)")
       .eq("post_id", post_id);
 
-    const results: {
+    const results: Array<{
       channel_id: string;
       success: boolean;
       error?: string;
       platform_post_id?: string;
-    }[] = [];
+    }> = [];
 
     // Publish to each social media channel
     if (postChannels && postChannels.length > 0) {

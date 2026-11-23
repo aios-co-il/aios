@@ -47,7 +47,7 @@ export type GoalCriterion = {
 
 export type AutonomousEngineSnapshot = {
   goal: ExecutionGoal;
-  criteria: GoalCriterion[];
+  criteria: Array<GoalCriterion>;
   parallel_tracks?: Array<{
     id: string;
     key?: string | null;
@@ -57,8 +57,8 @@ export type AutonomousEngineSnapshot = {
   }>;
   completion_gate: {
     complete: boolean;
-    pending: GoalCriterion[];
-    failed: GoalCriterion[];
+    pending: Array<GoalCriterion>;
+    failed: Array<GoalCriterion>;
   };
   recent_iterations: Array<{
     iteration_number: number;
@@ -82,7 +82,7 @@ export async function listExecutionGoals(
   token: string,
   tenantId: string,
   filters?: { status?: ExecutionGoalStatus },
-): Promise<ExecutionGoal[]> {
+): Promise<Array<ExecutionGoal>> {
   const res = await fetch(FN, {
     method: "POST",
     headers: await authHeader(token),
@@ -115,8 +115,8 @@ export async function getExecutionGoal(
 
 export type CreateExecutionGoalResult = {
   goal: ExecutionGoal;
-  criteria?: unknown[];
-  possible_duplicates?: unknown[];
+  criteria?: Array<unknown>;
+  possible_duplicates?: Array<unknown>;
   autonomous_deferred?: boolean;
   notice?: string;
 };
@@ -139,8 +139,8 @@ export function parseCreateGoalResponse(
   }
   return {
     goal,
-    criteria: row.criteria as unknown[] | undefined,
-    possible_duplicates: row.possible_duplicates as unknown[] | undefined,
+    criteria: row.criteria as Array<unknown> | undefined,
+    possible_duplicates: row.possible_duplicates as Array<unknown> | undefined,
     autonomous_deferred: !!row.autonomous_deferred,
     notice: row.notice ? String(row.notice) : undefined,
   };

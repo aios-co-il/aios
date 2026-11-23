@@ -78,7 +78,7 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as NumberRow[];
+      return (data || []) as unknown as Array<NumberRow>;
     },
   });
 
@@ -336,7 +336,7 @@ function ClientCombobox({
   value,
   onChange,
 }: {
-  clients: ClientOption[];
+  clients: Array<ClientOption>;
   value: string | null;
   onChange: (v: string | null) => void;
 }) {

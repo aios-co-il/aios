@@ -85,7 +85,9 @@ const toBlock = (
   };
 };
 
-export const splitCopyVariations = (copyText: string): CopyVariationBlock[] => {
+export const splitCopyVariations = (
+  copyText: string,
+): Array<CopyVariationBlock> => {
   const raw = typeof copyText === "string" ? copyText.trim() : "";
   if (!raw) return [];
 
@@ -123,7 +125,7 @@ export const copyBlockLabel = (
 
 export const parseCopyVariationsFromPayload = (
   payload: Record<string, unknown> | null | undefined,
-): StoredCopyVariation[] => {
+): Array<StoredCopyVariation> => {
   const raw = payload?.copy_variations;
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((value) => {
@@ -154,8 +156,8 @@ export const parseCopyVariationsFromPayload = (
 
 export const hydrateCopyVariations = (
   copyText: string,
-  stored: StoredCopyVariation[] = [],
-): StoredCopyVariation[] => {
+  stored: Array<StoredCopyVariation> = [],
+): Array<StoredCopyVariation> => {
   const blocks = splitCopyVariations(copyText);
   if (blocks.length === 0) return stored.filter((item) => item.text.trim());
   const byKey = new Map(stored.map((item) => [item.key, item]));
@@ -179,7 +181,9 @@ export const hydrateCopyVariations = (
   });
 };
 
-export const joinCopyVariations = (variations: StoredCopyVariation[]): string =>
+export const joinCopyVariations = (
+  variations: Array<StoredCopyVariation>,
+): string =>
   variations
     .map((item) => item.text.trim())
     .filter(Boolean)
@@ -224,18 +228,18 @@ export const applyVariationText = (
 };
 
 export const replaceCopyVariationText = (
-  variations: StoredCopyVariation[],
+  variations: Array<StoredCopyVariation>,
   id: string,
   nextText: string,
-): StoredCopyVariation[] =>
+): Array<StoredCopyVariation> =>
   variations.map((item) =>
     item.id === id ? applyVariationText(item, nextText) : item,
   );
 
 export const remapCopyVariationKeys = (
-  incoming: StoredCopyVariation[],
-  existing: StoredCopyVariation[],
-): StoredCopyVariation[] => {
+  incoming: Array<StoredCopyVariation>,
+  existing: Array<StoredCopyVariation>,
+): Array<StoredCopyVariation> => {
   let nextKey = existing.reduce(
     (max, item) => Math.max(max, Number.parseInt(item.key, 10) || 0),
     0,
@@ -258,15 +262,15 @@ export const remapCopyVariationKeys = (
 };
 
 export const copiesForConcept = (
-  copies: StoredCopyVariation[],
+  copies: Array<StoredCopyVariation>,
   conceptId: string,
-): StoredCopyVariation[] =>
+): Array<StoredCopyVariation> =>
   copies.filter((item) => item.conceptId === conceptId);
 
 export const stampCopiesWithConcept = (
-  copies: StoredCopyVariation[],
+  copies: Array<StoredCopyVariation>,
   concept: Pick<CopyConcept, "id" | "name">,
-): StoredCopyVariation[] =>
+): Array<StoredCopyVariation> =>
   copies.map((item) =>
     applyVariationText(
       {
@@ -280,10 +284,10 @@ export const stampCopiesWithConcept = (
   );
 
 export const linkConceptToGeneratedCopy = (
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   conceptId: string,
-  copies: StoredCopyVariation[],
-): CopyConcept[] => {
+  copies: Array<StoredCopyVariation>,
+): Array<CopyConcept> => {
   const first = copies[0];
   if (!first) return concepts;
   return concepts.map((concept) => {
@@ -298,9 +302,9 @@ export const linkConceptToGeneratedCopy = (
 };
 
 export const linkApprovedConceptsToCopy = (
-  concepts: CopyConcept[],
-  copies: StoredCopyVariation[],
-): CopyConcept[] => {
+  concepts: Array<CopyConcept>,
+  copies: Array<StoredCopyVariation>,
+): Array<CopyConcept> => {
   let index = 0;
   return concepts.map((concept) => {
     if (!concept.approved || concept.copyId) return concept;
@@ -317,8 +321,8 @@ export const linkApprovedConceptsToCopy = (
 };
 
 export const approvedCopyVariations = (
-  variations: StoredCopyVariation[],
-): StoredCopyVariation[] =>
+  variations: Array<StoredCopyVariation>,
+): Array<StoredCopyVariation> =>
   variations.filter((item) => item.approved && item.text.trim());
 
 export const storedToCopyBlock = (
@@ -335,7 +339,7 @@ export const storedToCopyBlock = (
 
 export const storedCopiesForGeneration = (
   payload: Record<string, unknown> | null | undefined,
-): StoredCopyVariation[] => {
+): Array<StoredCopyVariation> => {
   const text = asText(payload?.copy_text);
   const hydrated = hydrateCopyVariations(
     text,
@@ -349,7 +353,7 @@ export const storedCopiesForGeneration = (
 /** Approved copies when any exist; otherwise every hydrated block (legacy projects). */
 export const copyBlocksForGeneration = (
   payload: Record<string, unknown> | null | undefined,
-): CopyVariationBlock[] => {
+): Array<CopyVariationBlock> => {
   const source = storedCopiesForGeneration(payload);
   if (source.length === 0)
     return splitCopyVariations(asText(payload?.copy_text));
@@ -394,9 +398,9 @@ export const findCopyForConcept = (
 };
 
 export const pairConceptsToCopyVariations = (
-  concepts: CopyConcept[],
-  copies: StoredCopyVariation[],
-): CopyConcept[] => {
+  concepts: Array<CopyConcept>,
+  copies: Array<StoredCopyVariation>,
+): Array<CopyConcept> => {
   if (concepts.length === 0 || copies.length === 0) return concepts;
   const used = new Set<string>();
   return concepts.map((concept, index) => {
@@ -417,7 +421,7 @@ export const pairConceptsToCopyVariations = (
 
 const approvedConceptsFromPayload = (
   payload: Record<string, unknown> | null | undefined,
-): CopyConcept[] => {
+): Array<CopyConcept> => {
   const storedApproved = parseCopyConceptsFromPayload({
     copy_concepts: payload?.approved_concepts,
   });
@@ -432,7 +436,7 @@ const approvedConceptsFromPayload = (
  */
 export const conceptCopyJobsForGeneration = (
   payload: Record<string, unknown> | null | undefined,
-): ConceptCopyJob[] => {
+): Array<ConceptCopyJob> => {
   const stored = storedCopiesForGeneration(payload);
   const blocks =
     stored.length > 0
@@ -458,7 +462,7 @@ export const conceptCopyJobsForGeneration = (
 };
 
 export const formatCopyVariationsForConcepts = (
-  copies: StoredCopyVariation[],
+  copies: Array<StoredCopyVariation>,
 ): string =>
   copies
     .map((item) =>

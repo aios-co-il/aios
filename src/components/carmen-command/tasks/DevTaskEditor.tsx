@@ -51,7 +51,7 @@ export function DevTaskEditor({
         id: devTaskId,
       })) as {
         task: DevTask | null;
-        events: { id: string; event_type: string; created_at: string }[];
+        events: Array<{ id: string; event_type: string; created_at: string }>;
       },
   });
 

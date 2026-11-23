@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     // has progressive audio parts but no playable file/duration — point
     // playback at the first part so the recording is usable end-to-end.
     if (!recording.file_path && recording.audio_file_paths?.length) {
-      const parts: string[] = recording.audio_file_paths;
+      const parts: Array<string> = recording.audio_file_paths;
       const micParts = parts.filter((p: string) =>
         /_mic_part\d+\./.test(p),
       ).length;

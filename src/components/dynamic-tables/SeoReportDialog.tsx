@@ -63,7 +63,7 @@ import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
 interface SeoReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 function ClientSearchSelect({
@@ -71,7 +71,7 @@ function ClientSearchSelect({
   selectedClient,
   onSelect,
 }: {
-  clients: { id: string; name: string; is_seo_client?: boolean | null }[];
+  clients: Array<{ id: string; name: string; is_seo_client?: boolean | null }>;
   selectedClient: string;
   onSelect: (id: string) => void;
 }) {
@@ -245,7 +245,7 @@ export function SeoReportDialog({
         .map((r: any) => r.agency_id)
         .filter(Boolean);
 
-      let sharedClients: any[] = [];
+      let sharedClients: Array<any> = [];
       if (sharedAgencyIds.length > 0) {
         const { data, error } = await supabase
           .from("clients")

@@ -237,7 +237,7 @@ export function SignedSignatureReview({
   tenantId,
 }: {
   doc: SignedDoc;
-  signers: Signer[];
+  signers: Array<Signer>;
   tenantId?: string | null;
 }) {
   return (

@@ -30,9 +30,9 @@ type CarmenAutomationRow = {
   name: string;
   description: string | null;
   active: boolean;
-  keywords: string[];
+  keywords: Array<string>;
   /** Labels of the WhatsApp connections the Carmen trigger is pinned to. */
-  connections: string[];
+  connections: Array<string>;
   /** True when a flow trigger step of type carmen_whatsapp_session exists. */
   hasCarmenTrigger: boolean;
 };
@@ -56,7 +56,7 @@ function asConfig(value: unknown): StepConfig {
   return {};
 }
 
-function keywordsFromConfig(cfg: StepConfig): string[] {
+function keywordsFromConfig(cfg: StepConfig): Array<string> {
   if (Array.isArray(cfg.trigger_keywords) && cfg.trigger_keywords.length > 0) {
     return cfg.trigger_keywords
       .map((k: unknown) => String(k ?? "").trim())
@@ -105,7 +105,7 @@ export function CarmenAutomationsList({
     refetch,
   } = useQuery({
     queryKey: ["carmen-automations", tenantId],
-    queryFn: async (): Promise<CarmenAutomationRow[]> => {
+    queryFn: async (): Promise<Array<CarmenAutomationRow>> => {
       if (!tenantId) return [];
 
       const [
@@ -130,7 +130,7 @@ export function CarmenAutomationsList({
 
       const stepsByAutomation = new Map<
         string,
-        { step_type: string; configuration: StepConfig }[]
+        Array<{ step_type: string; configuration: StepConfig }>
       >();
       for (const s of steps || []) {
         const list = stepsByAutomation.get(s.automation_id) || [];

@@ -30,7 +30,7 @@ import { Loader2, TrendingUp, ExternalLink, Link, Globe } from "lucide-react";
 interface AhrefsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 export function AhrefsTableDialog({

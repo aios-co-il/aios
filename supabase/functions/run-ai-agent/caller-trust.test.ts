@@ -249,7 +249,7 @@ Deno.test("automation and task runs: source guards", async (t) => {
 });
 
 /** Every .ts/.tsx file under `dir`, recursively. */
-function walk(dir: URL, out: URL[] = []): URL[] {
+function walk(dir: URL, out: Array<URL> = []): Array<URL> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
     if (entry.isDirectory()) {

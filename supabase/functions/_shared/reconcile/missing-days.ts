@@ -15,16 +15,16 @@ import type { ReconcileFinding } from "./types.ts";
 export function findMissingDays(
   aios: Map<string, CampaignSide>,
   platform: Map<string, CampaignSide>,
-  dates: string[],
+  dates: Array<string>,
   tolerance: ReconcileTolerance,
-): { findings: ReconcileFinding[]; dates: Set<string> } {
+): { findings: Array<ReconcileFinding>; dates: Set<string> } {
   const aiosDates = new Set<string>();
   for (const side of aios.values()) {
     for (const date of side.days.keys()) {
       aiosDates.add(date);
     }
   }
-  const findings: ReconcileFinding[] = [];
+  const findings: Array<ReconcileFinding> = [];
   const missing = new Set<string>();
   for (const date of dates) {
     if (aiosDates.has(date)) {

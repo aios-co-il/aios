@@ -94,11 +94,11 @@ export interface FeedRecording {
   summary_md: string | null;
   summary_file_url: string | null;
   suggested_client_id: string | null;
-  campaigner_ids: string[] | null;
+  campaigner_ids: Array<string> | null;
   clients?: { name: string } | null;
   agencies?: { name: string } | null;
   // deno-style loose grouping payload from the page
-  _group?: FeedRecording[];
+  _group?: Array<FeedRecording>;
 }
 
 export interface FolderOption {
@@ -109,11 +109,11 @@ export interface FolderOption {
 
 interface RecordingCardProps {
   rec: FeedRecording;
-  clients: { id: string; name: string; agency_id?: string | null }[];
-  campaigners: { id: string; full_name: string; email?: string | null }[];
-  agencies: { id: string; name: string }[];
-  folders: FolderOption[];
-  campaignerNames?: string[];
+  clients: Array<{ id: string; name: string; agency_id?: string | null }>;
+  campaigners: Array<{ id: string; full_name: string; email?: string | null }>;
+  agencies: Array<{ id: string; name: string }>;
+  folders: Array<FolderOption>;
+  campaignerNames?: Array<string>;
   onOpenTranscript: (rec: FeedRecording) => void;
   onOpenSummary: (rec: FeedRecording) => void;
   onCreateSummary: (rec: FeedRecording) => void;

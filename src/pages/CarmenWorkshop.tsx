@@ -137,7 +137,7 @@ export default function CarmenWorkshop() {
   const projects = useQuery({
     queryKey: ["carmen-workshop-projects", tenantId, clientParam],
     queryFn: tenantId
-      ? async (): Promise<WorkshopListRow[]> => {
+      ? async (): Promise<Array<WorkshopListRow>> => {
           const { data, error } = await supabase.rpc("workshop_list_projects", {
             p_tenant_id: tenantId,
             p_client: clientParam,

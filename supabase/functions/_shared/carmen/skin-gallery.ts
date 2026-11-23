@@ -16,7 +16,7 @@ export type SkinPortraitSource = "builtin" | "custom" | "default";
 export interface CarmenSkinEntry {
   slug: string;
   name: string;
-  members: string[];
+  members: Array<string>;
   has_portrait: boolean;
   portrait_url: string;
   source: SkinPortraitSource;
@@ -50,7 +50,7 @@ export function customSkinPaths(
 
 /** The custom image a persona shows: its own slug first, then its member skins in order. */
 export function customPathForRole(
-  role: { slug: string; members: readonly string[] },
+  role: { slug: string; members: ReadonlyArray<string> },
   paths: Record<string, string>,
 ): { skin: string; path: string } | null {
   for (const skin of [role.slug, ...role.members]) {
@@ -63,7 +63,7 @@ export function customPathForRole(
 export function carmenSkinEntries(
   paths: Record<string, string> = {},
   signed: Record<string, string> = {},
-): CarmenSkinEntry[] {
+): Array<CarmenSkinEntry> {
   return CARMEN_ROLES.map((role) => {
     const base = {
       slug: role.slug,
@@ -97,7 +97,7 @@ export function carmenSkinEntries(
 }
 
 /** The custom paths the caller needs to sign: one per persona at most. */
-export function pathsToSign(paths: Record<string, string>): string[] {
+export function pathsToSign(paths: Record<string, string>): Array<string> {
   const out = new Set<string>();
   for (const role of CARMEN_ROLES) {
     const custom = customPathForRole(role, paths);
@@ -153,7 +153,7 @@ export function absolutePortraitUrl(
 
 /** The tool result: the personas, each portrait as a full link, and how to show them. */
 export function carmenSkinsResult(
-  entries: CarmenSkinEntry[],
+  entries: Array<CarmenSkinEntry>,
   origin: string = DEFAULT_APP_ORIGIN,
 ) {
   return {

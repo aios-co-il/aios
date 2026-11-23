@@ -101,9 +101,9 @@ export function getAdAccountLinks(
     | null
     | undefined,
   clientLinks?: ClientAdLinks | null,
-): AdAccountShortcut[] {
+): Array<AdAccountShortcut> {
   const seen = new Set<string>();
-  const links: AdAccountShortcut[] = [];
+  const links: Array<AdAccountShortcut> = [];
   for (const table of tables || []) {
     const url = getAdAccountUrl(table, clientLinks);
     if (!url || seen.has(url)) continue;

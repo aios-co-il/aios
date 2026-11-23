@@ -65,7 +65,7 @@ async function fbLiveCampaignList(
   supabase: any,
   tenantId: string,
   clientId: string,
-): Promise<ShutdownCampaignRow[] | null> {
+): Promise<Array<ShutdownCampaignRow> | null> {
   try {
     const acct = await fbResolveClientAdAccount(supabase, tenantId, clientId);
     const { data: cl } = await supabase
@@ -173,9 +173,9 @@ export async function runClientCampaignShutdownJob(
     live,
     scope,
   );
-  const already_paused: ShutdownCampaignRow[] = [];
-  const newly_paused: ShutdownCampaignRow[] = [];
-  const still_active: ShutdownCampaignRow[] = [];
+  const already_paused: Array<ShutdownCampaignRow> = [];
+  const newly_paused: Array<ShutdownCampaignRow> = [];
+  const still_active: Array<ShutdownCampaignRow> = [];
   const pause_errors: CampaignShutdownRunResult["pause_errors"] = [];
 
   for (const row of checked) {

@@ -30,7 +30,7 @@ export function isLeadAlertSendWhatsappFailure(
 }
 
 export function formatLeadAlertFailureMessage(
-  rows: LeadAlertFailureRow[],
+  rows: Array<LeadAlertFailureRow>,
 ): string {
   if (rows.length === 1) {
     const row = rows[0];
@@ -129,7 +129,7 @@ export async function deliverPendingLeadAlertFailureNotifications(
   }
 
   const message = formatLeadAlertFailureMessage(
-    pending as LeadAlertFailureRow[],
+    pending as Array<LeadAlertFailureRow>,
   );
   const { error: notifyError } = await supabase.rpc("claude_notify_david", {
     p_message: message,

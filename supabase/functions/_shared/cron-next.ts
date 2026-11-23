@@ -5,8 +5,8 @@
 // restricted, a day matches if EITHER matches.
 
 export type CronFields = {
-  minutes: number[];
-  hours: number[];
+  minutes: Array<number>;
+  hours: Array<number>;
   daysOfMonth: Set<number>;
   months: Set<number>;
   daysOfWeek: Set<number>;
@@ -18,7 +18,7 @@ function parseField(
   raw: string,
   min: number,
   max: number,
-): { values: number[]; restricted: boolean } | null {
+): { values: Array<number>; restricted: boolean } | null {
   const out = new Set<number>();
   let restricted = true;
   for (const part of raw.split(",")) {

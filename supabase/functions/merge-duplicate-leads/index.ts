@@ -13,7 +13,7 @@ const corsHeaders = {
 
 interface DuplicateGroup {
   normalized_phone: string;
-  leads: LeadInfo[];
+  leads: Array<LeadInfo>;
 }
 
 interface LeadInfo {
@@ -74,7 +74,7 @@ serve(async (req: Request) => {
     }
 
     // Manual query to find duplicates - need to paginate to get all leads
-    let allLeads: any[] = [];
+    let allLeads: Array<any> = [];
     let from = 0;
     const pageSize = 1000;
 
@@ -104,7 +104,7 @@ serve(async (req: Request) => {
     if (leadsError) throw leadsError;
 
     // Normalize phones and group duplicates
-    const phoneGroups: Map<string, any[]> = new Map();
+    const phoneGroups: Map<string, Array<any>> = new Map();
 
     for (const lead of allLeads || []) {
       const normalized = lead.phone?.replace(/[^0-9]/g, "") || "";
@@ -117,12 +117,12 @@ serve(async (req: Request) => {
     }
 
     // Filter to only groups with duplicates
-    const duplicateGroups: DuplicateGroup[] = [];
+    const duplicateGroups: Array<DuplicateGroup> = [];
 
     for (const [phone, leads] of phoneGroups) {
       if (leads.length > 1) {
         // Get additional info for each lead
-        const enrichedLeads: LeadInfo[] = [];
+        const enrichedLeads: Array<LeadInfo> = [];
 
         for (const lead of leads) {
           const [updatesRes, tasksRes, messagesRes, tagsRes] =
@@ -174,7 +174,7 @@ serve(async (req: Request) => {
       tasks_transferred: 0,
       messages_transferred: 0,
       statuses_updated: 0,
-      details: [] as any[],
+      details: [] as Array<any>,
     };
 
     // Process each duplicate group
@@ -215,7 +215,7 @@ serve(async (req: Request) => {
         master_id: master.id,
         master_name: master.company_name,
         duplicates_to_delete: duplicateIds,
-        actions: [] as string[],
+        actions: [] as Array<string>,
       };
 
       if (!dry_run) {

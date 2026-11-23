@@ -110,12 +110,12 @@ export type SettingsSection =
   | "approvals"
   | "costs";
 
-export const SETTINGS_SECTIONS: {
+export const SETTINGS_SECTIONS: Array<{
   value: SettingsSection;
   label: string;
   hint: string;
   icon: typeof Bot;
-}[] = [
+}> = [
   {
     value: "identity",
     label: "זהות ופרסונה",
@@ -228,7 +228,7 @@ export function useCarmenAgent(tenantId: string | null) {
 function SubTabs({
   items,
 }: {
-  items: { value: string; label: string; node: React.ReactNode }[];
+  items: Array<{ value: string; label: string; node: React.ReactNode }>;
 }) {
   return (
     <Tabs defaultValue={items[0].value} dir="rtl">

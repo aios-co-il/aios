@@ -62,7 +62,7 @@ export async function listDevTasks(
   token: string,
   tenantId: string,
   filters?: { status?: DevTaskStatus; priority?: DevTaskPriority },
-): Promise<DevTask[]> {
+): Promise<Array<DevTask>> {
   const res = await fetch(FN, {
     method: "POST",
     headers: await authHeader(token),

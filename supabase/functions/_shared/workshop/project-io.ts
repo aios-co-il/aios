@@ -303,14 +303,14 @@ export async function loadAssets(
   supabase: Db,
   tenantId: string,
   itemId: string,
-): Promise<AssetView[]> {
+): Promise<Array<AssetView>> {
   const { data } = await supabase
     .from("workshop_assets")
     .select(ASSET_COLUMNS)
     .eq("item_id", itemId)
     .eq("tenant_id", tenantId)
     .order("created_at");
-  return Array.isArray(data) ? (data as AssetView[]) : [];
+  return Array.isArray(data) ? (data as Array<AssetView>) : [];
 }
 
 /** Pictures passed to a tool as references also show in the assets tab, so the user sees what Carmen follows. */

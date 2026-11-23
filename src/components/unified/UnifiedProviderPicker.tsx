@@ -17,7 +17,7 @@ interface UnifiedProvider {
   name: string;
   type: string;
   icon_url: string | null;
-  categories: string[];
+  categories: Array<string>;
 }
 
 interface Props {
@@ -38,7 +38,7 @@ export default function UnifiedProviderPicker({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [providers, setProviders] = useState<UnifiedProvider[]>([]);
+  const [providers, setProviders] = useState<Array<UnifiedProvider>>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(false);
   const [selectedProvider, setSelectedProvider] =
     useState<UnifiedProvider | null>(null);

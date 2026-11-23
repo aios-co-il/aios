@@ -75,9 +75,9 @@ export function carmenEnabledFor(row: BrainAccessRow | undefined): boolean {
 }
 
 export function allowedRoutes<T extends { slug: string }>(
-  routes: T[],
+  routes: Array<T>,
   row: BrainAccessRow | undefined,
-): T[] {
+): Array<T> {
   return routes.filter((r) => brainLevel(row, r.slug) !== null);
 }
 

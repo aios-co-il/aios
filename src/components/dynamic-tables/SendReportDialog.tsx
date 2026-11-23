@@ -182,7 +182,7 @@ export function SendReportDialog({
     }
 
     setIsSending(true);
-    const sentChannels: ReportDeliveryChannel[] = [];
+    const sentChannels: Array<ReportDeliveryChannel> = [];
     try {
       const {
         data: { session },
@@ -197,7 +197,7 @@ export function SendReportDialog({
           return;
         }
 
-        const captionParts: string[] = [];
+        const captionParts: Array<string> = [];
         if (messageText) captionParts.push(messageText);
         if (shareLink) captionParts.push(`\n📊 צפה בדוח המלא: ${shareLink}`);
         const fullCaption = captionParts.join("");
@@ -542,7 +542,7 @@ function GroupCombobox({
   value,
   onChange,
 }: {
-  groups: GroupOption[];
+  groups: Array<GroupOption>;
   value: string;
   onChange: (val: string) => void;
 }) {

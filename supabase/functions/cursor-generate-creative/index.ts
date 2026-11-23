@@ -382,7 +382,7 @@ async function resolveLiveCreativeModel(apiKey: string) {
     const data = (await resp.json()) as {
       items?: Array<{
         id?: string;
-        aliases?: string[];
+        aliases?: Array<string>;
         parameters?: Array<{ id?: string; values?: Array<{ value?: string }> }>;
       }>;
     };

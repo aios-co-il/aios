@@ -36,7 +36,7 @@ export default function EditTenantAgenciesDialog({
   const { tenantId: currentTenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [agencySearchETA, setAgencySearchETA] = useState("");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>([]);
 
   // שליפת הסוכנויות של הארגון הנוכחי
   const { data: agencies, isLoading: loadingAgencies } = useQuery({
@@ -83,7 +83,7 @@ export default function EditTenantAgenciesDialog({
   }, [existingAccess]);
 
   const mutation = useMutation({
-    mutationFn: (agencyIds: string[]) =>
+    mutationFn: (agencyIds: Array<string>) =>
       saveAgencyShares(supabase, {
         sourceTenantId: requireTenantId(currentTenantId),
         accessingTenantId: tenant.id,

@@ -40,7 +40,7 @@ export function ABTestPanel({
         .select("*")
         .eq("work_item_id", workItemId)
         .order("created_at", { ascending: true });
-      return (data as any[]) || [];
+      return (data as Array<any>) || [];
     },
     enabled: !!workItemId,
   });

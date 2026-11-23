@@ -101,7 +101,7 @@ export function resolveSeoLinkedGscSiteUrl(input: {
  * row so the choice is stable instead of depending on row order.
  */
 export function selectSeoTableForClient<T extends SeoTableLike>(
-  tables: T[],
+  tables: Array<T>,
   clientId: string,
   expectedDomain?: string | null,
 ): T | null {
@@ -142,9 +142,9 @@ type SeoReportLike = {
  * don't lose their report.
  */
 export function filterSeoReportsByDomain<T extends SeoReportLike>(
-  reports: T[],
+  reports: Array<T>,
   expectedDomain?: string | null,
-): T[] {
+): Array<T> {
   const expected = normalizeSeoDomain(expectedDomain);
   if (!expected) return reports || [];
   const matching = (reports || []).filter((r) =>
@@ -155,8 +155,8 @@ export function filterSeoReportsByDomain<T extends SeoReportLike>(
 
 /** Sort reports newest-first by sync time, falling back to the report date. */
 export function sortSeoReportsByRecency<T extends SeoReportLike>(
-  reports: T[],
-): T[] {
+  reports: Array<T>,
+): Array<T> {
   const time = (r: T) => {
     const t = new Date(r.received_at || r.report_date || 0).getTime();
     return Number.isFinite(t) ? t : 0;
@@ -182,9 +182,9 @@ type AgencyTenantAccessRow = {
  */
 export function buildSeoReportTenantIds(
   client: SeoTenantScopeClient | null | undefined,
-  agencyAccessRows: AgencyTenantAccessRow[] | null | undefined,
-  extraTenantIds: string[] = [],
-): string[] {
+  agencyAccessRows: Array<AgencyTenantAccessRow> | null | undefined,
+  extraTenantIds: Array<string> = [],
+): Array<string> {
   const set = new Set<string>();
   for (const id of extraTenantIds) {
     if (id) set.add(id);
@@ -281,7 +281,7 @@ type LinkedTableLike = { id: string; client_id?: string | null };
  */
 export function resolveLinkedCrmTableId(
   savedId: string | null | undefined,
-  candidates: LinkedTableLike[],
+  candidates: Array<LinkedTableLike>,
   clientId: string,
 ): string {
   const list = candidates || [];

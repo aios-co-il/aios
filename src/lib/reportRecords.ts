@@ -70,7 +70,7 @@ export function reportRecordsQuery(
       if (response.error) throw response.error;
       const parsed = crmRecordsSchema.safeParse(response.data);
       if (!parsed.success) throw new Error("Invalid report response");
-      return parsed.data satisfies CrmRecord[];
+      return parsed.data satisfies Array<CrmRecord>;
     },
   };
 }
@@ -85,6 +85,6 @@ export function reportRecordsQueryOptions(
 ) {
   return {
     ...reportRecordsQuery(client, tableId, dateFilter, dateFrom, dateTo),
-    ...reportQueryOptions<CrmRecord[]>(),
+    ...reportQueryOptions<Array<CrmRecord>>(),
   };
 }

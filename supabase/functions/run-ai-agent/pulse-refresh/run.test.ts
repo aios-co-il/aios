@@ -9,10 +9,12 @@ import { type PulseRefreshDeps, runCampaignPulseRefresh } from "./run.ts";
 import { PULSE_REFRESH_MIN_INTERVAL_SECONDS } from "./snapshot.ts";
 
 /** Runs `fn` with console.warn captured; returns the warned lines. */
-async function captureWarnings(fn: () => Promise<unknown>): Promise<string[]> {
-  const warnings: string[] = [];
+async function captureWarnings(
+  fn: () => Promise<unknown>,
+): Promise<Array<string>> {
+  const warnings: Array<string> = [];
   const original = console.warn;
-  console.warn = (...args: unknown[]) => warnings.push(args.join(" "));
+  console.warn = (...args: Array<unknown>) => warnings.push(args.join(" "));
   try {
     await fn();
   } finally {

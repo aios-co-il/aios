@@ -77,7 +77,7 @@ function formatPhoneForManyChat(phone: string): string {
   return `972${cleaned}`;
 }
 
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   if (isInternationalPhone(phone)) {
     const formatted = formatInternationalPhone(phone);
     const withoutPlus = formatted.startsWith("+")
@@ -169,7 +169,7 @@ async function getPhoneNumberFieldId(
 
 async function findSubscriberByPhone(
   apiKey: string,
-  candidates: string[],
+  candidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of candidates) {
     const url = `https://api.manychat.com/fb/subscriber/findBySystemField?phone=${encodeURIComponent(candidate)}`;
@@ -217,7 +217,7 @@ async function findSubscriberByEmail(
 async function findSubscriberByCustomField(
   apiKey: string,
   fieldId: number,
-  candidates: string[],
+  candidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of candidates) {
     const url = `https://api.manychat.com/fb/subscriber/findByCustomField?field_id=${fieldId}&field_value=${encodeURIComponent(candidate)}`;
@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
     let failedTotal = (job.progress as any)?.failed || 0;
     let conflictsTotal = (job.progress as any)?.conflicts || 0;
     const totalLeads = (job.progress as any)?.total || 0;
-    const allResults: SyncResult[] = (
+    const allResults: Array<SyncResult> = (
       (job.progress as any)?.results || []
     ).slice(-50); // Keep last 50 results
 

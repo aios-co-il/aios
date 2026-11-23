@@ -25,7 +25,7 @@ export function splitContactName(fullName: string): {
 }
 
 export function buildFieldPrefill(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   recipientIndex: number,
   contact: Pick<
     SignatureContactDetails,

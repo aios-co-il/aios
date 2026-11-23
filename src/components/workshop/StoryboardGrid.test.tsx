@@ -143,7 +143,7 @@ test("a click picks the scene, a second click or Escape lets it go", async () =>
   expect(props.onSelect).toHaveBeenLastCalledWith(null);
 
   // Escape is taken by the board, so the session column (window listener) stays open.
-  const chatSaw: boolean[] = [];
+  const chatSaw: Array<boolean> = [];
   const closeChat = (event: KeyboardEvent) =>
     chatSaw.push(event.defaultPrevented);
   window.addEventListener("keydown", closeChat);

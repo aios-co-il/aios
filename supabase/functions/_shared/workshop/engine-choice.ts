@@ -34,7 +34,7 @@ export function connectedSceneEngines(
   settings: Record<string, unknown>,
   connections: VideoConnections = {},
   workerHasKling = false,
-): SceneEngine[] {
+): Array<SceneEngine> {
   const kling =
     workerHasKling ||
     (filled(settings, "kling_access_key") &&

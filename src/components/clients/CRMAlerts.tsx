@@ -216,7 +216,7 @@ export function CRMAlerts() {
                       </Badge>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {(client.flags as FlagKey[])
+                      {(client.flags as Array<FlagKey>)
                         .slice(0, 3)
                         .map((flag: FlagKey) => (
                           <Badge

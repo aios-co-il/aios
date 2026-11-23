@@ -42,7 +42,7 @@ export default function SignatureContactPicker({
 
   const { data: options = [], isLoading } = useQuery({
     queryKey: ["signature-contact-options", tenantId, entity],
-    queryFn: async (): Promise<ContactOption[]> => {
+    queryFn: async (): Promise<Array<ContactOption>> => {
       if (!tenantId) return [];
 
       if (entity === "lead") {
@@ -110,7 +110,7 @@ export default function SignatureContactPicker({
         }
       }
 
-      const result: ContactOption[] = [];
+      const result: Array<ContactOption> = [];
 
       for (const client of clients || []) {
         const clientLabel = client.name;

@@ -26,7 +26,7 @@ export interface SocialMediaPost {
   created_by: string | null;
   title: string | null;
   content: string;
-  media_urls: string[];
+  media_urls: Array<string>;
   post_type: "text" | "image" | "video" | "carousel" | "story" | "reel";
   status:
     "draft" | "scheduled" | "publishing" | "published" | "failed" | "cancelled";
@@ -78,7 +78,7 @@ export function useSocialMediaChannels() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as SocialMediaChannel[];
+      return (data || []) as unknown as Array<SocialMediaChannel>;
     },
     enabled: !!tenantId,
   });
@@ -160,7 +160,7 @@ export function useSocialMediaPosts(statusFilter?: string) {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as unknown as SocialMediaPost[];
+      return (data || []) as unknown as Array<SocialMediaPost>;
     },
     enabled: !!tenantId,
   });
@@ -175,7 +175,7 @@ export function usePostChannels(postId: string) {
         .select("*")
         .eq("post_id", postId);
       if (error) throw error;
-      return (data || []) as unknown as SocialMediaPostChannel[];
+      return (data || []) as unknown as Array<SocialMediaPostChannel>;
     },
     enabled: !!postId,
   });
@@ -190,13 +190,13 @@ export function useCreatePost() {
     mutationFn: async (params: {
       title?: string;
       content: string;
-      media_urls?: string[];
+      media_urls?: Array<string>;
       post_type?: SocialMediaPost["post_type"];
       status: SocialMediaPost["status"];
       scheduled_at?: string;
       publish_to_wordpress?: boolean;
       wordpress_site_url?: string;
-      channel_ids: string[];
+      channel_ids: Array<string>;
     }) => {
       if (!tenantId) throw new Error("No tenant");
       const { channel_ids, ...postData } = params;
@@ -303,7 +303,7 @@ export function useWordPressSites() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as WordPressSite[];
+      return (data || []) as unknown as Array<WordPressSite>;
     },
     enabled: !!tenantId,
   });

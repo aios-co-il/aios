@@ -55,9 +55,17 @@ export function collectDiagnostics(projectRoot = root) {
     rootNames: parsed.fileNames,
     options: parsed.options,
   });
+  // Keep generated contracts available to consumers, but report errors in owned code.
+  const generatedFiles = [
+    "src/integrations/supabase/types.ts",
+    "supabase/functions/_shared/database.types.ts",
+  ].map((file) => path.resolve(projectRoot, file));
   return ts
     .getPreEmitDiagnostics(program)
     .filter((d) => d.category === ts.DiagnosticCategory.Error)
+    .filter(
+      (d) => !d.file || !generatedFiles.includes(path.resolve(d.file.fileName)),
+    )
     .map((d) => {
       // Configuration/global errors and sources outside the frontend must never
       // become allowed debt (missing files, compiler options, missing libraries).

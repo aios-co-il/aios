@@ -26,7 +26,7 @@ export function passedOnHelper(code: string, call: Span): string | null {
 }
 
 /** Each direct call of the helper, its declaration aside. */
-export function helperCalls(code: string, helper: string): Span[] {
+export function helperCalls(code: string, helper: string): Array<Span> {
   const use = new RegExp(`(?<!\\.)${wordPattern(helper).source}\\s*\\(`, "g");
   return [...code.matchAll(use)]
     .filter((m) => !/\bfunction\s*$/.test(code.slice(0, m.index)))

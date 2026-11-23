@@ -51,7 +51,7 @@ const STAGE_CONFIG: Record<
     headerBg: string;
     accentColor: string;
     systemHint: string;
-    quickPrompts: string[];
+    quickPrompts: Array<string>;
   }
 > = {
   strategy: {
@@ -453,7 +453,7 @@ interface Props {
   pipelineId: string;
   tenantId: string;
   clientId: string;
-  items: any[];
+  items: Array<any>;
   onClose: () => void;
   onSelectItem: (id: string) => void;
   onNewItem: () => void;
@@ -480,7 +480,7 @@ export function StageWorkspace({
     "campaigner";
 
   const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; content: string; ts: number }[]
+    Array<{ role: "user" | "assistant"; content: string; ts: number }>
   >([
     {
       role: "assistant",

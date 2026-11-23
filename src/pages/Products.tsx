@@ -92,7 +92,7 @@ export default function Products() {
         ...sharedProducts.map((p) => ({ ...p, is_owned: false })),
       ];
 
-      return marked as Product[];
+      return marked as Array<Product>;
     },
     enabled: !!tenantId,
   });

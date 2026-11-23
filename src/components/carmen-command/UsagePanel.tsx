@@ -101,7 +101,7 @@ function mergeAdminDaily(
     total_tokens: number;
     num_model_requests: number;
   }> = [],
-): OpenAiBillingDay[] {
+): Array<OpenAiBillingDay> {
   const byDate = new Map<string, OpenAiBillingDay>();
   for (const c of costs) {
     byDate.set(c.date, { date: c.date, cost: c.cost });

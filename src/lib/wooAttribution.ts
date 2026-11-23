@@ -259,7 +259,7 @@ export function aggregateOrdersByAttribution(
     status?: string | null;
     attribution?: WooOrderAttribution | null;
   }>,
-): WooAttributionBreakdownRow[] {
+): Array<WooAttributionBreakdownRow> {
   const map: Record<string, WooAttributionBreakdownRow> = {};
 
   orders.forEach((order) => {

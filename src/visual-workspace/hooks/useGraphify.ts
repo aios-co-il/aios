@@ -16,7 +16,7 @@ export type GraphifyOverview = {
   node_count?: number;
   edge_count?: number;
   activated_at?: string;
-  communities?: GraphifyCommunity[];
+  communities?: Array<GraphifyCommunity>;
   relations?: Record<string, number>;
 };
 
@@ -44,7 +44,7 @@ export type GraphifySearchHit = {
   source_location: string | null;
   community_name: string | null;
   distance: number;
-  connections: { relation: string; node_id: string }[];
+  connections: Array<{ relation: string; node_id: string }>;
 };
 
 export function useGraphifyOverview() {
@@ -67,8 +67,8 @@ export function useGraphifyCommunity(groupKey: string | null) {
   return useQuery({
     queryKey: ["graphify-community", groupKey, tenantId],
     queryFn: async (): Promise<{
-      nodes: GraphifyNode[];
-      edges: GraphifyEdge[];
+      nodes: Array<GraphifyNode>;
+      edges: Array<GraphifyEdge>;
     }> => {
       const { data, error } = await supabase.rpc(
         "graphify_group_subgraph" as any,
@@ -95,14 +95,14 @@ export function useGraphifySearch(query: string) {
   const trimmed = query.trim();
   return useQuery({
     queryKey: ["graphify-search", trimmed, tenantId],
-    queryFn: async (): Promise<GraphifySearchHit[]> => {
+    queryFn: async (): Promise<Array<GraphifySearchHit>> => {
       const { data, error } = await supabase.rpc("graphify_search" as any, {
         p_query: trimmed,
         p_depth: 1,
         p_limit: 40,
       });
       if (error) throw error;
-      return Array.isArray(data) ? (data as GraphifySearchHit[]) : [];
+      return Array.isArray(data) ? (data as Array<GraphifySearchHit>) : [];
     },
     enabled: trimmed.length >= 2 && !!tenantId,
     staleTime: 1000 * 60 * 5,

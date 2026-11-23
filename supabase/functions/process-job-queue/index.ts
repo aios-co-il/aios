@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const jobTypes = body.job_types || null;
     const maxJobs = Math.min(body.max_jobs || 10, 50); // Process up to 50 jobs per invocation
 
-    const results: any[] = [];
+    const results: Array<any> = [];
 
     for (let i = 0; i < maxJobs; i++) {
       // Atomically claim next job

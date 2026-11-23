@@ -33,7 +33,7 @@ const GOAL_SECTION_LABELS: Record<PulseCampaignGoal, string> = {
   unknown: "טעון סיווג",
 };
 
-const GOAL_SECTION_ORDER: PulseCampaignGoal[] = [
+const GOAL_SECTION_ORDER: Array<PulseCampaignGoal> = [
   "leads",
   "engagement",
   "ecommerce",
@@ -128,7 +128,7 @@ function CampaignGoalTable({
   period,
 }: {
   goal: PulseCampaignGoal;
-  campaigns: PulseCampaignGoalRow[];
+  campaigns: Array<PulseCampaignGoalRow>;
   period: PulsePeriod;
 }) {
   const spendLabel = pulseSpendColumnLabel(period).split(" ")[0];
@@ -233,7 +233,9 @@ export type PulseClientRawCardProps = {
   agencyName: string;
   period: PulsePeriod;
   pulse: PulseSnapshotRow | null;
-  campaignsByGoal: Partial<Record<PulseCampaignGoal, PulseCampaignGoalRow[]>>;
+  campaignsByGoal: Partial<
+    Record<PulseCampaignGoal, Array<PulseCampaignGoalRow>>
+  >;
   lastCampaignTouchAt: string | null;
   onOpenClient: () => void;
   onCallLog: () => void;

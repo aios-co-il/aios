@@ -52,7 +52,7 @@ export function WooCommerceDashboard({
         .eq("woocommerce_enabled", true)
         .eq("is_active", true);
       if (error) throw error;
-      return data as any[];
+      return data as Array<any>;
     },
     enabled: !!clientId,
   });

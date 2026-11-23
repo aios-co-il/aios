@@ -66,7 +66,7 @@ export function role(
  * SP). Dana may read her own and the org line; others only their own.
  */
 export function world(
-  over: Record<string, Row[]> = {},
+  over: Record<string, Array<Row>> = {},
   rpcs: Record<string, (args: Row) => unknown> = {
     chat_allowed_connection_user_ids: (args) =>
       args.p_user_id === DANA ? [DANA, ORG_LINE] : [args.p_user_id],

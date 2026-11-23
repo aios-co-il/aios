@@ -37,7 +37,7 @@ export function visibleGscPosition(
   position: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
   },
 ): number | null {
   const rank = top20DisplayPosition(position);
@@ -66,7 +66,7 @@ export function trackedQueryPosition(
   position: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
   },
 ): number | null {
   const phrase = normalizeKeywordPhrase(query);
@@ -88,7 +88,7 @@ export function trackedPhraseRank(
   gscPosition: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
     ahrefsPositions?: Record<string, number>;
   },
 ): { position: number; source: "ahrefs" | "gsc" } | null {

@@ -15,7 +15,7 @@ export function WizardTemplatePicker({
   templateId,
   onSelect,
 }: {
-  templates: MessageTemplate[];
+  templates: Array<MessageTemplate>;
   templateId: string | null;
   onSelect: (template: MessageTemplate | null) => void;
 }) {
@@ -53,7 +53,7 @@ export function WizardTemplatePicker({
 export function WizardTemplateAttachments({
   attachments,
 }: {
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
 }) {
   if (attachments.length === 0) return null;
   return (

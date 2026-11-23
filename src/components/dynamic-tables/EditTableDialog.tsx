@@ -128,7 +128,7 @@ export function EditTableDialog({
       );
       if (error) throw error;
       return data as {
-        properties?: GAProperty[];
+        properties?: Array<GAProperty>;
         needs_reconnect?: boolean;
         owner_email?: string | null;
       };
@@ -136,7 +136,8 @@ export function EditTableDialog({
     enabled: open && type === "google_analytics" && !!integrationId,
   });
 
-  const gaProperties = (propertiesResponse?.properties || []) as GAProperty[];
+  const gaProperties = (propertiesResponse?.properties ||
+    []) as Array<GAProperty>;
   const gaNeedsReconnect = !!propertiesResponse?.needs_reconnect;
   const filteredProperties = useMemo(() => {
     if (!propertySearch.trim()) return gaProperties;

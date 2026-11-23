@@ -56,7 +56,7 @@ export interface Estimate {
 }
 
 /** The clips' price on this engine, and the seconds they render. */
-export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
+export function clipEstimate(engine: SceneEngine, scenes: Array<CostScene>) {
   const seconds = scenes.reduce(
     (sum, scene) => sum + sceneClipSeconds(engine, scene.duration_s),
     0,
@@ -92,7 +92,7 @@ export function clipEstimate(engine: SceneEngine, scenes: CostScene[]) {
 }
 
 /** The narration's price, by the characters the engine is billed for (voiceCharacters). */
-export function voiceEstimate(scenes: CostScene[]): Estimate {
+export function voiceEstimate(scenes: Array<CostScene>): Estimate {
   const characters = scenes.reduce(
     (sum, scene) => sum + voiceCharacters(scene.voiceover_text),
     0,
@@ -129,7 +129,7 @@ export function guideEstimate(scenes: Array<CostScene>): Estimate {
 const GUIDE_HEADROOM = 1.5;
 
 /** The music bed, priced for the film it will cover (musicQuoteSeconds in clip-prices.ts). */
-export function musicEstimate(scenes: CostScene[]): Estimate {
+export function musicEstimate(scenes: Array<CostScene>): Estimate {
   const seconds = musicQuoteSeconds(
     scenes.reduce((sum, scene) => sum + (Number(scene.duration_s) || 0), 0),
   );

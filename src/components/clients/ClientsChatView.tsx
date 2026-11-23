@@ -115,8 +115,8 @@ const DETAIL_TAB_CLASS =
 const WORKSHOP_PERMISSION = permissionForSubpath("workshop");
 
 interface ClientsChatViewProps {
-  clients: any[];
-  agencies?: any[];
+  clients: Array<any>;
+  agencies?: Array<any>;
   canViewFinance?: boolean;
   /** False while finance access is loading; the business-tab guard waits for it. */
   financeAccessReady?: boolean;
@@ -1106,7 +1106,7 @@ export function ClientsChatView({
                       const summary = await provision(selectedClient.id, {
                         createDashboard: true,
                       });
-                      const parts: string[] = [];
+                      const parts: Array<string> = [];
                       if (summary.resolved?.length)
                         parts.push(`זוהו: ${summary.resolved.join(", ")}`);
                       if (summary.created.length)

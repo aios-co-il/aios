@@ -200,7 +200,7 @@ export function buildLeadRoutingPayload(
 
 export function firstLeadPayloadString(
   payload: Record<string, unknown>,
-  keys: string[],
+  keys: Array<string>,
 ): string {
   for (const key of keys) {
     const value = payload[key];

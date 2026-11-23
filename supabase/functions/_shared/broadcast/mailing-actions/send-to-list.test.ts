@@ -36,7 +36,7 @@ function setup(
   const fake = fakeDb(tables, {
     broadcast_reserve_automation_send: () => [{ reserved, broadcast_id: "b1" }],
   });
-  const enqueued: string[] = [];
+  const enqueued: Array<string> = [];
   const ctx = {
     automationId: "auto",
     resolveOwnerId: async () => "owner",
@@ -51,7 +51,7 @@ function setup(
   return { ...fake, enqueued, run };
 }
 
-const statusUpdates = (writes: { table: string; values: unknown }[]) =>
+const statusUpdates = (writes: Array<{ table: string; values: unknown }>) =>
   writes
     .filter((w) => w.table === "broadcasts")
     .map((w) =>

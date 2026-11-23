@@ -27,10 +27,9 @@ export function buildSystemFixContext(args: {
   pageTitle?: string;
 }): SystemFixContextMetadata {
   const routeParams = Object.fromEntries(
-    Object.entries(args.params).filter(([, v]) => v != null && v !== "") as [
-      string,
-      string,
-    ][],
+    Object.entries(args.params).filter(
+      ([, v]) => v != null && v !== "",
+    ) as Array<[string, string]>,
   );
   const client_id = routeParams.clientId || routeParams.client_id || undefined;
   const task_id = routeParams.taskId || routeParams.task_id || undefined;

@@ -28,7 +28,7 @@ function formatPhoneForManyChat(phone: string): string {
   return `972${cleaned}`;
 }
 
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   const cleaned = normalizePhone(phone);
   if (!cleaned) return [];
 
@@ -53,7 +53,7 @@ async function safeJson(res: Response): Promise<any> {
 
 async function findSubscriberIdByPhone(
   apiKey: string,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     const url = `https://api.manychat.com/fb/subscriber/findBySystemField?phone=${encodeURIComponent(candidate)}`;

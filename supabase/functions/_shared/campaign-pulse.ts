@@ -115,8 +115,8 @@ export function platformKey(
  * must not flag a healthy connection.
  */
 export function pickFreshestTablePerPlatform(
-  tables: CampaignTableLike[],
-): CampaignTableLike[] {
+  tables: Array<CampaignTableLike>,
+): Array<CampaignTableLike> {
   const best = new Map<string, CampaignTableLike>();
   for (const table of tables) {
     if (table.campaign_active === false) continue;
@@ -208,7 +208,7 @@ export type CampaignAlertLike = {
 export type PulseAlertClient = {
   clientId: string;
   clientName?: string | null;
-  adAccountIds: string[];
+  adAccountIds: Array<string>;
   /** Alerts are only reported for clients whose campaign table is still active. */
   hasActiveCampaignTable: boolean;
 };
@@ -229,7 +229,9 @@ export function normalizeAdAccountId(value: unknown): string | null {
 }
 
 /** Every ad-account id configured on a client's campaign tables. */
-export function clientAdAccountIds(tables: CampaignTableLike[]): string[] {
+export function clientAdAccountIds(
+  tables: Array<CampaignTableLike>,
+): Array<string> {
   const ids = new Set<string>();
   for (const table of tables) {
     const settings = table.integration_settings || {};
@@ -248,7 +250,7 @@ export function clientAdAccountIds(tables: CampaignTableLike[]): string[] {
 
 function isCriticalAlert(alert: CampaignAlertLike): boolean {
   const type = String(alert.alert_type || "");
-  if ((PULSE_CRITICAL_ALERT_TYPES as readonly string[]).includes(type))
+  if ((PULSE_CRITICAL_ALERT_TYPES as ReadonlyArray<string>).includes(type))
     return true;
   return String(alert.severity || "") === "critical";
 }
@@ -261,9 +263,9 @@ function isCriticalAlert(alert: CampaignAlertLike): boolean {
  * campaign table is dropped rather than reported against the wrong client.
  */
 export function selectPulseCriticalAlerts(
-  alerts: CampaignAlertLike[],
-  clients: PulseAlertClient[],
-): PulseCriticalIssue[] {
+  alerts: Array<CampaignAlertLike>,
+  clients: Array<PulseAlertClient>,
+): Array<PulseCriticalIssue> {
   const byClientId = new Map<string, PulseAlertClient>();
   const byAdAccount = new Map<string, PulseAlertClient>();
   for (const client of clients) {
@@ -273,7 +275,7 @@ export function selectPulseCriticalAlerts(
     }
   }
 
-  const issues: PulseCriticalIssue[] = [];
+  const issues: Array<PulseCriticalIssue> = [];
   const seen = new Set<string>();
   for (const alert of alerts) {
     if (!isCriticalAlert(alert)) continue;
@@ -302,7 +304,7 @@ export function selectPulseCriticalAlerts(
 }
 
 export function countStoppedCampaignsByClient(
-  issues: PulseCriticalIssue[],
+  issues: Array<PulseCriticalIssue>,
 ): Map<string, number> {
   const counts = new Map<string, number>();
   for (const issue of issues) {
@@ -312,12 +314,12 @@ export function countStoppedCampaignsByClient(
   return counts;
 }
 
-function criticalIssueLines(issues: PulseCriticalIssue[]): string[] {
+function criticalIssueLines(issues: Array<PulseCriticalIssue>): Array<string> {
   if (!issues.length) return [];
   // One line per client + alert type: four disapproved ads are one problem, not four.
   const groups = new Map<
     string,
-    { client: string; label: string; campaigns: string[]; count: number }
+    { client: string; label: string; campaigns: Array<string>; count: number }
   >();
   for (const issue of issues) {
     const client = issue.clientName || "לקוח לא מזוהה";
@@ -351,7 +353,7 @@ function criticalIssueLines(issues: PulseCriticalIssue[]): string[] {
 /** Ecommerce metrics when client flag is set OR an active facebook_ecommerce table exists. */
 export function effectiveIsEcommerce(
   clientIsEcommerce: boolean | null | undefined,
-  tables: CampaignTableLike[],
+  tables: Array<CampaignTableLike>,
 ): boolean {
   if (clientIsEcommerce) return true;
   return tables.some(
@@ -386,7 +388,7 @@ export function tableMatchesServices(
 
 export type ClassifyPulseInput = {
   /** Active (campaign_active !== false) tables matched to the client's services. */
-  activeTables: CampaignTableLike[];
+  activeTables: Array<CampaignTableLike>;
   /** True when at least one campaign-report table exists for an expected service (even if all paused). */
   hasConfiguredCampaignTable: boolean;
   recentRecordCount: number;
@@ -405,9 +407,9 @@ export type ClassifyPulseInput = {
 
 function applyStoppedCampaigns(
   status: PulseStatus,
-  flags: string[],
+  flags: Array<string>,
   stoppedCampaignCount: number | undefined,
-): { status: PulseStatus; flags: string[] } {
+): { status: PulseStatus; flags: Array<string> } {
   const count = stoppedCampaignCount ?? 0;
   if (count <= 0) return { status, flags };
   flags.push(count === 1 ? "קמפיין נעצר" : `${count} קמפיינים נעצרו`);
@@ -426,10 +428,10 @@ function applyStoppedCampaigns(
  */
 export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
   status: PulseStatus;
-  flags: string[];
-  stalePlatforms: string[];
+  flags: Array<string>;
+  stalePlatforms: Array<string>;
 } {
-  const flags: string[] = [];
+  const flags: Array<string> = [];
   const nowMs = input.nowMs ?? Date.now();
   // Stale = freshest table per platform is stale (ignore abandoned duplicates).
   const stalePlatforms = pickFreshestTablePerPlatform(input.activeTables)
@@ -540,9 +542,9 @@ export function isPulseDeliveryExcludedPhone(
     .toLowerCase();
   if (
     !slug ||
-    !(PULSE_DELIVERY_OWNER_EXCLUDED_TENANT_SLUGS as readonly string[]).includes(
-      slug,
-    )
+    !(
+      PULSE_DELIVERY_OWNER_EXCLUDED_TENANT_SLUGS as ReadonlyArray<string>
+    ).includes(slug)
   ) {
     return false;
   }
@@ -661,7 +663,7 @@ function isCampaignLevelAdsRow(
  * for leads. The caller passes the records whose campaign has that report goal.
  */
 export function computeGoalMetricsFromRecords(
-  records: RecordLike[],
+  records: Array<RecordLike>,
   goal: CampaignGoal,
   d7Str: string,
   d14Str: string,
@@ -741,7 +743,7 @@ export type PulseGoalRow = {
   efficiency: number | null;
   change_pct: number | null;
   efficiency_kind: "cpl" | "roas";
-  flags: string[];
+  flags: Array<string>;
   data_fresh_through?: string | null;
   calculated_at?: string | null;
   last_meta_change_at?: string | null;
@@ -770,7 +772,7 @@ type SnapshotExpandable = {
   roas_change_pct?: number | null;
   lead_goal_status?: PulseStatus | null;
   ecommerce_goal_status?: PulseStatus | null;
-  flags?: string[] | null;
+  flags?: Array<string> | null;
   data_fresh_through?: string | null;
   calculated_at?: string | null;
   last_meta_change_at?: string | null;
@@ -788,7 +790,7 @@ function snapshotGoalMode(row: SnapshotExpandable): CampaignGoalMode {
 /** Expand one snapshot into one or two dashboard / WhatsApp goal rows. */
 export function expandSnapshotToGoalRows(
   row: SnapshotExpandable,
-): PulseGoalRow[] {
+): Array<PulseGoalRow> {
   const mode = snapshotGoalMode(row);
   const shared = {
     client_id: row.client_id,
@@ -852,8 +854,8 @@ export function expandSnapshotToGoalRows(
 }
 
 export function expandSnapshotsToGoalRows<T extends SnapshotExpandable>(
-  rows: T[],
-): PulseGoalRow[] {
+  rows: Array<T>,
+): Array<PulseGoalRow> {
   return rows.flatMap((row) => expandSnapshotToGoalRows(row));
 }
 
@@ -883,10 +885,10 @@ export const PULSE_CATEGORY_LABELS: Array<[string, string]> = [
  */
 export function buildPulseCategoryDigestLines(
   rows: Array<{
-    campaign_breakdown?: PulseCampaignBreakdownRow[] | null;
+    campaign_breakdown?: Array<PulseCampaignBreakdownRow> | null;
     client_name?: string | null;
   }>,
-): string[] {
+): Array<string> {
   const campaigns = rows.flatMap((row) =>
     (Array.isArray(row.campaign_breakdown) ? row.campaign_breakdown : []).map(
       (campaign) => ({
@@ -897,7 +899,7 @@ export function buildPulseCategoryDigestLines(
   );
   if (!campaigns.length) return [];
 
-  const lines: string[] = ["*לפי קטגוריה:*"];
+  const lines: Array<string> = ["*לפי קטגוריה:*"];
   for (const [goal, label] of PULSE_CATEGORY_LABELS) {
     const inGoal = campaigns.filter((campaign) => campaign.goal === goal);
     if (!inGoal.length) continue;
@@ -944,9 +946,9 @@ export function buildPulseCategoryDigestLines(
 
 /** Keep only pulse rows for clients assigned to the given campaigner (client_team). */
 export function filterPulseRowsByClientIds<T extends { client_id: string }>(
-  rows: T[],
+  rows: Array<T>,
   clientIds: Iterable<string>,
-): T[] {
+): Array<T> {
   const allowed = new Set(clientIds);
   if (!allowed.size) return [];
   return rows.filter((row) => allowed.has(row.client_id));
@@ -993,12 +995,12 @@ export function buildPulseWhatsAppDigest(
     lead_spend_7d?: number | null;
     ecommerce_spend_7d?: number | null;
     spend_7d?: number | null;
-    campaign_breakdown?: PulseCampaignBreakdownRow[] | null;
+    campaign_breakdown?: Array<PulseCampaignBreakdownRow> | null;
   }>,
   dashboardUrl: string,
-  criticalIssues: PulseCriticalIssue[] = [],
+  criticalIssues: Array<PulseCriticalIssue> = [],
 ): string {
-  const goalRows = expandSnapshotsToGoalRows(rows as SnapshotExpandable[]);
+  const goalRows = expandSnapshotsToGoalRows(rows as Array<SnapshotExpandable>);
   const categoryLines = buildPulseCategoryDigestLines(rows);
   const issueLines = criticalIssueLines(criticalIssues);
   if (goalRows.length === 1) {
@@ -1037,7 +1039,7 @@ export function buildPulseWhatsAppDigest(
     clientPerformance(row as PulseDigestClientRow),
   );
   const tally = tallyPerformance(clients);
-  const agencies = new Map<string, ClientPerformance[]>();
+  const agencies = new Map<string, Array<ClientPerformance>>();
   for (const client of clients) {
     if (!client.agency) continue;
     agencies.set(client.agency, [
@@ -1045,7 +1047,7 @@ export function buildPulseWhatsAppDigest(
       client,
     ]);
   }
-  const agencyLines: string[] = [];
+  const agencyLines: Array<string> = [];
   for (const [agency, members] of [...agencies.entries()].sort(
     (a, b) => b[1].length - a[1].length,
   )) {
@@ -1091,7 +1093,7 @@ type PulseDigestClientRow = {
   client_name?: string | null;
   agency_name?: string | null;
   flags?: unknown;
-  campaign_breakdown?: PulseCampaignBreakdownRow[] | null;
+  campaign_breakdown?: Array<PulseCampaignBreakdownRow> | null;
   no_recent_client_call?: boolean | null;
 };
 
@@ -1148,7 +1150,7 @@ export function clientPerformance(
   };
 }
 
-function tallyPerformance(clients: ClientPerformance[]) {
+function tallyPerformance(clients: Array<ClientPerformance>) {
   return {
     critical: clients.filter((c) => c.status === "critical").length,
     warning: clients.filter((c) => c.status === "warning").length,
@@ -1158,8 +1160,10 @@ function tallyPerformance(clients: ClientPerformance[]) {
   };
 }
 
-function performanceDetailLines(clients: ClientPerformance[]): string[] {
-  const lines: string[] = [];
+function performanceDetailLines(
+  clients: Array<ClientPerformance>,
+): Array<string> {
+  const lines: Array<string> = [];
   const critical = clients.filter((c) => c.status === "critical");
   for (const c of critical.slice(0, 5))
     lines.push(`🔴 ${c.name}${c.reason ? ` — ${c.reason}` : ""}`);

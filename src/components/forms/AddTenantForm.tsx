@@ -111,12 +111,12 @@ export function AddTenantForm({
         .select("id, name, description, is_public")
         .order("name");
       if (error) throw error;
-      return data as unknown as {
+      return data as unknown as Array<{
         id: string;
         name: string;
         description: string | null;
         is_public: boolean;
-      }[];
+      }>;
     },
   });
 

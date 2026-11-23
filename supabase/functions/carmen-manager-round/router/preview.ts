@@ -22,7 +22,7 @@ export function ladderPreview(
   finding: FindingRow,
   kind: FindingKind,
   ctx: LadderContext,
-): PlannedAction[] {
+): Array<PlannedAction> {
   const urgent = isUrgent(finding, kind);
   const toOwner = action(
     2,

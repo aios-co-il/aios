@@ -42,7 +42,11 @@ const ALLOW: GuardResult = {
 };
 
 /** What the steps that act were asked to do. */
-type Calls = { uploads: number; delivered: DeliverInput[]; records: number };
+type Calls = {
+  uploads: number;
+  delivered: Array<DeliverInput>;
+  records: number;
+};
 
 /**
  * Deps over the fixture lines; records every step that acts. Carmen's line

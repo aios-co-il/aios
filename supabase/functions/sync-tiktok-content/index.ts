@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       "share_count",
       "view_count",
     ];
-    const all: any[] = [];
+    const all: Array<any> = [];
     let cursor: number | undefined = undefined;
     let hasMore = true;
     let pages = 0;
@@ -175,32 +175,34 @@ Deno.serve(async (req) => {
       pages++;
     }
 
-    const records: VideoRecord[] = all.slice(0, maxVideos).map((v: any) => {
-      const views = Number(v.view_count) || 0;
-      const likes = Number(v.like_count) || 0;
-      const comments = Number(v.comment_count) || 0;
-      const shares = Number(v.share_count) || 0;
-      const engagement =
-        views > 0 ? ((likes + comments + shares) / views) * 100 : 0;
-      const createIso = v.create_time
-        ? new Date(Number(v.create_time) * 1000).toISOString().split("T")[0]
-        : "";
-      return {
-        video_id: String(v.id ?? ""),
-        title: v.title || v.video_description || "",
-        description: v.video_description || "",
-        create_time: createIso,
-        cover_image_url: v.cover_image_url || "",
-        share_url: v.share_url || "",
-        embed_link: v.embed_link || "",
-        duration_sec: Number(v.duration) || 0,
-        view_count: views,
-        like_count: likes,
-        comment_count: comments,
-        share_count: shares,
-        engagement_rate: Math.round(engagement * 100) / 100,
-      };
-    });
+    const records: Array<VideoRecord> = all
+      .slice(0, maxVideos)
+      .map((v: any) => {
+        const views = Number(v.view_count) || 0;
+        const likes = Number(v.like_count) || 0;
+        const comments = Number(v.comment_count) || 0;
+        const shares = Number(v.share_count) || 0;
+        const engagement =
+          views > 0 ? ((likes + comments + shares) / views) * 100 : 0;
+        const createIso = v.create_time
+          ? new Date(Number(v.create_time) * 1000).toISOString().split("T")[0]
+          : "";
+        return {
+          video_id: String(v.id ?? ""),
+          title: v.title || v.video_description || "",
+          description: v.video_description || "",
+          create_time: createIso,
+          cover_image_url: v.cover_image_url || "",
+          share_url: v.share_url || "",
+          embed_link: v.embed_link || "",
+          duration_sec: Number(v.duration) || 0,
+          view_count: views,
+          like_count: likes,
+          comment_count: comments,
+          share_count: shares,
+          engagement_rate: Math.round(engagement * 100) / 100,
+        };
+      });
 
     // Fields definition
     const fieldKeys = [

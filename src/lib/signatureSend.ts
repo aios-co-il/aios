@@ -45,7 +45,7 @@ export interface SendSignatureOptions {
 
 export interface SendSignatureResult {
   documentId: string;
-  signingLinks: SigningLinkResult[];
+  signingLinks: Array<SigningLinkResult>;
   emailSent: boolean;
   partial?: boolean;
 }
@@ -169,7 +169,7 @@ export async function sendSignatureDocument(
 }
 
 export function openWhatsAppForLinks(
-  links: SigningLinkResult[],
+  links: Array<SigningLinkResult>,
   documentTitle?: string,
 ): { opened: number; skipped: number } {
   let opened = 0;
@@ -192,7 +192,7 @@ export function openWhatsAppForLinks(
 }
 
 export async function copyFirstSigningLink(
-  links: SigningLinkResult[],
+  links: Array<SigningLinkResult>,
 ): Promise<boolean> {
   if (!links[0]?.url) throw new Error("לא נוצר קישור לחתימה");
   await copySigningUrl(links[0].url);

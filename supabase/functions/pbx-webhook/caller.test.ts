@@ -63,7 +63,7 @@ Deno.test("callerUpgrade", async (t) => {
 
 Deno.test("loadFirstTenantUser", async (t) => {
   /** A client whose tenant_users read answers `rows`, or fails when `failing`. */
-  const client = (rows: Record<string, unknown>[], failing = false) => {
+  const client = (rows: Array<Record<string, unknown>>, failing = false) => {
     const http = fakeSupabaseHttp({
       supabaseUrl: "http://db.test",
       tables: { tenant_users: rows },

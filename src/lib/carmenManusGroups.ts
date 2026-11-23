@@ -12,7 +12,7 @@ import {
 
 type ManusGroupsSyncMeta = {
   synced_at?: string;
-  group_chat_ids?: string[];
+  group_chat_ids?: Array<string>;
   groups?: Array<{ groupChatId: string; groupId: string; name: string }>;
   count?: number;
 };
@@ -28,10 +28,13 @@ async function fetchWhatsappGroupPages(
   buildQuery: (
     from: number,
     to: number,
-  ) => PromiseLike<{ data: WhatsappGroupRow[] | null; error: Error | null }>,
-): Promise<WhatsappGroupRow[]> {
+  ) => PromiseLike<{
+    data: Array<WhatsappGroupRow> | null;
+    error: Error | null;
+  }>,
+): Promise<Array<WhatsappGroupRow>> {
   const pageSize = 1000;
-  const rows: WhatsappGroupRow[] = [];
+  const rows: Array<WhatsappGroupRow> = [];
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await buildQuery(from, from + pageSize - 1);
     if (error) throw error;
@@ -44,7 +47,7 @@ async function fetchWhatsappGroupPages(
 
 async function fetchGroupsByChatIds(
   tenantId: string,
-  chatIds: string[],
+  chatIds: Array<string>,
 ): Promise<Map<string, WhatsappGroupRow>> {
   const byChatId = new Map<string, WhatsappGroupRow>();
   if (chatIds.length === 0) return byChatId;

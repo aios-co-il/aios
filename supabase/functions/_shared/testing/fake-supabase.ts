@@ -21,7 +21,7 @@ type Result = { data: unknown; error: FakeError | null };
 export type FakeQuery = {
   table: string;
   columns?: string;
-  filters: Filter[];
+  filters: Array<Filter>;
   order: { col: string; asc: boolean } | null;
   limit: number | null;
 };
@@ -36,11 +36,11 @@ export type FakeSupabaseOptions = {
 
 /** An in-memory client over `tables`, recording queries and inserts. */
 export function fakeSupabase(
-  tables: Record<string, Row[]> = {},
+  tables: Record<string, Array<Row>> = {},
   { rpc = {}, users = {}, failing = {} }: FakeSupabaseOptions = {},
 ) {
-  const queries: FakeQuery[] = [];
-  const inserts: { table: string; rows: Row[] }[] = [];
+  const queries: Array<FakeQuery> = [];
+  const inserts: Array<{ table: string; rows: Array<Row> }> = [];
   const errorOf = (name: string): FakeError | null =>
     failing[name] ? { message: failing[name] } : null;
   const answer = (table: string, data: unknown): Promise<Result> => {
@@ -57,7 +57,7 @@ export function fakeSupabase(
         q.columns = columns;
         return builder;
       },
-      insert(payload: Row | Row[]) {
+      insert(payload: Row | Array<Row>) {
         const list = Array.isArray(payload) ? payload : [payload];
         inserts.push({ table, rows: list });
         if (!errorOf(table)) {
@@ -67,7 +67,7 @@ export function fakeSupabase(
       },
       eq: (col: string, val: unknown) => filter(["eq", col, val]),
       neq: (col: string, val: unknown) => filter(["neq", col, val]),
-      in: (col: string, vals: unknown[]) => filter(["in", col, vals]),
+      in: (col: string, vals: Array<unknown>) => filter(["in", col, vals]),
       order(col: string, opts: { ascending?: boolean } = {}) {
         q.order = { col, asc: opts.ascending !== false };
         return builder;
@@ -108,7 +108,7 @@ export function fakeSupabase(
 }
 
 /** The rows a recorded query matches, ordered, limited and projected. */
-function selectRows(source: Row[], q: FakeQuery): Row[] {
+function selectRows(source: Array<Row>, q: FakeQuery): Array<Row> {
   let out = source.filter((row) => q.filters.every((f) => passes(row, f)));
   if (q.order) {
     const { col, asc } = q.order;

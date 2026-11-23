@@ -45,7 +45,7 @@ interface Conversation {
   id: string;
   title: string;
   created_at: string;
-  messages: Message[];
+  messages: Array<Message>;
 }
 
 export default function AISupport() {
@@ -56,7 +56,7 @@ export default function AISupport() {
   const [currentConversationId, setCurrentConversationId] = useState<
     string | null
   >(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Array<Message>>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -84,7 +84,7 @@ export default function AISupport() {
           created_at: conv.created_at,
           messages: (Array.isArray(conv.messages)
             ? conv.messages
-            : []) as unknown as Message[],
+            : []) as unknown as Array<Message>,
         }));
       },
       enabled: !!userId,

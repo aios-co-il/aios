@@ -40,7 +40,7 @@ interface Message {
 }
 
 interface ChatMessageListProps {
-  messages: Message[];
+  messages: Array<Message>;
   isLoading: boolean;
   contactId?: string;
   contactType?: "client" | "lead" | "group" | "unknown" | "telegram";

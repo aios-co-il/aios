@@ -36,8 +36,8 @@ export interface TaskAttachment {
 interface Props {
   value: string;
   onChange: (v: string) => void;
-  attachments: TaskAttachment[];
-  onAttachmentsChange: (a: TaskAttachment[]) => void;
+  attachments: Array<TaskAttachment>;
+  onAttachmentsChange: (a: Array<TaskAttachment>) => void;
   taskId?: string;
   placeholder?: string;
   rows?: number;
@@ -96,12 +96,12 @@ export function NotesWithAttachments({
   const pasteRef = useRef<HTMLTextAreaElement>(null);
 
   const upload = useCallback(
-    async (files: FileList | File[] | null) => {
+    async (files: FileList | Array<File> | null) => {
       if (!files || !tenantId) return;
       const arr = Array.from(files);
       if (!arr.length) return;
       setUploading(true);
-      const added: TaskAttachment[] = [];
+      const added: Array<TaskAttachment> = [];
       try {
         for (const file of arr) {
           if (file.size > MAX) {

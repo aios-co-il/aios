@@ -33,7 +33,7 @@ export type BrainEngine =
   | {
       kind: "connections";
       slug: string;
-      targets: BrainEngineTarget[];
+      targets: Array<BrainEngineTarget>;
       fallbackInternal: boolean;
     }
   | { kind: "denied" }
@@ -126,7 +126,7 @@ export async function resolveBrainEngine(
   );
   if (plan.kind !== "connections") return plan;
 
-  const targets: BrainEngineTarget[] = [];
+  const targets: Array<BrainEngineTarget> = [];
   for (const c of plan.connections) {
     const url = chatCompletionsUrl(c.base_url ?? "");
     try {

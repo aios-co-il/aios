@@ -14,7 +14,7 @@ import { QuickReplies } from "./QuickReplies";
 interface ChatMessageRowProps {
   role: "user" | "assistant" | "tool_call";
   content?: string;
-  attachments?: CommandCenterAttachment[];
+  attachments?: Array<CommandCenterAttachment>;
   speaker?: string | null;
   channel?: string | null;
   tool?: string;
@@ -35,7 +35,7 @@ const MARKDOWN_COMPONENTS: Components = {
 function AttachmentStrip({
   attachments,
 }: {
-  attachments: CommandCenterAttachment[];
+  attachments: Array<CommandCenterAttachment>;
 }) {
   if (!attachments.length) return null;
   return (

@@ -19,7 +19,7 @@ type Builder = {
   select: (columns?: string) => Builder;
   eq: (column: string, value: unknown) => Builder;
   neq: (column: string, value: unknown) => Builder;
-  in: (column: string, values: unknown[]) => Builder;
+  in: (column: string, values: Array<unknown>) => Builder;
   gt: (column: string, value: string) => Builder;
   gte: (column: string, value: string) => Builder;
   lt: (column: string, value: string) => Builder;
@@ -32,7 +32,7 @@ type Builder = {
   range: (from: number, to: number) => Builder;
   maybeSingle: () => Promise<Result<Row | null>>;
   then: <T>(
-    resolve: (value: Result<Row[]>) => T,
+    resolve: (value: Result<Array<Row>>) => T,
     reject?: (error: unknown) => T,
   ) => Promise<T>;
 };
@@ -43,10 +43,10 @@ type Builder = {
  * `{ data: null, error }` with that message, for error-path tests.
  */
 export function memoryDb(
-  tables: Record<string, Row[]>,
+  tables: Record<string, Array<Row>>,
   failing: Record<string, string> = {},
 ) {
-  const queries: Array<{ table: string; filters: string[] }> = [];
+  const queries: Array<{ table: string; filters: Array<string> }> = [];
   return {
     queries,
     from(table: string): Builder {
@@ -61,12 +61,12 @@ export function memoryDb(
 
 /** A builder over `source` that reports its filter labels through `record`. */
 function tableQuery(
-  source: Row[],
-  record: (filters: string[]) => void,
+  source: Array<Row>,
+  record: (filters: Array<string>) => void,
   errorMessage?: string,
 ): Builder {
-  const filters: Filter[] = [];
-  const described: string[] = [];
+  const filters: Array<Filter> = [];
+  const described: Array<string> = [];
   let sort: { column: string; ascending: boolean } | null = null;
   let limit: number | null = null;
   let range: [number, number] | null = null;

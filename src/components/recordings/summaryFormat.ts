@@ -4,7 +4,7 @@
 
 export function markdownToWhatsApp(md: string): string {
   const lines = md.split("\n");
-  const out: string[] = [];
+  const out: Array<string> = [];
   for (const raw of lines) {
     const line = raw.trimEnd();
     // Table rows → "cell — cell — cell"; separator rows dropped
@@ -48,9 +48,9 @@ function inlineHtml(s: string): string {
 
 export function markdownToEmailHtml(md: string): string {
   const lines = md.split("\n");
-  const out: string[] = [];
+  const out: Array<string> = [];
   let listOpen = false;
-  let tableRows: string[][] = [];
+  let tableRows: Array<Array<string>> = [];
 
   const closeList = () => {
     if (listOpen) {

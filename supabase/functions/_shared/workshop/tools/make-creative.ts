@@ -129,7 +129,7 @@ export async function workshopMakeCreative(ctx: ToolContext) {
       meta: { format },
     })),
   );
-  const artifacts: Record<string, any>[] = [];
+  const artifacts: Array<Record<string, any>> = [];
   const generateAll = () =>
     Promise.all(
       formats.map(async (format, index) => {

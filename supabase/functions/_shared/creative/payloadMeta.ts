@@ -36,7 +36,7 @@ export const isCreativeFormat = (value: unknown): value is CreativeFormat =>
 
 export const brandColorsFromPayload = (
   payload: Record<string, unknown>,
-): string[] => {
+): Array<string> => {
   const book = payload.brand_book;
   if (!book || typeof book !== "object") return [];
   const colors = (book as { colors?: unknown }).colors;
@@ -76,7 +76,7 @@ export const compositionIdFromJob = (
 
 export const usedCompositionIdsFromPayload = (
   payload: Record<string, unknown>,
-): CompositionId[] => {
+): Array<CompositionId> => {
   const variations = Array.isArray(payload.variations)
     ? payload.variations
     : [];
@@ -91,7 +91,7 @@ export const usedCompositionIdsFromPayload = (
 export interface CreativeJobMeta {
   visual_style?: CreativeVisualStyleId;
   composition_id?: CompositionId;
-  brand_colors?: string[];
+  brand_colors?: Array<string>;
   live_text_layers?: boolean;
   title?: string;
   logo_url?: string;

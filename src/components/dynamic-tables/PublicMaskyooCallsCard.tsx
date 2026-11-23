@@ -9,7 +9,7 @@ interface Snapshot {
 }
 
 interface Props {
-  snapshots: Snapshot[];
+  snapshots: Array<Snapshot>;
   periodLabel?: string;
 }
 

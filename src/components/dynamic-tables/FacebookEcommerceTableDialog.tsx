@@ -49,7 +49,7 @@ import { ADS_TABLE_CREATE_DATE_RANGE_OPTIONS } from "@/lib/dashboardDateFilters"
 interface FacebookEcommerceTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 interface AdAccount {
@@ -128,8 +128,9 @@ export function FacebookEcommerceTableDialog({
       )
     ) {
       const preferred =
-        (fbIntegrations as any[]).find((integration) => integration._isOwn) ||
-        fbIntegrations[0];
+        (fbIntegrations as Array<any>).find(
+          (integration) => integration._isOwn,
+        ) || fbIntegrations[0];
       setSelectedIntegrationId((preferred as any).id);
     }
   }, [fbIntegrations, open, selectedIntegrationId]);
@@ -311,7 +312,7 @@ export function FacebookEcommerceTableDialog({
                     <SelectValue placeholder="בחר חיבור" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(fbIntegrations as any[]).map((integration) => {
+                    {(fbIntegrations as Array<any>).map((integration) => {
                       const settings = integration.settings as any;
                       const visibility =
                         integration.connection_visibility ||

@@ -5,7 +5,11 @@ import { WORKSHOP_TOOLS } from "./tool-definitions.ts";
 const SPOKEN = new Set(["voiceover_text", "voiceover", "dialogue"]);
 
 /** Every parameter that holds what the film says, in every workshop tool. */
-function spokenFields(node: unknown, path: string, out: [string, string][]) {
+function spokenFields(
+  node: unknown,
+  path: string,
+  out: Array<[string, string]>,
+) {
   if (!node || typeof node !== "object") return out;
   for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
     const child = value as { description?: unknown };

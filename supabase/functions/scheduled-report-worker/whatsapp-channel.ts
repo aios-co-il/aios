@@ -41,7 +41,7 @@ export type FunctionReply = { ok: boolean; status: number; text: string };
 
 export type WhatsAppChannelDeps = {
   /** The lines userId may send the tenant's reports from. */
-  listSenders(tenantId: string, userId: string): Promise<ReportSender[]>;
+  listSenders(tenantId: string, userId: string): Promise<Array<ReportSender>>;
   tenantDefaultId(tenantId: string): Promise<string | null>;
   callFunction(
     name: string,

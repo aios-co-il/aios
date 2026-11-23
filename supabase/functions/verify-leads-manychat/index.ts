@@ -28,7 +28,7 @@ function formatPhoneForManyChat(phone: string): string {
 }
 
 // Generate phone variations for lookup
-function getPhoneCandidates(phone: string): string[] {
+function getPhoneCandidates(phone: string): Array<string> {
   const cleaned = normalizePhone(phone);
   if (!cleaned) return [];
   const withCountry = `972${cleaned}`;
@@ -98,7 +98,7 @@ async function getPhoneFieldId(
 async function findByCustomField(
   apiKey: string,
   fieldId: number,
-  candidates: string[],
+  candidates: Array<string>,
 ): Promise<{
   id: string;
   status: string;
@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: LeadResult[] = [];
+    const results: Array<LeadResult> = [];
     let okCount = 0;
     let mismatchCount = 0;
     let notFoundCount = 0;

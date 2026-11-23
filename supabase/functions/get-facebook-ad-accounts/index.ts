@@ -225,8 +225,8 @@ Deno.serve(async (req) => {
     }
 
     // Compatibility fallback for older callers that still expect enumeration.
-    const fetchEdge = async (edgeUrl: string): Promise<any[]> => {
-      const rows: any[] = [];
+    const fetchEdge = async (edgeUrl: string): Promise<Array<any>> => {
+      const rows: Array<any> = [];
       let next: string | null = edgeUrl;
       try {
         while (next) {
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
     const businesses = await fetchEdge(
       `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&limit=100&access_token=${accessToken}`,
     );
-    const businessAccounts: any[] = [];
+    const businessAccounts: Array<any> = [];
 
     for (const business of businesses) {
       const [clientAccounts, ownedAccounts] = await Promise.all([

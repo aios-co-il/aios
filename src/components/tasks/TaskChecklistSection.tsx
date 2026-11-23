@@ -39,7 +39,7 @@ export function TaskChecklistSection({
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []) as ChecklistItem[];
+      return (data || []) as Array<ChecklistItem>;
     },
     enabled: Boolean(taskId),
   });
@@ -75,11 +75,11 @@ export function TaskChecklistSection({
     },
     onMutate: async ({ id, isDone }) => {
       await queryClient.cancelQueries({ queryKey: ["task-checklist", taskId] });
-      const previous = queryClient.getQueryData<ChecklistItem[]>([
+      const previous = queryClient.getQueryData<Array<ChecklistItem>>([
         "task-checklist",
         taskId,
       ]);
-      queryClient.setQueryData<ChecklistItem[]>(
+      queryClient.setQueryData<Array<ChecklistItem>>(
         ["task-checklist", taskId],
         (old = []) =>
           old.map((item) =>

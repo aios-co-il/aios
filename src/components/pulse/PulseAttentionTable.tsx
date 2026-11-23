@@ -24,7 +24,7 @@ import {
 } from "../../../supabase/functions/_shared/pulse/targets/kinds.ts";
 
 type PulseAttentionTableProps = {
-  rows: PulseAttentionRow[];
+  rows: Array<PulseAttentionRow>;
   onOpenClient: (clientId: string) => void;
   /** Opens the target editor (platform + per-campaign) for this row. */
   onEditTargets: (row: PulseAttentionRow) => void;

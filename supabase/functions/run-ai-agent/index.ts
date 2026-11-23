@@ -639,8 +639,8 @@ async function buildLLMChain(
   supabase: AgentDatabaseClient,
   tenantId: string,
   primaryFullId: string,
-): Promise<LLMTarget[]> {
-  const ordered: string[] = [];
+): Promise<Array<LLMTarget>> {
+  const ordered: Array<string> = [];
   const add = (id: string) => {
     const full = resolveModelId(id);
     if (!ordered.includes(full)) ordered.push(full);
@@ -757,8 +757,8 @@ const PRIORITY_TOOLS = new Set([
 
 function capToolsForTarget<T extends { function?: { name?: string } }>(
   target: LLMTarget,
-  tools: T[],
-): T[] {
+  tools: Array<T>,
+): Array<T> {
   if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS)
     return tools;
   // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
@@ -938,9 +938,9 @@ function assertHttpsUrl(value: unknown, field: string): string {
 async function metaLeadPages(
   supabase: AgentDatabaseClient,
   tenantId: string,
-): Promise<MetaLeadPage[]> {
+): Promise<Array<MetaLeadPage>> {
   const integrations = await metaLeadIntegrations(supabase, tenantId);
-  const pages: MetaLeadPage[] = [];
+  const pages: Array<MetaLeadPage> = [];
   for (const integration of integrations) {
     let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
     if (sourcePages.length === 0) {
@@ -976,8 +976,8 @@ async function metaLeadPages(
 
 async function metaLeadFormsForPage(
   page: MetaLeadPage,
-): Promise<MetaLeadForm[]> {
-  const forms: MetaLeadForm[] = [];
+): Promise<Array<MetaLeadForm>> {
+  const forms: Array<MetaLeadForm> = [];
   let next: string | null =
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
   while (next) {
@@ -1016,7 +1016,7 @@ async function metaLeadFormsForPage(
 
 async function findAutomationForMetaForm(
   supabase: AgentDatabaseClient,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   automationId?: unknown,
   automationName?: unknown,
 ) {
@@ -1051,7 +1051,7 @@ async function findAutomationForMetaForm(
 async function getAccessibleTenantIds(
   supabase: AgentDatabaseClient,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   try {
     const { data } = await supabase
       .from("agency_tenant_access")
@@ -1077,7 +1077,7 @@ async function executeTool(
   callerCampaignerId?: string | null,
   agentId?: string | null,
   callerRole?: string | null,
-  callerManagedAgencyIds?: string[] | null,
+  callerManagedAgencyIds?: Array<string> | null,
   callerPhone?: string | null,
   waNotify?: any,
   surface?: string | null,
@@ -1483,7 +1483,7 @@ async function executeTool(
 
       // Clients: broad alias + ad-account + inactive/ended search (Kernelios/Cornelius/קרנליוס…).
       if (args.entity_type === "client") {
-        let clientIdsFilter: string[] | null = null;
+        let clientIdsFilter: Array<string> | null = null;
         if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
           const { data: links } = await supabase
             .from("client_team")
@@ -1967,7 +1967,7 @@ async function executeTool(
         )
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
-      const stepRows: AutomationFlowStepRow[] = steps || [];
+      const stepRows: Array<AutomationFlowStepRow> = steps || [];
       return {
         automation: auto,
         steps: stepRows.map((s) => {
@@ -2047,10 +2047,9 @@ async function executeTool(
         .eq("is_flow", true)
         .order("name");
       if (automationError) throw automationError;
-      let matchingAutomations: Pick<
-        AgentRow<"automations">,
-        "id" | "name" | "active" | "tenant_id"
-      >[] = automations || [];
+      let matchingAutomations: Array<
+        Pick<AgentRow<"automations">, "id" | "name" | "active" | "tenant_id">
+      > = automations || [];
       if (args.automation_name) {
         matchingAutomations = matchingAutomations.filter((a) =>
           metaNameMatches(a.name, args.automation_name),
@@ -2065,10 +2064,12 @@ async function executeTool(
             .eq("step_type", "trigger")
         : { data: [], error: null };
       if (triggerError) throw triggerError;
-      const triggerRows: Pick<
-        AgentRow<"automation_flow_steps">,
-        "automation_id" | "configuration"
-      >[] = triggerSteps || [];
+      const triggerRows: Array<
+        Pick<
+          AgentRow<"automation_flow_steps">,
+          "automation_id" | "configuration"
+        >
+      > = triggerSteps || [];
       const currentByAutomation = new Map(
         triggerRows
           .map(
@@ -2157,7 +2158,7 @@ async function executeTool(
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים ליצור טופס Meta",
         );
-      const questions: unknown[] = Array.isArray(args.questions)
+      const questions: Array<unknown> = Array.isArray(args.questions)
         ? args.questions.slice(0, 30)
         : [];
       if (questions.length === 0)
@@ -2878,7 +2879,7 @@ async function executeTool(
     }
 
     case "delegate_parallel": {
-      const items: unknown[] = Array.isArray(args.tasks) ? args.tasks : [];
+      const items: Array<unknown> = Array.isArray(args.tasks) ? args.tasks : [];
       if (items.length === 0)
         throw new Error("tasks (array of {title, prompt}) is required");
       if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
@@ -2922,7 +2923,7 @@ async function executeTool(
       ) {
         throw new Error("name, trigger_type ו-steps (מערך לא ריק) נדרשים");
       }
-      const stepArgs: unknown[] = args.steps;
+      const stepArgs: Array<unknown> = args.steps;
       const spec = {
         name: String(args.name),
         description: args.description ? String(args.description) : null,
@@ -3315,7 +3316,7 @@ async function handleRunAgent(
     origin?: string | null;
   } = {},
   /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
-  internalTail?: () => Promise<BrainEngineTarget[]>,
+  internalTail?: () => Promise<Array<BrainEngineTarget>>,
 ): Promise<Response> {
   try {
     const {
@@ -3458,7 +3459,7 @@ async function handleRunAgent(
     // 2.6. Resolve caller role + managed agencies (drives role-based scoping)
     let callerRole: string | null = null;
     let callerUserId: string | null = null;
-    let callerManagedAgencyIds: string[] = [];
+    let callerManagedAgencyIds: Array<string> = [];
     if (callerCampaignerId) {
       const { data: prof } = await supabase
         .from("profiles")
@@ -3794,7 +3795,7 @@ async function handleRunAgent(
               .order("updated_at", { ascending: false })
               .limit(30),
         tokenOptimize
-          ? Promise.resolve({ data: [] as any[] })
+          ? Promise.resolve({ data: [] as Array<any> })
           : supabase
               .from("campaigners")
               .select("id, full_name, phone, email, role")
@@ -3897,7 +3898,7 @@ async function handleRunAgent(
       full_name: string;
       phone?: string | null;
       email?: string | null;
-      role?: string[] | null;
+      role?: Array<string> | null;
     }>;
     const teamRosterLine =
       teamRoster.length > 0
@@ -4162,7 +4163,7 @@ async function handleRunAgent(
 5. אם אין התאמה ברורה — צרי משימה לקמפיינר עם create_task שמפרטת את שם הלקוח ורשימת החשבונות האפשריים.
 6. דווחי סיכום: כמה חוברו אוטומטית, כמה דורשים חיבור ידני.`,
         };
-        const taskSkillPrompts = (task_skills as string[])
+        const taskSkillPrompts = (task_skills as Array<string>)
           .map((s: string) => TASK_SKILLS_PROMPTS[s])
           .filter(Boolean);
         if (taskSkillPrompts.length > 0) {
@@ -4170,7 +4171,7 @@ async function handleRunAgent(
         }
       }
       // Inject active modes
-      const activeModes: string[] = (agent as any).active_modes || [];
+      const activeModes: Array<string> = (agent as any).active_modes || [];
       if (activeModes.length > 0) {
         const MODES_PROMPTS: Record<string, string> = {
           sales:
@@ -4194,7 +4195,7 @@ async function handleRunAgent(
         }
       }
       // Inject active skills
-      const activeSkills: string[] = (agent as any).active_skills || [];
+      const activeSkills: Array<string> = (agent as any).active_skills || [];
       if (activeSkills.length > 0) {
         const SKILLS_PROMPTS: Record<string, string> = {
           "lead-qualifier":
@@ -4303,7 +4304,7 @@ async function handleRunAgent(
             .split(/\s+/)
             .filter((t: string) => t.length > 1)
             .slice(0, 8);
-          let relevantSkills: any[] = [];
+          let relevantSkills: Array<any> = [];
           if (tokens.length > 0) {
             const tsQuery = tokens.join(" | ");
             const { data: ftsHits } = await supabase
@@ -4501,8 +4502,8 @@ async function handleRunAgent(
       try {
         const pinnedTenantId = (agent as any)?.tenant_id || tenant_id || null;
         const disabledForPin = ((agent as any)?.disabled_skins ||
-          []) as string[];
-        const pinnableSlugs = (task_skills as string[]).filter(
+          []) as Array<string>;
+        const pinnableSlugs = (task_skills as Array<string>).filter(
           (s) => !disabledForPin.includes(s),
         );
         const pinnedBlock = await buildSkillsBlockBySlug(
@@ -4512,7 +4513,7 @@ async function handleRunAgent(
         if (pinnedBlock) {
           systemPrompt += pinnedBlock;
           console.log(
-            `[AGENT] Pinned skins by slug: ${(task_skills as string[]).join(", ")}`,
+            `[AGENT] Pinned skins by slug: ${(task_skills as Array<string>).join(", ")}`,
           );
         }
       } catch (e) {
@@ -4653,7 +4654,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 4. Filter tools
-    const allowedTools = (agent.allowed_tools || []) as string[];
+    const allowedTools = (agent.allowed_tools || []) as Array<string>;
     // Carmen can always answer about herself (her personas and their portraits), whatever
     // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
@@ -4668,7 +4669,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Access control (denylist): subtract tools turned OFF in settings. Default
     // (empty) = no change, so Carmen keeps access to everything by default.
-    const disabledTools = ((agent as any).disabled_tools || []) as string[];
+    const disabledTools = ((agent as any).disabled_tools ||
+      []) as Array<string>;
     if (disabledTools.length > 0) {
       filteredTools = filteredTools.filter(
         (t) => !disabledTools.includes(t.name),
@@ -4875,7 +4877,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
       if (!pinSkillsOnly && !inWorkshop) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
-          []) as string[];
+          []) as Array<string>;
         const mcp = await loadMcpTools(
           supabase,
           resolvedTenantId,
@@ -5008,10 +5010,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const skillTenantId = (agent as any).tenant_id || tenant_id || null;
     // Access control: skins turned OFF in settings are excluded even if their
     // trigger matches. Default (empty) = no change.
-    const disabledSkins = ((agent as any).disabled_skins || []) as string[];
+    const disabledSkins = ((agent as any).disabled_skins ||
+      []) as Array<string>;
     const _matchedSkills = pinSkillsOnly
       ? (
-          await resolveSkillsBySlug(task_skills as string[], skillTenantId)
+          await resolveSkillsBySlug(task_skills as Array<string>, skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id))
       : (await resolveActiveSkills(String(command_text || ""), skillTenantId))
           .filter((s) => !disabledSkins.includes(s.id))
@@ -5081,7 +5084,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     ) {
       try {
         const pinned = (
-          await resolveSkillsBySlug(task_skills as string[], skillTenantId)
+          await resolveSkillsBySlug(task_skills as Array<string>, skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id));
         const missing = missingEnabledTools(
           filteredTools,
@@ -5435,7 +5438,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Build messages with conversation history
-    const messages: any[] = [{ role: "system", content: systemPrompt }];
+    const messages: Array<any> = [{ role: "system", content: systemPrompt }];
 
     // Add conversation history from Carmen WhatsApp sessions
     const history = serverConversationId
@@ -5453,7 +5456,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     messages.push({ role: "user", content: command_text });
 
     let finalOutput = "";
-    const toolLog: any[] = [];
+    const toolLog: Array<any> = [];
     const startTime = Date.now();
 
     // If the agent's engine is Manus — delegate the entire conversation to Manus AI
@@ -5512,7 +5515,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
     const runsInternal = !brainEngine || brainEngine.fallbackInternal;
-    const llmChain: LLMTarget[] = brainEngine
+    const llmChain: Array<LLMTarget> = brainEngine
       ? [
           ...brainEngine.targets,
           ...(brainEngine.fallbackInternal
@@ -5537,7 +5540,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Models often repeat their mid-loop text ("creating the image…") in the
     // final answer; the client joins tokens, so send each text once, apart.
-    const emittedTexts: string[] = [];
+    const emittedTexts: Array<string> = [];
     const emitText = (text: string) => {
       const key = text.trim();
       if (!emit || !key || emittedTexts.includes(key)) return;
@@ -5745,10 +5748,10 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
-      const toolResults: any[] = [];
+      const toolResults: Array<any> = [];
       let pulseDigestShortcut: string | null = null;
       // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
-      const sayToUser: string[] = [];
+      const sayToUser: Array<string> = [];
       // Only the last budget request of a round: an earlier one's code is no longer valid.
       let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
@@ -6349,10 +6352,10 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
   });
   if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
-  const disabledTools: string[] = agent.disabled_tools || [];
+  const disabledTools: Array<string> = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
   const pool = keepCarmenPulseTools(
-    directToolPool(ALL_TOOLS as any[], {
+    directToolPool(ALL_TOOLS as Array<any>, {
       allowedTools: agent.allowed_tools || [],
       disabledTools,
       isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
@@ -6438,7 +6441,7 @@ async function resolveDirectCaller(
       userId: null,
       role: null,
       campaignerId: null,
-      managedAgencyIds: [] as string[],
+      managedAgencyIds: [] as Array<string>,
     };
   const [{ data: roles }, { data: prof }] = await Promise.all([
     // Roles in this tenant plus global (tenant_id null) roles only — never another tenant's.
@@ -6466,7 +6469,7 @@ async function resolveDirectCaller(
     "viewer",
   ];
   const role = order.find((r) => roleList.includes(r)) || null;
-  let managedAgencyIds: string[] = [];
+  let managedAgencyIds: Array<string> = [];
   if (role === "team_manager" || role === "agency_manager") {
     const { data: mng } = await supabase
       .from("user_managed_agencies")

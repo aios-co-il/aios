@@ -151,8 +151,8 @@ export function ToolRegistryTab() {
     );
   };
 
-  const byCategory: Record<string, AgentTool[]> = {};
-  for (const t of tools as AgentTool[]) {
+  const byCategory: Record<string, Array<AgentTool>> = {};
+  for (const t of tools as Array<AgentTool>) {
     const c = t.category || "general";
     (byCategory[c] ||= []).push(t);
   }

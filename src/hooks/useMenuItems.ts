@@ -34,7 +34,7 @@ export function useMenuItems() {
         return [];
       }
 
-      return data as MenuItem[];
+      return data as Array<MenuItem>;
     },
     enabled: !!tenantId,
   });

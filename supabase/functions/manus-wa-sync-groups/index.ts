@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
 
     const result = await syncManusGroupsForTenant(
       supabaseSvc,
-      integrations as IntegrationRow[],
+      integrations as Array<IntegrationRow>,
     );
     if (!result.success) {
       return new Response(JSON.stringify(result), {

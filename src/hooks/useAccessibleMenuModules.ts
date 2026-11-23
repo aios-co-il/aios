@@ -12,17 +12,17 @@ import { computeSidebarOverlay } from "@/visual-workspace/hooks/useSitemap";
 export type AccessibleMenuGroup = {
   id: MenuTabId;
   label: string;
-  modules: MenuModule[];
+  modules: Array<MenuModule>;
 };
 
 export function useAccessibleMenuModules() {
   const { menuItems, isLoading: menuLoading } = useMenuItems();
   const { hasPermission, isLoading: permissionsLoading } = useUserPermissions();
 
-  const groups = useMemo<AccessibleMenuGroup[]>(() => {
+  const groups = useMemo<Array<AccessibleMenuGroup>>(() => {
     const dbByKey = new Map(menuItems.map((item) => [item.menu_key, item]));
     const overlay = computeSidebarOverlay(menuItems);
-    const modulesByTab = new Map<MenuTabId, MenuModule[]>(
+    const modulesByTab = new Map<MenuTabId, Array<MenuModule>>(
       MENU_TABS.map((tab) => [tab.id, []]),
     );
 

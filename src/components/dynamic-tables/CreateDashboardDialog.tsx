@@ -55,7 +55,7 @@ import { resolveDashboardHomeTenant } from "@/lib/crmDashboards";
 interface CreateDashboardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 export function CreateDashboardDialog({

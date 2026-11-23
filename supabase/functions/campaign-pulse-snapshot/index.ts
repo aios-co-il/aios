@@ -157,7 +157,7 @@ async function loadTeamManagerDeliveryPlans(
   tenantId: string,
   tenantSlug: string,
   snapshots: Array<{ client_id: string; agency_id?: string | null }>,
-): Promise<PulseDeliveryPlan[]> {
+): Promise<Array<PulseDeliveryPlan>> {
   const { data: roles } = await supabase
     .from("user_roles")
     .select("user_id")
@@ -179,7 +179,7 @@ async function loadTeamManagerDeliveryPlans(
       .in("user_id", userIds),
   ]);
 
-  const agenciesByUser = new Map<string, string[]>();
+  const agenciesByUser = new Map<string, Array<string>>();
   for (const row of managed || []) {
     if (!row.user_id || !row.agency_id) continue;
     agenciesByUser.set(row.user_id, [
@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
       "[campaign-pulse] pulse_alert_rules missing; instant alerts disabled until schema deployment",
     );
 
-  const results: any[] = [];
+  const results: Array<any> = [];
   for (const setting of settings || []) {
     const started = Date.now();
     const tenantId = setting.tenant_id;
@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
         latestOnboardingByClient.set(onboarding.client_id, onboarding);
       }
     }
-    const openTasksByClient = new Map<string, any[]>();
+    const openTasksByClient = new Map<string, Array<any>>();
     for (const task of tasksResult.data || []) {
       openTasksByClient.set(task.client_id, [
         ...(openTasksByClient.get(task.client_id) || []),
@@ -451,7 +451,7 @@ Deno.serve(async (req) => {
     // Israel full days ending yesterday, like campaign_breakdown: the 7-day window
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
-    const snapshots: any[] = [];
+    const snapshots: Array<any> = [];
     // Switched-off tables that still spend, read by report_off_spending alone
     // (AIO-501): never a snapshot flag, which the digest counts and the
     // connection_lost rule matches by text.
@@ -912,7 +912,7 @@ Deno.serve(async (req) => {
     );
     let sent = false;
     let deliveryClaimed = false;
-    const scopedDeliveries: any[] = [];
+    const scopedDeliveries: Array<any> = [];
     if (deliveryRequested && setting.campaign_pulse_enabled) {
       if (manualDeliveryBypass) {
         deliveryClaimed = true;
@@ -953,7 +953,7 @@ Deno.serve(async (req) => {
         const snapshotClientIds = snapshots.map(
           (snapshot) => snapshot.client_id,
         );
-        const plans: PulseDeliveryPlan[] = [];
+        const plans: Array<PulseDeliveryPlan> = [];
 
         if (deliverToCampaigners && snapshotClientIds.length) {
           const [{ data: links }, { data: campaigners }] = await Promise.all([

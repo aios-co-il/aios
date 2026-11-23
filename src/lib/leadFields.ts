@@ -82,8 +82,8 @@ const GENERIC_ORIGIN_TAG_NAMES = new Set(["אחר", "other"]);
  */
 export function leadOriginTagNames(
   lead: LeadSourceLike | null | undefined,
-): string[] {
-  const names: string[] = [];
+): Array<string> {
+  const names: Array<string> = [];
   const seen = new Set<string>();
 
   const push = (value: string | null | undefined) => {
@@ -186,7 +186,7 @@ export type ClassifiedLeadStatus = {
 /** Split a mixed CSV "סטטוס" value into pipeline stage vs secondary status. */
 export function classifyLeadImportStatus(
   value: string | null | undefined,
-  statuses: LeadStatusLike[] = [],
+  statuses: Array<LeadStatusLike> = [],
 ): ClassifiedLeadStatus {
   const pipelineStatus = matchPipelineStatus(value);
   const responseStatus = resolveResponseStatusKey(value, statuses);
@@ -231,7 +231,7 @@ function aliasResponseStatusKey(normalized: string): string | null {
 
 export function resolveResponseStatusKey(
   value: string | null | undefined,
-  statuses: LeadStatusLike[] = [],
+  statuses: Array<LeadStatusLike> = [],
 ): string | null {
   if (!value || !value.trim() || value === "none") return null;
   const trimmed = value.trim();
@@ -275,7 +275,7 @@ export function findLeadStatus<TStatus extends LeadStatusLike>(
 
 export function responseStatusSelectValue(
   value: string | null | undefined,
-  statuses: LeadStatusLike[],
+  statuses: Array<LeadStatusLike>,
 ): string {
   if (!value || value === "none") return "none";
   return resolveResponseStatusKey(value, statuses) || value;
@@ -284,7 +284,7 @@ export function responseStatusSelectValue(
 /** Raw stored value to render as a SelectItem when it isn't in `statuses`. */
 export function unmatchedResponseStatusValue(
   value: string | null | undefined,
-  statuses: LeadStatusLike[],
+  statuses: Array<LeadStatusLike>,
 ): string | null {
   if (!value || value === "none") return null;
   const resolved = resolveResponseStatusKey(value, statuses);
@@ -396,7 +396,7 @@ export const LEAD_IMPORT_HEADER_MAP: Record<string, string> = {
 
 export function autoDetectLeadImportField(
   columnName: string,
-  sampleValues: string[] = [],
+  sampleValues: Array<string> = [],
 ): string | null {
   const trimmed = columnName.replace(/^\uFEFF/, "").trim();
   const normalized = trimmed.toLowerCase();

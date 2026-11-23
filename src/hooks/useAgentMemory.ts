@@ -20,7 +20,7 @@ export interface MemoryItem {
 export interface MemoryTreeNode {
   category: string;
   count: number;
-  subcategories: { name: string; count: number }[];
+  subcategories: Array<{ name: string; count: number }>;
 }
 
 // ----- agent_memory (non-Carmen) -----
@@ -38,7 +38,7 @@ export function useAgentMemory(
       subcategory ?? "all",
     ],
     enabled: !!agentId,
-    queryFn: async (): Promise<MemoryItem[]> => {
+    queryFn: async (): Promise<Array<MemoryItem>> => {
       let q = supabase
         .from("agent_memory" as any)
         .select(
@@ -61,7 +61,7 @@ export function useAgentMemoryTree(agentId: string | null) {
   return useQuery({
     queryKey: ["agent-memory-tree", agentId],
     enabled: !!agentId,
-    queryFn: async (): Promise<MemoryTreeNode[]> => {
+    queryFn: async (): Promise<Array<MemoryTreeNode>> => {
       const { data, error } = await supabase
         .from("agent_memory" as any)
         .select("category, subcategory")
@@ -125,7 +125,7 @@ export function useCarmenMemoryPointers(
       subcategory ?? "all",
     ],
     enabled: category !== "episodes",
-    queryFn: async (): Promise<MemoryItem[]> => {
+    queryFn: async (): Promise<Array<MemoryItem>> => {
       let q = supabase
         .from("carmen_memory_pointers" as any)
         .select(
@@ -158,7 +158,7 @@ export function useCarmenMemoryEpisodes(enabled = false) {
         .order("created_at", { ascending: false })
         .limit(300);
       if (error) throw error;
-      return (data ?? []) as any[];
+      return (data ?? []) as Array<any>;
     },
   });
 }
@@ -166,8 +166,8 @@ export function useCarmenMemoryEpisodes(enabled = false) {
 // ----- shared -----
 
 function buildTree(
-  rows: { category: string | null; subcategory: string | null }[],
-): MemoryTreeNode[] {
+  rows: Array<{ category: string | null; subcategory: string | null }>,
+): Array<MemoryTreeNode> {
   const byCat = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const cat = r.category || "other";

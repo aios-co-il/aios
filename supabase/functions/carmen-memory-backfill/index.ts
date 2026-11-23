@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   const module = url.searchParams.get("module") ?? "all";
   const messagesDays = parseInt(url.searchParams.get("messages_days") ?? "90");
 
-  let tenants: string[] = [];
+  let tenants: Array<string> = [];
   if (tenantParam) tenants = [tenantParam];
   else {
     const { data } = await supabase.from("tenants").select("id");

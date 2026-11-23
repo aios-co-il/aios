@@ -19,7 +19,7 @@ interface CarmenSession {
   phone: string | null;
   sender_name: string | null;
   agent_id: string;
-  conversation_history: any[];
+  conversation_history: Array<any>;
   status: string;
   last_message_at: string | null;
   created_at: string;
@@ -35,7 +35,7 @@ interface UnifiedSession {
   status: string;
   lastActivity: string;
   agentName: string;
-  messages: { role: string; content: string; timestamp?: string }[];
+  messages: Array<{ role: string; content: string; timestamp?: string }>;
   raw: any;
 }
 
@@ -68,7 +68,7 @@ export default function AgentSessionsPanel() {
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .limit(100);
       if (error) throw error;
-      return (data ?? []) as unknown as CarmenSession[];
+      return (data ?? []) as unknown as Array<CarmenSession>;
     },
     enabled: !!tenantId,
   });
@@ -136,8 +136,8 @@ export default function AgentSessionsPanel() {
     };
   }, [tenantId, queryClient]);
 
-  const sessions: UnifiedSession[] = useMemo(() => {
-    const carmen: UnifiedSession[] = carmenSessions.map((s) => ({
+  const sessions: Array<UnifiedSession> = useMemo(() => {
+    const carmen: Array<UnifiedSession> = carmenSessions.map((s) => ({
       id: `carmen-${s.id}`,
       source: "whatsapp",
       title: s.sender_name || s.phone || "ללא שם",
@@ -150,7 +150,7 @@ export default function AgentSessionsPanel() {
         : [],
       raw: s,
     }));
-    const internal: UnifiedSession[] = aiConversations.map((c: any) => ({
+    const internal: Array<UnifiedSession> = aiConversations.map((c: any) => ({
       id: `internal-${c.id}`,
       source: "internal",
       title: c.title || "שיחה פנימית",

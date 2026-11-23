@@ -7,7 +7,7 @@
 export interface RemoteImageArgs {
   prompt: string;
   aspect_ratio?: string;
-  reference_urls?: string[];
+  reference_urls?: Array<string>;
   engine?: string;
 }
 

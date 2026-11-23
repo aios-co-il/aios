@@ -59,7 +59,7 @@ export default function Broadcast() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [statsFor, setStatsFor] = useState<Broadcast | null>(null);
 
-  const broadcasts = (list.data || []) as Broadcast[];
+  const broadcasts = (list.data || []) as Array<Broadcast>;
 
   const handleDelete = (id: string) => {
     if (!confirm("למחוק את הדיוור?")) return;

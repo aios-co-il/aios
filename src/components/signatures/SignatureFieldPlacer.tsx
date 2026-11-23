@@ -44,9 +44,9 @@ interface SignatureFieldPlacerProps {
   fileUrl: string;
   mediaKind?: SignatureMediaKind | null;
   forcePdf?: boolean;
-  recipients: RecipientInfo[];
-  fields: DocumentField[];
-  onFieldsChange: (fields: DocumentField[]) => void;
+  recipients: Array<RecipientInfo>;
+  fields: Array<DocumentField>;
+  onFieldsChange: (fields: Array<DocumentField>) => void;
   fullScreen?: boolean;
 }
 

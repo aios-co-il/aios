@@ -39,7 +39,7 @@ export function MaskyooSiblingCard({
     queryKey: ["maskyoo-numbers-by-client", clientId, accessibleTenantIds],
     enabled: !!clientId && accessibleTenantIds.length > 0,
     staleTime: 60_000,
-    queryFn: async (): Promise<MaskyooNumberRow[]> => {
+    queryFn: async (): Promise<Array<MaskyooNumberRow>> => {
       const { data, error } = await supabase
         .from("maskyoo_numbers")
         .select("display_number, category, is_ignored")
@@ -47,7 +47,7 @@ export function MaskyooSiblingCard({
         .eq("client_id", clientId)
         .eq("is_ignored", false);
       if (error) throw error;
-      return (data || []) as MaskyooNumberRow[];
+      return (data || []) as Array<MaskyooNumberRow>;
     },
   });
 

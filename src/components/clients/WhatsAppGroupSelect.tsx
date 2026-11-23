@@ -15,7 +15,7 @@ interface Group {
 }
 
 interface WhatsAppGroupSelectProps {
-  groups: Group[] | undefined;
+  groups: Array<Group> | undefined;
   value: string;
   onValueChange: (value: string) => void;
   triggerClassName?: string;

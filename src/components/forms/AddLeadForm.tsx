@@ -113,7 +113,7 @@ export function AddLeadForm() {
   const [open, setOpen] = useState(false);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<Array<string>>([]);
   const [isTagsPopoverOpen, setIsTagsPopoverOpen] = useState(false);
   const [isTagsManagerOpen, setIsTagsManagerOpen] = useState(false);
   const [agencyPopoverOpen, setAgencyPopoverOpen] = useState(false);

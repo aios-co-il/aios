@@ -13,10 +13,10 @@ export const usesIntegratedType = (
   variation.compositionId === "flush" || !variation.layers.some(isTypePlate);
 
 export const missingCopyBlocks = (
-  blocks: CopyVariationBlock[],
-  variations: CreativeVariation[],
+  blocks: Array<CopyVariationBlock>,
+  variations: Array<CreativeVariation>,
   source: Pick<CreativeVariation, "id" | "copyKey">,
-): CopyVariationBlock[] => {
+): Array<CopyVariationBlock> => {
   const taken = new Set(
     variations
       .filter((variation) => !variation.rejected && variation.id !== source.id)
@@ -77,7 +77,7 @@ export const buildStylePlayLock = ({
   copyLabel?: string;
   copyKey?: string;
   index?: number;
-  avoidLabels?: string[];
+  avoidLabels?: Array<string>;
 }): string => {
   const seed = hashStylePlaySeed(
     `${copyKey || ""}|${copyLabel || ""}|${copyText || ""}|${index}`,

@@ -8,7 +8,7 @@ type Route = (url: URL) => unknown;
 
 /** A fetch that answers each Graph path from `routes` and records the URLs. */
 function fakeGraph(routes: Record<string, Route>) {
-  const urls: URL[] = [];
+  const urls: Array<URL> = [];
   const fetchImpl = (raw: string) => {
     const url = new URL(raw);
     urls.push(url);

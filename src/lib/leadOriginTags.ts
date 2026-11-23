@@ -44,7 +44,7 @@ export async function ensureLeadOriginTags(params: {
         : 0) + 1;
 
     const sourceLabel = leadSourceTagName(lead.source) ?? "";
-    const tagIds: string[] = [];
+    const tagIds: Array<string> = [];
 
     for (const name of names) {
       const found = byLower.get(name.toLowerCase());

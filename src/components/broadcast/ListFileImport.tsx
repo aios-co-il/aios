@@ -33,20 +33,20 @@ const guess = (h: string): Target => {
 
 async function parseFile(
   file: File,
-): Promise<{ headers: string[]; rows: string[][] }> {
+): Promise<{ headers: Array<string>; rows: Array<Array<string>> }> {
   const ext = file.name.split(".").pop()?.toLowerCase();
-  let matrix: string[][];
+  let matrix: Array<Array<string>>;
   if (ext === "xlsx" || ext === "xls") {
     const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
     const sheet = wb.Sheets[wb.SheetNames[0]];
-    matrix = XLSX.utils.sheet_to_json<string[]>(sheet, {
+    matrix = XLSX.utils.sheet_to_json<Array<string>>(sheet, {
       header: 1,
       raw: false,
       defval: "",
     });
   } else {
     const text = await file.text();
-    matrix = Papa.parse<string[]>(text, { skipEmptyLines: true }).data;
+    matrix = Papa.parse<Array<string>>(text, { skipEmptyLines: true }).data;
   }
   const [headerRow = [], ...rows] = matrix;
   return {
@@ -61,9 +61,9 @@ async function parseFile(
 export function ListFileImport({ listId }: { listId: string }) {
   const { addMembers } = useBroadcastLists();
   const [fileName, setFileName] = useState("");
-  const [headers, setHeaders] = useState<string[] | null>(null);
-  const [rows, setRows] = useState<string[][]>([]);
-  const [map, setMap] = useState<Target[]>([]);
+  const [headers, setHeaders] = useState<Array<string> | null>(null);
+  const [rows, setRows] = useState<Array<Array<string>>>([]);
+  const [map, setMap] = useState<Array<Target>>([]);
 
   const onFile = async (file?: File) => {
     if (!file) return;
@@ -83,7 +83,7 @@ export function ListFileImport({ listId }: { listId: string }) {
     if (!headers) return;
     if (!map.includes("phone") && !map.includes("email"))
       return toast.error("צריך למפות עמודת טלפון או אימייל");
-    const members: NewMemberRow[] = rows.map((r) => {
+    const members: Array<NewMemberRow> = rows.map((r) => {
       const custom: Record<string, string> = {};
       const m: NewMemberRow = { custom_fields: custom };
       map.forEach((t, i) => {

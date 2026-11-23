@@ -48,7 +48,7 @@ export async function authorizeTenantPublisher(
       error: "Not a member of this tenant",
     };
 
-  for (const clientId of new Set(clientIds.filter(Boolean) as string[])) {
+  for (const clientId of new Set(clientIds.filter(Boolean) as Array<string>)) {
     if (!(await lookups.canAccessClient(userId, clientId)))
       return {
         allowed: false,

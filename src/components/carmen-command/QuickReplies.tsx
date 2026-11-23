@@ -20,7 +20,7 @@ export function QuickReplies({
   groups,
   onAnswer,
 }: {
-  groups: QuickReplyGroup[];
+  groups: Array<QuickReplyGroup>;
   /** Absent once the conversation has moved on: the buttons stay visible but inert. */
   onAnswer?: (text: string) => void;
 }) {

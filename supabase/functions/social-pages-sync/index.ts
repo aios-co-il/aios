@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
         { status: 400, headers: corsHeaders },
       );
 
-    const upserted: any[] = [];
+    const upserted: Array<any> = [];
     for (const p of j?.data || []) {
       // Facebook page
       const fbRow = {

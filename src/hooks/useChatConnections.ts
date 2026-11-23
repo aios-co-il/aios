@@ -37,10 +37,10 @@ export function useChatConnections(tenantId: string | null | undefined) {
   return useQuery({
     queryKey: ["chat-connections", tenantId, userId],
     enabled: !!tenantId && !!userId,
-    queryFn: async (): Promise<ChatConnection[]> => {
+    queryFn: async (): Promise<Array<ChatConnection>> => {
       if (!tenantId || !userId) return [];
 
-      const TYPES: ChatProviderKey[] = [
+      const TYPES: Array<ChatProviderKey> = [
         "green_api",
         "manus_wa",
         "meta_whatsapp",
@@ -67,7 +67,7 @@ export function useChatConnections(tenantId: string | null | undefined) {
         .eq("user_id", userId);
       const sharedIds = (perms || []).map((p) => p.integration_id);
 
-      let shared: any[] = [];
+      let shared: Array<any> = [];
       if (sharedIds.length > 0) {
         const { data, error } = await supabase
           .from("tenant_integrations")

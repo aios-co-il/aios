@@ -102,11 +102,11 @@ export interface ProvisionOptions {
 }
 
 export interface ProvisionSummary {
-  created: string[];
-  updated: string[];
-  skipped: string[];
-  synced: string[];
-  resolved: string[];
+  created: Array<string>;
+  updated: Array<string>;
+  skipped: Array<string>;
+  synced: Array<string>;
+  resolved: Array<string>;
   dashboardCreated: boolean;
   createDashboard: boolean;
 }
@@ -136,10 +136,10 @@ async function resolveSeoAccountsFromWebsite(
   tenantId: string | null,
 ): Promise<{
   updates: Partial<Record<ChannelFieldKey, string>>;
-  resolved: string[];
+  resolved: Array<string>;
 }> {
   const updates: Partial<Record<ChannelFieldKey, string>> = {};
-  const resolved: string[] = [];
+  const resolved: Array<string> = [];
   const domain = normalizeSeoDomain(client.website);
   if (!domain || !tenantId) return { updates, resolved };
 
@@ -239,7 +239,9 @@ export function useProvisionClientChannels() {
       if (clientErr || !client) throw clientErr || new Error("הלקוח לא נמצא");
 
       const c = { ...(client as Record<string, any>) };
-      const services: string[] = Array.isArray(c.services) ? c.services : [];
+      const services: Array<string> = Array.isArray(c.services)
+        ? c.services
+        : [];
       const tenantId: string | null = c.tenant_id ?? null;
       const agencyId: string | null = c.agency_id ?? null;
 
@@ -287,7 +289,7 @@ export function useProvisionClientChannels() {
           .from("tenant_integrations")
           .select("id, integration_type, is_active")
           .eq("tenant_id", tenantId);
-        for (const row of (integrations as any[]) ?? []) {
+        for (const row of (integrations as Array<any>) ?? []) {
           if (row.is_active && !integrationIdByType[row.integration_type]) {
             integrationIdByType[row.integration_type] = row.id;
           }

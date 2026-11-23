@@ -65,7 +65,7 @@ export type Classified = {
 
 /** The threads' verdicts after reading their unread client lines, and the LLM use of the run. */
 export async function classifyThreads(
-  threads: Thread[],
+  threads: Array<Thread>,
   scope: ClassifyScope,
   ports: ClassifyPorts,
   run: { tenantId: string; budget: RoundBudget; dryRun: boolean },
@@ -125,7 +125,12 @@ function mayAsk(meter: LlmMeter, budget: RoundBudget): boolean {
 async function askThread(
   ports: ClassifyPorts,
   meter: LlmMeter,
-  read: { thread: Thread; unread: Turn[]; lastId: string; tenantId: string },
+  read: {
+    thread: Thread;
+    unread: Array<Turn>;
+    lastId: string;
+    tenantId: string;
+  },
 ): Promise<CachedReview | "rejected" | "down"> {
   const { thread, unread } = read;
   const prompt = verdictPrompt(
@@ -162,7 +167,7 @@ async function keep(
   meter: LlmMeter,
   threadKey: string,
   messageId: string,
-  answer: { text: string; costUsd: number; lineIds: (string | null)[] },
+  answer: { text: string; costUsd: number; lineIds: Array<string | null> },
 ): Promise<CachedReview | null> {
   meter.add(answer.costUsd);
   const verdict = parseModelVerdict(answer.text, answer.lineIds);

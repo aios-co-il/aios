@@ -164,8 +164,8 @@ export type GscAggregateRow = {
  * skipped so they cannot pull a query that is outside the top 20 into it.
  */
 export function aggregateGscQueryRows(
-  rows: GscAggregateSample[],
-): GscAggregateRow[] {
+  rows: Array<GscAggregateSample>,
+): Array<GscAggregateRow> {
   const map = new Map<
     string,
     {

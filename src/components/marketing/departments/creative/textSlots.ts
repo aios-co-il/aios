@@ -24,7 +24,7 @@ export interface TextSlot {
   source: "pixels" | "composition";
 }
 
-const MOVABLE_ROLES: CreativeLayerRole[] = [
+const MOVABLE_ROLES: Array<CreativeLayerRole> = [
   "headline",
   "sub",
   "cta",
@@ -80,7 +80,9 @@ const toPct = (value: number, total: number) =>
   Number(((value / total) * 100).toFixed(2));
 
 /** Lowest-variance rectangles — the quiet atmospheric pockets, not painted chrome. */
-export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
+export const proposeTextSlotsFromPixels = (
+  buffer: PixelBuffer,
+): Array<TextSlot> => {
   if (buffer.width < 8 || buffer.height < 8) return [];
   const cols = 6;
   const rows = 6;
@@ -128,7 +130,7 @@ export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
       return !used.has(key) && cell.row >= 3 && cell.energy <= 0.05;
     }) ?? ranked[1];
 
-  const slots: TextSlot[] = [headline];
+  const slots: Array<TextSlot> = [headline];
   if (ctaCell) {
     slots.push({
       role: "cta",
@@ -155,7 +157,7 @@ export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
 
 export const slotsFromComposition = (
   compositionId?: CompositionId | null,
-): TextSlot[] => {
+): Array<TextSlot> => {
   const composition = compositionById(compositionId);
   return [
     { role: "headline", ...composition.type, source: "composition" },
@@ -165,9 +167,9 @@ export const slotsFromComposition = (
 };
 
 export const applySlotsToLayers = (
-  layers: CreativeLayer[],
-  slots: TextSlot[],
-): CreativeLayer[] => {
+  layers: Array<CreativeLayer>,
+  slots: Array<TextSlot>,
+): Array<CreativeLayer> => {
   const byRole = new Map(slots.map((slot) => [slot.role, slot]));
   let usedHeadline = false;
   return layers.map((layer) => {
@@ -217,7 +219,7 @@ export const applySlotsToLayers = (
 export const proposeAndApplySlots = (
   variation: CreativeVariation,
   buffer?: PixelBuffer | null,
-): { variation: CreativeVariation; slots: TextSlot[] } => {
+): { variation: CreativeVariation; slots: Array<TextSlot> } => {
   const slots = buffer ? proposeTextSlotsFromPixels(buffer) : [];
   const nextSlots =
     slots.length > 0 ? slots : slotsFromComposition(variation.compositionId);

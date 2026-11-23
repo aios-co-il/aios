@@ -29,7 +29,10 @@ export const OFFER_ICON_NAMES = [
 
 export type OfferIconName = (typeof OFFER_ICON_NAMES)[number];
 
-export const DEFAULT_OFFER_MODULES: { icon: OfferIconName; label: string }[] = [
+export const DEFAULT_OFFER_MODULES: Array<{
+  icon: OfferIconName;
+  label: string;
+}> = [
   { icon: "search", label: "חיפוש AI" },
   { icon: "file-search", label: "בדיקת אתר" },
   { icon: "clipboard-list", label: "אסטרטגיה" },
@@ -70,7 +73,7 @@ export const wrapLines = (
   maxLines = 3,
 ): string => {
   const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
+  const lines: Array<string> = [];
   let current = "";
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
@@ -101,7 +104,7 @@ export const fitCta = (text: string, max = 26): string => {
   return `${(space > 10 ? cut.slice(0, space) : cut).trim()}…`;
 };
 
-export const parseOfferBullets = (copyText: string): string[] => {
+export const parseOfferBullets = (copyText: string): Array<string> => {
   const fromMarks = copyText
     .split("\n")
     .map((line) => line.trim())
@@ -112,7 +115,7 @@ export const parseOfferBullets = (copyText: string): string[] => {
   return [];
 };
 
-export const footerModules = (bullets: string[] = []) => {
+export const footerModules = (bullets: Array<string> = []) => {
   const usable = bullets.filter(
     (item) => item.length >= 2 && item.length <= 16,
   );
@@ -152,13 +155,13 @@ export const buildOfferBoardLayers = ({
 }: {
   headline?: string;
   sub?: string;
-  bullets?: string[];
+  bullets?: Array<string>;
   cta?: string;
   footerTitle?: string;
   palette: OfferPalette;
   logoUrl?: string;
   format: CreativeFormat;
-}): CreativeLayer[] => {
+}): Array<CreativeLayer> => {
   const story = format === "9:16" || format === "4:5";
   const marks = (bullets ?? []).filter(Boolean).slice(0, 3);
   const modules = footerModules(bullets);
@@ -170,7 +173,7 @@ export const buildOfferBoardLayers = ({
   const ctaFill = compactFooter
     ? { x: 22, y: 88.2, width: 56, height: 8.2 }
     : OFFER_BOARD_SLOTS.ctaFill;
-  const layers: CreativeLayer[] = [];
+  const layers: Array<CreativeLayer> = [];
 
   layers.push(
     layer({

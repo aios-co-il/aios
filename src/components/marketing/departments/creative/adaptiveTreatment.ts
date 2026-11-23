@@ -8,7 +8,7 @@ import type { CreativeVisualStyleId } from "./visualStyles";
 export type CopyMood =
   "urgent" | "doubt" | "screen" | "offer" | "place" | "human" | "neutral";
 
-const MOOD_RULES: { id: CopyMood; test: RegExp; lock: string }[] = [
+const MOOD_RULES: Array<{ id: CopyMood; test: RegExp; lock: string }> = [
   {
     id: "urgent",
     test: /פומו|המתחרים|נסגר|עכשיו|תפסיק|הזדמנות|FOMO|competit|last chance/i,
@@ -81,7 +81,7 @@ export const buildAdaptiveTreatment = ({
   copyLabel?: string;
   title?: string;
   brief?: string;
-  brandColors?: string[];
+  brandColors?: Array<string>;
   costumeLabel?: string;
 }): string => {
   const parts = parseCreativeCopy(copyText ?? "", title);

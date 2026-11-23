@@ -4,7 +4,7 @@ type WorkspaceIntegration = {
   name: string;
   type: string;
   icon_url: string | null;
-  categories: string[];
+  categories: Array<string>;
 };
 
 type PendingConnection = {
@@ -66,7 +66,8 @@ async function getWorkspaceCalendarIntegration(tenantId: string) {
 
   if (error) throw error;
 
-  const integrations = (data?.integrations ?? []) as WorkspaceIntegration[];
+  const integrations = (data?.integrations ??
+    []) as Array<WorkspaceIntegration>;
   const candidates = integrations.filter(isCalendarCandidate);
 
   if (!candidates.length) {

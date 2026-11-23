@@ -22,7 +22,7 @@ export type SceneOverlay = (typeof SCENE_OVERLAYS)[number];
 
 export const isSceneOverlay = (value: unknown): value is SceneOverlay =>
   typeof value === "string" &&
-  (SCENE_OVERLAYS as readonly string[]).includes(value);
+  (SCENE_OVERLAYS as ReadonlyArray<string>).includes(value);
 
 /** The light leak at share `p` (0–1) of the scene: two glows sweeping across, centres in %. */
 export function lightLeak(p: number, sceneId: string) {

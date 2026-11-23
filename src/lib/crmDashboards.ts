@@ -56,10 +56,10 @@ export async function resolveDashboardHomeTenant(opts: {
 async function fetchDashboardsByIds(
   select: string,
   tenantId: string,
-  agencyIds: string[],
-  clientIds: string[],
-): Promise<CrmDashboardListRow[]> {
-  const rows: CrmDashboardListRow[] = [];
+  agencyIds: Array<string>,
+  clientIds: Array<string>,
+): Promise<Array<CrmDashboardListRow>> {
+  const rows: Array<CrmDashboardListRow> = [];
 
   if (agencyIds.length > 0) {
     const { data, error } = await supabase
@@ -69,7 +69,7 @@ async function fetchDashboardsByIds(
       .in("agency_id", agencyIds)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    rows.push(...((data || []) as unknown as CrmDashboardListRow[]));
+    rows.push(...((data || []) as unknown as Array<CrmDashboardListRow>));
   }
 
   const chunkSize = 200;
@@ -83,7 +83,7 @@ async function fetchDashboardsByIds(
       .in("client_id", chunk)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    rows.push(...((data || []) as unknown as CrmDashboardListRow[]));
+    rows.push(...((data || []) as unknown as Array<CrmDashboardListRow>));
   }
 
   return rows;
@@ -99,7 +99,7 @@ async function fetchDashboardsByIds(
 export async function fetchAccessibleDashboards(
   tenantId: string,
   options?: { select?: string },
-): Promise<CrmDashboardListRow[]> {
+): Promise<Array<CrmDashboardListRow>> {
   const select =
     options?.select || "*, clients(name, agency_id), agencies(name)";
 
@@ -125,15 +125,15 @@ export async function fetchAccessibleDashboards(
 
   const ownedAgencyIds = Array.from(
     new Set((ownedAgencies || []).map((a) => a.id).filter(Boolean)),
-  ) as string[];
+  ) as Array<string>;
   const sharedAgencyIds = Array.from(
     new Set((sharedAccess || []).map((r) => r.agency_id).filter(Boolean)),
-  ) as string[];
+  ) as Array<string>;
   const accessibleAgencyIds = Array.from(
     new Set([...ownedAgencyIds, ...sharedAgencyIds]),
   );
 
-  let foreignRows: CrmDashboardListRow[] = [];
+  let foreignRows: Array<CrmDashboardListRow> = [];
   if (accessibleAgencyIds.length > 0) {
     const { data: agencyClients, error: clientsErr } = await supabase
       .from("clients")
@@ -151,7 +151,7 @@ export async function fetchAccessibleDashboards(
 
   const map = new Map<string, CrmDashboardListRow>();
   for (const row of [
-    ...((owned || []) as unknown as CrmDashboardListRow[]),
+    ...((owned || []) as unknown as Array<CrmDashboardListRow>),
     ...foreignRows,
   ]) {
     if (row?.id) map.set(row.id, row);

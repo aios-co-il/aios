@@ -8,13 +8,13 @@ export type SurfaceSalesPerson = {
   id: string;
   full_name: string;
   agency_id?: string | null;
-  agencyIds?: string[] | null;
+  agencyIds?: Array<string> | null;
 };
 
 export type LeadTableGroup<T> = {
   id: string;
   label: string;
-  leads: T[];
+  leads: Array<T>;
 };
 
 export function parseLeadTableLayout(
@@ -33,8 +33,8 @@ export function isSalesPersonOnSurface(
 }
 
 export function sortLeadsByDate<T extends { created_at?: string | null }>(
-  leads: T[],
-): T[] {
+  leads: Array<T>,
+): Array<T> {
   return [...leads].sort((a, b) => {
     const ta = a.created_at ? Date.parse(a.created_at) : 0;
     const tb = b.created_at ? Date.parse(b.created_at) : 0;
@@ -50,23 +50,23 @@ export function sortLeadsByDate<T extends { created_at?: string | null }>(
 export function groupLeadsBySurfaceUsers<
   T extends { sales_person_id?: string | null; created_at?: string | null },
 >(
-  leads: T[],
-  salesPeople: SurfaceSalesPerson[],
+  leads: Array<T>,
+  salesPeople: Array<SurfaceSalesPerson>,
   selectedAgency?: string | null,
-): LeadTableGroup<T>[] {
+): Array<LeadTableGroup<T>> {
   const nameById = new Map(
     salesPeople.map((person) => [person.id, person.full_name]),
   );
   const surfacePeople = salesPeople.filter((person) =>
     isSalesPersonOnSurface(person, selectedAgency),
   );
-  const buckets = new Map<string, T[]>();
+  const buckets = new Map<string, Array<T>>();
   for (const person of surfacePeople) {
     buckets.set(person.id, []);
   }
 
-  const extraIds: string[] = [];
-  const unassigned: T[] = [];
+  const extraIds: Array<string> = [];
+  const unassigned: Array<T> = [];
 
   for (const lead of leads) {
     const ownerId = lead.sales_person_id;
@@ -83,7 +83,7 @@ export function groupLeadsBySurfaceUsers<
     extraIds.push(ownerId);
   }
 
-  const groups: LeadTableGroup<T>[] = surfacePeople.map((person) => ({
+  const groups: Array<LeadTableGroup<T>> = surfacePeople.map((person) => ({
     id: person.id,
     label: person.full_name,
     leads: sortLeadsByDate(buckets.get(person.id) || []),

@@ -87,7 +87,7 @@ export function CreativeEraseDialog({
   const [hint, setHint] = useState("");
   const [tool, setTool] = useState<"brush" | "rect">("brush");
   const [radius, setRadius] = useState(0.045);
-  const [marks, setMarks] = useState<EraseMark[]>([]);
+  const [marks, setMarks] = useState<Array<EraseMark>>([]);
   const [draft, setDraft] = useState<EraseMark | null>(null);
   const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
   const [loading, setLoading] = useState(false);

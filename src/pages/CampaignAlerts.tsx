@@ -96,7 +96,7 @@ export default function CampaignAlerts() {
           "meta_ads_account_id.not.is.null,google_ads_account_id.not.is.null",
         );
       if (error) throw error;
-      return (data || []) as ClientWithIntegration[];
+      return (data || []) as Array<ClientWithIntegration>;
     },
   });
 
@@ -114,7 +114,7 @@ export default function CampaignAlerts() {
     queryKey: ["campaign-alerts", tenantId, clients.map((c) => c.id).join(",")],
     enabled: !!tenantId,
     queryFn: async () => {
-      if (clients.length === 0) return [] as Alert[];
+      if (clients.length === 0) return [] as Array<Alert>;
       const { data, error } = await supabase
         .from("campaign_alerts")
         .select("*")
@@ -127,7 +127,7 @@ export default function CampaignAlerts() {
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return (data || []) as Alert[];
+      return (data || []) as Array<Alert>;
     },
   });
 
@@ -143,7 +143,7 @@ export default function CampaignAlerts() {
   }, [alerts, filter]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, Alert[]>();
+    const map = new Map<string, Array<Alert>>();
     for (const a of filtered) {
       if (!a.client_id) continue;
       if (!map.has(a.client_id)) map.set(a.client_id, []);

@@ -21,7 +21,7 @@ export interface CalendarEventLike {
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   conferenceData?: {
-    entryPoints?: { uri?: string }[];
+    entryPoints?: Array<{ uri?: string }>;
   };
 }
 
@@ -53,8 +53,8 @@ export interface CalendarRecordingMatch {
 }
 
 export interface CalendarMatchContext {
-  events: CalendarEventLike[];
-  clients: CalendarClient[];
+  events: Array<CalendarEventLike>;
+  clients: Array<CalendarClient>;
 }
 
 function eventDateTime(value?: {
@@ -98,7 +98,7 @@ export function normalizeCalendarMatchText(value: string): string {
     .trim();
 }
 
-function clientNameVariants(name: string): string[] {
+function clientNameVariants(name: string): Array<string> {
   const normalized = normalizeCalendarMatchText(name);
   const withoutLegalSuffix = normalized
     .replace(/\b(?:בעמ|ltd|limited|inc|llc)\b/gi, "")
@@ -111,7 +111,7 @@ function clientNameVariants(name: string): string[] {
 
 export function matchClientFromCalendarTitle(
   title: string,
-  clients: CalendarClient[],
+  clients: Array<CalendarClient>,
 ): CalendarClient | null {
   const normalizedTitle = ` ${normalizeCalendarMatchText(title)} `;
   const matches = clients
@@ -151,8 +151,8 @@ export function chooseCalendarRecordingMatch(
     CalendarRecording,
     "start_time" | "duration" | "meeting_topic" | "source"
   >,
-  events: CalendarEventLike[],
-  clients: CalendarClient[],
+  events: Array<CalendarEventLike>,
+  clients: Array<CalendarClient>,
 ): CalendarRecordingMatch | null {
   if (!recording.start_time) return null;
   const sourceAndTopic = normalizeCalendarMatchText(
@@ -266,7 +266,7 @@ async function fetchEventsForToken(
   accessToken: string,
   timeMin: string,
   timeMax: string,
-): Promise<CalendarEventLike[]> {
+): Promise<Array<CalendarEventLike>> {
   const headers = { Authorization: `Bearer ${accessToken}` };
   const listResponse = await fetch(
     `${GOOGLE_CALENDAR_BASE}/users/me/calendarList?maxResults=${MAX_CALENDARS_PER_USER}`,
@@ -290,7 +290,7 @@ async function fetchEventsForToken(
           .map((calendar: { id?: string }) => calendar.id)
           .filter(Boolean)
       : [];
-    if (listed.length > 0) calendarIds = [...new Set(listed)] as string[];
+    if (listed.length > 0) calendarIds = [...new Set(listed)] as Array<string>;
   }
 
   const eventBatches = await Promise.all(
@@ -320,8 +320,8 @@ async function calendarTokenCandidates(
     preferredUserId?: string | null;
     hostEmail?: string | null;
   },
-): Promise<any[]> {
-  const userIds: string[] = [];
+): Promise<Array<any>> {
+  const userIds: Array<string> = [];
   if (opts.preferredUserId) userIds.push(opts.preferredUserId);
 
   const [{ data: tenantUsers }, { data: campaigners }] = await Promise.all([
@@ -353,7 +353,7 @@ async function calendarTokenCandidates(
   }
 
   const uniqueUserIds = [...new Set(userIds.filter(Boolean))];
-  let tokens: any[] = [];
+  let tokens: Array<any> = [];
   if (uniqueUserIds.length > 0) {
     const { data } = await admin
       .from("calendar_tokens")
@@ -408,7 +408,7 @@ export async function loadCalendarMatchContext(
       calendarTokenCandidates(admin, opts),
     ]);
 
-    const allEvents: CalendarEventLike[] = [];
+    const allEvents: Array<CalendarEventLike> = [];
     for (const token of tokens) {
       const accessToken = await refreshCalendarToken(admin, token);
       if (!accessToken) continue;
@@ -435,7 +435,7 @@ export async function loadCalendarMatchContext(
     }
     return {
       events: [...eventMap.values()],
-      clients: (clients || []) as CalendarClient[],
+      clients: (clients || []) as Array<CalendarClient>,
     };
   } catch (error) {
     console.warn("[calendar-recording-match] context load failed", error);

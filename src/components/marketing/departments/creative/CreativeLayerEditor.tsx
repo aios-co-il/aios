@@ -68,7 +68,7 @@ interface Props {
   onExpandStyle?: () => void;
   expandStyleCount?: number;
   onBack?: () => void;
-  brandColors?: string[];
+  brandColors?: Array<string>;
   logoUrl?: string;
   copyText?: string;
   projectTitle?: string;

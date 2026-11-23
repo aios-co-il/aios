@@ -24,7 +24,7 @@ export const EXCEPTION_CAMPAIGN: Campaign = {
 
 /** Client c1 with these campaigns, or with EXCEPTION_CAMPAIGN alone. */
 export function exceptionSnapshot(
-  ...campaigns: Campaign[]
+  ...campaigns: Array<Campaign>
 ): PulseSnapshotAlertInput {
   return {
     ...healthy([]),
@@ -33,7 +33,7 @@ export function exceptionSnapshot(
 }
 
 /** n eligible exceptions; campaign i has trend 10*i, so the last is worst. */
-export function exceptionCampaigns(n: number, prefix = "c"): Campaign[] {
+export function exceptionCampaigns(n: number, prefix = "c"): Array<Campaign> {
   return Array.from({ length: n }, (_, i) => ({
     ...EXCEPTION_CAMPAIGN,
     campaign_key: `meta:id:${prefix}${i + 1}`,
@@ -67,7 +67,7 @@ export function evidenceOf(
 }
 
 /** The section titles of a run message, in order, between header and footer. */
-export function sectionTitles(message: string): string[] {
+export function sectionTitles(message: string): Array<string> {
   return message
     .split("\n\n")
     .slice(1, -1)
@@ -75,7 +75,7 @@ export function sectionTitles(message: string): string[] {
 }
 
 /** The lines of the section titled `title` in a run message, title excluded. */
-export function sectionLines(message: string, title: string): string[] {
+export function sectionLines(message: string, title: string): Array<string> {
   const block = message
     .split("\n\n")
     .find((each) => each.split("\n")[0] === title);

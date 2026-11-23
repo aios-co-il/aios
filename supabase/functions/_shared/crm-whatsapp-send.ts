@@ -7,7 +7,7 @@ type AdminClient = {
 export type CrmWaProvider =
   "green_api" | "manus_wa" | "meta_whatsapp" | "manychat";
 
-const WA_ORDER: CrmWaProvider[] = [
+const WA_ORDER: Array<CrmWaProvider> = [
   "green_api",
   "manus_wa",
   "meta_whatsapp",

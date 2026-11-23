@@ -469,7 +469,7 @@ Deno.serve(async (req) => {
         } = body;
         if (!source_ad_id) return err("source_ad_id required");
 
-        let variants: any[];
+        let variants: Array<any>;
         try {
           variants = normalizeAdCopyVariants(body);
         } catch (e: any) {
@@ -503,8 +503,8 @@ Deno.serve(async (req) => {
 
         const accountId = String(ad.account_id).replace(/^act_/, "");
         const sourceSummary = summarizeSourceAd(ad, creative);
-        const created: any[] = [];
-        const errors: any[] = [];
+        const created: Array<any> = [];
+        const errors: Array<any> = [];
 
         for (let i = 0; i < variants.length; i++) {
           const variant = variants[i];

@@ -59,7 +59,7 @@ export function ToolsTab({ agent }: { agent: any }) {
   const allSelected = selected.size === 0; // empty = all allowed (legacy behavior)
   // run-ai-agent keeps these in Carmen's pool whatever this list says, unless
   // disabled_tools (Carmen Access) turns them off.
-  const disabledTools: string[] = agent.disabled_tools || [];
+  const disabledTools: Array<string> = agent.disabled_tools || [];
   const alwaysOn = new Set(
     isCarmenAgentRow(agent)
       ? CARMEN_PULSE_TOOL_NAMES.filter((name) => !disabledTools.includes(name))

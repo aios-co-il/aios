@@ -131,8 +131,8 @@ Deno.test("a row without id or table_id throws", async () => {
 });
 
 /** `count` rows over two tables, mixing levels (some level-less) and dates. */
-function seedRecords(count: number): Row[] {
-  const rows: Row[] = [];
+function seedRecords(count: number): Array<Row> {
+  const rows: Array<Row> = [];
   for (let i = 0; i < count; i++) {
     const level = i % 3 === 0 ? "campaign" : i % 3 === 1 ? undefined : "adset";
     rows.push({

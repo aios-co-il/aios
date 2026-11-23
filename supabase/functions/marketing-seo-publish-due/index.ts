@@ -88,7 +88,7 @@ serve(async (req) => {
     const { publishable, refused } = auth
       ? await splitByClientAccess(auth, entries ?? [], lookups)
       : { publishable: entries ?? [], refused: [] };
-    const results: EntryResult[] = [...refused];
+    const results: Array<EntryResult> = [...refused];
 
     for (const entry of publishable) {
       if (!entry.content_html?.trim()) {

@@ -51,7 +51,7 @@ export default function Agencies() {
   const { data: agencies, isLoading } = useQuery({
     queryKey: ["agencies-list", tenantId, userId, userAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase

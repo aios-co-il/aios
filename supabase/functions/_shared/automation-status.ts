@@ -42,7 +42,7 @@ export function isAutomationStatusKind(
 ): value is AutomationStatusKind {
   return (
     typeof value === "string" &&
-    (AUTOMATION_STATUS_KINDS as readonly string[]).includes(value)
+    (AUTOMATION_STATUS_KINDS as ReadonlyArray<string>).includes(value)
   );
 }
 
@@ -98,8 +98,8 @@ export function triggerScope(
 
 export function scopesForTriggers(
   triggerTypes: Array<string | null | undefined>,
-): StatusStageScope[] {
-  const scopes: StatusStageScope[] = [];
+): Array<StatusStageScope> {
+  const scopes: Array<StatusStageScope> = [];
   for (const triggerType of triggerTypes) {
     const scope = triggerScope(triggerType);
     if (scope && !scopes.includes(scope)) scopes.push(scope);
@@ -119,7 +119,7 @@ export function impliedStatusKind(
 export function readTriggerTypes(automation: {
   trigger_type?: string | null;
   configuration?: { trigger_types?: unknown } | null;
-}): string[] {
+}): Array<string> {
   const configured = automation.configuration?.trigger_types;
   if (Array.isArray(configured)) {
     const types = configured
@@ -150,7 +150,7 @@ export function readStatusFilters(
       }
     | null
     | undefined,
-): StatusFilter[] {
+): Array<StatusFilter> {
   const listed = source?.filter_statuses ?? source?.new_statuses;
   if (Array.isArray(listed)) {
     return listed
@@ -189,7 +189,7 @@ export function statusFilterMatches(
 }
 
 export function statusFiltersMatch(
-  filters: StatusFilter[] | null | undefined,
+  filters: Array<StatusFilter> | null | undefined,
   data: {
     status?: string | null;
     new_status?: string | null;
@@ -207,7 +207,7 @@ export function statusFiltersMatch(
 
 export function applyTriggerStatusFilters(
   conditions: Record<string, unknown>,
-  encodedValues: string[] | null | undefined,
+  encodedValues: Array<string> | null | undefined,
 ): void {
   const parsed = (encodedValues || [])
     .map((encoded) => decodeStatusSelection(encoded))
@@ -239,7 +239,7 @@ export function encodeStoredTriggerFilters(
       }
     | null
     | undefined,
-): string[] {
+): Array<string> {
   return readStatusFilters(source).map((filter) =>
     isAutomationStatusKind(filter.kind)
       ? encodeStatusSelection(filter.kind, filter.value)
@@ -332,7 +332,7 @@ export function resolveStatusRecordId(
   data: Record<string, unknown> | null | undefined,
 ): string | null {
   const record = data || {};
-  const pick = (...keys: string[]) => {
+  const pick = (...keys: Array<string>) => {
     for (const key of keys) {
       const value = record[key];
       if (typeof value === "string" && value) return value;

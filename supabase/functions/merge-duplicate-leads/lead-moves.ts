@@ -11,8 +11,8 @@ type MovedTable =
   | "lead_source_events";
 
 type QueryError = { message: string } | null;
-type Rows<T> = PromiseLike<{ data: T[] | null; error: QueryError }>;
-type ByLeads<T> = { in: (column: "lead_id", ids: string[]) => T };
+type Rows<T> = PromiseLike<{ data: Array<T> | null; error: QueryError }>;
+type ByLeads<T> = { in: (column: "lead_id", ids: Array<string>) => T };
 type Returning = { select: (columns: "id") => Rows<unknown> };
 
 /** A tag row as the surviving lead gets it. */
@@ -31,7 +31,7 @@ export type MergeDb = {
     ) => ByLeads<Rows<{ tag_id: string; user_id: string; tenant_id: string }>>;
     update: (row: { lead_id: string }) => ByLeads<Returning>;
     upsert: (
-      rows: TagRow[],
+      rows: Array<TagRow>,
       options: { onConflict: "tag_id,lead_id"; ignoreDuplicates: true },
     ) => Returning;
   };
@@ -41,7 +41,7 @@ export type MergeDb = {
 export type LeadMerge = {
   tenantId: string;
   masterId: string;
-  duplicateIds: string[];
+  duplicateIds: Array<string>;
 };
 
 /** How many rows each move gave the surviving lead. */

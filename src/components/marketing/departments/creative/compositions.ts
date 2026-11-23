@@ -39,7 +39,7 @@ export interface CompositionLayout {
 
 const layout = (item: CompositionLayout): CompositionLayout => item;
 
-export const CREATIVE_COMPOSITIONS: CompositionLayout[] = [
+export const CREATIVE_COMPOSITIONS: Array<CompositionLayout> = [
   layout({
     id: "offer",
     label: "לוח הצעה",
@@ -155,7 +155,7 @@ export const pickCompositionId = (
 };
 
 /** Lead-gen board is opt-in from the editor — auto generation uses poster layouts. */
-export const AUTO_COMPOSITION_EXCLUDE: CompositionId[] = ["offer"];
+export const AUTO_COMPOSITION_EXCLUDE: Array<CompositionId> = ["offer"];
 
 export const DEFAULT_COMPOSITION_ID: CompositionId = "flush";
 

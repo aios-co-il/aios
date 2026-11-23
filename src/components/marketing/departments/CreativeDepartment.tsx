@@ -273,8 +273,8 @@ interface Props {
   onClientChange?: (id: string | null) => void;
 }
 
-const NO_STORYBOARDS: Record<string, StoryboardFrame[]> = {};
-const NO_FRAMES: StoryboardFrame[] = [];
+const NO_STORYBOARDS: Record<string, Array<StoryboardFrame>> = {};
+const NO_FRAMES: Array<StoryboardFrame> = [];
 
 const resolveCharacterRef = async (
   payload: Record<string, unknown> | null,
@@ -348,7 +348,9 @@ export function CreativeDepartment({
   const [workspacePanel, setWorkspacePanel] = useState<
     "projects" | "project" | "scene" | "versions" | "edit" | null
   >(null);
-  const [storyboardDraft, setStoryboardDraft] = useState<StoryboardFrame[]>([]);
+  const [storyboardDraft, setStoryboardDraft] = useState<
+    Array<StoryboardFrame>
+  >([]);
   const [chatOpen, setChatOpen] = useState(true);
   const [sceneFocus, setSceneFocus] = useState<{
     id: string;
@@ -360,12 +362,12 @@ export function CreativeDepartment({
     null,
   );
   const [rejectNote, setRejectNote] = useState("");
-  const [rejectRefs, setRejectRefs] = useState<StyleReference[]>([]);
+  const [rejectRefs, setRejectRefs] = useState<Array<StyleReference>>([]);
   const [reviseTarget, setReviseTarget] = useState<CreativeVariation | null>(
     null,
   );
   const [reviseNote, setReviseNote] = useState("");
-  const [reviseRefs, setReviseRefs] = useState<StyleReference[]>([]);
+  const [reviseRefs, setReviseRefs] = useState<Array<StyleReference>>([]);
   const [eraseTarget, setEraseTarget] = useState<CreativeVariation | null>(
     null,
   );
@@ -381,7 +383,7 @@ export function CreativeDepartment({
   const [deleting, setDeleting] = useState(false);
   const generateAbortRef = useRef(false);
   const generateAbortControllerRef = useRef<AbortController | null>(null);
-  const abortControllersRef = useRef<AbortController[]>([]);
+  const abortControllersRef = useRef<Array<AbortController>>([]);
   const cursorJobIdsRef = useRef<Set<string>>(new Set());
   const persistChainRef = useRef(Promise.resolve());
   /** Scene id → stored still URL, as last loaded from or saved to marketing_video_scenes. */
@@ -389,7 +391,7 @@ export function CreativeDepartment({
     Map<string, Map<string, string | undefined>>
   >(new Map());
   const [activeJobs, setActiveJobs] = useState(0);
-  const [busyIds, setBusyIds] = useState<string[]>([]);
+  const [busyIds, setBusyIds] = useState<Array<string>>([]);
 
   const beginGeneration = () => {
     generateAbortRef.current = false;
@@ -472,7 +474,7 @@ export function CreativeDepartment({
       if (stageError) throw stageError;
       if (pipelineError) throw pipelineError;
       return filterCreativeDepartmentItems(
-        (data ?? []) as CreativeItem[],
+        (data ?? []) as Array<CreativeItem>,
         (creativeStages ?? []).map((stage) => stage.id),
         (socialPipelines ?? []).map((pipeline) => pipeline.id),
       );
@@ -489,7 +491,7 @@ export function CreativeDepartment({
         .eq("status", "active")
         .order("name");
       if (error) throw error;
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []) as Array<{ id: string; name: string }>;
     },
   });
 
@@ -683,7 +685,7 @@ export function CreativeDepartment({
       query = applyClientFilter(query, linkCopyClientFilter);
       const { data, error } = await query;
       if (error) throw error;
-      return ((data ?? []) as CreativeItem[]).filter((item) =>
+      return ((data ?? []) as Array<CreativeItem>).filter((item) =>
         isLinkableCopyItem(item),
       );
     },
@@ -729,7 +731,7 @@ export function CreativeDepartment({
   // Live updates (clip jobs finishing) keep unsaved edits; see mergeServerScenes.
   const lastServerStoryboardRef = useRef<{
     itemId: string | null;
-    frames: StoryboardFrame[];
+    frames: Array<StoryboardFrame>;
   }>({ itemId: null, frames: NO_FRAMES });
   useEffect(() => {
     const last = lastServerStoryboardRef.current;
@@ -837,7 +839,7 @@ export function CreativeDepartment({
         .in("type", ["image", "data"])
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as CreativeAssetRow[];
+      return (data ?? []) as Array<CreativeAssetRow>;
     },
   });
 
@@ -1006,7 +1008,10 @@ export function CreativeDepartment({
     );
   };
 
-  const saveScenes = async (itemId: string, nextFrames: StoryboardFrame[]) => {
+  const saveScenes = async (
+    itemId: string,
+    nextFrames: Array<StoryboardFrame>,
+  ) => {
     await saveVideoStoryboard({
       tenantId,
       itemId,
@@ -1017,7 +1022,7 @@ export function CreativeDepartment({
   };
 
   const persistStoryboard = async (
-    nextFrames: StoryboardFrame[],
+    nextFrames: Array<StoryboardFrame>,
     message = "ה-storyboard נשמר",
   ) => {
     if (!selected) return;
@@ -1060,9 +1065,9 @@ export function CreativeDepartment({
 
   const generateStoryboardFrame = async (
     frame: StoryboardFrame,
-    framesOverride?: StoryboardFrame[],
+    framesOverride?: Array<StoryboardFrame>,
     options?: { lock?: boolean },
-  ): Promise<StoryboardFrame[]> => {
+  ): Promise<Array<StoryboardFrame>> => {
     const fallback = framesOverride ?? storyboardDraft;
     if (!selected) return fallback;
     if (!selected.client_id) {
@@ -1327,7 +1332,7 @@ export function CreativeDepartment({
     }
   };
 
-  const [clipConfirm, setClipConfirm] = useState<StoryboardFrame[] | null>(
+  const [clipConfirm, setClipConfirm] = useState<Array<StoryboardFrame> | null>(
     null,
   );
   const [soundConfirm, setSoundConfirm] = useState<"voice" | "music" | null>(
@@ -1337,7 +1342,7 @@ export function CreativeDepartment({
   const [queueingClips, setQueueingClips] = useState(false);
 
   /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
-  const requestAnimate = (frames: StoryboardFrame[]) => {
+  const requestAnimate = (frames: Array<StoryboardFrame>) => {
     if (frames.length === 0) return;
     const edited = new Map(frames.map((frame) => [frame.id, frame]));
     setStoryboardDraft((draft) =>
@@ -1705,7 +1710,7 @@ export function CreativeDepartment({
   };
 
   const persistVariations = async (
-    nextVariations: CreativeVariation[],
+    nextVariations: Array<CreativeVariation>,
     message = "הגרסה נשמרה",
   ) => {
     const run = async () => {
@@ -1894,10 +1899,10 @@ export function CreativeDepartment({
     replaceId?: string;
     name?: string;
     styleSource?: CreativeVariation;
-    existing?: CreativeVariation[];
+    existing?: Array<CreativeVariation>;
     regenerate?: boolean;
     editTargetUrl?: string;
-    directorRefUrls?: string[];
+    directorRefUrls?: Array<string>;
     conceptId?: string;
     liveTextLayers?: boolean;
     signal?: AbortSignal;
@@ -3114,13 +3119,13 @@ export function CreativeDepartment({
           )}
 
           {(variations.filter((v) => v.id !== selectedVariationId).length > 0 ||
-            (assetVersions as CreativeAssetRow[]).length > 0) && (
+            (assetVersions as Array<CreativeAssetRow>).length > 0) && (
             <Collapsible defaultOpen={false}>
               <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-xs font-semibold hover:bg-muted/50">
                 <span>
                   גרסאות ישנות (
                   {variations.filter((v) => v.id !== selectedVariationId)
-                    .length + (assetVersions as CreativeAssetRow[]).length}
+                    .length + (assetVersions as Array<CreativeAssetRow>).length}
                   )
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 opacity-60 transition-transform [[data-state=open]_&]:rotate-180" />
@@ -3156,24 +3161,27 @@ export function CreativeDepartment({
                       </div>
                     </Card>
                   ))}
-                {(assetVersions as CreativeAssetRow[]).map((asset, index) => (
-                  <Card key={asset.id} className="p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <Badge variant="outline">
-                        שמירה{" "}
-                        {(assetVersions as CreativeAssetRow[]).length - index}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(asset.created_at).toLocaleString("he-IL")}
-                      </span>
-                    </div>
-                    {asset.meta?.source === "manual_edit" && (
-                      <div className="text-[10px] text-muted-foreground">
-                        עריכה ידנית
+                {(assetVersions as Array<CreativeAssetRow>).map(
+                  (asset, index) => (
+                    <Card key={asset.id} className="p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <Badge variant="outline">
+                          שמירה{" "}
+                          {(assetVersions as Array<CreativeAssetRow>).length -
+                            index}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(asset.created_at).toLocaleString("he-IL")}
+                        </span>
                       </div>
-                    )}
-                  </Card>
-                ))}
+                      {asset.meta?.source === "manual_edit" && (
+                        <div className="text-[10px] text-muted-foreground">
+                          עריכה ידנית
+                        </div>
+                      )}
+                    </Card>
+                  ),
+                )}
               </CollapsibleContent>
             </Collapsible>
           )}
@@ -3451,14 +3459,14 @@ export function CreativeDepartment({
     });
   };
 
-  const railItems: {
+  const railItems: Array<{
     key: string;
     label: string;
     icon: typeof Settings;
     active: boolean;
     disabled?: boolean;
     onClick: () => void;
-  }[] = selected
+  }> = selected
     ? [
         {
           key: "projects",
@@ -4437,7 +4445,7 @@ function ManualCreativeDialog({
       query = applyClientFilter(query, assignedClientId);
       const { data, error } = await query;
       if (error) throw error;
-      return ((data ?? []) as CreativeItem[]).filter((item) =>
+      return ((data ?? []) as Array<CreativeItem>).filter((item) =>
         isLinkableCopyItem(item),
       );
     },

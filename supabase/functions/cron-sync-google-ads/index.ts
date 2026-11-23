@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     } = body as {
       backfill_from?: string;
       backfill_to?: string;
-      table_ids?: string[];
+      table_ids?: Array<string>;
       batch_offset?: number;
       operational_only?: boolean;
     };
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     const webhookUrl = `${supabaseUrl}/functions/v1/webhook-google-ads-sync`;
 
     // ---- Direct API path: self-chaining batches ----
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     const CHUNK_GAP_MS = 1200;
     const NEXT_BATCH_GAP_MS = 6000;
 
-    const allDirect = (tables as any[]).filter((t: any) => {
+    const allDirect = (tables as Array<any>).filter((t: any) => {
       const ds = (t.integration_settings as any)?.data_source;
       return !ds || ds === "direct_api";
     });
@@ -314,8 +314,8 @@ Deno.serve(async (req) => {
       });
     };
 
-    const runInChunks = async (batch: any[]): Promise<any[]> => {
-      const retryable: any[] = [];
+    const runInChunks = async (batch: Array<any>): Promise<Array<any>> => {
+      const retryable: Array<any> = [];
       for (let i = 0; i < batch.length; i += DIRECT_CHUNK) {
         const chunk = batch.slice(i, i + DIRECT_CHUNK);
         const outcomes = await Promise.all(

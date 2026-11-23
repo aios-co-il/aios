@@ -94,7 +94,7 @@ const PLATFORM_TIPS: Record<
     bestTime: string;
     format: string;
     emoji: string;
-    peakDays: number[];
+    peakDays: Array<number>;
   }
 > = {
   instagram: {
@@ -236,7 +236,7 @@ const channelConfig: Record<
 
 // ─── Peak hours by channel (Israel timezone, best practices) ────────────────
 
-const PEAK_HOURS: Record<string, number[]> = {
+const PEAK_HOURS: Record<string, Array<number>> = {
   instagram: [8, 12, 17, 20],
   facebook: [9, 13, 19],
   twitter: [8, 12, 17],
@@ -540,7 +540,7 @@ function NewItemDialog({
 }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
-  const [channels, setChannels] = useState<string[]>(["instagram"]);
+  const [channels, setChannels] = useState<Array<string>>(["instagram"]);
   const [copy, setCopy] = useState("");
   const [autoRun, setAutoRun] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1009,7 +1009,7 @@ export function SocialContentGantt({
   const [newItemDate, setNewItemDate] = useState("");
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
 
   // ─── Data ─────────────────────────────────────────────────────────────────
 
@@ -1021,7 +1021,7 @@ export function SocialContentGantt({
         .select("*, marketing_pipeline_stages(name, stage_type)")
         .eq("pipeline_id", pipelineId)
         .order("scheduled_date", { ascending: true, nullsFirst: false });
-      return (data ?? []) as WorkItem[];
+      return (data ?? []) as Array<WorkItem>;
     },
   });
 
@@ -1064,7 +1064,7 @@ export function SocialContentGantt({
   }, [currentMonth]);
 
   const itemsByDate = useMemo(() => {
-    const map: Record<string, WorkItem[]> = {};
+    const map: Record<string, Array<WorkItem>> = {};
     filteredItems.forEach((item) => {
       if (item.scheduled_date) {
         const key = item.scheduled_date.slice(0, 10);
@@ -1082,7 +1082,7 @@ export function SocialContentGantt({
 
   // ─── Peak days for current filter ────────────────────────────────────────
 
-  const peakDays: number[] = useMemo(() => {
+  const peakDays: Array<number> = useMemo(() => {
     if (platformFilter === "all") return [];
     return PLATFORM_TIPS[platformFilter]?.peakDays ?? [];
   }, [platformFilter]);
@@ -1180,7 +1180,7 @@ export function SocialContentGantt({
 
         {/* View toggle */}
         <div className="mr-auto flex items-center gap-1 rounded-lg border p-0.5">
-          {(["month", "list"] as ViewMode[]).map((v) => (
+          {(["month", "list"] as Array<ViewMode>).map((v) => (
             <Button
               key={v}
               variant={viewMode === v ? "secondary" : "ghost"}

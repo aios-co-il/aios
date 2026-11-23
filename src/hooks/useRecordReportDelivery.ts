@@ -18,9 +18,9 @@ export type ReportDeliveryInput = {
    */
   shareUrl?: string | null;
   requested: { whatsapp: boolean; email: boolean };
-  sent: readonly ReportDeliveryChannel[];
+  sent: ReadonlyArray<ReportDeliveryChannel>;
   /** Stored only when the email went out; leave it out for a send without email recipients. */
-  emailRecipients?: string[];
+  emailRecipients?: Array<string>;
   extraDetails?: { [key: string]: Json | undefined };
 };
 
@@ -72,7 +72,7 @@ export function useRecordReportDelivery() {
 /** The details JSON: title, link and email recipients when the send has them, plus the caller's extras. */
 function deliveryDetails(
   input: ReportDeliveryInput,
-  channels: readonly ReportDeliveryChannel[],
+  channels: ReadonlyArray<ReportDeliveryChannel>,
 ): { [key: string]: Json | undefined } {
   return {
     source: "manual",

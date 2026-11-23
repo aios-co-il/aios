@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       .eq("source", "google_sheet")
       .limit(50);
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const l of lists || []) {
       const cfg = l.source_config || {};
       if (!cfg.sheetId) continue;

@@ -33,7 +33,7 @@ function isPrivateIPv4(ip: number): boolean {
   );
 }
 
-function expandIPv6(host: string): number[] | null {
+function expandIPv6(host: string): Array<number> | null {
   let ip = host.toLowerCase().replace(/^\[|\]$/g, "");
   const v4tail = ip.match(/:(\d+\.\d+\.\d+\.\d+)$/);
   if (v4tail) {
@@ -140,7 +140,7 @@ export function decodeChunked(raw: Uint8Array): Uint8Array {
 
 /** The decoded chunks, and whether the closing zero-size chunk arrived. */
 function readChunked(raw: Uint8Array): { body: Uint8Array; complete: boolean } {
-  const parts: Uint8Array[] = [];
+  const parts: Array<Uint8Array> = [];
   let at = 0;
   let total = 0;
   let complete = false;

@@ -207,30 +207,30 @@ let audioContext: AudioContext | null = null;
 
 // Continuous recorder for playback: screen video (or full mixed audio in audio-only mode).
 let archiveRecorder: MediaRecorder | null = null;
-const archiveChunks: Blob[] = [];
+const archiveChunks: Array<Blob> = [];
 
 // Continuous system-audio recorder for speaker diarization: the whole meeting
 // as ONE file, so "משתתף 2" keeps the same identity from minute 5 to minute 80.
 // The rotating sys segments remain the crash-safe fallback.
 let sysFullRecorder: MediaRecorder | null = null;
-const sysFullChunks: Blob[] = [];
+const sysFullChunks: Array<Blob> = [];
 
 interface Channel {
   name: "mic" | "sys";
   stream: MediaStream;
   recorder: MediaRecorder | null;
-  chunks: Blob[];
+  chunks: Array<Blob>;
   partNum: number;
 }
 
-const channels: Channel[] = [];
+const channels: Array<Channel> = [];
 let segmentTimer: number | undefined;
 let audioMime: string | undefined;
 
 let recordingId: string | null = null;
-const uploadedPartPaths: string[] = [];
-const failedParts: { path: string; blob: Blob }[] = [];
-const pendingUploads: Promise<void>[] = [];
+const uploadedPartPaths: Array<string> = [];
+const failedParts: Array<{ path: string; blob: Blob }> = [];
+const pendingUploads: Array<Promise<void>> = [];
 
 // Screen frames sampled every minute — the server reads Zoom/Meet name labels
 // off them to replace "משתתף N" with real speaker names.
@@ -276,7 +276,7 @@ function formatElapsed(ms: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-function pickMimeType(candidates: string[]): string | undefined {
+function pickMimeType(candidates: Array<string>): string | undefined {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t));
 }
 

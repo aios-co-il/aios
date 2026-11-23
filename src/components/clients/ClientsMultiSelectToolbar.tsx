@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface ClientsMultiSelectToolbarProps {
-  selectedIds: string[];
+  selectedIds: Array<string>;
   onClearSelection: () => void;
   onSelectAll?: () => void;
   totalCount: number;

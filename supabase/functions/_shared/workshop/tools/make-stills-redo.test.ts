@@ -58,7 +58,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const seen: (string[] | undefined)[] = [];
+    const seen: Array<Array<string> | undefined> = [];
     const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -67,7 +67,7 @@ Deno.test(
       async () => {},
       null,
       {
-        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+        generateImage: async (_p: string, _f: string, refs?: Array<string>) => {
           seen.push(refs);
           return { image_url: `https://x/new-${seen.length}.png` };
         },

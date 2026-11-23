@@ -19,9 +19,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Parse the stored jsonb into attachments, dropping malformed items. */
-export function toEmailAttachments(value: unknown): EmailAttachment[] {
+export function toEmailAttachments(value: unknown): Array<EmailAttachment> {
   if (!Array.isArray(value)) return [];
-  const out: EmailAttachment[] = [];
+  const out: Array<EmailAttachment> = [];
   for (const item of value) {
     if (!isRecord(item)) continue;
     const { name, url, path, size, content_type } = item;
@@ -48,7 +48,7 @@ export function attachmentUrlPrefix(supabaseUrl: string): string {
 export function emailAttachmentsForResend(
   list: unknown,
   allowedUrlPrefix: string,
-): { filename: string; path: string }[] {
+): Array<{ filename: string; path: string }> {
   return toEmailAttachments(list)
     .filter((a) => a.name.trim() && a.url.startsWith(allowedUrlPrefix))
     .map((a) => ({ filename: a.name.trim().slice(0, 200), path: a.url }));

@@ -18,7 +18,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 const isHttps = (value: unknown): value is string =>
   typeof value === "string" && /^https:\/\/\S+$/i.test(value.trim());
 
-const urlsFrom = (value: unknown): string[] =>
+const urlsFrom = (value: unknown): Array<string> =>
   (Array.isArray(value) ? value : [])
     .map((entry) => (typeof entry === "string" ? entry : asRecord(entry).url))
     .filter(isHttps)
@@ -38,7 +38,7 @@ export function sceneReferenceUrl(value: unknown): string | null {
 }
 
 export interface ProjectLook {
-  references: string[];
+  references: Array<string>;
   bible: string;
   /** How the film feels: style, pace, narration voice, music mood, who speaks on camera. */
   film: string;
@@ -143,13 +143,13 @@ export function stillPrompt(input: {
    */
   noText?: boolean;
 }): string {
-  const parts: string[] = [];
+  const parts: Array<string> = [];
   if (input.look.bible.trim())
     parts.push(
       `Style bible, identical in every picture of this project: ${input.look.bible.trim()}`,
     );
   parts.push(`This picture: ${input.visual.trim()}`);
-  const rules: string[] = [];
+  const rules: Array<string> = [];
   if (input.sceneReference)
     rules.push(
       "The attached image is this scene's character reference. Draw exactly that character: the same face, hair, skin tone, build, outfit, accessories and colours, with nothing redesigned, restyled or added. Place that character in this picture's setting, framing and action. Where the style bible describes the character's look differently, the reference wins: take only the setting, palette, lighting and rendering from the style bible.",

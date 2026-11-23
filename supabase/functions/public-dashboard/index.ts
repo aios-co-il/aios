@@ -163,24 +163,24 @@ Deno.serve(async (req) => {
     ).flat();
 
     // Resolve SEO / Woo / Maskyoo extras in parallel with each other.
-    let ahrefsReports: any[] = [];
-    let seoGaRecords: any[] = [];
-    const seoGscRecords: any[] = [];
+    let ahrefsReports: Array<any> = [];
+    let seoGaRecords: Array<any> = [];
+    const seoGscRecords: Array<any> = [];
     let seoLinkedGscSiteUrl: string | null = null;
     let seoTargetClientId: string | null = dashboard.client_id || null;
-    let seoForceRelevant: string[] = [];
-    let seoForceIrrelevant: string[] = [];
-    let seoTenantIdList: string[] = dashboard.tenant_id
+    let seoForceRelevant: Array<string> = [];
+    let seoForceIrrelevant: Array<string> = [];
+    let seoTenantIdList: Array<string> = dashboard.tenant_id
       ? [dashboard.tenant_id]
       : [];
     let gscMultiPeriod: {
-      prevMonth: any[];
-      threeMonth: any[];
-      yearly: any[];
+      prevMonth: Array<any>;
+      threeMonth: Array<any>;
+      yearly: Array<any>;
     } | null = null;
-    let wooSites: any[] = [];
-    let wooOrders: any[] = [];
-    let maskyooSnapshots: any[] = [];
+    let wooSites: Array<any> = [];
+    let wooOrders: Array<any> = [];
+    let maskyooSnapshots: Array<any> = [];
     let maskyooPeriod: { start: string; end: string } | null = null;
     // Monthly work log — same payload shape as public-table so the shared
     // dashboard SEO tab can show "עבודה שבוצעה" like the SEO report share link.
@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
       const fetchByColumn = async (
         column: "date_created" | "date_paid" | "date_completed",
       ) => {
-        const collected: any[] = [];
+        const collected: Array<any> = [];
         if (!wooRange.start || !wooRange.end) return collected;
         for (let page = 0; page < maxPages; page++) {
           const from = page * pageSize;
@@ -361,7 +361,7 @@ Deno.serve(async (req) => {
             }
           }
           const relevance = (clientRow as any)?.seo_keyword_relevance || {};
-          const asList = (v: unknown): string[] =>
+          const asList = (v: unknown): Array<string> =>
             Array.isArray(v)
               ? v.map((x) => String(x || "").trim()).filter(Boolean)
               : [];
@@ -638,7 +638,7 @@ Deno.serve(async (req) => {
                 resp.status,
                 await resp.text(),
               );
-              return [] as any[];
+              return [] as Array<any>;
             }
             const json = await resp.json();
             const rows = Array.isArray(json.rows) ? json.rows : [];

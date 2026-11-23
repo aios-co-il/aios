@@ -86,14 +86,14 @@ export function CarmenConversationAccessTab({
   const qc = useQueryClient();
   const autoSyncedRef = useRef(false);
   const autoManusSyncRef = useRef(false);
-  const [phones, setPhones] = useState<PrivatePhoneRow[]>([]);
+  const [phones, setPhones] = useState<Array<PrivatePhoneRow>>([]);
   const [phonesDirty, setPhonesDirty] = useState(false);
-  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [groupIds, setGroupIds] = useState<Array<string>>([]);
   const [requireDirect, setRequireDirect] = useState(true);
   const [openMemberGroups, setOpenMemberGroups] = useState(false);
   const [denyMessage, setDenyMessage] = useState("");
   const [newPhone, setNewPhone] = useState("");
-  const [clientRows, setClientRows] = useState<ClientGroupRow[]>([]);
+  const [clientRows, setClientRows] = useState<Array<ClientGroupRow>>([]);
 
   const policyKey = ["carmen-access-policy", tenantId, agent.id];
 
@@ -114,7 +114,7 @@ export function CarmenConversationAccessTab({
   });
 
   const { data: manusGroups, isLoading: groupsLoading } = useQuery<
-    ManusGroupRow[]
+    Array<ManusGroupRow>
   >({
     queryKey: ["carmen-manus-groups", tenantId],
     queryFn: tenantId ? () => fetchCarmenManusGroups(tenantId) : skipToken,
@@ -211,8 +211,8 @@ export function CarmenConversationAccessTab({
   );
 
   const persistPolicy = async (draft: {
-    phones: PrivatePhoneRow[];
-    groupIds: string[];
+    phones: Array<PrivatePhoneRow>;
+    groupIds: Array<string>;
     requireDirect: boolean;
     openMemberGroups: boolean;
     denyMessage: string;
@@ -268,7 +268,7 @@ export function CarmenConversationAccessTab({
 
   useEffect(() => {
     if (!policy) return;
-    const savedGroups: string[] = Array.isArray(policy.allowed_group_ids)
+    const savedGroups: Array<string> = Array.isArray(policy.allowed_group_ids)
       ? policy.allowed_group_ids
       : [];
     setGroupIds(savedGroups);

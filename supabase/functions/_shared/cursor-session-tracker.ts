@@ -156,7 +156,7 @@ export async function listCursorTaskSessions(
   supabase: { from: (t: string) => any },
   tenantId: string,
   opts?: { status?: CursorSessionStatus | "active"; limit?: number },
-): Promise<CursorTaskSessionRow[]> {
+): Promise<Array<CursorTaskSessionRow>> {
   let query = supabase
     .from("cursor_task_sessions")
     .select("*")
@@ -170,7 +170,7 @@ export async function listCursorTaskSessions(
   }
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []) as CursorTaskSessionRow[];
+  return (data || []) as Array<CursorTaskSessionRow>;
 }
 
 export async function findCursorSessionForTask(
@@ -191,7 +191,7 @@ export async function findCursorSessionForTask(
 }
 
 export function formatCursorSessionsForAgent(
-  rows: CursorTaskSessionRow[],
+  rows: Array<CursorTaskSessionRow>,
 ): string {
   if (!rows.length) return "No Cursor task sessions found.";
   return rows

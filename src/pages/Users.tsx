@@ -106,9 +106,9 @@ export default function Users() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFullName, setInviteFullName] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("campaigner");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>([]);
   const [selectedClientIds, setSelectedClientIds] = useState<Array<string>>([]);
-  const [selectedModules, setSelectedModules] = useState<string[]>([
+  const [selectedModules, setSelectedModules] = useState<Array<string>>([
     "dashboard",
     "clients",
     "tasks",
@@ -145,7 +145,7 @@ export default function Users() {
     null,
   );
   const [selectedInviteTenantIds, setSelectedInviteTenantIds] = useState<
-    string[]
+    Array<string>
   >([]);
   const [agencyFilter, setAgencyFilter] = useState<string>("all");
   const [userSearchTerm, setUserSearchTerm] = useState("");
@@ -161,7 +161,7 @@ export default function Users() {
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("campaigners")
         .select("id, full_name")
@@ -177,7 +177,7 @@ export default function Users() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
@@ -193,7 +193,7 @@ export default function Users() {
   const { data: salesPeopleWithAgencies } = useQuery({
     queryKey: ["sales-people-with-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("sales_people")
         .select(
@@ -345,7 +345,7 @@ export default function Users() {
         ];
 
         // Get agencies for this user
-        const userAgencyIds: string[] = [];
+        const userAgencyIds: Array<string> = [];
         if (profile.campaigner_id) {
           const campaignerAgencyIds =
             campaignerAgencies
@@ -678,9 +678,9 @@ export default function Users() {
       email: string;
       fullName?: string;
       role: UserRole;
-      agencyIds: string[];
+      agencyIds: Array<string>;
       clientIds: Array<string>;
-      modulePermissions: string[];
+      modulePermissions: Array<string>;
       campaignerId?: string;
       salesPersonId?: string;
     }) => {
@@ -693,7 +693,7 @@ export default function Users() {
       }
 
       // Resolve tenant list — current org first, then additional selections
-      let inviteTenantIds: string[];
+      let inviteTenantIds: Array<string>;
       if (isSuperAdmin || showMultiTenantInvite) {
         if (selectedInviteTenantIds.length === 0) {
           throw new Error("יש לבחור לפחות ארגון אחד");

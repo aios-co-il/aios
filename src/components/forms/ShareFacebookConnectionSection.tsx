@@ -27,7 +27,7 @@ export function ShareFacebookConnectionSection({
 }: ShareFacebookConnectionSectionProps) {
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();
-  const [selectedTenants, setSelectedTenants] = useState<string[]>([]);
+  const [selectedTenants, setSelectedTenants] = useState<Array<string>>([]);
 
   // Fetch all tenants the user belongs to (except current)
   const { data: userTenants, isLoading: loadingTenants } = useQuery({

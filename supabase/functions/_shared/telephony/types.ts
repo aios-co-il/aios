@@ -21,7 +21,7 @@ export type PbxConfig = {
   param_call_id: string;
   default_caller_number: string;
   default_extension: string;
-  extensions: PbxExtension[];
+  extensions: Array<PbxExtension>;
 };
 
 /** Secrets, stored in their own pbx_settings columns. */

@@ -6,7 +6,7 @@ import type { World } from "./fake-world.ts";
 /** Marks the live findings matching `items` resolved; returns how many. */
 export function resolveLive(
   w: World,
-  items: FindingResolution[],
+  items: Array<FindingResolution>,
 ): Promise<number> {
   const ended = w.findings.filter(
     (f) =>

@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     // Insert leads in batches
     const BATCH = 100;
     let inserted = 0;
-    const tagLinks: { lead_id: string; tag_id: string }[] = [];
+    const tagLinks: Array<{ lead_id: string; tag_id: string }> = [];
 
     for (let i = 0; i < leads.length; i += BATCH) {
       const batch = leads.slice(i, i + BATCH).map((l: any) => {

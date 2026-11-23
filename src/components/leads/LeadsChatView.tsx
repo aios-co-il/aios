@@ -77,7 +77,7 @@ import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
 import { getVisibleLeadCustomFields } from "@/lib/leadCustomFields";
 
 interface LeadsChatViewProps {
-  leads: any[];
+  leads: Array<any>;
   pipelineStages: Array<{
     id: string;
     label: string;
@@ -93,7 +93,7 @@ interface LeadsChatViewProps {
     sort_order: number;
   }>;
   allTags: Array<{ id: string; name: string; color: string }>;
-  leadsTagsMap: Record<string, string[]>;
+  leadsTagsMap: Record<string, Array<string>>;
   productsLookup: Record<string, { name: string; price: number }>;
   onStatusChange: (leadId: string, newStatus: string) => void;
   onResponseStatusChange: (

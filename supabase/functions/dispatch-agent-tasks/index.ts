@@ -27,8 +27,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const nowIso = new Date().toISOString();
 
-  const dispatched: any[] = [];
-  const errors: any[] = [];
+  const dispatched: Array<any> = [];
+  const errors: Array<any> = [];
 
   // Per-tenant cap on agent tasks running at the same time
   // (tenant_heartbeat_settings.max_concurrent_tasks, default 3). Tasks left
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     slots.set(tenantId, left - 1);
     return true;
   };
-  const deferred: string[] = [];
+  const deferred: Array<string> = [];
 
   try {
     // 1. One-shot tasks: scheduled_at in the past, never ran, still pending.
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       .limit(25);
     if (cronErr) errors.push({ stage: "cron_select", error: cronErr.message });
 
-    const skipped: any[] = [];
+    const skipped: Array<any> = [];
     for (const task of cronDue || []) {
       const decision = decideRecurringRun(task, new Date(nowIso));
       if (decision.action === "invalid") {

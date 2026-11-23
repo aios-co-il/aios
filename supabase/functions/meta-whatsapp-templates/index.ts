@@ -202,7 +202,7 @@ Deno.serve(async (request) => {
     const baseUrl = `https://graph.facebook.com/${graphVersion}/${wabaId}/message_templates`;
 
     if (action === "list") {
-      const templates: any[] = [];
+      const templates: Array<any> = [];
       let after = "";
       let pageCount = 0;
       do {
@@ -289,7 +289,7 @@ Deno.serve(async (request) => {
       const language = String(template.language ?? "he");
       const bodyText = String(template.body_text ?? "").trim();
       const footerText = String(template.footer_text ?? "").trim();
-      const examples: string[] = Array.isArray(template.examples)
+      const examples: Array<string> = Array.isArray(template.examples)
         ? template.examples.map((value: unknown) => String(value).trim())
         : [];
       const headerFormat = String(

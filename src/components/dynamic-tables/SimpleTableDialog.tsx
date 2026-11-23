@@ -37,7 +37,7 @@ import {
 interface SimpleTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 export function SimpleTableDialog({

@@ -4,14 +4,14 @@ export type ModelPreset = {
   id: string;
   label: string;
   base_url: string;
-  models: string[];
+  models: Array<string>;
   key_hint: string;
   /** Has a free tier; new brains from it default to tier "free". */
   free?: boolean;
 };
 
 /** OpenAI-compatible chat endpoints. "custom" lets the user type a base URL. */
-export const MODEL_PRESETS: ModelPreset[] = [
+export const MODEL_PRESETS: Array<ModelPreset> = [
   {
     id: "openai",
     label: "OpenAI",

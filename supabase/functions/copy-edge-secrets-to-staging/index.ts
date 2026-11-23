@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
   if (!(await callerCanManageProject(token, sourceRef)))
     return json(401, { error: "Unauthorized" });
 
-  let body: { target_ref?: string; names?: string[] } = {};
+  let body: { target_ref?: string; names?: Array<string> } = {};
   try {
     body = await req.json();
   } catch {
@@ -81,8 +81,8 @@ Deno.serve(async (req) => {
   }
 
   const names = selectSecretsToCopy(body.names, AGENT_EDGE_SECRET_ALLOWLIST);
-  const payload: { name: string; value: string }[] = [];
-  const missing: string[] = [];
+  const payload: Array<{ name: string; value: string }> = [];
+  const missing: Array<string> = [];
   for (const name of names) {
     const value = Deno.env.get(name) || "";
     if (!value) missing.push(name);

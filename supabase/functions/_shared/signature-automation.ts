@@ -524,7 +524,7 @@ export async function prepareSignatureDocumentForSigning(
     fieldMap?: Record<string, string> | null;
     fieldRequired?: Record<string, boolean> | null;
   },
-): Promise<{ documentId: string; signingLinks: SignatureSigningLink[] }> {
+): Promise<{ documentId: string; signingLinks: Array<SignatureSigningLink> }> {
   const {
     documentId,
     tenantId,
@@ -711,7 +711,7 @@ function contactValue(
 function applyFieldRequiredFlags(
   fields: unknown,
   fieldRequired?: Record<string, boolean> | null,
-): unknown[] {
+): Array<unknown> {
   const list = Array.isArray(fields) ? fields : [];
   if (!fieldRequired) return list;
   return list.map((field) => {

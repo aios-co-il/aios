@@ -33,7 +33,7 @@ async function getFbToken(
   return integ?.api_key || null;
 }
 
-function leadsFromActions(actions: any[]): number {
+function leadsFromActions(actions: Array<any>): number {
   if (!Array.isArray(actions)) return 0;
   let leads = 0;
   for (const a of actions) {
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       })
       .sort((a: any, b: any) => (a.cpl_7d ?? 999999) - (b.cpl_7d ?? 999999));
 
-    const anomalies: string[] = [];
+    const anomalies: Array<string> = [];
     if (
       meta.effective_status &&
       !["ACTIVE", "CAMPAIGN_PAUSED", "PAUSED"].includes(meta.effective_status)
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         `CTR ירד ב-${(((ctr30 - ctr7) / ctr30) * 100).toFixed(0)}% מול 30 ימים`,
       );
 
-    const recommendations: any[] = [];
+    const recommendations: Array<any> = [];
     if (cplToday && cpl7 && cplToday > cpl7 * 2)
       recommendations.push({
         action: "pause",

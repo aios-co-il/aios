@@ -30,14 +30,14 @@ export interface WorkshopListRow {
 export interface DepartmentGroup {
   department: DepartmentId;
   label: string;
-  items: WorkshopListRow[];
+  items: Array<WorkshopListRow>;
 }
 
 export interface ClientGroup {
   clientId: string | null;
   name: string;
   count: number;
-  departments: DepartmentGroup[];
+  departments: Array<DepartmentGroup>;
 }
 
 export const UNASSIGNED_LABEL = "ללא לקוח";
@@ -54,8 +54,10 @@ export const STATUS_LABELS: Record<string, string> = {
 export const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;
 
 /** The rows by department, in the registry's order; empty departments are left out. */
-export function groupByDepartment(rows: WorkshopListRow[]): DepartmentGroup[] {
-  const byDept = new Map<DepartmentId, WorkshopListRow[]>();
+export function groupByDepartment(
+  rows: Array<WorkshopListRow>,
+): Array<DepartmentGroup> {
+  const byDept = new Map<DepartmentId, Array<WorkshopListRow>>();
   for (const row of rows) {
     const dept = projectDepartment(row);
     byDept.set(dept, [...(byDept.get(dept) ?? []), row]);
@@ -73,9 +75,9 @@ export function groupByDepartment(rows: WorkshopListRow[]): DepartmentGroup[] {
  * department only, as one group.
  */
 export function groupProjects(
-  rows: WorkshopListRow[],
+  rows: Array<WorkshopListRow>,
   byClient: boolean,
-): ClientGroup[] {
+): Array<ClientGroup> {
   if (!byClient)
     return rows.length
       ? [
@@ -87,8 +89,8 @@ export function groupProjects(
           },
         ]
       : [];
-  const order: (string | null)[] = [];
-  const byClientId = new Map<string | null, WorkshopListRow[]>();
+  const order: Array<string | null> = [];
+  const byClientId = new Map<string | null, Array<WorkshopListRow>>();
   for (const row of rows) {
     const key = row.client_id ?? null;
     if (!byClientId.has(key)) {
@@ -113,5 +115,5 @@ export function groupProjects(
 }
 
 /** The project opened when the URL names none: the latest one with a workshop board. */
-export const defaultProject = (rows: WorkshopListRow[]) =>
+export const defaultProject = (rows: Array<WorkshopListRow>) =>
   rows.find((row) => row.has_board) ?? null;

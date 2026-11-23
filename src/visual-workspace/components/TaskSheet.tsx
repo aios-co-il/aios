@@ -20,7 +20,7 @@ interface Props {
 export function TaskSheet({ taskId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [task, setTask] = useState<any>(null);
-  const [updates, setUpdates] = useState<any[]>([]);
+  const [updates, setUpdates] = useState<Array<any>>([]);
 
   useEffect(() => {
     if (!taskId) return;

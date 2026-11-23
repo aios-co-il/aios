@@ -48,7 +48,7 @@ interface FieldOption {
   required?: boolean;
 }
 
-const SYSTEM_FIELDS: FieldOption[] = [
+const SYSTEM_FIELDS: Array<FieldOption> = [
   { key: "name", label: "שם", required: true },
   { key: "agency", label: "סוכנות", required: true },
   { key: "campaigner", label: "קמפיינר" },
@@ -155,8 +155,8 @@ export function ImportClientsCSV({
     : setInternalOpen;
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvData, setCsvData] = useState<string[][]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<Array<string>>([]);
+  const [csvData, setCsvData] = useState<Array<Array<string>>>([]);
   const [fieldMappings, setFieldMappings] = useState<Record<string, string>>(
     {},
   );
@@ -202,13 +202,13 @@ export function ImportClientsCSV({
 
   const parseCSVRaw = (
     text: string,
-  ): { headers: string[]; data: string[][] } => {
+  ): { headers: Array<string>; data: Array<Array<string>> } => {
     const lines = text.split("\n").filter((line) => line.trim());
     if (lines.length < 1) return { headers: [], data: [] };
 
     // Parse CSV properly handling quoted values
-    const parseLine = (line: string): string[] => {
-      const result: string[] = [];
+    const parseLine = (line: string): Array<string> => {
+      const result: Array<string> = [];
       let current = "";
       let inQuotes = false;
 
@@ -228,7 +228,7 @@ export function ImportClientsCSV({
     };
 
     const headers = parseLine(lines[0]);
-    const data: string[][] = [];
+    const data: Array<Array<string>> = [];
 
     for (let i = 1; i < lines.length; i++) {
       const row = parseLine(lines[i]);
@@ -241,7 +241,9 @@ export function ImportClientsCSV({
     return { headers, data };
   };
 
-  const autoDetectMappings = (headers: string[]): Record<string, string> => {
+  const autoDetectMappings = (
+    headers: Array<string>,
+  ): Record<string, string> => {
     const mappings: Record<string, string> = {};
     const usedFields = new Set<string>();
 
@@ -555,7 +557,7 @@ export function ImportClientsCSV({
     },
     onSuccess: (data) => {
       if (data) {
-        const parts: string[] = [];
+        const parts: Array<string> = [];
         if (data.imported > 0) parts.push(`יובאו ${data.imported}`);
         if (data.updated > 0) parts.push(`עודכנו ${data.updated}`);
         const title = parts.length

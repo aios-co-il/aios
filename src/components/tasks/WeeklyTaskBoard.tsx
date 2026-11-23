@@ -417,7 +417,7 @@ export function WeeklyTaskBoard() {
             calendarId: event.calendarId,
           }));
 
-        return events as CalendarEvent[];
+        return events as Array<CalendarEvent>;
       } catch {
         // User might not have connected calendar - that's ok
         return [];
@@ -516,7 +516,7 @@ export function WeeklyTaskBoard() {
         ownedAgencyShares,
       });
 
-      let collaboratorTaskIds: string[] = [];
+      let collaboratorTaskIds: Array<string> = [];
       const collaboratorScopeIds = isMineQueueFilter(effectiveCampaignerFilter)
         ? (mineIdentity?.campaignerIds ?? [])
         : effectiveCampaignerFilter !== "all" &&
@@ -617,7 +617,7 @@ export function WeeklyTaskBoard() {
 
       query = applyBoardFilters(query);
 
-      let taskRows: Task[] = [];
+      let taskRows: Array<Task> = [];
       if (!skipAssignedQuery) {
         const { data, error } = await query
           .order("due_date", { ascending: true })
@@ -625,7 +625,7 @@ export function WeeklyTaskBoard() {
           .order("sort_order", { ascending: true });
 
         if (error) throw error;
-        taskRows = (data || []) as Task[];
+        taskRows = (data || []) as Array<Task>;
       }
 
       if (collaboratorTaskIds.length > 0) {
@@ -656,7 +656,7 @@ export function WeeklyTaskBoard() {
           );
           const { data: extra, error: extraError } = await extraQuery;
           if (extraError) throw extraError;
-          taskRows = taskRows.concat((extra || []) as Task[]);
+          taskRows = taskRows.concat((extra || []) as Array<Task>);
         }
       }
 
@@ -706,7 +706,7 @@ export function WeeklyTaskBoard() {
         const { data: recurringExtra, error: recurringError } =
           await recurringQuery;
         if (recurringError) throw recurringError;
-        taskRows = taskRows.concat((recurringExtra || []) as Task[]);
+        taskRows = taskRows.concat((recurringExtra || []) as Array<Task>);
         const seenRecurring = new Set<string>();
         taskRows = taskRows.filter((task) => {
           if (seenRecurring.has(task.id)) return false;
@@ -742,7 +742,7 @@ export function WeeklyTaskBoard() {
   });
 
   // Local tasks state for optimistic updates
-  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [localTasks, setLocalTasks] = useState<Array<Task>>([]);
 
   // View-as preview: show the selected user's queue, not the admin's.
   useEffect(() => {
@@ -756,7 +756,7 @@ export function WeeklyTaskBoard() {
   }, [isViewingAs, viewAsUserId, tenantId, queryClient]);
 
   const applyBoardViewFilters = useMemo(
-    () => (rows: Task[]) => {
+    () => (rows: Array<Task>) => {
       let filtered = filterTasksByBoardTenantScope(
         filterTasksBySelectedAgency(rows, selectedAgency),
         tenantId!,
@@ -937,7 +937,7 @@ export function WeeklyTaskBoard() {
       recurrenceFrequency?: "daily" | "weekly" | "monthly" | null;
       recurrenceWeekday?: number | null;
       recurrenceMonthday?: number | null;
-      collaboratorIds?: string[];
+      collaboratorIds?: Array<string>;
     }) => {
       if (!tenantId) throw new Error("TENANT_NOT_READY");
       // A task attached to a client must carry that client's agency, otherwise
@@ -1343,7 +1343,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<any[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Array<any>>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });
@@ -1388,7 +1388,7 @@ export function WeeklyTaskBoard() {
                 : null,
             }
           : t;
-      queryClient.setQueriesData<any[]>({ queryKey: ["tasks"] }, (old) => {
+      queryClient.setQueriesData<Array<any>>({ queryKey: ["tasks"] }, (old) => {
         if (!Array.isArray(old)) return old;
         return old.map(patch);
       });
@@ -1407,7 +1407,7 @@ export function WeeklyTaskBoard() {
 
   // Update sort order mutation (for reordering within a day)
   const updateSortOrder = useMutation({
-    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+    mutationFn: async (updates: Array<{ id: string; sort_order: number }>) => {
       for (const update of updates) {
         const { error } = await supabase
           .from("tasks")

@@ -43,7 +43,7 @@ const ACK_WORDS = new Set([
 const RECEIPT_WORDS: ReadonlySet<string> = new Set(["קיבלתי"]);
 
 /** The markers over the client's waiting messages. */
-export function readMarkers(texts: string[]): Markers {
+export function readMarkers(texts: Array<string>): Markers {
   return {
     request: texts.some(isRequest),
     complaint: texts.some(hasComplaintWords),
@@ -51,12 +51,12 @@ export function readMarkers(texts: string[]): Markers {
 }
 
 /** True when every message is only thanks, acknowledgements or emoji. */
-export function onlyAcknowledgements(texts: string[]): boolean {
+export function onlyAcknowledgements(texts: Array<string>): boolean {
   return texts.every(isAcknowledgement);
 }
 
 /** True when every message is only thanks or emoji: acknowledgements without a receipt word. */
-export function onlyThanks(texts: string[]): boolean {
+export function onlyThanks(texts: Array<string>): boolean {
   return texts.every(
     (text) =>
       isAcknowledgement(text) &&
@@ -78,7 +78,7 @@ function isAcknowledgement(text: string): boolean {
 }
 
 /** The lower-cased words of a message, without punctuation or emoji. */
-function wordsOf(text: string): string[] {
+function wordsOf(text: string): Array<string> {
   return text
     .toLowerCase()
     .replace(/[\p{P}\p{S}]+/gu, " ")

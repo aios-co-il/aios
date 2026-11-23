@@ -201,7 +201,7 @@ Deno.test(
         cost,
         conversions: 0,
       });
-    const build = (pausedDays: string[]) =>
+    const build = (pausedDays: Array<string>) =>
       buildPulseCampaignRows({
         records: [
           ...["2026-10-01", "2026-10-02", "2026-10-03"].map((date) =>

@@ -15,11 +15,11 @@ export interface CompleteVariationMeta {
   format: CreativeFormat;
   visualStyle?: CreativeVisualStyleId;
   compositionId?: CompositionId;
-  brandColors?: string[];
+  brandColors?: Array<string>;
   logoUrl?: string;
   liveTextLayers?: boolean;
   compositionSeed?: string;
-  usedCompositionIds?: CompositionId[];
+  usedCompositionIds?: Array<CompositionId>;
 }
 
 export const buildLayersForComplete = ({
@@ -34,7 +34,7 @@ export const buildLayersForComplete = ({
   compositionSeed = "",
   usedCompositionIds = [],
 }: CompleteVariationMeta): {
-  layers: CreativeLayer[];
+  layers: Array<CreativeLayer>;
   compositionId?: CompositionId;
 } => {
   if (!liveTextLayers) return { layers: [] };

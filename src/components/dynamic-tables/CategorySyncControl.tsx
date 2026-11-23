@@ -34,7 +34,7 @@ interface CategoryTable {
 
 interface Props {
   category: string;
-  tables: CategoryTable[];
+  tables: Array<CategoryTable>;
 }
 
 const FN_BY_TYPE: Record<string, string> = {
@@ -60,7 +60,7 @@ async function syncAdsTableInPieces(table: CategoryTable): Promise<void> {
 }
 
 async function runWithConcurrency<T>(
-  items: T[],
+  items: Array<T>,
   limit: number,
   worker: (item: T, idx: number) => Promise<void>,
 ) {
@@ -80,7 +80,7 @@ async function runWithConcurrency<T>(
 async function resolveReportTenantIds(
   clientId: string,
   tableTenantId?: string | null,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data: client } = await supabase
     .from("clients")
     .select("tenant_id, agency_id")
@@ -108,7 +108,7 @@ async function resolveReportTenantIds(
 
 function ahrefsReportsForClient(
   clientId: string,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   columns = "*",
 ) {
   let q = supabase
@@ -170,7 +170,7 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     )
       .not("metadata->ahrefs_project_id", "is", null)
       .limit(20);
-    const rows = (lastWithProject as any[]) || [];
+    const rows = (lastWithProject as Array<any>) || [];
     const match =
       rows.find(
         (r: any) =>
@@ -216,10 +216,10 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     ? reports.filter((report: any) => normalizeDomain(report.domain) === target)
     : reports;
 
-  const recordsToInsert: any[] = [];
+  const recordsToInsert: Array<any> = [];
   for (const report of (reportsToUse.length > 0
     ? reportsToUse
-    : reports) as any[]) {
+    : reports) as Array<any>) {
     const rd = report.report_data || {};
     const snapshot = rd.snapshot || {};
     const reportDate = report.report_date || report.received_at;
@@ -361,14 +361,14 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     reportTenantIds,
   );
   const reportsToUse = target
-    ? ((reports as any[]) || []).filter(
+    ? ((reports as Array<any>) || []).filter(
         (r: any) => normalizeDomain(r.domain) === target,
       )
-    : (reports as any[]) || [];
-  const recordsToInsert: any[] = [];
+    : (reports as Array<any>) || [];
+  const recordsToInsert: Array<any> = [];
   for (const report of reportsToUse.length > 0
     ? reportsToUse
-    : (reports as any[]) || []) {
+    : (reports as Array<any>) || []) {
     const rd = report.report_data || {};
     const snapshot = rd.snapshot || {};
     const reportDate = report.report_date || report.received_at;

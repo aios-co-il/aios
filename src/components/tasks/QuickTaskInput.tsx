@@ -48,7 +48,7 @@ export interface QuickTaskPayload {
   title: string;
   clientId?: string | null;
   campaignerId?: string | null;
-  collaboratorIds?: string[];
+  collaboratorIds?: Array<string>;
   selfReminderAt?: string | null;
   /** When to perform / show on calendar (תאריך ביצוע) */
   executionDate?: string | null;
@@ -63,8 +63,8 @@ export interface QuickTaskPayload {
 interface QuickTaskInputProps {
   onAddTask: (payload: QuickTaskPayload) => void;
   disabled?: boolean;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   defaultCampaignerId?: string | null;
 }
 
@@ -110,7 +110,7 @@ export function QuickTaskInput({
     monthday: null,
     time: null,
   });
-  const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
+  const [collaboratorIds, setCollaboratorIds] = useState<Array<string>>([]);
   const [teamSearch, setTeamSearch] = useState("");
   const [executionOpen, setExecutionOpen] = useState(false);
   const [targetOpen, setTargetOpen] = useState(false);
@@ -781,7 +781,7 @@ function ClientCommand({
   search: string;
   onSearch: (value: string) => void;
   selectedId: string | null;
-  items: { id: string; name: string }[];
+  items: Array<{ id: string; name: string }>;
   onSelect: (id: string | null) => void;
 }) {
   return (
@@ -831,7 +831,7 @@ function CampaignerCommand({
   search: string;
   onSearch: (value: string) => void;
   selectedId: string | null;
-  items: { id: string; full_name: string }[];
+  items: Array<{ id: string; full_name: string }>;
   onSelect: (id: string | null) => void;
 }) {
   return (

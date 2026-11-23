@@ -8,8 +8,8 @@ import { ChatTopicRenameInput } from "./ChatTopicRenameInput";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 
 interface ChatTopicRailProps {
-  items: TopicChat[];
-  routes: BrainRoute[];
+  items: Array<TopicChat>;
+  routes: Array<BrainRoute>;
   activeId: string | null;
   onSelect: (chat: TopicChat) => void;
   onNew: () => void;

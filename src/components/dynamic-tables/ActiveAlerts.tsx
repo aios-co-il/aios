@@ -14,7 +14,7 @@ import { format, subDays } from "date-fns";
 
 interface ActiveAlertsProps {
   tableId: string;
-  records: any[];
+  records: Array<any>;
   integrationSettings?: any;
 }
 
@@ -90,7 +90,7 @@ export function ActiveAlerts({
         .eq("is_active", true);
 
       if (error) throw error;
-      return data as ReportAlert[];
+      return data as Array<ReportAlert>;
     },
     enabled: !!tableId,
   });
@@ -98,7 +98,7 @@ export function ActiveAlerts({
   const triggeredAlerts = useMemo(() => {
     if (!alerts.length) return [];
 
-    const triggered: TriggeredAlert[] = [];
+    const triggered: Array<TriggeredAlert> = [];
     const today = new Date();
 
     // Check account-level blocking first
@@ -144,10 +144,10 @@ export function ActiveAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const campaignName = getCampaignName(campaignRecords as any[]);
+          const campaignName = getCampaignName(campaignRecords as Array<any>);
 
           // Get the latest record's effective_status
-          const latestRecord = getLatestRecord(campaignRecords as any[]);
+          const latestRecord = getLatestRecord(campaignRecords as Array<any>);
           const effectiveStatus = latestRecord?.data?.effective_status;
           const configuredStatus = latestRecord?.data?.configured_status;
 
@@ -196,9 +196,9 @@ export function ActiveAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const campaignName = getCampaignName(campaignRecords as any[]);
+          const campaignName = getCampaignName(campaignRecords as Array<any>);
           const currentMetrics = calculateMetrics(
-            campaignRecords as any[],
+            campaignRecords as Array<any>,
             subDays(today, 7),
             today,
             alert.metric,
@@ -232,16 +232,16 @@ export function ActiveAlerts({
       for (const [campaignId, campaignRecords] of Object.entries(
         campaignGroups,
       )) {
-        const campaignName = getCampaignName(campaignRecords as any[]);
+        const campaignName = getCampaignName(campaignRecords as Array<any>);
 
         const currentValue = calculateMetrics(
-          campaignRecords as any[],
+          campaignRecords as Array<any>,
           currentPeriodStart,
           currentPeriodEnd,
           alert.metric,
         );
         const previousValue = calculateMetrics(
-          campaignRecords as any[],
+          campaignRecords as Array<any>,
           previousPeriodStart,
           previousPeriodEnd,
           alert.metric,
@@ -424,7 +424,7 @@ function getCampaignBlockReason(effectiveStatus: string): string {
   }
 }
 
-function getLatestRecord(records: any[]): any | null {
+function getLatestRecord(records: Array<any>): any | null {
   if (records.length === 0) return null;
 
   return records.reduce((latest, record) => {
@@ -434,8 +434,10 @@ function getLatestRecord(records: any[]): any | null {
   }, records[0]);
 }
 
-function groupRecordsByCampaign(records: any[]): Record<string, any[]> {
-  const groups: Record<string, any[]> = {};
+function groupRecordsByCampaign(
+  records: Array<any>,
+): Record<string, Array<any>> {
+  const groups: Record<string, Array<any>> = {};
 
   for (const record of records) {
     const campaignId =
@@ -452,7 +454,7 @@ function groupRecordsByCampaign(records: any[]): Record<string, any[]> {
   return groups;
 }
 
-function getCampaignName(records: any[]): string {
+function getCampaignName(records: Array<any>): string {
   if (records.length === 0) return "";
   const firstRecord = records[0];
   return (
@@ -464,7 +466,7 @@ function getCampaignName(records: any[]): string {
 }
 
 function calculateMetrics(
-  records: any[],
+  records: Array<any>,
   startDate: Date,
   endDate: Date,
   metric: string,
@@ -552,7 +554,7 @@ function calculateMetrics(
   }
 
   // For other metrics: sum them up
-  const metricKeys: Record<string, string[]> = {
+  const metricKeys: Record<string, Array<string>> = {
     spend: ["spend", "amount_spent", "Spend"],
     leads: ["leads", "results", "Leads"],
     impressions: ["impressions", "Impressions"],

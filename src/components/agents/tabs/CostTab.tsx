@@ -59,7 +59,7 @@ export function CostTab({
         .order("created_at", { ascending: true })
         .limit(5000);
       if (error) throw error;
-      return (data || []) as unknown as LogRow[];
+      return (data || []) as unknown as Array<LogRow>;
     },
   });
 

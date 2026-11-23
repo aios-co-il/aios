@@ -26,7 +26,7 @@ export async function viaHiggsfield(
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   const base = "https://api.higgsfield.ai";
   const headers = {

@@ -12,9 +12,9 @@ import { runsUnpicked } from "./plan.ts";
 
 /** The chain with the tail's targets appended, each connection once. */
 export function withBrainTail<T extends { connectionId?: string }>(
-  chain: T[],
-  tail: T[],
-): T[] {
+  chain: Array<T>,
+  tail: Array<T>,
+): Array<T> {
   const seen = new Set(
     chain.map((target) => target.connectionId).filter(Boolean),
   );
@@ -31,8 +31,8 @@ export function withBrainTail<T extends { connectionId?: string }>(
  * the tail is read only on the turns that need it. Resolves true when a link was added.
  */
 export function lazyBrainTail<T extends { connectionId?: string }>(
-  chain: T[],
-  load?: () => Promise<T[]>,
+  chain: Array<T>,
+  load?: () => Promise<Array<T>>,
 ): () => Promise<boolean> {
   let loaded = !load;
   return async () => {
@@ -42,7 +42,7 @@ export function lazyBrainTail<T extends { connectionId?: string }>(
       console.warn(
         `[brain-engine] OpenRouter tail skipped: ${e instanceof Error ? e.message : e}`,
       );
-      return [] as T[];
+      return [] as Array<T>;
     });
     const added = withBrainTail(chain, tail).slice(chain.length);
     chain.push(...added);
@@ -98,7 +98,7 @@ export async function openRouterTail(
   sb: SupabaseClient,
   auth: { kind: "user" | "service"; userId: string | null } | null,
   body: { tenant_id?: unknown; agent_id?: unknown },
-): Promise<BrainEngineTarget[]> {
+): Promise<Array<BrainEngineTarget>> {
   let tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   if (typeof body.agent_id === "string" && body.agent_id) {
     const { data: agent } = await sb

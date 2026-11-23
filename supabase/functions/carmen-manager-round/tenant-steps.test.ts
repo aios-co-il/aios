@@ -198,7 +198,7 @@ Deno.test("runSteps after a switch to observe sends nothing", async (t) => {
  * complaintWorld without its complaint: team mode with card_write on and one
  * open group draft for Dana's client per event time in `events`.
  */
-function draftsWorld(events: string[]): World {
+function draftsWorld(events: Array<string>): World {
   const w = complaintWorld(false);
   const kinds = {
     card_stale_group: { card_write: true, notify_since: team.notify_since },

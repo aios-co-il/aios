@@ -88,7 +88,7 @@ export default function AccountingIntegrations() {
     format(subMonths(new Date(), 1), "yyyy-MM"),
   );
   const [editingClient, setEditingClient] = useState<any | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string[]>([
+  const [typeFilter, setTypeFilter] = useState<Array<string>>([
     "retainer",
     "one_time",
     "client_expense",
@@ -176,7 +176,7 @@ export default function AccountingIntegrations() {
             .select("client_id, retainer, monthly_budget")
             .eq("tenant_id", currentTenantId)
             .in("client_id", clientIds)
-        : { data: [] as any[] };
+        : { data: [] as Array<any> };
 
       const financialMap = new Map(
         (financialData || []).map((f) => [f.client_id, f]),
@@ -483,7 +483,7 @@ export default function AccountingIntegrations() {
   // Build supplier expense rows (each non-zero payment slot becomes a row)
   const supplierExpenseRows = useMemo(() => {
     if (!suppliers) return [] as Array<any>;
-    const rows: any[] = [];
+    const rows: Array<any> = [];
     suppliers.forEach((s: any) => {
       [1, 2, 3].forEach((i) => {
         const amount = Number(s[`payment_${i}`] || 0);

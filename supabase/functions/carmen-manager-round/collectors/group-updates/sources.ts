@@ -37,8 +37,8 @@ export type GroupUpdateSources = {
   histories(since: Date, lines: GroupLines): Promise<Array<GroupHistory>>;
   /** The staff roster of the tenant and its agency partners (staff-keys.ts). */
   staff(): Promise<StaffRoster>;
-  cardEntries(clientIds: string[], since: Date): Promise<CardEntry[]>;
-  liveDrafts(): Promise<LiveDraft[]>;
+  cardEntries(clientIds: Array<string>, since: Date): Promise<Array<CardEntry>>;
+  liveDrafts(): Promise<Array<LiveDraft>>;
   summarize: SummarizePorts;
 };
 

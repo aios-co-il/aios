@@ -7,7 +7,7 @@ export type CursorModelSelection = {
 
 type CatalogItem = {
   id?: string;
-  aliases?: string[];
+  aliases?: Array<string>;
   parameters?: Array<{ id?: string; values?: Array<{ value?: string }> }>;
 };
 
@@ -35,7 +35,7 @@ export function resolveCreativeCursorModel(
 }
 
 export function pickCreativeModelFromCatalog(
-  items: CatalogItem[] | undefined,
+  items: Array<CatalogItem> | undefined,
   preferred: CursorModelSelection,
 ): CursorModelSelection {
   const list = Array.isArray(items) ? items : [];

@@ -124,7 +124,9 @@ export default function Recordings() {
     queryKey: ["recording-folders", currentTenantId],
     queryFn: async () => {
       if (!currentTenantId) return [];
-      return (await fetchRecordingFolders(currentTenantId)) as FolderOption[];
+      return (await fetchRecordingFolders(
+        currentTenantId,
+      )) as Array<FolderOption>;
     },
     enabled: !!currentTenantId,
   });
@@ -143,7 +145,7 @@ export default function Recordings() {
       recordingIds,
       selection,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       selection: EntityAssignmentSelection;
     }) => {
       const update: Record<string, unknown> = {
@@ -188,7 +190,7 @@ export default function Recordings() {
       recordingIds,
       folderId,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       folderId: string | null;
     }) => {
       const { error } = await (supabase as any)
@@ -214,7 +216,7 @@ export default function Recordings() {
       recordingIds,
       name,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       name: string;
     }) => {
       const { error } = await supabase
@@ -242,8 +244,8 @@ export default function Recordings() {
       recordingIds,
       filePaths,
     }: {
-      recordingIds: string[];
-      filePaths: string[];
+      recordingIds: Array<string>;
+      filePaths: Array<string>;
     }) => {
       if (filePaths.length > 0) {
         await supabase.storage.from("recordings").remove(filePaths);
@@ -390,8 +392,8 @@ export default function Recordings() {
 
   // ── Grouping (one card per meeting_id) ───────────────────────
 
-  const groupedRecordings: FeedRecording[] = useMemo(() => {
-    const groups = new Map<string, any[]>();
+  const groupedRecordings: Array<FeedRecording> = useMemo(() => {
+    const groups = new Map<string, Array<any>>();
     recordings.forEach((rec: any) => {
       const key = rec.meeting_id || rec.id;
       if (!groups.has(key)) groups.set(key, []);
@@ -498,8 +500,10 @@ export default function Recordings() {
 
   const campaignerNamesFor = (rec: FeedRecording) =>
     (rec.campaigner_ids || [])
-      .map((id) => (campaigners as any[]).find((c) => c.id === id)?.full_name)
-      .filter(Boolean) as string[];
+      .map(
+        (id) => (campaigners as Array<any>).find((c) => c.id === id)?.full_name,
+      )
+      .filter(Boolean) as Array<string>;
 
   // Accepting a suggestion assigns the client and re-runs the pipeline —
   // transcription already exists, so it continues straight to summary + brief.

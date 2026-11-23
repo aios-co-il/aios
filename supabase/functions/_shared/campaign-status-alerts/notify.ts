@@ -8,7 +8,7 @@ async function resolveRecipients(
   db: DbClient,
   tenantId: string,
   clientId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const phones = new Set<string>();
   const { data: managers } = await db
     .from("tenant_users")

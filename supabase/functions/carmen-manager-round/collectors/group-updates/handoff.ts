@@ -14,7 +14,7 @@ import type { DigestItem } from "./digest.ts";
 export const CHAT_HANDOFF_TYPES = ["request", "complaint"] as const;
 
 /** The items the chat collector should see. */
-export function chatHandoff(items: DigestItem[]): DigestItem[] {
+export function chatHandoff(items: Array<DigestItem>): Array<DigestItem> {
   return items.filter((item) =>
     CHAT_HANDOFF_TYPES.some((type) => type === item.type),
   );

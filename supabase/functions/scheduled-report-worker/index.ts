@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       const shareUrl = await ensureReportShare(admin, schedule, targetId);
       const clientName = schedule.clients?.name || "לקוח";
       const message = `${schedule.message?.trim() || `הדוח החדש של ${clientName} מוכן לצפייה`}\n\n📊 ${shareUrl}`;
-      const channels: string[] = schedule.channels || [];
+      const channels: Array<string> = schedule.channels || [];
 
       let whatsappSender: WhatsAppSenderDetail | undefined;
       if (channels.includes("whatsapp")) {
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
       if (channels.includes("email")) {
         try {
-          const recipients: string[] =
+          const recipients: Array<string> =
             schedule.email_recipients?.length > 0
               ? schedule.email_recipients
               : schedule.clients?.email

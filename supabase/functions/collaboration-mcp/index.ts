@@ -176,7 +176,7 @@ function bearerFrom(req: Request): string | undefined {
   return match?.[1]?.trim();
 }
 
-function acceptedBearers(): string[] {
+function acceptedBearers(): Array<string> {
   return [
     "COLLABORATION_MCP_BEARER",
     "CURSOR_MCP_BEARER",
@@ -466,10 +466,10 @@ async function callTool(
     const { data, error } = await query;
     if (error) throw error;
     const unread = (data || []).filter(
-      (m: { read_by?: string[] }) => !(m.read_by || []).includes(agent),
+      (m: { read_by?: Array<string> }) => !(m.read_by || []).includes(agent),
     );
     await Promise.all(
-      unread.map((m: { id: string; read_by?: string[] }) =>
+      unread.map((m: { id: string; read_by?: Array<string> }) =>
         client
           .from("agent_collaboration_messages")
           .update({ read_by: [...(m.read_by || []), agent] })

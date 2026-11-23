@@ -63,7 +63,7 @@ interface SyncProgress {
   remaining: number;
   conflicts: number;
   total: number;
-  results: SyncResult[];
+  results: Array<SyncResult>;
 }
 
 interface SyncJob {

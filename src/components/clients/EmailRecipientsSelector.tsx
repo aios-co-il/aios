@@ -20,11 +20,11 @@ export interface EmailOption {
   icon?: string;
 }
 
-type EmailsUpdater = string[] | ((prev: string[]) => string[]);
+type EmailsUpdater = Array<string> | ((prev: Array<string>) => Array<string>);
 
 interface EmailRecipientsSelectorProps {
-  options: EmailOption[];
-  selectedEmails: string[];
+  options: Array<EmailOption>;
+  selectedEmails: Array<string>;
   onChange: (emails: EmailsUpdater) => void;
 }
 
@@ -41,7 +41,7 @@ export function EmailRecipientsSelector({
   // otherwise multiple empty-email options all get toggled together.
   const validOptions = (() => {
     const seen = new Set<string>();
-    const out: EmailOption[] = [];
+    const out: Array<EmailOption> = [];
     for (const opt of options) {
       const email = normalizeEmail(opt.email || "");
       if (!email || !EMAIL_REGEX.test(email)) continue;

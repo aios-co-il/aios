@@ -99,7 +99,7 @@ export function SystemCronJobsPanel({
     queryFn: async () => {
       const { data, error } = await supabase.rpc("list_system_cron_jobs");
       if (error) throw error;
-      return (data as CronJob[]) || [];
+      return (data as Array<CronJob>) || [];
     },
     refetchInterval: 30000,
   });
@@ -444,7 +444,7 @@ function HistoryList({
         p_limit: 50,
       });
       if (error) throw error;
-      return data as any[];
+      return data as Array<any>;
     },
   });
 

@@ -9,7 +9,7 @@ export type UpdateFieldsResult = {
 /** Update signature_documents.document_fields with graceful fallback for older schemas. */
 export async function updateSignatureDocumentFields(
   docId: string,
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   meta?: { title?: string; isTemplate?: boolean },
 ): Promise<UpdateFieldsResult> {
   const title = meta?.title?.trim();
@@ -70,7 +70,7 @@ export async function updateSignatureDocumentFields(
 /** Best-effort sync of signature field position onto existing recipients. */
 export async function syncSignatureRecipientPosition(
   docId: string,
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
 ): Promise<boolean> {
   const { data: recipients, error: readError } = await supabase
     .from("signature_recipients")

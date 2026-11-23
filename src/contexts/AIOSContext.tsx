@@ -15,8 +15,8 @@ import { invalidateAIEntityQueries } from "@/lib/aiInvalidation";
 interface AIOSState {
   isLoading: boolean;
   statusText: string;
-  dataPanels: DisplayData[];
-  history: { role: string; content: string }[];
+  dataPanels: Array<DisplayData>;
+  history: Array<{ role: string; content: string }>;
   send: (text: string) => void;
   removePanel: (index: number) => void;
   resetConversation: () => void;
@@ -30,10 +30,10 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const [dataPanels, setDataPanels] = useState<DisplayData[]>([]);
-  const [history, setHistory] = useState<{ role: string; content: string }[]>(
-    [],
-  );
+  const [dataPanels, setDataPanels] = useState<Array<DisplayData>>([]);
+  const [history, setHistory] = useState<
+    Array<{ role: string; content: string }>
+  >([]);
   const [conversationId, setConversationId] = useState<string | null>(() => {
     try {
       return localStorage.getItem("aios_conversation_id");

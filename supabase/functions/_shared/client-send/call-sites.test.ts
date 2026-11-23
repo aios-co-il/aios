@@ -85,7 +85,7 @@ const UNSTAMPED_SEND =
   "fetch(`${u}/functions/v1/send-x`, { body: JSON.stringify({ to }) });";
 
 /** A source file of these lines. */
-const file = (path: string, ...lines: string[]): SourceFile => ({
+const file = (path: string, ...lines: Array<string>): SourceFile => ({
   path,
   text: lines.join("\n"),
 });

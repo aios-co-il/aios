@@ -152,7 +152,7 @@ function resolveUserId(): string {
 
 type HistoryItem = { role: "user" | "assistant"; content: string };
 
-function normalizeHistory(raw: unknown): HistoryItem[] {
+function normalizeHistory(raw: unknown): Array<HistoryItem> {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(
@@ -174,11 +174,11 @@ async function invokeCarmen(opts: {
   userId: string;
   context?: string;
   conversationId?: string | null;
-  conversationHistory?: HistoryItem[];
+  conversationHistory?: Array<HistoryItem>;
 }): Promise<{
   output: string;
   conversation_id: string | null;
-  tools_used: string[];
+  tools_used: Array<string>;
 }> {
   const body = opts.context?.trim()
     ? `${opts.message}\n\n[הקשר מ-Grok Bot]\n${opts.context.trim()}`
@@ -245,7 +245,7 @@ async function logDispatch(args: {
   requestText: string;
   context: string;
   conversationId: string | null;
-  toolsUsed: string[];
+  toolsUsed: Array<string>;
   status: string;
   error?: string;
 }): Promise<void> {

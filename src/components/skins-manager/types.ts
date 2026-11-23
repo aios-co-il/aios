@@ -14,9 +14,9 @@ export interface Skin {
   system_prompt: string | null;
   output_template: string | null;
   steps: string | null;
-  allowed_tools: string[] | null;
-  triggers: string[] | null;
-  handoff_slugs: string[] | null;
+  allowed_tools: Array<string> | null;
+  triggers: Array<string> | null;
+  handoff_slugs: Array<string> | null;
   model: string | null;
   is_active: boolean;
   tenant_id: string | null;
@@ -28,7 +28,7 @@ export type SkinDraft = Partial<Skin>;
 export const SKIN_FIELDS =
   "id,slug,scope,name,description,goal,constraints,system_prompt,output_template,steps,allowed_tools,triggers,handoff_slugs,model,is_active,tenant_id,version";
 
-export const toList = (v: string): string[] =>
+export const toList = (v: string): Array<string> =>
   v
     .split(/[\n,]/)
     .map((s) => s.trim())

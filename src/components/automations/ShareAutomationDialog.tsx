@@ -43,7 +43,7 @@ export function ShareAutomationDialog({
   const { data: existingClones } = useQuery({
     queryKey: ["automation-shares", automation?.id],
     queryFn: async () => {
-      if (!automation?.id) return [] as any[];
+      if (!automation?.id) return [] as Array<any>;
       const { data, error } = await supabase
         .from("automation_shared_tenants")
         .select("tenant_id")

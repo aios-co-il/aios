@@ -24,10 +24,10 @@ interface InviteUserRequest {
   email: string;
   fullName?: string;
   role?: string;
-  agencyIds?: string[];
+  agencyIds?: Array<string>;
   /** Clients to put the campaigner card on (client_team), so the user sees them. */
-  clientIds?: string[];
-  modulePermissions?: string[];
+  clientIds?: Array<string>;
+  modulePermissions?: Array<string>;
   resend?: boolean;
   campaignerId?: string;
   salesPersonId?: string;
@@ -177,7 +177,7 @@ async function linkStaffAgencies(
   table: "campaigner_agencies" | "sales_person_agencies",
   idColumn: "campaigner_id" | "sales_person_id",
   staffId: string,
-  agencyIds?: string[],
+  agencyIds?: Array<string>,
 ) {
   if (!agencyIds || agencyIds.length === 0) return;
   const rows = agencyIds.map((agencyId) => ({
@@ -200,7 +200,7 @@ async function findOrCreateStaff(
     tenantId: string;
     email: string;
     fullName?: string;
-    agencyIds?: string[];
+    agencyIds?: Array<string>;
     createIfMissing: boolean;
     fallbackName: string;
   },
@@ -212,7 +212,7 @@ async function findOrCreateStaff(
   if (listError) console.error(`Error loading ${options.table}:`, listError);
 
   const match = pickExistingTeamMember(
-    (existing || []) as TeamMemberCandidate[],
+    (existing || []) as Array<TeamMemberCandidate>,
     {
       email: options.email,
       fullName: options.fullName,

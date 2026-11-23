@@ -7,7 +7,7 @@ const END_TRANSITION = 12;
  * transition play over the scene before it.
  */
 export function sceneTiming(scenes: Array<WorkshopScene>) {
-  const starts: number[] = [];
+  const starts: Array<number> = [];
   let cursor = 0;
   for (const scene of scenes) {
     starts.push(cursor);

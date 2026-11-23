@@ -142,7 +142,7 @@ interface TeamMessage {
   parent_message_id: string | null;
   is_edited: boolean;
   created_at: string;
-  attachments?: TeamAttachment[];
+  attachments?: Array<TeamAttachment>;
   sender_profile?: { full_name: string; email: string; avatar_url?: string };
   reply_count?: number;
 }
@@ -170,7 +170,7 @@ function CreateChannelDialog({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#3B82F6");
   const [isPrivate, setIsPrivate] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<Array<string>>([]);
   const [selectedAgencyId, setSelectedAgencyId] = useState<string>("");
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
@@ -206,7 +206,7 @@ function CreateChannelDialog({
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order");
-      return (data || []) as ChannelCategory[];
+      return (data || []) as Array<ChannelCategory>;
     },
     enabled: !!tenantId && open,
   });
@@ -545,7 +545,7 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order");
-      return (data || []) as ChannelCategory[];
+      return (data || []) as Array<ChannelCategory>;
     },
     enabled: !!tenantId && open,
   });
@@ -814,7 +814,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         )
         .in("id", userIds);
 
-      return (profiles || []) as any[];
+      return (profiles || []) as Array<any>;
     },
     enabled: !!tenantId && open,
   });
@@ -928,7 +928,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
     const deletedId = deleteConfirmUser.id;
     const membersQueryKey = ["team-members-manage", tenantId] as const;
     try {
-      queryClient.setQueryData<any[]>(
+      queryClient.setQueryData<Array<any>>(
         membersQueryKey,
         (old) => old?.filter((member) => member.id !== deletedId) ?? old,
       );
@@ -1202,7 +1202,7 @@ function ChannelSidebar({
   onCreated,
   unreadCounts,
 }: {
-  channels: TeamChannel[];
+  channels: Array<TeamChannel>;
   activeChannelId: string | null;
   onSelect: (id: string) => void;
   tenantId: string;
@@ -1221,7 +1221,7 @@ function ChannelSidebar({
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order");
-      return (data || []) as ChannelCategory[];
+      return (data || []) as Array<ChannelCategory>;
     },
     enabled: !!tenantId,
   });
@@ -1360,14 +1360,14 @@ function TeamMessageList({
   onReplyMessage,
   allMessages,
 }: {
-  messages: TeamMessage[];
+  messages: Array<TeamMessage>;
   currentUserId?: string;
   onConvertToTask?: (msg: TeamMessage) => void;
   onEditMessage?: (msg: TeamMessage, newContent: string) => void;
   onDeleteMessage?: (msg: TeamMessage) => void;
   onNotifyMessage?: (msg: TeamMessage) => void;
   onReplyMessage?: (msg: TeamMessage) => void;
-  allMessages?: TeamMessage[];
+  allMessages?: Array<TeamMessage>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1383,19 +1383,18 @@ function TeamMessageList({
     }
   }, [messages.length]);
 
-  const grouped = messages.reduce<{ date: string; msgs: TeamMessage[] }[]>(
-    (acc, msg) => {
-      const dateStr = format(new Date(msg.created_at), "yyyy-MM-dd");
-      const last = acc[acc.length - 1];
-      if (last && last.date === dateStr) {
-        last.msgs.push(msg);
-      } else {
-        acc.push({ date: dateStr, msgs: [msg] });
-      }
-      return acc;
-    },
-    [],
-  );
+  const grouped = messages.reduce<
+    Array<{ date: string; msgs: Array<TeamMessage> }>
+  >((acc, msg) => {
+    const dateStr = format(new Date(msg.created_at), "yyyy-MM-dd");
+    const last = acc[acc.length - 1];
+    if (last && last.date === dateStr) {
+      last.msgs.push(msg);
+    } else {
+      acc.push({ date: dateStr, msgs: [msg] });
+    }
+    return acc;
+  }, []);
 
   const startEdit = (msg: TeamMessage) => {
     setEditingId(msg.id);
@@ -1780,11 +1779,11 @@ function TeamMessageInput({
   tenantId: string;
   onSent: () => void;
   onFilesUploaded?: (
-    files: { id: string; file_name: string; file_url: string }[],
+    files: Array<{ id: string; file_name: string; file_url: string }>,
   ) => void;
 }) {
   const [text, setText] = useState("");
-  const [attachments, setAttachments] = useState<TeamAttachment[]>([]);
+  const [attachments, setAttachments] = useState<Array<TeamAttachment>>([]);
   const [linkInput, setLinkInput] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -1792,13 +1791,13 @@ function TeamMessageInput({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Array<Blob>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { userId } = useCurrentUser();
 
   // Track uploaded file IDs for linking
   const uploadedFileIdsRef = useRef<
-    { id: string; file_name: string; file_url: string }[]
+    Array<{ id: string; file_name: string; file_url: string }>
   >([]);
 
   const canSend = text.trim() || attachments.length > 0;
@@ -1870,19 +1869,19 @@ function TeamMessageInput({
     setIsRecording(false);
   };
 
-  const uploadFiles = async (files: FileList | File[]) => {
+  const uploadFiles = async (files: FileList | Array<File>) => {
     if (!userId) {
       toast.error("שגיאה: משתמש לא מזוהה. נסה לרענן את הדף.");
       return;
     }
     setUploading(true);
     try {
-      const newAttachments: TeamAttachment[] = [];
-      const newFileRecords: {
+      const newAttachments: Array<TeamAttachment> = [];
+      const newFileRecords: Array<{
         id: string;
         file_name: string;
         file_url: string;
-      }[] = [];
+      }> = [];
 
       for (const file of Array.from(files)) {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -2426,7 +2425,7 @@ function ManageChannelMembersDialog({
   onChanged,
 }: {
   channel: TeamChannel;
-  members: ChannelMember[];
+  members: Array<ChannelMember>;
   tenantId: string;
   currentUserId?: string;
   onChanged: () => void;
@@ -3492,7 +3491,7 @@ function ChannelHeader({
   onChannelDeleted,
 }: {
   channel: TeamChannel;
-  members: ChannelMember[];
+  members: Array<ChannelMember>;
   tenantId: string;
   currentUserId?: string;
   onMembersChanged: () => void;
@@ -3594,7 +3593,7 @@ function ThreadDialog({
       return data.map((m: any) => ({
         ...m,
         sender_profile: profileMap.get(m.sender_id),
-      })) as TeamMessage[];
+      })) as Array<TeamMessage>;
     },
     enabled: !!parentMessage?.id && open,
   });
@@ -3757,7 +3756,7 @@ function NotifyTargetDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  members: ChannelMember[];
+  members: Array<ChannelMember>;
   currentUserId?: string;
   channelHasGroupLink: boolean;
   onSend: (
@@ -3942,7 +3941,7 @@ export default function TeamChat() {
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [taskMessage, setTaskMessage] = useState<TeamMessage | null>(null);
   const [linkDialogFiles, setLinkDialogFiles] = useState<
-    { id: string; file_name: string; file_url: string }[]
+    Array<{ id: string; file_name: string; file_url: string }>
   >([]);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [threadMessage, setThreadMessage] = useState<TeamMessage | null>(null);
@@ -3967,7 +3966,7 @@ export default function TeamChat() {
         .in("id", channelIds)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as TeamChannel[];
+      return data as Array<TeamChannel>;
     },
     enabled: !!tenantId && !!userId,
   });
@@ -4023,7 +4022,7 @@ export default function TeamChat() {
         ...m,
         sender_profile: profileMap.get(m.sender_id),
         reply_count: replyCounts[m.id] || 0,
-      })) as TeamMessage[];
+      })) as Array<TeamMessage>;
     },
     enabled: !!activeChannelId,
   });
@@ -4040,7 +4039,7 @@ export default function TeamChat() {
         .select("*")
         .eq("channel_id", activeChannelId!);
       if (error) throw error;
-      return data as ChannelMember[];
+      return data as Array<ChannelMember>;
     },
     enabled: !!activeChannelId,
   });

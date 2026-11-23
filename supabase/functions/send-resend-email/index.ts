@@ -28,14 +28,14 @@ interface ResendAttachment {
 /** Email as the Resend API expects it. */
 interface ResendEmailPayload {
   from: string;
-  to: string[];
+  to: Array<string>;
   subject: string;
   html?: string;
   text?: string;
   reply_to?: string;
   headers?: Record<string, string>;
-  tags?: { name: string; value: string }[];
-  attachments?: ResendAttachment[];
+  tags?: Array<{ name: string; value: string }>;
+  attachments?: Array<ResendAttachment>;
 }
 
 const corsHeaders = {

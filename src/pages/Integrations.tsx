@@ -39,7 +39,7 @@ interface IntegrationCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
-  features: string[];
+  features: Array<string>;
   isConnected: boolean;
   route: string;
   gradient: string;
@@ -420,7 +420,7 @@ export default function Integrations() {
     enabled: !!currentTenantId,
   });
 
-  const integrations: IntegrationCardProps[] = [
+  const integrations: Array<IntegrationCardProps> = [
     {
       icon: <Brain className="h-6 w-6" />,
       title: "מודלי AI (LLMs)",

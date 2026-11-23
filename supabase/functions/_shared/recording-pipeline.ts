@@ -18,7 +18,7 @@ export interface RecordingRow {
   client_id: string | null;
   lead_id?: string | null;
   agency_id?: string | null;
-  campaigner_ids?: string[] | null;
+  campaigner_ids?: Array<string> | null;
   summary_scope?: "auto" | "client" | "lead" | "campaigner" | "agency" | null;
   meeting_topic: string | null;
   start_time: string | null;

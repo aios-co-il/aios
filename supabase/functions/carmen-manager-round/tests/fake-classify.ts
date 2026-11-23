@@ -15,7 +15,7 @@ export const ASKED_VERDICT: ChatVerdict = {
 };
 
 /** The model's JSON answer for ASKED_VERDICT naming complaint `lines`. */
-export function modelAnswer(lines: number[] = []): string {
+export function modelAnswer(lines: Array<number> = []): string {
   const { complaint_ids: _ids, ...rest } = ASKED_VERDICT;
   return JSON.stringify({ ...rest, complaint_lines: lines });
 }
@@ -31,8 +31,8 @@ export function fakeClassifyPorts(
     costUsd?: number;
   } = {},
 ) {
-  const prompts: string[] = [];
-  const saved: CachedReview[] = [];
+  const prompts: Array<string> = [];
+  const saved: Array<CachedReview> = [];
   const fake: ClassifyPorts = {
     cache: {
       load: () => Promise.resolve(new Map(fields.cached ?? [])),

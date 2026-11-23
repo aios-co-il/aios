@@ -29,13 +29,13 @@ interface Props {
   tenantId: string;
 }
 
-const VISIBILITY_OPTIONS: {
+const VISIBILITY_OPTIONS: Array<{
   value: Visibility;
   label: string;
   description: string;
   icon: React.ReactNode;
   badge?: string;
-}[] = [
+}> = [
   {
     value: "private",
     label: "פרטי",

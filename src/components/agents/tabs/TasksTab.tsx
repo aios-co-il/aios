@@ -234,7 +234,7 @@ export function TasksTab({
           const result = (t as any).result || {};
           const lastOutput =
             result.last_output || result.output || result.error || null;
-          const toolLog: any[] = result.tool_log || result.tools || [];
+          const toolLog: Array<any> = result.tool_log || result.tools || [];
           const sentWa =
             Array.isArray(toolLog) &&
             toolLog.some((x: any) => {

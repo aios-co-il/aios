@@ -468,7 +468,7 @@ export default function TimeTracking() {
   };
 
   // Calculate total break time for a given list of breaks
-  const calculateBreakTime = (breaks: any[]) => {
+  const calculateBreakTime = (breaks: Array<any>) => {
     if (!breaks || breaks.length === 0) return 0;
     return breaks.reduce((acc, brk) => {
       if (!brk.end_time) {
@@ -493,7 +493,7 @@ export default function TimeTracking() {
   const calculateNetWorkTime = (
     start: string,
     end: string | null,
-    breaks: any[],
+    breaks: Array<any>,
   ) => {
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : currentTime;

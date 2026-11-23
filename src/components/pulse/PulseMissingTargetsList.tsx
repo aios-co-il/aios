@@ -17,7 +17,7 @@ import type { PlatformWithoutTarget } from "../../../supabase/functions/_shared/
 type ClientMeta = { name: string; campaignerName: string };
 
 type PulseMissingTargetsListProps = {
-  groups: PlatformWithoutTarget<PulseCampaignGoalRow>[];
+  groups: Array<PlatformWithoutTarget<PulseCampaignGoalRow>>;
   clientMetaById: Map<string, ClientMeta>;
   onOpenClient: (clientId: string) => void;
   onSetTargets: (

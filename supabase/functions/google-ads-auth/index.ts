@@ -370,7 +370,7 @@ async function getAccessibleGoogleAdsIntegrations(
   serviceClient: any,
   tenantId: string,
   userId: string,
-): Promise<any[]> {
+): Promise<Array<any>> {
   // Source tenants from cross-tenant agency access (current tenant accesses others' agencies)
   const { data: accessRows } = await serviceClient
     .from("agency_tenant_access")
@@ -397,7 +397,7 @@ async function getAccessibleGoogleAdsIntegrations(
     .eq("user_id", userId);
   const sharedIds = (permissions || []).map((p: any) => p.integration_id);
 
-  let sharedIntegrations: any[] = [];
+  let sharedIntegrations: Array<any> = [];
   if (sharedIds.length > 0) {
     const { data } = await serviceClient
       .from("tenant_integrations")
@@ -479,7 +479,9 @@ async function refreshIntegrationToken(serviceClient: any, integration: any) {
   };
 }
 
-async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
+async function fetchAccountsForIntegration(
+  integration: any,
+): Promise<Array<any>> {
   const accessToken = integration.api_key;
   const response = await fetch(
     "https://googleads.googleapis.com/v23/customers:listAccessibleCustomers",
@@ -498,7 +500,7 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
 
   if (!accessibleCustomersResult.success) return [];
 
-  const accounts: any[] = [];
+  const accounts: Array<any> = [];
   const resourceNames = accessibleCustomersResult.data?.resourceNames || [];
   const detailQuery = `
     SELECT
@@ -510,8 +512,8 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
     LIMIT 1
   `;
 
-  const mccIds: string[] = [];
-  const failedIds: string[] = [];
+  const mccIds: Array<string> = [];
+  const failedIds: Array<string> = [];
 
   for (const resourceName of resourceNames) {
     const customerId =

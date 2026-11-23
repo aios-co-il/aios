@@ -18,9 +18,9 @@ const BUGFIX = {
 } as const;
 
 type Allowlist = {
-  readonly user_ids: readonly string[];
-  readonly campaigner_ids: readonly string[];
-  readonly phone_suffixes: readonly string[];
+  readonly user_ids: ReadonlyArray<string>;
+  readonly campaigner_ids: ReadonlyArray<string>;
+  readonly phone_suffixes: ReadonlyArray<string>;
 };
 
 function normalizePhoneSuffix(phone: string | null | undefined): string | null {

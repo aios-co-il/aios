@@ -67,7 +67,7 @@ function send(
 }
 
 /** The refusal rows the handler wrote. */
-const refusals = (rest: { path: string; body: unknown }[]) =>
+const refusals = (rest: Array<{ path: string; body: unknown }>) =>
   rest.filter((call) => call.path === "/client_send_refusals");
 
 Deno.test(

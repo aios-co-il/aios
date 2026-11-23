@@ -27,7 +27,7 @@ export type GoalFigure = { label: string; value: string };
 /** One goal's panel: its figures and an optional line under them. */
 export type GoalPanel = {
   goal: ReportCampaignGoal;
-  figures: GoalFigure[];
+  figures: Array<GoalFigure>;
   note: string | null;
 };
 
@@ -44,7 +44,7 @@ type PanelInput = {
 };
 
 /** A panel per goal that has campaigns, in report order. */
-export function goalPanels(input: PanelInput): GoalPanel[] {
+export function goalPanels(input: PanelInput): Array<GoalPanel> {
   const present = new Set(input.summary.rows.map((row) => row.goal));
   return REPORT_CAMPAIGN_GOALS.filter((goal) => present.has(goal)).map((goal) =>
     PANELS[goal](input),

@@ -88,13 +88,13 @@ export interface SendSignatureDialogProps {
   clientId?: string;
   documentTitleOverride?: string;
   onSuccess?: (result: {
-    signingLinks: SigningLinkResult[];
+    signingLinks: Array<SigningLinkResult>;
     documentId: string;
   }) => void;
 }
 
 /** Three independent actions — none depends on the others. */
-const EMPTY_RECIPIENTS: { name: string; email: string }[] = [];
+const EMPTY_RECIPIENTS: Array<{ name: string; email: string }> = [];
 
 type SendAction = "copy" | "email" | "whatsapp";
 
@@ -117,7 +117,7 @@ export function SendSignatureDialog({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState<SendAction | null>(null);
-  const [links, setLinks] = useState<SigningLinkResult[]>([]);
+  const [links, setLinks] = useState<Array<SigningLinkResult>>([]);
   const [lastAction, setLastAction] = useState<SendAction | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const logoChoice = useRef<"auto" | "manual">("auto");

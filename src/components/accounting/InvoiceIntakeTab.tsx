@@ -246,9 +246,9 @@ function InvoiceCard({
   onChanged,
 }: {
   invoice: Invoice;
-  suppliers: any[];
-  clients: any[];
-  agencies: any[];
+  suppliers: Array<any>;
+  clients: Array<any>;
+  agencies: Array<any>;
   tenantId: string;
   onChanged: () => void;
 }) {

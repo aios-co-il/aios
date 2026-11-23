@@ -6,12 +6,12 @@
  * the same ones, so a new key is added here once for both.
  */
 
-export const META_TABLE_TYPES: readonly string[] = [
+export const META_TABLE_TYPES: ReadonlyArray<string> = [
   "facebook_insights",
   "facebook_ecommerce",
 ];
 
-export const META_SETTING_KEYS: readonly string[] = [
+export const META_SETTING_KEYS: ReadonlyArray<string> = [
   "ad_account_id",
   "account_id",
   "meta_account_id",

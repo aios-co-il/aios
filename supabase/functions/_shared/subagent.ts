@@ -28,7 +28,7 @@ export interface SpawnSubagentParams {
   title: string;
   prompt: string;
   taskMode?: string;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
   priority?: number;
   createdBy?: string | null;
   /** Optional dedupe key — a live task with the same (tenant, key) is reused. */
@@ -273,7 +273,7 @@ const MUTATING_SKINS = new Set([
  *  defaulting to dangerous when unknown (conservative — serialize unless proven safe). */
 function itemIsDangerous(it: {
   sideEffects?: boolean;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
 }): boolean {
   const skins = it.taskSkills || [];
   if (it.sideEffects === false) {
@@ -296,7 +296,7 @@ export async function spawnSubagentBatch(
   items: Array<{
     title: string;
     prompt: string;
-    taskSkills?: string[];
+    taskSkills?: Array<string>;
     sideEffects?: boolean;
   }>,
   batchId: string,
@@ -341,7 +341,7 @@ export async function getBatchResults(
   failed: number;
   running: number;
   all_done: boolean;
-  tasks: SubagentResultPayload[];
+  tasks: Array<SubagentResultPayload>;
 }> {
   const { data, error } = await supabase
     .from("agent_tasks")
@@ -350,8 +350,8 @@ export async function getBatchResults(
     .eq("batch_id", batchId);
   if (error) throw new Error(`getBatchResults: ${error.message}`);
 
-  const rows = (data || []) as any[];
-  const tasks: SubagentResultPayload[] = rows.map((row) => {
+  const rows = (data || []) as Array<any>;
+  const tasks: Array<SubagentResultPayload> = rows.map((row) => {
     const result = (row.result || {}) as any;
     const status = row.status as string;
     let output: string | undefined;

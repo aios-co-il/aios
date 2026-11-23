@@ -47,7 +47,7 @@ describe("withInternalFallback", () => {
       { kind: "denied" },
       { kind: "refused", message: "not ready" },
       { kind: "internal" },
-    ] as BrainEngine[]) {
+    ] as Array<BrainEngine>) {
       assertEquals(withInternalFallback(engine, true), { kind: "internal" });
     }
   });

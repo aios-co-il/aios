@@ -138,7 +138,7 @@ export function SeoGeoWorkflowStudio({
         .eq("work_item_id", workItem.id)
         .order("sort_order");
       if (error) throw error;
-      return (data ?? []) as SeoGeoKeyword[];
+      return (data ?? []) as Array<SeoGeoKeyword>;
     },
   });
 
@@ -151,7 +151,7 @@ export function SeoGeoWorkflowStudio({
         .eq("work_item_id", workItem.id)
         .order("scheduled_date");
       if (error) throw error;
-      return (data ?? []) as SeoGeoCalendarEntry[];
+      return (data ?? []) as Array<SeoGeoCalendarEntry>;
     },
   });
 
@@ -251,7 +251,7 @@ export function SeoGeoWorkflowStudio({
     [month],
   );
   const byDay = useMemo(() => {
-    const map = new Map<string, SeoGeoCalendarEntry[]>();
+    const map = new Map<string, Array<SeoGeoCalendarEntry>>();
     for (const entry of entries) {
       const key = entry.scheduled_date.slice(0, 10);
       map.set(key, [...(map.get(key) ?? []), entry]);

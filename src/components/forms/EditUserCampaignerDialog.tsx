@@ -55,8 +55,8 @@ export function EditUserCampaignerDialog({
   );
   const [newCampaignerPhone, setNewCampaignerPhone] = useState("");
   const [newCampaignerEmail, setNewCampaignerEmail] = useState(userEmail || "");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>([]);
+  const [selectedRoles, setSelectedRoles] = useState<Array<string>>([]);
   const [notes, setNotes] = useState("");
 
   // Fetch current user's campaigner

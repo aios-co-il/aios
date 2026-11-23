@@ -44,14 +44,14 @@ export function readSavedRouteSlug(
 /** First paint is Carmen Direct (כרמן ישיר). Saved slug is not applied until a chat is restored. */
 export function initialSelectedRoute(
   _tenantId?: string | null,
-  routes: BrainRoute[] = FALLBACK_BRAIN_ROUTES,
+  routes: Array<BrainRoute> = FALLBACK_BRAIN_ROUTES,
 ): BrainRoute {
   return pickDefaultRoute(routes);
 }
 
 /** Last chat's brain wins. Empty session stays on Carmen Direct. */
 export function routeForRestoredChat(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   lastChat?: {
     brain_route_id?: string | null;
     routing_mode?: string | null;
@@ -70,7 +70,7 @@ export function routeForRestoredChat(
   return pickDefaultRoute(routes);
 }
 
-export const FALLBACK_BRAIN_ROUTES: BrainRoute[] = [
+export const FALLBACK_BRAIN_ROUTES: Array<BrainRoute> = [
   {
     id: "fallback-cursor",
     slug: "cursor",
@@ -128,7 +128,7 @@ export function storageKeyForRoute(tenantId: string): string {
 }
 
 export function pickDefaultRoute(
-  list: BrainRoute[],
+  list: Array<BrainRoute>,
   saved?: string | null,
 ): BrainRoute {
   if (saved) {
@@ -158,7 +158,7 @@ export function groupLabel(type: BrainRouteType): string {
 /** Labels of the tenant's brains, so a model brain's replies show its name. */
 const routeLabels = new Map<string, string>();
 
-export function rememberRouteLabels(routes: BrainRoute[]): void {
+export function rememberRouteLabels(routes: Array<BrainRoute>): void {
   for (const r of routes)
     if (r.slug && r.label) routeLabels.set(r.slug, r.label);
 }
@@ -267,7 +267,7 @@ export function slugForCouncilSeat(id: CouncilSeatId): string {
 
 /** Table stays up. A tapped seat is who we address; no seat = the whole council. */
 export function routeForTableAddress(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   addressed: CouncilSeatId | null,
 ): BrainRoute | undefined {
   if (!addressed)
@@ -289,7 +289,7 @@ export function councilSeatFromSlug(
 
 export function parliamentSeats(
   route: BrainRoute | null | undefined,
-): string[] {
+): Array<string> {
   const raw = route?.config?.seats;
   if (Array.isArray(raw) && raw.length) return raw.map(String);
   return ["cursor", "grok", "codex"];
@@ -324,13 +324,13 @@ const SEAT_LABEL: Record<string, string> = {
 };
 
 export function deriveParliamentView(
-  messages: ChatLike[],
+  messages: Array<ChatLike>,
   route: BrainRoute | null,
 ): {
   round: number;
   maxRounds: number;
   topic: string;
-  seats: ParliamentSeatView[];
+  seats: Array<ParliamentSeatView>;
   carmenSummary: string | null;
 } {
   const names = parliamentSeats(route);
@@ -363,7 +363,7 @@ export function deriveParliamentView(
       )?.content ||
     null;
 
-  const seats: ParliamentSeatView[] = names.map((provider) => {
+  const seats: Array<ParliamentSeatView> = names.map((provider) => {
     const replies = messages.filter(
       (m) =>
         (m.role === "assistant" || m.role === "tool_call") &&

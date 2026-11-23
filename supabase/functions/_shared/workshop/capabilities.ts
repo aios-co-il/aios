@@ -56,7 +56,7 @@ export function capabilityReport(
   );
   // An OpenRouter brain also makes pictures and narrates (ElevenLabs voices through OpenRouter).
   const openRouter = connections.openrouter === true;
-  const missing: string[] = [];
+  const missing: Array<string> = [];
   if (images.length === 0 && !openRouter)
     missing.push(
       "אין מפתח ליצירת תמונות: צריך מוח OpenRouter או אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",

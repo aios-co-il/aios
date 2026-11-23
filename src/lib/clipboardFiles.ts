@@ -24,9 +24,9 @@ export function filesFromClipboardData(
     }>;
     files?: Iterable<File> | FileList | null;
   } | null,
-): File[] {
+): Array<File> {
   if (!data) return [];
-  const files: File[] = [];
+  const files: Array<File> = [];
   const seen = new Set<string>();
   const push = (file: File | null | undefined) => {
     if (!file) return;
@@ -75,7 +75,7 @@ export function isFilePasteField(target: EventTarget | null): boolean {
 /** Page-level Ctrl+V: images leave notes and become attachments; other text stays in the field. */
 export function shouldUploadClipboardPaste(
   target: EventTarget | null,
-  files: File[],
+  files: Array<File>,
 ): boolean {
   if (!files.length) return false;
   if (isClipboardTypingTarget(target) && !files.some(isClipboardImage))

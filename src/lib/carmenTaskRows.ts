@@ -245,7 +245,7 @@ export type TaskFilter =
   | "automation"
   | "system";
 
-export const FILTERS: { value: TaskFilter; label: string }[] = [
+export const FILTERS: Array<{ value: TaskFilter; label: string }> = [
   { value: "all", label: "הכל" },
   { value: "running", label: "רצות עכשיו" },
   { value: "recurring", label: "חוזרות" },
@@ -256,8 +256,8 @@ export const FILTERS: { value: TaskFilter; label: string }[] = [
   { value: "system", label: "מערכת" },
 ];
 
-const FINISHED: TaskStatus[] = ["done", "cancelled"];
-const ORDER: TaskStatus[] = [
+const FINISHED: Array<TaskStatus> = ["done", "cancelled"];
+const ORDER: Array<TaskStatus> = [
   "running",
   "failed",
   "blocked",
@@ -271,10 +271,10 @@ const ORDER: TaskStatus[] = [
 
 /** Filter + sort rows for the panel. Finished items are hidden unless asked. */
 export function selectRows(
-  rows: CarmenTaskRow[],
+  rows: Array<CarmenTaskRow>,
   filter: TaskFilter,
   opts: { showFinished?: boolean; search?: string } = {},
-): CarmenTaskRow[] {
+): Array<CarmenTaskRow> {
   const q = (opts.search || "").trim().toLowerCase();
   return rows
     .filter((r) => {
@@ -296,6 +296,6 @@ export function selectRows(
     });
 }
 
-export function countRunning(rows: CarmenTaskRow[]): number {
+export function countRunning(rows: Array<CarmenTaskRow>): number {
   return rows.filter((r) => r.status === "running").length;
 }

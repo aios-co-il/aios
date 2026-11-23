@@ -13,7 +13,7 @@ export type ConnectionFieldMap = Partial<
  */
 export function countFilledConnections(
   fields: ConnectionFieldMap,
-  services: string[] | null | undefined = [],
+  services: Array<string> | null | undefined = [],
 ): number {
   const s = Array.isArray(services) ? services : [];
   const has = (key: ChannelFieldKey) => !!String(fields[key] ?? "").trim();
@@ -35,12 +35,14 @@ export function countFilledConnections(
 
 export function shouldCreateDashboardForConnections(
   fields: ConnectionFieldMap,
-  services: string[] | null | undefined = [],
+  services: Array<string> | null | undefined = [],
 ): boolean {
   return countFilledConnections(fields, services) > 1;
 }
 
-export function isSeoClient(services: string[] | null | undefined): boolean {
+export function isSeoClient(
+  services: Array<string> | null | undefined,
+): boolean {
   return Array.isArray(services) && services.includes("seo");
 }
 

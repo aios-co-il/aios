@@ -76,7 +76,7 @@ export async function tenantRoleFor(
       .eq("user_id", user)
       .or(`tenant_id.eq.${tenant},tenant_id.is.null`),
   );
-  const roles: string[] = found.map((r) => r.role);
+  const roles: Array<string> = found.map((r) => r.role);
   return ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
 }
 
@@ -84,7 +84,7 @@ export async function tenantRoleFor(
 export async function managedAgencyIdsFor(
   supabase: Pick<DbClient, "from">,
   userId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const found = await queryRows(
     supabase
       .from("user_managed_agencies")

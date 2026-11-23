@@ -31,7 +31,7 @@ function prefersReducedMotion() {
 let lastMessageIndex = 0;
 
 function useRotatingMessage(
-  messages: string[],
+  messages: Array<string>,
   intervalMs: number,
   resume: boolean,
 ) {
@@ -146,7 +146,7 @@ export interface CarmenLoadingScreenProps {
   variant?: "page" | "card" | "inline";
   title?: string;
   /** Rotating status lines; pass one item to keep it static. */
-  messages?: string[];
+  messages?: Array<string>;
   /** Wait this long before showing the scene; the thin route bar covers this gap. */
   delayMs?: number;
   className?: string;

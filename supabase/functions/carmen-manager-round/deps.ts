@@ -29,7 +29,7 @@ export type RoundDeps = CollectorRunDeps & {
   send: SendStaffMessage;
   /** The morning brief's link to the card-drafts page (app-link.ts). */
   cardDraftsLink: CardDraftsLink;
-  collectors: readonly Collector[];
+  collectors: ReadonlyArray<Collector>;
   clock: () => Date;
 };
 

@@ -256,7 +256,7 @@ const normalizeHex = (value: string) => {
 
 export const applyBrandPalette = (
   base: Palette,
-  colors?: string[],
+  colors?: Array<string>,
 ): Palette => {
   const cleaned = (colors ?? [])
     .map(normalizeHex)
@@ -496,7 +496,7 @@ export const heroWord = (headline?: string): string | undefined => {
   return (two.length <= 16 ? two : words[0]).slice(0, 16);
 };
 
-const splitSentences = (value: string): string[] =>
+const splitSentences = (value: string): Array<string> =>
   value
     .split(/(?<=[.!?…])\s+|(?<=[。])/)
     .map(cleanLine)
@@ -776,7 +776,7 @@ export const isLegacyHeadlineBand = (layer: CreativeLayer): boolean =>
   layer.height <= 36;
 
 export const shouldRebuildDesignedLayers = (
-  layers: CreativeLayer[],
+  layers: Array<CreativeLayer>,
   copyText?: string,
 ): boolean => {
   if (
@@ -843,7 +843,7 @@ export const shouldRebuildDesignedLayers = (
 };
 
 export const pickNextVariationStyle = (
-  _used: CreativeVisualStyleId[] = [],
+  _used: Array<CreativeVisualStyleId> = [],
 ): CreativeVisualStyle => visualStyleById("adaptive");
 
 const layer = (partial: Omit<CreativeLayer, "id">): CreativeLayer => ({
@@ -872,10 +872,10 @@ export const makeLogoLayer = (
   });
 
 export const ensureLogoLayer = (
-  layers: CreativeLayer[],
+  layers: Array<CreativeLayer>,
   logoUrl?: string,
   slot?: { x: number; y: number; width: number; height: number },
-): CreativeLayer[] => {
+): Array<CreativeLayer> => {
   const withoutLogo = layers.filter((item) => !isLogoLayer(item));
   if (!logoUrl) return withoutLogo;
   const existing = layers.find(isLogoLayer);
@@ -909,8 +909,8 @@ export const buildDesignedCopyLayers = ({
   title?: string;
   logoUrl?: string;
   compositionId?: CompositionId;
-  brandColors?: string[];
-}): CreativeLayer[] => {
+  brandColors?: Array<string>;
+}): Array<CreativeLayer> => {
   const parts = parseCreativeCopy(copyText ?? "", title);
   const poster = strongestLine(copyText ?? "", title);
   if (!poster && !parts.cta) return [];
@@ -943,7 +943,7 @@ export const buildDesignedCopyLayers = ({
     });
   }
 
-  const layers: CreativeLayer[] = [];
+  const layers: Array<CreativeLayer> = [];
 
   if (poster && composition.field) {
     layers.push(
@@ -1076,7 +1076,7 @@ export const hydrateVariationLayers = (
   title?: string,
   styleId?: CreativeVisualStyleId,
   logoUrl?: string,
-  brandColors?: string[],
+  brandColors?: Array<string>,
   liveTextLayers?: boolean,
 ): CreativeVariation => {
   const compositionId =

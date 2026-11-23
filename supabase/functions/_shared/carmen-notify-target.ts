@@ -47,11 +47,13 @@ export type ResolveCarmenNotifyTargetInput = {
   /** Explicit chat_id / phone from the caller (highest priority). */
   preferredPhone?: string | null;
   /** Whom the tenant's Carmen reports to (loadCarmenReportRecipients), in order. */
-  reportRecipients?: Pick<CarmenReportRecipient, "phone" | "name" | "source">[];
+  reportRecipients?: Array<
+    Pick<CarmenReportRecipient, "phone" | "name" | "source">
+  >;
   /** Non-group carmen_whatsapp_sessions for the tenant (newest first preferred). */
-  sessions: NotifySessionCandidate[];
+  sessions: Array<NotifySessionCandidate>;
   /** Active tenant campaigners with phones (this tenant only). */
-  staff: NotifyStaffCandidate[];
+  staff: Array<NotifyStaffCandidate>;
 };
 
 export type ResolveCarmenNotifyTargetResult = {
@@ -114,7 +116,7 @@ function staffSortKey(s: NotifyStaffCandidate): number {
 }
 
 function findSessionForPhone(
-  sessions: NotifySessionCandidate[],
+  sessions: Array<NotifySessionCandidate>,
   phone: string,
 ): NotifySessionCandidate | null {
   // Group rows store the last speaker's phone (David chatting in AfterLead-DMM).
@@ -133,7 +135,7 @@ function findSessionForPhone(
  * always the private phone — never the freshest @g.us row.
  */
 export function pickNotifyDelivery(
-  sessions: NotifyBridgeSession[],
+  sessions: Array<NotifyBridgeSession>,
   target: Pick<ResolveCarmenNotifyTargetResult, "chatId" | "phone">,
 ): {
   chatId: string;
@@ -165,7 +167,7 @@ export function pickNotifyDelivery(
 
 function contactNameFor(
   session: NotifySessionCandidate | null,
-  staff: NotifyStaffCandidate[],
+  staff: Array<NotifyStaffCandidate>,
   phone: string,
 ): string | null {
   return (

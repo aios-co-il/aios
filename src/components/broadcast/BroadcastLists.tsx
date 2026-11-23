@@ -154,7 +154,7 @@ function ListDetailDialog({
   const [csv, setCsv] = useState("");
   // sheet
   const [sheetUrl, setSheetUrl] = useState("");
-  const [headers, setHeaders] = useState<string[] | null>(null);
+  const [headers, setHeaders] = useState<Array<string> | null>(null);
   const [map, setMap] = useState<Record<string, string>>({});
   const [autoSync, setAutoSync] = useState(false);
   const [loadingHeaders, setLoadingHeaders] = useState(false);

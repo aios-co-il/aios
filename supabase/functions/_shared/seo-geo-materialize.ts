@@ -7,31 +7,31 @@ type ContentPlanItem = {
   cluster?: string;
   intent?: string;
   angle?: string;
-  geoQuestions?: string[];
+  geoQuestions?: Array<string>;
   priority?: string;
 };
 
 type Cluster = {
   name?: string;
   pillarKeyword?: string;
-  supportingKeywords?: string[];
+  supportingKeywords?: Array<string>;
   intent?: string;
   priority?: string;
   evidence?: string;
 };
 
 type SeoPlan = {
-  clusters?: Cluster[];
-  contentPlan?: ContentPlanItem[];
+  clusters?: Array<Cluster>;
+  contentPlan?: Array<ContentPlanItem>;
 };
 
-function spreadDates(count: number, horizonMonths: number): string[] {
+function spreadDates(count: number, horizonMonths: number): Array<string> {
   if (count <= 0) return [];
   const start = new Date();
   start.setUTCHours(12, 0, 0, 0);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + Math.max(1, horizonMonths));
-  const days: string[] = [];
+  const days: Array<string> = [];
   for (
     let cursor = new Date(start);
     cursor <= end;
@@ -81,13 +81,13 @@ export async function materializeSeoGeoPlan(
       .eq("work_item_id", workItemId);
   }
 
-  const keywordRows: Record<string, unknown>[] = [];
+  const keywordRows: Array<Record<string, unknown>> = [];
   let sort = 0;
   for (const cluster of plan.clusters ?? []) {
     const keywords = [
       cluster.pillarKeyword,
       ...(cluster.supportingKeywords ?? []),
-    ].filter(Boolean) as string[];
+    ].filter(Boolean) as Array<string>;
     for (const keyword of keywords) {
       keywordRows.push({
         tenant_id: tenantId,

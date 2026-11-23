@@ -51,7 +51,7 @@ type HeartbeatSettingsInput = {
   interval_hours: number;
   active_hours_start: number;
   active_hours_end: number;
-  allowed_actions: string[];
+  allowed_actions: Array<string>;
   campaign_pulse_enabled?: boolean;
   campaign_pulse_deliver_to_campaigners?: boolean;
   campaign_pulse_deliver_to_team_managers?: boolean;
@@ -122,7 +122,8 @@ export function HeartbeatSettingsPanel() {
   });
 
   const allowedActions =
-    (heartbeatSettings?.allowed_actions as string[]) || DEFAULT_ALLOWED_ACTIONS;
+    (heartbeatSettings?.allowed_actions as Array<string>) ||
+    DEFAULT_ALLOWED_ACTIONS;
 
   // Fields sent with every save (same fallbacks as the stored defaults).
   const coreSettings = () => ({
@@ -373,9 +374,9 @@ export function HeartbeatSettingsPanel() {
                   {log.summary}
                 </p>
                 {log.actions_taken &&
-                  (log.actions_taken as any[]).length > 0 && (
+                  (log.actions_taken as Array<any>).length > 0 && (
                     <div className="mt-1 pt-1 border-t">
-                      {(log.actions_taken as any[]).map(
+                      {(log.actions_taken as Array<any>).map(
                         (action: any, i: number) => (
                           <div
                             key={i}

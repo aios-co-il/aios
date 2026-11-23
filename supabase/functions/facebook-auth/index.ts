@@ -227,7 +227,7 @@ serve(async (req) => {
       }
 
       // Get user's pages with pagination - Page tokens from long-lived user tokens are PERMANENT!
-      let allPages: any[] = [];
+      let allPages: Array<any> = [];
       let pagesUrl = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token&limit=100&access_token=${finalToken}`;
 
       while (pagesUrl) {

@@ -132,7 +132,7 @@ interface ChatMessage {
   id?: string;
   role: "user" | "assistant" | "tool_call";
   content?: string;
-  attachments?: CommandCenterAttachment[];
+  attachments?: Array<CommandCenterAttachment>;
   tool?: string;
   speaker?: string;
   channel?: string;
@@ -203,9 +203,11 @@ export const CarmenChatBar = forwardRef<
   const identity = useCarmenIdentity();
   const isSidecar = mode === "sidecar";
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<CommandCenterAttachment[]>([]);
+  const [attachments, setAttachments] = useState<
+    Array<CommandCenterAttachment>
+  >([]);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Array<ChatMessage>>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   // Read synchronously by sendText, so a message typed mid-answer is queued, not sent in parallel.
@@ -214,8 +216,8 @@ export const CarmenChatBar = forwardRef<
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
   const run = useRunControl(tenantId);
-  const [liveStreamIds, setLiveStreamIds] = useState<string[]>([]);
-  const liveStreamIdsRef = useRef<string[]>([]);
+  const [liveStreamIds, setLiveStreamIds] = useState<Array<string>>([]);
+  const liveStreamIdsRef = useRef<Array<string>>([]);
   liveStreamIdsRef.current = liveStreamIds;
   const streamBufRef = useRef<Record<string, string>>({});
   const [inputMode, setInputMode] = useState<CarmenInputMode>("typed");
@@ -248,7 +250,7 @@ export const CarmenChatBar = forwardRef<
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playingRef = useRef<HTMLAudioElement | null>(null);
   // Sentence-streaming TTS: queue of segments + generation counter for cancellation
-  const ttsQueueRef = useRef<string[]>([]);
+  const ttsQueueRef = useRef<Array<string>>([]);
   const ttsPumpingRef = useRef(false);
   const ttsGenRef = useRef(0);
   // Continuous conversation mode (VAD): refs so async loops see fresh state
@@ -256,7 +258,7 @@ export const CarmenChatBar = forwardRef<
   const inputModeRef = useRef<CarmenInputMode>("typed");
   const micStreamRef = useRef<MediaStream | null>(null);
   const transcribeRecorderRef = useRef<MediaRecorder | null>(null);
-  const transcribeChunksRef = useRef<Blob[]>([]);
+  const transcribeChunksRef = useRef<Array<Blob>>([]);
   // OpenAI Realtime session — the only Command Center voice path
   const realtimeRef = useRef<RealtimeHandle | null>(null);
   const { toast } = useToast();
@@ -669,7 +671,7 @@ export const CarmenChatBar = forwardRef<
       text: string,
       opts?: {
         inputMode?: CarmenInputMode;
-        attachments?: CommandCenterAttachment[];
+        attachments?: Array<CommandCenterAttachment>;
       },
     ) => {
       const trimmed = text.trim();
@@ -1340,7 +1342,7 @@ export const CarmenChatBar = forwardRef<
   // Save the thread to ai_conversations after every completed exchange, so
   // it survives refreshes and appears in the history drawer.
   const persistConversation = useCallback(
-    async (msgs: ChatMessage[]) => {
+    async (msgs: Array<ChatMessage>) => {
       const textMsgs = msgs
         .filter((m) => m.role !== "tool_call")
         .map((m) => ({
@@ -1603,7 +1605,7 @@ export const CarmenChatBar = forwardRef<
         .select("id, title, updated_at, status, routing_mode, brain_route_id")
         .order("updated_at", { ascending: false })
         .limit(40);
-      return (data ?? []) as TopicChat[];
+      return (data ?? []) as Array<TopicChat>;
     },
   });
 
@@ -2053,7 +2055,9 @@ export const CarmenChatBar = forwardRef<
                   }
                 >
                   {(
-                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
+                    Object.keys(
+                      MIC_CAPTURE_MODE_LABELS,
+                    ) as Array<MicCaptureMode>
                   ).map((mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}
@@ -2120,13 +2124,13 @@ export const CarmenChatBar = forwardRef<
             className="max-w-[120px] bg-transparent text-xs text-[var(--cc-text)] outline-none"
             disabled={isConvMode || isTranscribeRecording || isTranscribing}
           >
-            {(Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]).map(
-              (mode) => (
-                <option key={mode} value={mode}>
-                  {MIC_CAPTURE_MODE_LABELS[mode]}
-                </option>
-              ),
-            )}
+            {(
+              Object.keys(MIC_CAPTURE_MODE_LABELS) as Array<MicCaptureMode>
+            ).map((mode) => (
+              <option key={mode} value={mode}>
+                {MIC_CAPTURE_MODE_LABELS[mode]}
+              </option>
+            ))}
           </select>
         </div>
         <div

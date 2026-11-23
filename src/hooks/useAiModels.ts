@@ -8,7 +8,7 @@ export interface AiModel {
   label: string;
   family: "google" | "openai" | "anthropic" | "manus";
   context_window?: number;
-  capabilities?: string[];
+  capabilities?: Array<string>;
   isLatest?: boolean;
   recommended?: boolean;
   cheap?: boolean;
@@ -25,10 +25,10 @@ export function useAiModels() {
   return useQuery({
     queryKey: ["ai-models"],
     staleTime: 30 * 60 * 1000,
-    queryFn: async (): Promise<AiModel[]> => {
+    queryFn: async (): Promise<Array<AiModel>> => {
       const { data, error } = await supabase.functions.invoke("list-ai-models");
       if (error) throw error;
-      return (data?.models ?? []) as AiModel[];
+      return (data?.models ?? []) as Array<AiModel>;
     },
   });
 }

@@ -44,7 +44,7 @@ export function resolveTaskNotificationSenderTenantIds(input: {
   campaignerTenantId?: string | null;
   salesPersonTenantId?: string | null;
   fallbackTenantId?: string | null;
-}): string[] {
+}): Array<string> {
   const preferred = input.notifyCreator
     ? [input.creatorHomeTenantId]
     : [input.campaignerTenantId, input.salesPersonTenantId];

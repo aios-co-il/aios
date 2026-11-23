@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       // Missing or invalid batch parameters use the default full sync below.
     }
     const batchOffset = body.batch_offset || 0;
-    const tableIds: string[] | null = body.table_ids || null;
+    const tableIds: Array<string> | null = body.table_ids || null;
 
     // Get Facebook Insights tables
     let query = supabase
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       has_more: hasMore,
       synced: 0,
       failed: 0,
-      errors: [] as string[],
+      errors: [] as Array<string>,
     };
 
     for (const table of tables || []) {
@@ -469,11 +469,11 @@ Deno.serve(async (req) => {
             status: string;
             emoji: string;
             label: string;
-            campaigns: CampaignStatus[];
+            campaigns: Array<CampaignStatus>;
           }> = [];
           const buckets: Record<
             string,
-            { emoji: string; label: string; campaigns: CampaignStatus[] }
+            { emoji: string; label: string; campaigns: Array<CampaignStatus> }
           > = {
             DISAPPROVED: {
               emoji: "❌",

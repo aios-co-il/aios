@@ -75,7 +75,7 @@ export function useUserRole() {
   const { data: campaignerRoleTags } = useQuery({
     queryKey: ["user-campaigner-role-tags", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return [] as string[];
+      if (!campaignerId) return [] as Array<string>;
       const { data } = await supabase
         .from("campaigners")
         .select("role")

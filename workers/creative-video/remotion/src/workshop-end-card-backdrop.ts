@@ -21,7 +21,7 @@ export type EndCardBackground = (typeof END_CARD_BACKGROUNDS)[number];
 /** The chosen background; a film without a known choice keeps its last scene behind the card. */
 export const endCardBackgroundOf = (value: unknown): EndCardBackground =>
   typeof value === "string" &&
-  (END_CARD_BACKGROUNDS as readonly string[]).includes(value)
+  (END_CARD_BACKGROUNDS as ReadonlyArray<string>).includes(value)
     ? (value as EndCardBackground)
     : "last-scene";
 
@@ -63,7 +63,7 @@ const BLOBS = [
 ] as const;
 
 /** The gradient's blobs at `frame`: each drifts on its own slow loop around its place. */
-export const blobsAt = (frame: number, fps = 30): Blob[] =>
+export const blobsAt = (frame: number, fps = 30): Array<Blob> =>
   BLOBS.map((blob, index) => {
     const t = (frame / fps) * 0.45 * blob.speed + blob.phase;
     return {
@@ -93,7 +93,7 @@ const RAYS = [
 ] as const;
 
 /** The rays at `frame`: each sweeps a few degrees to and fro and breathes in brightness. */
-export const raysAt = (frame: number, fps = 30): Ray[] =>
+export const raysAt = (frame: number, fps = 30): Array<Ray> =>
   RAYS.map((ray) => {
     const t = (frame / fps) * 0.5 + ray.phase;
     return {

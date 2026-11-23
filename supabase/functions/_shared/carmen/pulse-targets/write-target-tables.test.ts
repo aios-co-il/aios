@@ -13,7 +13,7 @@ import { writeTargetToTables } from "./write-target-tables.ts";
 const MARKET = { cpl: 90, source: "carmen_market", rationale: "בנצ׳מרק" };
 
 /** client-1 with two Meta tables holding Carmen's market CPL. */
-function twoMetaTables(...failOn: FailOn[]) {
+function twoMetaTables(...failOn: Array<FailOn>) {
   const tables = seed({ pulse_platform_targets: { leads: MARKET } });
   tables.crm_tables.push({
     ...tables.crm_tables[0],

@@ -20,7 +20,7 @@ export const SILENT_TURN_NUDGE =
   "(הודעת מערכת) סיימת את התור בלי לענות ובלי לבצע את הבקשה. המשתמש ביקש משהו ברור: המשיכי עכשיו לשלב הבא בעצמך. אם הבקשה ברורה, קראי לכלי היצירה המתאים (הוא יחזור אליך עם עלות לאישור אם צריך). אם באמת חסר פרט אחד, שאלי עליו שאלה אחת קצרה. אל תבקשי מהמשתמש לכתוב את הבקשה מחדש.";
 
 /** Workshop tools ran, but none of them moved the work forward or reported an outcome. */
-export function shouldNudgeSilentTurn(log: ToolLogEntry[]): boolean {
+export function shouldNudgeSilentTurn(log: Array<ToolLogEntry>): boolean {
   const workshop = log.filter((entry) => entry.tool.startsWith("workshop_"));
   if (workshop.length === 0) return false;
   return !workshop.some((entry) => {

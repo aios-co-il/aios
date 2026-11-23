@@ -29,7 +29,7 @@ type User = {
   /** tenant_users rows: tenant → role. */
   members: Record<string, string>;
   /** user_roles rows scoped to a tenant. */
-  roles?: Record<string, string[]>;
+  roles?: Record<string, Array<string>>;
   superAdmin?: boolean;
 };
 
@@ -77,7 +77,7 @@ const userById = (id: string) => {
 };
 
 /** AdToolIdentity over USERS; records "getUserId" in `calls`. */
-export function identity(calls: string[] = []): AdToolIdentity {
+export function identity(calls: Array<string> = []): AdToolIdentity {
   return {
     getUserId: async (token) => {
       calls.push("getUserId");
@@ -96,7 +96,7 @@ export function identity(calls: string[] = []): AdToolIdentity {
   };
 }
 
-const CLIENTS: (ScopeClient & { meta: string; google?: string })[] = [
+const CLIENTS: Array<ScopeClient & { meta: string; google?: string }> = [
   {
     id: CA,
     tenant_id: A,

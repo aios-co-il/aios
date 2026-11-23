@@ -150,7 +150,7 @@ export function PipelineCanvas({
     return counts;
   }, [items]);
 
-  const nodes: Node[] = useMemo(() => {
+  const nodes: Array<Node> = useMemo(() => {
     return (stages ?? []).map((s: any) => ({
       id: s.id,
       type: "stage",
@@ -168,12 +168,12 @@ export function PipelineCanvas({
     }));
   }, [stages, itemCounts]);
 
-  const edges: Edge[] = useMemo(() => {
+  const edges: Array<Edge> = useMemo(() => {
     if (!stages) return [];
     const sorted = [...stages].sort(
       (a: any, b: any) => a.sort_order - b.sort_order,
     );
-    const out: Edge[] = [];
+    const out: Array<Edge> = [];
     for (let i = 0; i < sorted.length - 1; i++) {
       out.push({
         id: `${sorted[i].id}-${sorted[i + 1].id}`,

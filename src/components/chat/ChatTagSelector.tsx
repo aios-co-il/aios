@@ -26,7 +26,7 @@ interface ChatTagSelectorProps {
   contactType: "client" | "lead" | "group" | "unknown";
   senderPhone?: string;
   /** Pre-fetched tag IDs to avoid N+1 queries - pass this from parent when available */
-  initialTagIds?: string[];
+  initialTagIds?: Array<string>;
 }
 
 export function ChatTagSelector({
@@ -52,7 +52,7 @@ export function ChatTagSelector({
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as ChatTag[];
+      return data as Array<ChatTag>;
     },
     enabled: !!tenantId,
     staleTime: 60000, // Cache for 1 minute
@@ -150,7 +150,7 @@ export function ChatTagSelector({
       });
 
       // Snapshot previous values for rollback
-      const previousContactTags = queryClient.getQueryData<string[]>([
+      const previousContactTags = queryClient.getQueryData<Array<string>>([
         "chat-contact-tags",
         contactId,
         contactType,
@@ -162,7 +162,7 @@ export function ChatTagSelector({
       ]);
 
       // Optimistically update contact tags
-      queryClient.setQueryData<string[]>(
+      queryClient.setQueryData<Array<string>>(
         ["chat-contact-tags", contactId, contactType, senderPhone],
         (old = []) => {
           if (isAssigned) {
@@ -271,8 +271,8 @@ interface ContactTagBadgesProps {
   contactId: string;
   contactType: "client" | "lead" | "group" | "unknown";
   senderPhone?: string;
-  allTags: ChatTag[];
-  contactTagIds: string[];
+  allTags: Array<ChatTag>;
+  contactTagIds: Array<string>;
 }
 
 export function ContactTagBadges({

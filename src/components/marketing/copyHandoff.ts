@@ -54,7 +54,7 @@ const isCopyLinkedCreative = (item: HandoffWorkItem) => {
 /** Prefer an explicit pointer, then linked_copy_item_id, then same-title copy-origin sibling. */
 export function findExistingCreativeSibling(
   copyItem: HandoffWorkItem,
-  candidates: HandoffWorkItem[],
+  candidates: Array<HandoffWorkItem>,
 ): HandoffWorkItem | null {
   const others = candidates.filter((item) => item.id !== copyItem.id);
   const pointed = asText(copyItem.payload?.handoff_to_creative_item_id);
@@ -81,9 +81,9 @@ export function findExistingCreativeSibling(
 /** Open creative projects for the same client — used when the user chooses existing vs new. */
 export function listOpenCreativeProjects(
   copyItem: HandoffWorkItem,
-  candidates: HandoffWorkItem[],
+  candidates: Array<HandoffWorkItem>,
   creativeStageIds: Iterable<string> = [],
-): HandoffWorkItem[] {
+): Array<HandoffWorkItem> {
   const stageIds = new Set(creativeStageIds);
   return candidates
     .filter((item) => item.id !== copyItem.id)
@@ -103,7 +103,7 @@ export function listOpenCreativeProjects(
 
 export function suggestedCreativeTarget(
   copyItem: HandoffWorkItem,
-  openProjects: HandoffWorkItem[],
+  openProjects: Array<HandoffWorkItem>,
 ): HandoffWorkItem | null {
   const sibling = findExistingCreativeSibling(copyItem, openProjects);
   if (sibling && openProjects.some((item) => item.id === sibling.id))
@@ -122,8 +122,8 @@ export function overlayCopyHandoffPayload({
   existingPayload: unknown;
   copyPayload: unknown;
   copyItem: { id: string; title: string | null };
-  concepts: CopyConcept[];
-  approved: CopyConcept[];
+  concepts: Array<CopyConcept>;
+  approved: Array<CopyConcept>;
   at: string;
 }): CopyPayload {
   const existing = readCopyPayload(existingPayload);

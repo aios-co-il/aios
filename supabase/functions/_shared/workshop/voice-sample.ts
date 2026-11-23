@@ -38,7 +38,7 @@ export async function sampleSpeech(
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ bytes?: Uint8Array; error?: string }> {
-  const failures: string[] = [];
+  const failures: Array<string> = [];
   /** One speech request's mp3, or null with why it failed (a timeout included). */
   const speak = async (label: string, url: string, init: RequestInit) => {
     try {
