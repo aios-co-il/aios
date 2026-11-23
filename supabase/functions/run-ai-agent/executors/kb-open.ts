@@ -7,7 +7,7 @@ type KnowledgeSourceClient = {
         column: string,
         value: string | null,
       ): {
-        maybeSingle(): PromiseLike<{ data: unknown }>;
+        maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
       };
     };
   };
@@ -46,22 +46,31 @@ export async function executeKbOpen(
     };
     const table = tableMap[ptr.entity_type as string] ?? ptr.entity_type;
     if (table) {
-      const { data } = await (supabase as unknown as KnowledgeSourceClient)
+      const { data, error } = await (
+        supabase as unknown as KnowledgeSourceClient
+      )
         .from(table)
         .select("*")
         .eq("id", ptr.entity_id)
         .maybeSingle();
+      if (error) {
+        console.error("[kb-open] source query failed", error);
+      }
       live = data;
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.error("[kb-open] best-effort operation failed", error);
   }
   // Bump access count async
   supabase
     .from("carmen_memory_pointers")
     .update({ updated_at: new Date().toISOString() })
     .eq("id", ptr.id)
-    .then(() => {});
+    .then(({ error }) => {
+      if (error) {
+        console.error("[kb-open] access update failed", error);
+      }
+    });
   return { pointer: ptr, live };
 }
 

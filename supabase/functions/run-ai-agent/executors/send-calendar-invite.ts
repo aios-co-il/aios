@@ -1,14 +1,17 @@
+import {
+  mergeNamedPrimaryAttendee,
+  fetchZoomAccessToken,
+  createZoomMeeting,
+  applyZoomLinkToEvent,
+  buildMeetConferenceData,
+  summarizeEventResult,
+  extractConferenceUrl,
+  calendarNotificationParams,
+} from "../../_shared/calendar-conference.ts";
 import { calendarInviteTimes } from "./calendar-invite-times.ts";
 import { resolveCalendarConferenceExtras } from "./calendar-conference.ts";
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
-import { mergeNamedPrimaryAttendee } from "../../_shared/calendar-conference.ts";
-import { fetchZoomAccessToken } from "../../_shared/calendar-conference.ts";
-import { createZoomMeeting } from "../../_shared/calendar-conference.ts";
-import { applyZoomLinkToEvent } from "../../_shared/calendar-conference.ts";
-import { buildMeetConferenceData } from "../../_shared/calendar-conference.ts";
-import { summarizeEventResult } from "../../_shared/calendar-conference.ts";
-import { extractConferenceUrl } from "../../_shared/calendar-conference.ts";
 
 /** Preserves the existing send_calendar_invite executor and side-effect order. */
 export async function executeSendCalendarInvite(
@@ -65,10 +68,7 @@ export async function executeSendCalendarInvite(
   let zoom_available: boolean | null = null;
   let zoom_status: string | null | undefined = null;
   let conference_applied = "none";
-  const qp = new URLSearchParams({
-    sendUpdates: "all",
-    sendNotifications: "true",
-  });
+  const qp = calendarNotificationParams(true);
   if (extras.conferenceType === "zoom") {
     const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
     if (zoomAuth.accessToken) {

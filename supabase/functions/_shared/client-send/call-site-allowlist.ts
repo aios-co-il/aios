@@ -61,7 +61,8 @@ export const KNOWN_BYPASSES: CallSiteLists["bypasses"] = {
   "send-resend-email/index.ts": "AIO-246 no caller or tenant check yet",
   "telegram-send/index.ts": "AIO-246 no caller or tenant check yet",
   "_shared/calendar-conference.mjs": "AIO-248 Carmen's calendar invites",
-  "run-ai-agent/index.ts": "AIO-248 Carmen's calendar tools",
+  "_shared/calendar-conference.ts":
+    "AIO-248 Carmen's calendar notification parameters",
   "_shared/signature-automation.ts": "AIO-267 signature emails, automations",
   "auto-sync-new-lead/index.ts": "AIO-267 ManyChat flow per new lead",
   "bulk-sync-leads-to-manychat/index.ts": "AIO-267 ManyChat tags for leads",
@@ -82,7 +83,8 @@ export const KNOWN_UNSTAMPED_CALLERS: CallSiteLists["unstampedCallers"] = {
   "carmen-activate-phone/index.ts": "AIO-248 carmen with its activation ref",
   "carmen-introduce-group/index.ts": "AIO-248 activation codes, as carmen",
   "manus-wa-webhook/index.ts": "AIO-248 activation confirmations and acks",
-  "run-ai-agent/index.ts": "AIO-248 send tools by surface, stamped carmen",
+  "run-ai-agent/executors/send-message.ts":
+    "AIO-248 send_message, no sendKind yet",
   "_shared/crm-whatsapp-send.ts": "AIO-267 automation with its id",
   "meta-whatsapp-warm/index.ts": "AIO-267 warm replies skip clients",
   "meta-whatsapp-webhook/index.ts": "AIO-267 the warm opt-in thanks reply",

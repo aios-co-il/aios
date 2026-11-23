@@ -13,8 +13,8 @@ export async function executeKbLearn(
   let embedding: Array<number> | null = null;
   try {
     embedding = await aiEmbed(`${args.topic}\n\n${args.summary}`);
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.error("[kb-learn] best-effort operation failed", error);
   }
   const { data, error } = await supabase
     .from("carmen_memory_episodes")

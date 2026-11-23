@@ -1,3 +1,4 @@
+import { invokeExecutorFunction } from "./invoke-executor-function.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing join_meeting_for_client executor and side-effect order. */
@@ -5,7 +6,7 @@ export async function executeJoinMeetingForClient(
   args: JoinMeetingForClientArgs,
   context: ToolExecutionContext,
 ) {
-  const { tenantId, userId, SUPABASE_URL } = context;
+  const { supabase, tenantId, userId } = context;
 
   const {
     meeting_url,
@@ -20,13 +21,10 @@ export async function executeJoinMeetingForClient(
     return { error: "meeting_url נדרש — קישור Zoom / Google Meet / Teams" };
   }
 
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/dispatch-meeting-bot`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-    },
-    body: JSON.stringify({
+  const { data, ok, status } = await invokeExecutorFunction(
+    supabase,
+    "dispatch-meeting-bot",
+    {
       meeting_url: String(meeting_url).trim(),
       client_id: client_id || null,
       lead_id: lead_id || null,
@@ -36,11 +34,10 @@ export async function executeJoinMeetingForClient(
       meeting_topic: meeting_topic || null,
       tenant_id: tenantId,
       created_by: userId,
-    }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    return { error: data.error || `שגיאה בשליחת הבוט (${res.status})` };
+    },
+  );
+  if (!ok) {
+    return { error: data.error || `שגיאה בשליחת הבוט (${status})` };
   }
   return {
     success: true,

@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { sendTargetFor } from "../chat-scope/send-target.ts";
 
@@ -6,15 +7,14 @@ export async function executeSendMessage(
   args: SendMessageArgs,
   context: ToolExecutionContext,
 ) {
-  const {
-    supabase,
-    tenantId,
-    accessibleTenantIds,
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
-  } = context;
+  const { supabase, tenantId, accessibleTenantIds, actorUserId, userId } =
+    context;
 
-  const { phone, contactName } = await sendTargetFor(
+  const {
+    phone,
+    contactName,
+    tenantId: contactTenantId,
+  } = await sendTargetFor(
     supabase,
     args.contact_type,
     args.contact_id,
@@ -23,24 +23,22 @@ export async function executeSendMessage(
   if (!phone) {
     return { success: false, error: "לא נמצא מספר טלפון" };
   }
-  const res = await fetch(
-    `${SUPABASE_URL}/functions/v1/send-green-api-message`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({
-        phone,
-        message: args.message_text,
-        tenantId,
-        [`${args.contact_type}_id`]: args.contact_id,
-      }),
+  const { error } = await supabase.functions.invoke("send-green-api-message", {
+    body: {
+      phoneNumber: phone,
+      message: args.message_text,
+      tenantId: contactTenantId || tenantId,
+      senderUserId: actorUserId || userId,
+      ...(args.contact_type === "client"
+        ? { clientId: args.contact_id }
+        : { leadId: args.contact_id }),
     },
-  );
-  if (!res.ok) {
-    throw new Error(await res.text());
+  });
+  if (error instanceof FunctionsHttpError) {
+    throw new Error(await error.context.text());
+  }
+  if (error) {
+    throw error;
   }
   return { sent_to: contactName, phone };
 }

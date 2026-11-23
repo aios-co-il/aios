@@ -1,3 +1,4 @@
+import { calendarNotificationParams } from "../../_shared/calendar-conference.ts";
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { providerErrorMessage } from "../tool-contracts-admin.ts";
@@ -32,14 +33,17 @@ export async function executeCancelCalendarInvite(
     return { error: cal.error };
   }
   const resp = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(String(event_id))}?sendUpdates=all`,
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(String(event_id))}?${calendarNotificationParams()}`,
     {
       method: "DELETE",
       headers: { Authorization: `Bearer ${cal.accessToken}` },
     },
   );
   if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
-    const data: unknown = await resp.json().catch(() => ({}));
+    const data: unknown = await resp.json().catch((error) => {
+      console.error("[cancel-calendar-invite] invalid error response", error);
+      return {};
+    });
     return {
       error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
     };

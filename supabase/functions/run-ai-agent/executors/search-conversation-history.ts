@@ -2,9 +2,7 @@ import type { ChatReadContext } from "../chat-scope/scoped-read.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { scopedChatRead } from "../chat-scope/scoped-read.ts";
 import { isGroupChat } from "../finding-draft/reply.ts";
-import { withChatScopeColumns } from "../chat-scope/filters.ts";
-import type { ChatHistorySearchRow } from "../tool-contracts-marketing.ts";
-import { readScopedChatRows, type ChatRowsQuery } from "../chat-scope/rows.ts";
+import { readScopedChatRows } from "../chat-scope/rows.ts";
 import { chatScopeMeta } from "../chat-scope/responses.ts";
 
 /** Preserves the existing search_conversation_history executor and side-effect order. */
@@ -46,12 +44,15 @@ export async function executeSearchConversationHistory(
   if (!browseAll && waNotify?.chat_id) {
     const chatId = String(waNotify.chat_id);
     if (isGroupChat(waNotify)) {
-      const { data: g } = await supabase
+      const { data: g, error } = await supabase
         .from("whatsapp_groups")
         .select("id")
         .eq("tenant_id", tenantId)
         .eq("group_chat_id", chatId)
         .maybeSingle();
+      if (error) {
+        throw error;
+      }
       scopeGroupId = g?.id || null;
       if (!scopeGroupId) {
         return {
@@ -69,9 +70,7 @@ export async function executeSearchConversationHistory(
   let q = supabase
     .from("chat_messages")
     .select(
-      withChatScopeColumns(
-        "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
-      ),
+      "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, tenant_id, client_id, lead_id, connection_user_id, clients(name,tenant_id)",
     )
     .in("tenant_id", accessibleTenantIds)
     .gte("created_at", since)
@@ -95,9 +94,9 @@ export async function executeSearchConversationHistory(
   } else if (withPhone) {
     q = q.ilike("sender_phone", `%${withPhone}%`);
   }
-  const data: Array<ChatHistorySearchRow> = await readScopedChatRows(
+  const data = await readScopedChatRows(
     supabase,
-    q as unknown as ChatRowsQuery<ChatHistorySearchRow>,
+    q,
     chatScope,
     accessibleTenantIds,
   );
@@ -124,7 +123,7 @@ export async function executeSearchConversationHistory(
       when_israel: fmt(m.created_at),
       direction: m.direction,
       from: m.sender_name || m.sender_phone || "",
-      client: m.clients?.name || null,
+      client: m.clients?.tenant_id === m.tenant_id ? m.clients.name : null,
       in_group: !!m.group_id,
       text: String(m.message_text).slice(0, 400),
     })),

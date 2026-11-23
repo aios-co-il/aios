@@ -41,7 +41,9 @@ function senderSites(src: MaskedSource, senders: string[]) {
   const names = senders.map((name) => name.replace(/[-$]/g, "\\$&")).join("|");
   const literal = new RegExp(`functions/v1/(?:${names})(?![\\w-])`, "g");
   const quoted = new RegExp(`["'\`](?:${names})["'\`]`, "g");
-  const builds = src.plain.includes("functions/v1/${");
+  const builds =
+    src.plain.includes("functions/v1/${") ||
+    /\.functions\.invoke\s*\(|\binvokeExecutorFunction\s*\(/.test(src.code);
   return [
     ...[...src.plain.matchAll(literal)].map((m) => ({
       at: m.index,

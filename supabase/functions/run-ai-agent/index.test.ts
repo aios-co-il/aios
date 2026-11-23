@@ -32,7 +32,7 @@ Deno.test("run-ai-agent chat readers: source guards", async (t) => {
       assertMatch(search, /= await scopedChatRead\(\s*chatRead,\s*null,?\s*\)/);
       assertMatch(search, /if \(refusal\) \{\s*return refusal;/);
       assertMatch(search, /readScopedChatRows\(/);
-      assertMatch(search, /withChatScopeColumns\(/);
+      assertMatch(search, /tenant_id, client_id, lead_id, connection_user_id/);
       assertMatch(search, /\.\.\.chatScopeMeta\(chatScope\)/);
 
       // The scope input comes from the verified caller, not from tool args.

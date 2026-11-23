@@ -22,6 +22,7 @@ function send(
   body: Record<string, unknown>,
   recipient: ResolverRow,
   token = SERVICE_ROLE_KEY,
+  contactExists = true,
 ) {
   const request = new Request("http://functions.test/send-green-api-message", {
     method: "POST",
@@ -42,6 +43,8 @@ function send(
     request,
     {
       "GET /auth/v1/user": { id: SENDER },
+      "GET /clients": contactExists ? { id: CLIENT } : null,
+      "GET /leads": contactExists ? { id: CLIENT } : null,
       "GET /tenant_users": [{ user_id: SENDER }],
       "POST /rpc/is_super_admin": false,
       "GET /tenant_integrations": [
@@ -140,5 +143,25 @@ Deno.test(
       rest.some((call) => call.path === "/rpc/resolve_send_recipient"),
       false,
     );
+  },
+);
+
+Deno.test(
+  "mismatched contact tenant is refused before provider or message writes",
+  async () => {
+    for (const body of [{ clientId: CLIENT }, { leadId: CLIENT }]) {
+      const { response, provider, rest } = await send(
+        body,
+        resolved("client", [CLIENT]),
+        SERVICE_ROLE_KEY,
+        false,
+      );
+      assertEquals(response.status, 400);
+      assertEquals(provider, []);
+      assertEquals(
+        rest.some((call) => call.path === "/chat_messages"),
+        false,
+      );
+    }
   },
 );

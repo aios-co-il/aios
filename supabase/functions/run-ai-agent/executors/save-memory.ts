@@ -53,7 +53,9 @@ export async function executeSaveMemory(
       key: args.key,
       user_id: userId || "system",
     },
-  }).catch(() => {});
+  }).catch((error) => {
+    console.error("[save-memory] indexing failed", error);
+  });
   return { saved: true, key: data.key, category: data.category };
 }
 

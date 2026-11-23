@@ -1,3 +1,4 @@
+import { sendApprovedBroadcast } from "./send-broadcast.ts";
 // Carmen Approval Execute — runs a pending row from agent_approval_queue.
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by the
@@ -348,56 +349,32 @@ Deno.serve(async (req) => {
 
     // ── Broadcast actions ──────────────────────────────────────────────────────
     if (row.tool_name === "send_broadcast_now") {
-      const inp = (row.tool_input as any) || {};
-      if (!inp.broadcast_id) {
-        await supabase
-          .from("agent_approval_queue")
-          .update({
-            status: "failed",
-            executed_at: new Date().toISOString(),
-            execution_result: { error: "missing_broadcast_id" },
-          })
-          .eq("id", approval_id);
-        return new Response(JSON.stringify({ error: "missing_broadcast_id" }), {
-          status: 400,
-          headers: corsHeaders,
-        });
+      const inp = row.tool_input;
+      if (
+        !inp ||
+        typeof inp !== "object" ||
+        Array.isArray(inp) ||
+        typeof inp.broadcast_id !== "string"
+      ) {
+        throw new Error("missing_broadcast_id");
       }
-      // 1. Enqueue recipients via broadcast-enqueue
-      const enqRes = await fetch(`${SB_URL}/functions/v1/broadcast-enqueue`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SB_SERVICE}`,
-          "Content-Type": "application/json",
-          apikey: SB_SERVICE,
+      const result = await sendApprovedBroadcast(
+        supabase,
+        row.tenant_id,
+        inp.broadcast_id,
+        async () => {
+          const { data, error } = await supabase.functions.invoke(
+            "broadcast-enqueue",
+            {
+              body: { broadcastId: inp.broadcast_id, dryRun: false },
+            },
+          );
+          if (error) {
+            throw error;
+          }
+          return data;
         },
-        body: JSON.stringify({ broadcastId: inp.broadcast_id, dryRun: false }),
-      });
-      const enqJson = await enqRes.json().catch(() => ({}));
-      if (!enqRes.ok) {
-        await supabase
-          .from("agent_approval_queue")
-          .update({
-            status: "failed",
-            executed_at: new Date().toISOString(),
-            execution_result: enqJson,
-          })
-          .eq("id", approval_id);
-        return new Response(
-          JSON.stringify({ error: "enqueue_failed", detail: enqJson }),
-          { status: 400, headers: corsHeaders },
-        );
-      }
-      // 2. Set status=sending + started_at
-      await supabase
-        .from("broadcasts")
-        .update({ status: "sending", started_at: new Date().toISOString() })
-        .eq("id", inp.broadcast_id);
-      const result = {
-        success: true,
-        broadcast_id: inp.broadcast_id,
-        recipients: enqJson.total ?? enqJson.count ?? "?",
-      };
+      );
       await supabase
         .from("agent_approval_queue")
         .update({

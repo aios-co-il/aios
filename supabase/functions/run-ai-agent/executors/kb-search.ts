@@ -20,12 +20,18 @@ export async function executeKbSearch(
         p_since_days: args.since_days || null,
         p_limit: args.limit || 20,
       } as unknown as Database["public"]["Functions"]["kb_match_pointers"]["Args"]);
+      if (error) {
+        console.error("[kb-search] semantic query failed", error);
+      }
       if (!error && data) {
         return { count: data.length, results: data, mode: "semantic" };
       }
     }
-  } catch {
-    /* fall through */
+  } catch (error) {
+    console.error(
+      "[kb-search] semantic search failed; using text fallback",
+      error,
+    );
   }
   // Fallback text search
   let q = supabase

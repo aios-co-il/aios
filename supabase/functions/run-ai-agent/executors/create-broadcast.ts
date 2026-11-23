@@ -9,19 +9,18 @@ export async function executeCreateBroadcast(
 ) {
   const { supabase, tenantId, userId } = context;
 
-  // Build audience_filter from source + extra filter
-  const audience_filter: TablesInsert<"broadcasts">["audience_filter"] = {
+  const filter = args.audience_filter;
+  const audience_filter = {
+    ...(filter && typeof filter === "object" && !Array.isArray(filter)
+      ? filter
+      : {}),
     source: args.audience_source,
-    ...((args.audience_filter || {}) as Record<
-      string,
-      import("../../_shared/database.types.ts").Json
-    >),
   };
   // Determine provider from tenant's default WA integration
   let provider = "green_api";
   let integration_id = args.integration_id || null;
   if (!integration_id) {
-    const { data: integ } = await supabase
+    const { data: integ, error: integrationError } = await supabase
       .from("tenant_integrations")
       .select("id, integration_type")
       .eq("tenant_id", tenantId)
@@ -30,19 +29,27 @@ export async function executeCreateBroadcast(
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (integrationError) {
+      throw integrationError;
+    }
     if (integ) {
       integration_id = integ.id;
       provider = integ.integration_type;
     }
   } else {
-    const { data: integ } = await supabase
+    const { data: integ, error: integrationError } = await supabase
       .from("tenant_integrations")
       .select("integration_type")
       .eq("id", integration_id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
-    if (integ) {
-      provider = integ.integration_type;
+    if (integrationError) {
+      throw integrationError;
     }
+    if (!integ) {
+      throw new Error("אינטגרציה לא נמצאה");
+    }
+    provider = integ.integration_type;
   }
   const insertData: TablesInsert<"broadcasts"> = {
     tenant_id: tenantId,
@@ -57,7 +64,7 @@ export async function executeCreateBroadcast(
   };
   if (args.scheduled_at) {
     insertData.scheduled_at = args.scheduled_at;
-    insertData.status = "scheduled";
+    // Scheduling requires the separate human-approved schedule_broadcast action.
   }
   const { data: bc, error } = await supabase
     .from("broadcasts")
@@ -68,10 +75,10 @@ export async function executeCreateBroadcast(
     throw error;
   }
   return {
-    pending_approval: true,
+    pending_approval: false,
     approval_id: null,
     broadcast_id: bc.id,
-    summary: `דיוור חדש "${bc.name}" נוצר (${bc.status}). קהל: ${args.audience_source}. ${args.scheduled_at ? "מתוזמן ל-" + args.scheduled_at : "טרם נשלח — שאל את המשתמש לאישור ושליחה."}`,
+    summary: `דיוור חדש "${bc.name}" נוצר (${bc.status}). קהל: ${args.audience_source}. טרם נשלח — שאל את המשתמש לאישור ושליחה או תזמון.`,
     instruction_for_carmen:
       'הצג סיכום של הדיוור (שם, קהל, תוכן) ושאל "לשלוח עכשיו או לתזמן למועד מסוים?". אסור לשלוח בלי אישור מפורש.',
   };

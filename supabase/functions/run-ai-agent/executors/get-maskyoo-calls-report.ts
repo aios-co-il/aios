@@ -1,5 +1,4 @@
 import type { ToolExecutionContext } from "../tool-context.ts";
-import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 /** Preserves the existing get_maskyoo_calls_report executor and side-effect order. */
 export async function executeGetMaskyooCallsReport(
@@ -25,10 +24,9 @@ export async function executeGetMaskyooCallsReport(
   const pEnd = period_end || defaultEnd;
 
   // Resolve client_id by name if not given
-  const db: DbClient = supabase;
   let resolvedClientId = argClientId;
   if (!resolvedClientId && client_name) {
-    const { data: found } = await db
+    const { data: found } = await supabase
       .from("clients")
       .select("id, name")
       .in("tenant_id", accessibleTenantIds)
@@ -75,7 +73,7 @@ export async function executeGetMaskyooCallsReport(
   const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
   const clientNames: Record<string, string> = {};
   if (clientIds.length) {
-    const { data: clients } = await db
+    const { data: clients } = await supabase
       .from("clients")
       .select("id, name")
       .in("id", clientIds);
