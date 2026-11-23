@@ -5,69 +5,21 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchLandingSettings } from "./fetchLandingSettings";
 import {
-  HOME_SLUG,
-  type LandingSettings,
   type LandingSettingsDraft,
+  type TrackingDraft,
 } from "./landingSettings";
+
+/** The prefix of every project's landing settings query. */
+export const LANDING_SETTINGS = "workshop-landing-settings";
 
 /** The query key of one project's landing settings. */
 function landingSettingsKey(tenantId: string, itemId: string) {
-  return ["workshop-landing-settings", tenantId, itemId] as const;
+  return [LANDING_SETTINGS, tenantId, itemId] as const;
 }
 
-/** Reads the project's page, or the client's site when the project has no page yet. */
-async function fetchLandingSettings(
-  tenantId: string,
-  itemId: string,
-  clientId: string | null,
-): Promise<LandingSettings> {
-  const { data: page, error } = await supabase
-    .from("landing_pages")
-    .select("slug, lead_to_crm, lead_to_webhook, landing_sites(subdomain)")
-    .eq("tenant_id", tenantId)
-    .eq("work_item_id", itemId)
-    .maybeSingle();
-  if (error) {
-    throw error;
-  }
-  if (page) {
-    return {
-      subdomain: page.landing_sites.subdomain,
-      slug: page.slug,
-      leadToCrm: page.lead_to_crm,
-      leadToWebhook: page.lead_to_webhook,
-      siteExists: true,
-      pageExists: true,
-    };
-  }
-
-  const empty: LandingSettings = {
-    subdomain: "",
-    slug: HOME_SLUG,
-    leadToCrm: false,
-    leadToWebhook: false,
-    siteExists: false,
-    pageExists: false,
-  };
-  if (!clientId) {
-    return empty;
-  }
-  const { data: site, error: siteError } = await supabase
-    .from("landing_sites")
-    .select("subdomain")
-    .eq("tenant_id", tenantId)
-    .eq("client_id", clientId)
-    .maybeSingle();
-  if (siteError) {
-    throw siteError;
-  }
-  return site
-    ? { ...empty, subdomain: site.subdomain, siteExists: true }
-    : empty;
-}
-
-/** A landing project's settings and the mutation that saves them. */
+/** A landing project's settings and the mutations that save them and its site's tracking ids. */
 export function useLandingSettings(
   tenantId: string | undefined,
   itemId: string | null,
@@ -81,6 +33,10 @@ export function useLandingSettings(
     queryFn: enabled
       ? () => fetchLandingSettings(tenantId, itemId, clientId)
       : skipToken,
+    // The tracking ids belong to the client's site, which another project may have changed
+    // since this one was cached; the app's defaults keep cached data fresh for minutes.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   const save = useMutation({
@@ -100,13 +56,38 @@ export function useLandingSettings(
         throw error;
       }
     },
-    onSuccess: () =>
-      enabled
-        ? queryClient.invalidateQueries({
-            queryKey: landingSettingsKey(tenantId, itemId),
-          })
-        : undefined,
+    onSuccess: refresh,
   });
 
-  return { settings, save };
+  const saveTracking = useMutation({
+    mutationFn: async (draft: TrackingDraft) => {
+      if (!enabled) {
+        throw new Error("אין פרויקט פתוח");
+      }
+      const { error } = await supabase.rpc("landing_site_save_tracking", {
+        p_item_id: itemId,
+        p_gtm_id: draft.gtmId.trim(),
+        p_ga4_id: draft.ga4Id.trim(),
+        p_meta_pixel_id: draft.metaPixelId.trim(),
+      });
+      if (error) {
+        throw error;
+      }
+    },
+    // The ids belong to the site, which other projects of the client share: every cached
+    // project reads them again.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: [LANDING_SETTINGS] }),
+  });
+
+  /** Reads this project's settings again after a save. */
+  function refresh() {
+    return enabled
+      ? queryClient.invalidateQueries({
+          queryKey: landingSettingsKey(tenantId, itemId),
+        })
+      : undefined;
+  }
+
+  return { settings, save, saveTracking };
 }

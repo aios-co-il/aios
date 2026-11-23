@@ -128,6 +128,20 @@ export function withLandingApprovals(
 }
 
 /**
+ * How the project's assets (the Assets tab, workshop_get_state's assets) reach the page: the ones
+ * marked as reference steer the style, and an uploaded picture or video can be shown on the page.
+ */
+const LANDING_ASSETS =
+  "נכסי הפרויקט (assets ב-workshop_get_state): הסגנון נשען על הנכסים המסומנים כרפרנס (use_as_reference). תמונה או סרטון mp4 שהועלו לנכסים נכנסים לעמוד כ-asset:<id> (imageUrl של hero, או video עם src ו-poster של תמונה), והבנייה מעתיקה אותם לעמוד. השתמשי רק במזהה של נכס שקיים בפרויקט.";
+
+/**
+ * What Carmen does with a request the page's sections cannot hold: the landing-pages app is code,
+ * and a coding agent extends it. The new section or feature then becomes part of the page.
+ */
+const LANDING_BEYOND_SECTIONS =
+  "בקשה שהמקטעים לא יודעים לעשות (פונקציה חדשה, אינטגרציה, מקטע או עיצוב מיוחד): משימת פיתוח ל-Claude (create_dev_task עם assigned_agent claude) בריפו aios-co-il/landing-pages, עם תיאור מה העמוד צריך. השינוי ממוזג שם על ידי אדם, ורק אחריו משתמשים בו בעמוד. אל תבטיחי את הפונקציה לפני שהיא קיימת.";
+
+/**
  * Where the project stands and what Carmen does next; sent to her on every turn. A step that waits
  * for approval comes with its saved text: in a new conversation this is her only copy of it.
  */
@@ -136,11 +150,11 @@ export function landingTurnLines(
 ): Array<string> {
   const state = landingStateOf(payload);
   const lines = [
-    "זה פרויקט עמוד נחיתה. הסדר: בריף ורפרנסים, קופי העמוד (workshop_save_landing_copy), אישור הקופי, סגנון עיצובי (workshop_save_landing_style), אישור הסגנון, ואז בנייה. בפרויקט הזה לא יוצרים תמונות, סטוריבורד או סרטון.",
+    `זה פרויקט עמוד נחיתה. הסדר: בריף ורפרנסים, קופי העמוד (workshop_save_landing_copy), אישור הקופי, סגנון עיצובי (workshop_save_landing_style), אישור הסגנון, ואז בנייה. בפרויקט הזה לא יוצרים תמונות, סטוריבורד או סרטון. ${LANDING_ASSETS} ${LANDING_BEYOND_SECTIONS}`,
   ];
   if (!state.blocks) {
     lines.push(
-      "השלב הבא: קופי העמוד. חסר מידע שאי אפשר להסיק (מה מציעים, למי, מה הגולש משאיר)? שאלי שאלה אחת. אחרת כתבי את העמוד ושמרי ב-workshop_save_landing_copy.",
+      "השלב הבא: קופי העמוד. עמוד שכבר באוויר (עריכה של עמוד קיים): קודם workshop_import_landing_page, ואז משנים. עמוד חדש: חסר מידע שאי אפשר להסיק (מה מציעים, למי, מה הגולש משאיר)? שאלי שאלה אחת. אחרת כתבי את העמוד ושמרי ב-workshop_save_landing_copy.",
     );
   } else if (!state.copy_approved) {
     lines.push(

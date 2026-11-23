@@ -5,9 +5,35 @@ import {
   emptyReportFigures,
   type ReportFigures,
 } from "../metrics/reportFigures";
+import { formatCurrency } from "@/lib/currency";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
+import {
+  mixedCurrencies,
+  singleCurrency,
+} from "@/lib/dashboardCurrencies.test-fixture";
 import { GoalCampaignTable } from "./GoalCampaignTable";
 
 describe("GoalCampaignTable", () => {
+  it("writes each platform's campaigns in its currency and the total apart", () => {
+    renderTable(
+      [
+        campaign("f1", "facebook", { leads: 100, spend: 22142 }),
+        campaign("g1", "google_ads", { leads: 10, spend: 300 }),
+      ],
+      undefined,
+      mixedCurrencies(),
+    );
+
+    function cpl(name: string) {
+      return screen.getByText(name).closest("tr")?.children[2]?.textContent;
+    }
+    expect(cpl("f1")).toBe(formatCurrency(221.42, "ILS"));
+    expect(cpl("g1")).toBe(formatCurrency(30, "USD"));
+    expect(cpl("סה״כ לידים")).toBe(
+      `${formatCurrency(221.42, "ILS")} · ${formatCurrency(30, "USD")}`,
+    );
+  });
+
   it("lists Meta campaigns, then Google's, each with a subtotal", () => {
     renderTable([
       campaign("g1", "google_ads", { leads: 2, spend: 40 }),
@@ -49,6 +75,7 @@ describe("GoalCampaignTable", () => {
 function renderTable(
   campaigns: Array<ReportCampaignRow>,
   previous?: Array<ReportCampaignRow>,
+  currencies: DashboardCurrencies = singleCurrency(),
 ) {
   const scope: ReportScopeData = {
     figures: emptyReportFigures(),
@@ -56,6 +83,7 @@ function renderTable(
     previousCampaigns: previous ?? null,
     channels: [],
     daily: [],
+    dailyByChannel: [],
     campaigns,
   };
   render(
@@ -63,7 +91,7 @@ function renderTable(
       goal="leads"
       scope={scope}
       metrics={["leads", "cpl"]}
-      currency="ILS"
+      currencies={currencies}
     />,
   );
 }

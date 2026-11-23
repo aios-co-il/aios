@@ -4,11 +4,8 @@
  * inserts the fetched ones, so a day left unannotated would lose its
  * verified_leads and verified_source.
  */
-import {
-  fetchCampaignLevelRecords,
-  type RecordsClient,
-} from "../_shared/ads-sync/campaign-records.ts";
-import type { SyncClient } from "../_shared/ads-sync/write-window.ts";
+import { fetchCampaignLevelRecords } from "../_shared/ads-sync/campaign-records.ts";
+import type { DbClient } from "../_shared/supabase-clients.ts";
 import { shiftDateString } from "../_shared/report-sync-window.ts";
 
 export type VerifiedRecord = {
@@ -26,7 +23,7 @@ export type VerifiedRecord = {
  * fails instead of erasing them.
  */
 export async function carryStoredVerifiedLeads(
-  client: SyncClient,
+  client: DbClient,
   input: {
     tableId: string;
     tenantId: string;
@@ -43,9 +40,7 @@ export async function carryStoredVerifiedLeads(
   if (!uncovered.length) {
     return;
   }
-  // Checking a whole supabase-js client against RecordsClient exceeds
-  // TypeScript's instantiation depth (TS2589), as in asSyncDbClient.
-  const stored = await fetchCampaignLevelRecords(client as RecordsClient, {
+  const stored = await fetchCampaignLevelRecords(client, {
     tableIds: [input.tableId],
     tenantIds: [input.tenantId],
     sinceYmd: uncovered.reduce(

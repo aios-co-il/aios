@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/security.ts";
+import {
+  authorizeTenantPublisher,
+  publishAccessLookups,
+} from "../_shared/tenant-publish-access.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,23 +48,27 @@ Deno.serve(async (req: Request) => {
       throw new Error("Missing environment variables");
     }
 
-    // Auth check
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization header");
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-    if (authError || !user) throw new Error("Unauthorized");
-
     const { brand_id, tenant_id, prompt_ids } =
       (await req.json()) as ScanRequest;
 
     if (!brand_id || !tenant_id) {
       throw new Error("Missing brand_id or tenant_id");
+    }
+
+    // A signed-in user scans only for a tenant they belong to; the service role
+    // (run-ai-agent, after an approved Carmen request) names the tenant itself.
+    const decision = await authorizeTenantPublisher(
+      await requireAuth(req),
+      tenant_id,
+      [],
+      publishAccessLookups(supabase),
+    );
+    if (!decision.allowed) {
+      return new Response(JSON.stringify({ error: decision.error }), {
+        status: decision.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Get brand config

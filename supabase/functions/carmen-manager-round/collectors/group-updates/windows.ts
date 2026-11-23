@@ -43,10 +43,15 @@ export function groupWindows(
 ): GroupWindow[] {
   return histories.flatMap((history) => {
     const mark = watermark.groups[history.group_id] ?? null;
-    const messages = history.messages
-      .filter((message) => isAfter(message, mark, from))
+    const fresh = history.messages.filter((message) =>
+      isAfter(message, mark, from),
+    );
+    // An automated send is left out of the window but still moves the
+    // watermark, so a group with only such sends is not read again each round.
+    const messages = fresh
+      .filter((message) => !isAutomatedSend(message))
       .map((message) => label(message, staff, history.client_tenant_id));
-    const last = messages.at(-1);
+    const last = fresh.at(-1);
     return last
       ? [
           {
@@ -98,6 +103,21 @@ function label(
     speaker,
     substantive: isSubstantive(message.text),
   };
+}
+
+/**
+ * Sent through a line's API by an outside system (a lead notification from an
+ * automation, for one): no AIOS sender, no send kind, not typed on the phone.
+ * Leads have their own reports, so such a message is never a card update, and
+ * leaving it out keeps a lead's name and phone out of the prompt and the draft.
+ */
+function isAutomatedSend(message: GroupMessage): boolean {
+  return (
+    message.out &&
+    message.sentBy === null &&
+    message.sendKind === null &&
+    !message.typedOnPhone
+  );
 }
 
 /** Staff by line, person or phone; unknown without a phone; else the client. */

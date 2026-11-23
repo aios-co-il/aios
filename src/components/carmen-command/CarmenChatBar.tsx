@@ -1416,6 +1416,8 @@ export const CarmenChatBar = forwardRef<
                 return prev;
             } else if (
               row.role === "assistant" &&
+              // Same words with files of their own are a different reply.
+              !row.metadata?.attachments?.length &&
               replyShownThisTurn(prev, row.content)
             )
               return prev;
@@ -1430,6 +1432,10 @@ export const CarmenChatBar = forwardRef<
                       ? "tool_call"
                       : "assistant",
                 content: row.content,
+                // A direct brain's files (upload_aios_file) show as soon as its reply lands.
+                attachments: Array.isArray(row.metadata?.attachments)
+                  ? row.metadata.attachments
+                  : undefined,
                 tool:
                   row.event_type === "progress" || row.event_type === "system"
                     ? row.content

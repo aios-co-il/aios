@@ -1,8 +1,9 @@
-import type { ApproveDevTaskArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { resolveDevTaskActorUserId } from "../../_shared/dev-escalation-auth.ts";
 import { devTaskApprovalRefusal } from "./dev-task-approval.ts";
 import { approveDevTask } from "../../_shared/dev-tasks.ts";
+
+type ApproveDevTaskArgs = { dev_task_id: string };
 
 /** Preserves the existing approve_dev_task executor and side-effect order. */
 export async function executeApproveDevTask(

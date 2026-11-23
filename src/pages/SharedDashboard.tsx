@@ -1,8 +1,5 @@
-import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
-import {
-  googleCampaignNames,
-  namesCampaignsByDestination,
-} from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
+import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
@@ -81,8 +78,13 @@ import {
   formatCurrency as formatCurrencyAmount,
   formatUnitCost as formatUnitCostAmount,
   getCurrencySymbol,
-  resolveDashboardCurrency,
 } from "@/lib/currency";
+import {
+  currencyOfSource,
+  resolveDashboardCurrencies,
+  spendKeyOf,
+} from "@/lib/dashboardCurrencies";
+import { dashboardMoneyView } from "@/components/dynamic-tables/dashboardMoneyView";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
 import {
   LineChart,
@@ -276,10 +278,14 @@ export default function SharedDashboard({
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const dashboardCurrency = useMemo(
-    () => resolveDashboardCurrency(tables),
+  // Each ads platform keeps its account's currency; amounts are never added
+  // across currencies (resolveDashboardCurrencies). The primary currency is
+  // for amounts outside one platform (store, Analytics).
+  const currencies = useMemo(
+    () => resolveDashboardCurrencies(tables),
     [tables],
   );
+  const dashboardCurrency = currencies.primary;
   const formatCurrency = (num: number) =>
     formatCurrencyAmount(num, dashboardCurrency);
   const formatUnitCost = (num: number) =>
@@ -496,10 +502,10 @@ export default function SharedDashboard({
   }, [tables, hasWooCommerce, hasSeo, hasVisibleAnalyticsData]);
 
   // Travel accounts name each campaign by its destination; they get a tab per continent.
-  const hasContinentsTab = useMemo(
-    () => namesCampaignsByDestination(googleCampaignNames(records)),
-    [records],
-  );
+  // Meta and Google each earn a continents view when their campaign names
+  // name destinations; the tab shows when either does.
+  const continentsBy = useMemo(() => continentPlatforms(records), [records]);
+  const hasContinentsTab = continentsBy.facebook || continentsBy.google;
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
@@ -532,13 +538,13 @@ export default function SharedDashboard({
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
-      if (hasContinentsTab) {
-        items.push({
-          value: "continents",
-          label: "לפי יבשות",
-          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
-        });
-      }
+    }
+    if (hasContinentsTab) {
+      items.push({
+        value: "continents",
+        label: "לפי יבשות",
+        iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+      });
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -916,7 +922,10 @@ export default function SharedDashboard({
         byDate[date].addToCart += getAddToCartFromData(data);
         byDate[date].sessions += getSessionsFromData(data);
       } else if (isAdsPlatform(source)) {
+        const spendKey = spendKeyOf(currencyOfSource(currencies, source));
         byDate[date].spend += getSpendFromData(data);
+        byDate[date][spendKey] =
+          (byDate[date][spendKey] ?? 0) + getSpendFromData(data);
         byDate[date].clicks += Number(data.clicks) || 0;
         byDate[date].impressions += Number(data.impressions) || 0;
         byDate[date].leads += dashboardRecordLeads(record, recordGoalOf);
@@ -935,7 +944,7 @@ export default function SharedDashboard({
         }),
         roas: d.spend > 0 ? d.revenue / d.spend : 0,
       }));
-  }, [filteredRecords, recordGoalOf]);
+  }, [filteredRecords, recordGoalOf, currencies]);
 
   // Facebook campaign tables: each campaign under its report's goal.
   const facebookCampaignGroups = useMemo(
@@ -957,6 +966,17 @@ export default function SharedDashboard({
     records: filteredRecords,
     tables,
     woo: { revenue: wooSummary.revenue, orders: wooSummary.orderCount },
+  });
+  const money = dashboardMoneyView({
+    currencies,
+    spendBySource: Object.entries(summaryByPlatform).map(([source, d]) => ({
+      source,
+      spend: d.spend,
+    })),
+    goals: dashboardGoals,
+    store,
+    totalSpend: totalSummary.spend,
+    leadCpl: combinedLeads.cpl,
   });
 
   const googleAdsSummary = useMemo(
@@ -1086,16 +1106,28 @@ export default function SharedDashboard({
       />
 
       {platformFilter === "continents" ? (
-        <CampaignContinentsTab
-          campaigns={googleAdsSummary.campaigns}
-          formatCurrency={formatCurrency}
-          formatNumber={formatNumber}
-          formatUnitCost={formatUnitCost}
+        <DashboardContinentsView
+          platforms={continentsBy}
+          facebook={{
+            campaigns: facebookCampaignGroups,
+            records: filteredRecords,
+            tables,
+            formatNumber,
+            ...money.facebook,
+          }}
+          google={{
+            campaigns: googleAdsSummary.campaigns,
+            formatNumber,
+            ...money.google,
+          }}
         />
       ) : platformFilter === "weekly" ? (
         <WeeklyCampaignComparison
           records={weeklyRecords}
           currency={getCurrencySymbol(dashboardCurrency)}
+          currencyOf={(source) =>
+            getCurrencySymbol(currencyOfSource(currencies, source))
+          }
           isLoading={weeklyPending}
           tables={tables}
           sourceModes={weeklySourceModesForTables(tables)}
@@ -1105,7 +1137,8 @@ export default function SharedDashboard({
           <DashboardTrackedEvents
             records={records}
             settings={data?.dashboard?.settings}
-            adsSpend={globalAdsMetrics.spend}
+            // Spend in several currencies has no single cost per event.
+            adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
             formatCurrency={formatCurrency}
             formatNumber={formatNumber}
             source={shareToken ? { shareToken } : null}
@@ -1192,7 +1225,7 @@ export default function SharedDashboard({
             <GoalReportOverview
               current={reportCurrent}
               previous={comparePrevious ? previous.report : null}
-              currency={dashboardCurrency}
+              currencies={currencies}
             />
           )}
           {/* Summary Cards - "All" tab: 7 KPI cards like DashboardView */}
@@ -1207,6 +1240,8 @@ export default function SharedDashboard({
                 icon: getIntegrationIcon(platform),
               })}
               format={{ formatCurrency, formatNumber, formatUnitCost }}
+              currencies={currencies}
+              hasStore={store !== null}
             />
           )}
           {platformFilter === "all" && !hasSeveralGoals(dashboardGoals) && (
@@ -1215,7 +1250,7 @@ export default function SharedDashboard({
                 <ReportKpiCard
                   icon={Wallet}
                   label="הוצאה כוללת"
-                  value={formatCurrency(totalSummary.spend)}
+                  value={money.totalSpendText}
                 />
               )}
 
@@ -1246,7 +1281,7 @@ export default function SharedDashboard({
                     <ReportKpiCard
                       icon={Tag}
                       label="עלות לליד (CPL)"
-                      value={formatCurrency(combinedLeads.cpl)}
+                      value={money.leadCplText}
                     />
                   )}
                   {showRevenueCards && (
@@ -1293,6 +1328,7 @@ export default function SharedDashboard({
                     <CombinedRoasCard
                       sales={combinedSales}
                       formatCurrency={formatCurrency}
+                      money={money.salesMoney}
                     />
                   )}
                 </>
@@ -1316,7 +1352,7 @@ export default function SharedDashboard({
                     <ReportKpiCard
                       icon={Tag}
                       label="עלות לליד (CPL)"
-                      value={formatCurrency(combinedLeads.cpl)}
+                      value={money.leadCplText}
                     />
                   )}
                   {showAnalyticsCards && (
@@ -1337,9 +1373,9 @@ export default function SharedDashboard({
               records={filteredRecords}
               tables={tables}
               previous={comparePrevious ? previous.tabs.facebook : null}
-              formatCurrency={formatCurrency}
+              formatCurrency={money.facebook.formatCurrency}
               formatNumber={formatNumber}
-              formatUnitCost={formatUnitCost}
+              formatUnitCost={money.facebook.formatUnitCost}
             />
           )}
 
@@ -1347,9 +1383,9 @@ export default function SharedDashboard({
             <GoogleAdsCampaignSection
               summary={googleAdsSummary}
               icon={getIntegrationIcon("google_ads")}
-              formatCurrency={formatCurrency}
+              formatCurrency={money.google.formatCurrency}
               formatNumber={formatNumber}
-              formatUnitCost={formatUnitCost}
+              formatUnitCost={money.google.formatUnitCost}
               woo={useGoogleWooOverlay ? googleWooAttribution : null}
               previous={comparePrevious ? previous.tabs.google : null}
             />
@@ -1367,6 +1403,7 @@ export default function SharedDashboard({
                 icon: getIntegrationIcon(platform),
               })}
               format={{ formatCurrency, formatNumber, formatUnitCost }}
+              currencies={currencies}
             />
           )}
 
@@ -1576,7 +1613,9 @@ export default function SharedDashboard({
                           <XAxis dataKey="dateLabel" fontSize={12} />
                           <YAxis fontSize={12} />
                           <Tooltip
-                            formatter={(v: number) => formatCurrency(v)}
+                            formatter={(v: number, _name, item) =>
+                              money.formatChartAmount(v, item.dataKey)
+                            }
                           />
                           <Legend />
                           {showAnalyticsCards && (
@@ -1589,9 +1628,7 @@ export default function SharedDashboard({
                               fillOpacity={0.3}
                             />
                           )}
-                          {showAdsCards && (
-                            <Bar dataKey="spend" name="הוצאה" fill="#3b82f6" />
-                          )}
+                          {showAdsCards && money.spendBars()}
                         </ComposedChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -1637,8 +1674,12 @@ export default function SharedDashboard({
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="dateLabel" fontSize={12} />
                         <YAxis fontSize={12} />
-                        <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                        <Bar dataKey="spend" name="הוצאה" fill="#3b82f6" />
+                        <Tooltip
+                          formatter={(v: number, _name, item) =>
+                            money.formatChartAmount(v, item.dataKey)
+                          }
+                        />
+                        {money.spendBars()}
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

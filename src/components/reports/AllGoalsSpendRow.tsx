@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   label: string;
-  currency: string;
-  spend: number;
+  /** The spend per currency symbol; several currencies show side by side. */
+  spend: Array<{ currency: string; spend: number }>;
   /** Horizontal padding that lines the row up with the tables above it. */
   className?: string;
 };
@@ -13,7 +13,7 @@ type Props = {
  * The spend of every goal together, under a report's per-goal tables. Results
  * are never added across goals, so spend is the only shared total.
  */
-export function AllGoalsSpendRow({ label, currency, spend, className }: Props) {
+export function AllGoalsSpendRow({ label, spend, className }: Props) {
   return (
     <div
       className={cn(
@@ -24,8 +24,9 @@ export function AllGoalsSpendRow({ label, currency, spend, className }: Props) {
     >
       <span>{label}</span>
       <span>
-        {currency}
-        {formatReportNumber(spend)}
+        {spend
+          .map((part) => `${part.currency}${formatReportNumber(part.spend)}`)
+          .join(" · ")}
       </span>
     </div>
   );

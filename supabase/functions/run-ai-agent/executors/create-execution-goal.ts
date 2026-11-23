@@ -1,8 +1,34 @@
-import type { CreateExecutionGoalArgs } from "./goal-inputs.ts";
+import type { UnifiedGoalCreateArgs } from "../../_shared/goal-execution.ts";
+
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { findDuplicateGoals } from "../../_shared/goal-execution.ts";
 import { createUnifiedGoal } from "../../_shared/goal-execution.ts";
 import { addGoalMilestone } from "../../_shared/goal-execution.ts";
+
+type CreateExecutionGoalArgs = {
+  constraints?: UnifiedGoalCreateArgs["constraints"];
+  scope?: UnifiedGoalCreateArgs["scope"];
+  title: string;
+  description?: string;
+  due_date?: string;
+  priority?: "urgent" | "high" | "normal" | "low";
+  completion_criteria?: string;
+  next_action?: string;
+  autonomous?: boolean;
+  objective?: string;
+  risk_level?:
+    "READ" | "SAFE_WRITE" | "REVERSIBLE" | "PRODUCTION" | "DESTRUCTIVE";
+  success_criteria?: Array<{
+    key?: string;
+    description: string;
+    required?: boolean;
+  }>;
+  milestones?: Array<{
+    title: string;
+    description?: string;
+    due_date?: string;
+  }>;
+};
 
 /** Preserves the existing create_execution_goal executor and side-effect order. */
 export async function executeCreateExecutionGoal(

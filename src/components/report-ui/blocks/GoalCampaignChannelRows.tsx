@@ -1,15 +1,20 @@
 import { Fragment } from "react";
 import { PreviousValueCell } from "@/components/reports/PreviousPeriod/PreviousValueCell";
-import type { CurrencyCode } from "@/lib/currency";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
 import { CampaignStatusSwitch } from "../CampaignStatusSwitch";
 import type { ReportCampaignRow } from "../data/reportData";
 import type { ReportFigures } from "../metrics/reportFigures";
 import {
   formatMetricValue,
   isMetricAvailable,
-  readMetric,
   REPORT_METRICS,
 } from "../metrics/reportMetrics";
+import {
+  channelMoney,
+  isSplitMetric,
+  readReportMetric,
+  type ReportMoney,
+} from "../metrics/reportMoney";
 import type { ReportMetricKey } from "../metrics/reportMetricTypes";
 import { sumFigures, type ChannelGroup } from "./groupRowsByChannel";
 import { REPORT_CHANNEL_LABELS } from "./reportChannels";
@@ -21,7 +26,7 @@ interface GoalCampaignChannelRowsProps {
   /** Show the platform's title and subtotal; off when it is the only one. */
   labelled: boolean;
   metrics: Array<ReportMetricKey>;
-  currency: CurrencyCode;
+  currencies: DashboardCurrencies;
   /**
    * The previous period's campaigns by key, compared while set. A campaign
    * missing from it did not run then.
@@ -34,10 +39,12 @@ export function GoalCampaignChannelRows({
   group,
   labelled,
   metrics,
-  currency,
+  currencies,
   previous,
 }: GoalCampaignChannelRowsProps) {
   const label = REPORT_CHANNEL_LABELS[group.channel];
+  // A platform's campaigns are all in its account's currency.
+  const money = channelMoney(group.channel, currencies);
   const columns = metrics.length * (previous ? 2 : 1);
   return (
     <>
@@ -65,7 +72,7 @@ export function GoalCampaignChannelRows({
           <MetricCells
             metrics={metrics}
             figures={row.figures}
-            currency={currency}
+            money={money}
             previous={
               previous ? (previous.get(row.key)?.figures ?? null) : undefined
             }
@@ -78,7 +85,7 @@ export function GoalCampaignChannelRows({
           <MetricCells
             metrics={metrics}
             figures={sumFigures(group.rows)}
-            currency={currency}
+            money={money}
             previous={
               previous
                 ? sumFigures(
@@ -98,27 +105,29 @@ export function GoalCampaignChannelRows({
 /**
  * A cell per metric; a dash where the row cannot measure it. While the
  * previous period is compared, each is followed by its previous value;
- * `previous` is null for a campaign that did not run then.
+ * `previous` is null for a campaign that did not run then. An amount split by
+ * currency has no single previous value to compare, so that cell is a dash.
  */
 export function MetricCells({
   metrics,
   figures,
-  currency,
+  money,
   previous,
 }: {
   metrics: Array<ReportMetricKey>;
   figures: ReportFigures;
-  currency: CurrencyCode;
+  money: ReportMoney;
   previous?: ReportFigures | null;
 }) {
   return metrics.map((key) => {
     const metric = REPORT_METRICS[key];
-    const before = previous ? metric.compute(previous) : null;
+    const split = isSplitMetric(key, figures, money);
+    const before = previous && !split ? metric.compute(previous) : null;
     return (
       <Fragment key={key}>
         <td className={CELL}>
           {isMetricAvailable(key, figures)
-            ? readMetric(key, figures, currency).text
+            ? readReportMetric(key, figures, money).text
             : "—"}
         </td>
         {previous !== undefined && (
@@ -126,7 +135,7 @@ export function MetricCells({
             current={metric.compute(figures) ?? 0}
             previous={before ?? undefined}
             format={(value) =>
-              formatMetricValue(metric.format, value, currency)
+              formatMetricValue(metric.format, value, money.ads)
             }
             direction={GOOD_WHEN_DIRECTION[metric.goodWhen]}
             cellClassName={CELL}
