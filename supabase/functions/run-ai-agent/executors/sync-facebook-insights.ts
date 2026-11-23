@@ -1,6 +1,10 @@
-import type { SyncFacebookInsightsArgs } from "./google-ad-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type SyncFacebookInsightsArgs = {
+  table_id?: string;
+  client_id?: string;
+};
 
 /** Preserves the existing sync_facebook_insights executor and side-effect order. */
 export async function executeSyncFacebookInsights(

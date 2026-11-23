@@ -20,6 +20,7 @@ export type ScopeAccumulator = {
   figures: ReportFigures;
   channels: Map<ReportChannel, ReportFigures>;
   days: Map<string, ReportFigures>;
+  channelDays: Map<ReportChannel, Map<string, ReportFigures>>;
   campaigns: Map<string, ReportCampaignRow>;
 };
 
@@ -39,6 +40,7 @@ export function newScopeAccumulator(): ScopeAccumulator {
     figures: emptyReportFigures(),
     channels: new Map(),
     days: new Map(),
+    channelDays: new Map(),
     campaigns: new Map(),
   };
 }
@@ -55,10 +57,10 @@ export function accumulateAdsRow(acc: ScopeAccumulator, row: GoalAdsRow) {
       figures,
     ),
   );
-  acc.days.set(
-    date,
-    addAdsFigures(acc.days.get(date) ?? emptyReportFigures(), figures),
-  );
+  addToDay(acc.days, date, figures);
+  const channelDays = acc.channelDays.get(row.channel) ?? new Map();
+  addToDay(channelDays, date, figures);
+  acc.channelDays.set(row.channel, channelDays);
   addToCampaign(acc, row, figures);
 }
 
@@ -69,14 +71,37 @@ export function finishScope(acc: ScopeAccumulator): ReportPeriodScope {
     channels: [...acc.channels]
       .map(([channel, figures]) => ({ channel, figures }))
       .sort((a, b) => b.figures.spend - a.figures.spend),
-    daily: [...acc.days]
-      .filter(([date]) => date !== "")
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, figures]) => ({ date, figures })),
+    daily: datedDays(acc.days),
+    dailyByChannel: [...acc.channelDays].map(([channel, days]) => ({
+      channel,
+      daily: datedDays(days),
+    })),
     campaigns: [...acc.campaigns.values()].sort(
       (a, b) => b.figures.spend - a.figures.spend,
     ),
   };
+}
+
+/** Adds the row's figures to its day. */
+function addToDay(
+  days: Map<string, ReportFigures>,
+  date: string,
+  figures: ReportFigures,
+) {
+  days.set(
+    date,
+    addAdsFigures(days.get(date) ?? emptyReportFigures(), figures),
+  );
+}
+
+/** The dated days, oldest first. */
+function datedDays(
+  days: Map<string, ReportFigures>,
+): Array<{ date: string; figures: ReportFigures }> {
+  return [...days]
+    .filter(([date]) => date !== "")
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, figures]) => ({ date, figures }));
 }
 
 /**

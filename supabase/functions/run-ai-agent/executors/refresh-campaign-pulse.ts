@@ -1,10 +1,14 @@
-import type { REFRESHPULSETOOLNAMEArgs } from "./pulse-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import {
   executeRefreshCampaignPulse,
   type RefreshPulseContext,
 } from "../pulse-refresh/tool.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
+
+type REFRESHPULSETOOLNAMEArgs = {
+  client_id?: string;
+  client_name?: string;
+};
 
 /** Preserves the existing refresh_campaign_pulse executor and side-effect order. */
 export async function executeRefreshCampaignPulseTool(

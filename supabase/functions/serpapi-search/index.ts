@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAuth } from "../_shared/security.ts";
+import { searchTenantId, userActiveTenant } from "./caller-tenant.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +10,8 @@ const corsHeaders = {
 
 interface SearchRequest {
   action: "test" | "search" | "bulk_search";
+  /** Service-role callers only: the tenant that pays for the search. */
+  tenant_id?: string;
   projectId?: string;
   keywordIds?: string[];
   keyword?: string;
@@ -52,61 +56,17 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get auth token
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "No authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    // Verify user
-    const anonClient = createClient(
-      supabaseUrl,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      {
-        global: { headers: { Authorization: authHeader } },
-      },
-    );
-    const {
-      data: { user },
-      error: userError,
-    } = await anonClient.auth.getUser();
-    if (userError || !user) {
+    const body = (await req.json().catch(() => ({}))) as SearchRequest;
+    const auth = await requireAuth(req);
+    if (!auth) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    // Get user's tenant - prioritize user_active_tenant, fallback to tenant_users
-    let tenantId: string | null = null;
-
-    const { data: activeTenant } = await supabase
-      .from("user_active_tenant")
-      .select("tenant_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (activeTenant?.tenant_id) {
-      tenantId = activeTenant.tenant_id;
-    } else {
-      const { data: tenantUser } = await supabase
-        .from("tenant_users")
-        .select("tenant_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-
-      if (tenantUser?.tenant_id) {
-        tenantId = tenantUser.tenant_id;
-      }
-    }
-
+    const tenantId = await searchTenantId(auth, body, (userId) =>
+      userActiveTenant(supabase, userId),
+    );
     if (!tenantId) {
       return new Response(JSON.stringify({ error: "No tenant found" }), {
         status: 400,
@@ -160,7 +120,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body: SearchRequest = await req.json();
     const { action } = body;
 
     if (action === "test") {

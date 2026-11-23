@@ -1,8 +1,13 @@
-import type { VerifyReportVsMetaArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { listVerifyTables } from "../verify-tables.ts";
 import { verifyReportVsMeta } from "../verify-report-vs-meta.ts";
+
+type VerifyReportVsMetaArgs = {
+  client_id?: string;
+  agency_name?: string;
+  days?: number;
+};
 
 /** Preserves the existing verify_report_vs_meta executor and side-effect order. */
 export async function executeVerifyReportVsMeta(

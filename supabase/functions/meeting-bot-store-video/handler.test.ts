@@ -13,6 +13,7 @@ import {
   type StoreVideoDeps,
 } from "./handler.ts";
 import { StoreVideoError } from "./session.ts";
+import { TusUploadError } from "./tus-upload.ts";
 
 const SESSION_ROW = {
   id: "session-1",
@@ -212,21 +213,73 @@ describe("handleStoreVideo", () => {
     );
   });
 
-  it("logs a copy that fails after the 202", async () => {
-    const { deps, background } = harness(
+  it("records a 413 from Storage as a permanent copy failure", async () => {
+    const { deps, calls, background } = harness(
       {
-        meeting_bot_sessions: [ok(SESSION_ROW)],
+        meeting_bot_sessions: [ok(SESSION_ROW), ok(null)],
         zoom_recordings: [ok({ file_path: null })],
       },
-      { upload: () => Promise.reject(new Error("TUS create failed (413)")) },
+      {
+        upload: () =>
+          Promise.reject(
+            new TusUploadError("TUS create failed (413): too big", 413),
+          ),
+      },
     );
 
     const res = await handleStoreVideo(post(BODY), deps);
     await Promise.all(background);
 
     assertEquals(res.status, 202);
+    const [update, ...filters] = callsOn(calls, "meeting_bot_sessions").slice(
+      4,
+    );
+    const fields = update[1] as Record<string, unknown>;
+    assertEquals(fields.video_store_error, "TUS create failed (413): too big");
+    assertEquals(typeof fields.video_store_failed_at, "string");
+    assertEquals(filters, [
+      ["eq", "tenant_id", "tenant-1"],
+      ["eq", "id", "session-1"],
+    ]);
     assertEquals(
       errors.some((line) => line.includes("copy failed")),
+      true,
+    );
+  });
+
+  it("records a retryable copy failure without giving up", async () => {
+    const { deps, calls, background } = harness(
+      {
+        meeting_bot_sessions: [ok(SESSION_ROW), ok(null)],
+        zoom_recordings: [ok({ file_path: null })],
+      },
+      { upload: () => Promise.reject(new TusUploadError("busy", 503)) },
+    );
+
+    await handleStoreVideo(post(BODY), deps);
+    await Promise.all(background);
+
+    const update = callsOn(calls, "meeting_bot_sessions")[4];
+    assertEquals(update, ["update", { video_store_error: "busy" }]);
+  });
+
+  it("logs a failure it cannot record", async () => {
+    const { deps, background } = harness(
+      {
+        meeting_bot_sessions: [
+          ok(SESSION_ROW),
+          { data: null, error: { message: "db down" } },
+        ],
+        zoom_recordings: [ok({ file_path: null })],
+      },
+      { upload: () => Promise.reject(new TusUploadError("busy", 503)) },
+    );
+
+    await handleStoreVideo(post(BODY), deps);
+    await Promise.all(background);
+
+    assertEquals(
+      errors.some((line) => line.includes("record copy failure failed")),
       true,
     );
   });

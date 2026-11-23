@@ -10750,6 +10750,9 @@ export type Database = {
           summary_scope: string;
           tenant_id: string;
           updated_at: string;
+          video_store_attempts: number;
+          video_store_error: string | null;
+          video_store_failed_at: string | null;
           zoom_recording_id: string | null;
         };
         Insert: {
@@ -10775,6 +10778,9 @@ export type Database = {
           summary_scope?: string;
           tenant_id: string;
           updated_at?: string;
+          video_store_attempts?: number;
+          video_store_error?: string | null;
+          video_store_failed_at?: string | null;
           zoom_recording_id?: string | null;
         };
         Update: {
@@ -10800,6 +10806,9 @@ export type Database = {
           summary_scope?: string;
           tenant_id?: string;
           updated_at?: string;
+          video_store_attempts?: number;
+          video_store_error?: string | null;
+          video_store_failed_at?: string | null;
           zoom_recording_id?: string | null;
         };
         Relationships: [

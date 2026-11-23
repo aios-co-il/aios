@@ -16,11 +16,15 @@ type ListedStoredCampaign = {
   last_date: string | null;
 };
 
-import type { ListFacebookCampaignsArgs } from "./meta-campaign-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { resolveClientTenantId } from "./client-tenant.ts";
 import { fbLiveCampaignList } from "./meta-live-campaigns.ts";
+
+type ListFacebookCampaignsArgs = {
+  client_id: string;
+  name_search?: string;
+};
 
 /** Preserves the existing list_facebook_campaigns executor and side-effect order. */
 export async function executeListFacebookCampaigns(

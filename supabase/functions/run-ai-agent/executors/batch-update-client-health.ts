@@ -1,9 +1,17 @@
-import type { BatchUpdateClientHealthArgs } from "./pulse-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { RETENTION_BATCH_LIMIT } from "../../_shared/client-retention.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { setClientMoodStatus } from "../client-health-status.ts";
 import { recordHealthCardEntryAfterUpdate } from "../carmen-client-card-tools.ts";
+
+type BatchUpdateClientHealthArgs = {
+  updates: Array<{
+    client_id: string;
+    mood_status: "happy" | "wavering" | "churn_risk";
+    communication_status?: "normal" | "sensitive" | "complaint";
+    note: string;
+  }>;
+};
 
 /** Preserves the existing batch_update_client_health executor and side-effect order. */
 export async function executeBatchUpdateClientHealth(

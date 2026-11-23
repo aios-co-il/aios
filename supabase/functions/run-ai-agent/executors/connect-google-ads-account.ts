@@ -1,5 +1,9 @@
-import type { ConnectGoogleAdsAccountArgs } from "./google-ad-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ConnectGoogleAdsAccountArgs = {
+  client_id: string;
+  customer_id: string;
+};
 
 /** Preserves the existing connect_google_ads_account executor and side-effect order. */
 export async function executeConnectGoogleAdsAccount(

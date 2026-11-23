@@ -1,5 +1,10 @@
-import type { ListDevTasksArgs } from "./developer-task-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type ListDevTasksArgs = {
+  status?: string;
+  priority?: string;
+  limit?: number;
+};
 
 /** Preserves the existing list_dev_tasks executor and side-effect order. */
 export async function executeListDevTasks(

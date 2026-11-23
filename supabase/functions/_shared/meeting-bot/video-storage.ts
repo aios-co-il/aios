@@ -27,6 +27,12 @@ export const VIDEO_STORED = "video_stored";
  */
 export const VIDEO_RETENTION_MS = 3 * 24 * 60 * 60 * 1000;
 
+/**
+ * Copies meeting-bot-reconcile re-queues per session after finalize's first
+ * one. Bounds a failure that is not recognised as permanent.
+ */
+export const VIDEO_STORE_MAX_ATTEMPTS = 5;
+
 type SessionKey = Pick<MeetingBotSession, "id" | "tenant_id">;
 
 type KickClient = Parameters<typeof kickNextBatch>[0];

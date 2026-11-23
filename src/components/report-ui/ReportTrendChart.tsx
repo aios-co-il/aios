@@ -20,9 +20,18 @@ interface ReportTrendChartProps<Row> {
   xKey: keyof Row & string;
   valueKey: keyof Row & string;
   valueName: string;
-  /** A second series in the brand's neutral, e.g. spend under revenue. */
-  compare?: { key: keyof Row & string; name: string };
+  /**
+   * A second series in the brand's neutral, e.g. spend under revenue, with
+   * its own formatter when its unit differs (another currency).
+   */
+  compare?: {
+    key: keyof Row & string;
+    name: string;
+    format?: (value: number) => string;
+  };
   format?: (value: number) => string;
+  /** The value axis' formatter, when the series differ in unit; else `format`. */
+  axisFormat?: (value: number) => string;
   height?: number;
 }
 
@@ -36,6 +45,7 @@ export function ReportTrendChart<Row>({
   valueName,
   compare,
   format,
+  axisFormat,
   height = 260,
 }: ReportTrendChartProps<Row>) {
   const fillId = `report-fill-${useId().replace(/:/g, "")}`;
@@ -72,10 +82,16 @@ export function ReportTrendChart<Row>({
             axisLine={false}
             tickLine={false}
             width={48}
-            tickFormatter={format}
+            tickFormatter={axisFormat ?? format}
           />
           <Tooltip
-            formatter={(value: number) => (format ? format(value) : value)}
+            formatter={(value: number, _name, item) => {
+              const own =
+                compare && item.dataKey === compare.key
+                  ? (compare.format ?? format)
+                  : format;
+              return own ? own(value) : value;
+            }}
           />
           <Area
             type="monotone"

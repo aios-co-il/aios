@@ -1,5 +1,6 @@
-import type { AcknowledgeCampaignAlertArgs } from "./campaign-alert-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type AcknowledgeCampaignAlertArgs = { alert_id: string };
 
 /** Preserves the existing acknowledge_campaign_alert executor and side-effect order. */
 export async function executeAcknowledgeCampaignAlert(

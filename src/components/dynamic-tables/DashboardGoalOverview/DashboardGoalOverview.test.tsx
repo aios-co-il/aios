@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { singleCurrency } from "@/lib/dashboardCurrencies.test-fixture";
 import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import {
   combinedDashboardLeads,
@@ -63,6 +64,8 @@ function renderAimee() {
         icon: null,
       })}
       format={format}
+      currencies={singleCurrency()}
+      hasStore={false}
     />,
   );
 }
@@ -122,6 +125,8 @@ describe("DashboardGoalOverview", () => {
         delivery={{ spend: 2000, impressions: 2000, clicks: 200 }}
         platformLabel={() => ({ name: "Facebook", color: "", icon: null })}
         format={format}
+        currencies={singleCurrency()}
+        hasStore={false}
       />,
     );
     expect(screen.getByText("ROAS משולב")).toBeTruthy();

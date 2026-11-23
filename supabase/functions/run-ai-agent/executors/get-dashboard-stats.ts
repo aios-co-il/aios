@@ -1,6 +1,7 @@
-import type { GetDashboardStatsArgs } from "./ad-report-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
+
+type GetDashboardStatsArgs = unknown;
 
 /** Preserves the existing get_dashboard_stats executor and side-effect order. */
 export async function executeGetDashboardStats(

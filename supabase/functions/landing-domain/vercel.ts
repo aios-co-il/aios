@@ -121,6 +121,22 @@ export function vercelLanding(config: {
     return answer.json;
   }
 
+  /**
+   * Asks Vercel to verify a domain it has not verified yet, once its TXT challenge is in place.
+   * A 400 means the challenge is not met yet, and the domain stays as it was.
+   */
+  async function verify(domain: string, current: unknown): Promise<unknown> {
+    const path = `/v9${project}/${encodeURIComponent(domain)}/verify`;
+    const answer = await call("POST", path);
+    if (answer.status === 200) {
+      return answer.json;
+    }
+    if (answer.status === 400) {
+      return current;
+    }
+    throw fail(path, answer);
+  }
+
   return {
     async addDomain(domain) {
       const path = `/v10${project}`;
@@ -128,13 +144,15 @@ export function vercelLanding(config: {
       if (answer.status === 200 || answer.status === 201) {
         return;
       }
-      // Vercel answers 409 both when this project already has the domain and when another
-      // project does; only the first is success.
-      if (answer.status === 409) {
+      // A domain this project already has comes back as a 400 or a 409, and a domain another
+      // project has as a 409; only membership in this project tells them apart.
+      if (answer.status === 400 || answer.status === 409) {
         if (await projectDomain(domain)) {
           return;
         }
-        throw new DomainInUseError(domain);
+        if (answer.status === 409) {
+          throw new DomainInUseError(domain);
+        }
       }
       throw fail(path, answer);
     },
@@ -148,10 +166,14 @@ export function vercelLanding(config: {
     },
 
     async checkDomain(domain) {
-      const attached = await projectDomain(domain);
-      if (!attached) {
+      const current = await projectDomain(domain);
+      if (!current) {
         return { connected: false, verified: false, records: [] };
       }
+      const attached =
+        field(current, "verified") === true
+          ? current
+          : await verify(domain, current);
       const path = `/v6/domains/${encodeURIComponent(domain)}/config`;
       const config = await call("GET", path);
       if (config.status !== 200) {

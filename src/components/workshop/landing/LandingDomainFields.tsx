@@ -46,7 +46,9 @@ export function LandingDomainFields({
   }, [saved, saves]);
 
   const problem = customDomainProblem(draft);
-  const unchanged = normalizeDomain(draft) === saved;
+  // The saved domain can be saved again: that connects it again after a failed connection.
+  const reconnect = !!saved && normalizeDomain(draft) === saved;
+  const nothingToSave = !saved && !normalizeDomain(draft);
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-medium">דומיין</legend>
@@ -71,11 +73,11 @@ export function LandingDomainFields({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!!problem || unchanged || pending}
+          disabled={!!problem || nothingToSave || pending}
           onClick={() => onSave(draft)}
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          שמירת דומיין
+          {reconnect ? "חיבור מחדש" : "שמירת דומיין"}
         </Button>
       </div>
       {problem ? (
@@ -146,7 +148,7 @@ function statusText(
     return result.message;
   }
   if (!result.connected) {
-    return "הדומיין עוד לא חובר ל-Vercel. שמרו אותו שוב.";
+    return "הדומיין עוד לא חובר ל-Vercel. לחצו על חיבור מחדש.";
   }
   return result.verified
     ? "הדומיין מאומת, והאתר זמין בו."
