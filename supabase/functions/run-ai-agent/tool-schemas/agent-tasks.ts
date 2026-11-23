@@ -24,7 +24,8 @@ export const agentTasksTools = [
         },
         cron_expression: {
           type: "string",
-          description: "ביטוי CRON למשימות חוזרות",
+          description:
+            "ביטוי CRON למשימות חוזרות, בשעון ישראל (לא UTC). למשימה יומית או שבועית עדיף לשלוח scheduled_at של ההפעלה הראשונה: השעה והיום שלו בשעון ישראל קובעים את החזרה.",
         },
         task_skills: {
           type: "array",

@@ -8,6 +8,7 @@ import {
 import {
   STALE_RUN_WINDOW_MS,
   computeNextRun,
+  cronFromScheduledAt,
   decideRecurringRun,
   freshOccurrenceResult,
 } from "./agent-task-schedule.ts";
@@ -163,4 +164,18 @@ Deno.test("freshOccurrenceResult drops the previous conversation", () => {
     conversation_history: [],
     total_tool_calls: 0,
   });
+});
+
+Deno.test("cronFromScheduledAt reads the wall-clock time in Israel", () => {
+  // Winter (UTC+2) and summer (UTC+3) both map to the same local hour.
+  assertEquals(
+    cronFromScheduledAt("2026-11-13T14:00:00Z", "weekly"),
+    "0 16 * * 5",
+  );
+  assertEquals(
+    cronFromScheduledAt("2026-07-01T04:30:00Z", "daily"),
+    "30 7 * * *",
+  );
+  assertEquals(cronFromScheduledAt(null, "daily"), null);
+  assertEquals(cronFromScheduledAt("not a date", "weekly"), null);
 });

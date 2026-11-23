@@ -31,6 +31,37 @@ export function computeNextRun(
   return next ? next.toISOString() : null;
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Cron expression for a daily or weekly task that runs at the wall-clock time
+ * of `scheduledAt` in `timeZone` (on its weekday, for weekly). Null when the
+ * timestamp is missing or invalid.
+ */
+export function cronFromScheduledAt(
+  scheduledAt: string | null | undefined,
+  repeat: "daily" | "weekly",
+  timeZone: string = DEFAULT_TASK_TIMEZONE,
+): string | null {
+  const date = scheduledAt ? new Date(scheduledAt) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+  }).formatToParts(date);
+  const local = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  const minute = Number(local.minute);
+  const hour = Number(local.hour);
+  const weekday =
+    repeat === "weekly" ? WEEKDAYS.indexOf(local.weekday ?? "") : -1;
+  return `${minute} ${hour} * * ${weekday >= 0 ? weekday : "*"}`;
+}
+
 /** Decide what the dispatcher does with a recurring task whose next_run is due. */
 export function decideRecurringRun(
   task: {

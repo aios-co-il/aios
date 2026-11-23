@@ -51,3 +51,66 @@ Deno.test(
     });
   },
 );
+
+Deno.test(
+  "a weekly reminder runs at its requested Israel time, not 7 days after the last run",
+  async () => {
+    const fixture = executorClient([
+      {
+        id: "task",
+        title: "weekly",
+        status: "pending",
+        schedule_type: "recurring",
+        scheduled_at: "2026-11-13T14:00:00Z",
+        next_run: "2026-11-27T14:00:00Z",
+      },
+    ]);
+    await executeCreateAgentTask(
+      {
+        title: "weekly",
+        schedule_type: "weekly",
+        // Friday 16:00 Israel time; the model's cron was written in UTC.
+        scheduled_at: "2026-11-13T14:00:00Z",
+        cron_expression: "0 14 * * 5",
+      },
+      fixture.context,
+    );
+    const body = fixture.calls[0].body as Record<string, unknown>;
+    assertObjectMatch(body, {
+      schedule_type: "recurring",
+      cron_expression: "0 16 * * 5",
+      timezone: "Asia/Jerusalem",
+    });
+    const nextRun = new Date(String(body.next_run));
+    assert(nextRun.getTime() > Date.now());
+    const israel = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Jerusalem",
+      hourCycle: "h23",
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(nextRun);
+    assertEquals(israel, "Fri 16:00");
+  },
+);
+
+Deno.test("a daily task with no time keeps its legacy schedule", async () => {
+  const fixture = executorClient([
+    {
+      id: "task",
+      title: "daily",
+      status: "pending",
+      schedule_type: "daily",
+      scheduled_at: null,
+      next_run: null,
+    },
+  ]);
+  await executeCreateAgentTask(
+    { title: "daily", schedule_type: "daily" },
+    fixture.context,
+  );
+  assertObjectMatch(fixture.calls[0].body as Record<string, unknown>, {
+    schedule_type: "daily",
+    cron_expression: null,
+  });
+});

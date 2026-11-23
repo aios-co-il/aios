@@ -1,6 +1,39 @@
 import type { TablesInsert } from "../../_shared/database.types.ts";
 import type { CreateAgentTaskArgs } from "./task-creation.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+import {
+  computeNextRun,
+  cronFromScheduledAt,
+  DEFAULT_TASK_TIMEZONE,
+} from "../../_shared/agent-task-schedule.ts";
+import { isValidCron } from "../../_shared/cron-next.ts";
+
+/**
+ * A daily or weekly task becomes a cron task in Israel time, so the dispatcher
+ * runs it at the requested hour instead of 24h/7d after its previous run. The
+ * time comes from scheduled_at (UTC) when given, otherwise from a cron
+ * expression written in Israel time. Without either it keeps the legacy type.
+ */
+function repeatingSchedule(args: CreateAgentTaskArgs, now: Date) {
+  const repeat = args.schedule_type;
+  if (repeat !== "daily" && repeat !== "weekly") {
+    return null;
+  }
+  const cron =
+    cronFromScheduledAt(args.scheduled_at, repeat) ??
+    (args.cron_expression && isValidCron(args.cron_expression)
+      ? args.cron_expression
+      : null);
+  if (!cron) {
+    return null;
+  }
+  return {
+    schedule_type: "recurring",
+    cron_expression: cron,
+    timezone: DEFAULT_TASK_TIMEZONE,
+    next_run: computeNextRun(cron, now, DEFAULT_TASK_TIMEZONE),
+  };
+}
 
 /** Preserves the existing create_agent_task executor and side-effect order. */
 export async function executeCreateAgentTask(
@@ -31,6 +64,7 @@ export async function executeCreateAgentTask(
     const instruction = `\n\n[הוראת ביצוע אוטומטית לזמן ההפעלה]\nכשמשימה זו רצה, חובה לשלוח עכשיו הודעת WhatsApp תזכורת לטלפון ${callerPhone} עם הטקסט בעברית, בקצרה ובחום:\n"${reminderText}"\nהשתמשי בכלי send_whatsapp_via_gateway (אם יש integrationId זמין) או send_message (אם phone=${callerPhone} שייך ל-lead/client). אם אף כלי לא זמין — השתמשי בכל כלי WhatsApp אחר שיש לך. אסור לסיים את המשימה בלי לשלוח בפועל. אל תיצרי משימת agent חדשה.`;
     finalDescription = (descStr ? descStr : titleStr) + instruction;
   }
+  const repeating = repeatingSchedule(args, new Date());
   const taskData: TablesInsert<"agent_tasks"> = {
     // Preserve database rejection when neither caller nor args supplies an agent.
     agent_id: (agentId || args.agent_id) as string,
@@ -43,6 +77,7 @@ export async function executeCreateAgentTask(
     scheduled_at: args.scheduled_at || null,
     cron_expression: args.cron_expression || null,
     task_skills: args.task_skills ? JSON.stringify(args.task_skills) : null,
+    ...repeating,
     task_mode: "agent",
     enabled: true,
     created_by: actorUserId,
@@ -72,13 +107,14 @@ export async function executeCreateAgentTask(
   const { data, error } = await supabase
     .from("agent_tasks")
     .insert(taskData)
-    .select("id, title, status, schedule_type, scheduled_at")
+    .select("id, title, status, schedule_type, scheduled_at, next_run")
     .single();
   if (error) {
     throw error;
   }
-  const scheduledIl = data.scheduled_at
-    ? new Date(data.scheduled_at).toLocaleString("he-IL", {
+  const firstRun = data.next_run ?? data.scheduled_at;
+  const scheduledIl = firstRun
+    ? new Date(firstRun).toLocaleString("he-IL", {
         weekday: "long",
         day: "2-digit",
         month: "2-digit",
