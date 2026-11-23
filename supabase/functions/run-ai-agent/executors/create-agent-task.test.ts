@@ -51,3 +51,45 @@ Deno.test(
     });
   },
 );
+
+Deno.test(
+  "a weekly reminder is stored as a cron schedule at its Israel hour",
+  async () => {
+    const fixture = executorClient(
+      [
+        {
+          id: "task",
+          title: "reminder",
+          status: "pending",
+          schedule_type: "recurring",
+          scheduled_at: "2099-01-02T14:00:00Z",
+          next_run: "2099-01-02T14:00:00Z",
+        },
+      ],
+      200,
+      { agentId: "agent" },
+    );
+
+    const result = await executeCreateAgentTask(
+      {
+        title: "reminder",
+        schedule_type: "weekly",
+        // Friday 16:00 in Israel (UTC+2), with the cron Carmen sent in UTC.
+        scheduled_at: "2099-01-02T14:00:00Z",
+        cron_expression: "0 14 * * 5",
+      },
+      fixture.context,
+    );
+
+    const body = fixture.calls[0].body;
+    assert(body !== null && typeof body === "object");
+    assertObjectMatch(body, {
+      schedule_type: "recurring",
+      cron_expression: "0 16 * * 5",
+      timezone: "Asia/Jerusalem",
+    });
+    assert("next_run" in body && typeof body.next_run === "string");
+    assertEquals(new Date(body.next_run).getUTCDay(), 5);
+    assertEquals(result.scheduled_at_utc, "2099-01-02T14:00:00Z");
+  },
+);

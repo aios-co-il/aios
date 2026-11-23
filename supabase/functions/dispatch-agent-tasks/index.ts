@@ -1,8 +1,9 @@
 // Cron-driven dispatcher for scheduled agent_tasks.
-// Picks pending tasks whose scheduled_at <= now() (one-shot),
-// recurring (daily/weekly) tasks whose next slot has elapsed,
-// or cron-scheduled recurring tasks (schedule_type='recurring') whose
-// next_run has arrived, and invokes run-agent-task for each.
+// Picks pending tasks whose scheduled_at <= now() (one-shot) or
+// cron-scheduled recurring tasks (schedule_type='recurring') whose next_run
+// has arrived, and invokes run-agent-task for each. Carmen's daily and weekly
+// tasks are stored as 'recurring' too (run-ai-agent/executors/
+// recurring-schedule.ts), so every repeating task runs at its own hour.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   decideRecurringRun,
@@ -25,10 +26,6 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const nowIso = new Date().toISOString();
-  const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const sevenDaysAgoIso = new Date(
-    Date.now() - 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
 
   const dispatched: any[] = [];
   const errors: any[] = [];
@@ -84,36 +81,10 @@ Deno.serve(async (req) => {
       .limit(25);
     if (onceErr) throw onceErr;
 
-    // 2. Daily recurring: enabled, last_run null or > 24h ago.
-    const { data: dailyDue } = await supabase
-      .from("agent_tasks")
-      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
-      .eq("schedule_type", "daily")
-      .eq("enabled", true)
-      .in("status", ["pending", "completed"])
-      .or(`last_run.is.null,last_run.lte.${oneDayAgoIso}`)
-      .limit(25);
-
-    // 3. Weekly recurring.
-    const { data: weeklyDue } = await supabase
-      .from("agent_tasks")
-      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
-      .eq("schedule_type", "weekly")
-      .eq("enabled", true)
-      .in("status", ["pending", "completed"])
-      .or(`last_run.is.null,last_run.lte.${sevenDaysAgoIso}`)
-      .limit(25);
-
-    const allTasks = [
-      ...(onceDue || []),
-      ...(dailyDue || []),
-      ...(weeklyDue || []),
-    ];
-
-    // 4. Cron-scheduled recurring tasks (Carmen tasks panel). next_run is set
-    // by the UI; each claim moves it to the following slot. A run that is
-    // more than STALE_RUN_WINDOW_MS late is skipped (never replayed). A task
-    // left "running" for over 30 minutes is treated as stuck.
+    // 2. Cron-scheduled recurring tasks. next_run is set when the task is
+    // saved; each claim moves it to the following slot. A run that is more
+    // than STALE_RUN_WINDOW_MS late is skipped (never replayed). A task left
+    // "running" for over 30 minutes is treated as stuck.
     const stuckBeforeIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: cronDue, error: cronErr } = await supabase
       .from("agent_tasks")
@@ -217,26 +188,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    for (const task of allTasks) {
-      if (!(await takeSlot((task as any).tenant_id))) {
+    for (const task of onceDue || []) {
+      if (!(await takeSlot(task.tenant_id))) {
         deferred.push(task.id);
         continue;
       }
-      // Atomically claim by stamping last_run and flipping status to running.
-      // Use last_run guard to avoid double-firing if cron overlaps.
-      const claimQuery = supabase
+      // Claim by stamping last_run and flipping status to running; the null
+      // guard stops overlapping ticks from double-firing.
+      const { data: claimed, error: claimErr } = await supabase
         .from("agent_tasks")
         .update({ last_run: nowIso, status: "running" })
-        .eq("id", task.id);
-      // For one-shot: only claim if last_run still null
-      if (task.schedule_type === "once") {
-        claimQuery.is("last_run", null);
-      } else {
-        // For recurring: only claim if last_run still in the past window we matched
-        if (task.last_run) claimQuery.eq("last_run", task.last_run);
-        else claimQuery.is("last_run", null);
-      }
-      const { data: claimed, error: claimErr } = await claimQuery
+        .eq("id", task.id)
+        .is("last_run", null)
         .select("id")
         .maybeSingle();
       if (claimErr) {

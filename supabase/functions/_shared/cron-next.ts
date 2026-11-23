@@ -74,7 +74,7 @@ export function isValidCron(expr: string): boolean {
   return parseCron(expr) !== null;
 }
 
-type LocalParts = {
+export type LocalParts = {
   year: number;
   month: number;
   day: number;
@@ -82,7 +82,8 @@ type LocalParts = {
   minute: number;
 };
 
-function localParts(date: Date, timeZone: string): LocalParts {
+/** The wall-clock date and time of an instant in `timeZone`. */
+export function localParts(date: Date, timeZone: string): LocalParts {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
