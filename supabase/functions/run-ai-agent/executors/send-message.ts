@@ -1,4 +1,3 @@
-import type { SendMessageArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { sendTargetFor } from "../chat-scope/send-target.ts";
 
@@ -45,3 +44,9 @@ export async function executeSendMessage(
   }
   return { sent_to: contactName, phone };
 }
+
+type SendMessageArgs = {
+  contact_type: "lead" | "client";
+  contact_id: string;
+  message_text: string;
+};

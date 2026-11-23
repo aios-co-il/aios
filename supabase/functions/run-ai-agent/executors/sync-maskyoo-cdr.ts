@@ -1,4 +1,3 @@
-import type { SyncMaskyooCdrArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing sync_maskyoo_cdr executor and side-effect order. */
@@ -23,3 +22,5 @@ export async function executeSyncMaskyooCdr(
   }
   return { success: true, ...data };
 }
+
+type SyncMaskyooCdrArgs = { from_date?: string };

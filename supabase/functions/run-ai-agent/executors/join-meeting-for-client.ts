@@ -1,4 +1,3 @@
-import type { JoinMeetingForClientArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing join_meeting_for_client executor and side-effect order. */
@@ -52,3 +51,13 @@ export async function executeJoinMeetingForClient(
       data.message || "הבוט מצטרף לפגישה. אשרו אותו בחדר ההמתנה אם נדרש.",
   };
 }
+
+type JoinMeetingForClientArgs = {
+  meeting_url: string;
+  client_id?: string;
+  lead_id?: string;
+  campaigner_ids?: Array<string>;
+  agency_id?: string;
+  summary_scope?: "auto" | "client" | "lead" | "campaigner" | "agency";
+  meeting_topic?: string;
+};

@@ -1,4 +1,3 @@
-import type { CancelBroadcastArgs } from "./broadcast-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing cancel_broadcast executor and side-effect order. */
@@ -44,3 +43,5 @@ export async function executeCancelBroadcast(
       "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
   };
 }
+
+type CancelBroadcastArgs = { broadcast_id: string };

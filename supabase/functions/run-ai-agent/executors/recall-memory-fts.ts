@@ -1,4 +1,3 @@
-import type { RecallMemoryFtsArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { recallAgentMemoryFTS } from "../../_shared/agent-memory.ts";
 
@@ -19,3 +18,9 @@ export async function executeRecallMemoryFts(
   });
   return { count: items.length, memories: items };
 }
+
+type RecallMemoryFtsArgs = {
+  query: string;
+  limit?: number;
+  min_importance?: number;
+};

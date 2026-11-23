@@ -1,5 +1,4 @@
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
-import type { ListCalendarEventsArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { providerErrorMessage } from "../tool-contracts-admin.ts";
 import { readGoogleCalendarEvents } from "../tool-contracts-admin.ts";
@@ -68,3 +67,9 @@ export async function executeListCalendarEvents(
     })),
   };
 }
+
+type ListCalendarEventsArgs = {
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+};

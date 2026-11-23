@@ -1,4 +1,3 @@
-import type { RecallMemoryArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing recall_memory executor and side-effect order. */
@@ -26,3 +25,5 @@ export async function executeRecallMemory(
   }
   return { count: data.length, memories: data };
 }
+
+type RecallMemoryArgs = { category?: string; search?: string };

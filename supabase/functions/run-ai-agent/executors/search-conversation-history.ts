@@ -1,5 +1,4 @@
 import type { ChatReadContext } from "../chat-scope/scoped-read.ts";
-import type { SearchConversationHistoryArgs } from "./conversation-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { scopedChatRead } from "../chat-scope/scoped-read.ts";
 import { isGroupChat } from "../finding-draft/reply.ts";
@@ -132,3 +131,12 @@ export async function executeSearchConversationHistory(
     ...chatScopeMeta(chatScope),
   };
 }
+
+type SearchConversationHistoryArgs = {
+  query?: string;
+  days_back?: number;
+  only_carmen_chats?: boolean;
+  with_phone?: string;
+  browse_all_chats?: boolean;
+  limit?: number;
+};

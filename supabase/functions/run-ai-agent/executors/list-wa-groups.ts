@@ -1,4 +1,3 @@
-import type { ListWaGroupsArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing list_wa_groups executor and side-effect order. */
@@ -24,3 +23,5 @@ export async function executeListWaGroups(
   }
   return { count: data.length, groups: data };
 }
+
+type ListWaGroupsArgs = { name_search?: string; limit?: number };

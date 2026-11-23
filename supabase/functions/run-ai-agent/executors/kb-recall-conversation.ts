@@ -1,4 +1,3 @@
-import type { KbRecallConversationArgs } from "./knowledge-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { AgentRow } from "../database-contracts.ts";
 
@@ -46,3 +45,10 @@ export async function executeKbRecallConversation(
   }
   return { count: data.length, episodes: data };
 }
+
+type KbRecallConversationArgs = {
+  query?: string;
+  topic?: string;
+  since_days?: number;
+  limit?: number;
+};

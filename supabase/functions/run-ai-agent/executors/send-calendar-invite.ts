@@ -1,6 +1,6 @@
+import { calendarInviteTimes } from "./calendar-invite-times.ts";
 import { resolveCalendarConferenceExtras } from "./calendar-conference.ts";
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
-import type { SendCalendarInviteArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { mergeNamedPrimaryAttendee } from "../../_shared/calendar-conference.ts";
 import { fetchZoomAccessToken } from "../../_shared/calendar-conference.ts";
@@ -46,15 +46,7 @@ export async function executeSendCalendarInvite(
     args,
   );
 
-  // Send naive wall-clock times with an explicit timeZone — Google interprets
-  // them in Asia/Jerusalem. toISOString() ('Z') marked Israel wall times as
-  // UTC, landing every event 3 hours late (08:00 request → 11:00 invite).
-  const startNaive = `${date}T${time}:00`;
-  const endNaive = new Date(
-    Date.parse(`${startNaive}Z`) + (duration_minutes || 60) * 60_000,
-  )
-    .toISOString()
-    .slice(0, 19);
+  const { startNaive, endNaive } = calendarInviteTimes(args);
   const attendees = mergeNamedPrimaryAttendee(
     attendee_email,
     attendee_name,
@@ -130,7 +122,7 @@ export async function executeSendCalendarInvite(
       error: `שגיאת Google Calendar: ${evData?.error?.message || calResp.status}`,
     };
   }
-  const summary = summarizeEventResult(evData, {
+  return summarizeEventResult(evData, {
     attendee_email,
     attendee_name: attendee_name || null,
     start_israel: startNaive,
@@ -148,5 +140,19 @@ export async function executeSendCalendarInvite(
       : null,
     message: `זימון נשלח למייל ${attendee_email}${conference_applied !== "none" ? ` — נוסף ${conference_applied === "zoom" ? "Zoom" : "Google Meet"}` : ""}.`,
   });
-  return summary;
 }
+
+type SendCalendarInviteArgs = {
+  attendee_email: string;
+  attendee_name?: string;
+  title: string;
+  date: string;
+  time: string;
+  duration_minutes?: number;
+  notes?: string;
+  add_conference?: boolean;
+  conference_type?: string;
+  add_attendee_emails?: Array<string>;
+  add_carmen?: boolean;
+  carmen_email?: string;
+};

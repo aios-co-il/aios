@@ -1,7 +1,6 @@
 import { makeZoomMeetingCreator } from "./calendar-zoom.ts";
 import { resolveCalendarConferenceExtras } from "./calendar-conference.ts";
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
-import type { UpdateCalendarInviteArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { updateExistingCalendarEvent } from "../../_shared/calendar-conference.ts";
 
@@ -87,3 +86,17 @@ export async function executeUpdateCalendarInvite(
       : null,
   };
 }
+
+type UpdateCalendarInviteArgs = {
+  event_id: string;
+  date?: string;
+  time?: string;
+  duration_minutes?: number;
+  title?: string;
+  notes?: string;
+  add_conference?: boolean;
+  conference_type?: string;
+  add_attendee_emails?: Array<string>;
+  add_carmen?: boolean;
+  carmen_email?: string;
+};

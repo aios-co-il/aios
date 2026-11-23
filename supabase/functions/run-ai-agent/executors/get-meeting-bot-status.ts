@@ -1,4 +1,3 @@
-import type { GetMeetingBotStatusArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing get_meeting_bot_status executor and side-effect order. */
@@ -58,3 +57,5 @@ export async function executeGetMeetingBotStatus(
     ended_at: session.ended_at,
   };
 }
+
+type GetMeetingBotStatusArgs = { session_id?: string; bot_id?: string };

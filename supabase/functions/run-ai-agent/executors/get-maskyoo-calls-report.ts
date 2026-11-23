@@ -1,4 +1,3 @@
-import type { GetMaskyooCallsReportArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 
@@ -142,3 +141,12 @@ export async function executeGetMaskyooCallsReport(
     previous_period: prevRows.length ? prevRows : undefined,
   };
 }
+
+type GetMaskyooCallsReportArgs = {
+  client_id?: string;
+  client_name?: string;
+  period_start?: string;
+  period_end?: string;
+  category?: "organic" | "paid" | "all";
+  period_compare?: boolean;
+};

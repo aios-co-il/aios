@@ -1,4 +1,3 @@
-import type { ListBroadcastsArgs } from "./broadcast-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing list_broadcasts executor and side-effect order. */
@@ -25,3 +24,15 @@ export async function executeListBroadcasts(
   }
   return { count: data.length, broadcasts: data };
 }
+
+type ListBroadcastsArgs = {
+  status?:
+    | "draft"
+    | "scheduled"
+    | "sending"
+    | "sent"
+    | "paused"
+    | "failed"
+    | "canceled";
+  limit?: number;
+};

@@ -1,4 +1,4 @@
-import type { CreateBroadcastArgs } from "./broadcast-inputs.ts";
+import type { Json } from "../../_shared/database.types.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { TablesInsert } from "../../_shared/database.types.ts";
 
@@ -76,3 +76,12 @@ export async function executeCreateBroadcast(
       'הצג סיכום של הדיוור (שם, קהל, תוכן) ושאל "לשלוח עכשיו או לתזמן למועד מסוים?". אסור לשלוח בלי אישור מפורש.',
   };
 }
+
+type CreateBroadcastArgs = {
+  name: string;
+  body_text: string;
+  audience_source: "clients" | "leads" | "campaigners" | "wa_groups";
+  audience_filter?: Json;
+  scheduled_at?: string;
+  integration_id?: string;
+};

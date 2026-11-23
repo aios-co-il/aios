@@ -1,5 +1,4 @@
 import type { Database } from "../../_shared/database.types.ts";
-import type { KbLearnArgs } from "./knowledge-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { aiEmbed } from "../../_shared/ai.ts";
 
@@ -39,3 +38,12 @@ export async function executeKbLearn(
   }
   return { learned: true, episode_id: data.id, topic: data.topic };
 }
+
+type KbLearnArgs = {
+  topic: string;
+  summary: string;
+  topic_tags?: Array<string>;
+  importance?: number;
+  source_table?: string;
+  source_ids?: Array<string>;
+};

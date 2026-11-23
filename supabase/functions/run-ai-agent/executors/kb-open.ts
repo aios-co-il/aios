@@ -1,4 +1,3 @@
-import type { KbOpenArgs } from "./knowledge-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 type KnowledgeSourceClient = {
@@ -65,3 +64,5 @@ export async function executeKbOpen(
     .then(() => {});
   return { pointer: ptr, live };
 }
+
+type KbOpenArgs = { pointer_id: string };

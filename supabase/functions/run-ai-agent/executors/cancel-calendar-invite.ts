@@ -1,5 +1,4 @@
 import { resolveCalendarAccessToken } from "./calendar-access-token.ts";
-import type { CancelCalendarInviteArgs } from "./calendar-tool-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { providerErrorMessage } from "../tool-contracts-admin.ts";
 
@@ -50,3 +49,5 @@ export async function executeCancelCalendarInvite(
     message: "האירוע בוטל — המשתתפים קיבלו הודעת ביטול.",
   };
 }
+
+type CancelCalendarInviteArgs = { event_id: string; confirmed: boolean };

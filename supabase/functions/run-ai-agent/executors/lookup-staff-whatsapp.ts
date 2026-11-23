@@ -1,5 +1,4 @@
 import { loadStaffWhatsappRoster } from "./staff-whatsapp-roster.ts";
-import type { LookupStaffWhatsappArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { formatStaffContact } from "../../_shared/staff-whatsapp.ts";
 import { scoreNameMatchSafe } from "../executors/name-match.ts";
@@ -43,3 +42,10 @@ export async function executeLookupStaffWhatsapp(
     note: "השתמשי ב-send_whatsapp_to_staff עם staff_id או name מהרשימה. הטלפון נמשך מה-DB בלבד.",
   };
 }
+
+type LookupStaffWhatsappArgs = {
+  entity_type?: "campaigner" | "sales_person" | "team_member" | "auto";
+  search?: string;
+  only_with_phone?: boolean;
+  limit?: number;
+};

@@ -1,4 +1,3 @@
-import type { RecallRecentActionArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing recall_recent_action executor and side-effect order. */
@@ -57,3 +56,8 @@ export async function executeRecallRecentAction(
         : "אין רישום מ-N השעות האחרונות. אפשר להריץ את הפעולה.",
   };
 }
+
+type RecallRecentActionArgs = {
+  action_type: string;
+  max_age_hours?: number;
+};

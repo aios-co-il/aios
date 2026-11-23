@@ -1,4 +1,3 @@
-import type { RecordActionEpisodeArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing record_action_episode executor and side-effect order. */
@@ -42,3 +41,10 @@ export async function executeRecordActionEpisode(
   }
   return { episode_id: data.id, recorded: true };
 }
+
+type RecordActionEpisodeArgs = {
+  action_type: string;
+  summary: string;
+  topic_tags?: Array<string>;
+  importance?: number;
+};

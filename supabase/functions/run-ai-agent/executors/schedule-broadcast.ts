@@ -1,4 +1,3 @@
-import type { ScheduleBroadcastArgs } from "./broadcast-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing schedule_broadcast executor and side-effect order. */
@@ -44,3 +43,8 @@ export async function executeScheduleBroadcast(
       "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
   };
 }
+
+type ScheduleBroadcastArgs = {
+  broadcast_id: string;
+  scheduled_at: string;
+};

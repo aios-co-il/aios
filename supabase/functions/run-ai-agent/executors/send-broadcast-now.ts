@@ -1,4 +1,3 @@
-import type { SendBroadcastNowArgs } from "./broadcast-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing send_broadcast_now executor and side-effect order. */
@@ -47,3 +46,5 @@ export async function executeSendBroadcastNow(
       "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
   };
 }
+
+type SendBroadcastNowArgs = { broadcast_id: string };

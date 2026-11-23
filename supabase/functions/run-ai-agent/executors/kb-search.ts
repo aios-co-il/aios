@@ -1,5 +1,4 @@
 import type { Database } from "../../_shared/database.types.ts";
-import type { KbSearchArgs } from "./knowledge-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { aiEmbed } from "../../_shared/ai.ts";
 
@@ -53,3 +52,10 @@ export async function executeKbSearch(
   }
   return { count: data.length, results: data, mode: "text" };
 }
+
+type KbSearchArgs = {
+  query: string;
+  category?: string;
+  since_days?: number;
+  limit?: number;
+};

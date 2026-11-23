@@ -1,4 +1,3 @@
-import type { SaveMemoryArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { saveAgentMemory } from "../../_shared/agent-memory.ts";
 
@@ -57,3 +56,15 @@ export async function executeSaveMemory(
   }).catch(() => {});
   return { saved: true, key: data.key, category: data.category };
 }
+
+type SaveMemoryArgs = {
+  key: string;
+  content: string;
+  category?:
+    | "preferences"
+    | "projects"
+    | "clients"
+    | "workflows"
+    | "personal"
+    | "instructions";
+};

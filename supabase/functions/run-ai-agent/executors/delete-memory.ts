@@ -1,4 +1,3 @@
-import type { DeleteMemoryArgs } from "./memory-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing delete_memory executor and side-effect order. */
@@ -18,3 +17,5 @@ export async function executeDeleteMemory(
   }
   return { deleted: true, key: args.key };
 }
+
+type DeleteMemoryArgs = { key: string };

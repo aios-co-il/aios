@@ -1,4 +1,3 @@
-import type { KbListFolderArgs } from "./knowledge-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
 /** Preserves the existing kb_list_folder executor and side-effect order. */
@@ -31,3 +30,10 @@ export async function executeKbListFolder(
   }
   return { count: data.length, pointers: data };
 }
+
+type KbListFolderArgs = {
+  category?: "clients" | "team" | "messages" | "conversations" | "system_map";
+  subcategory?: string;
+  path_prefix?: string;
+  limit?: number;
+};

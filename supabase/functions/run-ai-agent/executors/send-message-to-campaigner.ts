@@ -1,5 +1,4 @@
 import { loadStaffWhatsappRoster } from "./staff-whatsapp-roster.ts";
-import type { SendMessageToCampaignerArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { selectStaffMatch } from "../../_shared/staff-whatsapp.ts";
 import { formatStaffContact } from "../../_shared/staff-whatsapp.ts";
@@ -100,3 +99,9 @@ export async function executeSendMessageToCampaigner(
     ...sendResult,
   };
 }
+
+type SendMessageToCampaignerArgs = {
+  campaigner_id?: string;
+  message_text: string;
+  name?: string;
+};
