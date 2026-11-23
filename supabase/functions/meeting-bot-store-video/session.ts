@@ -122,3 +122,27 @@ export async function resumeAwaitingSession(
     throw new Error(`resume awaiting session failed: ${error.message}`);
   }
 }
+
+/**
+ * Records why the session's video copy failed. A permanent failure also sets
+ * video_store_failed_at, so reconcile stops retrying the copy.
+ */
+export async function recordCopyFailure(
+  admin: DbClient,
+  session: StoredSession,
+  failure: { message: string; permanent: boolean },
+): Promise<void> {
+  const { error } = await admin
+    .from("meeting_bot_sessions")
+    .update({
+      video_store_error: failure.message.slice(0, 500),
+      ...(failure.permanent
+        ? { video_store_failed_at: new Date().toISOString() }
+        : {}),
+    })
+    .eq("tenant_id", session.tenant_id)
+    .eq("id", session.id);
+  if (error) {
+    throw new Error(`record copy failure failed: ${error.message}`);
+  }
+}

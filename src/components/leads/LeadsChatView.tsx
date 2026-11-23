@@ -71,6 +71,10 @@ import {
 } from "@/components/leads/LeadOriginLines";
 import { LeadSourceHistory } from "@/components/leads/LeadSourceHistory";
 import { SendSignatureFromLeadPanel } from "@/components/leads/SendSignatureFromLeadPanel";
+import { LeadCustomFieldsCard } from "@/components/leads/LeadCustomFieldsCard";
+import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
+import { useCustomFieldLabels } from "@/hooks/useCustomFieldLabels";
+import { getVisibleLeadCustomFields } from "@/lib/leadCustomFields";
 
 interface LeadsChatViewProps {
   leads: any[];
@@ -157,6 +161,11 @@ export function LeadsChatView({
   const [callDialogOpen, setCallDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
+  const { fieldDefinitions } = useCustomFieldLabels("lead");
+  const customFields = useMemo(
+    () => getVisibleLeadCustomFields(fieldDefinitions),
+    [fieldDefinitions],
+  );
 
   const isDialog = presentation === "dialog";
 
@@ -967,12 +976,11 @@ export function LeadsChatView({
                           )}
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.phone ? (
-                              <a
-                                href={`tel:${selectedLead.phone}`}
+                              <LeadContactLink
+                                kind="phone"
+                                value={selectedLead.phone}
                                 className="font-medium text-primary hover:underline"
-                              >
-                                {selectedLead.phone}
-                              </a>
+                              />
                             ) : (
                               <span>—</span>
                             )}
@@ -982,12 +990,11 @@ export function LeadsChatView({
                           </div>
                           <div className="flex items-center justify-end gap-2">
                             {selectedLead.email ? (
-                              <a
-                                href={`mailto:${selectedLead.email}`}
+                              <LeadContactLink
+                                kind="email"
+                                value={selectedLead.email}
                                 className="font-medium text-primary hover:underline truncate"
-                              >
-                                {selectedLead.email}
-                              </a>
+                              />
                             ) : (
                               <span>—</span>
                             )}
@@ -1061,6 +1068,11 @@ export function LeadsChatView({
                         </div>
                       </div>
                     </div>
+
+                    <LeadCustomFieldsCard
+                      fields={customFields}
+                      formData={selectedLead.form_data}
+                    />
 
                     {/* Notes */}
                     <div className="bg-card border border-border/60 rounded-xl p-4 text-right shadow-sm">

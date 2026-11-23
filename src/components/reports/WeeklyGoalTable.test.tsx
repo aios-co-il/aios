@@ -18,7 +18,10 @@ const traffic = (campaign: string, data: Record<string, unknown>) => ({
 });
 
 /** Renders the week's traffic table built from these stored rows. */
-function renderTrafficWeek(records: Array<ReturnType<typeof traffic>>) {
+function renderTrafficWeek(
+  records: Array<ReturnType<typeof traffic>>,
+  currencyOf: (source: string) => string = () => "₪",
+) {
   const [week] = buildWeeklyCampaignSections(records, {
     now: new Date("2026-09-18T12:00:00Z"),
   });
@@ -29,7 +32,7 @@ function renderTrafficWeek(records: Array<ReturnType<typeof traffic>>) {
   render(
     <WeeklyGoalTable
       group={group}
-      currency="₪"
+      currencyOf={currencyOf}
       showPlatform={false}
       showTitle={false}
     />,
@@ -101,5 +104,27 @@ describe("WeeklyGoalTable traffic followers", () => {
     expect(headers(region)).toContain("לידים");
     const row = within(region).getByText("Instagram").closest("tr");
     expect(cells(row)[5]).toBe("6");
+  });
+});
+
+describe("WeeklyGoalTable currencies", () => {
+  it("writes each platform's spend in its currency and the total apart", () => {
+    const region = renderTrafficWeek(
+      [
+        traffic("Meta", { spend: 200 }),
+        { ...traffic("Shop", { spend: 30 }), _source: "facebook_ecommerce" },
+      ],
+      (source) => (source === "facebook_ecommerce" ? "$" : "₪"),
+    );
+    function row(name: string) {
+      return within(region).getByText(name).closest("tr");
+    }
+    const spendColumn = headers(region).indexOf("הוצאה");
+
+    expect(cells(row("Meta"))[spendColumn]).toBe("₪200");
+    expect(cells(row("Shop"))[spendColumn]).toBe("$30");
+    expect(cells(region.querySelector("tfoot tr"))[spendColumn]).toBe(
+      "₪200 · $30",
+    );
   });
 });

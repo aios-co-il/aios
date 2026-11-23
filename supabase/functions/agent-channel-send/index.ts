@@ -15,6 +15,7 @@ import {
   parseActiveSkin,
 } from "../_shared/carmen/active-skin.ts";
 import { requireAuth } from "../_shared/security.ts";
+import { noCarmenReply } from "./no-carmen.ts";
 import { dispatchSend } from "../_shared/agent-channel/adapters.ts";
 import { loadBrainEnv } from "../_shared/agent-channel/brain-env.ts";
 import {
@@ -81,7 +82,11 @@ function parseAttachments(raw: unknown) {
   }>;
 }
 
+/** A JSON response; a 4xx is logged, since callers often show nothing for it. */
 function json(status: number, body: unknown) {
+  if (status >= 400 && status < 500) {
+    console.warn(`[agent-channel-send] ${status}:`, JSON.stringify(body));
+  }
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -114,7 +119,13 @@ Deno.serve(async (req) => {
   const action = String(body.action || "send");
   const carmen = await resolveCarmenAgent(sb, tenantId);
   const agentId = carmen?.id ?? "";
-  if (!agentId) return json(400, { error: "No Carmen agent for this tenant" });
+  if (!agentId) {
+    const reply = noCarmenReply(action);
+    console.warn(
+      `[agent-channel-send] tenant ${tenantId} has no active Carmen agent (${action})`,
+    );
+    return json(reply.status, reply.body);
+  }
   // Brain routes and permissions belong to the tenant's Carmen; another agent
   // id would sidestep the user's permission row.
   if (body.agent_id && String(body.agent_id) !== agentId)
@@ -400,6 +411,7 @@ Deno.serve(async (req) => {
       history: Array.isArray(body.conversation_history)
         ? body.conversation_history
         : [],
+      screenContext: body.context_metadata,
     });
     await setConversationStatus(sb, conv.id, result.status);
     await sb

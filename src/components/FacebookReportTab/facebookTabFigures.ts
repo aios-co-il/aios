@@ -5,6 +5,7 @@ import {
   getSpendFromData,
   type FacebookCampaignRow,
 } from "@/lib/adsMetrics";
+import { META_SOURCES } from "@/lib/dashboardCampaignGoals";
 import {
   campaignOffKeys,
   reportOffLookup,
@@ -37,11 +38,6 @@ export type FacebookTabDay = {
   spend: number;
   clicks: number;
 };
-
-const META_SOURCES: ReadonlySet<string> = new Set([
-  "facebook_insights",
-  "facebook_ecommerce",
-]);
 
 /** Adds up the campaigns' delivery and results. */
 export function facebookTabTotals(

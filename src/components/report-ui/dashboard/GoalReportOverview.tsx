@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { CurrencyCode } from "@/lib/currency";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
 import {
   buildReportPeriod,
   type ReportPeriodInput,
@@ -12,7 +12,8 @@ interface GoalReportOverviewProps {
   current: ReportPeriodInput;
   /** The period of equal length before; null shows the report without changes. */
   previous: ReportPeriodInput | null;
-  currency: CurrencyCode;
+  /** Each ads platform in its own currency (resolveDashboardCurrencies). */
+  currencies: DashboardCurrencies;
   /** Offer "בקש תובנה מכרמן"; left off on shared reports. */
   askCarmen?: boolean;
 }
@@ -26,7 +27,7 @@ interface GoalReportOverviewProps {
 export function GoalReportOverview({
   current,
   previous,
-  currency,
+  currencies,
   askCarmen = false,
 }: GoalReportOverviewProps) {
   const currentPeriod = useMemo(() => buildReportPeriod(current), [current]);
@@ -39,10 +40,10 @@ export function GoalReportOverview({
       reportDataOf({
         current: currentPeriod,
         previous: previousPeriod,
-        currency,
+        currencies,
         askCarmen,
       }),
-    [currentPeriod, previousPeriod, currency, askCarmen],
+    [currentPeriod, previousPeriod, currencies, askCarmen],
   );
   const layout = useMemo(
     () => defaultReportLayout(currentPeriod.goals),

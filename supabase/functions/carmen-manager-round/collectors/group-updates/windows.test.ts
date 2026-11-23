@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { history, message, STAFF_KEY, TENANT } from "./group-fixtures.ts";
+import { gateWindow } from "./gate.ts";
 import { groupWindows } from "./windows.ts";
 
 const from = new Date("2026-11-01T00:00:00Z");
@@ -16,12 +17,21 @@ const messages = [
   message("a", "2026-10-31T23:00:00Z", "לפני הרצפה"),
   message("b", "2026-11-01T09:00:00Z", "מתי עולה הקמפיין?"),
   message("c", "2026-11-01T09:05:00Z", "עולה מחר בבוקר", { key: STAFF_KEY }),
-  message("d", "2026-11-01T09:10:00Z", "שלחתי מהמערכת", {
+  message("d", "2026-11-01T09:10:00Z", "שלחתי מהטלפון של הקו", {
     out: true,
     key: null,
+    typedOnPhone: true,
   }),
   message("e", "2026-11-01T09:15:00Z", "[תמונה]", { key: null }),
 ];
+
+/** A lead notification an outside automation sent through a line's API. */
+function lead(id: string, at: string) {
+  return message(id, at, "ליד מקמפיין פייסבוק: - עברית\nשם מלא: נועה", {
+    out: true,
+    key: null,
+  });
+}
 
 Deno.test("groupWindows", async (t) => {
   await t.step(
@@ -43,6 +53,37 @@ Deno.test("groupWindows", async (t) => {
         ],
       );
       assertEquals(w.last, { at: "2026-11-01T09:15:00Z", id: "e" });
+    },
+  );
+
+  await t.step(
+    "an automated send is left out but still moves the watermark",
+    () => {
+      const [mixed] = groupWindows(
+        [
+          history([
+            message("b", "2026-11-01T09:00:00Z", "מתי עולה הקמפיין?"),
+            lead("x", "2026-11-01T09:05:00Z"),
+          ]),
+        ],
+        { floor: "", groups: {} },
+        from,
+        staff,
+      );
+      const [leadsOnly] = groupWindows(
+        [history([lead("y", "2026-11-01T10:00:00Z")])],
+        { floor: "", groups: {} },
+        from,
+        staff,
+      );
+
+      assertEquals(
+        mixed.messages.map((m) => m.id),
+        ["b"],
+      );
+      assertEquals(mixed.last, { at: "2026-11-01T09:05:00Z", id: "x" });
+      assertEquals(leadsOnly.messages, []);
+      assertEquals(gateWindow(leadsOnly, []), "advance");
     },
   );
 

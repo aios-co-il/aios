@@ -5,7 +5,7 @@ import {
   CAMPAIGN_GOAL_TOTAL_LABELS,
   type ReportCampaignGoal,
 } from "@/lib/campaignGoals";
-import type { CurrencyCode } from "@/lib/currency";
+import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
 import { ReportSection } from "../ReportSection";
 import { ShowOffRowsToggle } from "../ShowOffRowsToggle";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
@@ -17,6 +17,7 @@ import {
   GoalCampaignChannelRows,
   MetricCells,
 } from "./GoalCampaignChannelRows";
+import { reportMoneyOf } from "../metrics/reportMoney";
 import { groupRowsByChannel, sumFigures } from "./groupRowsByChannel";
 
 interface GoalCampaignTableProps {
@@ -24,7 +25,7 @@ interface GoalCampaignTableProps {
   scope: ReportScopeData;
   /** The columns after the name and status, from the goal's layout. */
   metrics: Array<ReportMetricKey>;
-  currency: CurrencyCode;
+  currencies: DashboardCurrencies;
 }
 
 /**
@@ -37,7 +38,7 @@ export function GoalCampaignTable({
   goal,
   scope,
   metrics,
-  currency,
+  currencies,
 }: GoalCampaignTableProps) {
   const [showOff, setShowOff] = useState(true);
   const previous = useMemo(
@@ -54,6 +55,14 @@ export function GoalCampaignTable({
   const groups = groupRowsByChannel(rows);
   // Added up from the rows shown, so hiding the off campaigns updates it.
   const total = sumFigures(rows);
+  // The platforms' currencies are shown apart, never added (reportMoneyOf).
+  const totalMoney = reportMoneyOf(
+    groups.map((group) => ({
+      channel: group.channel,
+      figures: sumFigures(group.rows),
+    })),
+    currencies,
+  );
   return (
     <ReportSection
       title={CAMPAIGN_GOAL_TITLES[goal]}
@@ -88,7 +97,7 @@ export function GoalCampaignTable({
                 group={group}
                 labelled={groups.length > 1}
                 metrics={metrics}
-                currency={currency}
+                currencies={currencies}
                 previous={previous}
               />
             ))}
@@ -101,7 +110,7 @@ export function GoalCampaignTable({
               <MetricCells
                 metrics={metrics}
                 figures={total}
-                currency={currency}
+                money={totalMoney}
                 previous={
                   scope.previousCampaigns
                     ? sumFigures(scope.previousCampaigns)

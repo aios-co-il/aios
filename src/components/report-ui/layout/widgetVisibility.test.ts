@@ -24,6 +24,7 @@ function scopeOf(f: ReportFigures): ReportScopeData {
       { date: "2026-11-01", figures: f },
       { date: "2026-11-02", figures: f },
     ],
+    dailyByChannel: [],
     campaigns: [],
   };
 }

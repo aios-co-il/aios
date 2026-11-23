@@ -79,6 +79,10 @@ Present the two reports under `## Standards` and `## Spec` headings, verbatim or
 
 End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
 
+### 6. Record the review
+
+When the fixed point is `origin/develop` and every finding is fixed or answered, record the review for `CODING_STANDARDS.md` step 3: run `node .claude/hooks/push-review-gate.ts record`. Done when it prints "Review recorded".
+
 ## Why two axes
 
 A change can pass one axis and fail the other:

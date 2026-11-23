@@ -1,18 +1,18 @@
-import type { CurrencyCode } from "@/lib/currency";
 import { ReportKpiCard } from "../ReportKpiCard";
 import type { ReportFigures } from "../metrics/reportFigures";
+import { isMetricAvailable } from "../metrics/reportMetrics";
 import {
-  isMetricAvailable,
-  metricDelta,
-  readMetric,
-} from "../metrics/reportMetrics";
+  readReportMetric,
+  reportMetricDelta,
+  type ReportMoney,
+} from "../metrics/reportMoney";
 import type { ReportMetricKey } from "../metrics/reportMetricTypes";
 
 interface MetricKpiGridProps {
   metrics: Array<ReportMetricKey>;
   current: ReportFigures;
   previous: ReportFigures | null;
-  currency: CurrencyCode;
+  money: ReportMoney;
 }
 
 /**
@@ -25,20 +25,20 @@ export function MetricKpiGrid({
   metrics,
   current,
   previous,
-  currency,
+  money,
 }: MetricKpiGridProps) {
   const shown = metrics.filter((key) => isMetricAvailable(key, current));
   return (
     <div className="grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
       {shown.map((key) => {
-        const reading = readMetric(key, current, currency);
+        const reading = readReportMetric(key, current, money);
         return (
           <ReportKpiCard
             key={key}
             icon={reading.metric.icon}
             label={reading.metric.label}
             value={reading.text}
-            delta={metricDelta(key, current, previous)}
+            delta={reportMetricDelta(key, current, previous, money)}
             hint={reading.hint ?? undefined}
           />
         );

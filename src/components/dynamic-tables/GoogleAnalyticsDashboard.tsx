@@ -41,8 +41,6 @@ import {
   CalendarIcon,
   ShoppingCart,
   UserCheck,
-  Leaf,
-  Megaphone,
 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -58,6 +56,11 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { GaKpiStrip } from "./GaReport/GaKpiStrip";
+import { GaChannelBreakdown } from "./GaReport/GaChannelBreakdown";
+import {
+  breakdownFromChannels,
+  breakdownFromSources,
+} from "./GaReport/channelBreakdown";
 import { ReportSection } from "@/components/report-ui/ReportSection";
 import {
   REPORT_AXIS_TICK,
@@ -657,31 +660,6 @@ export function GoogleAnalyticsDashboard({
         ? calculateTotalsFromDaily(prevDailyData as any)
         : null;
 
-    // Classify traffic into organic vs paid
-    const classifyTraffic = (
-      sourceName: string,
-    ): "organic" | "paid" | "other" => {
-      const lower = sourceName.toLowerCase();
-      if (lower.includes("organic") || lower.includes("אורגני"))
-        return "organic";
-      if (
-        lower.includes("cpc") ||
-        lower.includes("paid") ||
-        lower.includes("ppc") ||
-        lower.includes("ממומן") ||
-        lower.includes("cpm") ||
-        lower.includes("cpv") ||
-        lower.includes("display") ||
-        lower.includes("retargeting") ||
-        lower.includes("remarketing")
-      )
-        return "paid";
-      if (lower.includes("google") && !lower.includes("organic")) {
-        if (lower.includes("cpc") || lower.includes("paid")) return "paid";
-      }
-      return "other";
-    };
-
     // Prefer channel_group records — they match GA Traffic Acquisition exactly
     // Filter by date range so the organic/paid breakdown respects the selected period
     const channelGroupRecords = records.filter((r) => {
@@ -698,117 +676,10 @@ export function GoogleAnalyticsDashboard({
         return false;
       }
     });
-    let organicSessions: number;
-    let paidSessions: number;
-    let otherSessions: number;
-    let organicUsers: number;
-    let paidUsers: number;
-    let organicConversions: number;
-    let paidConversions: number;
-    let otherConversions: number;
-
-    if (channelGroupRecords.length > 0) {
-      const cgSum = (keyword: string, field: string) =>
-        channelGroupRecords
-          .filter((r) =>
-            String(r.data.channel_group || "")
-              .toLowerCase()
-              .includes(keyword),
-          )
-          .reduce((sum, r) => sum + (Number(r.data[field]) || 0), 0);
-      organicSessions = cgSum("organic search", "sessions");
-      paidSessions =
-        cgSum("paid search", "sessions") +
-        cgSum("paid social", "sessions") +
-        cgSum("display", "sessions");
-      otherSessions = channelGroupRecords
-        .filter((r) => {
-          const cg = String(r.data.channel_group || "").toLowerCase();
-          return (
-            !cg.includes("organic search") &&
-            !cg.includes("paid search") &&
-            !cg.includes("paid social") &&
-            !cg.includes("display")
-          );
-        })
-        .reduce((sum, r) => sum + (Number(r.data.sessions) || 0), 0);
-      organicUsers = cgSum("organic search", "users");
-      paidUsers =
-        cgSum("paid search", "users") +
-        cgSum("paid social", "users") +
-        cgSum("display", "users");
-      // Conversions: prefer key_events (matches GA "Key events" column), fallback to conversions, then purchases
-      const cgConvSum = (keyword: string) =>
-        channelGroupRecords
-          .filter((r) =>
-            String(r.data.channel_group || "")
-              .toLowerCase()
-              .includes(keyword),
-          )
-          .reduce((sum, r) => {
-            const ke = Number(r.data.key_events) || 0;
-            const cv = Number(r.data.conversions) || 0;
-            const pu = Number(r.data.purchases) || 0;
-            return sum + (ke || cv || pu);
-          }, 0);
-      organicConversions = cgConvSum("organic search");
-      paidConversions =
-        cgConvSum("paid search") +
-        cgConvSum("paid social") +
-        cgConvSum("display");
-      // Other conversions (Unassigned, Direct, Referral, Email, SMS, Cross-network, etc.)
-      otherConversions = channelGroupRecords
-        .filter((r) => {
-          const cg = String(r.data.channel_group || "").toLowerCase();
-          return (
-            !cg.includes("organic search") &&
-            !cg.includes("paid search") &&
-            !cg.includes("paid social") &&
-            !cg.includes("display")
-          );
-        })
-        .reduce((sum, r) => {
-          const ke = Number(r.data.key_events) || 0;
-          const cv = Number(r.data.conversions) || 0;
-          const pu = Number(r.data.purchases) || 0;
-          return sum + (ke || cv || pu);
-        }, 0);
-    } else {
-      otherConversions = 0;
-      // Fallback: classify from trafficSources (daily_source based)
-      organicSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      paidSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      otherSessions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "other")
-        .reduce((sum, s) => sum + s.sessions, 0);
-      organicUsers = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.users, 0);
-      paidUsers = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.users, 0);
-      organicConversions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "organic")
-        .reduce((sum, s) => sum + s.conversions, 0);
-      paidConversions = trafficSources
-        .filter((s) => classifyTraffic(s.name) === "paid")
-        .reduce((sum, s) => sum + s.conversions, 0);
-    }
-
-    const trafficBreakdown = {
-      organicSessions,
-      paidSessions,
-      otherSessions,
-      organicUsers,
-      paidUsers,
-      organicConversions,
-      paidConversions,
-      otherConversions,
-    };
+    const trafficBreakdown =
+      channelGroupRecords.length > 0
+        ? breakdownFromChannels(channelGroupRecords)
+        : breakdownFromSources(trafficSources);
 
     // Phone call events - always use date-filtered event_total records for accurate per-period counts
     const dateFilteredEventRecords = records.filter((r) => {
@@ -1059,82 +930,10 @@ export function GoogleAnalyticsDashboard({
         formatCurrency={formatCurrency}
       />
 
-      {/* Organic vs Paid Breakdown */}
-      {(trafficBreakdown.organicUsers > 0 ||
-        trafficBreakdown.paidUsers > 0) && (
-        <ReportSection title="אורגני מול ממומן">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-surface-status-green border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Leaf className="h-4 w-4 text-brand-accent-700 dark:text-brand-accent-400" />
-                <span className="text-sm text-muted-foreground">
-                  משתמשים אורגני
-                </span>
-              </div>
-              <p className="text-xl font-bold text-brand-accent-700 dark:text-brand-accent-400">
-                {formatNumber(trafficBreakdown.organicUsers)}
-              </p>
-              {totals.users > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(
-                    (trafficBreakdown.organicUsers / totals.users) *
-                    100
-                  ).toFixed(1)}
-                  %
-                </p>
-              )}
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Megaphone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  משתמשים ממומן
-                </span>
-              </div>
-              <p className="text-xl font-bold text-foreground">
-                {formatNumber(trafficBreakdown.paidUsers)}
-              </p>
-              {totals.users > 0 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {((trafficBreakdown.paidUsers / totals.users) * 100).toFixed(
-                    1,
-                  )}
-                  %
-                </p>
-              )}
-            </div>
-            <div className="text-center p-3 rounded-lg bg-surface-status-green border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Leaf className="h-4 w-4 text-brand-accent-700 dark:text-brand-accent-400" />
-                <span className="text-sm text-muted-foreground">
-                  המרות אורגני
-                </span>
-              </div>
-              <p className="text-xl font-bold text-brand-accent-700 dark:text-brand-accent-400">
-                {formatNumber(trafficBreakdown.organicConversions)}
-              </p>
-            </div>
-            <div className="text-center p-3 rounded-lg bg-muted border">
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <Megaphone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  המרות ממומן
-                </span>
-              </div>
-              <p className="text-xl font-bold text-foreground">
-                {formatNumber(trafficBreakdown.paidConversions)}
-              </p>
-            </div>
-          </div>
-          {trafficBreakdown.otherConversions > 0 && (
-            <p className="text-xs text-muted-foreground mt-3 text-right">
-              ℹ️ {formatNumber(trafficBreakdown.otherConversions)} המרות נוספות
-              מסווגות תחת ערוצים אחרים (Direct, Referral, Email, Unassigned
-              וכו') ואינן נכללות באורגני/ממומן.
-            </p>
-          )}
-        </ReportSection>
-      )}
+      <GaChannelBreakdown
+        breakdown={trafficBreakdown}
+        formatNumber={formatNumber}
+      />
 
       {/* Total Phone Calls */}
       {phoneCallEvents.length > 0 && (

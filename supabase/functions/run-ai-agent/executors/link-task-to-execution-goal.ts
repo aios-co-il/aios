@@ -1,6 +1,7 @@
-import type { LinkTaskToExecutionGoalArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { linkTaskToGoal } from "../../_shared/goal-execution.ts";
+
+type LinkTaskToExecutionGoalArgs = { goal_id: string; task_id: string };
 
 /** Preserves the existing link_task_to_execution_goal executor and side-effect order. */
 export async function executeLinkTaskToExecutionGoal(
