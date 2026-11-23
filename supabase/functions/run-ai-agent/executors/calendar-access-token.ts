@@ -1,10 +1,10 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 // Resolve a usable Google Calendar access token for the tenant: caller's user →
 // explicit user → any campaigner with tokens → tenant owner/admin. Refreshes if
 // expired. Returns { accessToken } or { error } (Hebrew, user-facing).
 export async function resolveCalendarAccessToken(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   callerCampaignerId: string | null,
   userId: string | null,

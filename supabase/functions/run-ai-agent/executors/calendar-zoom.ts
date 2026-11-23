@@ -1,4 +1,4 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { CalendarEventLike } from "../../_shared/calendar-recording-match.ts";
 import { fetchZoomAccessToken } from "../../_shared/calendar-conference.ts";
 import { createZoomMeeting } from "../../_shared/calendar-conference.ts";
@@ -6,7 +6,7 @@ import { eventDurationMinutes } from "../../_shared/calendar-conference.ts";
 
 /** Preserves the existing makeZoomMeetingCreator behavior at its extracted boundary. */
 export async function makeZoomMeetingCreator(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   titleHint?: string,
 ) {

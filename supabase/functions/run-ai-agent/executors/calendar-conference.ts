@@ -1,12 +1,12 @@
 import { loadOrgAssistantName } from "../../_shared/carmen/load-carmen-agent.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { collectExtraAttendeeEmails } from "../../_shared/calendar-conference.ts";
 import { resolveCarmenAttendeeEmail } from "../../_shared/calendar-conference.ts";
 import { resolveRequestedConference } from "../../_shared/calendar-conference.ts";
 
 /** Preserves the existing resolveCalendarConferenceExtras behavior at its extracted boundary. */
 export async function resolveCalendarConferenceExtras(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   args: Record<string, unknown>,
 ) {

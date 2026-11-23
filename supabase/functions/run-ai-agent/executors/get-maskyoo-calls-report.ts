@@ -1,6 +1,6 @@
 import type { GetMaskyooCallsReportArgs } from "./messaging-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 /** Preserves the existing get_maskyoo_calls_report executor and side-effect order. */
 export async function executeGetMaskyooCallsReport(
@@ -26,7 +26,7 @@ export async function executeGetMaskyooCallsReport(
   const pEnd = period_end || defaultEnd;
 
   // Resolve client_id by name if not given
-  const db: AgentDatabaseClient = supabase;
+  const db: DbClient = supabase;
   let resolvedClientId = argClientId;
   if (!resolvedClientId && client_name) {
     const { data: found } = await db

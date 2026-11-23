@@ -1,10 +1,10 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { AgentRow } from "../database-contracts.ts";
 import { normalizeStaffPhone } from "../../_shared/staff-whatsapp.ts";
 
 /** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
 export async function loadStaffWhatsappRoster(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   accessibleTenantIds: Array<string>,
   tenantId: string,
   entityType: string = "auto",
