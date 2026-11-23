@@ -40,6 +40,11 @@ import { ResetPasswordDialog } from "@/components/forms/ResetPasswordDialog";
 import { InactiveMembersCard } from "@/components/UsersPage/InactiveMembersCard";
 import { UsersList } from "@/components/UsersPage/UsersList";
 import { InviteClientsPicker } from "@/components/UsersPage/InviteClientsPicker";
+import { AgencyCheckboxList } from "@/components/UsersPage/AgencyCheckboxList";
+import { AssignTenantDialog } from "@/components/UsersPage/AssignTenantDialog/AssignTenantDialog";
+import { ModulePermissionsField } from "@/components/UsersPage/ModulePermissionsField";
+import { roleDefaultModules } from "@/components/UsersPage/roleDefaultModules";
+import { useInviteAgencyOptions } from "@/components/UsersPage/useInviteAgencyOptions";
 import { roleBadgeColors } from "@/components/UsersPage/userRoleStyles";
 import type {
   ManagedUser,
@@ -49,8 +54,6 @@ import { MEMBER_LIST_KEYS } from "@/components/UsersPage/useMemberActivation";
 import type { DeleteMemberResult } from "@functions/_shared/user-admin/member-results.ts";
 import { invokeEdgeFunction } from "@/lib/edgeFunctionInvoke";
 import { syncProfileToTeamMember } from "@/hooks/useSyncProfileTeamMember";
-import { getAllModules } from "@/lib/modules";
-import { PermissionsSelector } from "@/components/forms/PermissionsSelector";
 import {
   Dialog,
   DialogContent,
@@ -138,6 +141,9 @@ export default function Users() {
     full_name: string;
     managed_agencies: Array<{ id: string; name: string }>;
   } | null>(null);
+  const [assignTenantUser, setAssignTenantUser] = useState<ManagedUser | null>(
+    null,
+  );
   const [selectedInviteTenantIds, setSelectedInviteTenantIds] = useState<
     string[]
   >([]);
@@ -150,64 +156,7 @@ export default function Users() {
     useState<string>("");
   const { tenantId, tenant: currentTenant } = useCurrentTenant();
 
-  const { data: agencies } = useQuery({
-    queryKey: ["agencies-for-invite", tenantId, currentUserId],
-    queryFn: async () => {
-      if (!tenantId) return [] as any[];
-
-      // Get owned agencies
-      const { data: ownedAgencies, error: ownedError } = await supabase
-        .from("agencies")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .order("name");
-
-      if (ownedError) throw ownedError;
-
-      // Get shared agencies via agency_tenant_access
-      const { data: sharedAccess, error: sharedError } = await supabase
-        .from("agency_tenant_access")
-        .select(
-          `
-          agency_id,
-          agencies (
-            id,
-            name,
-            status,
-            contact_name,
-            phone,
-            email,
-            start_date,
-            notes,
-            created_at,
-            tenant_id
-          )
-        `,
-        )
-        .eq("accessing_tenant_id", tenantId);
-
-      if (sharedError) throw sharedError;
-
-      // Extract shared agencies
-      const shared = (sharedAccess || [])
-        .map((s) => s.agencies)
-        .filter(Boolean);
-
-      // Combine and remove duplicates
-      const combined = [...(ownedAgencies || []), ...shared];
-      const uniqueMap = new Map();
-      combined.forEach((agency) => {
-        if (agency && agency.id && !uniqueMap.has(agency.id)) {
-          uniqueMap.set(agency.id, agency);
-        }
-      });
-
-      return Array.from(uniqueMap.values()).sort((a: any, b: any) =>
-        a.name.localeCompare(b.name, "he"),
-      );
-    },
-    enabled: !!tenantId,
-  });
+  const { data: agencies = [] } = useInviteAgencyOptions(tenantId);
 
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners-for-invite", tenantId],
@@ -1030,6 +979,7 @@ export default function Users() {
       resendInvite: (user) =>
         resendInviteMutation.mutate({ email: user.email }),
       deleteUser: (user) => deleteUserMutation.mutate({ userId: user.id }),
+      ...(showMultiTenantInvite && { assignTenant: setAssignTenantUser }),
     },
   };
 
@@ -1273,54 +1223,7 @@ export default function Users() {
                         setSelectedCampaignerId("");
                         setSelectedSalesPersonId("");
 
-                        // *** FIX: Set default modules based on role ***
-                        if (newRole === "campaigner") {
-                          // Campaigners get basic modules + dynamic tables for their clients
-                          setSelectedModules([
-                            "dashboard",
-                            "clients",
-                            "tasks",
-                            "chat",
-                            "time_tracking",
-                            "dynamic_tables",
-                          ]);
-                        } else if (newRole === "sales_person") {
-                          // Sales people get sales modules
-                          setSelectedModules([
-                            "dashboard",
-                            "leads",
-                            "sales_dashboard",
-                            "products",
-                            "chat",
-                          ]);
-                        } else if (newRole === "team_manager") {
-                          // Team managers get more access including dynamic tables & dashboards
-                          setSelectedModules([
-                            "dashboard",
-                            "clients",
-                            "tasks",
-                            "campaigners",
-                            "reports",
-                            "client_onboarding",
-                            "chat",
-                            "time_tracking",
-                            "dynamic_tables",
-                          ]);
-                        } else if (newRole === "seo") {
-                          // SEO gets specific modules
-                          setSelectedModules([
-                            "dashboard",
-                            "clients",
-                            "tasks",
-                            "time_tracking",
-                          ]);
-                        } else if (newRole === "owner") {
-                          // Owners get all modules
-                          setSelectedModules(getAllModules().map((m) => m.id));
-                        } else {
-                          // Other roles start with empty selection
-                          setSelectedModules([]);
-                        }
+                        setSelectedModules(roleDefaultModules(newRole));
                       }}
                     >
                       <SelectTrigger>
@@ -1415,53 +1318,12 @@ export default function Users() {
                   )}
 
                   <div className="md:col-span-2">
-                    <Label>סוכנויות</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-32 overflow-y-auto">
-                      {agencies?.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          אין סוכנויות זמינות
-                        </p>
-                      ) : (
-                        agencies?.map((agency) => (
-                          <div
-                            key={agency.id}
-                            className="flex items-center space-x-2 space-x-reverse"
-                          >
-                            <input
-                              type="checkbox"
-                              id={`agency-${agency.id}`}
-                              checked={selectedAgencies.includes(agency.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedAgencies([
-                                    ...selectedAgencies,
-                                    agency.id,
-                                  ]);
-                                } else {
-                                  setSelectedAgencies(
-                                    selectedAgencies.filter(
-                                      (id) => id !== agency.id,
-                                    ),
-                                  );
-                                }
-                              }}
-                              className="rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <label
-                              htmlFor={`agency-${agency.id}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                            >
-                              {agency.name}
-                            </label>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    {selectedAgencies.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        נבחרו {selectedAgencies.length} סוכנויות
-                      </p>
-                    )}
+                    <AgencyCheckboxList
+                      agencies={agencies}
+                      value={selectedAgencies}
+                      onChange={setSelectedAgencies}
+                      idPrefix="invite-agency"
+                    />
                   </div>
                   {inviteRole === "campaigner" && invitesCurrentTenant && (
                     <div className="md:col-span-2">
@@ -1474,33 +1336,11 @@ export default function Users() {
                     </div>
                   )}
                   <div className="md:col-span-2">
-                    <Label>הרשאות מודולים</Label>
-                    <div className="mt-2">
-                      <PermissionsSelector
-                        value={Object.fromEntries(
-                          getAllModules().map((m) => [
-                            m.id,
-                            selectedModules.includes(m.id),
-                          ]),
-                        )}
-                        onChange={(next) => {
-                          setSelectedModules(
-                            Object.entries(next)
-                              .filter(([, v]) => v)
-                              .map(([k]) => k),
-                          );
-                        }}
-                        idPrefix="invite-perms"
-                      />
-                    </div>
-                    {selectedModules.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        נבחרו {selectedModules.length} מודולים
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      מודולים שלא נבחרו יהיו נעולים למשתמש
-                    </p>
+                    <ModulePermissionsField
+                      value={selectedModules}
+                      onChange={setSelectedModules}
+                      idPrefix="invite-perms"
+                    />
                   </div>
                 </div>
               </div>
@@ -1717,6 +1557,13 @@ export default function Users() {
           userEmail={editPermissionsUserEmail}
         />
       )}
+
+      <AssignTenantDialog
+        user={assignTenantUser}
+        tenantOptions={inviteTenantOptions}
+        roleLabels={roleLabels}
+        onClose={() => setAssignTenantUser(null)}
+      />
 
       {editNameUserId && (
         <EditUserNameDialog
