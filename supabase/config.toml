@@ -72,8 +72,18 @@ redirect_uri = "https://zvoijyneresvkadpprel.supabase.co/auth/v1/callback"
 [remotes.develop]
 project_id = "efwzhyfpkocghdhhhaza"
 
+# Staging is served at staging.aios.co.il (and still at its Vercel branch address).
+# Without it in this list, sign-in with Google falls back to site_url. The list
+# replaces the base one, so it repeats the base entries.
 [remotes.develop.auth]
-site_url = "https://after-lead-git-develop-aios-crm.vercel.app"
+site_url = "https://staging.aios.co.il"
+additional_redirect_urls = [
+  "https://staging.aios.co.il/**",
+  "http://localhost:*/**",
+  "http://127.0.0.1:*/**",
+  "https://*.vercel.app/**",
+  "carmen-aios-staging://auth/**",
+]
 
 [remotes.develop.auth.sms.twilio]
 enabled = false
