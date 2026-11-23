@@ -1,6 +1,7 @@
 import type { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { throwIf } from "../_shared/manager-round/db-error.ts";
 
-/** Profile and permission reads and writes for an existing user, injectable for tests. */
+/** Profile and permission writes for an existing user, injectable for tests. */
 export interface ExistingUserStore {
   /** Whether the user is a member of any tenant other than this one. */
   belongsToOtherTenant: (userId: string, tenantId: string) => Promise<boolean>;
@@ -10,24 +11,23 @@ export interface ExistingUserStore {
   fillMissingName: (userId: string, fullName: string) => Promise<void>;
   /** Writes the profile's single campaigner / sales person link. */
   setTeamLinks: (userId: string, links: TeamLinks) => Promise<void>;
-  /** Replaces all of the user's module permissions. */
-  replacePermissions: (userId: string, modules: Array<string>) => Promise<void>;
-  /** Grants modules the user lacks; existing permissions are kept. */
-  addPermissions: (userId: string, modules: Array<string>) => Promise<void>;
+  /** Grants the modules; with keepOthers false, other modules are revoked. */
+  grantPermissions: (
+    userId: string,
+    modules: Array<string>,
+    keepOthers: boolean,
+  ) => Promise<void>;
 }
 
 /** The profile's team card links; an absent key is left unchanged. */
-export interface TeamLinks {
-  campaigner_id?: string;
-  sales_person_id?: string;
-}
+type TeamLinks = { campaigner_id?: string; sales_person_id?: string };
 
 /**
  * Adds an existing user to a tenant without overwriting what their other
  * tenants rely on. profiles.status, full_name, campaigner_id, sales_person_id
  * and user_permissions are shared by every tenant the user is in, so a user
- * who is already in another tenant keeps them; only the new tenant's own
- * rows (role, membership, team card) are written by the caller.
+ * who is already in another tenant keeps them; the caller writes only the new
+ * tenant's own rows (role, membership, team card).
  */
 export async function joinExistingUser(
   store: ExistingUserStore,
@@ -36,7 +36,8 @@ export async function joinExistingUser(
     email: string;
     tenantId: string;
     fullName: string | undefined;
-    teamLinks: TeamLinks;
+    campaignerId: string | undefined;
+    salesPersonId: string | undefined;
     modulePermissions: Array<string> | undefined;
   },
 ): Promise<void> {
@@ -51,20 +52,22 @@ export async function joinExistingUser(
     await store.fillMissingName(userId, options.fullName);
   }
 
-  if (!inOtherTenant && Object.keys(options.teamLinks).length > 0) {
-    await store.setTeamLinks(userId, options.teamLinks);
+  const links: TeamLinks = {
+    ...(options.campaignerId && { campaigner_id: options.campaignerId }),
+    ...(options.salesPersonId && { sales_person_id: options.salesPersonId }),
+  };
+  if (!inOtherTenant && Object.keys(links).length > 0) {
+    await store.setTeamLinks(userId, links);
   }
 
-  const modules = options.modulePermissions ?? [];
-  if (modules.length === 0) {
-    return;
-  }
-  // user_permissions has no tenant_id, so replacing them would wipe the
+  // user_permissions has no tenant_id, so revoking modules would remove the
   // user's access in their other tenants.
-  if (inOtherTenant) {
-    await store.addPermissions(userId, modules);
-  } else {
-    await store.replacePermissions(userId, modules);
+  if (options.modulePermissions?.length) {
+    await store.grantPermissions(
+      userId,
+      options.modulePermissions,
+      inOtherTenant,
+    );
   }
 }
 
@@ -80,9 +83,7 @@ export function supabaseExistingUserStore(
         .eq("user_id", userId)
         .neq("tenant_id", tenantId)
         .limit(1);
-      if (error) {
-        throw new Error(`Loading memberships failed: ${error.message}`);
-      }
+      throwIf(error, "Loading memberships failed");
       return (data ?? []).length > 0;
     },
     async ensureProfile(userId, email) {
@@ -92,9 +93,7 @@ export function supabaseExistingUserStore(
           { id: userId, email, status: "pending" },
           { onConflict: "id", ignoreDuplicates: true },
         );
-      if (error) {
-        throw new Error(`Creating the profile failed: ${error.message}`);
-      }
+      throwIf(error, "Creating the profile failed");
     },
     async fillMissingName(userId, fullName) {
       const { error } = await db
@@ -102,47 +101,49 @@ export function supabaseExistingUserStore(
         .update({ full_name: fullName })
         .eq("id", userId)
         .or("full_name.is.null,full_name.eq.");
-      if (error) {
-        throw new Error(`Setting the name failed: ${error.message}`);
-      }
+      throwIf(error, "Setting the name failed");
     },
     async setTeamLinks(userId, links) {
       const { error } = await db
         .from("profiles")
         .update(links)
         .eq("id", userId);
-      if (error) {
-        throw new Error(`Linking the team card failed: ${error.message}`);
-      }
+      throwIf(error, "Linking the team card failed");
     },
-    async replacePermissions(userId, modules) {
-      const { error: deleteError } = await db
+    // Grants before revoking, so a failed step never leaves the user with
+    // no permissions at all.
+    async grantPermissions(userId, modules, keepOthers) {
+      const { error } = await db.from("user_permissions").upsert(
+        modules.map((module) => ({
+          user_id: userId,
+          module,
+          can_access: true,
+        })),
+        { onConflict: "user_id,module", ignoreDuplicates: keepOthers },
+      );
+      throwIf(error, "Granting permissions failed");
+      if (keepOthers) {
+        return;
+      }
+
+      const { data, error: readError } = await db
+        .from("user_permissions")
+        .select("module")
+        .eq("user_id", userId);
+      throwIf(readError, "Loading permissions failed");
+      const others = (data ?? [])
+        .map((row: { module: string }) => row.module)
+        .filter((module: string) => !modules.includes(module));
+      if (others.length === 0) {
+        return;
+      }
+
+      const { error: revokeError } = await db
         .from("user_permissions")
         .delete()
-        .eq("user_id", userId);
-      if (deleteError) {
-        throw new Error(`Clearing permissions failed: ${deleteError.message}`);
-      }
-      await insertPermissions(db, userId, modules, false);
-    },
-    async addPermissions(userId, modules) {
-      await insertPermissions(db, userId, modules, true);
+        .eq("user_id", userId)
+        .in("module", others);
+      throwIf(revokeError, "Revoking permissions failed");
     },
   };
-}
-
-/** Inserts can_access rows; with keepExisting, a module already granted is left as is. */
-async function insertPermissions(
-  db: ReturnType<typeof createClient>,
-  userId: string,
-  modules: Array<string>,
-  keepExisting: boolean,
-): Promise<void> {
-  const { error } = await db.from("user_permissions").upsert(
-    modules.map((module) => ({ user_id: userId, module, can_access: true })),
-    { onConflict: "user_id,module", ignoreDuplicates: keepExisting },
-  );
-  if (error) {
-    throw new Error(`Granting permissions failed: ${error.message}`);
-  }
 }

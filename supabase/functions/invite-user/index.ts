@@ -546,14 +546,8 @@ serve(async (req: Request) => {
         email,
         tenantId: tenantIdFinal,
         fullName,
-        teamLinks: {
-          ...(effectiveCampaignerId && {
-            campaigner_id: effectiveCampaignerId,
-          }),
-          ...(effectiveSalesPersonId && {
-            sales_person_id: effectiveSalesPersonId,
-          }),
-        },
+        campaignerId: effectiveCampaignerId,
+        salesPersonId: effectiveSalesPersonId,
         modulePermissions,
       });
 

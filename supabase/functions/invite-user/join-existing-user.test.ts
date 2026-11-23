@@ -3,15 +3,11 @@ import { describe, it } from "jsr:@std/testing/bdd";
 import {
   type ExistingUserStore,
   joinExistingUser,
-  type TeamLinks,
+  supabaseExistingUserStore,
 } from "./join-existing-user.ts";
+import { recordingDb } from "./recording-db.test-fixture.ts";
 
-interface FakeProfile {
-  status: string;
-  full_name: string | null;
-  campaigner_id?: string;
-  sales_person_id?: string;
-}
+type FakeProfile = Record<string, string | null>;
 
 /** In-memory profile, memberships and permissions for one user. */
 function fakeStore(
@@ -38,21 +34,29 @@ function fakeStore(
       }
       return Promise.resolve();
     },
-    setTeamLinks: (_userId, links: TeamLinks) => {
-      if (current) {
-        Object.assign(current, links);
-      }
+    setTeamLinks: (_userId, links) => {
+      Object.assign(current ?? {}, links);
       return Promise.resolve();
     },
-    replacePermissions: (_userId, modules) => {
-      permissions.splice(0, permissions.length, ...modules);
-      return Promise.resolve();
-    },
-    addPermissions: (_userId, modules) => {
-      permissions.push(...modules.filter((m) => !permissions.includes(m)));
+    grantPermissions: (_userId, modules, keepOthers) => {
+      const kept = keepOthers ? permissions : [];
+      permissions.splice(
+        0,
+        permissions.length,
+        ...new Set([...kept, ...modules]),
+      );
       return Promise.resolve();
     },
   };
+}
+
+/** Store backed by a recording client, for asserting the queries it sends. */
+function recordingStore(rows: Array<Record<string, unknown>> = []) {
+  const { db, calls } = recordingDb(rows);
+  const store = supabaseExistingUserStore(
+    db as unknown as Parameters<typeof supabaseExistingUserStore>[0],
+  );
+  return { store, calls };
 }
 
 const joinB = {
@@ -60,7 +64,8 @@ const joinB = {
   email: "u1@example.com",
   tenantId: "B",
   fullName: "New Name",
-  teamLinks: { campaigner_id: "card-B" },
+  campaignerId: "card-B",
+  salesPersonId: undefined,
   modulePermissions: ["clients", "tasks"],
 };
 
@@ -98,7 +103,7 @@ describe("joinExistingUser", () => {
   it("a user without a profile gets a pending one", async () => {
     const store = fakeStore(null, [], []);
 
-    await joinExistingUser(store, { ...joinB, teamLinks: {} });
+    await joinExistingUser(store, { ...joinB, campaignerId: undefined });
 
     assertEquals(store.profile(), { status: "pending", full_name: "New Name" });
   });
@@ -113,5 +118,61 @@ describe("joinExistingUser", () => {
     await joinExistingUser(store, { ...joinB, modulePermissions: [] });
 
     assertEquals(store.permissions, ["leads"]);
+  });
+});
+
+describe("supabaseExistingUserStore", () => {
+  it("creates a profile without touching an existing one", async () => {
+    const { store, calls } = recordingStore();
+
+    await store.ensureProfile("u1", "u1@example.com");
+
+    assertEquals(calls, [
+      ["from", "profiles"],
+      [
+        "upsert",
+        { id: "u1", email: "u1@example.com", status: "pending" },
+        { onConflict: "id", ignoreDuplicates: true },
+      ],
+    ]);
+  });
+
+  it("sets the name only on a profile without one", async () => {
+    const { store, calls } = recordingStore();
+
+    await store.fillMissingName("u1", "New Name");
+
+    assertEquals(calls.at(-1), ["or", "full_name.is.null,full_name.eq."]);
+  });
+
+  it("keeping others only adds modules the user lacks", async () => {
+    const { store, calls } = recordingStore();
+
+    await store.grantPermissions("u1", ["tasks"], true);
+
+    assertEquals(calls, [
+      ["from", "user_permissions"],
+      [
+        "upsert",
+        [{ user_id: "u1", module: "tasks", can_access: true }],
+        { onConflict: "user_id,module", ignoreDuplicates: true },
+      ],
+    ]);
+  });
+
+  it("replacing grants first, then revokes only the other modules", async () => {
+    const { store, calls } = recordingStore([
+      { module: "tasks" },
+      { module: "leads" },
+    ]);
+
+    await store.grantPermissions("u1", ["tasks"], false);
+
+    assertEquals(calls[1][0], "upsert");
+    assertEquals(calls.slice(-3), [
+      ["delete"],
+      ["eq", "user_id", "u1"],
+      ["in", "module", ["leads"]],
+    ]);
   });
 });
