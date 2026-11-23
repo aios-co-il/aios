@@ -114,7 +114,9 @@ function goalRows(
 }
 
 /** The rows' metrics added up. */
-function sumMetrics(rows: DashboardGoalRow[]): DashboardGoalMetrics {
+export function sumMetrics(
+  rows: Array<DashboardGoalRow>,
+): DashboardGoalMetrics {
   return rows.reduce((sum, { metrics }) => {
     sum.spend += metrics.spend;
     sum.impressions += metrics.impressions;

@@ -116,8 +116,7 @@ export function GoogleGoalTables({
           {report.mixedGoals && (
             <AllGoalsSpendRow
               label="הוצאה כוללת (כל היעדים)"
-              currency={currency}
-              spend={report.totals.cost}
+              spend={[{ currency, spend: report.totals.cost }]}
               className="px-3"
             />
           )}

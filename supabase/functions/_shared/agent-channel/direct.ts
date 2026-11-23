@@ -56,6 +56,7 @@ import {
   recordOpenedCloudSession,
   type SessionScope,
 } from "./claude-session-store.ts";
+import { carmenIdentityBlock, loadCarmenIdentity } from "./carmen-identity.ts";
 import type { DbClient } from "../supabase-clients.ts";
 
 const MAX_TEXT = 100_000;
@@ -350,14 +351,7 @@ export async function launchClaude(
         routineId,
         routineToken,
         reusable: !extraPrompt,
-        prompt:
-          (extraPrompt ||
-            wrapDirectPrompt({
-              origin: "claude",
-              userText: ctx.content,
-              history: ctx.history,
-              attachments: ctx.attachments,
-            })) + callback,
+        prompt: (extraPrompt || (await firstClaudePrompt(sb, ctx))) + callback,
       });
 
   await upsertRunningSession(sb, {
@@ -422,13 +416,15 @@ async function continueOpenClaudeSession(args: {
   if (!cloudSessionId) {
     return null;
   }
-  // The open session remembers the thread, so the follow-up carries no pasted history.
+  // The open session remembers the thread and who it is, so the follow-up carries neither.
   const prompt =
     wrapDirectPrompt({
       origin: "claude",
       userText: args.ctx.content,
       history: [],
       attachments: args.ctx.attachments,
+      opening: "",
+      screenContext: args.ctx.screenContext,
     }) + args.callback;
   if (!fitsFollowup(prompt)) {
     return null;
@@ -438,6 +434,22 @@ async function continueOpenClaudeSession(args: {
     prompt,
   });
   return sent ? cloudSessionId : null;
+}
+
+/** A new session's first message: Carmen's identity, the recent thread, the task and the screen. */
+async function firstClaudePrompt(
+  sb: DbClient,
+  ctx: SendContext,
+): Promise<string> {
+  const identity = await loadCarmenIdentity(sb, ctx.tenantId, ctx.userId);
+  return wrapDirectPrompt({
+    origin: "claude",
+    userText: ctx.content,
+    history: ctx.history,
+    attachments: ctx.attachments,
+    opening: carmenIdentityBlock(identity),
+    screenContext: ctx.screenContext,
+  });
 }
 
 /** Starts a new cloud session through the routine and returns its URL ("" when none came back). */

@@ -1,6 +1,11 @@
-import type { AddGoalBlockerArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 import { addGoalBlocker } from "../../_shared/goal-execution.ts";
+
+type AddGoalBlockerArgs = {
+  goal_id: string;
+  title: string;
+  description?: string;
+};
 
 /** Preserves the existing add_goal_blocker executor and side-effect order. */
 export async function executeAddGoalBlocker(

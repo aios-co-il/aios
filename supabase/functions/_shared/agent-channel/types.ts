@@ -97,6 +97,8 @@ export type SendContext = {
   inputMode: InputMode;
   idempotencyKey: string;
   history: Array<{ role: string; content: string }>;
+  /** The Command Center sidecar's screen context, as the browser sent it (unvalidated). */
+  screenContext?: unknown;
   /** Env for this send: tenant UI keys over project env secrets. Loaded lazily when absent. */
   env?: Record<string, string | undefined>;
   /**

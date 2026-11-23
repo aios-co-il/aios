@@ -12,13 +12,20 @@ export interface ChannelShare {
   value: number | null;
   /** A second figure under the value, e.g. the channel's cost per lead. */
   detail?: ReactNode;
+  /** The channel's own formatter, e.g. in its currency; else the card's. */
+  format?: (value: number) => string;
 }
 
 interface ChannelShareCardProps {
   title: string;
   icon?: LucideIcon;
   channels: Array<ChannelShare>;
-  format: (value: number) => string;
+  format?: (value: number) => string;
+  /**
+   * Values that cannot be compared, such as amounts in different currencies:
+   * no bars, each value on its own.
+   */
+  separate?: boolean;
 }
 
 /** One figure split by channel: a bar per channel, the largest in the accent. */
@@ -27,6 +34,7 @@ export function ChannelShareCard({
   icon,
   channels,
   format,
+  separate = false,
 }: ChannelShareCardProps) {
   const sorted = [...channels].sort(
     (a, b) => (b.value ?? -1) - (a.value ?? -1),
@@ -43,20 +51,26 @@ export function ChannelShareCard({
               </span>
               {channel.label}
             </span>
-            <span className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
-              <span
-                className={cn(
-                  "block h-full rounded-full",
-                  index === 0
-                    ? "bg-gradient-to-l from-brand-accent to-brand-accent/60"
-                    : "bg-brand-neutral",
-                )}
-                style={{ width: `${((channel.value ?? 0) / max) * 100}%` }}
-              />
-            </span>
+            {separate ? (
+              <span className="flex-1" />
+            ) : (
+              <span className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
+                <span
+                  className={cn(
+                    "block h-full rounded-full",
+                    index === 0
+                      ? "bg-gradient-to-l from-brand-accent to-brand-accent/60"
+                      : "bg-brand-neutral",
+                  )}
+                  style={{ width: `${((channel.value ?? 0) / max) * 100}%` }}
+                />
+              </span>
+            )}
             <span className="w-20 shrink-0 text-end tabular-nums">
               <span className="block text-sm font-semibold">
-                {channel.value === null ? "—" : format(channel.value)}
+                {channel.value === null
+                  ? "—"
+                  : (channel.format ?? format ?? String)(channel.value)}
               </span>
               {channel.detail && (
                 <span className="block text-xs text-muted-foreground">

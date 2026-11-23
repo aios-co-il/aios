@@ -11,6 +11,7 @@ import {
 } from "@/lib/weeklyAdsComparison";
 import { reportOffLookup } from "@/lib/campaignOffState";
 import type { GoogleReportTable } from "@/lib/googleCampaignGoals";
+import type { WeeklyGoalGroup } from "@/lib/weeklyCampaignGoals";
 import { AllGoalsSpendRow } from "./AllGoalsSpendRow";
 import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
@@ -18,6 +19,8 @@ import { WeeklyGoalTable } from "./WeeklyGoalTable";
 type Props = {
   records: WeeklyAdsRecord[];
   currency?: string;
+  /** A platform's currency symbol when it differs by platform; else `currency`. */
+  currencyOf?: (source: WeeklyAdsSource) => string;
   defaultSource?: WeeklyAdsSource;
   sourceModes?: WeeklySourceModes;
   /** The report's tables: Google campaigns then show by their own goal. */
@@ -28,6 +31,7 @@ type Props = {
 export function WeeklyCampaignComparison({
   records,
   currency = "₪",
+  currencyOf,
   defaultSource,
   sourceModes,
   tables,
@@ -49,6 +53,7 @@ export function WeeklyCampaignComparison({
     weeks.flatMap((week) => week.rows.map((row) => row.source)),
   );
   const showPlatform = sources.size > 1;
+  const symbolOf = currencyOf ?? (() => currency);
 
   if (isLoading) {
     return <div className={EMPTY_CARD}>טוען השוואה שבועית…</div>;
@@ -93,7 +98,7 @@ export function WeeklyCampaignComparison({
                 <WeeklyGoalTable
                   key={group.kind}
                   group={group}
-                  currency={currency}
+                  currencyOf={symbolOf}
                   showPlatform={showPlatform}
                   showTitle={multipleGoals}
                 />
@@ -103,8 +108,7 @@ export function WeeklyCampaignComparison({
             {multipleGoals && (
               <AllGoalsSpendRow
                 label="הוצאה כוללת בשבוע (כל היעדים)"
-                currency={currency}
-                spend={week.totals.spend}
+                spend={spendByCurrency(week.groups, symbolOf)}
                 className="mt-4 rounded-xl px-3"
               />
             )}
@@ -128,4 +132,17 @@ function weekTitle(week: WeeklyCampaignSection) {
     return "שבוע שעבר";
   }
   return `לפני ${week.index} שבועות`;
+}
+
+/** The week's spend per currency, in the order the currencies first appear. */
+function spendByCurrency(
+  groups: Array<WeeklyGoalGroup>,
+  currencyOf: (source: WeeklyAdsSource) => string,
+): Array<{ currency: string; spend: number }> {
+  const spend = new Map<string, number>();
+  for (const row of groups.flatMap((group) => group.rows)) {
+    const currency = currencyOf(row.source);
+    spend.set(currency, (spend.get(currency) ?? 0) + row.spend);
+  }
+  return [...spend].map(([currency, value]) => ({ currency, spend: value }));
 }

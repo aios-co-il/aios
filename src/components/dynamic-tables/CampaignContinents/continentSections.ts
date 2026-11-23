@@ -2,8 +2,10 @@ import {
   addTotals,
   emptyTotals,
 } from "../GoogleAdsCampaignSection/googleAdsTotals";
+import { ratio } from "@/lib/reportNumber";
 import type {
   GoogleAdsCampaignSummaryRow,
+  GoogleAdsFormatters,
   GoogleAdsTotals,
 } from "../GoogleAdsCampaignSection/types";
 import {
@@ -11,6 +13,7 @@ import {
   campaignContinent,
   type Continent,
 } from "./campaignContinent";
+import { generalLast } from "./continentInputs";
 
 /** One continent's campaigns and their totals. */
 export type ContinentSection = {
@@ -54,9 +57,31 @@ export function continentSections(
   }
   return [...byContinent.values()].sort(
     (a, b) =>
-      Number(a.continent === "general") - Number(b.continent === "general") ||
-      b.totals.spend - a.totals.spend,
+      generalLast(a.continent, b.continent) || b.totals.spend - a.totals.spend,
   );
+}
+
+export const GOOGLE_SUMMARY_HEADERS = [
+  "קמפיינים",
+  "הוצאה",
+  "קליקים",
+  "המרות",
+  "עלות להמרה",
+];
+
+/** A continent's Google Ads summary cells, under GOOGLE_SUMMARY_HEADERS. */
+export function googleSummaryCells(
+  { campaigns, totals }: ContinentSection,
+  { formatCurrency, formatNumber }: GoogleAdsFormatters,
+): Array<string> {
+  const cpa = ratio(totals.spend, totals.conversions);
+  return [
+    formatNumber(campaigns.length),
+    formatCurrency(totals.spend),
+    formatNumber(totals.clicks),
+    formatNumber(totals.conversions),
+    cpa > 0 ? formatCurrency(cpa) : "-",
+  ];
 }
 
 /**

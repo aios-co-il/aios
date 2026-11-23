@@ -236,6 +236,10 @@ verify_jwt = false
 [functions.landing-lead-intake]
 verify_jwt = false
 
+# The landing settings panel connects a site's custom domain to Vercel (a user JWT).
+[functions.landing-domain]
+verify_jwt = true
+
 [functions.automation-flow-webhook]
 verify_jwt = false
 
@@ -488,6 +492,11 @@ verify_jwt = true
 # An owner runs one manager-round check now from the settings screen (AIO-597);
 # checks the signed-in user owns the tenant, then calls carmen-manager-round.
 [functions.carmen-manager-round-run]
+verify_jwt = true
+
+# A signed-in person approves client-card drafts from the card-drafts page;
+# the findings are read as the caller (RLS), then written with the service key.
+[functions.carmen-card-drafts-approve]
 verify_jwt = true
 
 [functions.run-ai-agent-v2]

@@ -6,6 +6,24 @@ export const TUS_CHUNK_BYTES = 6 * 1024 * 1024;
 
 const TUS_VERSION = "1.0.0";
 
+/** A non-2xx answer from Storage's resumable endpoint, with its HTTP status. */
+export class TusUploadError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * True when retrying the same upload cannot succeed: Storage answers 413 when
+ * the file exceeds the project's upload limit, which only a settings change lifts.
+ */
+export function isPermanentUploadError(err: unknown): boolean {
+  return err instanceof TusUploadError && err.status === 413;
+}
+
 export interface TusUploadInput {
   /** `${SUPABASE_URL}/storage/v1/upload/resumable` */
   endpoint: string;
@@ -66,8 +84,9 @@ async function createUpload(
   });
   const detail = await res.text();
   if (!res.ok) {
-    throw new Error(
+    throw new TusUploadError(
       `TUS create failed (${res.status}): ${detail.slice(0, 200)}`,
+      res.status,
     );
   }
   const location = res.headers.get("location");
@@ -100,8 +119,9 @@ async function patchChunk(
   });
   const detail = await res.text();
   if (!res.ok) {
-    throw new Error(
+    throw new TusUploadError(
       `TUS PATCH at offset ${offset} failed (${res.status}): ${detail.slice(0, 200)}`,
+      res.status,
     );
   }
   const expected = offset + chunk.byteLength;

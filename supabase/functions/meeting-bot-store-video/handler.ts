@@ -5,12 +5,14 @@ import type { DbClient } from "../_shared/supabase-clients.ts";
 import {
   alreadyStored,
   loadSession,
+  recordCopyFailure,
   resumeAwaitingSession,
   setRecordingFilePath,
   type StoredSession,
   type StoreVideoParams,
   StoreVideoError,
 } from "./session.ts";
+import { isPermanentUploadError } from "./tus-upload.ts";
 
 const LOG = "[meeting-bot-store-video]";
 
@@ -110,8 +112,28 @@ async function copyVideo(
       `${LOG} session ${session.id}: stored ${video.length} bytes at ${path}`,
     );
   } catch (err) {
-    // Reconcile's video retry copies it again while Recall still has it.
     console.error(`${LOG} session ${session.id}: copy failed:`, err);
+    await recordFailure(deps, session, err);
+  }
+}
+
+/**
+ * Saves the failure on the session. Reconcile retries a recorded failure while
+ * Recall still has the video, unless it is permanent (Storage's 413).
+ */
+async function recordFailure(
+  deps: StoreVideoDeps,
+  session: StoredSession,
+  err: unknown,
+): Promise<void> {
+  const failure = {
+    message: err instanceof Error ? err.message : String(err),
+    permanent: isPermanentUploadError(err),
+  };
+  try {
+    await recordCopyFailure(deps.admin, session, failure);
+  } catch (recordErr) {
+    console.error(`${LOG} session ${session.id}:`, recordErr);
   }
 }
 

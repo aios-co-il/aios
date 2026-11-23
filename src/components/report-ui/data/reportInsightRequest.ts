@@ -15,7 +15,9 @@ export function reportInsightRequestOf(data: ReportData): ReportInsightRequest {
   const scopes = (
     Object.entries(data.scopes) as Array<[ReportScope, ReportScopeData]>
   ).map(([scope, scopeData]) => insightScopeOf(scope, scopeData));
-  return { currency: data.currency, scopes };
+  // Carmen reads one currency; a mixed-currency dashboard still sends totals
+  // added across platforms (follow-up named in the PR).
+  return { currency: data.currencies.primary, scopes };
 }
 
 /** One scope with its previous period and its largest campaigns. */

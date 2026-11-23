@@ -1,5 +1,13 @@
-import type { CreateGoalArgs } from "./goal-inputs.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateGoalArgs = {
+  title: string;
+  description?: string;
+  parent_goal_id?: string;
+  due_date?: string;
+  owner_type?: "agent" | "campaigner";
+  owner_id?: string;
+};
 
 /** Preserves the existing create_goal executor and side-effect order. */
 export async function executeCreateGoal(

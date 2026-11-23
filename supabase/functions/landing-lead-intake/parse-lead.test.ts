@@ -16,6 +16,8 @@ Deno.test("parseLandingLead", async (t) => {
       name: "Dana Levi",
       phone: "050-1234567",
       email: null,
+      company: null,
+      employees: null,
     });
   });
 
@@ -35,4 +37,27 @@ Deno.test("parseLandingLead", async (t) => {
     assertEquals(parseLandingLead({ ...valid, phone: "call me" }), null);
     assertEquals(parseLandingLead({ ...valid, email: "not-an-email" }), null);
   });
+
+  await t.step(
+    "keeps the form's optional answers and refuses ones that are not short text",
+    () => {
+      assertEquals(
+        parseLandingLead({ ...valid, company: " Acme ", employees: "51–200" }),
+        {
+          subdomain: "acme",
+          slug: "home",
+          name: "Dana Levi",
+          phone: "050-1234567",
+          email: null,
+          company: "Acme",
+          employees: "51–200",
+        },
+      );
+      assertEquals(
+        parseLandingLead({ ...valid, company: "x".repeat(121) }),
+        null,
+      );
+      assertEquals(parseLandingLead({ ...valid, employees: 7 }), null);
+    },
+  );
 });
