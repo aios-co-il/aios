@@ -16,6 +16,7 @@ import {
 } from "../_shared/google-oauth/user-facing-error.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { storeCalendarConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
+    const redirectUri = callbackUri("google-calendar-auth", "callback");
 
     // Initial auth request - redirect to Google
     if (action === "init") {

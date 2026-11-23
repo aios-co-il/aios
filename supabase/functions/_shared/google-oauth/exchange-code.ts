@@ -36,12 +36,19 @@ export async function exchangeGoogleCode(
   return tokens.data;
 }
 
-/** The redirect URI of a connect function's callback, which the code exchange must repeat. */
+/**
+ * The redirect URI of a connect function's callback, which the code exchange
+ * must repeat. PUBLIC_API_URL is the project's custom domain (for example
+ * https://api.aios.co.il), so Google shows our domain; without it the URI
+ * uses SUPABASE_URL, which stays the project's supabase.co address.
+ */
 export function callbackUri(
   functionName: string,
   action: string | null,
 ): string {
-  const uri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${functionName}`;
+  const base =
+    Deno.env.get("PUBLIC_API_URL") || Deno.env.get("SUPABASE_URL") || "";
+  const uri = `${base.replace(/\/+$/, "")}/functions/v1/${functionName}`;
 
   return action ? `${uri}?action=${action}` : uri;
 }

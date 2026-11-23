@@ -20,6 +20,7 @@ import {
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import { storeAnalyticsConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
   // OAuth configuration
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-analytics-auth?action=oauth_callback`;
+  const redirectUri = callbackUri("google-analytics-auth", "oauth_callback");
 
   if (!clientId || !clientSecret) {
     console.error("Missing Google OAuth credentials");

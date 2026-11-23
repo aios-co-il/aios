@@ -37,6 +37,10 @@ Rules: every value is a dev/test credential created for this purpose, never copi
 - Production WhatsApp/Meta credentials and any Production webhook secret or MCP bearer.
 - Coding-agent seats (`CURSOR_*`, `CLAUDE_*`, `GROK_*`, `GEMINI_API_KEY`, `ELEVENLABS_*`, `GOOGLE_API_KEY`): add one at a time, only when a task needs it, with a dev-scoped key.
 
+## Only with a custom domain
+
+- `PUBLIC_API_URL`: the project's custom domain, for example `https://api.aios.co.il` on Production. The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain. Leave it unset elsewhere: the callback then uses `SUPABASE_URL`. Its callbacks must be in the Google OAuth client's redirect URIs before it is set.
+
 ## Open points
 
 - Preview branches are deleted on PR close, so a per-branch `secrets set` needs automation if any PR branch needs Develop-only secrets. Default: they get Core only.

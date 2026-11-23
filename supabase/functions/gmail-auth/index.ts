@@ -19,6 +19,7 @@ import {
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
 import { storeGmailConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -116,7 +117,7 @@ Deno.serve(async (req) => {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
       if (!clientId) throw new Error("Missing GOOGLE_CLIENT_ID");
 
-      const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
+      const redirectUri = callbackUri("gmail-auth", null);
       const tenantId = requestBody.tenantId;
       if (!tenantId) throw new Error("Missing tenantId");
 

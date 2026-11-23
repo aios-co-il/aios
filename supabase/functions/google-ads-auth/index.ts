@@ -16,6 +16,7 @@ import {
 } from "../_shared/google-oauth/oauth-state.ts";
 import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeAdsConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +29,7 @@ const corsHeaders = {
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
-const REDIRECT_URI = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-auth?action=oauth_callback`;
+const REDIRECT_URI = callbackUri("google-ads-auth", "oauth_callback");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
