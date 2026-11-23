@@ -117,9 +117,9 @@ export function ImportLeadsWithMapping() {
   const [step, setStep] = useState<Step>("upload");
   const [isLoading, setIsLoading] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [rawData, setRawData] = useState<any[]>([]);
-  const [csvColumns, setCsvColumns] = useState<string[]>([]);
-  const [mappings, setMappings] = useState<FieldMapping[]>([]);
+  const [rawData, setRawData] = useState<Array<any>>([]);
+  const [csvColumns, setCsvColumns] = useState<Array<string>>([]);
+  const [mappings, setMappings] = useState<Array<FieldMapping>>([]);
   const [defaultAgencyId, setDefaultAgencyId] = useState<string>("");
   const [defaultSalesPersonId, setDefaultSalesPersonId] = useState<string>("");
   const [importResult, setImportResult] = useState<{
@@ -127,7 +127,7 @@ export function ImportLeadsWithMapping() {
     inserts: number;
     leadUpdates?: number;
   } | null>(null);
-  const [newValues, setNewValues] = useState<NewValueItem[]>([]);
+  const [newValues, setNewValues] = useState<Array<NewValueItem>>([]);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -243,7 +243,7 @@ export function ImportLeadsWithMapping() {
     resetState();
   };
 
-  const parseFile = async (file: File): Promise<any[]> => {
+  const parseFile = async (file: File): Promise<Array<any>> => {
     const extension = file.name.split(".").pop()?.toLowerCase();
 
     if (extension === "csv") {
@@ -308,7 +308,7 @@ export function ImportLeadsWithMapping() {
       const columns = Object.keys(data[0]);
 
       // Auto-detect mappings
-      const autoMappings: FieldMapping[] = columns.map((col) => {
+      const autoMappings: Array<FieldMapping> = columns.map((col) => {
         if (isUpdateColumn(col)) {
           return { csvColumn: col, systemField: "updates" };
         }
@@ -359,7 +359,7 @@ export function ImportLeadsWithMapping() {
 
   // Detect new statuses and tags that need to be created
   const detectNewValues = useMemo(() => {
-    const newItems: NewValueItem[] = [];
+    const newItems: Array<NewValueItem> = [];
 
     // Check for response_status and mixed pipeline-status columns
     const statusMappings = mappings.filter(
@@ -794,10 +794,10 @@ export function ImportLeadsWithMapping() {
         }
 
         // Store tags for later processing (not a lead field)
-        let rowTags: string[] = [];
+        let rowTags: Array<string> = [];
 
         // Collect updates from update columns
-        const rowUpdates: string[] = [];
+        const rowUpdates: Array<string> = [];
         updateColumns.forEach((col) => {
           const val = row[col];
           if (val && String(val).trim()) {
@@ -914,7 +914,7 @@ export function ImportLeadsWithMapping() {
           source: lead.source,
         });
         const seenTags = new Set<string>();
-        const mergedTags: string[] = [];
+        const mergedTags: Array<string> = [];
         for (const tag of [...rowTags, ...originTags]) {
           const key = tag.toLowerCase();
           if (seenTags.has(key)) continue;
@@ -993,14 +993,17 @@ export function ImportLeadsWithMapping() {
 
       const normalizeStr = (s: string | null | undefined) =>
         (s || "").toString().trim().toLowerCase();
-      const leadUpdates: {
+      const leadUpdates: Array<{
         lead: any;
-        tags: string[];
-        updates: string[];
+        tags: Array<string>;
+        updates: Array<string>;
         existingId: string;
-      }[] = [];
-      const leadInserts: { lead: any; tags: string[]; updates: string[] }[] =
-        [];
+      }> = [];
+      const leadInserts: Array<{
+        lead: any;
+        tags: Array<string>;
+        updates: Array<string>;
+      }> = [];
       let skippedDuplicates = 0;
 
       // Track phones we're adding in this import to prevent in-file duplicates
@@ -1089,7 +1092,7 @@ export function ImportLeadsWithMapping() {
       }
 
       // Execute inserts and get new IDs (deduplicated)
-      const insertedIds: string[] = [];
+      const insertedIds: Array<string> = [];
       if (uniqueLeadInserts.length > 0) {
         const { data: insertedData, error } = await supabase
           .from("leads")
@@ -1102,12 +1105,12 @@ export function ImportLeadsWithMapping() {
       }
 
       // Create chat_contact_tags for tags
-      const tagRecords: {
+      const tagRecords: Array<{
         tag_id: string;
         lead_id: string;
         tenant_id: string;
         user_id: string;
-      }[] = [];
+      }> = [];
 
       // For updates (use deduplicated list)
       for (const { tags, existingId } of uniqueLeadUpdates) {
@@ -1170,11 +1173,11 @@ export function ImportLeadsWithMapping() {
       }
 
       // Create lead_updates records from update columns
-      const leadUpdateRecords: {
+      const leadUpdateRecords: Array<{
         lead_id: string;
         user_id: string;
         content: string;
-      }[] = [];
+      }> = [];
 
       // For updated leads (use deduplicated list)
       for (const { updates: rowUpdates, existingId } of uniqueLeadUpdates) {

@@ -52,9 +52,9 @@ function defaultForType(type: Recipient["type"]): Recipient {
 
 interface Props {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
-  value: Recipient[];
-  onChange: (next: Recipient[]) => void;
+  availableFields: Array<{ key: string; label: string }>;
+  value: Array<Recipient>;
+  onChange: (next: Array<Recipient>) => void;
 }
 
 export function RecipientsListEditor({
@@ -120,7 +120,7 @@ function RecipientRow({
   canRemove,
 }: {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   value: Recipient;
   onChange: (next: Recipient) => void;
   onRemove: () => void;
@@ -139,7 +139,7 @@ function RecipientRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(TYPE_LABELS) as Recipient["type"][]).map((t) => (
+            {(Object.keys(TYPE_LABELS) as Array<Recipient["type"]>).map((t) => (
               <SelectItem key={t} value={t}>
                 {TYPE_LABELS[t]}
               </SelectItem>
@@ -175,7 +175,7 @@ function RecipientValueEditor({
   onChange,
 }: {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   value: Recipient;
   onChange: (next: Recipient) => void;
 }) {
@@ -484,9 +484,11 @@ function GroupLookupEditor({
 }
 
 // Legacy → recipients[] migration helper
-export function migrateLegacyRecipients(cfg: Record<string, any>): Recipient[] {
+export function migrateLegacyRecipients(
+  cfg: Record<string, any>,
+): Array<Recipient> {
   if (Array.isArray(cfg?.recipients) && cfg.recipients.length > 0) {
-    return cfg.recipients as Recipient[];
+    return cfg.recipients as Array<Recipient>;
   }
   const mode = cfg?.phone_mode;
   if (mode === "manual" && cfg?.manual_phone) {

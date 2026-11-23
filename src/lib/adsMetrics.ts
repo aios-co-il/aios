@@ -83,7 +83,7 @@ export function facebookCampaignKey(data: NullableAdsMetricData): string {
 /** Aggregate facebook_insights / facebook_ecommerce records by campaign name. */
 export function aggregateFacebookCampaignsFromRecords(
   records: Array<{ data?: NullableAdsMetricData }>,
-): FacebookCampaignRow[] {
+): Array<FacebookCampaignRow> {
   const map: Record<
     string,
     FacebookCampaignRow & { followers: FacebookFollowerTotals }

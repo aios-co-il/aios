@@ -4,7 +4,7 @@ export type StoredPrivatePhoneRow = {
   status?: string;
   source?: string;
   dev_escalation_tier?: string | null;
-  surfaces?: string[];
+  surfaces?: Array<string>;
   relationship_note?: string;
   campaigner_id?: string;
   client_id?: string;
@@ -19,7 +19,7 @@ export type IdentityRow = {
   phone: string;
   display_name?: string | null;
   status?: string;
-  surfaces?: string[] | null;
+  surfaces?: Array<string> | null;
   dev_escalation_tier?: string | null;
   relationship_note?: string | null;
 };
@@ -46,10 +46,10 @@ function sourcePriority(source: PrivatePhoneRow["source"]) {
 
 /** Merge policy, identities, and automation into one private-allowlist view. */
 export function mergePrivatePhoneAllowlist(params: {
-  policyPhones?: StoredPrivatePhoneRow[];
-  identities?: IdentityRow[];
-  automationPhones?: string[];
-}): PrivatePhoneRow[] {
+  policyPhones?: Array<StoredPrivatePhoneRow>;
+  identities?: Array<IdentityRow>;
+  automationPhones?: Array<string>;
+}): Array<PrivatePhoneRow> {
   const byPhone = new Map<string, PrivatePhoneRow>();
 
   const upsert = (row: PrivatePhoneRow, priority: number) => {
@@ -113,7 +113,7 @@ export function mergePrivatePhoneAllowlist(params: {
  */
 export function decodePrivatePhoneRows(
   value: unknown,
-): StoredPrivatePhoneRow[] {
+): Array<StoredPrivatePhoneRow> {
   if (!Array.isArray(value)) {
     return [];
   }

@@ -92,7 +92,7 @@ export function MetaWhatsAppWarming({
         tenant_id: tenantId,
         integration_id: integrationId,
       });
-      return (data.campaigns ?? []) as Campaign[];
+      return (data.campaigns ?? []) as Array<Campaign>;
     },
   });
 

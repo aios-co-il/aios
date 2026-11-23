@@ -12,10 +12,10 @@ export { MAX_ASSET_TEXT, MAX_USER_REFERENCES };
 export interface AssetSection {
   key: "client" | "image" | "link" | "text" | "file";
   label: string;
-  items: WorkshopAsset[];
+  items: Array<WorkshopAsset>;
 }
 
-const SECTIONS: { key: AssetSection["key"]; label: string }[] = [
+const SECTIONS: Array<{ key: AssetSection["key"]; label: string }> = [
   { key: "client", label: "מהלקוח" },
   { key: "image", label: "תמונות ורפרנסים" },
   { key: "link", label: "קישורים ואתרים" },
@@ -33,7 +33,7 @@ const sectionOf = (asset: WorkshopAsset): AssetSection["key"] => {
 };
 
 /** The assets tab's sections in a fixed order; empty sections are left out. */
-export function groupAssets(assets: WorkshopAsset[]): AssetSection[] {
+export function groupAssets(assets: Array<WorkshopAsset>): Array<AssetSection> {
   const ordered = [...assets].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -47,7 +47,7 @@ export function groupAssets(assets: WorkshopAsset[]): AssetSection[] {
 export const canBeReference = (asset: WorkshopAsset) =>
   asset.asset_type === "image" && /^https:\/\/\S+$/i.test(asset.url ?? "");
 
-export const referenceCount = (assets: WorkshopAsset[]) =>
+export const referenceCount = (assets: Array<WorkshopAsset>) =>
   assets.filter((asset) => canBeReference(asset) && asset.use_as_reference)
     .length;
 

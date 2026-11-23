@@ -275,7 +275,7 @@ const CARMEN_NAME_VARIANT_RE = /[כק]א?רמן/;
 function resolveTriggerKeywords(
   cfg: CarmenAutomationConfig,
   persona?: PersonaTrigger,
-): string[] {
+): Array<string> {
   const list =
     Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
       ? cfg.trigger_keywords
@@ -293,7 +293,7 @@ function resolveTriggerKeywords(
 
 /** The line owner's call words, and Carmen's agent id to tell her automations apart. */
 interface PersonaTrigger {
-  words: string[];
+  words: Array<string>;
   carmenAgentId: string | null;
 }
 
@@ -302,9 +302,9 @@ interface PersonaTrigger {
 // name. An automation for another agent (Claude, Manus) keeps only its own keywords.
 function carmenPersonaWords(
   cfg: CarmenAutomationConfig,
-  ownKeywords: string[],
+  ownKeywords: Array<string>,
   persona?: PersonaTrigger,
-): string[] {
+): Array<string> {
   if (!persona?.words.length) {
     return [];
   }
@@ -337,7 +337,7 @@ async function loadPersonaTrigger(
 // end is an incidental mention ("...Carmen said that..."), not an invocation.
 function messageHasTrigger(
   normalizedMsg: string,
-  triggerKeywords: string[],
+  triggerKeywords: Array<string>,
   persona?: PersonaTrigger,
 ): boolean {
   const msgContent = normalizedMsg.replace(/^\s*🎤\s*/, "").trim();
@@ -431,7 +431,7 @@ const MEETING_URL_RE =
  */
 export function groupMessageInvokesCarmen(
   message: string,
-  callWords: string[] = [],
+  callWords: Array<string> = [],
 ): boolean {
   const content = asCarmenName(
     String(message || "")
@@ -503,8 +503,8 @@ function escapeRegExp(text: string): string {
 // Null when an own keyword (or nothing) came first.
 function invokingCallWord(
   content: string,
-  triggerKeywords: string[],
-  ownKeywords: string[],
+  triggerKeywords: Array<string>,
+  ownKeywords: Array<string>,
 ): string | null {
   const prefix = content.slice(0, 80).toLowerCase();
   let first: { word: string; index: number; own: boolean } | null = null;
@@ -530,7 +530,7 @@ function withoutInvokingCallWord(content: string, word: RegExp): string {
 }
 
 // Reads each call word, matched literally as a whole word, as Carmen's name.
-function asCarmenName(content: string, callWords: string[]): string {
+function asCarmenName(content: string, callWords: Array<string>): string {
   // Longer names first, so "AIOS Pro" is read before "AIOS" can split it.
   const longestFirst = [...callWords].sort(
     (a, b) => b.trim().length - a.trim().length,
@@ -757,7 +757,7 @@ export async function buildGroupRosterNote(
       if (d && n) teamByLast9.set(d.slice(-9), n);
     }
 
-    const entries: string[] = [];
+    const entries: Array<string> = [];
     for (const v of seen.values()) {
       const teamName = v.phone ? teamByLast9.get(v.phone.slice(-9)) : undefined;
       const label = teamName
@@ -798,7 +798,7 @@ export async function findCarmenAgent(
 export async function fetchKnownEntityNames(
   supabase: any,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   try {
     const [clientsRes, teamRes] = await Promise.all([
       supabase
@@ -856,8 +856,8 @@ export async function findDualCarmenClaims(
       .eq("step_type", "trigger")
       .eq("action_type", "carmen_whatsapp_session")
       .neq("tenant_id", tenantId);
-    const claimIds: string[] = [];
-    const openCandidates: string[] = [];
+    const claimIds: Array<string> = [];
+    const openCandidates: Array<string> = [];
     for (const r of data || []) {
       const stepCfg = readCarmenConfig(r?.configuration);
       const g = stepCfg.carmen_allowed_group_ids;
@@ -906,7 +906,7 @@ export async function findDualCarmenClaims(
 // answers only org-relevant messages and emits the skip sentinel otherwise.
 export function buildDualCarmenNote(
   myTenantName: string,
-  otherNames: string[],
+  otherNames: Array<string>,
 ): string {
   return `\n\n[הנחיית מערכת — בקבוצה זו פעילה גם כרמן של ${otherNames.join(" ו-")} בנוסף אלייך (כרמן של ${myTenantName}). עני אך ורק אם ההודעה נוגעת לארגון שלך — לקוחות, קמפיינים, אנשים או נושאים של ${myTenantName}. אם ההודעה שייכת לארגון האחר, מופנית לכרמן שלו, או שאין דרך לדעת בוודאות ואת לא הנמענת הטבעית — השיבי בדיוק את המחרוזת ${DUAL_CARMEN_SKIP} ותו לא.]`;
 }
@@ -958,9 +958,9 @@ export async function findCarmenSessionAutomation(
   // pinned to a Manus integration.
   const ctxIsGroup = !!ctx?.isGroup;
   const ctxPhoneDigits = (ctx?.phoneNumber || "").replace(/\D/g, "");
-  const pinnedMatches: CarmenTriggerStep[] = [];
-  const unpinned: CarmenTriggerStep[] = [];
-  const foreignPhoneAllowed: CarmenTriggerStep[] = [];
+  const pinnedMatches: Array<CarmenTriggerStep> = [];
+  const unpinned: Array<CarmenTriggerStep> = [];
+  const foreignPhoneAllowed: Array<CarmenTriggerStep> = [];
   for (const s of flowSteps) {
     const pinned = s.configuration?.carmen_integration_id;
     if (!pinned) {
@@ -972,7 +972,7 @@ export async function findCarmenSessionAutomation(
       ctxPhoneDigits &&
       s.configuration?.carmen_scope_mode === "specific_phone"
     ) {
-      const allowed: string[] = Array.isArray(
+      const allowed: Array<string> = Array.isArray(
         s.configuration?.carmen_allowed_phones,
       )
         ? s.configuration.carmen_allowed_phones
@@ -1035,7 +1035,9 @@ export async function findCarmenSessionAutomation(
           : Array.isArray(cfg.carmen_allowed_groups)
             ? cfg.carmen_allowed_groups
             : [];
-    const allowedPhones: string[] = Array.isArray(cfg.carmen_allowed_phones)
+    const allowedPhones: Array<string> = Array.isArray(
+      cfg.carmen_allowed_phones,
+    )
       ? cfg.carmen_allowed_phones.map((p) => String(p).replace(/\D/g, ""))
       : [];
 
@@ -1259,7 +1261,7 @@ export async function runCarmenAI(
   agentId: string | null,
   tenantId: string,
   userMessage: string,
-  conversationHistory: SessionTurn[],
+  conversationHistory: Array<SessionTurn>,
   senderPhone?: string | null,
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
@@ -1358,7 +1360,7 @@ export async function syncCarmenToAIConversation(
     | "sender_name"
     | "phone"
   >,
-  conversationHistory: SessionTurn[],
+  conversationHistory: Array<SessionTurn>,
 ): Promise<string | null> {
   try {
     const userId = session.connection_user_id;
@@ -1438,7 +1440,7 @@ export async function findActiveCarmenSession(
   // integration when one exists (each session records its source channel),
   // otherwise fall back to legacy/NULL rows and finally to the newest row —
   // so pre-migration sessions and cross-channel continuations keep working.
-  const list: CarmenSessionRow[] = Array.isArray(rows) ? rows : [];
+  const list: Array<CarmenSessionRow> = Array.isArray(rows) ? rows : [];
   const data = integrationId
     ? list.find((s) => s.integration_id === integrationId) ||
       list.find((s) => !s.integration_id) ||
@@ -1626,7 +1628,7 @@ async function loadCarmenAccessContext(
   agentId: string | null,
 ): Promise<{
   policy: Tables<"carmen_access_policies"> | null;
-  groupChatIds: string[];
+  groupChatIds: Array<string>;
   mergedScope: ReturnType<typeof mergeCarmenScopeConfig> | null;
 }> {
   if (!agentId) return { policy: null, groupChatIds: [], mergedScope: null };
@@ -1636,7 +1638,7 @@ async function loadCarmenAccessContext(
     .eq("tenant_id", tenantId)
     .eq("agent_id", agentId)
     .maybeSingle();
-  let groupChatIds: string[] = [];
+  let groupChatIds: Array<string> = [];
   if (policy?.allowed_group_ids?.length) {
     const manusGroupIds = await filterPolicyGroupsToManus(
       supabase,
@@ -1662,7 +1664,7 @@ async function resolveCarmenGroupIdentity(
   senderName: string | null | undefined,
   messageText: string,
   allowedPhones: unknown,
-  policyPhoneEntries: unknown[] = [],
+  policyPhoneEntries: Array<unknown> = [],
 ): Promise<CarmenIdentityAccess> {
   const digits = await resolveCarmenIdentityPhone(
     { from: () => supabase.from("wa_lid_map") },
@@ -1707,7 +1709,7 @@ async function resolveCarmenGroupIdentity(
     .or(`phone.eq.${digits},phone.ilike.%${tail}`)
     .limit(3);
   // Schema lag: conversation-access columns may be missing — retry without them.
-  let identityRows: CarmenGroupIdentityRow[] | null = identities;
+  let identityRows: Array<CarmenGroupIdentityRow> | null = identities;
   if (identityErr) {
     console.warn(
       "[carmen] identity select with surfaces failed, retrying base columns",
@@ -1839,7 +1841,7 @@ async function resolveCarmenGroupIdentity(
   const phoneAllowList = policyPhoneList(parsedEntries).length
     ? policyPhoneList(parsedEntries)
     : Array.isArray(allowedPhones)
-      ? (allowedPhones as unknown[])
+      ? (allowedPhones as Array<unknown>)
           .map((p) => String(p).replace(/\D/g, ""))
           .filter(Boolean)
       : [];
@@ -2505,7 +2507,7 @@ export async function handleCarmenMessage(
       }
     }
 
-    const updatedHistory: SessionTurn[] = [
+    const updatedHistory: Array<SessionTurn> = [
       ...history,
       {
         role: "user",
@@ -2666,8 +2668,8 @@ export async function handleCarmenMessage(
 
   // Scope enforcement — merged policy (Agent → הרשאות שיחה) overrides automation when set
   const scopeMode = mergedScope.scopeMode;
-  const allowedPhones: string[] = mergedScope.allowedPhones;
-  const allowedGroups: string[] = mergedScope.allowedGroups;
+  const allowedPhones: Array<string> = mergedScope.allowedPhones;
+  const allowedGroups: Array<string> = mergedScope.allowedGroups;
   if (scopeMode === "specific_phone" && !isGroup) {
     // `sourcePhoneNumber` is the CONNECTED account — i.e. always the operator
     // themselves. On the operator's own OUTBOUND messages (isManualOutgoing) it
@@ -2901,7 +2903,7 @@ export async function handleCarmenMessage(
       return { handled: true, outcome: "deferred_to_other_carmen" };
     }
 
-    const history: SessionTurn[] = [
+    const history: Array<SessionTurn> = [
       {
         role: "user",
         content: contentAfterKeyword,
@@ -2976,7 +2978,7 @@ export async function handleCarmenMessage(
         : `היי, ${agentName} כאן. מה תרצה לבדוק? (לסיום: "${endKeywordConfig}")`;
     }
 
-    const history: SessionTurn[] = [
+    const history: Array<SessionTurn> = [
       {
         role: "assistant",
         content: opener,

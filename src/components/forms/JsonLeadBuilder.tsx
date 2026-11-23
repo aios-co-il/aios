@@ -22,7 +22,7 @@ import {
 export default function JsonLeadBuilder() {
   const { toast } = useToast();
   const { tenant } = useCurrentTenant();
-  const [selectedFields, setSelectedFields] = useState<string[]>([
+  const [selectedFields, setSelectedFields] = useState<Array<string>>([
     "tenant_slug",
     "company_name",
   ]);

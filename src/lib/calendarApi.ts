@@ -87,7 +87,7 @@ export async function addCalendarEvent(
     description?: string;
     start: string;
     end?: string;
-    attendees?: string[];
+    attendees?: Array<string>;
   },
   options: CalendarProxyOptions,
   legacyOptions?: { target_user_id?: string },

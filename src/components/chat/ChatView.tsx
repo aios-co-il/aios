@@ -584,7 +584,7 @@ export default function ChatView({
   });
 
   // Transform messages
-  const messages: Message[] =
+  const messages: Array<Message> =
     messagesData?.map((msg: any) => ({
       id: msg.id,
       direction: msg.direction as "inbound" | "outbound",

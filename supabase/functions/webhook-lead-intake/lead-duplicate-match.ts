@@ -39,14 +39,16 @@ export function isSameInboundLead(
 }
 
 export function pickDuplicateLead<T extends CandidateLead>(
-  candidates: T[] | null | undefined,
+  candidates: Array<T> | null | undefined,
   incoming: CandidateLead,
 ): T | null {
   return candidates?.find((lead) => isSameInboundLead(lead, incoming)) ?? null;
 }
 
 /** Phone spellings to look up with an `in` filter before the broader scan. */
-export function leadPhoneVariants(phone: string | null | undefined): string[] {
+export function leadPhoneVariants(
+  phone: string | null | undefined,
+): Array<string> {
   const normalized = normalizeLeadPhone(phone);
   if (!normalized) return [];
   const local = normalized.replace(/^972/, "");

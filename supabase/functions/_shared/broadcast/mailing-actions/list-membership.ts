@@ -87,7 +87,7 @@ export async function executeRemoveFromMailingList(
   const phone = normalizePhone(contact?.phone);
   const email = contact?.email ? contact.email.toLowerCase() : null;
 
-  const ors: string[] = [];
+  const ors: Array<string> = [];
   if (target) ors.push(`entity_id.eq.${target.id}`);
   if (phone) ors.push(`phone.eq.${phone}`);
   if (email) ors.push(`email.eq.${email}`);

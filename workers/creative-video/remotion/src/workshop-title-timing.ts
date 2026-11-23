@@ -23,7 +23,10 @@ const HAS_DIGIT = /\d/;
  * The words of `text` with their entrance frames, fitted into a scene `frames` long: the
  * stagger shrinks so the last word is in before the text starts to leave.
  */
-export function motionTitleWords(text: string, frames: number): TitleWord[] {
+export function motionTitleWords(
+  text: string,
+  frames: number,
+): Array<TitleWord> {
   const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
   if (words.length === 0) {
     return [];

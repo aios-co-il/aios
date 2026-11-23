@@ -31,7 +31,7 @@ export type ClientTargetSummary<Row extends CampaignRowFields> = {
       goal: string;
     }
   >;
-  missing: PlatformWithoutTarget<Row>[];
+  missing: Array<PlatformWithoutTarget<Row>>;
 };
 
 /**
@@ -42,9 +42,9 @@ export function summarizePulseTargets<Row extends CampaignRowFields>({
   tables = [],
   campaignRows = [],
 }: {
-  tables?: SummaryTable[];
-  campaignRows?: Row[];
-}): { clients: ClientTargetSummary<Row>[]; missing_count: number } {
+  tables?: Array<SummaryTable>;
+  campaignRows?: Array<Row>;
+}): { clients: Array<ClientTargetSummary<Row>>; missing_count: number } {
   const byClient = new Map<unknown, ClientTargetSummary<Row>>();
   const ensure = (clientId: unknown) => {
     const entry = byClient.get(clientId) || {

@@ -585,10 +585,10 @@ Deno.serve(async (req) => {
         metrics.cost_per_conversion`;
 
     const parseGaqlResults = (
-      batchesArr: any[],
+      batchesArr: Array<any>,
       entityLevel: "campaign" | "adset" | "ad",
-    ): GoogleAdsRecord[] => {
-      const parsed: GoogleAdsRecord[] = [];
+    ): Array<GoogleAdsRecord> => {
+      const parsed: Array<GoogleAdsRecord> = [];
       for (const batch of batchesArr) {
         for (const result of batch.results || []) {
           const costMicros = parseInt(result.metrics?.costMicros || "0");
@@ -731,7 +731,7 @@ Deno.serve(async (req) => {
         WHERE campaign.status != 'REMOVED'
       `;
       const batches = await runGaqlSearch(statusQuery);
-      const campaigns: OperationalCampaignState[] = batches.flatMap(
+      const campaigns: Array<OperationalCampaignState> = batches.flatMap(
         (batch: any) =>
           (batch.results || [])
             .map((result: any) => ({
@@ -861,7 +861,7 @@ Deno.serve(async (req) => {
 
     // Helper: try a list of candidate MCCs and return the first that works
     const tryMccCandidates = async (
-      candidates: string[],
+      candidates: Array<string>,
     ): Promise<{ data: any; mcc: string } | null> => {
       for (const mcc of candidates) {
         if (!mcc || mcc === customerId) continue;
@@ -931,7 +931,7 @@ Deno.serve(async (req) => {
         ),
       );
 
-      let listMccs: string[] = [];
+      let listMccs: Array<string> = [];
       try {
         const listResponse = await adsFetch(
           "https://googleads.googleapis.com/v23/customers:listAccessibleCustomers",
@@ -988,7 +988,10 @@ Deno.serve(async (req) => {
     console.log(
       `[sync-google-ads] campaign batches received: ${batchesArr.length}`,
     );
-    const records: GoogleAdsRecord[] = parseGaqlResults(batchesArr, "campaign");
+    const records: Array<GoogleAdsRecord> = parseGaqlResults(
+      batchesArr,
+      "campaign",
+    );
     // A failed ad group / ad query keeps that level's stored rows (syncAdsWindow).
     const levelErrors: Partial<Record<AdsEntityLevel, string>> = {};
 
@@ -998,7 +1001,7 @@ Deno.serve(async (req) => {
     const fetchLowerLevel = async (
       query: string,
       level: "adset" | "ad",
-    ): Promise<GoogleAdsRecord[]> => {
+    ): Promise<Array<GoogleAdsRecord>> => {
       try {
         return parseGaqlResults(await runGaqlSearch(query), level);
       } catch (levelErr) {
@@ -1152,7 +1155,7 @@ Deno.serve(async (req) => {
             // PRIMARY: form_id -> campaign_id mapping
             const formMapping: Record<string, string> =
               (site as any).campaign_form_mapping || {};
-            const campaignIdToForms = new Map<string, string[]>();
+            const campaignIdToForms = new Map<string, Array<string>>();
             for (const [fid, cid] of Object.entries(formMapping)) {
               if (!cid) continue;
               if (!campaignIdToForms.has(cid)) campaignIdToForms.set(cid, []);
@@ -1162,7 +1165,7 @@ Deno.serve(async (req) => {
             // LEGACY: slug -> campaign_id mapping (kept for backward compat)
             const manualMapping: Record<string, string> =
               (site as any).campaign_url_mapping || {};
-            const campaignIdToSlugs = new Map<string, string[]>();
+            const campaignIdToSlugs = new Map<string, Array<string>>();
             for (const [slug, cid] of Object.entries(manualMapping)) {
               if (!cid) continue;
               if (!campaignIdToSlugs.has(cid)) campaignIdToSlugs.set(cid, []);

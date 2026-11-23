@@ -19,9 +19,9 @@ const film = (tenantId: string, payload: Record<string, unknown>) => ({
 
 const state = vi.hoisted(() => ({
   /** marketing_work_items of every tenant. */
-  items: [] as Record<string, unknown>[],
-  aspects: [] as string[],
-  edits: [] as boolean[],
+  items: [] as Array<Record<string, unknown>>,
+  aspects: [] as Array<string>,
+  edits: [] as Array<boolean>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {

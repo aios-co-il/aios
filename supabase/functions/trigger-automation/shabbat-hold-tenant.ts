@@ -43,7 +43,7 @@ export async function holdTenantId(
 async function taskTenantIds(
   supabase: Pick<DbClient, "from">,
   taskId: string,
-): Promise<{ tenantIds: string[]; agencyId: string | null } | null> {
+): Promise<{ tenantIds: Array<string>; agencyId: string | null } | null> {
   const { data: task, error } = await supabase
     .from("tasks")
     .select("tenant_id, client_id, agency_id")

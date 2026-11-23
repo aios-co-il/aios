@@ -33,7 +33,7 @@ export type ModelCallResult<T = string> = {
   attempts: Array<{ model: string; error?: string }>;
 };
 
-const PROFILE_MODELS: Record<ModelProfile, string[]> = {
+const PROFILE_MODELS: Record<ModelProfile, Array<string>> = {
   FAST_CHAT: ["gpt-4o-mini", "gpt-4.1-mini"],
   FAST_REASON: ["gpt-4o-mini", "gpt-4.1-mini"],
   DEEP_REASON: ["gpt-4.1-mini", "gpt-4o-mini"],

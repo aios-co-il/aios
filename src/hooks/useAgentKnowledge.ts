@@ -22,7 +22,7 @@ export interface KnowledgeItem {
   content: string | null;
   kind: "note" | "document" | "link" | "snippet";
   url: string | null;
-  tags: string[];
+  tags: Array<string>;
   created_at: string;
   updated_at: string;
 }
@@ -38,7 +38,7 @@ export function useAgentKnowledge(agentId: string | null) {
         .eq("agent_id", agentId!)
         .order("position");
       if (error) throw error;
-      return (data ?? []) as any as KnowledgeFolder[];
+      return (data ?? []) as any as Array<KnowledgeFolder>;
     },
   });
 
@@ -54,7 +54,7 @@ export function useAgentKnowledge(agentId: string | null) {
         .eq("agent_id", agentId!)
         .order("updated_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as any as KnowledgeItem[];
+      return (data ?? []) as any as Array<KnowledgeItem>;
     },
   });
 

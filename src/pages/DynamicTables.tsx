@@ -281,7 +281,7 @@ export default function DynamicTables() {
     },
     enabled: !!editingTable && isEditingFacebook,
   });
-  const editAdAccounts: { id: string; name: string; currency: string }[] =
+  const editAdAccounts: Array<{ id: string; name: string; currency: string }> =
     editAdAccountsData?.ad_accounts || [];
 
   const seoClientIds = useMemo(
@@ -333,7 +333,9 @@ export default function DynamicTables() {
 
       if (response.error) throw response.error;
       // Ensure we always return an array
-      return Array.isArray(response.data) ? (response.data as CrmTable[]) : [];
+      return Array.isArray(response.data)
+        ? (response.data as Array<CrmTable>)
+        : [];
     },
     enabled: !!tenantId,
     refetchOnMount: refetchOnMountIfEmpty,
@@ -652,7 +654,7 @@ export default function DynamicTables() {
   const groupedTables = useMemo(() => {
     if (!filteredTables) return {};
 
-    const groups: Record<string, CrmTable[]> = {};
+    const groups: Record<string, Array<CrmTable>> = {};
     filteredTables.forEach((table) => {
       const category = table.category || "ללא קבוצה";
       if (!groups[category]) {

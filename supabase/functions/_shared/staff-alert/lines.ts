@@ -9,7 +9,7 @@ export type ManusLine = { id: string; user_id: string | null };
 export async function loadManusLines(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
-): Promise<{ manus: ManusLine[]; primary: ManusLine[] }> {
+): Promise<{ manus: Array<ManusLine>; primary: Array<ManusLine> }> {
   // settings carries carmen_role: only primary lines may send staff alerts.
   const { data, error } = await supabase
     .from("tenant_integrations")

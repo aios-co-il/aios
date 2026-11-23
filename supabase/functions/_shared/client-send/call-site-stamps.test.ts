@@ -4,7 +4,7 @@ import { senderCalls } from "./call-site-stamps.ts";
 const SENDERS = ["send-x"];
 
 /** The [line, stamped] pairs the scan reads from these lines. */
-function scan(...lines: string[]): [number, boolean][] {
+function scan(...lines: Array<string>): Array<[number, boolean]> {
   return senderCalls(lines.join("\n"), SENDERS).map((call) => [
     call.line,
     call.stamped,

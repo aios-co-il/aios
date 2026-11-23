@@ -341,7 +341,7 @@ export default function DashboardView() {
   }, [isOrganizationDashboard, orgAgencies, selectedOrgAgencyId]);
 
   // Fetch tables for the client
-  const { data: tables = [], isPending: tablesPending } = useQuery<any[]>({
+  const { data: tables = [], isPending: tablesPending } = useQuery<Array<any>>({
     queryKey: dashboardTablesQueryKey(dashboard?.client_id),
     queryFn: async () => {
       if (!dashboard?.client_id) return [];
@@ -360,7 +360,7 @@ export default function DashboardView() {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!dashboard?.client_id,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
     // Bust empty lists after permission grants; keep warm cache when data exists.
     refetchOnMount: refetchOnMountIfEmpty,
   });
@@ -377,7 +377,7 @@ export default function DashboardView() {
   const dashboardLastSyncAt = useMemo(() => {
     const stamps = tables
       .map((t: any) => getReportLastSyncAt(t))
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     if (!stamps.length) return null;
     return stamps.sort().reverse()[0];
   }, [tables]);
@@ -396,7 +396,7 @@ export default function DashboardView() {
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const fieldsMap: Record<string, any[]> = {};
+      const fieldsMap: Record<string, Array<any>> = {};
       await Promise.all(
         tables.map(async (table: any) => {
           const response = await supabase.functions.invoke(
@@ -405,7 +405,7 @@ export default function DashboardView() {
           );
           if (!response.error) {
             const fields = (response.data as any)?.fields || [];
-            fieldsMap[table.id] = (fields as any[]).sort(
+            fieldsMap[table.id] = (fields as Array<any>).sort(
               (a: any, b: any) => a.position - b.position,
             );
           }
@@ -424,7 +424,7 @@ export default function DashboardView() {
     error: recordsError,
     dataUpdatedAt: recordsUpdatedAt,
     refetch: refetchRecords,
-  } = useQuery<any[]>({
+  } = useQuery<Array<any>>({
     queryKey: [
       "crm-records-dashboard",
       tables.map((t: any) => t.id).join(","),
@@ -465,7 +465,7 @@ export default function DashboardView() {
       return allResults.flat();
     },
     enabled: tables.length > 0 && isCustomReady,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
     refetchOnMount: refetchOnMountIfEmpty,
   });
 
@@ -475,7 +475,7 @@ export default function DashboardView() {
   // Weekly comparison is independent of the dashboard's active date preset: it needs
   // every available campaign day (up to one year) to render the stacked week tables.
   const { data: weeklyRecords = [], isPending: weeklyRecordsPending } =
-    useQuery<any[]>({
+    useQuery<Array<any>>({
       queryKey: [
         "crm-records-dashboard-weekly",
         tables.map((t: any) => t.id).join(","),
@@ -512,7 +512,7 @@ export default function DashboardView() {
       enabled:
         platformFilter === "weekly" &&
         tables.some((t: any) => isAdsPlatform(t.integration_type)),
-      ...reportQueryOptions<any[]>(),
+      ...reportQueryOptions<Array<any>>(),
     });
 
   // Check if client has SEO (Ahrefs) reports — do NOT filter by UI tenant.
@@ -662,7 +662,7 @@ export default function DashboardView() {
     tables.forEach((t: any) => {
       if (t.integration_type) set.add(t.integration_type);
     });
-    const platforms: DashboardPlatformFilter[] = [];
+    const platforms: Array<DashboardPlatformFilter> = [];
     if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
       platforms.push("facebook");
     if (set.has("google_ads")) platforms.push("google_ads");
@@ -687,8 +687,8 @@ export default function DashboardView() {
     }
   }, [platformFilter, hasContinentsTab, availablePlatforms]);
 
-  const platformTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
+  const platformTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [{ value: "all", label: "📊 הכל" }];
     if (
       availablePlatforms.includes("facebook") ||
       availablePlatforms.includes("google_ads")
@@ -1262,7 +1262,7 @@ export default function DashboardView() {
 
   // Group records by date for table
   const recordsByDate = useMemo(() => {
-    const byDate: Record<string, any[]> = {};
+    const byDate: Record<string, Array<any>> = {};
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date || "unknown";
       if (!byDate[date]) byDate[date] = [];
@@ -1358,7 +1358,7 @@ export default function DashboardView() {
       }));
 
       // Build a sync task per remaining table based on integration_type
-      const tableTasks = (tables as any[])
+      const tableTasks = (tables as Array<any>)
         .map((t: any) => {
           switch (t.integration_type) {
             case "google_analytics":
@@ -1387,10 +1387,10 @@ export default function DashboardView() {
               return null;
           }
         })
-        .filter(Boolean) as { label: string; promise: Promise<any> }[];
+        .filter(Boolean) as Array<{ label: string; promise: Promise<any> }>;
 
       // Fetch WooCommerce sites for this client and sync each
-      const wooTasks: { label: string; promise: Promise<any> }[] = [];
+      const wooTasks: Array<{ label: string; promise: Promise<any> }> = [];
       if (dashboard?.client_id) {
         const { data: sites } = await supabase
           .from("social_media_wordpress_sites" as any)
@@ -1398,7 +1398,7 @@ export default function DashboardView() {
           .eq("client_id", dashboard.client_id)
           .eq("woocommerce_enabled", true)
           .eq("is_active", true);
-        ((sites as any[]) || []).forEach((s: any) => {
+        ((sites as Array<any>) || []).forEach((s: any) => {
           wooTasks.push({
             label: `WooCommerce (${s.site_name})`,
             promise: supabase.functions.invoke("sync-woocommerce-data", {
@@ -1417,7 +1417,7 @@ export default function DashboardView() {
       }
 
       const results = await Promise.allSettled(allTasks.map((t) => t.promise));
-      const failed: string[] = [];
+      const failed: Array<string> = [];
       results.forEach((r, i) => {
         if (
           r.status === "rejected" ||

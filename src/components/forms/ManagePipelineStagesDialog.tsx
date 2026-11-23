@@ -137,7 +137,7 @@ export function ManagePipelineStagesDialog({
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState("#3b82f6");
   const [searchQuery, setSearchQuery] = useState("");
-  const [localStages, setLocalStages] = useState<LeadPipelineStage[]>([]);
+  const [localStages, setLocalStages] = useState<Array<LeadPipelineStage>>([]);
 
   const { stages, isLoading } = useLeadPipelineStages();
   const { updateStage, createStage, deleteStage, updateSortOrders } =

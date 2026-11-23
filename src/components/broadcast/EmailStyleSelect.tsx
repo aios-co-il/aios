@@ -12,7 +12,7 @@ export function EmailStyleSelect({
   options,
 }: {
   styleKey: "fontFamily" | "fontSize";
-  options: { text: string; value: string }[];
+  options: Array<{ text: string; value: string }>;
 }) {
   const editor = useBlockNoteEditor<
     typeof emailEditorSchema.blockSchema,

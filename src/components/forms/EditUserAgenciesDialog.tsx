@@ -31,7 +31,7 @@ export function EditUserAgenciesDialog({
   const { currentTenant } = useTenant();
   const queryClient = useQueryClient();
   const [agencySearchEUA, setAgencySearchEUA] = useState("");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>([]);
 
   // Fetch available agencies - filtered by current tenant
   const { data: agencies } = useQuery({
@@ -149,7 +149,7 @@ export function EditUserAgenciesDialog({
   }, [currentAgencies]);
 
   const updateAgenciesMutation = useMutation({
-    mutationFn: async (agencyIds: string[]) => {
+    mutationFn: async (agencyIds: Array<string>) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();

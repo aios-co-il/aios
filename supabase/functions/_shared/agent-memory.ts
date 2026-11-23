@@ -9,7 +9,7 @@ export async function summarizeAndStoreAgentMemory(opts: {
   agent_id: string;
   user_message: string;
   assistant_output: string;
-  tools_used: string[];
+  tools_used: Array<string>;
 }) {
   try {
     if (!(await hasAiKey())) return;
@@ -53,7 +53,7 @@ export async function recallAgentMemory(
   agent_id: string,
   query_text: string,
   limit = 6,
-): Promise<{ title: string; summary: string; category: string }[]> {
+): Promise<Array<{ title: string; summary: string; category: string }>> {
   try {
     const emb = await embed(query_text);
     if (!emb) return [];

@@ -99,9 +99,9 @@ export function createDocumentField(
   };
 }
 
-export function parseDocumentFields(raw: unknown): DocumentField[] {
+export function parseDocumentFields(raw: unknown): Array<DocumentField> {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
     (f) => f && typeof f === "object" && f.type && f.position,
-  ) as DocumentField[];
+  ) as Array<DocumentField>;
 }

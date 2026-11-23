@@ -12,7 +12,7 @@ function digits(value: string | undefined | null): string {
   return (value || "").replace(/\D/g, "");
 }
 
-export function parseAllowlist(raw: string | undefined | null): string[] {
+export function parseAllowlist(raw: string | undefined | null): Array<string> {
   return (raw || "")
     .split(/[\s,]+/)
     .map((item) => digits(item))

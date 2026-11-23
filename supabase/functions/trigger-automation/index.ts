@@ -191,7 +191,7 @@ async function getPhoneNumberFieldIdMC(
 async function findSubscriberByCustomFieldMC(
   apiKey: string,
   fieldId: number,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     try {
@@ -284,7 +284,7 @@ function manyChatPhoneLast9(value: string): string {
     .slice(-9);
 }
 
-function manyChatPhoneCandidates(phone: string): string[] {
+function manyChatPhoneCandidates(phone: string): Array<string> {
   const cleanPhone = phone.replace(/\D/g, "");
   const last9Digits = cleanPhone.slice(-9);
   return [
@@ -528,8 +528,8 @@ async function writeManyChatCustomFields(
 function leadAlertFieldMismatches(
   actual: Record<string, string>,
   expected: Record<string, string>,
-): string[] {
-  const mismatches: string[] = [];
+): Array<string> {
+  const mismatches: Array<string> = [];
   for (const [name, value] of Object.entries(expected)) {
     if (actual[name] !== value) {
       mismatches.push(
@@ -551,7 +551,7 @@ async function syncManyChatLeadAlertFields(
   }>,
 ): Promise<{
   ok: boolean;
-  mismatches: string[];
+  mismatches: Array<string>;
   fields: Record<string, string>;
 }> {
   const expected = Object.fromEntries(
@@ -653,7 +653,7 @@ async function readManyChatSubscriberTagIds(
   baseUrl: string,
   apiKey: string,
   subscriberId: number,
-): Promise<number[]> {
+): Promise<Array<number>> {
   try {
     const infoRes = await fetch(
       `${baseUrl}/subscriber/getInfo?subscriber_id=${encodeURIComponent(String(subscriberId))}`,
@@ -1607,7 +1607,7 @@ Deno.serve(async (req) => {
     // Extract execution context for loop detection
     const executionId = requestBody._execution_id || crypto.randomUUID();
     const executionDepth = requestBody._execution_depth || 0;
-    const executionChain: string[] = requestBody._execution_chain || [];
+    const executionChain: Array<string> = requestBody._execution_chain || [];
 
     // Guard: max depth
     if (executionDepth >= MAX_EXECUTION_DEPTH) {
@@ -1657,7 +1657,7 @@ Deno.serve(async (req) => {
 
     // ===== END SAFETY GUARDS =====
 
-    let automations: any[] = [];
+    let automations: Array<any> = [];
     let payloadData: any;
     let tenantId: string;
 
@@ -1675,13 +1675,13 @@ Deno.serve(async (req) => {
       // to wrong groups/phones even if a session is active.
       // ═══════════════════════════════════════════════════════════
       const scopeMode = safeConfig.carmen_scope_mode;
-      const groupCandidates: string[] = [
+      const groupCandidates: Array<string> = [
         safeData.group_id,
         safeData.group_chat_id,
-      ].filter(Boolean) as string[];
+      ].filter(Boolean) as Array<string>;
       if (scopeMode && scopeMode !== "all") {
         if (scopeMode === "specific_group") {
-          const allowedGroupIds: string[] =
+          const allowedGroupIds: Array<string> =
             Array.isArray(safeConfig.carmen_allowed_group_ids) &&
             safeConfig.carmen_allowed_group_ids.length > 0
               ? safeConfig.carmen_allowed_group_ids
@@ -1716,7 +1716,7 @@ Deno.serve(async (req) => {
               reason: "carmen_scope_phone_ignored_in_group",
             };
           }
-          const allowedPhones: string[] =
+          const allowedPhones: Array<string> =
             safeConfig.carmen_allowed_phones || [];
           if (allowedPhones.length === 0) {
             console.warn(
@@ -1867,7 +1867,7 @@ Deno.serve(async (req) => {
       }
       // Specific phones whitelist
       if (safeConfig.source_filter === "specific_phones") {
-        const allowedPhones: string[] = safeConfig.allowed_phones || [];
+        const allowedPhones: Array<string> = safeConfig.allowed_phones || [];
         if (allowedPhones.length === 0) {
           console.warn(
             "[TRIGGER] specific_phones selected but no phones configured — blocking",
@@ -1933,7 +1933,7 @@ Deno.serve(async (req) => {
         .from("automation_shared_tenants")
         .select("automation_id")
         .eq("tenant_id", payload.tenant_id);
-      const sharedAutomationIds: string[] = (sharedRows || []).map(
+      const sharedAutomationIds: Array<string> = (sharedRows || []).map(
         (r: any) => r.automation_id,
       );
 
@@ -2421,7 +2421,7 @@ Deno.serve(async (req) => {
 
             // Build adjacency map
             type StepEdge = { targetId: string; sourceHandle: string | null };
-            const outEdges: Record<string, StepEdge[]> = {};
+            const outEdges: Record<string, Array<StepEdge>> = {};
             const inDegree: Record<string, number> = {};
             const stepMap: Record<string, any> = {};
 
@@ -2441,10 +2441,10 @@ Deno.serve(async (req) => {
             }
 
             // Topological sort
-            const topoQueue: string[] = Object.keys(stepMap).filter(
+            const topoQueue: Array<string> = Object.keys(stepMap).filter(
               (id) => (inDegree[id] || 0) === 0,
             );
-            const topoOrder: string[] = [];
+            const topoOrder: Array<string> = [];
             const tempDeg = { ...inDegree };
             while (topoQueue.length > 0) {
               const cur = topoQueue.shift()!;
@@ -2459,7 +2459,7 @@ Deno.serve(async (req) => {
             const nodeOutputs: Record<string, any> = {};
             const skippedNodes = new Set<string>();
 
-            const stepResults: any[] = [];
+            const stepResults: Array<any> = [];
             let actionCount = 0;
             let previousStepOutput: any = null;
             // A resumed run executes only the steps after its delay step.
@@ -2582,9 +2582,8 @@ Deno.serve(async (req) => {
                 if (step.step_type === "switch") {
                   const switchField = stepConfig.switch_field || "";
                   const actualValue = String(stepData[switchField] ?? "");
-                  const branches: string[] = stepConfig.switch_branches || [
-                    "ברירת מחדל",
-                  ];
+                  const branches: Array<string> =
+                    stepConfig.switch_branches || ["ברירת מחדל"];
                   const matchedBranch = branches.includes(actualValue)
                     ? actualValue
                     : (sourceBranch(switchField, actualValue, branches) ??
@@ -2634,7 +2633,7 @@ Deno.serve(async (req) => {
                 if (step.step_type === "loop") {
                   const loopField = stepConfig.loop_field || "";
                   const rawItems = stepData[loopField];
-                  const items: any[] = Array.isArray(rawItems)
+                  const items: Array<any> = Array.isArray(rawItems)
                     ? rawItems
                     : typeof rawItems === "string"
                       ? rawItems
@@ -2804,7 +2803,7 @@ Deno.serve(async (req) => {
                       // Mark all downstream steps as skipped so the executed send step
                       // (which would otherwise log "send_manus_message" without text) is
                       // not reported as a successful run.
-                      const queue: string[] = [step.id];
+                      const queue: Array<string> = [step.id];
                       while (queue.length) {
                         const cur = queue.shift()!;
                         for (const edge of outEdges[cur] || []) {
@@ -3031,7 +3030,7 @@ Deno.serve(async (req) => {
                     const agentUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/run-ai-agent`;
                     // Build conversation history — only from THIS chat's session.
                     // Never restore by speaker phone: the same person is in many groups.
-                    let carmenHistory: any[] =
+                    let carmenHistory: Array<any> =
                       payloadData?._carmen_history || [];
                     if (carmenHistory.length === 0) {
                       const originChat = requireOriginChatId(
@@ -3114,7 +3113,7 @@ Deno.serve(async (req) => {
                     // (e.g. "campaigner"/"seo"/"analyst"). Passed through as
                     // task_skills, which run-ai-agent resolves by slug. If unset,
                     // behavior is unchanged.
-                    const nodeSkins: string[] = Array.isArray(
+                    const nodeSkins: Array<string> = Array.isArray(
                       stepConfig.skin_slugs,
                     )
                       ? stepConfig.skin_slugs
@@ -3586,7 +3585,7 @@ Deno.serve(async (req) => {
                       .limit(1)
                       .maybeSingle();
                     // Use pre-built history from agent step if available, otherwise build from scratch
-                    const prevHistory: any[] =
+                    const prevHistory: Array<any> =
                       existingSession?.conversation_history || [];
                     const updatedHistory = pendingHistory || [
                       ...prevHistory,
@@ -3683,7 +3682,7 @@ Deno.serve(async (req) => {
                   );
                   previousStepOutput = stepResponse;
                 } else if (
-                  (MAILING_ACTION_TYPES as readonly string[]).includes(
+                  (MAILING_ACTION_TYPES as ReadonlyArray<string>).includes(
                     effectiveActionType,
                   )
                 ) {
@@ -4149,7 +4148,7 @@ function textToHtml(body: string): string {
     .replace(/\n/g, "<br/>");
 }
 
-function parseEmailList(raw: string): string[] {
+function parseEmailList(raw: string): Array<string> {
   return String(raw || "")
     .split(/[,;\s]+/)
     .map((v) => v.trim().toLowerCase())
@@ -4158,11 +4157,11 @@ function parseEmailList(raw: string): string[] {
 
 async function resolveEmailRecipients(
   supabase: any,
-  recipients: any[],
+  recipients: Array<any>,
   data: any,
   tenantId: string,
-): Promise<string[]> {
-  const out: string[] = [];
+): Promise<Array<string>> {
+  const out: Array<string> = [];
   for (const r of recipients || []) {
     try {
       if (!r || typeof r !== "object") continue;
@@ -5728,11 +5727,11 @@ function normalizeGroupId(raw: string): string {
 
 async function resolveRecipientsToChatIds(
   supabase: any,
-  recipients: any[],
+  recipients: Array<any>,
   data: any,
   tenantId: string,
-): Promise<string[]> {
-  const out: string[] = [];
+): Promise<Array<string>> {
+  const out: Array<string> = [];
   for (const r of recipients) {
     try {
       if (!r || typeof r !== "object") continue;
@@ -6256,7 +6255,7 @@ async function executeGreenApiMessage(
       message = `${message}\n\n${resolvedLink}`;
     }
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const chatId of chatIds) {
       try {
         let sendClaimInserted = false;

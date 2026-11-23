@@ -28,8 +28,8 @@ const reported: CardDraft = {
 
 /** Ports over an in-memory card: entries dedupe on source_ref. */
 function ports(failResolve = false) {
-  const entries: ClientCardEntryInput[] = [];
-  const resolved: { id: string; actor: string | null }[] = [];
+  const entries: Array<ClientCardEntryInput> = [];
+  const resolved: Array<{ id: string; actor: string | null }> = [];
   const fake: CardDraftWritePorts = {
     writeEntry(input) {
       const known = entries.find((e) => e.sourceRef === input.sourceRef);

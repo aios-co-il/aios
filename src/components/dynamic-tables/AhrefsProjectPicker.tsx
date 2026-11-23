@@ -49,7 +49,7 @@ export function AhrefsProjectPicker({
       );
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      return (data as any)?.projects as AhrefsProject[];
+      return (data as any)?.projects as Array<AhrefsProject>;
     },
     enabled: open,
     staleTime: 5 * 60 * 1000,

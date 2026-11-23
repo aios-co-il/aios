@@ -8,7 +8,7 @@ export async function resolveCampaigners(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   let q = db
     .from("campaigners")
     .select("id, full_name, phone, email, role, active")
@@ -41,7 +41,7 @@ export async function resolveWaGroups(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   if (!hasItems(f.groupIds)) throw new Error("missing_groupIds");
   const { data, error } = await db
     .from("whatsapp_groups")
@@ -64,7 +64,7 @@ export async function resolveWaGroups(
  * Typed contacts: an entry with "@" is an email (dropped when malformed),
  * anything else a phone (normalized later by reachability).
  */
-export function resolveManualContacts(f: AudienceFilter): Recipient[] {
+export function resolveManualContacts(f: AudienceFilter): Array<Recipient> {
   return (f.manualContacts || [])
     .map((c) => c.trim())
     .filter((c) => c !== "" && (!c.includes("@") || isEmailAddress(c)))

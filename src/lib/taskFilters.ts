@@ -10,14 +10,16 @@ export type OpenClosedFilter = "all" | "open" | "done";
 export type TaskPeriodFilter = "all" | "week" | "month" | "quarter" | "year";
 export type TaskRelatedKind = "all" | "none" | "client" | "lead";
 
-export const TASK_PERIOD_OPTIONS: { value: TaskPeriodFilter; label: string }[] =
-  [
-    { value: "all", label: "כל התקופות" },
-    { value: "week", label: "השבוע" },
-    { value: "month", label: "החודש" },
-    { value: "quarter", label: "3 חודשים האחרונים" },
-    { value: "year", label: "שנה האחרונה" },
-  ];
+export const TASK_PERIOD_OPTIONS: Array<{
+  value: TaskPeriodFilter;
+  label: string;
+}> = [
+  { value: "all", label: "כל התקופות" },
+  { value: "week", label: "השבוע" },
+  { value: "month", label: "החודש" },
+  { value: "quarter", label: "3 חודשים האחרונים" },
+  { value: "year", label: "שנה האחרונה" },
+];
 
 export interface TaskFilterState {
   campaignerId: string;
@@ -77,7 +79,7 @@ export function taskMatchesActivityPeriod<
 
 export function filterTasksByRelatedEntity<
   T extends { client_id?: string | null; lead_id?: string | null },
->(tasks: T[], relatedKind: TaskRelatedKind, relatedId?: string): T[] {
+>(tasks: Array<T>, relatedKind: TaskRelatedKind, relatedId?: string): Array<T> {
   if (relatedKind === "all") return tasks;
   if (relatedKind === "none") {
     return tasks.filter((task) => !task.client_id && !task.lead_id);
@@ -235,7 +237,7 @@ export function resolveMineTaskAssignee(input: {
 }
 
 export type MineTaskIdentity = MineTaskAssignee & {
-  campaignerIds: string[];
+  campaignerIds: Array<string>;
   userId: string;
 };
 
@@ -244,12 +246,12 @@ type CampaignerBoardTask = {
   campaigner_id?: string | null;
   sales_person_id?: string | null;
   created_by?: string | null;
-  task_collaborators?: { campaigner_id?: string | null }[] | null;
+  task_collaborators?: Array<{ campaigner_id?: string | null }> | null;
   collaborator_for_me?: boolean;
 };
 
-export function chunkIds(ids: string[], size = 80): string[][] {
-  const chunks: string[][] = [];
+export function chunkIds(ids: Array<string>, size = 80): Array<Array<string>> {
+  const chunks: Array<Array<string>> = [];
   for (let i = 0; i < ids.length; i += size)
     chunks.push(ids.slice(i, i + size));
   return chunks;
@@ -257,7 +259,7 @@ export function chunkIds(ids: string[], size = 80): string[][] {
 
 export function taskCollaboratorCampaignerIds(
   task: Pick<CampaignerBoardTask, "task_collaborators">,
-): string[] {
+): Array<string> {
   return (task.task_collaborators || [])
     .map((row) => row.campaigner_id)
     .filter((id): id is string => Boolean(id));
@@ -299,7 +301,11 @@ export function matchesMineQueueTask(
 
 export function filterTasksByCampaignerBoardFilter<
   T extends CampaignerBoardTask,
->(tasks: T[], campaignerFilter: string, mine?: MineTaskIdentity | null): T[] {
+>(
+  tasks: Array<T>,
+  campaignerFilter: string,
+  mine?: MineTaskIdentity | null,
+): Array<T> {
   if (campaignerFilter === "all") return tasks;
   if (campaignerFilter === "none") {
     return tasks.filter((task) => task.campaigner_id == null);
@@ -315,10 +321,10 @@ export function filterTasksByCampaignerBoardFilter<
 
 /** View-as preview: only tasks owned by or assigned to the selected user. */
 export function filterTasksForBoardUserPreview<T extends CampaignerBoardTask>(
-  tasks: T[],
+  tasks: Array<T>,
   boardUserId: string,
   mine?: MineTaskIdentity | null,
-): T[] {
+): Array<T> {
   if (!boardUserId || !mine) return [];
   const campaignerIds = new Set(mine.campaignerIds);
   return tasks.filter((task) => {
@@ -343,7 +349,7 @@ export function filterTasksForBoardUserPreview<T extends CampaignerBoardTask>(
 export function buildMineAssignmentOrFilter(
   identity: MineTaskIdentity,
 ): string | null {
-  const parts: string[] = [];
+  const parts: Array<string> = [];
   for (const id of identity.campaignerIds) {
     parts.push(`campaigner_id.eq.${id}`);
   }
@@ -359,7 +365,7 @@ export function buildMineQueueOrFilter(
   identity: MineTaskIdentity,
   mode: "mine" | "mine_assigned",
 ): string | null {
-  const parts: string[] = [];
+  const parts: Array<string> = [];
   const assignment = buildMineAssignmentOrFilter(identity);
   if (assignment) parts.push(assignment);
   if (mode === "mine_assigned" || identity.kind === "created_by") {

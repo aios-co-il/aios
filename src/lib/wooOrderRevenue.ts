@@ -41,21 +41,21 @@ export function isWooOrderInRevenueRange(
 }
 
 export function filterWooOrdersForRevenue(
-  orders: WooOrderRevenueRow[],
+  orders: Array<WooOrderRevenueRow>,
   range: { start: string; end: string } | null,
-): WooOrderRevenueRow[] {
+): Array<WooOrderRevenueRow> {
   const valid = orders.filter((o) => isWooRevenueStatus(o.status));
   if (!range) return valid;
   return valid.filter((o) => isWooOrderInRevenueRange(o, range));
 }
 
-export function sumWooRevenue(orders: WooOrderRevenueRow[]): number {
+export function sumWooRevenue(orders: Array<WooOrderRevenueRow>): number {
   return orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
 }
 
 export function dedupeWooOrdersById<T extends { id?: string }>(
-  orders: T[],
-): T[] {
+  orders: Array<T>,
+): Array<T> {
   const map = new Map<string, T>();
   for (const order of orders) {
     const key = order.id ? String(order.id) : JSON.stringify(order);

@@ -30,7 +30,7 @@ type TableApi = {
   select(columns: string): FilterChain;
   update(values: Record<string, unknown>): FilterChain;
   delete(): FilterChain;
-  insert(rows: Record<string, unknown>[]): DbResult;
+  insert(rows: Array<Record<string, unknown>>): DbResult;
 };
 export type SyncDbClient = { from(table: string): TableApi };
 
@@ -110,7 +110,7 @@ export async function writeAdsWindow(
     createdBy?: string | null;
     window: SyncWindow;
     records: Array<{ date?: unknown }>;
-    levelsOk: readonly AdsEntityLevel[];
+    levelsOk: ReadonlyArray<AdsEntityLevel>;
     chunkSize?: number;
   },
 ): Promise<{ inserted: number; error?: string }> {
@@ -192,7 +192,7 @@ export async function confirmEmptyPlan(
 export function replacedLevelRecordsFilter(
   pruneStart: string,
   pruneEnd: string,
-  levels: readonly AdsEntityLevel[],
+  levels: ReadonlyArray<AdsEntityLevel>,
 ): string {
   const dateFilter = replacedRecordsFilter(pruneStart, pruneEnd);
   const kept = ADS_LEVELS.filter((level) => levels.includes(level));

@@ -123,7 +123,7 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
           .filter(Boolean);
       }
     }
-    return [] as string[];
+    return [] as Array<string>;
   }, [ownDomainReports]);
 
   const trackedAhrefsPositions = useMemo(() => {
@@ -366,17 +366,17 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
     !!savedGscSiteUrl;
 
   const [activeTab, setActiveTab] = useState("seo");
-  const [gscTop20Rows, setGscTop20Rows] = useState<GscKeywordData[]>([]);
+  const [gscTop20Rows, setGscTop20Rows] = useState<Array<GscKeywordData>>([]);
   const gscTop20Sig = useRef("");
-  const handleTop20Queries = useCallback((rows: GscKeywordData[]) => {
+  const handleTop20Queries = useCallback((rows: Array<GscKeywordData>) => {
     const sig = rows.map((row) => `${row.keyword}\t${row.position}`).join("\n");
     if (gscTop20Sig.current === sig) return;
     gscTop20Sig.current = sig;
     setGscTop20Rows(rows);
   }, []);
 
-  const seoTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [
+  const seoTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [
       { value: "seo", label: "SEO", icon: TrendingUp },
     ];
     if (hasGsc) {
@@ -733,7 +733,7 @@ function GscTableSelector({
   selectedId,
   onSelect,
 }: {
-  tables: any[];
+  tables: Array<any>;
   selectedId: string;
   onSelect: (id: string) => void;
 }) {

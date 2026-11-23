@@ -10,7 +10,7 @@ export interface TeamRole {
 /**
  * ברירות מחדל לתפקידי צוות לפי סוג ארגון
  */
-const DEFAULT_ROLES_BY_ORG_TYPE: Record<string, TeamRole[]> = {
+const DEFAULT_ROLES_BY_ORG_TYPE: Record<string, Array<TeamRole>> = {
   // סוכנות דיגיטל
   organization: [
     { key: "campaigner", label: "קמפיינר" },
@@ -95,7 +95,7 @@ export function useTeamRoles() {
 
       if (error && error.code !== "PGRST116") throw error;
       if (data?.setting_value && Array.isArray(data.setting_value)) {
-        return data.setting_value as unknown as TeamRole[];
+        return data.setting_value as unknown as Array<TeamRole>;
       }
       return null;
     },
@@ -108,7 +108,7 @@ export function useTeamRoles() {
   // 1. אם יש הגדרות מותאמות אישית - השתמש בהן
   // 2. אחרת, אם יש הגדרות ב-tenant.settings.team_roles - השתמש בהן
   // 3. אחרת, השתמש בברירת מחדל לפי org_type
-  const teamRoles: TeamRole[] = (() => {
+  const teamRoles: Array<TeamRole> = (() => {
     // הגדרות מותאמות אישית מטבלת tenant_settings
     if (customRoles && Array.isArray(customRoles) && customRoles.length > 0) {
       return customRoles;
@@ -117,7 +117,7 @@ export function useTeamRoles() {
     // הגדרות מטבלת tenants (שדה settings)
     const settings = tenant?.settings as Record<string, unknown> | null;
     if (settings?.team_roles && Array.isArray(settings.team_roles)) {
-      return settings.team_roles as TeamRole[];
+      return settings.team_roles as Array<TeamRole>;
     }
 
     // ברירת מחדל לפי org_type
@@ -142,7 +142,7 @@ export function useTeamRoles() {
 export function useUpdateTeamRoles() {
   const { tenantId } = useCurrentTenant();
 
-  const updateRoles = async (roles: TeamRole[]) => {
+  const updateRoles = async (roles: Array<TeamRole>) => {
     if (!tenantId) throw new Error("No tenant ID found");
 
     const { error } = await supabase.from("tenant_settings").upsert(

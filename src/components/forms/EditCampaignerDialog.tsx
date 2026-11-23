@@ -42,8 +42,8 @@ interface EditCampaignerDialogProps {
   campaigner: {
     id: string;
     full_name: string;
-    campaigner_agencies?: { agencies: { name: string } }[];
-    role: string[] | null;
+    campaigner_agencies?: Array<{ agencies: { name: string } }>;
+    role: Array<string> | null;
     phone: string | null;
     email: string | null;
     folder_link: string | null;
@@ -72,8 +72,8 @@ export function EditCampaignerDialog({
   const [agencySearchEC, setAgencySearchEC] = useState("");
   const [formData, setFormData] = useState({
     full_name: campaigner.full_name,
-    agency_ids: [] as string[],
-    roles: (campaigner.role || []) as string[],
+    agency_ids: [] as Array<string>,
+    roles: (campaigner.role || []) as Array<string>,
     phone: campaigner.phone || "",
     email: campaigner.email || "",
     folder_link: campaigner.folder_link || "",

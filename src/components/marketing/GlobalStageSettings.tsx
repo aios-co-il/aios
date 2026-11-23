@@ -119,7 +119,7 @@ function StageTemplateForm({
   stageType: string;
   track: string;
   tenantId: string;
-  agents: any[];
+  agents: Array<any>;
 }) {
   const queryClient = useQueryClient();
   const stageCfg = STAGE_TYPES.find((s) => s.type === stageType)!;

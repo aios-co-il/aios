@@ -16,7 +16,7 @@ export async function viaOpenAi(
   prompt: string,
   aspect: GeminiAspectRatio,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   let response: Response;
   if (references.length > 0) {

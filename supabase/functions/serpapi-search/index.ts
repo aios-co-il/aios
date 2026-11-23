@@ -13,7 +13,7 @@ interface SearchRequest {
   /** Service-role callers only: the tenant that pays for the search. */
   tenant_id?: string;
   projectId?: string;
-  keywordIds?: string[];
+  keywordIds?: Array<string>;
   keyword?: string;
   domain?: string;
   country?: string;
@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
       }
 
       // Get SERP features
-      const serpFeatures: string[] = [];
+      const serpFeatures: Array<string> = [];
       for (const item of items) {
         if (item.type === "featured_snippet")
           serpFeatures.push("featured_snippet");
@@ -353,7 +353,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      const results: any[] = [];
+      const results: Array<any> = [];
       const normalizedDomain = project.domain
         .replace(/^(https?:\/\/)?(www\.)?/, "")
         .toLowerCase();
@@ -365,8 +365,8 @@ Deno.serve(async (req) => {
         try {
           let position: number | null = null;
           let foundUrl: string | null = null;
-          let serpFeatures: string[] = [];
-          let competitorsData: any[] = [];
+          let serpFeatures: Array<string> = [];
+          let competitorsData: Array<any> = [];
 
           if (usingSerpApi && serpApiKey) {
             // Use SerpAPI (legacy)
@@ -649,7 +649,7 @@ async function handleSerpApiSearch(
   }
 
   // Get SERP features
-  const serpFeatures: string[] = [];
+  const serpFeatures: Array<string> = [];
   if (searchData.answer_box) serpFeatures.push("answer_box");
   if (searchData.knowledge_graph) serpFeatures.push("knowledge_graph");
   if (searchData.local_results) serpFeatures.push("local_pack");

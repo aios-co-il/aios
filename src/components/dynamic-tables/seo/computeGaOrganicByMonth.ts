@@ -31,8 +31,8 @@ const isPaidMedium = (sm: string) => {
 };
 
 export function computeGaOrganicByMonth(
-  gaRecords: GaRecord[] | null | undefined,
-): GaOrganicMonth[] {
+  gaRecords: Array<GaRecord> | null | undefined,
+): Array<GaOrganicMonth> {
   if (!gaRecords || gaRecords.length === 0) return [];
 
   // 1. monthly_channel
@@ -41,7 +41,7 @@ export function computeGaOrganicByMonth(
   );
   if (monthlyChannelRows.length > 0) {
     const monthMap = new Map<string, number>();
-    for (const r of monthlyChannelRows as any[]) {
+    for (const r of monthlyChannelRows as Array<any>) {
       const cg = String(r.data?.channel_group || "");
       if (isPaidChannel(cg)) continue;
       const month = r.data?.month as string;
@@ -62,7 +62,7 @@ export function computeGaOrganicByMonth(
   );
   if (dailySourceRows.length > 0) {
     const monthMap = new Map<string, number>();
-    for (const r of dailySourceRows as any[]) {
+    for (const r of dailySourceRows as Array<any>) {
       const sm = String(r.data?.source_medium || "");
       if (isPaidMedium(sm)) continue;
       const date = r.data?.date;
@@ -79,7 +79,7 @@ export function computeGaOrganicByMonth(
   }
 
   // 3. monthly_organic
-  return (gaRecords as any[])
+  return (gaRecords as Array<any>)
     .filter((r: any) => r.data?.report_type === "monthly_organic")
     .map((r: any) => ({
       month: r.data.month as string,

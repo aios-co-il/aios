@@ -72,7 +72,7 @@ async function boardCounts(supabase: Db, tenantId: string, itemId: string) {
     .eq("tenant_id", tenantId)
     .eq("item_id", itemId)
     .in("kind", ["concept", "copy"]);
-  const rows = (Array.isArray(data) ? data : []) as { kind: string }[];
+  const rows = (Array.isArray(data) ? data : []) as Array<{ kind: string }>;
   return {
     concept: rows.filter((row) => row.kind === "concept").length,
     copy: rows.filter((row) => row.kind === "copy").length,
@@ -146,10 +146,9 @@ export async function workshopTurnNote(
         )
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId);
-      const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Record<
-        string,
-        unknown
-      >[];
+      const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Array<
+        Record<string, unknown>
+      >;
       const production = asRecord(asRecord(payload.video).production);
       const state: FilmState = {
         scenes: rows.length,

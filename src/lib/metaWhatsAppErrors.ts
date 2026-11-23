@@ -79,7 +79,7 @@ export function classifyMetaWhatsAppErrorMessage(
 /** Summarize failure classes across recent automation_logs for a banner. */
 export function summarizeMetaFailureClasses(
   logs: Array<{ success: boolean | null; error_message?: string | null }>,
-): { code: string; labelHe: string; count: number; retryable: boolean }[] {
+): Array<{ code: string; labelHe: string; count: number; retryable: boolean }> {
   const counts = new Map<
     string,
     { labelHe: string; count: number; retryable: boolean }

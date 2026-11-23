@@ -69,7 +69,7 @@ export function addFacebookResult(
 
 /** Header label for an ecommerce table: the shared result name, or a generic one when campaigns differ. */
 export function facebookResultsColumnLabel(
-  rows: FacebookResultTotals[],
+  rows: Array<FacebookResultTotals>,
 ): string {
   const kinds = new Set(rows.map((r) => r.result_kind).filter(Boolean));
   if (kinds.size === 1 && !rows.some((r) => r.result_mixed)) {

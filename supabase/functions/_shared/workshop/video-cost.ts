@@ -30,10 +30,10 @@ import { type SceneEngine, type VideoConnections } from "./scene-engine.ts";
  */
 export function quotedProductionEstimate(
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   options: ProductionOptions,
   connections: VideoConnections = {},
-  relip: CostScene[] = [],
+  relip: Array<CostScene> = [],
 ) {
   const own = withLipsyncFallback(
     productionEstimate(engine, scenes, options),
@@ -81,13 +81,13 @@ export interface ProductionOptions {
    * The whole storyboard, when only some scenes are animated: produce_video narrates the whole
    * script again and makes one bed for the whole film, so withVoice and withMusic price these.
    */
-  film?: CostScene[];
+  film?: Array<CostScene>;
 }
 
 /** Everything produce_video will queue for scenes that have a still and no clip yet. */
 export function productionEstimate(
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   options: ProductionOptions,
 ) {
   const clips = clipEstimate(engine, scenes);
@@ -129,7 +129,7 @@ export function productionEstimate(
 function withLipsyncFallback(
   estimate: ReturnType<typeof productionEstimate>,
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   connections: VideoConnections,
 ) {
   // A line in the chosen voice never goes to Veo, which would speak it in its own voice.

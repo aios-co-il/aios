@@ -27,8 +27,8 @@ export interface Attachment {
 }
 
 interface AttachmentsFieldProps {
-  attachments: Attachment[];
-  onChange: (attachments: Attachment[]) => void;
+  attachments: Array<Attachment>;
+  onChange: (attachments: Array<Attachment>) => void;
   entityType: "lead" | "client";
   entityId: string;
   readOnly?: boolean;
@@ -83,7 +83,7 @@ export function AttachmentsField({
       if (!files || files.length === 0 || !tenantId || !entityId) return;
 
       setIsUploading(true);
-      const newAttachments: Attachment[] = [];
+      const newAttachments: Array<Attachment> = [];
 
       try {
         for (const file of Array.from(files)) {

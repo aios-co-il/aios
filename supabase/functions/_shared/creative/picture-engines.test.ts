@@ -14,8 +14,8 @@ const stillFailed = () =>
     ),
   );
 
-function recorder(openRouterFails: number[] = []) {
-  const openRouterCalls: { refs: number; prompt: string }[] = [];
+function recorder(openRouterFails: Array<number> = []) {
+  const openRouterCalls: Array<{ refs: number; prompt: string }> = [];
   let stillCalls = 0;
   const deps: PictureDeps = {
     openRouter: (args) => {

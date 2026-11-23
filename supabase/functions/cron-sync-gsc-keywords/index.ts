@@ -25,9 +25,9 @@ type SyncTarget = {
 
 function collectSyncTargets(
   integrations: Array<{ tenant_id: string; settings: unknown }>,
-): SyncTarget[] {
+): Array<SyncTarget> {
   const seen = new Set<string>();
-  const targets: SyncTarget[] = [];
+  const targets: Array<SyncTarget> = [];
 
   for (const integration of integrations) {
     const settings = (integration.settings as Record<string, unknown>) || {};

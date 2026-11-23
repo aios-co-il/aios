@@ -68,7 +68,10 @@ function campaignServices(client: any): Set<string> {
   );
 }
 
-function platformTables(tables: any[], platform: "meta" | "google"): any[] {
+function platformTables(
+  tables: Array<any>,
+  platform: "meta" | "google",
+): Array<any> {
   return tables.filter((table) =>
     platform === "google"
       ? table.integration_type === "google_ads"
@@ -92,7 +95,7 @@ function isAccountConnected(table: any): boolean {
 async function buildTenantHealthDigest(
   supabase: any,
   tenantId: string,
-  checks: CheckRow[],
+  checks: Array<CheckRow>,
 ): Promise<string> {
   const [
     { data: ownedAgencies },
@@ -220,7 +223,7 @@ Deno.serve(async (req) => {
     supabaseUrl,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const rows: CheckRow[] = [];
+  const rows: Array<CheckRow> = [];
 
   // 1. Database round-trip
   {

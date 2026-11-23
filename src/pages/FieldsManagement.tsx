@@ -144,7 +144,7 @@ export default function FieldsManagement() {
         .order("sort_order");
 
       if (error) throw error;
-      return data as CustomField[];
+      return data as Array<CustomField>;
     },
     enabled: !!tenantId,
   });

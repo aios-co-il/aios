@@ -81,7 +81,7 @@ function isPrivateIPv4(ip: number): boolean {
   );
 }
 
-function expandIPv6(host: string): number[] | null {
+function expandIPv6(host: string): Array<number> | null {
   let ip = host.toLowerCase().replace(/^\[|\]$/g, "");
   const v4tail = ip.match(/:(\d+\.\d+\.\d+\.\d+)$/);
   if (v4tail) {
@@ -181,16 +181,16 @@ function parsePublicHttpUrl(raw: string): URL | null {
   return parsed;
 }
 
-async function lookupIps(hostname: string): Promise<string[]> {
+async function lookupIps(hostname: string): Promise<Array<string>> {
   const host = hostname.replace(/^\[|\]$/g, "");
   if (parseIPv4(host) !== null || host.includes(":")) return [host];
   const resolveDns = (
-    Deno as { resolveDns?: (q: string, t: string) => Promise<string[]> }
+    Deno as { resolveDns?: (q: string, t: string) => Promise<Array<string>> }
   ).resolveDns;
   if (typeof resolveDns !== "function") return [];
   const [aRecords, aaaaRecords] = await Promise.all([
-    resolveDns(host, "A").catch(() => [] as string[]),
-    resolveDns(host, "AAAA").catch(() => [] as string[]),
+    resolveDns(host, "A").catch(() => [] as Array<string>),
+    resolveDns(host, "AAAA").catch(() => [] as Array<string>),
   ]);
   return [...aRecords, ...aaaaRecords];
 }
@@ -324,7 +324,7 @@ async function fetchWebsiteText(url: string): Promise<string | null> {
 
 type AttachmentRef = { name?: string; path?: string };
 
-const asAttachments = (value: unknown): AttachmentRef[] =>
+const asAttachments = (value: unknown): Array<AttachmentRef> =>
   Array.isArray(value)
     ? value.filter(
         (file): file is AttachmentRef => !!file && typeof file === "object",
@@ -333,9 +333,9 @@ const asAttachments = (value: unknown): AttachmentRef[] =>
 
 async function readTextAttachments(
   admin: ReturnType<typeof createClient>,
-  files: AttachmentRef[],
+  files: Array<AttachmentRef>,
 ): Promise<string> {
-  const chunks: string[] = [];
+  const chunks: Array<string> = [];
   for (const file of files.slice(0, 6)) {
     const name = String(file.name ?? "");
     const path = String(file.path ?? "");
@@ -446,10 +446,10 @@ serve(async (req) => {
     const briefAttachments = asAttachments(payload.brief_files);
     const clientFiles = clientAttachments
       .map((file) => file.name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     const briefFiles = briefAttachments
       .map((file) => file.name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     const recordingRecord = recording as {
       notes?: string | null;
       transcription?: string | null;
@@ -566,7 +566,7 @@ ${sourceContext}
 
     const now = new Date().toISOString();
     const chat = Array.isArray(payload.copy_chat)
-      ? [...(payload.copy_chat as unknown[])]
+      ? [...(payload.copy_chat as Array<unknown>)]
       : [];
     if (prompt) chat.push({ role: "user", content: prompt, at: now });
     chat.push({ role: "assistant", content: fullCopy, at: now });

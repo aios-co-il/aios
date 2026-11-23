@@ -3,12 +3,12 @@ export function spreadContentDates(
   itemCount: number,
   startIso: string,
   horizonMonths: number,
-): string[] {
+): Array<string> {
   if (itemCount <= 0) return [];
   const start = new Date(`${startIso.slice(0, 10)}T12:00:00Z`);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + Math.max(1, horizonMonths));
-  const days: Date[] = [];
+  const days: Array<Date> = [];
   for (
     let cursor = new Date(start);
     cursor <= end;

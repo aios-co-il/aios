@@ -6,7 +6,7 @@ export const RECORDINGS_FEED_SELECT =
 
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 
-async function markStaleProcessing(list: any[]) {
+async function markStaleProcessing(list: Array<any>) {
   const stale = list.filter(
     (r) =>
       r.transcription_status === "processing" &&

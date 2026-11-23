@@ -135,10 +135,12 @@ export function EditClientDialog({
   } = useFolderLinksAndAttachments(client);
 
   const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
-  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
+  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<
+    Array<string>
+  >([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
     [],
   );
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
 
   // Team members for meeting invitations - filtered by tenant
   const {
@@ -261,8 +263,11 @@ export function EditClientDialog({
 
   // Get all contacts for meeting invitations (with or without email)
   const allContactEmails = useMemo(() => {
-    const contacts: { email: string | null; name: string; source: string }[] =
-      [];
+    const contacts: Array<{
+      email: string | null;
+      name: string;
+      source: string;
+    }> = [];
     // Always add the primary contact
     contacts.push({
       email: client.email || null,
@@ -1208,7 +1213,7 @@ export function EditClientDialog({
                               { key: "full_social", label: "Full Social" },
                               { key: "social_meta", label: "Social Meta" },
                               { key: "automation", label: "Automation" },
-                            ] as { key: string; label: string }[]
+                            ] as Array<{ key: string; label: string }>
                           ).map((svc) => (
                             <label
                               key={svc.key}

@@ -31,7 +31,7 @@ export type PulseTargetEditorContext = {
   platform: PulsePlatform;
   primaryGoal: PulseCampaignGoal;
   /** Every report table of this client × platform; a platform target goes to all. */
-  platformTableIds: string[];
+  platformTableIds: Array<string>;
   baselineEfficiency7d?: number | null;
 };
 
@@ -40,7 +40,7 @@ type PulseTargetEditorDialogProps = {
   onOpenChange: (open: boolean) => void;
   context: PulseTargetEditorContext | null;
   /** Campaigns of this client × platform with spend in the last 7 days. */
-  campaigns: PulseCampaignGoalRow[];
+  campaigns: Array<PulseCampaignGoalRow>;
   tableSettingsById: Map<string, Record<string, unknown>>;
   /** integration_type of each report table, so a tie between duplicate Meta tables breaks as in the pulse. */
   tableTypeById?: Map<string, string | null>;

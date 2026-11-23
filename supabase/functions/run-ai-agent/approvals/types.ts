@@ -19,8 +19,8 @@ export type PickRow = Pick<
 
 /** Which pending row a reply refers to, plus the rows the caller could pick by code. */
 export type ApprovalPick = {
-  candidates: PickRow[];
-  pickable: PickRow[];
+  candidates: Array<PickRow>;
+  pickable: Array<PickRow>;
   blocked: number;
 } & (
   | { kind: "match"; via: "bound" | "code"; row: PickRow }

@@ -11,8 +11,8 @@ interface CreateCampaignerParams {
   fullName: string;
   email?: string;
   phone?: string;
-  agencyIds: string[];
-  roles?: string[];
+  agencyIds: Array<string>;
+  roles?: Array<string>;
   notes?: string;
 }
 

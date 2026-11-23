@@ -41,8 +41,8 @@ interface TaskItemProps {
   };
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onClick: () => void;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   onUpdateClient?: (taskId: string, clientId: string | null) => void;
   onUpdateCampaigner?: (taskId: string, campaignerId: string | null) => void;
 }

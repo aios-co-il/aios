@@ -23,7 +23,7 @@ function jsonResponse(body: any, status = 200) {
 
 async function route(
   supervisor: any,
-  children: any[],
+  children: Array<any>,
   goal: string,
   context: any,
 ) {

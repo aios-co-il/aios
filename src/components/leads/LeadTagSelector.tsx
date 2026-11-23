@@ -31,7 +31,7 @@ interface ChatTag {
 interface LeadTagSelectorProps {
   leadId: string;
   /** Pre-fetched tag IDs to avoid N+1 queries */
-  initialTagIds?: string[];
+  initialTagIds?: Array<string>;
 }
 
 export function LeadTagSelector({
@@ -62,7 +62,7 @@ export function LeadTagSelector({
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as ChatTag[];
+      return data as Array<ChatTag>;
     },
     enabled: !!tenantId,
     staleTime: 60000,
@@ -252,8 +252,8 @@ export function LeadTagSelector({
 }
 
 interface LeadTagBadgesProps {
-  allTags: ChatTag[];
-  tagIds: string[];
+  allTags: Array<ChatTag>;
+  tagIds: Array<string>;
 }
 
 export function LeadTagBadges({ allTags, tagIds }: LeadTagBadgesProps) {
@@ -284,8 +284,8 @@ export function LeadTagBadges({ allTags, tagIds }: LeadTagBadgesProps) {
 
 interface LeadTagBadgesEditableProps {
   leadId: string;
-  allTags: ChatTag[];
-  tagIds: string[];
+  allTags: Array<ChatTag>;
+  tagIds: Array<string>;
 }
 
 export function LeadTagBadgesEditable({

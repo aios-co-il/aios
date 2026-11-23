@@ -48,7 +48,7 @@ export function levelFor(row: AccessRow, slug: string): BrainLevel | null {
  */
 export function nextBrainAccess(
   row: AccessRow,
-  routes: Route[],
+  routes: Array<Route>,
   slug: string,
   value: string,
 ): Record<string, unknown> {

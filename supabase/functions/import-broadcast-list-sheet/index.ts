@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       );
     }
     const sheet = await res.json();
-    const rows: any[][] = sheet.values || [];
+    const rows: Array<Array<any>> = sheet.values || [];
     if (rows.length < 1)
       return new Response(JSON.stringify({ error: "empty_sheet" }), {
         status: 400,
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
     const db = createClient(SB_URL, SB_SERVICE, {
       auth: { persistSession: false },
     });
-    const members: any[] = [];
+    const members: Array<any> = [];
     const seen = new Set<string>();
     for (const row of rows.slice(1)) {
       const phone =

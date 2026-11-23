@@ -5,7 +5,7 @@ import { expect, test, vi } from "vitest";
 import { useWorkshopClientCard } from "./useWorkshopClientCard";
 
 const tables = vi.hoisted(
-  () => ({}) as Record<string, Record<string, unknown>[]>,
+  () => ({}) as Record<string, Array<Record<string, unknown>>>,
 );
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -23,7 +23,7 @@ vi.mock("@/integrations/supabase/client", () => {
       rows = rows.filter((row) => row[column] === value);
       return chain;
     };
-    chain.in = (column: string, values: unknown[]) => {
+    chain.in = (column: string, values: Array<unknown>) => {
       rows = rows.filter((row) => values.includes(row[column]));
       return chain;
     };

@@ -19,7 +19,7 @@ import { toast } from "sonner";
 export type SitemapNode = {
   module: MenuModule;
   /** sub-modules that hang off this module (settings pages, sub-pages) */
-  children: MenuModule[];
+  children: Array<MenuModule>;
   hidden: boolean;
   customLabel: string | null;
 };
@@ -31,7 +31,7 @@ export type SitemapColumn = {
   sectionLabel: string;
   customSectionLabel: string | null;
   customTabLabel: string | null;
-  modules: SitemapNode[];
+  modules: Array<SitemapNode>;
   isSpecial?: "orphans" | "hidden";
 };
 
@@ -137,8 +137,8 @@ export function useSitemap() {
 }
 
 /** Pure reducer used by both hook and sidebar overlay. */
-export function buildSitemap(menuItems: MenuItem[]): {
-  columns: SitemapColumn[];
+export function buildSitemap(menuItems: Array<MenuItem>): {
+  columns: Array<SitemapColumn>;
   /** Overlay map for AppSidebar consumption. */
   overlay: SidebarOverlay;
 } {
@@ -147,7 +147,7 @@ export function buildSitemap(menuItems: MenuItem[]): {
   for (const m of menuItems) itemByKey.set(m.menu_key, m);
 
   // 2. Map sub-modules / integration settings by parent
-  const childrenByParent = new Map<string, MenuModule[]>();
+  const childrenByParent = new Map<string, Array<MenuModule>>();
   for (const sub of [...SUB_MODULES, ...INTEGRATION_SETTINGS]) {
     const arr = childrenByParent.get(sub.parentKey) || [];
     arr.push(sub);
@@ -273,7 +273,7 @@ export function buildSitemap(menuItems: MenuItem[]): {
 function buildNode(
   mod: MenuModule,
   itemByKey: Map<string, MenuItem>,
-  childrenByParent: Map<string, MenuModule[]>,
+  childrenByParent: Map<string, Array<MenuModule>>,
 ): SitemapNode {
   const item = itemByKey.get(mod.key);
   return {
@@ -302,7 +302,9 @@ export type SidebarOverlay = {
   moduleHome: Map<string, { tabId: MenuTabId; sectionLabel: string }>;
 };
 
-export function computeSidebarOverlay(menuItems: MenuItem[]): SidebarOverlay {
+export function computeSidebarOverlay(
+  menuItems: Array<MenuItem>,
+): SidebarOverlay {
   const tabLabels = new Map<MenuTabId, string>();
   const sectionLabels = new Map<string, string>();
   const moduleHome = new Map<

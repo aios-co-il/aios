@@ -17,7 +17,7 @@ export type RetentionClientInput = {
   mood_status?: string | null;
   pulse_status?: string | null;
   last_client_call_at?: string | null;
-  flags?: string[] | null;
+  flags?: Array<string> | null;
   has_campaign_snapshot?: boolean;
   /** False when the snapshot has no call column yet — do not invent a stale call. */
   call_known?: boolean;
@@ -27,7 +27,7 @@ export type RetentionItem = {
   client_id: string;
   client_name: string;
   band: Exclude<RetentionBand, "steady">;
-  reasons: string[];
+  reasons: Array<string>;
   next_action: string;
   suggested_mood: RetentionMood;
 };
@@ -53,7 +53,7 @@ export function isCallStale(
   return nowMs - ts > CLIENT_CALL_STALE_MS;
 }
 
-function hasStaleSyncFlag(flags: string[] | null | undefined): boolean {
+function hasStaleSyncFlag(flags: Array<string> | null | undefined): boolean {
   return (flags || []).some((flag) => /סנכרון ישן|stale/i.test(flag));
 }
 
@@ -63,7 +63,7 @@ export function rankRetentionClient(
 ): RetentionItem | null {
   const mood = client.mood_status || null;
   const pulse = client.pulse_status || null;
-  const reasons: string[] = [];
+  const reasons: Array<string> = [];
   let band: RetentionItem["band"] | null = null;
 
   if (mood === "churn_risk") {
@@ -132,7 +132,7 @@ export function rankRetentionClient(
 }
 
 export function buildRetentionScan(
-  clients: RetentionClientInput[],
+  clients: Array<RetentionClientInput>,
   nowMs = Date.now(),
 ) {
   const ranked = clients
@@ -186,7 +186,7 @@ export function buildRetentionWhatsAppDigest(input: {
 
 /** Morning alert: name only churn or a critical pulse. Call gaps stay a count. */
 export function buildDailyRetentionBrief(
-  clients: RetentionClientInput[],
+  clients: Array<RetentionClientInput>,
   nowMs = Date.now(),
 ) {
   const ranked = clients

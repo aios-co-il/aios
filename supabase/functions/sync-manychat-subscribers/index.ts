@@ -22,7 +22,7 @@ function normalizePhone(phone: string): string {
 }
 
 // Get comprehensive phone variations for matching
-function getPhoneVariations(phone: string): string[] {
+function getPhoneVariations(phone: string): Array<string> {
   if (!phone) return [];
 
   const normalized = normalizePhone(phone);

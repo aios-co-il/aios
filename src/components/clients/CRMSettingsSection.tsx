@@ -76,7 +76,7 @@ export function CRMSettingsSection({
 
   // Current values (graceful fallback if columns don't exist yet)
   const currentTier: string = (client as any).tier ?? "";
-  const currentServices: string[] = (() => {
+  const currentServices: Array<string> = (() => {
     const raw = (client as any).services;
     if (!raw) return [];
     if (Array.isArray(raw)) return raw;
@@ -120,7 +120,7 @@ export function CRMSettingsSection({
     return snapshot;
   };
   const restoreClientsCache = (
-    snapshot: [readonly unknown[], unknown][] | undefined,
+    snapshot: Array<[ReadonlyArray<unknown>, unknown]> | undefined,
   ) => {
     snapshot?.forEach(([key, data]) => queryClient.setQueryData(key, data));
   };
@@ -146,14 +146,14 @@ export function CRMSettingsSection({
 
   // ── Mutation: toggle service ────────────────────────────────────────────────
   const updateServicesMutation = useMutation({
-    mutationFn: async (services: string[]) => {
+    mutationFn: async (services: Array<string>) => {
       const { error } = await supabase
         .from("clients")
         .update({ services } as any)
         .eq("id", client.id);
       if (error) throw error;
     },
-    onMutate: async (services: string[]) => {
+    onMutate: async (services: Array<string>) => {
       await queryClient.cancelQueries({ queryKey: ["clients"] });
       return { snapshot: patchClientInCache({ services }) };
     },

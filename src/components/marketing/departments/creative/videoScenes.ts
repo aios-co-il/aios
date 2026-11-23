@@ -71,10 +71,10 @@ const generationCostOf = (meta: unknown): ImageGenerationCost | undefined => {
 
 /** Scene rows (any order) → editor frames ordered by position, with the current still and clip attached. */
 export function scenesToFrames(
-  rows: VideoSceneRecord[],
+  rows: Array<VideoSceneRecord>,
   assetsById: Map<string, SceneStillRecord>,
   defaultX: (order: number) => number,
-): StoryboardFrame[] {
+): Array<StoryboardFrame> {
   return [...rows]
     .sort((a, b) => finiteOr(a.position, 0) - finiteOr(b.position, 0))
     .map((row, index) => {
@@ -121,7 +121,9 @@ export function scenesToFrames(
 }
 
 /** Editor frames → save_video_storyboard payload; position follows the frame order. */
-export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
+export function framesToScenes(
+  frames: Array<StoryboardFrame>,
+): Array<VideoSceneInput> {
   return [...frames]
     .sort((a, b) => a.order - b.order)
     .map((frame, index) => ({
@@ -146,8 +148,8 @@ export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
  */
 export function stillsToAttach(
   persistedStills: Map<string, string | undefined>,
-  frames: StoryboardFrame[],
-): { sceneId: string; imageUrl: string; cost?: ImageGenerationCost }[] {
+  frames: Array<StoryboardFrame>,
+): Array<{ sceneId: string; imageUrl: string; cost?: ImageGenerationCost }> {
   return frames
     .filter(
       (frame): frame is StoryboardFrame & { imageUrl: string } =>
@@ -163,8 +165,8 @@ export function stillsToAttach(
 /** Scenes the editor loaded that are no longer in the draft; only these are deleted on save. */
 export function removedSceneIds(
   loadedIds: Iterable<string>,
-  frames: StoryboardFrame[],
-): string[] {
+  frames: Array<StoryboardFrame>,
+): Array<string> {
   const kept = new Set(frames.map((frame) => frame.id));
   return [...new Set(loadedIds)].filter((id) => !kept.has(id));
 }

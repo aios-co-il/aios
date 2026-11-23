@@ -76,7 +76,7 @@ async function requestedClientIds(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
   args: Record<string, unknown>,
-): Promise<string[] | null | { error: string }> {
+): Promise<Array<string> | null | { error: string }> {
   const requested = String(args.client_id ?? "").trim();
   if (requested) {
     await ctx.assertClientAccess(requested);
@@ -116,7 +116,7 @@ async function requestedClientIds(
 async function adTables(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
-  clientIds: string[] | null,
+  clientIds: Array<string> | null,
 ) {
   let query = db
     .from("crm_tables")
@@ -144,7 +144,7 @@ async function adTables(
 async function clientNames(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
-  ids: string[],
+  ids: Array<string>,
 ): Promise<Map<unknown, string>> {
   if (!ids.length) {
     return new Map();

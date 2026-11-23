@@ -79,7 +79,7 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function presentedKeys(req: Request, url: URL): string[] {
+function presentedKeys(req: Request, url: URL): Array<string> {
   const m = (req.headers.get("authorization") || "").match(/^Bearer\s+(.+)$/i);
   return [m?.[1]?.trim() || "", (url.searchParams.get("key") || "").trim()];
 }
@@ -106,7 +106,7 @@ async function runDirect(
   return data;
 }
 
-let toolsCache: { at: number; tools: any[] } | null = null;
+let toolsCache: { at: number; tools: Array<any> } | null = null;
 
 async function listTools(ctx: Ctx) {
   if (toolsCache && Date.now() - toolsCache.at < TOOLS_TTL_MS)

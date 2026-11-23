@@ -139,7 +139,7 @@ interface AgencyOpt {
   tenant_id: string;
   tenant_name?: string;
   /** Tenants that reach this agency via agency_tenant_access (may differ from owner). */
-  shared_with_tenant_ids?: string[];
+  shared_with_tenant_ids?: Array<string>;
 }
 
 function mapAgencyRow(a: {
@@ -157,8 +157,8 @@ function mapAgencyRow(a: {
 }
 
 async function withSharedTenantAccess(
-  agencies: AgencyOpt[],
-): Promise<AgencyOpt[]> {
+  agencies: Array<AgencyOpt>,
+): Promise<Array<AgencyOpt>> {
   if (agencies.length === 0) return agencies;
   const { data, error } = await supabase
     .from("agency_tenant_access")
@@ -168,7 +168,7 @@ async function withSharedTenantAccess(
       agencies.map((a) => a.id),
     );
   if (error) throw error;
-  const sharedByAgency = new Map<string, string[]>();
+  const sharedByAgency = new Map<string, Array<string>>();
   for (const row of data || []) {
     const list = sharedByAgency.get(row.agency_id) || [];
     list.push(row.accessing_tenant_id);
@@ -182,7 +182,7 @@ async function withSharedTenantAccess(
 
 async function fetchAgenciesForTenantScope(
   scopeTenantId: string,
-): Promise<AgencyOpt[]> {
+): Promise<Array<AgencyOpt>> {
   const [ownRes, accessRes] = await Promise.all([
     supabase
       .from("agencies")
@@ -209,9 +209,9 @@ async function fetchAgenciesForTenantScope(
 }
 
 function agenciesVisibleForTenant(
-  agencies: AgencyOpt[],
+  agencies: Array<AgencyOpt>,
   scopeTenantId: string,
-): AgencyOpt[] {
+): Array<AgencyOpt> {
   return agencies.filter(
     (a) =>
       a.tenant_id === scopeTenantId ||
@@ -270,7 +270,7 @@ export default function WordPressSettings() {
   };
 
   // Fetch all tenants (super admin only)
-  const { data: allTenants = [] } = useQuery<Tenant[]>({
+  const { data: allTenants = [] } = useQuery<Array<Tenant>>({
     queryKey: ["all-tenants-for-wp"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -286,7 +286,7 @@ export default function WordPressSettings() {
   // Fetch agencies for the form
   // - super-admin: all agencies across tenants (or filtered by chosen tenant_id)
   // - regular user: agencies in their tenant + cross-tenant via agency_tenant_access
-  const { data: agencies = [] } = useQuery<AgencyOpt[]>({
+  const { data: agencies = [] } = useQuery<Array<AgencyOpt>>({
     queryKey: ["agencies-for-wp", form.tenant_id, tenantId, isSuperAdmin],
     queryFn: async () => {
       if (isSuperAdmin) {
@@ -316,7 +316,7 @@ export default function WordPressSettings() {
 
   // Fetch clients - scoped to selected agency's tenant (if agency picked)
   // Otherwise to chosen tenant_id (super-admin) or current tenant + cross-tenant shared agencies
-  const { data: clients = [] } = useQuery<Client[]>({
+  const { data: clients = [] } = useQuery<Array<Client>>({
     queryKey: [
       "clients-for-wp",
       selectedAgencyTenantId,
@@ -370,7 +370,7 @@ export default function WordPressSettings() {
   // - super admin: all (or filtered by chosen tenant)
   // - others: own tenant + sites linked to agencies shared with their tenant
   //   (campaigners in a shared DMM agency should see DMM's WP sites).
-  const { data: sites = [], isLoading } = useQuery<WordPressSite[]>({
+  const { data: sites = [], isLoading } = useQuery<Array<WordPressSite>>({
     queryKey: [
       "wordpress-sites-admin",
       tenantId,
@@ -397,7 +397,7 @@ export default function WordPressSettings() {
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as unknown as WordPressSite[];
+      return (data || []) as unknown as Array<WordPressSite>;
     },
     enabled: !!tenantId,
   });
@@ -574,7 +574,7 @@ export default function WordPressSettings() {
   // Agencies for the quick-link dialog
   // - super-admin: all agencies across all tenants
   // - regular user: own tenant + cross-tenant via agency_tenant_access
-  const { data: linkAgencies = [] } = useQuery<AgencyOpt[]>({
+  const { data: linkAgencies = [] } = useQuery<Array<AgencyOpt>>({
     queryKey: ["agencies-for-link", tenantId, isSuperAdmin],
     queryFn: async () => {
       if (isSuperAdmin) {
@@ -616,13 +616,15 @@ export default function WordPressSettings() {
   const linkEffectiveTenantId =
     linkSelectedAgency?.tenant_id || linkTenantId || linkSite?.tenant_id;
 
-  const { data: linkClients = [] } = useQuery<Client[]>({
+  const { data: linkClients = [] } = useQuery<Array<Client>>({
     queryKey: ["clients-for-link", linkEffectiveTenantId, linkAgency, tenantId],
     queryFn: async () => {
       // Allow finding the client across: the chosen agency, the site's/agency's tenant,
       // AND the user's own tenant (e.g. site sits in DMM but client lives in DMM-MC).
       const tenantIds = Array.from(
-        new Set([linkEffectiveTenantId, tenantId].filter(Boolean) as string[]),
+        new Set(
+          [linkEffectiveTenantId, tenantId].filter(Boolean) as Array<string>,
+        ),
       );
       if (tenantIds.length === 0 && !linkAgency) return [];
 
@@ -685,14 +687,14 @@ export default function WordPressSettings() {
       total: number;
       last_30_days: number;
       sources: Record<string, number>;
-      slugs?: string[];
+      slugs?: Array<string>;
       sample_referer?: string | null;
     }>;
     per_slug: Array<{
       slug: string;
       submissions: number;
       google_ads_submissions: number;
-      sample_gad_campaignids: string[];
+      sample_gad_campaignids: Array<string>;
     }>;
   }>({
     queryKey: ["wp-discovery", mappingSite?.id],
@@ -706,8 +708,8 @@ export default function WordPressSettings() {
       );
       if (error) throw error;
       return {
-        per_form: (data?.per_form || []) as any[],
-        per_slug: (data?.per_slug || []) as any[],
+        per_form: (data?.per_form || []) as Array<any>,
+        per_slug: (data?.per_slug || []) as Array<any>,
       };
     },
     enabled: !!mappingSite,
@@ -842,7 +844,7 @@ export default function WordPressSettings() {
     ],
     queryFn: async () => {
       const ids = Array.from(
-        new Set(sites.map((s) => s.client_id).filter(Boolean) as string[]),
+        new Set(sites.map((s) => s.client_id).filter(Boolean) as Array<string>),
       );
       if (ids.length === 0) return {};
       const { data, error } = await supabase

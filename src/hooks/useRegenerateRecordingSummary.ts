@@ -13,7 +13,7 @@ import {
 interface UseRegenerateRecordingSummaryOptions {
   tenantId: string;
   /** Every row of the meeting — grouped Zoom files must stay in sync. */
-  recordingIds: string[];
+  recordingIds: Array<string>;
   onRegenerated?: (summaryMd: string) => void;
 }
 

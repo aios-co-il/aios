@@ -147,7 +147,7 @@ async function performSync(serviceClient: any, userId: string) {
   let syncToken: string | null = token.next_sync_token || null;
   let pageToken: string | undefined = undefined;
   let nextSyncToken: string | null = null;
-  const allEvents: any[] = [];
+  const allEvents: Array<any> = [];
   let attempt = 0;
 
   while (true) {

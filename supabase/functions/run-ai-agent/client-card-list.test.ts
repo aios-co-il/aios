@@ -20,7 +20,7 @@ const UNRELATED_ORG = "88888888-8888-4888-8888-888888888888";
 
 type Row = Record<string, unknown>;
 
-type Tables = Record<string, Row[]>;
+type Tables = Record<string, Array<Row>>;
 
 const SHARES = [
   {
@@ -248,14 +248,14 @@ function fakeTables(
   tables: Tables,
   errors: Record<string, { message: string }>,
 ) {
-  const log: Array<{ table: string; op: string; args: unknown[] }> = [];
+  const log: Array<{ table: string; op: string; args: Array<unknown> }> = [];
   const builder = (table: string) => {
     const filters: Array<(row: Row) => boolean> = [];
     const matches = () =>
       (tables[table] ?? []).filter((row) => filters.every((keep) => keep(row)));
     const chain: Record<string, unknown> = {};
     for (const op of ["select", "order", "limit"]) {
-      chain[op] = (...args: unknown[]) => {
+      chain[op] = (...args: Array<unknown>) => {
         log.push({ table, op, args });
         return chain;
       };
@@ -265,7 +265,7 @@ function fakeTables(
       filters.push((row) => row[column] === value);
       return chain;
     };
-    chain.in = (column: string, values: unknown[]) => {
+    chain.in = (column: string, values: Array<unknown>) => {
       log.push({ table, op: "in", args: [column, values] });
       filters.push((row) => values.includes(row[column]));
       return chain;
@@ -274,8 +274,9 @@ function fakeTables(
       errors[table]
         ? { data: null, error: errors[table] }
         : { data: matches()[0] ?? null, error: null };
-    chain.then = (resolve: (result: { data: Row[]; error: null }) => void) =>
-      resolve({ data: matches(), error: null });
+    chain.then = (
+      resolve: (result: { data: Array<Row>; error: null }) => void,
+    ) => resolve({ data: matches(), error: null });
     return chain;
   };
   return { supabase: { from: builder }, log };

@@ -49,7 +49,7 @@ export async function claimApprovalRow(
   {
     from = ["pending", "approved"],
     to = "executing",
-  }: { from?: string[]; to?: string } = {},
+  }: { from?: Array<string>; to?: string } = {},
 ): Promise<Tables<"agent_approval_queue"> | null> {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
@@ -95,7 +95,7 @@ export async function loadApproverScope(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
   userId: string,
-): Promise<{ roles: string[]; member: boolean }> {
+): Promise<{ roles: Array<string>; member: boolean }> {
   const [
     { data: roleRows, error: rolesError },
     { data: memberRows, error: memberError },

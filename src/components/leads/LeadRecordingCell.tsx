@@ -14,14 +14,14 @@ export function LeadRecordingCell({
   leadId: string;
   tenantId: string | null;
   agencyId?: string | null;
-  recordings: LeadRecordingItem[];
+  recordings: Array<LeadRecordingItem>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const upload = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async (files: Array<File>) => {
       if (!tenantId) throw new Error("חסר ארגון");
       for (const [index, file] of files.entries()) {
         const ext = file.name.split(".").pop() || "bin";

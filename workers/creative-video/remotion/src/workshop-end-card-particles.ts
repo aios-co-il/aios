@@ -42,7 +42,7 @@ export function particlesAt(
   count = 44,
   seed = 7,
   fps = 30,
-): Particle[] {
+): Array<Particle> {
   const next = seeded(seed);
   const t = frame / fps;
   return Array.from({ length: Math.min(MAX_PARTICLES, count) }, (_, i) => {

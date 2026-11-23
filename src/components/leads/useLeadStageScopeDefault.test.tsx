@@ -9,7 +9,7 @@ const backend = vi.hoisted(() => ({
   row: null as { stage_scope: string } | null,
   readError: null as Failure,
   writeError: null as Failure,
-  filters: [] as [string, string][],
+  filters: [] as Array<[string, string]>,
   upsert: vi.fn(),
   toast: vi.fn(),
 }));

@@ -12,24 +12,24 @@ export type AudienceFilterMode = "include" | "exclude";
 
 export interface AudienceFilter {
   source: "clients" | "leads" | "campaigners" | "list" | "wa_groups" | "manual";
-  statuses?: string[]; // clients
+  statuses?: Array<string>; // clients
   statusMode?: AudienceFilterMode;
-  serviceTags?: string[]; // clients
-  statusKeys?: string[]; // leads: response_status (lead_statuses)
-  stageKeys?: string[]; // leads: pipeline stage (leads.status)
+  serviceTags?: Array<string>; // clients
+  statusKeys?: Array<string>; // leads: response_status (lead_statuses)
+  stageKeys?: Array<string>; // leads: pipeline stage (leads.status)
   stageMode?: AudienceFilterMode;
-  salesPersonIds?: string[]; // leads
-  agencyIds?: string[]; // clients/leads: agency_id
-  campaignerIds?: string[]; // clients: client_team
-  tagIds?: string[]; // clients/leads
+  salesPersonIds?: Array<string>; // leads
+  agencyIds?: Array<string>; // clients/leads: agency_id
+  campaignerIds?: Array<string>; // clients: client_team
+  tagIds?: Array<string>; // clients/leads
   tagMode?: AudienceFilterMode;
-  roles?: string[]; // campaigners
+  roles?: Array<string>; // campaigners
   activeOnly?: boolean; // campaigners
   listId?: string; // source = list
-  groupIds?: string[]; // source = wa_groups (whatsapp_groups UUIDs)
-  manualContacts?: string[]; // source = manual: typed emails / phones
-  includeIds?: string[]; // manual selection within a source
-  excludeIds?: string[];
+  groupIds?: Array<string>; // source = wa_groups (whatsapp_groups UUIDs)
+  manualContacts?: Array<string>; // source = manual: typed emails / phones
+  includeIds?: Array<string>; // manual selection within a source
+  excludeIds?: Array<string>;
 }
 
 export interface Broadcast {
@@ -43,7 +43,7 @@ export interface Broadcast {
   body_text: string | null;
   body_html: string | null;
   html_mode: boolean;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
   template_id: string | null;
   origin: "manual" | "automation";
   media_url: string | null;
@@ -81,14 +81,14 @@ export function useBroadcasts() {
   const list = useQuery({
     queryKey: ["broadcasts", tenantId],
     enabled: !!tenantId,
-    queryFn: async (): Promise<Broadcast[]> => {
+    queryFn: async (): Promise<Array<Broadcast>> => {
       const { data, error } = await supabase
         .from("broadcasts")
         .select("*")
         .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as Broadcast[];
+      return (data || []) as unknown as Array<Broadcast>;
     },
   });
 
@@ -166,7 +166,7 @@ export function useBroadcasts() {
       },
     );
     if (error) throw error;
-    return data as { success: boolean; total: number; sample: any[] };
+    return data as { success: boolean; total: number; sample: Array<any> };
   };
 
   /** Freeze the recipient snapshot for a saved broadcast. */

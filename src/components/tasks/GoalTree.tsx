@@ -52,7 +52,7 @@ export function GoalTree() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as Goal[];
+      return (data || []) as Array<Goal>;
     },
     enabled: !!tenantId,
   });
@@ -68,7 +68,7 @@ export function GoalTree() {
         .not("goal_id" as any, "is", null);
       if (error) return {};
       const counts: Record<string, { total: number; done: number }> = {};
-      (data as any[])?.forEach((t: any) => {
+      (data as Array<any>)?.forEach((t: any) => {
         if (!t.goal_id) return;
         if (!counts[t.goal_id]) counts[t.goal_id] = { total: 0, done: 0 };
         counts[t.goal_id].total++;

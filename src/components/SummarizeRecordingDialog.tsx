@@ -66,7 +66,7 @@ export default function SummarizeRecordingDialog({
   const queryClient = useQueryClient();
 
   const [transcript, setTranscript] = useState("");
-  const [focusPoints, setFocusPoints] = useState<string[]>([
+  const [focusPoints, setFocusPoints] = useState<Array<string>>([
     "decisions",
     "action_items",
     "next_steps",

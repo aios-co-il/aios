@@ -55,7 +55,7 @@ export type AutonomousGoalRow = {
   constraints: Record<string, unknown>;
   scope: Record<string, unknown>;
   risk_level: RiskLevel;
-  plan: unknown[];
+  plan: Array<unknown>;
   next_run_at?: string | null;
   last_iteration_at?: string | null;
   iteration_count: number;
@@ -123,8 +123,8 @@ export function slugifyKey(text: string, index = 0): string {
 
 export function buildContextPackage(state: {
   goal: AutonomousGoalRow;
-  criteria: GoalCriterionRow[];
-  planSteps: GoalPlanStepRow[];
+  criteria: Array<GoalCriterionRow>;
+  planSteps: Array<GoalPlanStepRow>;
   recentActions: Array<{
     action_type: string;
     tool_name?: string | null;
@@ -159,10 +159,10 @@ export function buildContextPackage(state: {
   };
 }
 
-export function checkCompletionGate(criteria: GoalCriterionRow[]): {
+export function checkCompletionGate(criteria: Array<GoalCriterionRow>): {
   complete: boolean;
-  pending: GoalCriterionRow[];
-  failed: GoalCriterionRow[];
+  pending: Array<GoalCriterionRow>;
+  failed: Array<GoalCriterionRow>;
 } {
   const required = criteria.filter((c) => c.required);
   const pending = required.filter((c) => c.status !== "PASS");
@@ -212,11 +212,11 @@ export async function seedSuccessCriteria(
     goalId: string;
     title: string;
     completionCriteria?: string | null;
-    successCriteria?: SuccessCriterionInput[];
+    successCriteria?: Array<SuccessCriterionInput>;
   },
-): Promise<GoalCriterionRow[]> {
-  const criteriaRows: GoalCriterionRow[] = [];
-  let criteria: SuccessCriterionInput[] = args.successCriteria?.length
+): Promise<Array<GoalCriterionRow>> {
+  const criteriaRows: Array<GoalCriterionRow> = [];
+  let criteria: Array<SuccessCriterionInput> = args.successCriteria?.length
     ? args.successCriteria
     : [];
 
@@ -272,13 +272,13 @@ export async function createAutonomousGoal(
     constraints?: Record<string, unknown>;
     scope?: Record<string, unknown>;
     riskLevel?: RiskLevel;
-    successCriteria?: SuccessCriterionInput[];
+    successCriteria?: Array<SuccessCriterionInput>;
     agentId?: string | null;
     actorUserId?: string | null;
     priority?: string;
     completionCriteria?: string;
   },
-): Promise<{ goal: AutonomousGoalRow; criteria: GoalCriterionRow[] }> {
+): Promise<{ goal: AutonomousGoalRow; criteria: Array<GoalCriterionRow> }> {
   const { goal, criteria } = await createUnifiedGoal(supabase, {
     tenantId: args.tenantId,
     title: args.title,
@@ -296,7 +296,7 @@ export async function createAutonomousGoal(
   });
   return {
     goal: goal as AutonomousGoalRow,
-    criteria: (criteria || []) as GoalCriterionRow[],
+    criteria: (criteria || []) as Array<GoalCriterionRow>,
   };
 }
 
@@ -306,10 +306,10 @@ export async function loadGoalState(
   goalId: string,
 ): Promise<{
   goal: AutonomousGoalRow;
-  criteria: GoalCriterionRow[];
-  planSteps: GoalPlanStepRow[];
-  recentActions: any[];
-  blockers: any[];
+  criteria: Array<GoalCriterionRow>;
+  planSteps: Array<GoalPlanStepRow>;
+  recentActions: Array<any>;
+  blockers: Array<any>;
 } | null> {
   const { data: goal, error } = await supabase
     .from("goals")
@@ -1254,7 +1254,7 @@ export async function getAutonomousGoalStatus(
 export async function listDueAutonomousGoals(
   supabase: SupabaseLike,
   limit = 10,
-): Promise<AutonomousGoalRow[]> {
+): Promise<Array<AutonomousGoalRow>> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("goals")

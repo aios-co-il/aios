@@ -28,7 +28,7 @@ export function useSkins(
         .order("scope", { ascending: true })
         .order("name", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as Skin[];
+      return (data ?? []) as Array<Skin>;
     },
     enabled: !!tenantId,
   });

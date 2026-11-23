@@ -26,12 +26,12 @@ export interface FilterPreset {
     searchQuery?: string | null;
     salesPersonId?: string;
     stageId?: string;
-    stageIds?: string[];
+    stageIds?: Array<string>;
     stageFilterMode?: "show" | "hide";
-    responseStatus?: string | string[]; // Support both old (string) and new (array) format
+    responseStatus?: string | Array<string>; // Support both old (string) and new (array) format
     responseStatusFilterMode?: "show" | "hide";
     tagId?: string; // Legacy format
-    tagIds?: string[]; // New format
+    tagIds?: Array<string>; // New format
     startDate?: string | null;
     endDate?: string | null;
     followUpToday?: boolean; // Filter for leads with follow-up date today
@@ -51,8 +51,8 @@ interface LeadFilterPresetTabsProps {
   onOpenFiltersDialog: () => void;
   onEditPreset: (preset: FilterPreset) => void;
   hasActiveFilters: boolean;
-  pipelineStages?: StagePreset[];
-  activeStageIds?: string[];
+  pipelineStages?: Array<StagePreset>;
+  activeStageIds?: Array<string>;
   stageFilterMode?: "show" | "hide";
   onStageSelect?: (stageId: string) => void;
   stageCounts?: Record<string, number>;
@@ -91,7 +91,7 @@ export function LeadFilterPresetTabs({
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as FilterPreset[];
+      return data as Array<FilterPreset>;
     },
     enabled: !!tenantId,
   });

@@ -88,7 +88,7 @@ export function AddClientForm() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-client", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -448,7 +448,7 @@ export function AddClientForm() {
                         { key: "full_social", label: "Full Social" },
                         { key: "social_meta", label: "Social Meta" },
                         { key: "automation", label: "Automation" },
-                      ] as { key: string; label: string }[]
+                      ] as Array<{ key: string; label: string }>
                     ).map((svc) => (
                       <label
                         key={svc.key}

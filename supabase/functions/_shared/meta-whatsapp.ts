@@ -92,7 +92,7 @@ export async function uploadMetaTemplateMediaHandle(
 
 export type MetaWhatsAppSessionInfo = {
   waba_id?: string;
-  waba_ids?: string[];
+  waba_ids?: Array<string>;
   phone_number_id?: string;
   business_id?: string;
 };
@@ -109,7 +109,7 @@ export function digitsOnly(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
-export function normalizedPhoneCandidates(value: unknown): string[] {
+export function normalizedPhoneCandidates(value: unknown): Array<string> {
   const digits = digitsOnly(value).replace(/^00/, "");
   if (!digits) return [];
   const candidates = new Set([digits]);
@@ -287,7 +287,7 @@ export async function renderTemplateText(
   wabaId: string,
   templateName: string,
   language: string,
-  parameters: string[],
+  parameters: Array<string>,
   accessToken: string,
   graphVersion: string,
 ): Promise<string | null> {
@@ -304,14 +304,14 @@ export async function renderTemplateText(
     });
     if (!response.ok) return null;
     const payload = await response.json();
-    const templates: MetaWhatsAppMessage[] = Array.isArray(payload?.data)
+    const templates: Array<MetaWhatsAppMessage> = Array.isArray(payload?.data)
       ? payload.data
       : [];
     const template =
       templates.find(
         (item) => item.name === templateName && item.language === language,
       ) ?? templates.find((item) => item.name === templateName);
-    const components: MetaWhatsAppMessage[] = Array.isArray(
+    const components: Array<MetaWhatsAppMessage> = Array.isArray(
       template?.components,
     )
       ? template.components

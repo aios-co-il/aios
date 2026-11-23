@@ -41,14 +41,15 @@ const platformIcons: Record<SocialMediaChannel["platform"], React.ElementType> =
     youtube: Youtube,
   };
 
-const postTypes: { value: SocialMediaPost["post_type"]; label: string }[] = [
-  { value: "text", label: "טקסט" },
-  { value: "image", label: "תמונה" },
-  { value: "video", label: "וידאו" },
-  { value: "carousel", label: "קרוסלה" },
-  { value: "story", label: "סטורי" },
-  { value: "reel", label: "ריל" },
-];
+const postTypes: Array<{ value: SocialMediaPost["post_type"]; label: string }> =
+  [
+    { value: "text", label: "טקסט" },
+    { value: "image", label: "תמונה" },
+    { value: "video", label: "וידאו" },
+    { value: "carousel", label: "קרוסלה" },
+    { value: "story", label: "סטורי" },
+    { value: "reel", label: "ריל" },
+  ];
 
 interface PostComposerProps {
   onPostCreated?: () => void;
@@ -63,7 +64,7 @@ export function PostComposer({ onPostCreated }: PostComposerProps) {
   const [content, setContent] = useState("");
   const [postType, setPostType] =
     useState<SocialMediaPost["post_type"]>("text");
-  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<Array<string>>([]);
   const [scheduledAt, setScheduledAt] = useState("");
   const [publishToWp, setPublishToWp] = useState(false);
   const [selectedWpSite, setSelectedWpSite] = useState("");

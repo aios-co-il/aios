@@ -19,7 +19,7 @@ export type GaqlRow = {
 
 export type RunGaqlSearch = (
   query: string,
-) => Promise<Array<{ results?: GaqlRow[] }>>;
+) => Promise<Array<{ results?: Array<GaqlRow> }>>;
 
 export type CampaignConversions = {
   purchaseConversions: number;
@@ -76,7 +76,7 @@ export async function fetchCategoryConversions(
 
 /** Categories each campaign bids on; empty when the goal query fails, so conversions decide. */
 export async function fetchBiddableCategories(runGaqlSearch: RunGaqlSearch) {
-  const biddableByCampaign = new Map<string, string[]>();
+  const biddableByCampaign = new Map<string, Array<string>>();
   try {
     const batches = await runGaqlSearch(`
       SELECT

@@ -85,7 +85,7 @@ const isRecord = (v: unknown): v is TemplateVars =>
 async function resolveRecipients(
   input: unknown,
   userId: string,
-): Promise<{ emails: string[] } | { error: string }> {
+): Promise<{ emails: Array<string> } | { error: string }> {
   const typed = Array.isArray(input)
     ? [...new Set(input.map((e) => asString(e).trim().toLowerCase()))].filter(
         Boolean,

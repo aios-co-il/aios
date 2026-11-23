@@ -14,7 +14,7 @@ export interface CreativeBrandKit {
   logoUrl?: string;
   website?: string;
   brandBook?: BrandBook;
-  styleReferences: StyleReference[];
+  styleReferences: Array<StyleReference>;
 }
 
 export interface ClientAttachment {
@@ -133,7 +133,7 @@ export const deriveBrandBook = ({
   industry?: string;
   brief?: string;
   copy?: string;
-  colors?: string[];
+  colors?: Array<string>;
   existing?: BrandBook;
 }): BrandBook => {
   const palette = colors?.length ? colors : (existing?.colors ?? []);
@@ -217,7 +217,9 @@ export const uploadCreativeAsset = async ({
   return { path, url: data.publicUrl, name: file.name };
 };
 
-export const sampleColorsFromFile = async (file: File): Promise<string[]> => {
+export const sampleColorsFromFile = async (
+  file: File,
+): Promise<Array<string>> => {
   if (
     typeof createImageBitmap !== "function" ||
     typeof document === "undefined"
@@ -242,7 +244,7 @@ export const sampleColorsFromFile = async (file: File): Promise<string[]> => {
 
 export const filesFromAttachments = (
   attachments: unknown,
-): ClientAttachment[] => {
+): Array<ClientAttachment> => {
   if (!Array.isArray(attachments)) return [];
   return attachments.flatMap((file) => {
     if (!file || typeof file !== "object") return [];
@@ -270,8 +272,8 @@ export const websiteHref = (website?: string | null) => {
 };
 
 export const mergeStyleReferences = (
-  current: StyleReference[],
-  incoming: StyleReference[],
+  current: Array<StyleReference>,
+  incoming: Array<StyleReference>,
 ) => {
   const seen = new Set(current.map((item) => item.url));
   return [
@@ -283,7 +285,7 @@ export const mergeStyleReferences = (
 export const styleRefsFromClientFiles = (
   supabase: SupabaseClient,
   attachments: unknown,
-): StyleReference[] =>
+): Array<StyleReference> =>
   filesFromAttachments(attachments)
     .filter((file) => !!file.path && isImageAttachment(file))
     .map((file) => ({

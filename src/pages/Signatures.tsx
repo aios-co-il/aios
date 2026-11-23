@@ -132,7 +132,7 @@ export default function Signatures() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
-  const [recipients, setRecipients] = useState<Recipient[]>([
+  const [recipients, setRecipients] = useState<Array<Recipient>>([
     { name: "", email: "", signaturePosition: null },
   ]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -142,7 +142,9 @@ export default function Signatures() {
   const [showPlacement, setShowPlacement] = useState(false);
   const [isTemplate, setIsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
-  const [documentFields, setDocumentFields] = useState<DocumentField[]>([]);
+  const [documentFields, setDocumentFields] = useState<Array<DocumentField>>(
+    [],
+  );
   const [lastSentLinks, setLastSentLinks] = useState<
     Array<{ name: string; email: string; url: string }>
   >([]);
@@ -539,7 +541,7 @@ export default function Signatures() {
       thenSend,
     }: {
       doc: { id: string; title: string; is_template?: boolean };
-      fields: DocumentField[];
+      fields: Array<DocumentField>;
       thenSend?: boolean;
     }) => {
       const result = await updateSignatureDocumentFields(doc.id, fields, {
@@ -582,7 +584,7 @@ export default function Signatures() {
   });
 
   const handleEditSaveOnly = async (
-    fields: DocumentField[],
+    fields: Array<DocumentField>,
     nextTitle: string,
   ) => {
     if (!editingDoc || !nextTitle.trim()) return;
@@ -602,7 +604,7 @@ export default function Signatures() {
   };
 
   const handleEditSaveOrSend = async (
-    fields: DocumentField[],
+    fields: Array<DocumentField>,
     nextTitle: string,
   ) => {
     if (!editingDoc || !nextTitle.trim()) return;

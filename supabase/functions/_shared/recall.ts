@@ -106,7 +106,7 @@ export function isRecallCanaryDetail(detail: string): boolean {
 
 /** Run a credit canary on first check, every 3h while ok, and every 30m while down. */
 export function shouldRunRecallCreditCanary(
-  recent: RecallQuotaCheckRow[],
+  recent: Array<RecallQuotaCheckRow>,
   now = Date.now(),
 ): boolean {
   const last = recent.find((row) => isRecallCanaryDetail(row.detail));
@@ -395,7 +395,7 @@ interface RecallWord {
 
 interface RecallParticipantSegment {
   participant?: { id?: number; name?: string };
-  words?: RecallWord[];
+  words?: Array<RecallWord>;
 }
 
 /**
@@ -404,10 +404,10 @@ interface RecallParticipantSegment {
  * on pauses so the result reads as a speaker timeline rather than one long line.
  */
 function participantSegmentsToLines(
-  segments: RecallParticipantSegment[],
+  segments: Array<RecallParticipantSegment>,
   nameById: Map<number, string>,
-): { at: number; line: string }[] {
-  const lines: { at: number; line: string }[] = [];
+): Array<{ at: number; line: string }> {
+  const lines: Array<{ at: number; line: string }> = [];
 
   for (const seg of segments) {
     const speaker =
@@ -418,7 +418,7 @@ function participantSegmentsToLines(
 
     let startAt: number | null = null;
     let prevAt = 0;
-    let buffer: string[] = [];
+    let buffer: Array<string> = [];
 
     const flush = () => {
       const text = buffer.join(" ").trim();
@@ -452,7 +452,7 @@ function participantSegmentsToLines(
 /** Convert Recall transcript JSON to our speaker-timeline text format. */
 // deno-lint-ignore no-explicit-any
 export function recallTranscriptToText(data: any): string {
-  const participants: { id?: number; name?: string }[] = Array.isArray(
+  const participants: Array<{ id?: number; name?: string }> = Array.isArray(
     data?.participants,
   )
     ? data.participants
@@ -465,7 +465,7 @@ export function recallTranscriptToText(data: any): string {
   // v1.11 download schema: top-level array of { participant, words }.
   if (Array.isArray(data)) {
     return participantSegmentsToLines(
-      data as RecallParticipantSegment[],
+      data as Array<RecallParticipantSegment>,
       nameById,
     )
       .sort((a, b) => a.at - b.at)
@@ -475,7 +475,7 @@ export function recallTranscriptToText(data: any): string {
 
   // Newer schema: array of utterances with participant + words
   if (Array.isArray(data?.utterances) && data.utterances.length > 0) {
-    const lines: { at: number; line: string }[] = [];
+    const lines: Array<{ at: number; line: string }> = [];
     for (const u of data.utterances) {
       const speaker =
         u.participant?.name || nameById.get(u.participant?.id) || "משתתף";
@@ -497,16 +497,17 @@ export function recallTranscriptToText(data: any): string {
   }
 
   // Flat words array grouped by participant
-  const words: {
+  const words: Array<{
     text?: string;
     participant?: { id?: number; name?: string };
     start_timestamp?: { relative?: number };
-  }[] = Array.isArray(data?.words) ? data.words : [];
+  }> = Array.isArray(data?.words) ? data.words : [];
 
   if (words.length === 0 && typeof data?.text === "string") return data.text;
 
-  const segments: { at: number; speaker: string; text: string }[] = [];
-  let current: { at: number; speaker: string; parts: string[] } | null = null;
+  const segments: Array<{ at: number; speaker: string; text: string }> = [];
+  let current: { at: number; speaker: string; parts: Array<string> } | null =
+    null;
 
   for (const w of words) {
     const speaker =

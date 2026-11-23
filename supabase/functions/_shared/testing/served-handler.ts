@@ -44,9 +44,9 @@ export async function withRuntime<T>(
   runtime: { env: Record<string, string | null>; fetch: typeof fetch },
   fn: () => Promise<T>,
 ): Promise<T> {
-  const saved: [string, string | undefined][] = Object.keys(runtime.env).map(
-    (key) => [key, Deno.env.get(key)],
-  );
+  const saved: Array<[string, string | undefined]> = Object.keys(
+    runtime.env,
+  ).map((key) => [key, Deno.env.get(key)]);
   const realFetch = globalThis.fetch;
   for (const [key, value] of Object.entries(runtime.env)) {
     setEnv(key, value);

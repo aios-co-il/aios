@@ -70,7 +70,7 @@ export function GithubAgentPanel() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(20);
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: !!tenantId,
   });
@@ -86,7 +86,7 @@ export function GithubAgentPanel() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(30);
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: !!tenantId,
   });

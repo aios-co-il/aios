@@ -29,7 +29,7 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
   const routesQuery = useQuery({
     queryKey: ["carmen-perm-routes", tenantId],
     enabled: !!tenantId,
-    queryFn: async (): Promise<Route[]> => {
+    queryFn: async (): Promise<Array<Route>> => {
       const { data, error } = await supabase
         .from("agent_brain_routes")
         .select("id,slug,label,route_type,provider")
@@ -46,7 +46,7 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
   const rowsQuery = useQuery({
     queryKey: rowsKey,
     enabled: !!tenantId && !!agentId,
-    queryFn: async (): Promise<AccessRow[]> => {
+    queryFn: async (): Promise<Array<AccessRow>> => {
       const { data, error } = await supabase
         .from("carmen_command_center_access")
         .select("id,user_id,enabled,brain_access,dev_escalation_tier")
@@ -54,7 +54,7 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
         .eq("agent_id", agentId!)
         .not("user_id", "is", null);
       if (error) throw error;
-      return (data ?? []) as AccessRow[];
+      return (data ?? []) as Array<AccessRow>;
     },
   });
 

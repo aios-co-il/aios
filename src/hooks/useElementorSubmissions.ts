@@ -38,7 +38,7 @@ export interface PerFormStat {
 export interface PerCampaignStat {
   gad_campaignid: string;
   submissions: number;
-  forms: string[];
+  forms: Array<string>;
 }
 
 export interface ElementorSubmissionsResponse {
@@ -56,9 +56,9 @@ export interface ElementorSubmissionsResponse {
     direct: number;
     test: number;
   };
-  per_form?: PerFormStat[];
-  per_campaign?: PerCampaignStat[];
-  submissions?: ElementorSubmission[];
+  per_form?: Array<PerFormStat>;
+  per_campaign?: Array<PerCampaignStat>;
+  submissions?: Array<ElementorSubmission>;
 }
 
 /**

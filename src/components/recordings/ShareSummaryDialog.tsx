@@ -155,7 +155,7 @@ export function ShareSummaryDialog({
     }
 
     setIsSending(true);
-    const sentChannels: ReportDeliveryChannel[] = [];
+    const sentChannels: Array<ReportDeliveryChannel> = [];
     try {
       const {
         data: { session },
@@ -256,7 +256,7 @@ export function ShareSummaryDialog({
 </body>
 </html>`;
 
-        let attachments: { filename: string; base64: string }[] = [];
+        let attachments: Array<{ filename: string; base64: string }> = [];
         if (attachDocx && recording.summary_file_url) {
           try {
             const docxBlob = await (
@@ -543,7 +543,7 @@ function GroupCombobox({
   value,
   onChange,
 }: {
-  groups: GroupOption[];
+  groups: Array<GroupOption>;
   value: string;
   onChange: (val: string) => void;
 }) {

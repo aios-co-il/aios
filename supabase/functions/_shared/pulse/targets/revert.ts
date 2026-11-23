@@ -45,7 +45,7 @@ function restoreSlots(
   settings: JsonObject,
   previous: JsonObject,
   key: "pulse_targets" | "pulse_platform_targets",
-  { before, slots }: { before: JsonObject; slots: string[] },
+  { before, slots }: { before: JsonObject; slots: Array<string> },
 ): JsonObject {
   const current = settings[key];
   const restored = { ...(isJsonObject(current) ? current : {}) };

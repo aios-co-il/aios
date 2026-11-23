@@ -33,16 +33,16 @@ const RULE_THROTTLE_HOURS: Record<PulseAlertRuleType, number> = {
  */
 export async function planInstantAlerts(
   input: Pick<InstantPulseAlertsInput, "supabase" | "tenantId" | "snapshots">,
-  candidates: PulseInstantAlertCandidate[],
+  candidates: Array<PulseInstantAlertCandidate>,
   now: Date,
   recipientsFor: (
     candidate: PulseInstantAlertCandidate,
     agencyId: string | null | undefined,
   ) => Promise<Array<{ phone: string }>>,
-): Promise<{ planned: PlannedInstantAlert[]; skipped: number }> {
-  const planned: PlannedInstantAlert[] = [];
+): Promise<{ planned: Array<PlannedInstantAlert>; skipped: number }> {
+  const planned: Array<PlannedInstantAlert> = [];
   let skipped = 0;
-  const acceptedThisRun = new Map<string, InstantAlertLogRow[]>();
+  const acceptedThisRun = new Map<string, Array<InstantAlertLogRow>>();
   for (const candidate of candidates) {
     const throttleHours = dedupeWindowHours(candidate, now);
     const runKey = [

@@ -112,7 +112,7 @@ async function buildAudience(
   tenantId: string,
   integrationId: string,
   source: string,
-  manualPhones: string[],
+  manualPhones: Array<string>,
 ): Promise<
   Array<{
     phone: string;

@@ -170,9 +170,9 @@ function seoDomainsMatch(a?: string | null, b?: string | null): boolean {
 
 /** Mirror of filterSeoReportsByDomain — client-side only, with fallback. */
 function filterSeoReportsByDomain<T extends { domain?: string | null }>(
-  reports: T[],
+  reports: Array<T>,
   expectedDomain?: string | null,
-): T[] {
+): Array<T> {
   const expected = normalizeSeoDomain(expectedDomain);
   if (!expected) return reports || [];
   const matching = (reports || []).filter((r) =>
@@ -184,7 +184,7 @@ function filterSeoReportsByDomain<T extends { domain?: string | null }>(
 /** Mirror of resolve-seo-gsc-integration — no auth required (service-role only). */
 async function resolveGscSiteForClient(
   supabase: ReturnType<typeof createClient>,
-  tenantIdList: string[],
+  tenantIdList: Array<string>,
   clientId: string,
   expectedSiteUrl?: string | null,
 ): Promise<string | null> {
@@ -196,12 +196,12 @@ async function resolveGscSiteForClient(
     .eq("is_active", true);
 
   type Candidate = { siteUrl: string; rank: number };
-  const candidates: Candidate[] = [];
+  const candidates: Array<Candidate> = [];
 
   for (const i of integrations || []) {
     const s: any = i.settings || {};
     const clientSites = s.client_sites || {};
-    const availableSites: any[] = Array.isArray(s.available_sites)
+    const availableSites: Array<any> = Array.isArray(s.available_sites)
       ? s.available_sites
       : [];
     const mappedForClient: string | null = clientSites[clientId] || null;
@@ -306,7 +306,7 @@ function withTimeout<T>(
 }
 
 /** Strip bulky fields from Ahrefs reports for anonymous share links. Keywords stay intact. */
-function trimAhrefsReportsForPublic(reports: any[]): any[] {
+function trimAhrefsReportsForPublic(reports: Array<any>): Array<any> {
   return (reports || []).map((report, index) => {
     const rd = report?.report_data;
     if (!rd || typeof rd !== "object") return report;
@@ -345,7 +345,7 @@ function trimAhrefsReportsForPublic(reports: any[]): any[] {
 async function fetchGaRecordsForSeoChart(
   supabase: ReturnType<typeof createClient>,
   gaTableId: string,
-): Promise<any[]> {
+): Promise<Array<any>> {
   const reportTypes = [
     "monthly_channel",
     "daily_source",
@@ -362,7 +362,7 @@ async function fetchGaRecordsForSeoChart(
         .limit(reportType === "daily_source" ? 800 : 120),
     ),
   );
-  const out: any[] = [];
+  const out: Array<any> = [];
   for (const { data, error } of pages) {
     if (error) {
       console.error("Error fetching GA records for SEO chart:", error);
@@ -562,8 +562,8 @@ Deno.serve(async (req) => {
       let clientAgencyId: string | null = null;
       let clientName: string | null = null;
       let clientWebsite: string | null = null;
-      let seoForceRelevant: string[] = [];
-      let seoForceIrrelevant: string[] = [];
+      let seoForceRelevant: Array<string> = [];
+      let seoForceIrrelevant: Array<string> = [];
 
       const clientContextPromise = (async () => {
         if (!targetClientId) return;
@@ -581,7 +581,7 @@ Deno.serve(async (req) => {
           clientName = (clientRow as any)?.name || null;
           clientWebsite = (clientRow as any)?.website || null;
           const relevance = (clientRow as any)?.seo_keyword_relevance || {};
-          const asList = (v: unknown): string[] =>
+          const asList = (v: unknown): Array<string> =>
             Array.isArray(v)
               ? v.map((x) => String(x || "").trim()).filter(Boolean)
               : [];
@@ -612,7 +612,7 @@ Deno.serve(async (req) => {
 
       const ahrefsPromise =
         seoPart === "gsc"
-          ? Promise.resolve([] as any[])
+          ? Promise.resolve([] as Array<any>)
           : (async () => {
               await clientContextPromise;
               const tenants = tenantIdList();
@@ -688,9 +688,9 @@ Deno.serve(async (req) => {
 
       const maskyooPromise =
         seoPart === "gsc"
-          ? Promise.resolve({ snapshots: [] as any[], period: null })
+          ? Promise.resolve({ snapshots: [] as Array<any>, period: null })
           : (async (): Promise<{
-              snapshots: any[];
+              snapshots: Array<any>;
               period: { start: string; end: string } | null;
             }> => {
               await clientContextPromise;
@@ -847,23 +847,23 @@ Deno.serve(async (req) => {
 
       const gaRecordsPromise =
         seoPart === "gsc" || !gaTable?.id
-          ? Promise.resolve([] as any[])
+          ? Promise.resolve([] as Array<any>)
           : fetchGaRecordsForSeoChart(supabase, gaTable.id);
 
       const gscBundlePromise = (async () => {
         if (seoPart === "core") {
           return {
-            gscRecords: [] as any[],
+            gscRecords: [] as Array<any>,
             gscMultiPeriod: null,
             gscSyncedAt: null,
           };
         }
 
-        let gscRecords: any[] = [];
+        let gscRecords: Array<any> = [];
         let gscMultiPeriod: {
-          prevMonth: GscKeywordRow[];
-          threeMonth: GscKeywordRow[];
-          yearly: GscKeywordRow[];
+          prevMonth: Array<GscKeywordRow>;
+          threeMonth: Array<GscKeywordRow>;
+          yearly: Array<GscKeywordRow>;
         } | null = null;
         let gscSyncedAt: string | null = null;
         if (!effectiveGscSiteUrl)
@@ -934,7 +934,7 @@ Deno.serve(async (req) => {
                     1000,
                   ),
                   4500,
-                  [] as GscKeywordRow[],
+                  [] as Array<GscKeywordRow>,
                 ),
                 withTimeout(
                   fetchGscKeywordsFromApi(
@@ -945,7 +945,7 @@ Deno.serve(async (req) => {
                     1000,
                   ),
                   4500,
-                  [] as GscKeywordRow[],
+                  [] as Array<GscKeywordRow>,
                 ),
                 withTimeout(
                   fetchGscKeywordsFromApi(
@@ -956,7 +956,7 @@ Deno.serve(async (req) => {
                     1000,
                   ),
                   4500,
-                  [] as GscKeywordRow[],
+                  [] as Array<GscKeywordRow>,
                 ),
               ]);
 
@@ -1064,7 +1064,7 @@ Deno.serve(async (req) => {
     );
 
     // Fetch records WITH PAGINATION (bypass 1000-row default limit)
-    const allRecords: any[] = [];
+    const allRecords: Array<any> = [];
     const pageSize = 1000;
 
     for (let from = 0; ; from += pageSize) {

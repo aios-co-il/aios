@@ -10,8 +10,8 @@ export interface FolderLink {
 }
 
 interface FolderLinksFieldProps {
-  links: FolderLink[];
-  onChange: (links: FolderLink[]) => void;
+  links: Array<FolderLink>;
+  onChange: (links: Array<FolderLink>) => void;
   readOnly?: boolean;
 }
 

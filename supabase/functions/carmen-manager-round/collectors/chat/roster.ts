@@ -42,7 +42,7 @@ type StaffPhone = {
 /** Phone match keys of everyone who speaks for the tenants. */
 export async function loadStaffKeys(
   db: DbClient,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   since: Date,
 ): Promise<Set<string>> {
   return new Set((await loadStaffRoster(db, tenantIds, since)).keys.keys());
@@ -51,7 +51,7 @@ export async function loadStaffKeys(
 /** Everyone who speaks for the tenants: each phone's key, tenant and login. */
 export async function loadStaffRoster(
   db: DbClient,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   since: Date,
 ): Promise<StaffRoster> {
   const [roles, members, campaigners, sales, lines] = await Promise.all([
@@ -106,7 +106,7 @@ export async function loadStaffRoster(
 
 /** Each login with the tenants it has a role in. */
 function loginTenants(
-  rows: { user_id: string; tenant_id: string | null }[],
+  rows: Array<{ user_id: string; tenant_id: string | null }>,
 ): Map<string, Set<string>> {
   const tenants = new Map<string, Set<string>>();
   for (const row of rows) {
@@ -125,13 +125,13 @@ function staffPhone(
   tenantId: string | null,
   userId: string | null,
   person: boolean,
-): StaffPhone[] {
+): Array<StaffPhone> {
   const key = phoneMatchKey(phone);
   return key && tenantId ? [{ key, tenantId, userId, person }] : [];
 }
 
 /** The logins' keys with their person (null when two share one), then the other phones' keys. */
-function staffKeyMap(phones: StaffPhone[]): StaffRoster["keys"] {
+function staffKeyMap(phones: Array<StaffPhone>): StaffRoster["keys"] {
   const keys = new Map<string, string | null>();
   for (const { key, userId } of phones) {
     if (userId) {
@@ -148,7 +148,9 @@ function staffKeyMap(phones: StaffPhone[]): StaffRoster["keys"] {
 }
 
 /** Each person's key with the tenants whose staff the person is; lines are left out. */
-function personTenants(phones: StaffPhone[]): StaffRoster["personTenants"] {
+function personTenants(
+  phones: Array<StaffPhone>,
+): StaffRoster["personTenants"] {
   const tenants = new Map<string, Set<string>>();
   for (const { key, tenantId } of phones.filter((phone) => phone.person)) {
     tenants.set(key, (tenants.get(key) ?? new Set<string>()).add(tenantId));

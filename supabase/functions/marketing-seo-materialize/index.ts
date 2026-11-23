@@ -82,7 +82,7 @@ serve(async (req) => {
       workItemId: work_item_id,
       tenantId: item.tenant_id,
       clientId: item.client_id,
-      plan: plan as { clusters?: unknown[]; contentPlan?: unknown[] },
+      plan: plan as { clusters?: Array<unknown>; contentPlan?: Array<unknown> },
       autoApprove: !!program.auto_approve,
       horizonMonths: program.horizon_months ?? 3,
       replaceExisting: !!replace_existing,

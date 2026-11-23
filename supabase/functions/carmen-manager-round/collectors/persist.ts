@@ -16,7 +16,7 @@ export async function persistRun(
   input: CollectorRunInput,
   collector: Collector,
   result: CollectorResult,
-  candidates: FindingCandidate[],
+  candidates: Array<FindingCandidate>,
 ): Promise<{ inserted: number; cleared: number; dropped: DroppedCounts }> {
   const outcomes = await deps.findings.upsert(
     input.tenantId,
@@ -51,7 +51,7 @@ async function clearMissing(
   deps: CollectorRunDeps,
   input: CollectorRunInput,
   collector: Collector,
-  candidates: FindingCandidate[],
+  candidates: Array<FindingCandidate>,
   result: CollectorResult,
 ): Promise<number> {
   let cleared = 0;

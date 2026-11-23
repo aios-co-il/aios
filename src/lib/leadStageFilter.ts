@@ -4,10 +4,10 @@ export type LeadValueFilterMode = "show" | "hide";
 export const NO_MATCHING_STAGE_ID = "__no_matching_stage__";
 
 /** Empty selection means every pipeline stage. "all" is the legacy single-select value. */
-export function normalizeLeadStageIds(value: unknown): string[] {
+export function normalizeLeadStageIds(value: unknown): Array<string> {
   const raw = Array.isArray(value) ? value : value == null ? [] : [value];
   const seen = new Set<string>();
-  const ids: string[] = [];
+  const ids: Array<string> = [];
   for (const item of raw) {
     if (typeof item !== "string") continue;
     const id = item.trim();
@@ -27,7 +27,7 @@ export function normalizeLeadValueFilterMode(
 
 export function leadMatchesStageFilter(
   status: string | null | undefined,
-  stageIds: readonly string[],
+  stageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
   if (stageIds.length === 0) return true;
@@ -38,7 +38,7 @@ export function leadMatchesStageFilter(
 /** Null and empty response status count as the "none" choice. */
 export function leadMatchesResponseStatusFilter(
   status: string | null | undefined,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
   if (selected.length === 0) return true;
@@ -52,10 +52,10 @@ export function leadMatchesResponseStatusFilter(
  * Hide returns the complement; an empty complement matches nothing.
  */
 export function includedStageIds(
-  selected: readonly string[],
-  allStageIds: readonly string[],
+  selected: ReadonlyArray<string>,
+  allStageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] | null {
+): Array<string> | null {
   const ids = normalizeLeadStageIds(selected);
   if (ids.length === 0) return null;
   if (normalizeLeadValueFilterMode(mode) === "show") return ids;
@@ -65,10 +65,10 @@ export function includedStageIds(
 
 /** Kanban RPC is include-only. An empty complement must not be sent as "all stages". */
 export function stagesForKanbanQuery(
-  selected: readonly string[],
-  allStageIds: readonly string[],
+  selected: ReadonlyArray<string>,
+  allStageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] {
+): Array<string> {
   const included = includedStageIds(selected, allStageIds, mode);
   if (included == null) return [...allStageIds];
   if (included.length === 0) return [NO_MATCHING_STAGE_ID];
@@ -80,9 +80,9 @@ export function stagesForKanbanQuery(
  * Those cases return null and are filtered on the client.
  */
 export function kanbanResponseStatuses(
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] | null {
+): Array<string> | null {
   if (selected.length === 0) return null;
   if (normalizeLeadValueFilterMode(mode) === "hide") return null;
   if (selected.includes("none")) return null;
@@ -90,7 +90,7 @@ export function kanbanResponseStatuses(
 }
 
 export function responseFilterNeedsClient(
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
   if (selected.length === 0) return false;
@@ -100,9 +100,9 @@ export function responseFilterNeedsClient(
 
 export function applyLeadStageQuery(
   query: any,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-  allStageIds?: readonly string[],
+  allStageIds?: ReadonlyArray<string>,
 ): any {
   const ids = normalizeLeadStageIds(selected);
   if (ids.length === 0) return query;
@@ -126,7 +126,7 @@ export function applyLeadStageQuery(
  */
 export function applyResponseStatusFilter(
   query: any,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): any {
   if (selected.length === 0) return query;
@@ -157,7 +157,7 @@ export function applyResponseStatusFilter(
 /** Prefer `stageIds`. Fall back to a legacy single `stageId`. */
 export function leadStageIdsFromPreset(
   filters: { stageIds?: unknown; stageId?: unknown } | null | undefined,
-): string[] {
+): Array<string> {
   if (!filters) return [];
   if (Array.isArray(filters.stageIds))
     return normalizeLeadStageIds(filters.stageIds);
@@ -168,8 +168,8 @@ export function leadStageIdsFromPreset(
  * Persist the array, and a single `stageId` when exactly one stage is chosen
  * so an older client still opens that preset on the right stage.
  */
-export function leadStagePresetFields(stageIds: readonly string[]): {
-  stageIds: string[];
+export function leadStagePresetFields(stageIds: ReadonlyArray<string>): {
+  stageIds: Array<string>;
   stageId: string;
 } {
   const ids = normalizeLeadStageIds(stageIds);

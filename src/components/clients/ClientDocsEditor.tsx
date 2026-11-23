@@ -20,7 +20,7 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
   const { folderLinks, setFolderLinks, attachments, setAttachments } =
     useFolderLinksAndAttachments(client);
 
-  const handleFolderLinksChange = async (newLinks: any[]) => {
+  const handleFolderLinksChange = async (newLinks: Array<any>) => {
     setFolderLinks(newLinks);
     const { error } = await supabase
       .from("clients")
@@ -33,7 +33,7 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
     }
   };
 
-  const handleAttachmentsChange = async (newAttachments: any[]) => {
+  const handleAttachmentsChange = async (newAttachments: Array<any>) => {
     setAttachments(newAttachments);
     const { error } = await supabase
       .from("clients")

@@ -24,7 +24,7 @@ export interface MessageTemplate {
   subject: string | null;
   body_html: string | null;
   html_mode: boolean;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
   body_text: string | null;
   media_url: string | null;
   created_by: string | null;
@@ -64,7 +64,7 @@ export function useMessageTemplates(channel?: TemplateChannel) {
   const list = useQuery({
     queryKey: ["message-templates", tenantId, channel ?? "all"],
     queryFn: tenantId
-      ? async (): Promise<MessageTemplate[]> => {
+      ? async (): Promise<Array<MessageTemplate>> => {
           let q = supabase
             .from("message_templates")
             .select("*")

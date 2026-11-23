@@ -56,7 +56,7 @@ interface DateRangeFilterProps {
   showComparison?: boolean;
 }
 
-const presets: { key: DatePreset; label: string }[] = [
+const presets: Array<{ key: DatePreset; label: string }> = [
   { key: "today", label: "היום" },
   { key: "yesterday", label: "אתמול" },
   { key: "this_week", label: "השבוע" },

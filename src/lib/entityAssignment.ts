@@ -5,9 +5,9 @@ export type EntityAssignmentOption = {
 };
 
 export function filterEntityAssignmentOptions<T extends EntityAssignmentOption>(
-  options: readonly T[],
+  options: ReadonlyArray<T>,
   search: string,
-): T[] {
+): Array<T> {
   const term = search.trim().toLocaleLowerCase("he");
   if (!term) return [...options];
   return options.filter((option) =>
@@ -18,10 +18,10 @@ export function filterEntityAssignmentOptions<T extends EntityAssignmentOption>(
 }
 
 export function toggleEntityAssignmentId(
-  selectedIds: readonly string[],
+  selectedIds: ReadonlyArray<string>,
   id: string,
   multiple: boolean,
-): string[] {
+): Array<string> {
   if (!multiple) return [id];
   return selectedIds.includes(id)
     ? selectedIds.filter((selectedId) => selectedId !== id)

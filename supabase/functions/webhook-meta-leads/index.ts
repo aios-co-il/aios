@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
 
     let created = 0;
     let skipped = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     for (const lead of leads) {
       try {
@@ -214,8 +214,8 @@ interface ParsedLead {
   raw?: any;
 }
 
-function extractLeads(body: any): ParsedLead[] {
-  const leads: ParsedLead[] = [];
+function extractLeads(body: any): Array<ParsedLead> {
+  const leads: Array<ParsedLead> = [];
 
   // Format 1: Unified.to webhook format (array of leads)
   if (Array.isArray(body)) {
@@ -301,7 +301,7 @@ function parseLeadItem(item: any): ParsedLead {
 }
 
 function buildLeadNotes(lead: ParsedLead): string {
-  const parts: string[] = ["מקור: Meta Lead Ads"];
+  const parts: Array<string> = ["מקור: Meta Lead Ads"];
   if (lead.form_name) parts.push(`טופס: ${lead.form_name}`);
   if (lead.campaign_name) parts.push(`קמפיין: ${lead.campaign_name}`);
   if (lead.ad_name) parts.push(`מודעה: ${lead.ad_name}`);

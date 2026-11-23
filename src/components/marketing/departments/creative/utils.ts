@@ -51,8 +51,8 @@ export const storyboardFrameX = (order: number) =>
   -(order - 1) * STORYBOARD_FRAME_GAP;
 
 export const layoutStoryboardRtl = (
-  frames: StoryboardFrame[],
-): StoryboardFrame[] => {
+  frames: Array<StoryboardFrame>,
+): Array<StoryboardFrame> => {
   if (frames.length <= 1) return frames;
   const ordered = [...frames].sort((a, b) => a.order - b.order);
   const alreadyRtl = ordered.every(
@@ -83,9 +83,9 @@ export const getStoryboardStyle = (
 };
 
 export const storyboardReferenceUrls = (
-  frames: StoryboardFrame[],
+  frames: Array<StoryboardFrame>,
   currentId: string,
-): string[] => {
+): Array<string> => {
   const ordered = [...frames].sort((a, b) => a.order - b.order);
   const current = ordered.find((frame) => frame.id === currentId);
   const previous = ordered.filter(
@@ -101,10 +101,10 @@ export const storyboardReferenceUrls = (
 
 /** First image is the style bible (faces); second is the immediately previous shot. */
 export const pickStoryboardReferences = (
-  frames: StoryboardFrame[],
+  frames: Array<StoryboardFrame>,
   currentId: string,
   styleUrl?: string,
-): string[] => {
+): Array<string> => {
   const previous = storyboardReferenceUrls(frames, currentId);
   const immediate = previous[previous.length - 1];
   const firstGenerated = [...frames]
@@ -196,7 +196,7 @@ const isVariation = (value: unknown): value is CreativeVariation => {
 
 export const getVariations = (
   payload: Record<string, unknown> | null | undefined,
-): CreativeVariation[] => {
+): Array<CreativeVariation> => {
   const direct = payload?.variations;
   if (Array.isArray(direct)) {
     return direct
@@ -253,7 +253,9 @@ export const getVariations = (
   return [];
 };
 
-export const buildTextLayersFromCopy = (copyText: string): CreativeLayer[] => {
+export const buildTextLayersFromCopy = (
+  copyText: string,
+): Array<CreativeLayer> => {
   const lines = copyText
     .split("\n")
     .map((line) =>
@@ -269,7 +271,7 @@ export const buildTextLayersFromCopy = (copyText: string): CreativeLayer[] => {
   const headline = lines[0];
   const subline = lines[1] ?? "";
 
-  const layers: CreativeLayer[] = [
+  const layers: Array<CreativeLayer> = [
     {
       id: crypto.randomUUID(),
       type: "text",
@@ -344,7 +346,7 @@ export const makeVariation = ({
   logoUrl?: string;
   generationCost?: CreativeVariation["generationCost"];
   compositionId?: CreativeVariation["compositionId"];
-  brandColors?: string[];
+  brandColors?: Array<string>;
   styleSourceId?: string;
   liveTextLayers?: boolean;
 }): CreativeVariation => ({
@@ -395,7 +397,7 @@ export const getBriefText = (item: CreativeItem | null) => {
 
 export const getApprovedCopyConcepts = (
   item: CreativeItem | null,
-): CopyConcept[] => {
+): Array<CopyConcept> => {
   if (!item?.payload) return [];
   const storedApproved = parseCopyConceptsFromPayload({
     copy_concepts: item.payload.approved_concepts,

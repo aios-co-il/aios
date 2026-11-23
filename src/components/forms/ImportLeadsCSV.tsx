@@ -63,7 +63,7 @@ export function ImportLeadsCSV() {
       if (parsed.errors && parsed.errors.length) {
         console.warn("CSV parse warnings:", parsed.errors);
       }
-      const rows = (parsed.data || []) as any[];
+      const rows = (parsed.data || []) as Array<any>;
 
       if (rows.length === 0) {
         throw new Error("לא נמצאו נתונים בקובץ");
@@ -123,7 +123,7 @@ export function ImportLeadsCSV() {
         return !!parseDate(String(val));
       };
 
-      const getFirst = (row: any, keys: string[]) => {
+      const getFirst = (row: any, keys: Array<string>) => {
         for (const key of keys) {
           const v = row[key] ?? row[String(key).trim()];
           if (v !== undefined && v !== null) {
@@ -383,8 +383,8 @@ export function ImportLeadsCSV() {
       const normalizeStr = (s: string | null | undefined) =>
         (s || "").toString().trim().toLowerCase();
 
-      const updates: any[] = [];
-      const inserts: any[] = [];
+      const updates: Array<any> = [];
+      const inserts: Array<any> = [];
 
       for (const lead of validLeads) {
         // אם קיבלנו ID תקין - נעדכן/נוסיף לפי ID

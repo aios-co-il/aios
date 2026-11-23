@@ -14,7 +14,7 @@ type ConceptLike = {
 const text = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
-function asConcepts(value: unknown): ConceptLike[] {
+function asConcepts(value: unknown): Array<ConceptLike> {
   return Array.isArray(value)
     ? value.filter(
         (row): row is ConceptLike => !!row && typeof row === "object",

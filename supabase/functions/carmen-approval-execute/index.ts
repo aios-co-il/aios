@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const stepRows: any[] = [];
+      const stepRows: Array<any> = [];
       const trigId = crypto.randomUUID();
       stepRows.push({
         id: trigId,
@@ -628,7 +628,7 @@ Deno.serve(async (req) => {
               .eq("tenant_id", row.tenant_id)
               .eq("active", true);
             const carmen = pickCarmenAgent(agents) ?? agents?.[0];
-            const stepRows: any[] = [];
+            const stepRows: Array<any> = [];
             const trigId = crypto.randomUUID();
             const triggerType =
               inp.trigger_type || auto.trigger_type || "manual_command";

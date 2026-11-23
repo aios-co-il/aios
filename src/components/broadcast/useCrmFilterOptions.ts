@@ -13,7 +13,7 @@ export interface FilterOption {
 async function fetchNamedRows(
   table: "agencies" | "sales_people",
   tenantId: string,
-): Promise<FilterOption[]> {
+): Promise<Array<FilterOption>> {
   if (table === "agencies") {
     const { data, error } = await supabase
       .from("agencies")
@@ -47,7 +47,7 @@ export function useChatTags() {
   return useQuery({
     queryKey: ["broadcast-filter-tags", tenantId],
     queryFn: tenantId
-      ? async (): Promise<FilterOption[]> => {
+      ? async (): Promise<Array<FilterOption>> => {
           const { data, error } = await supabase
             .from("chat_tags")
             .select("id, name")

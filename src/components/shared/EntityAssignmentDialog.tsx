@@ -22,21 +22,21 @@ export type EntityAssignmentGroup = {
   type: string;
   label: string;
   icon: LucideIcon;
-  options: EntityAssignmentOption[];
+  options: Array<EntityAssignmentOption>;
   multiple?: boolean;
   emptyLabel?: string;
 };
 
 export type EntityAssignmentSelection = {
   type: string;
-  ids: string[];
+  ids: Array<string>;
 } | null;
 
 interface EntityAssignmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
-  groups: EntityAssignmentGroup[];
+  groups: Array<EntityAssignmentGroup>;
   currentSelection: EntityAssignmentSelection;
   onSave: (selection: EntityAssignmentSelection) => void | Promise<void>;
 }
@@ -54,7 +54,7 @@ export function EntityAssignmentDialog({
   onSave,
 }: EntityAssignmentDialogProps) {
   const [activeType, setActiveType] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const groupTypes = groups.map((group) => group.type).join("|");

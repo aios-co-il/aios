@@ -49,10 +49,10 @@ import { useSeoKeywordRelevance } from "@/hooks/useSeoKeywordRelevance";
 export type GscDateRange = "28d" | "3m" | "12m";
 
 export interface GscMultiPeriodData {
-  current: GscKeywordData[];
-  prevMonth: GscKeywordData[];
-  threeMonth: GscKeywordData[];
-  yearly: GscKeywordData[];
+  current: Array<GscKeywordData>;
+  prevMonth: Array<GscKeywordData>;
+  threeMonth: Array<GscKeywordData>;
+  yearly: Array<GscKeywordData>;
 }
 
 interface GscIntegrationProps {
@@ -62,11 +62,11 @@ interface GscIntegrationProps {
    * agencies. When provided, GSC integration lookup spans the full set so
    * connections created in a sibling tenant still resolve. RLS still applies.
    */
-  tenantIds?: string[];
+  tenantIds?: Array<string>;
   clientId: string;
   domain?: string;
-  keywords?: string[];
-  onDataLoaded?: (data: GscKeywordData[]) => void;
+  keywords?: Array<string>;
+  onDataLoaded?: (data: Array<GscKeywordData>) => void;
   /** When set (and hideTable=true), fetches 4 historical periods (current, prevMonth, 3m ago, 1y ago) in parallel. */
   onMultiPeriodLoaded?: (data: GscMultiPeriodData) => void;
   /** Called whenever a GSC site is selected/auto-linked, so callers can persist it on their own entity. */
@@ -103,7 +103,7 @@ interface GscIntegrationProps {
     ownerEmail?: string | null;
   } | null;
   /** Tracked phrases used to decide which ranks belong in Top 20. */
-  trackedKeywords?: string[];
+  trackedKeywords?: Array<string>;
   /** Ahrefs ranks stored on the SEO reports. */
   trackedAhrefsPositions?: Record<string, number>;
   /** Client id for the same manual relevance marks as the Top 20 tab. */
@@ -274,7 +274,7 @@ export function GscIntegration({
     queryFn: async () => {
       if (!gscIntegration?.id) {
         return {
-          sites: [] as GscSite[],
+          sites: [] as Array<GscSite>,
           needsReconnect: false,
           ownerEmail: null as string | null,
         };
@@ -296,14 +296,14 @@ export function GscIntegration({
       if (response.error) {
         // Treat as needs_reconnect so UI can fall back to cached sites.
         return {
-          sites: [] as GscSite[],
+          sites: [] as Array<GscSite>,
           needsReconnect: true,
           ownerEmail: (settings?.google_email as string) || null,
         };
       }
       const data: any = response.data || {};
       return {
-        sites: Array.isArray(data.sites) ? (data.sites as GscSite[]) : [],
+        sites: Array.isArray(data.sites) ? (data.sites as Array<GscSite>) : [],
         needsReconnect: !!data.needs_reconnect,
         ownerEmail:
           data.owner_email || (settings?.google_email as string) || null,
@@ -336,10 +336,10 @@ export function GscIntegration({
     brokenIntegrationIds,
   ]);
 
-  const cachedSites: GscSite[] = useMemo(
+  const cachedSites: Array<GscSite> = useMemo(
     () =>
       Array.isArray(settings?.available_sites)
-        ? (settings.available_sites as GscSite[])
+        ? (settings.available_sites as Array<GscSite>)
         : [],
     [settings],
   );
@@ -351,7 +351,7 @@ export function GscIntegration({
 
   // Fall back to cached sites when the live call returned nothing (auth issue
   // or transient failure) so the user can still pick a property.
-  const availableSites: GscSite[] =
+  const availableSites: Array<GscSite> =
     liveSites.length > 0 ? liveSites : cachedSites;
 
   // STRICT per-client isolation: do NOT fall back to global settings.site_url/siteUrl
@@ -463,7 +463,7 @@ export function GscIntegration({
         if (hideTable) {
           console.warn("[GSC] silent enrich fetch failed:", response.error);
           onDataLoaded?.([]);
-          return [] as GscKeywordData[];
+          return [] as Array<GscKeywordData>;
         }
         throw response.error;
       }
@@ -484,7 +484,7 @@ export function GscIntegration({
       }
       const rows = Array.isArray(response.data?.rows) ? response.data.rows : [];
       onDataLoaded?.(rows);
-      return rows as GscKeywordData[];
+      return rows as Array<GscKeywordData>;
     },
     enabled: enableSinglePeriod,
   });
@@ -551,7 +551,7 @@ export function GscIntegration({
         const rows = Array.isArray(responses[idx].data?.rows)
           ? responses[idx].data.rows
           : [];
-        result[key] = rows as GscKeywordData[];
+        result[key] = rows as Array<GscKeywordData>;
       });
 
       // If any of the parallel calls reported needs_reconnect, mark the
@@ -805,7 +805,7 @@ export function GscIntegration({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(DATE_RANGE_LABELS) as GscDateRange[]).map(
+                  {(Object.keys(DATE_RANGE_LABELS) as Array<GscDateRange>).map(
                     (k) => (
                       <SelectItem key={k} value={k} className="text-xs">
                         {DATE_RANGE_LABELS[k]}
@@ -1081,10 +1081,10 @@ function GscQueriesTable({
   trackedAhrefsPositions,
   relevancePersistKey,
 }: {
-  data: GscKeywordData[];
+  data: Array<GscKeywordData>;
   initialLangFilter?: LangFilter;
   onLangFilterChange?: (lang: LangFilter) => void;
-  trackedKeywords?: string[];
+  trackedKeywords?: Array<string>;
   trackedAhrefsPositions?: Record<string, number>;
   relevancePersistKey?: string;
 }) {

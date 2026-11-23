@@ -125,7 +125,7 @@ export default function GmailSettings() {
   const [newCategoryColor, setNewCategoryColor] = useState("#3B82F6");
   const [newCategoryLabelId, setNewCategoryLabelId] = useState("");
   const [availableLabelsList, setAvailableLabelsList] = useState<
-    { id: string; name: string; type: string }[]
+    Array<{ id: string; name: string; type: string }>
   >([]);
   const [loadingLabelsList, setLoadingLabelsList] = useState(false);
 
@@ -468,7 +468,7 @@ function AllowedLabelsSection({
 }) {
   const queryClient = useQueryClient();
   const [availableLabels, setAvailableLabels] = useState<
-    { id: string; name: string; type: string }[]
+    Array<{ id: string; name: string; type: string }>
   >([]);
   const [loadingLabels, setLoadingLabels] = useState(false);
 
@@ -481,7 +481,11 @@ function AllowedLabelsSection({
         .select("*")
         .eq("user_id", userId!);
       if (error) throw error;
-      return data as { id: string; label_id: string; label_name: string }[];
+      return data as Array<{
+        id: string;
+        label_id: string;
+        label_name: string;
+      }>;
     },
     enabled: !!userId,
   });

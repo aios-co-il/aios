@@ -15,7 +15,7 @@ export async function resolveStaticList(
   db: AudienceDb,
   tenantId: string,
   listId: string,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   const members = await fetchAll(() =>
     db
       .from("broadcast_list_members")

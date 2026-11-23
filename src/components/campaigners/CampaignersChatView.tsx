@@ -168,7 +168,7 @@ export function CampaignersChatView({
 
   const updateCampaignerAgencies = async (
     campaignerId: string,
-    agencyIds: string[],
+    agencyIds: Array<string>,
   ) => {
     const { error: delErr } = await supabase
       .from("campaigner_agencies")
@@ -202,7 +202,7 @@ export function CampaignersChatView({
       if (!tenantId) return [];
 
       // Fetch campaigner IDs linked to cross-tenant shared agencies
-      let crossTenantCampaignerIds: string[] = [];
+      let crossTenantCampaignerIds: Array<string> = [];
       if (crossTenantAgencyIds.length > 0) {
         const { data: caRows } = await supabase
           .from("campaigner_agencies")
@@ -907,13 +907,13 @@ function AgenciesRow({
   allAgencies,
   onSave,
 }: {
-  currentAgencyIds: string[];
+  currentAgencyIds: Array<string>;
   currentLabels: string;
-  allAgencies: { id: string; name: string }[];
-  onSave: (ids: string[]) => void | Promise<any>;
+  allAgencies: Array<{ id: string; name: string }>;
+  onSave: (ids: Array<string>) => void | Promise<any>;
 }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string[]>(currentAgencyIds);
+  const [selected, setSelected] = useState<Array<string>>(currentAgencyIds);
 
   useEffect(() => {
     setSelected(currentAgencyIds);

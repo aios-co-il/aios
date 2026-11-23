@@ -24,10 +24,10 @@ export type SeoIntakePreview = {
     site_name: string | null;
     is_active: boolean | null;
   }>;
-  priorBriefs: SeoPriorBrief[];
+  priorBriefs: Array<SeoPriorBrief>;
   ahrefsReportCount: number;
   trackedKeywordCount: number;
-  rankDomains: string[];
+  rankDomains: Array<string>;
 };
 
 export async function fetchSeoIntakePreview(
@@ -76,7 +76,7 @@ export async function fetchSeoIntakePreview(
         .eq("is_active", true)
     : { count: 0 };
 
-  const priorBriefs: SeoPriorBrief[] = (items ?? [])
+  const priorBriefs: Array<SeoPriorBrief> = (items ?? [])
     .map((row) => {
       const payload = (row.payload ?? {}) as Record<string, unknown>;
       const text = String(payload.brief_text ?? payload.brief ?? "").trim();
@@ -88,7 +88,7 @@ export async function fetchSeoIntakePreview(
         updated_at: row.updated_at,
       };
     })
-    .filter(Boolean) as SeoPriorBrief[];
+    .filter(Boolean) as Array<SeoPriorBrief>;
 
   return {
     website: client?.website?.trim() || null,

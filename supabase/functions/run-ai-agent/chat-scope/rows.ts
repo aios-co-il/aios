@@ -8,7 +8,7 @@ import type { ChatScope, ChatScopeRow, LeadOwner } from "./types.ts";
 /** A chat_messages list query that applyChatScope can narrow. */
 export interface ChatRowsQuery<T>
   extends
-    PromiseLike<{ data: T[] | null; error: unknown }>,
+    PromiseLike<{ data: Array<T> | null; error: unknown }>,
     ScopeFilterable<ChatRowsQuery<T>> {}
 
 /**
@@ -19,8 +19,8 @@ export async function readScopedChatRows<T extends ChatScopeRow>(
   supabase: Pick<DbClient, "from">,
   query: ChatRowsQuery<T>,
   scope: ChatScope,
-  tenantIds: string[],
-): Promise<T[]> {
+  tenantIds: Array<string>,
+): Promise<Array<T>> {
   const { data, error } = await applyChatScope(query, scope);
   if (error) {
     throw error;
@@ -32,10 +32,10 @@ export async function readScopedChatRows<T extends ChatScopeRow>(
 /** Keeps only the rows the scope allows (loads lead owners when needed). */
 export async function keepVisibleChatRows<T extends ChatScopeRow>(
   supabase: Pick<DbClient, "from">,
-  data: T[] | null | undefined,
+  data: Array<T> | null | undefined,
   scope: ChatScope,
-  tenantIds: string[],
-): Promise<T[]> {
+  tenantIds: Array<string>,
+): Promise<Array<T>> {
   const list = Array.isArray(data) ? data : [];
   if (scope.mode === "full") {
     return list;
@@ -109,8 +109,8 @@ function isOwnThreadRow(
 /** Agency and salesperson of the leads these rows belong to, by lead id. */
 async function leadOwnersFor(
   supabase: Pick<DbClient, "from">,
-  list: ChatScopeRow[],
-  tenantIds: string[],
+  list: Array<ChatScopeRow>,
+  tenantIds: Array<string>,
 ): Promise<Map<string, LeadOwner> | null> {
   const leadIds = uuids(list.map((r) => r.lead_id));
   if (!leadIds.length) {

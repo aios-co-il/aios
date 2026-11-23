@@ -31,16 +31,16 @@ const fail = (error: string, url = ""): PublicFetchResult => ({
   error,
 });
 
-async function lookupIps(hostname: string): Promise<string[]> {
+async function lookupIps(hostname: string): Promise<Array<string>> {
   const host = hostname.replace(/^\[|\]$/g, "");
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":")) return [host];
   const resolveDns = (
-    Deno as { resolveDns?: (q: string, t: string) => Promise<string[]> }
+    Deno as { resolveDns?: (q: string, t: string) => Promise<Array<string>> }
   ).resolveDns;
   if (typeof resolveDns !== "function") return [];
   const [a, aaaa] = await Promise.all([
-    resolveDns(host, "A").catch(() => [] as string[]),
-    resolveDns(host, "AAAA").catch(() => [] as string[]),
+    resolveDns(host, "A").catch(() => [] as Array<string>),
+    resolveDns(host, "AAAA").catch(() => [] as Array<string>),
   ]);
   return [...a, ...aaaa];
 }

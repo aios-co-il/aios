@@ -9,7 +9,7 @@ const tokenResponseSchema = z.object({ scope: z.string().default("") });
 export function missingGrantedScopes(
   tokenResponse: unknown,
   required: ReadonlyArray<string>,
-): string[] {
+): Array<string> {
   const granted = new Set(
     tokenResponseSchema.parse(tokenResponse).scope.split(" "),
   );

@@ -24,7 +24,7 @@ function isImageFile(file: File): boolean {
 }
 
 export function formatAttachmentsForPrompt(
-  attachments: CommandCenterAttachment[],
+  attachments: Array<CommandCenterAttachment>,
   userText?: string,
 ): string {
   const lines = attachments.map((a) => {
@@ -37,11 +37,11 @@ export function formatAttachmentsForPrompt(
 }
 
 export async function uploadCommandCenterAttachments(
-  files: FileList | File[],
+  files: FileList | Array<File>,
   userId: string,
-): Promise<CommandCenterAttachment[]> {
+): Promise<Array<CommandCenterAttachment>> {
   const list = Array.from(files).slice(0, MAX_FILES);
-  const out: CommandCenterAttachment[] = [];
+  const out: Array<CommandCenterAttachment> = [];
 
   for (const file of list) {
     if (file.size > MAX_FILE_BYTES) {

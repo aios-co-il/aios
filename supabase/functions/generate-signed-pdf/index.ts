@@ -223,14 +223,14 @@ async function buildSignedPdf(
     content: string | null;
     file_url: string | null;
     document_type: string;
-    document_fields?: DocumentField[] | null;
+    document_fields?: Array<DocumentField> | null;
     client_id?: string | null;
     lead_id?: string | null;
     business_stamp_name?: string | null;
     business_stamp_company_id?: string | null;
     tenant_id?: string;
   },
-  recipients: RecipientRow[],
+  recipients: Array<RecipientRow>,
   supabase: ReturnType<typeof createClient>,
 ): Promise<Uint8Array> {
   const signedRecipients = recipients.filter((r) => r.status === "signed");
@@ -558,7 +558,7 @@ Deno.serve(async (req) => {
 
     const pdfBytes = await buildSignedPdf(
       doc,
-      recipients as RecipientRow[],
+      recipients as Array<RecipientRow>,
       supabase,
     );
     const storagePath = `${doc.tenant_id}/signed/${documentId}.pdf`;

@@ -112,7 +112,7 @@ export const OfferIconMark = ({
   color?: string;
   className?: string;
 }) => {
-  const key = (CREATIVE_ICON_IDS as readonly string[]).includes(name ?? "")
+  const key = (CREATIVE_ICON_IDS as ReadonlyArray<string>).includes(name ?? "")
     ? (name as CreativeIconId)
     : "badge-check";
   const Icon = ICONS[key];

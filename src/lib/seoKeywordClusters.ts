@@ -6,7 +6,7 @@ export type KeywordLike = {
 export type KeywordCluster<T extends KeywordLike> = {
   key: string;
   label: string;
-  keywords: T[];
+  keywords: Array<T>;
   avgPosition: number | null;
   bestPosition: number | null;
   shortTail: number;
@@ -144,7 +144,7 @@ export function stemToken(token: string): string {
 }
 
 /** Ordered content stems so "טיול מאורגן לצ'ילה" keeps the bigram טיול מאורגן. */
-export function clusterTokens(raw: string): string[] {
+export function clusterTokens(raw: string): Array<string> {
   const text = String(raw || "")
     .toLowerCase()
     .replace(/[״"׳']/g, "")
@@ -153,7 +153,7 @@ export function clusterTokens(raw: string): string[] {
     .trim();
   if (!text) return [];
 
-  const tokens: string[] = [];
+  const tokens: Array<string> = [];
   for (const part of text.split(/[\s-]+/)) {
     if (!part) continue;
     const isHe = /[\u0590-\u05FF]/.test(part);
@@ -175,8 +175,8 @@ export function clusterTokens(raw: string): string[] {
   return tokens;
 }
 
-function phraseBigrams(stems: string[]): string[] {
-  const out: string[] = [];
+function phraseBigrams(stems: Array<string>): Array<string> {
+  const out: Array<string> = [];
   for (let i = 0; i < stems.length - 1; i++) {
     const left = stems[i];
     const right = stems[i + 1];
@@ -187,7 +187,7 @@ function phraseBigrams(stems: string[]): string[] {
   return out;
 }
 
-function average(values: number[]): number | null {
+function average(values: Array<number>): number | null {
   if (values.length === 0) return null;
   return (
     Math.round((values.reduce((sum, n) => sum + n, 0) / values.length) * 10) /
@@ -198,7 +198,7 @@ function average(values: number[]): number | null {
 function summarizeCluster<T extends KeywordLike>(
   key: string,
   label: string,
-  keywords: T[],
+  keywords: Array<T>,
 ): KeywordCluster<T> {
   const ranks = keywords.map(keywordRank).filter((n): n is number => n != null);
   let shortTail = 0;
@@ -225,12 +225,12 @@ function summarizeCluster<T extends KeywordLike>(
  * A token that covers too many phrases (e.g. "טיול" at a travel brand) is skipped.
  */
 export function clusterKeywords<T extends KeywordLike>(
-  keywords: T[],
+  keywords: Array<T>,
   opts?: { minSize?: number; maxCoverage?: number },
-): KeywordCluster<T>[] {
+): Array<KeywordCluster<T>> {
   const minSize = opts?.minSize ?? 2;
   const maxCoverage = opts?.maxCoverage ?? 0.7;
-  const members = new Map<string, T[]>();
+  const members = new Map<string, Array<T>>();
   const labels = new Map<string, string>();
 
   const add = (key: string, label: string, kw: T) => {
@@ -254,7 +254,7 @@ export function clusterKeywords<T extends KeywordLike>(
   }
 
   const total = Math.max(keywords.length, 1);
-  const clusters: KeywordCluster<T>[] = [];
+  const clusters: Array<KeywordCluster<T>> = [];
   const assigned = new Set<string>();
 
   for (const [key, rows] of members) {
@@ -288,9 +288,9 @@ export function clusterKeywords<T extends KeywordLike>(
   return clusters;
 }
 
-function dedupeKeywords<T extends KeywordLike>(rows: T[]): T[] {
+function dedupeKeywords<T extends KeywordLike>(rows: Array<T>): Array<T> {
   const seen = new Set<string>();
-  const out: T[] = [];
+  const out: Array<T> = [];
   for (const row of rows) {
     const key = String(row.keyword || "")
       .trim()

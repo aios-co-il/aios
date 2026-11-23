@@ -86,7 +86,7 @@ export default function AgentHub() {
     onError: (e) => toast.error(e.message),
   });
 
-  const list: AgentListItem[] = agents.map((a) => ({
+  const list: Array<AgentListItem> = agents.map((a) => ({
     id: a.id,
     name: a.name,
     active: a.active ?? true,

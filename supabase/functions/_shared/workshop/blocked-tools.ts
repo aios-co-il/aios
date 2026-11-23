@@ -175,7 +175,7 @@ const SERVER_ONLY_PAYLOAD_KEYS = ["workshop_budget", "workshop"];
 /** Drops server-only keys from a work item payload patch; says which were dropped. */
 export function stripServerOnlyPayloadKeys(patch: Record<string, unknown>) {
   const kept: Record<string, unknown> = {};
-  const dropped: string[] = [];
+  const dropped: Array<string> = [];
   for (const [key, value] of Object.entries(patch)) {
     if (SERVER_ONLY_PAYLOAD_KEYS.includes(key)) dropped.push(key);
     else kept[key] = value;

@@ -43,7 +43,7 @@ const LEGACY_KEY_ALIASES: Record<string, SharedReportTabKey> = {
 
 function normalizeKey(raw: string): SharedReportTabKey | null {
   const key = raw.trim().toLowerCase();
-  if ((SHARED_REPORT_TAB_KEYS as readonly string[]).includes(key)) {
+  if ((SHARED_REPORT_TAB_KEYS as ReadonlyArray<string>).includes(key)) {
     return key as SharedReportTabKey;
   }
   return LEGACY_KEY_ALIASES[key] || null;

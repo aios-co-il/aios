@@ -13,10 +13,10 @@ export type BuiltinBrainKey = {
   secretEnv: string;
   idEnv?: string;
   idLabel?: string;
-  envNames: string[];
+  envNames: Array<string>;
 };
 
-export const BUILTIN_BRAIN_KEYS: BuiltinBrainKey[] = [
+export const BUILTIN_BRAIN_KEYS: Array<BuiltinBrainKey> = [
   {
     slug: "cursor",
     label: "Cursor",

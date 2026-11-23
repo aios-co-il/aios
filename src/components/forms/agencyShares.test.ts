@@ -5,19 +5,20 @@ import { saveAgencyShares } from "./agencyShares";
 
 /** A fake client that records each write to agency_tenant_access. */
 function fakeDb(fail?: "delete" | "insert") {
-  const calls: Array<{ op: string; filters?: unknown[]; rows?: unknown }> = [];
+  const calls: Array<{ op: string; filters?: Array<unknown>; rows?: unknown }> =
+    [];
   const db = {
     from(table: string) {
       expect(table).toBe("agency_tenant_access");
       return {
         delete() {
-          const filters: unknown[] = [];
+          const filters: Array<unknown> = [];
           const chain = {
             eq(column: string, value: string) {
               filters.push([column, value]);
               return chain;
             },
-            in(column: string, values: string[]) {
+            in(column: string, values: Array<string>) {
               filters.push([column, values]);
               calls.push({ op: "delete", filters });
               return Promise.resolve({

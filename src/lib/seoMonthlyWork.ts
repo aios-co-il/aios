@@ -30,9 +30,9 @@ export type SeoLinkItem = {
 
 export type SeoMonthlyWork = {
   summary?: string;
-  onsite: SeoOnsiteItem[];
-  articles: SeoArticleItem[];
-  links: SeoLinkItem[];
+  onsite: Array<SeoOnsiteItem>;
+  articles: Array<SeoArticleItem>;
+  links: Array<SeoLinkItem>;
 };
 
 export const ONSITE_KIND_LABELS: Record<SeoOnsiteKind, string> = {
@@ -172,7 +172,7 @@ function dedupeKey(value: string): string {
     .toLowerCase();
 }
 
-function dropDuplicates<T>(rows: T[], key: (row: T) => string): T[] {
+function dropDuplicates<T>(rows: Array<T>, key: (row: T) => string): Array<T> {
   const seen = new Set<string>();
   return rows.filter((row) => {
     const k = key(row);

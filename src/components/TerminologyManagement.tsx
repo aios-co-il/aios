@@ -42,7 +42,7 @@ interface TerminologyManagementProps {
   category?: TerminologyCategory;
 }
 
-const CATEGORY_KEYS: Record<TerminologyCategory, string[]> = {
+const CATEGORY_KEYS: Record<TerminologyCategory, Array<string>> = {
   modules: [
     "agency",
     "client",
@@ -119,8 +119,8 @@ export default function TerminologyManagement({
     enabled: !!tenantId,
   });
 
-  const allTerms: TerminologyItem[] = Array.isArray(termsData)
-    ? (termsData as any[])
+  const allTerms: Array<TerminologyItem> = Array.isArray(termsData)
+    ? (termsData as Array<any>)
     : [];
 
   // Filter terms by category

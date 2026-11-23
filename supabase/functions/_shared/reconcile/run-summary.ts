@@ -53,7 +53,7 @@ export type RunSummary = {
   timezone_fallback?: true;
   currency?: string | null;
   /** Days left out because no sync has run since they ended. */
-  pending_dates?: string[];
+  pending_dates?: Array<string>;
   compared_dates?: number;
   requested_window?: { start: string; end: string };
   skipped_reason?: string;
@@ -62,7 +62,7 @@ export type RunSummary = {
   counts?: Partial<Record<FindingKind, number>>;
   totals?: CompareTotals;
   campaigns?: { aios: number; platform: number; both: number };
-  missing_dates?: string[];
+  missing_dates?: Array<string>;
   findings_total?: number;
   findings_stored?: number;
   truncated?: true;
@@ -71,13 +71,13 @@ export type RunSummary = {
   /** The previous run could not be read, so whether the mismatch persists is unknown. */
   persisting_unknown?: true;
   resync?: ResyncSummary;
-  top_findings?: TopFinding[];
+  top_findings?: Array<TopFinding>;
   check?: "unmapped_accounts";
   connections?: number;
   accounts_seen?: number;
   unmapped_check?: "no_org_connections";
   incomplete?: true;
-  errors?: string[];
+  errors?: Array<string>;
 };
 
 export type TableReconcileResult = {
@@ -85,13 +85,13 @@ export type TableReconcileResult = {
   platform: ReconcilePlatform | null;
   window_start: string | null;
   window_end: string | null;
-  findings: ReconcileFinding[];
+  findings: Array<ReconcileFinding>;
   summary: RunSummary;
   /** Kind of failure, when status is failed. */
   error_kind?: SourceErrorKind | "aios_read";
   /** For a rate_limit failure: whether it stops only this account or the platform. */
   rate_limit_scope?: RateLimitScope;
   /** Platform rows of the compared days (for callers that need totals). */
-  platform_rows?: CampaignDayRow[];
-  aios_rows?: CampaignDayRow[];
+  platform_rows?: Array<CampaignDayRow>;
+  aios_rows?: Array<CampaignDayRow>;
 };

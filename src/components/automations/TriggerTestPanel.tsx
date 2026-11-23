@@ -65,7 +65,7 @@ interface StepResult {
 interface TestResult {
   success?: boolean;
   error?: string;
-  steps?: StepResult[];
+  steps?: Array<StepResult>;
   agent_output?: string;
   flow?: any;
 }
@@ -217,10 +217,10 @@ interface FieldDef {
   label: string;
   type: "text" | "textarea" | "select" | "json";
   placeholder?: string;
-  options?: { value: string; label: string }[];
+  options?: Array<{ value: string; label: string }>;
 }
 
-function getFieldDefs(triggerType: string): FieldDef[] {
+function getFieldDefs(triggerType: string): Array<FieldDef> {
   switch (triggerType) {
     case "lead_created":
     case "lead_updated":
@@ -804,7 +804,7 @@ export function TriggerTestPanel({
               </div>
               <ScrollArea className="h-[160px] rounded-lg border">
                 <div className="p-1 space-y-0.5">
-                  {((entityList as any[]) || []).map((entity: any) => (
+                  {((entityList as Array<any>) || []).map((entity: any) => (
                     <button
                       key={entity.id}
                       className={cn(
@@ -824,7 +824,7 @@ export function TriggerTestPanel({
                       )}
                     </button>
                   ))}
-                  {((entityList as any[]) || []).length === 0 && (
+                  {((entityList as Array<any>) || []).length === 0 && (
                     <p className="text-center text-xs text-muted-foreground py-4">
                       לא נמצאו תוצאות
                     </p>

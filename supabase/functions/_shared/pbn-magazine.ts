@@ -18,7 +18,7 @@ export type MagazineTheme = {
   radius: string;
 };
 
-export const magazineThemes: MagazineTheme[] = [
+export const magazineThemes: Array<MagazineTheme> = [
   {
     id: 1,
     name: "signal",

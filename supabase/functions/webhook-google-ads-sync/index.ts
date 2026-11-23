@@ -191,8 +191,8 @@ Deno.serve(async (req) => {
     }
 
     // Process all records and split into inserts vs updates
-    const toInsert: any[] = [];
-    const toUpdate: { id: string; data: Record<string, any> }[] = [];
+    const toInsert: Array<any> = [];
+    const toUpdate: Array<{ id: string; data: Record<string, any> }> = [];
     let skippedInvalidCount = 0;
     let skippedOutOfRangeCount = 0;
 

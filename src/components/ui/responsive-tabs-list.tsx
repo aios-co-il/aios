@@ -64,7 +64,7 @@ function TabItemVisual({ item }: { item: ResponsiveTabItem }) {
 }
 
 type ResponsiveTabsListProps = {
-  items: ResponsiveTabItem[];
+  items: Array<ResponsiveTabItem>;
   value: string;
   onValueChange: (value: string) => void;
   className?: string;

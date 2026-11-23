@@ -7,7 +7,7 @@ import { A, B, SERVICE, identity, store, tokenOf } from "./test-fixtures.ts";
 function gadsGate(
   bearer: string | null,
   body: Record<string, unknown>,
-  calls: string[] = [],
+  calls: Array<string> = [],
 ) {
   return authorizeGoogleToolRequest({
     authorization: bearer === null ? null : `Bearer ${bearer}`,
@@ -39,7 +39,7 @@ function denied(res: AdToolAuthResult, status: number, error?: string) {
 Deno.test(
   "authorizeGoogleToolRequest: no bearer or anon key get 401",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     denied(await gadsGate(null, pause("1112223333")), 401);
     denied(await gadsGate(ANON_KEY, pause("1112223333"), calls), 401);
     assertEquals(calls, []);
@@ -49,7 +49,7 @@ Deno.test(
 Deno.test(
   "authorizeGoogleToolRequest: service role keeps the body tenant",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     // campaign-scheduler-cron may pass customer_id = tenant id; still trusted.
     const res = await gadsGate(SERVICE, pause(B, B), calls);
     assertEquals(res, {

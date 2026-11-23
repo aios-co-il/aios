@@ -216,8 +216,8 @@ const LEAD_SOURCE_OPTIONS = [
 function getAvailableFields(
   triggerType: string | undefined,
   triggerConfig?: Record<string, any>,
-): { key: string; label: string }[] {
-  let fields: { key: string; label: string }[] = [];
+): Array<{ key: string; label: string }> {
+  let fields: Array<{ key: string; label: string }> = [];
   switch (triggerType) {
     case "lead_created":
       fields = [
@@ -369,7 +369,7 @@ interface StepConfigPanelProps {
   open: boolean;
   onClose: () => void;
   onUpdate: (nodeId: string, updates: Partial<FlowNodeData>) => void;
-  allNodes?: FlowNodeData[];
+  allNodes?: Array<FlowNodeData>;
   automationId?: string;
   automationName?: string;
 }
@@ -390,7 +390,7 @@ interface FacebookForm {
   id: string;
   name: string;
   status: string;
-  fields?: FacebookFormField[];
+  fields?: Array<FacebookFormField>;
 }
 
 export function StepConfigPanel({
@@ -1829,7 +1829,7 @@ function ManyChatWhatsAppActionConfig({
 }: {
   tenantId: string | undefined;
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   onConfigChange: (key: string, value: any) => void;
 }) {
   const { buildPath } = useTenantPath();
@@ -2041,7 +2041,7 @@ function MetaWhatsAppActionConfig({
 }: {
   tenantId: string | undefined;
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   onConfigChange: (key: string, value: any) => void;
 }) {
   const { buildPath } = useTenantPath();
@@ -2134,7 +2134,9 @@ function MetaWhatsAppActionConfig({
   const phoneFields = availableFields.filter(
     (field) => field.key === "phone" || field.key.includes("phone"),
   );
-  const variables: string[] = Array.isArray(configuration?.template_variables)
+  const variables: Array<string> = Array.isArray(
+    configuration?.template_variables,
+  )
     ? configuration.template_variables
     : [];
 
@@ -2408,7 +2410,7 @@ function GreenAPIActionConfig({
 }: {
   tenantId: string | undefined;
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   onConfigChange: (key: string, value: any) => void;
   providerFilter?: "green_api" | "manus_wa";
 }) {
@@ -2867,7 +2869,7 @@ function AgentStepConfig({
   tenantId: string | undefined;
   configuration: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
 }) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -2886,7 +2888,7 @@ function AgentStepConfig({
         .eq("active", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return data as Array<any>;
     },
     enabled: !!tenantId,
   });
@@ -2912,7 +2914,7 @@ function AgentStepConfig({
       if (error) return [];
       // De-dupe by slug, tenant override wins.
       const bySlug = new Map<string, any>();
-      for (const row of (data as any[]) || []) {
+      for (const row of (data as Array<any>) || []) {
         if (!row.slug) continue;
         const existing = bySlug.get(row.slug);
         if (!existing || row.scope === "tenant") bySlug.set(row.slug, row);
@@ -2924,7 +2926,7 @@ function AgentStepConfig({
     enabled: true,
   });
 
-  const pinnedSkins: string[] = Array.isArray(configuration?.skin_slugs)
+  const pinnedSkins: Array<string> = Array.isArray(configuration?.skin_slugs)
     ? configuration.skin_slugs
     : [];
   const toggleSkin = (slug: string) => {
@@ -3719,7 +3721,7 @@ function CarmenSessionConfig({
         {/* קבוצות ספציפיות (Multi-select) */}
         {scopeMode === "specific_group" &&
           (() => {
-            const selectedIds: string[] =
+            const selectedIds: Array<string> =
               configuration?.carmen_allowed_group_ids &&
               configuration.carmen_allowed_group_ids.length > 0
                 ? configuration.carmen_allowed_group_ids
@@ -3844,9 +3846,9 @@ function CarmenSessionConfig({
           <div className="space-y-2">
             <Label className="text-right block">מספרי טלפון מורשים</Label>
             {(() => {
-              const phones: string[] =
+              const phones: Array<string> =
                 configuration?.carmen_allowed_phones || [];
-              const updatePhones = (next: string[]) =>
+              const updatePhones = (next: Array<string>) =>
                 onConfigChange("carmen_allowed_phones", next);
               const addFromInput = () => {
                 const input = document.getElementById(
@@ -4127,7 +4129,7 @@ function WhatsAppTriggerConfig({
           <Label className="text-right block">בחר קבוצות</Label>
           <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
             {(groups || []).map((g) => {
-              const selectedIds: string[] =
+              const selectedIds: Array<string> =
                 configuration?.selected_group_ids || [];
               const isSelected = selectedIds.includes(g.id);
               return (
@@ -4168,7 +4170,7 @@ function WhatsAppTriggerConfig({
           <Label className="text-right block">קבוצות להחרגה</Label>
           <div className="border rounded-md p-2 max-h-48 overflow-y-auto space-y-1">
             {(groups || []).map((g) => {
-              const excludedIds: string[] =
+              const excludedIds: Array<string> =
                 configuration?.excluded_group_ids || [];
               const isExcluded = excludedIds.includes(g.id);
               return (
@@ -4811,7 +4813,7 @@ function FacebookFormSelectionDialog({
     pageName: string;
     formId: string;
     formName: string;
-    formFields: FacebookFormField[];
+    formFields: Array<FacebookFormField>;
   }) => void;
 }) {
   const [selectedIntegrationId, setSelectedIntegrationId] = useState(
@@ -4869,7 +4871,7 @@ function FacebookFormSelectionDialog({
         },
       );
       if (error || data?.error) return [];
-      return (data?.pages as FacebookPage[]) || [];
+      return (data?.pages as Array<FacebookPage>) || [];
     },
     enabled: !!accessToken && !!tenantId && open,
   });
@@ -4894,7 +4896,7 @@ function FacebookFormSelectionDialog({
         },
       );
       if (error || data?.error) return [];
-      return (data?.forms as FacebookForm[]) || [];
+      return (data?.forms as Array<FacebookForm>) || [];
     },
     enabled: !!accessToken && !!selectedPageId && !!tenantId && open,
   });
@@ -5142,7 +5144,7 @@ function CreateTaskActionConfig({
 }: {
   tenantId: string | undefined;
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   onConfigChange: (key: string, value: any) => void;
 }) {
   const titleRef = useRef<HTMLInputElement>(null);

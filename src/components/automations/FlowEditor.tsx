@@ -288,7 +288,7 @@ export default function FlowEditor({
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data as any[];
+      return data as Array<any>;
     },
     enabled: !!automationId && !!tenantId,
   });

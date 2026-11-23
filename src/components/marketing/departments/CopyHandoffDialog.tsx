@@ -29,7 +29,7 @@ interface Props {
   open: boolean;
   copyId: string;
   copyTitle: string | null;
-  projects: HandoffWorkItem[];
+  projects: Array<HandoffWorkItem>;
   selectedId: string;
   pending: boolean;
   onSelectedIdChange: (id: string) => void;

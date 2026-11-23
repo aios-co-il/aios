@@ -64,8 +64,8 @@ function orbitPosition(angleDeg: number): { left: string; top: string } {
 
 interface RoundTableBoardProps {
   route: BrainRoute | null;
-  messages?: ChatLike[];
-  seats?: ParliamentSeatView[];
+  messages?: Array<ChatLike>;
+  seats?: Array<ParliamentSeatView>;
   selectedProvider?: string | null;
   debating?: boolean;
   stage?: HudStage;
@@ -87,7 +87,7 @@ function speakerOf(m: ChatLike): string {
 }
 
 function lastLine(
-  messages: ChatLike[] | undefined,
+  messages: Array<ChatLike> | undefined,
   who: CouncilSeatId,
   activeSlug: string,
 ): { text: string; from: string; to: string } | null {
@@ -137,7 +137,7 @@ function lastLine(
 }
 
 function seatState(
-  seats: ParliamentSeatView[] | undefined,
+  seats: Array<ParliamentSeatView> | undefined,
   id: string,
 ): string {
   if (id === "carmen") return "chair";
@@ -145,7 +145,7 @@ function seatState(
 }
 
 function recentTalk(
-  messages: ChatLike[] | undefined,
+  messages: Array<ChatLike> | undefined,
 ): Array<{ from: string; to: string; text: string }> {
   return (messages || [])
     .filter((m) => m.role !== "tool_call" && m.content)

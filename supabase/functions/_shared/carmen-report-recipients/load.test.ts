@@ -19,8 +19,8 @@ const STAFF = [
   },
 ];
 
-function db(rows: unknown[], clientPhones: string[] = []) {
-  const staffCalls: unknown[] = [];
+function db(rows: Array<unknown>, clientPhones: Array<string> = []) {
+  const staffCalls: Array<unknown> = [];
   const client = fakeSupabase(
     { carmen_report_recipients: rows },
     {
@@ -39,9 +39,9 @@ function db(rows: unknown[], clientPhones: string[] = []) {
 
 /** Runs `fn` with console.warn recorded instead of printed. */
 async function withWarnings<T>(fn: () => Promise<T> | T) {
-  const warnings: unknown[][] = [];
+  const warnings: Array<Array<unknown>> = [];
   const warn = console.warn;
-  console.warn = (...args: unknown[]) => warnings.push(args);
+  console.warn = (...args: Array<unknown>) => warnings.push(args);
   try {
     return { result: await fn(), warnings };
   } finally {

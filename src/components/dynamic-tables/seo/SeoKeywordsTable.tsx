@@ -57,9 +57,9 @@ function normalizeKw(raw: string): string {
 }
 
 interface SeoKeywordsTableProps {
-  keywords: any[];
-  trackedKeywords?: any[];
-  gscOnlyKeywords?: any[];
+  keywords: Array<any>;
+  trackedKeywords?: Array<any>;
+  gscOnlyKeywords?: Array<any>;
   hasGscData?: boolean;
   show3Month?: boolean;
   showYearly?: boolean;
@@ -69,8 +69,8 @@ interface SeoKeywordsTableProps {
   /** Persistence key for relevance overrides (usually clientId UUID). */
   relevancePersistKey?: string;
   /** Server-provided overrides (public share links). */
-  initialForceRelevant?: string[];
-  initialForceIrrelevant?: string[];
+  initialForceRelevant?: Array<string>;
+  initialForceIrrelevant?: Array<string>;
   /** Hide mark actions and skip writes (anonymous share viewers). */
   relevanceReadOnly?: boolean;
   initialLangFilter?: LangFilter;
@@ -336,7 +336,7 @@ function KeywordTable({
   showIrrelevantAction,
   hideSearch,
 }: {
-  keywords: any[];
+  keywords: Array<any>;
   title: string;
   icon: React.ReactNode;
   show3Month?: boolean;
@@ -477,7 +477,7 @@ function KeywordClustersPanel({
   onMarkIrrelevant,
   showIrrelevantAction,
 }: {
-  clusters: KeywordCluster<any>[];
+  clusters: Array<KeywordCluster<any>>;
   show3Month?: boolean;
   showYearly?: boolean;
   showPrevMonth?: boolean;
@@ -641,8 +641,8 @@ export function SeoKeywordsTable({
     onLangFilterChange?.(next);
   };
 
-  const dedupeByKeyword = (rows: any[]): any[] => {
-    const groups = new Map<string, any[]>();
+  const dedupeByKeyword = (rows: Array<any>): Array<any> => {
+    const groups = new Map<string, Array<any>>();
     for (const r of rows) {
       const key = String(r?.keyword || "")
         .trim()
@@ -667,7 +667,7 @@ export function SeoKeywordsTable({
       "_position_source",
       "_source",
     ];
-    const out: any[] = [];
+    const out: Array<any> = [];
     for (const [, variants] of groups) {
       const sorted = [...variants].sort((a, b) => {
         const ap = a.position ?? Number.POSITIVE_INFINITY;
@@ -707,7 +707,7 @@ export function SeoKeywordsTable({
         normalizeKw(String(k.keyword || "")),
       ),
     );
-    const extras: any[] = [];
+    const extras: Array<any> = [];
     for (const phrase of forceRelevant) {
       const key = normalizeKw(phrase);
       if (!key || trackedNames.has(key)) continue;
@@ -836,7 +836,7 @@ export function SeoKeywordsTable({
   const keywordRank = (k: any): number | null =>
     keywordDisplayPosition(k)?.position ?? null;
 
-  const sortByPosition = (arr: any[]) =>
+  const sortByPosition = (arr: Array<any>) =>
     [...arr].sort((a, b) => {
       const aPos = keywordRank(a) ?? Number.POSITIVE_INFINITY;
       const bPos = keywordRank(b) ?? Number.POSITIVE_INFINITY;
@@ -909,7 +909,7 @@ export function SeoKeywordsTable({
   );
 
   const keywordTabItems = useMemo(
-    (): ResponsiveTabItem[] => [
+    (): Array<ResponsiveTabItem> => [
       { value: "top10", label: `🏆 Top 20 מקודמים (${top20.length})` },
       {
         value: "tracked",

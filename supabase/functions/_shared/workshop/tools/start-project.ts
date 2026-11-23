@@ -38,7 +38,7 @@ export async function workshopStartProject(ctx: ToolContext) {
     title: typeof args.title === "string" ? args.title : undefined,
     kind: namedKind(args.kind),
     formats: Array.isArray(args.formats)
-      ? (args.formats as unknown[]).map(String)
+      ? (args.formats as Array<unknown>).map(String)
       : undefined,
     duration_s:
       typeof args.duration_s === "number" ? args.duration_s : undefined,
@@ -125,7 +125,7 @@ function targetChannel(plan: StartProjectPlan): string {
   return plan.projectType === "static" ? "creative" : plan.projectType;
 }
 
-const KINDS: readonly StartProjectPlan["kind"][] = [
+const KINDS: ReadonlyArray<StartProjectPlan["kind"]> = [
   "video",
   "static",
   "campaign",

@@ -15,7 +15,7 @@ const WA_TYPES = [
 async function loadTenantWhatsappIntegrations(
   tenantId: string,
   userId: string,
-): Promise<CrmWhatsappIntegration[]> {
+): Promise<Array<CrmWhatsappIntegration>> {
   const { data, error } = await supabase
     .from("tenant_integrations")
     .select("id, integration_type, user_id, connection_visibility")
@@ -29,7 +29,7 @@ async function loadTenantWhatsappIntegrations(
     .select("integration_id")
     .eq("accessing_tenant_id", tenantId);
   const grantedIds = (grants || []).map((row) => row.integration_id);
-  let granted: CrmWhatsappIntegration[] = [];
+  let granted: Array<CrmWhatsappIntegration> = [];
   if (grantedIds.length > 0) {
     const { data: shared } = await supabase
       .from("tenant_integrations")

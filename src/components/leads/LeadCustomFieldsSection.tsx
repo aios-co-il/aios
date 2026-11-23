@@ -16,7 +16,7 @@ import type {
 } from "@/lib/leadCustomFields";
 
 interface LeadCustomFieldsSectionProps {
-  fields: LeadCustomFieldDefinition[];
+  fields: Array<LeadCustomFieldDefinition>;
   values: LeadCustomFieldValues;
   onChange: (fieldKey: string, value: LeadCustomFieldValue) => void;
 }

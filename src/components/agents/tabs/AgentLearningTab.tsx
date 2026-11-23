@@ -119,7 +119,7 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
         >
           הכל
         </button>
-        {(tree as MemoryTreeNode[]).map((node) => {
+        {(tree as Array<MemoryTreeNode>).map((node) => {
           const meta = CATEGORY_META[node.category] ?? CATEGORY_META.other;
           const Icon = meta.icon;
           const expanded = expandedCats.has(node.category);

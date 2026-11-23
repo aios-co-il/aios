@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
                 .contains("data", { report_date: reportDateVal } as any);
 
               // Build records
-              const crmRecords: any[] = [];
+              const crmRecords: Array<any> = [];
               if (allKeywords.length > 0) {
                 for (const kw of allKeywords) {
                   crmRecords.push({

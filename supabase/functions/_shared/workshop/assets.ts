@@ -117,14 +117,14 @@ export function clientAssetRows(
   client: ClientForAssets,
   scope: { tenantId: string; itemId: string },
   publicUrl: (path: string) => string,
-): AssetRow[] {
+): Array<AssetRow> {
   const base = {
     tenant_id: scope.tenantId,
     item_id: scope.itemId,
     source: "client" as const,
     use_as_reference: false,
   };
-  const rows: AssetRow[] = [];
+  const rows: Array<AssetRow> = [];
   const brief = [
     client.name && `לקוח: ${str(client.name)}`,
     client.industry && `תחום: ${str(client.industry)}`,

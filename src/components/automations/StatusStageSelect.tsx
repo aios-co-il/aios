@@ -86,7 +86,10 @@ export function StatusStageSelect({
     enabled: loadLeadCatalog,
   });
 
-  const groups = useMemo((): { label: string; options: CatalogOption[] }[] => {
+  const groups = useMemo((): Array<{
+    label: string;
+    options: Array<CatalogOption>;
+  }> => {
     if (scope === "task") {
       return [
         {
@@ -193,9 +196,9 @@ export function StatusStageMultiSelect({
   onChange,
 }: {
   tenantId?: string | null;
-  scopes: StatusStageScope[];
-  value: string[];
-  onChange: (value: string[]) => void;
+  scopes: Array<StatusStageScope>;
+  value: Array<string>;
+  onChange: (value: Array<string>) => void;
 }) {
   const loadLeadCatalog = scopes.includes("lead") && !!tenantId;
   const { data: leadStatuses = [], isLoading: loadingStatuses } = useQuery({
@@ -227,8 +230,12 @@ export function StatusStageMultiSelect({
     enabled: loadLeadCatalog,
   });
 
-  const groups = useMemo((): { label: string; options: CatalogOption[] }[] => {
-    const collected: { label: string; options: CatalogOption[] }[] = [];
+  const groups = useMemo((): Array<{
+    label: string;
+    options: Array<CatalogOption>;
+  }> => {
+    const collected: Array<{ label: string; options: Array<CatalogOption> }> =
+      [];
     const seen = new Set<string>();
     for (const scope of scopes) {
       const scopeGroups =
@@ -378,9 +385,9 @@ export function StatusStageMultiSelect({
 }
 
 function isOptionSelected(
-  selected: string[],
+  selected: Array<string>,
   option: CatalogOption,
-  options: CatalogOption[],
+  options: Array<CatalogOption>,
 ): boolean {
   const encoded = encodeStatusSelection(option.kind, option.value);
   if (selected.includes(encoded)) return true;

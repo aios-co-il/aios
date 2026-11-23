@@ -36,17 +36,17 @@ export type EndCardBackground = (typeof END_CARD_BACKGROUNDS)[number];
 
 export const isSceneTransition = (value: unknown): value is SceneTransition =>
   typeof value === "string" &&
-  (SCENE_TRANSITIONS as readonly string[]).includes(value);
+  (SCENE_TRANSITIONS as ReadonlyArray<string>).includes(value);
 
 export const isEndCardStyle = (value: unknown): value is EndCardStyle =>
   typeof value === "string" &&
-  (END_CARD_STYLES as readonly string[]).includes(value);
+  (END_CARD_STYLES as ReadonlyArray<string>).includes(value);
 
 export const isEndCardBackground = (
   value: unknown,
 ): value is EndCardBackground =>
   typeof value === "string" &&
-  (END_CARD_BACKGROUNDS as readonly string[]).includes(value);
+  (END_CARD_BACKGROUNDS as ReadonlyArray<string>).includes(value);
 
 /** What each transition does, for Carmen's tools. */
 export const TRANSITION_HELP =

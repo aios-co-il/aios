@@ -8,7 +8,7 @@ export type ResolveFindings = (
   tenantId: string,
   roundId: string,
   collectorId: string,
-  items: FindingResolution[],
+  items: Array<FindingResolution>,
 ) => Promise<number>;
 
 /** ResolveFindings over the service-role client; the RPC names the tenant. */

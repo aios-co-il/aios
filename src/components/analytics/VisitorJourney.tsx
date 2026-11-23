@@ -58,7 +58,7 @@ export function VisitorJourney({ leadId }: VisitorJourneyProps) {
       });
 
       if (error) throw error;
-      return (data as JourneySession[]) || [];
+      return (data as Array<JourneySession>) || [];
     },
     enabled: !!leadId,
   });

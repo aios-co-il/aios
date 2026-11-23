@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       return json({ error: "missing_filter_source" }, 400);
     if (!tenantId) return json({ error: "missing_tenant" }, 400);
 
-    let recipients: Recipient[];
+    let recipients: Array<Recipient>;
     try {
       recipients = await resolveAudience(db, tenantId, filter);
     } catch (e) {

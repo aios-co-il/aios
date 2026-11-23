@@ -21,7 +21,7 @@ export type GscPeriodDefinition = {
   maxRows: number;
 };
 
-export const GSC_PERIOD_DEFINITIONS: GscPeriodDefinition[] = [
+export const GSC_PERIOD_DEFINITIONS: Array<GscPeriodDefinition> = [
   { key: "current_90d", startOffset: 90, endOffset: 0, maxRows: 5000 },
   { key: "prev_month", startOffset: 58, endOffset: 30, maxRows: 1000 },
   { key: "three_month", startOffset: 118, endOffset: 90, maxRows: 1000 },
@@ -45,7 +45,7 @@ export function gscPeriodBounds(def: GscPeriodDefinition): {
 }
 
 export function mapGscApiRow(row: {
-  keys?: string[];
+  keys?: Array<string>;
   clicks?: number;
   impressions?: number;
   ctr?: number;
@@ -66,10 +66,10 @@ export async function fetchGscKeywordsFromApi(
   startDate: string,
   endDate: string,
   maxRows = 5000,
-): Promise<GscKeywordRow[]> {
+): Promise<Array<GscKeywordRow>> {
   const encodedSiteUrl = encodeURIComponent(siteUrl);
   const gscApiUrl = `https://www.googleapis.com/webmasters/v3/sites/${encodedSiteUrl}/searchAnalytics/query`;
-  const collected: GscKeywordRow[] = [];
+  const collected: Array<GscKeywordRow> = [];
   const pageSize = 1000;
   const maxPages = Math.ceil(maxRows / pageSize);
 
@@ -108,7 +108,7 @@ export async function fetchGscKeywordsFromApi(
 
 export async function resolveGscAccessToken(
   supabase: SupabaseClient,
-  tenantIdList: string[],
+  tenantIdList: Array<string>,
 ): Promise<string | null> {
   const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID") || "";
   const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
@@ -168,16 +168,16 @@ export async function resolveGscAccessToken(
 }
 
 export type GscSnapshotBundle = {
-  current_90d: GscKeywordRow[];
-  prev_month: GscKeywordRow[];
-  three_month: GscKeywordRow[];
-  yearly: GscKeywordRow[];
+  current_90d: Array<GscKeywordRow>;
+  prev_month: Array<GscKeywordRow>;
+  three_month: Array<GscKeywordRow>;
+  yearly: Array<GscKeywordRow>;
   synced_at: string | null;
 };
 
 export async function readGscSnapshots(
   supabase: SupabaseClient,
-  tenantIdList: string[],
+  tenantIdList: Array<string>,
   siteUrl: string,
   clientId?: string | null,
 ): Promise<GscSnapshotBundle | null> {
@@ -210,7 +210,7 @@ export async function readGscSnapshots(
     const key = row.period_key as GscPeriodKey;
     if (!(key in bundle)) continue;
     const keywords = Array.isArray(row.keywords)
-      ? (row.keywords as GscKeywordRow[])
+      ? (row.keywords as Array<GscKeywordRow>)
       : [];
     bundle[key] = keywords;
     if (
@@ -241,7 +241,7 @@ export async function upsertGscSnapshot(
     periodKey: GscPeriodKey;
     startDate: string;
     endDate: string;
-    keywords: GscKeywordRow[];
+    keywords: Array<GscKeywordRow>;
   },
 ): Promise<void> {
   const { error } = await supabase.from("gsc_keyword_snapshots").upsert(
@@ -261,7 +261,7 @@ export async function upsertGscSnapshot(
   if (error) console.error("upsertGscSnapshot error:", error);
 }
 
-export function mapGscRowsToCrmRecords(rows: GscKeywordRow[]) {
+export function mapGscRowsToCrmRecords(rows: Array<GscKeywordRow>) {
   return rows.map((row) => ({
     data: {
       query: row.keyword,

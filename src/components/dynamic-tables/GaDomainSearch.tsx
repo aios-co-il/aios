@@ -27,7 +27,7 @@ export function GaDomainSearch({
   preferredIntegrationId,
   onFound,
 }: {
-  connections: GaConnection[];
+  connections: Array<GaConnection>;
   preferredIntegrationId?: string;
   onFound: (found: FoundProperty) => void;
 }) {
@@ -56,7 +56,7 @@ export function GaDomainSearch({
             },
           );
           if (error || data?.needs_reconnect) return null;
-          return (data?.properties || []) as GaPropertyRef[];
+          return (data?.properties || []) as Array<GaPropertyRef>;
         },
         preferredIntegrationId,
       );

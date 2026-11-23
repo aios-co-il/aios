@@ -355,13 +355,13 @@ export default function SharedDashboard({
   // Aggregate GSC records per keyword (sum clicks/impressions, weighted-avg position)
   const seoGscAggregated = useMemo(() => {
     if (seoGscRecords.length === 0)
-      return [] as {
+      return [] as Array<{
         keyword: string;
         clicks: number;
         impressions: number;
         ctr: number;
         position: number;
-      }[];
+      }>;
     const acc = new Map<
       string,
       { clicks: number; impressions: number; positionWeighted: number }
@@ -401,7 +401,7 @@ export default function SharedDashboard({
   // Compute GA monthly non-paid sessions for the SEO traffic chart (mirrors SeoDashboardView).
   const seoGaOrganicByMonth = useMemo(() => {
     if (seoGaRecords.length === 0)
-      return [] as { month: string; sessions: number }[];
+      return [] as Array<{ month: string; sessions: number }>;
     const isPaidChannel = (cg: string) => {
       const v = cg.toLowerCase();
       return (
@@ -491,7 +491,7 @@ export default function SharedDashboard({
     tables.forEach((t: any) => {
       if (t?.integration_type) set.add(t.integration_type);
     });
-    const platforms: DashboardPlatformFilter[] = [];
+    const platforms: Array<DashboardPlatformFilter> = [];
     if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
       platforms.push("facebook");
     if (set.has("google_ads")) platforms.push("google_ads");
@@ -514,8 +514,8 @@ export default function SharedDashboard({
     }
   }, [platformFilter, hasContinentsTab, availablePlatforms]);
 
-  const platformTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [{ value: "all", label: "📊 הכל" }];
+  const platformTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [{ value: "all", label: "📊 הכל" }];
     if (
       availablePlatforms.includes("facebook") ||
       availablePlatforms.includes("google_ads")
@@ -571,8 +571,8 @@ export default function SharedDashboard({
     return items;
   }, [availablePlatforms, hasContinentsTab]);
 
-  const seoTabItems = useMemo((): ResponsiveTabItem[] => {
-    const items: ResponsiveTabItem[] = [
+  const seoTabItems = useMemo((): Array<ResponsiveTabItem> => {
+    const items: Array<ResponsiveTabItem> = [
       { value: "seo", label: "SEO", icon: TrendingUp },
     ];
     if (hasSeoGsc) {

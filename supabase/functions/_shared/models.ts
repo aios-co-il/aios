@@ -9,13 +9,13 @@ export interface ModelDef {
   label: string; // display name
   family: ModelFamily;
   context_window?: number;
-  capabilities?: ("text" | "vision" | "image" | "tools")[];
+  capabilities?: Array<"text" | "vision" | "image" | "tools">;
   isLatest?: boolean;
   recommended?: boolean;
   cheap?: boolean;
 }
 
-export const MODEL_CATALOG: ModelDef[] = [
+export const MODEL_CATALOG: Array<ModelDef> = [
   // ===== Google Gemini =====
   {
     id: "google/gemini-3-flash-preview",

@@ -214,7 +214,7 @@ export function PublicGscView({ records }: PublicGscViewProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map(
+                {(Object.keys(DATE_FILTER_LABELS) as Array<GscDateFilter>).map(
                   (k) => (
                     <SelectItem key={k} value={k}>
                       {DATE_FILTER_LABELS[k]}

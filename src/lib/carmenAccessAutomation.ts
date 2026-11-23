@@ -1,8 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 export type CarmenAutomationConfig = Record<string, unknown> & {
   agent_id?: string;
-  carmen_allowed_phones?: string[];
-  carmen_allowed_group_ids?: string[];
+  carmen_allowed_phones?: Array<string>;
+  carmen_allowed_group_ids?: Array<string>;
   carmen_allowed_group_id?: string;
   carmen_open_member_groups?: boolean;
   carmen_scope_mode?: string;
@@ -72,9 +72,9 @@ export async function fetchCarmenAutomationConfig(
 
 export function resolveAutomationGroupIds(
   cfg: CarmenAutomationConfig,
-  manusGroups: ManusGroupRow[],
-): string[] {
-  const refs: string[] = cfg.carmen_allowed_group_ids?.length
+  manusGroups: Array<ManusGroupRow>,
+): Array<string> {
+  const refs: Array<string> = cfg.carmen_allowed_group_ids?.length
     ? cfg.carmen_allowed_group_ids
     : cfg.carmen_allowed_group_id
       ? [cfg.carmen_allowed_group_id]
@@ -87,7 +87,7 @@ export function resolveAutomationGroupIds(
 
 export function buildPolicyFromAutomation(
   cfg: CarmenAutomationConfig,
-  manusGroups: ManusGroupRow[],
+  manusGroups: Array<ManusGroupRow>,
 ) {
   const phones = (cfg.carmen_allowed_phones || []).map((p: string) => ({
     phone: normalizePhone(p),

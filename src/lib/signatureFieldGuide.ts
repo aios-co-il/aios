@@ -29,8 +29,8 @@ export function fieldFillLabel(field: DocumentField): string {
 
 /** Page, then top-to-bottom, then right-to-left (Hebrew documents). */
 export function sortFieldsReadingOrder(
-  fields: DocumentField[],
-): DocumentField[] {
+  fields: Array<DocumentField>,
+): Array<DocumentField> {
   return [...fields].sort((a, b) => {
     const pageA = a.position.page ?? 1;
     const pageB = b.position.page ?? 1;
@@ -41,7 +41,7 @@ export function sortFieldsReadingOrder(
 }
 
 export function nextFieldToFill(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   fromId?: string | null,
 ): DocumentField | null {
@@ -59,7 +59,7 @@ export function nextFieldToFill(
 }
 
 export function hasAnySignature(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
 ): boolean {
   if (values[LEGACY_SIGNATURE]?.trim()) return true;
@@ -69,10 +69,10 @@ export function hasAnySignature(
 }
 
 export function missingRequiredForSubmit(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   stamp: { name: string; companyId: string },
-): DocumentField[] {
+): Array<DocumentField> {
   const ordered = sortFieldsReadingOrder(fields);
   const missing = ordered.filter(
     (field) => isFieldRequired(field) && !isFieldFilled(field, values),

@@ -50,7 +50,7 @@ export async function generateOpenRouterImage(args: {
   prompt: string;
   aspectRatio?: string;
   model?: string;
-  references?: { bytes: Uint8Array; mime: string }[];
+  references?: Array<{ bytes: Uint8Array; mime: string }>;
   fetchImpl?: typeof fetch;
 }): Promise<{
   b64: string;

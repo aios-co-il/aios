@@ -41,7 +41,7 @@ export function useCustomFieldLabels(entityType: EntityType) {
       return {
         labels: labelsMap,
         visibility: visibilityMap,
-        definitions: (data || []) as LeadCustomFieldDefinition[],
+        definitions: (data || []) as Array<LeadCustomFieldDefinition>,
       };
     },
     enabled: !!tenantId,

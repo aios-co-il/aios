@@ -141,7 +141,7 @@ export function PulseClientGoalRollupCard({
     value: number,
     kind: "cpl" | "cost_per_result" | "roas",
   ) => Promise<void>;
-  alertAcks?: PulseCampaignAlertAck[];
+  alertAcks?: Array<PulseCampaignAlertAck>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const statusText = manualOverride
@@ -371,7 +371,7 @@ export function PulseCampaignGoalCard({
   row: PulseCampaignGoalRow;
   clientName: string;
   campaignerName: string;
-  alertAcks?: PulseCampaignAlertAck[];
+  alertAcks?: Array<PulseCampaignAlertAck>;
   onOpenClient: () => void;
   onSaveTarget?: (
     value: number,
@@ -635,7 +635,7 @@ function LeadsTable({
   records,
   totals,
 }: {
-  records: CampaignRecord[];
+  records: Array<CampaignRecord>;
   totals: CampaignRecord;
 }) {
   const getCpl = (spend: number, leads: number) =>
@@ -687,7 +687,7 @@ function EcommerceTable({
   records,
   totals,
 }: {
-  records: CampaignRecord[];
+  records: Array<CampaignRecord>;
   totals: CampaignRecord;
 }) {
   const getRoas = (revenue: number, spend: number) =>
@@ -766,7 +766,7 @@ export type PulseClientCampaignCardProps = {
   overall: OverallStatus;
   manualOverride: boolean;
   algorithmOverall: OverallStatus;
-  flags: string[];
+  flags: Array<string>;
   campaignerName: string;
   period: PulsePeriod;
   onOverride: () => void;

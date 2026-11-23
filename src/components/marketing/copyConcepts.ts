@@ -20,7 +20,7 @@ const FIELD_ALIASES: Record<
     CopyConcept,
     "id" | "approved" | "approvedAt" | "copyId" | "copyKey"
   >,
-  string[]
+  Array<string>
 > = {
   name: ["שם", "name", "title"],
   bigIdea: ["רעיון", "רעיון גדול", "big idea", "idea"],
@@ -62,7 +62,7 @@ const text = (value: unknown) =>
 
 export function parseCopyConceptsFromPayload(
   payload: Record<string, unknown> | null | undefined,
-): CopyConcept[] {
+): Array<CopyConcept> {
   const raw = payload?.copy_concepts;
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((value) => {
@@ -93,7 +93,9 @@ export function parseCopyConceptsFromPayload(
   });
 }
 
-export function approvedCopyConcepts(concepts: CopyConcept[]): CopyConcept[] {
+export function approvedCopyConcepts(
+  concepts: Array<CopyConcept>,
+): Array<CopyConcept> {
   return concepts.filter((concept) => concept.approved);
 }
 
@@ -115,9 +117,9 @@ export function copyConceptsGenerateGate(input: {
 }
 
 export function appendCopyConcepts(
-  existing: CopyConcept[],
-  incoming: CopyConcept[],
-): CopyConcept[] {
+  existing: Array<CopyConcept>,
+  incoming: Array<CopyConcept>,
+): Array<CopyConcept> {
   const names = new Set(
     existing
       .map((concept) => concept.name.trim().toLowerCase())
@@ -132,7 +134,9 @@ export function appendCopyConcepts(
   return [...existing, ...fresh];
 }
 
-export function formatApprovedConceptsForCopy(concepts: CopyConcept[]): string {
+export function formatApprovedConceptsForCopy(
+  concepts: Array<CopyConcept>,
+): string {
   return concepts
     .map((concept, index) =>
       [
@@ -150,7 +154,9 @@ export function formatApprovedConceptsForCopy(concepts: CopyConcept[]): string {
     .join("\n\n");
 }
 
-export function formatCopyConceptsForCreative(concepts: CopyConcept[]): string {
+export function formatCopyConceptsForCreative(
+  concepts: Array<CopyConcept>,
+): string {
   return concepts
     .map((concept, index) =>
       [
@@ -177,7 +183,7 @@ const CONCEPT_PHOTOGRAPH_CLOSER = [
 ].join("\n");
 
 export function findCopyConcept(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   id?: string | null,
 ): CopyConcept | undefined {
   if (!id) return undefined;
@@ -186,7 +192,7 @@ export function findCopyConcept(
 
 /** Prefer unused approved concepts, then rotate through the full list. */
 export function pickConceptForBatchIndex(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   index: number,
   usedConceptIds: Iterable<string> = [],
 ): CopyConcept | undefined {
@@ -204,7 +210,7 @@ export type ConceptPromptOptions = {
 
 /** English image-model prompt. Must stay first in the generation request. */
 export function formatCopyConceptsForImagePrompt(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   options?: ConceptPromptOptions,
 ): string {
   if (concepts.length === 0) return "";
@@ -261,7 +267,7 @@ export function isApprovedConceptPrompt(visualPrompt?: string | null): boolean {
 
 export function resolveVisualPrompt(
   payload: Record<string, unknown> | null | undefined,
-  concepts?: CopyConcept[],
+  concepts?: Array<CopyConcept>,
   options?: ConceptPromptOptions,
 ): string {
   const fromCaller = concepts?.length
@@ -301,10 +307,9 @@ export function extractConceptsDocument(output: string): string {
 
 const matchField = (label: string): keyof CopyConcept | null => {
   const normalized = label.trim().toLowerCase();
-  for (const [field, aliases] of Object.entries(FIELD_ALIASES) as [
-    keyof typeof FIELD_ALIASES,
-    string[],
-  ][]) {
+  for (const [field, aliases] of Object.entries(FIELD_ALIASES) as Array<
+    [keyof typeof FIELD_ALIASES, Array<string>]
+  >) {
     if (
       aliases.some(
         (alias) =>
@@ -327,7 +332,7 @@ const applyField = (
   concept[field] = value;
 };
 
-export function parseConceptsFromCarmen(output: string): CopyConcept[] {
+export function parseConceptsFromCarmen(output: string): Array<CopyConcept> {
   const document = extractConceptsDocument(output);
   const jsonBlock = document.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
   if (jsonBlock) {
@@ -354,7 +359,7 @@ export function parseConceptsFromCarmen(output: string): CopyConcept[] {
     .map((chunk) => chunk.trim())
     .filter(Boolean);
   const source = headingChunks.length > 1 ? headingChunks : numberedChunks;
-  const concepts: CopyConcept[] = [];
+  const concepts: Array<CopyConcept> = [];
 
   for (const chunk of source) {
     const concept = emptyConcept();

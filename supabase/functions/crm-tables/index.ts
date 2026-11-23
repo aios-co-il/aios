@@ -226,7 +226,7 @@ serve(async (req) => {
           .eq("tenant_id", tenantId);
         const ownedAgencyIds = ownedAgencies?.map((a) => a.id) || [];
 
-        let allTables: any[] = [];
+        let allTables: Array<any> = [];
 
         // 1) Tables from user's own tenant
         let ownQuery = supabase

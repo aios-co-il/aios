@@ -29,7 +29,7 @@ export default function LandingPageSubmissions() {
         .eq("tenant_id", tenantId)
         .eq("is_active", true);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: !!tenantId,
   });

@@ -48,8 +48,8 @@ export async function generateGeminiImage({
 }: {
   apiKey: string;
   prompt: string;
-  images: Uint8Array[];
-  mimeTypes?: string[];
+  images: Array<Uint8Array>;
+  mimeTypes?: Array<string>;
   aspectRatio: GeminiAspectRatio;
 }): Promise<{
   bytes: Uint8Array;

@@ -66,9 +66,9 @@ const parseImageUsage = (usage: unknown, quality: string, size: string) => {
   };
 };
 
-const uniqueUrls = (urls: unknown[]): string[] => {
+const uniqueUrls = (urls: Array<unknown>): Array<string> => {
   const seen = new Set<string>();
-  const result: string[] = [];
+  const result: Array<string> = [];
   for (const url of urls) {
     if (typeof url !== "string" || !url.trim() || seen.has(url)) continue;
     seen.add(url);
@@ -247,7 +247,7 @@ serve(async (req) => {
     const maskBytes = decodePng(maskPngBase64);
     const overrideBytes = decodePng(imagePngBase64);
 
-    const files: File[] = [];
+    const files: Array<File> = [];
     if (overrideBytes) {
       const copy = overrideBytes.buffer.slice(
         overrideBytes.byteOffset,
@@ -306,7 +306,7 @@ serve(async (req) => {
           "Google (Gemini) API key חסר — הוסיפו אותו בהגדרות → אינטגרציות → מודלי AI",
         );
       }
-      const images: Uint8Array[] = [];
+      const images: Array<Uint8Array> = [];
       if (overrideBytes) images.push(overrideBytes);
       else {
         for (const url of refs) {

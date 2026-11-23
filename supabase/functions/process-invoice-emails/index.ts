@@ -46,7 +46,10 @@ function parseEmailHeader(payload: any, headerName: string): string {
 }
 
 // Find attachments recursively in MIME parts
-function findAttachments(parts: any[], result: any[] = []): any[] {
+function findAttachments(
+  parts: Array<any>,
+  result: Array<any> = [],
+): Array<any> {
   for (const part of parts || []) {
     if (part.filename && part.body?.attachmentId) {
       result.push({
@@ -106,7 +109,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId);
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const results: any[] = [];
+    const results: Array<any> = [];
 
     for (const messageId of messageIds) {
       try {

@@ -25,14 +25,14 @@ function hasPersistableReportData(data: unknown): boolean {
   if (data === undefined || data === null) return false;
   if (Array.isArray(data)) return data.length > 0;
   if (typeof data === "object") {
-    const recordCount = (data as { records?: unknown[] }).records;
+    const recordCount = (data as { records?: Array<unknown> }).records;
     if (Array.isArray(recordCount)) return recordCount.length > 0;
     return Object.keys(data as object).length > 0;
   }
   return true;
 }
 
-function isPersistedQueryKey(queryKey: readonly unknown[]): boolean {
+function isPersistedQueryKey(queryKey: ReadonlyArray<unknown>): boolean {
   const root = queryKey[0];
   return typeof root === "string" && PERSISTED_QUERY_ROOTS.has(root);
 }
@@ -41,7 +41,7 @@ function filterDehydratedState(state: DehydratedState): DehydratedState {
   return {
     ...state,
     queries: (state.queries ?? []).filter((entry) => {
-      if (!isPersistedQueryKey(entry.queryKey as readonly unknown[]))
+      if (!isPersistedQueryKey(entry.queryKey as ReadonlyArray<unknown>))
         return false;
       return hasPersistableReportData(entry.state?.data);
     }),

@@ -30,9 +30,9 @@ export interface ClientHealthScore extends HealthResult {
 }
 
 export function useClientHealthScores(
-  clientIds: string[],
+  clientIds: Array<string>,
   tenantId: string | null,
-  performanceData: ClientPerformanceData[] = [],
+  performanceData: Array<ClientPerformanceData> = [],
 ) {
   // ── Fetch latest communication log per client ──────────────
   const { data: commLogs = [] } = useQuery({
@@ -111,7 +111,7 @@ export function useClientHealthScores(
 export function useClientHealthScore(
   clientId: string,
   tenantId: string | null,
-  services: string[],
+  services: Array<string>,
   performanceChangePct: number | null = null,
   daysSinceLastCampaignTouch: number | null = null,
 ): HealthResult | null {

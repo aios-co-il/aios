@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rows: any[] = Array.isArray(data?.result) ? data.result : [];
+    const rows: Array<any> = Array.isArray(data?.result) ? data.result : [];
     let inserted = 0,
       updated = 0;
 

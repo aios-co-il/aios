@@ -28,7 +28,7 @@ export type CampaignSide = {
  */
 export function groupByCampaign(
   platform: ReconcilePlatform,
-  rows: CampaignDayRow[],
+  rows: Array<CampaignDayRow>,
   dates: Set<string>,
 ): Map<string, CampaignSide> {
   const out = new Map<string, CampaignSide>();

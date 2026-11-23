@@ -40,7 +40,7 @@ const candidate = (
 /** runCollectors over `w` for these due collectors. */
 function run(
   w: World,
-  due: DueCollector[],
+  due: Array<DueCollector>,
   fields: { dryRun?: boolean; budgetMs?: number } = {},
 ) {
   return runCollectors(deps(w), {
@@ -62,7 +62,7 @@ Deno.test("runCollectors", async (t) => {
     "upserts its own kinds, clears what a complete run did not see, then saves the watermark",
     async () => {
       const w = world();
-      const contexts: CollectorContext[] = [];
+      const contexts: Array<CollectorContext> = [];
       const contact = collector((ctx) => {
         contexts.push(ctx);
         return Promise.resolve({
@@ -102,7 +102,7 @@ Deno.test("runCollectors", async (t) => {
   await t.step(
     "passes the run mode to the collector and reports its note",
     async () => {
-      const contexts: CollectorContext[] = [];
+      const contexts: Array<CollectorContext> = [];
       const contact = collector((ctx) => {
         contexts.push(ctx);
         return Promise.resolve({

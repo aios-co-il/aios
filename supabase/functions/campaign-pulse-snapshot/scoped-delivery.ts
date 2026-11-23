@@ -19,22 +19,22 @@ import type { ReportDigestResult } from "./report-digest.ts";
 
 /** Queues each plan's scoped digest and its preview; a preview run sends only previews. */
 export async function deliverScopedPulseRecipients(input: {
-  plans: PulseDeliveryPlan[];
-  snapshots: PulseSnapshot[];
+  plans: Array<PulseDeliveryPlan>;
+  snapshots: Array<PulseSnapshot>;
   dashboardUrl: string;
   tenantSlug: string;
   previewPhone: string | null;
   previewOnly: boolean;
   reportDigest: Pick<ReportDigestResult, "getsDigest">;
   queue: (message: string, phone: string) => Promise<boolean>;
-}): Promise<ScopedPulseDelivery[]> {
+}): Promise<Array<ScopedPulseDelivery>> {
   const previewTarget = isPulseDeliveryExcludedPhone(
     input.previewPhone,
     input.tenantSlug,
   )
     ? null
     : input.previewPhone;
-  const deliveries: ScopedPulseDelivery[] = [];
+  const deliveries: Array<ScopedPulseDelivery> = [];
   for (const plan of input.plans) {
     const recipientPhone = normalizeNotifyPhone(plan.phone);
     if (

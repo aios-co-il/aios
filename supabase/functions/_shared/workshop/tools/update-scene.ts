@@ -28,7 +28,7 @@ import { type ToolContext } from "../tool-context.ts";
 
 /** The scene asked for: by id, else by its number on the board (1 = first). */
 function findScene(
-  scenes: Record<string, any>[],
+  scenes: Array<Record<string, any>>,
   args: Record<string, unknown>,
 ) {
   const id = String(args.scene_id ?? "").trim();

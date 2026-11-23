@@ -1,7 +1,7 @@
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 
 /** Distinct UUIDs among `values`, lowercased; anything else is dropped. */
-export function uuids(values: unknown[]): string[] {
+export function uuids(values: Array<unknown>): Array<string> {
   return [
     ...new Set(
       values

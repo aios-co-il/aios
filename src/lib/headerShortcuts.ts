@@ -13,17 +13,17 @@ export function headerShortcutsStorageKey(
 }
 
 function uniqueAccessible(
-  keys: string[],
-  accessibleKeys: readonly string[],
-): string[] {
+  keys: Array<string>,
+  accessibleKeys: ReadonlyArray<string>,
+): Array<string> {
   const accessible = new Set(accessibleKeys);
   return [...new Set(keys)].filter((key) => accessible.has(key));
 }
 
 export function resolveHeaderShortcuts(
   storedValue: string | null,
-  accessibleKeys: readonly string[],
-): string[] {
+  accessibleKeys: ReadonlyArray<string>,
+): Array<string> {
   const defaults = () =>
     uniqueAccessible([...DEFAULT_HEADER_SHORTCUT_KEYS], accessibleKeys).slice(
       0,
@@ -47,10 +47,10 @@ export function resolveHeaderShortcuts(
 }
 
 export function toggleHeaderShortcut(
-  selectedKeys: readonly string[],
+  selectedKeys: ReadonlyArray<string>,
   key: string,
   max = MAX_HEADER_SHORTCUTS,
-): string[] {
+): Array<string> {
   if (selectedKeys.includes(key)) {
     return selectedKeys.filter((selectedKey) => selectedKey !== key);
   }

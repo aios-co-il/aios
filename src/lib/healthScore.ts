@@ -32,7 +32,7 @@ export interface HealthInput {
   /** Days since last communication log entry */
   daysSinceLastCommunication: number | null;
   /** Services the client has: 'performance' | 'seo' | 'social' */
-  services: string[];
+  services: Array<string>;
   /** % change in leads/results: negative = drop. e.g. -35 means 35% drop */
   performanceChangePct: number | null;
   /** Days since last campaign edit/touch (null = unknown / no data) */
@@ -44,12 +44,12 @@ export interface HealthInput {
 export interface HealthResult {
   score: number;
   status: OverallStatus;
-  flags: FlagKey[];
+  flags: Array<FlagKey>;
 }
 
 export function calculateHealthScore(input: HealthInput): HealthResult {
   let score = 100;
-  const flags: FlagKey[] = [];
+  const flags: Array<FlagKey> = [];
 
   // Legacy 'performance' plus current service codes ppc_meta / ppc_google.
   const hasPerformance =
@@ -249,13 +249,13 @@ export const TIER_COLORS: Record<string, string> = {
 
 // ─── Effective status (flag-aware) ────────────────────────────────────────────
 
-const RED_FLAGS: FlagKey[] = [
+const RED_FLAGS: Array<FlagKey> = [
   "urgent_treatment",
   "complaint",
   "performance_sharp_drop",
   "drop_no_action",
 ];
-const YELLOW_FLAGS: FlagKey[] = [
+const YELLOW_FLAGS: Array<FlagKey> = [
   "sensitive",
   "no_communication_30d",
   "no_communication_45d",

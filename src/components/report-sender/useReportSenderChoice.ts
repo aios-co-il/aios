@@ -12,12 +12,12 @@ export type ReportSenderChoicePick =
   ReportSenderPick<ReportSender> | { error: "loading" | "load_failed" };
 
 export type ReportSenderChoice = {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   pick: ReportSenderChoicePick;
   choose: (integrationId: string) => void;
 };
 
-const NO_SENDERS: ReportSender[] = [];
+const NO_SENDERS: Array<ReportSender> = [];
 
 /**
  * The line one send goes out from: the one picked in the dialog, else the

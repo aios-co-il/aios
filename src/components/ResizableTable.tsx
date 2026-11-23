@@ -28,11 +28,11 @@ export interface ColumnConfig {
 }
 
 interface ResizableTableProps {
-  columns: ColumnConfig[];
-  data: any[];
-  onColumnsChange?: (columns: ColumnConfig[]) => void;
+  columns: Array<ColumnConfig>;
+  data: Array<any>;
+  onColumnsChange?: (columns: Array<ColumnConfig>) => void;
   checkboxColumn?: {
-    checked: boolean[];
+    checked: Array<boolean>;
     onCheckedChange: (index: number, checked: boolean) => void;
     onSelectAll: (checked: boolean) => void;
   };
@@ -57,7 +57,7 @@ export function ResizableTable({
   columnOrder,
   onColumnOrderChange,
 }: ResizableTableProps) {
-  const [columns, setColumns] = useState<ColumnConfig[]>(() => {
+  const [columns, setColumns] = useState<Array<ColumnConfig>>(() => {
     if (!columnWidthStorageKey || typeof window === "undefined")
       return initialColumns;
     return applyLeadTableColumnWidths(

@@ -41,8 +41,8 @@ export function useClientSendRefusals(clientId: string | null | undefined) {
  * the position and the time of its newest row.
  */
 export function groupRefusals(
-  rows: ClientSendRefusalRow[],
-): ClientSendRefusalGroup[] {
+  rows: Array<ClientSendRefusalRow>,
+): Array<ClientSendRefusalGroup> {
   const groups = new Map<string, ClientSendRefusalGroup>();
   for (const row of rows) {
     const key = `${row.enforced}:${row.reason}`;
@@ -64,7 +64,7 @@ export function groupRefusals(
 /** Reads the window's rows, blocked ones first, each status newest first. */
 async function fetchRefusals(
   clientId: string,
-): Promise<ClientSendRefusalRow[]> {
+): Promise<Array<ClientSendRefusalRow>> {
   const { data, error } = await supabase
     .from("client_send_refusals")
     .select("id, created_at, reason, enforced")

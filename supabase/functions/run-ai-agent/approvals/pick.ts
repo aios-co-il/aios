@@ -60,7 +60,7 @@ async function loadCallerRoles(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
   userId: string | null,
-): Promise<string[]> {
+): Promise<Array<string>> {
   if (!userId) {
     return [];
   }

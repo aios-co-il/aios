@@ -19,19 +19,19 @@ export type LeadExportFilters = {
   tenantId: string;
   isOwner?: boolean;
   selectedAgency?: string | null;
-  agencyIds?: string[] | null;
-  userAgencyIds?: string[] | null;
+  agencyIds?: Array<string> | null;
+  userAgencyIds?: Array<string> | null;
   searchQuery?: string;
-  filterSalesPersonIds?: string[];
-  filterStageIds?: string[];
+  filterSalesPersonIds?: Array<string>;
+  filterStageIds?: Array<string>;
   /** Legacy single stage. Used when filterStageIds is absent. */
   filterStage?: string;
   stageFilterMode?: LeadValueFilterMode;
   /** Known pipeline stage ids, so hide can query the complement. */
-  allStageIds?: string[];
-  filterResponseStatus?: string[];
+  allStageIds?: Array<string>;
+  filterResponseStatus?: Array<string>;
   responseStatusFilterMode?: LeadValueFilterMode;
-  filterTagIds?: string[];
+  filterTagIds?: Array<string>;
   filterFollowUpToday?: boolean;
   startDate?: Date | string | null;
   endDate?: Date | string | null;
@@ -88,8 +88,8 @@ export type LeadExportRecord = {
   agencies?: { name?: string | null } | null;
   sales_people?: { full_name?: string | null } | null;
   clients?: { name?: string | null } | null;
-  tagNames?: string[];
-  updates?: LeadExportUpdate[];
+  tagNames?: Array<string>;
+  updates?: Array<LeadExportUpdate>;
 };
 
 type QueryClient = {
@@ -151,8 +151,8 @@ function endOfDayIso(date: Date): string {
   return copy.toISOString();
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
+function chunk<T>(items: Array<T>, size: number): Array<Array<T>> {
+  const out: Array<Array<T>> = [];
   for (let i = 0; i < items.length; i += size)
     out.push(items.slice(i, i + size));
   return out;
@@ -193,7 +193,9 @@ function stringifyFormValue(value: unknown): string {
   }
 }
 
-export function collectFormDataKeys(leads: LeadExportRecord[]): string[] {
+export function collectFormDataKeys(
+  leads: Array<LeadExportRecord>,
+): Array<string> {
   const keys = new Set<string>();
   for (const lead of leads) {
     if (
@@ -211,9 +213,9 @@ export function collectFormDataKeys(leads: LeadExportRecord[]): string[] {
 }
 
 export function leadMatchesTagFilter(
-  tagNames: string[] | undefined,
-  tagIdsOnLead: string[] | undefined,
-  filterTagIds: string[],
+  tagNames: Array<string> | undefined,
+  tagIdsOnLead: Array<string> | undefined,
+  filterTagIds: Array<string>,
   selectedTagIdSet: Set<string>,
 ): boolean {
   if (filterTagIds.length === 0) return true;
@@ -311,9 +313,9 @@ function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
 }
 
 async function paginateQuery<T>(
-  runPage: (from: number, to: number) => Promise<T[]>,
-): Promise<T[]> {
-  const all: T[] = [];
+  runPage: (from: number, to: number) => Promise<Array<T>>,
+): Promise<Array<T>> {
+  const all: Array<T> = [];
   let from = 0;
   while (true) {
     const to = from + LEAD_EXPORT_PAGE_SIZE - 1;
@@ -329,9 +331,9 @@ export async function fetchAllLeadsForExport(
   supabase: QueryClient,
   filters: LeadExportFilters,
 ): Promise<{
-  leads: LeadExportRecord[];
-  stages: LeadExportStage[];
-  statuses: LeadExportStatus[];
+  leads: Array<LeadExportRecord>;
+  stages: Array<LeadExportStage>;
+  statuses: Array<LeadExportStatus>;
 }> {
   const tenantId = filters.tenantId;
   const leads = await paginateQuery<LeadExportRecord>(async (from, to) => {
@@ -344,15 +346,15 @@ export async function fetchAllLeadsForExport(
     query = query.range(from, to);
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []) as LeadExportRecord[];
+    return (data || []) as Array<LeadExportRecord>;
   }).then((rows) =>
     rows.filter((lead) => leadExportMatchesPageScope(lead, filters)),
   );
 
   const leadIds = leads.map((lead) => lead.id);
-  const tagIdsByLead: Record<string, string[]> = {};
-  const tagNamesByLead: Record<string, string[]> = {};
-  const updatesByLead: Record<string, LeadExportUpdate[]> = {};
+  const tagIdsByLead: Record<string, Array<string>> = {};
+  const tagNamesByLead: Record<string, Array<string>> = {};
+  const updatesByLead: Record<string, Array<LeadExportUpdate>> = {};
 
   if (leadIds.length > 0) {
     type TagRow = {
@@ -483,16 +485,16 @@ export async function fetchAllLeadsForExport(
 
   return {
     leads: filteredLeads,
-    stages: (stages || []) as LeadExportStage[],
-    statuses: (statuses || []) as LeadExportStatus[],
+    stages: (stages || []) as Array<LeadExportStage>,
+    statuses: (statuses || []) as Array<LeadExportStatus>,
   };
 }
 
 export function buildLeadExportRows(
-  leads: LeadExportRecord[],
-  stages: LeadExportStage[],
-  statuses: LeadExportStatus[],
-): Record<string, string | number>[] {
+  leads: Array<LeadExportRecord>,
+  stages: Array<LeadExportStage>,
+  statuses: Array<LeadExportStatus>,
+): Array<Record<string, string | number>> {
   const maxUpdates = leads.reduce(
     (max, lead) => Math.max(max, lead.updates?.length || 0),
     0,
@@ -566,7 +568,7 @@ export function buildLeadExportRows(
 }
 
 export function buildLeadExportWorkbook(
-  rows: Record<string, string | number>[],
+  rows: Array<Record<string, string | number>>,
   sheetName = "לידים",
 ): XLSX.WorkBook {
   const worksheet = XLSX.utils.json_to_sheet(rows);

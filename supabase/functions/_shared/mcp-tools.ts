@@ -127,7 +127,7 @@ async function toolsForConnection(
   supabase: any,
   tenantId: string,
   conn: McpConnRow,
-): Promise<{ tools: any[]; live: boolean }> {
+): Promise<{ tools: Array<any>; live: boolean }> {
   const cached = Array.isArray(conn.available_tools)
     ? conn.available_tools
     : [];
@@ -158,7 +158,7 @@ export async function loadMcpTools(
   supabase: any,
   tenantId: string,
   agentId?: string | null,
-  disabledIntegrations: string[] = [],
+  disabledIntegrations: Array<string> = [],
 ): Promise<McpLoaded> {
   const empty: McpLoaded = {
     toolDefs: [],
@@ -188,7 +188,7 @@ export async function loadMcpTools(
   const executors = new Map<string, (args: any) => Promise<any>>();
 
   // Access control: skip integrations turned OFF for this agent.
-  const connections = (data as McpConnRow[]).filter(
+  const connections = (data as Array<McpConnRow>).filter(
     (conn) => !disabledSet.has(conn.name),
   );
   // Every connection's tool list at once, not one round trip after another.

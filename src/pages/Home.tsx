@@ -52,10 +52,10 @@ type Category = {
   label: string;
   icon: any;
   color: string;
-  modules: ModuleItem[];
+  modules: Array<ModuleItem>;
 };
 
-const CATEGORIES: Category[] = [
+const CATEGORIES: Array<Category> = [
   {
     id: "sales",
     label: "ניהול מכירות",

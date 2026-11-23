@@ -26,7 +26,7 @@ function byPreferredRecord(
  * and always wins over this lookup.
  */
 export function pickExistingTeamMember<T extends TeamMemberCandidate>(
-  candidates: readonly T[],
+  candidates: ReadonlyArray<T>,
   identity: { email?: string | null; fullName?: string | null },
 ): T | null {
   const email = (identity.email || "").trim().toLowerCase();

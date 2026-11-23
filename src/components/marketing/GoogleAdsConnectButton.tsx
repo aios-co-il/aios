@@ -20,14 +20,16 @@ import { toast } from "sonner";
 
 interface ConnectionStatus {
   connected: boolean;
-  accounts?: { customer_id: string; name: string }[];
+  accounts?: Array<{ customer_id: string; name: string }>;
   email?: string;
   error?: string;
 }
 
 interface Props {
   tenantId: string;
-  onConnected?: (accounts: { customer_id: string; name: string }[]) => void;
+  onConnected?: (
+    accounts: Array<{ customer_id: string; name: string }>,
+  ) => void;
 }
 
 export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {

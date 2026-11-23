@@ -18,7 +18,7 @@ const NO_EFFECTS =
   /בלי (אפקטים|סאונד דיזיין|עיצוב סאונד)|ללא אפקטים|no (sound )?effects|no sfx/i;
 
 /** Mood words of the brief's music and pace answers, in the words a music model reads. */
-const MOODS: [RegExp, string][] = [
+const MOODS: Array<[RegExp, string]> = [
   [/קולנוע|cinematic|\bepic\b/i, "cinematic"],
   [/אלקטרונ|electronic/i, "electronic"],
   [/אקוסטי|acoustic/i, "warm acoustic"],
@@ -66,7 +66,7 @@ export function musicPromptFor(
   const all = [music, pace, film, user].join(" \n ");
   const sound = [music, film, user].join(" \n ");
   const held = RESTRAINED.test(sound) || /רגוע|calm/i.test(all);
-  const lines: string[] = [];
+  const lines: Array<string> = [];
   if (TRAILER.test(sound))
     lines.push(
       held

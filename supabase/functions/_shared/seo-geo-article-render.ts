@@ -3,7 +3,7 @@
 export type SeoGeoArticleBlock = {
   title: string;
   excerpt?: string;
-  content: string[];
+  content: Array<string>;
   faq?: Array<{ question: string; answer: string }>;
   infographic?: {
     title?: string;

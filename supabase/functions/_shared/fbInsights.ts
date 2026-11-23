@@ -218,7 +218,7 @@ export interface CampaignResultMetric {
   kind: string;
   label: string;
   /** Equivalent action_types for the same event; the count is the MAX across them. */
-  actionTypes: string[];
+  actionTypes: Array<string>;
 }
 
 // Ecommerce pixel events a sales campaign can optimize for, keyed by
@@ -226,7 +226,7 @@ export interface CampaignResultMetric {
 // action_types, so each list is treated as aliases (MAX, never SUM).
 const ECOMMERCE_RESULT_EVENTS: Record<
   string,
-  { kind: string; actionTypes: string[] }
+  { kind: string; actionTypes: Array<string> }
 > = {
   PURCHASE: {
     kind: "purchases",
@@ -427,21 +427,21 @@ export const CALL_CLICK_FALLBACK_TYPES = [
 export function isCallOptimizationGoal(
   goal: string | null | undefined,
 ): boolean {
-  return (CALL_OPTIMIZATION_GOALS as readonly string[]).includes(
+  return (CALL_OPTIMIZATION_GOALS as ReadonlyArray<string>).includes(
     String(goal || "").toUpperCase(),
   );
 }
 
 function isKnownCallActionType(type: string): boolean {
   return (
-    (CALL_PLACED_ACTION_PRIORITY as readonly string[]).includes(type) ||
-    (CALL_CLICK_FALLBACK_TYPES as readonly string[]).includes(type)
+    (CALL_PLACED_ACTION_PRIORITY as ReadonlyArray<string>).includes(type) ||
+    (CALL_CLICK_FALLBACK_TYPES as ReadonlyArray<string>).includes(type)
   );
 }
 
 /** First non-zero call result. Placed calls win over confirm-click fallbacks. */
 export function countCallLeads(
-  sumByTypes: (types: string[]) => number,
+  sumByTypes: (types: Array<string>) => number,
   options: { includeClickFallbacks?: boolean } = {},
 ): number {
   for (const type of CALL_PLACED_ACTION_PRIORITY) {
@@ -501,7 +501,7 @@ export function resolveResultLeadTypes(
   promotedObject: any,
   optimizationGoal?: string | null,
   objective?: string | null,
-): string[] | null {
+): Array<string> | null {
   const po = promotedObject || {};
   const goal = String(optimizationGoal || "").toUpperCase();
   const obj = String(objective || "").toUpperCase();
@@ -525,7 +525,7 @@ export function resolveResultLeadTypes(
     if (name) return ["offsite_conversion.fb_pixel_custom." + name];
   }
   // 3) Standard pixel events, mapped to their insights action_type.
-  const STD: Record<string, string[]> = {
+  const STD: Record<string, Array<string>> = {
     LEAD: ["offsite_conversion.fb_pixel_lead"],
     COMPLETE_REGISTRATION: [
       "offsite_conversion.fb_pixel_complete_registration",
@@ -572,10 +572,10 @@ export function resolveResultLeadTypes(
  * objective as a fallback signal for the resolver.
  */
 export function buildResultLeadTypeMap(
-  adsets: any[],
+  adsets: Array<any>,
   campaignObjectives: Record<string, string | null | undefined> = {},
-): Record<string, string[]> {
-  const map: Record<string, string[]> = {};
+): Record<string, Array<string>> {
+  const map: Record<string, Array<string>> = {};
   for (const as of adsets || []) {
     const cid = String(as?.campaign_id || "");
     if (!cid || map[cid]) continue;
@@ -599,7 +599,7 @@ export function buildResultLeadTypeMap(
 export function buildInsightRecord(
   insight: any,
   campaignStatuses: Record<string, CampaignStatus>,
-  resultLeadTypesByCampaign: Record<string, string[]> = {},
+  resultLeadTypesByCampaign: Record<string, Array<string>> = {},
   optimizationGoalsByCampaign: Record<string, string> = {},
   resultMetrics: ResultMetricMaps = { byCampaign: {}, byAdset: {} },
   destinationTypes: DestinationTypeMaps = { byCampaign: {}, byAdset: {} },
@@ -627,12 +627,12 @@ export function buildInsightRecord(
     allActions.map((a: any) => String(a.action_type || "")),
   );
 
-  const getActionCount = (actionTypes: string[]) =>
+  const getActionCount = (actionTypes: Array<string>) =>
     allActions
       .filter((a: any) => actionTypes.includes(String(a.action_type || "")))
       .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
 
-  const getActionValue = (actionTypes: string[]) =>
+  const getActionValue = (actionTypes: Array<string>) =>
     actionValues
       .filter((a: any) => actionTypes.includes(String(a.action_type || "")))
       .reduce((sum: number, a: any) => sum + (parseFloat(a.value) || 0), 0);
@@ -640,7 +640,7 @@ export function buildInsightRecord(
   // Lead counting — objective-aware, matches Facebook Ads Manager "Results".
   // CRITICAL: never sum aggregate `lead` with specific lead types — FB's `lead`
   // is itself an aggregate of leadgen + pixel + messaging, so that double counts.
-  const sumByTypes = (types: string[]) =>
+  const sumByTypes = (types: Array<string>) =>
     allActions
       .filter((a: any) => types.includes(String(a.action_type || "")))
       .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
@@ -807,7 +807,7 @@ export function buildInsightRecord(
 
   // Pick the first matching action_type (deduplicated) to mirror Ads Manager's
   // "Purchases" column instead of summing duplicate types.
-  const pickFirstAvailable = (priority: string[]) => {
+  const pickFirstAvailable = (priority: Array<string>) => {
     for (const type of priority) {
       if (actionTypeSet.has(type)) return [type];
     }
@@ -1043,7 +1043,7 @@ export async function fetchFacebookInsightsAtLevel(
   sinceStr: string,
   untilStr: string,
   accessToken: string,
-): Promise<any[]> {
+): Promise<Array<any>> {
   const levelFields: Record<AdsEntityLevel, string> = {
     campaign: `campaign_id,campaign_name,${FB_INSIGHTS_BASE_FIELDS}`,
     adset: `campaign_id,campaign_name,adset_id,adset_name,${FB_INSIGHTS_BASE_FIELDS}`,
@@ -1067,12 +1067,12 @@ export async function buildAllLevelInsightRecords(
   untilStr: string,
   accessToken: string,
   campaignStatuses: Record<string, CampaignStatus>,
-  resultLeadTypesByCampaign: Record<string, string[]>,
+  resultLeadTypesByCampaign: Record<string, Array<string>>,
   optimizationGoalsByCampaign: Record<string, string>,
   resultMetrics: ResultMetricMaps,
   destinationTypes: DestinationTypeMaps,
 ): Promise<{
-  records: InsightRecord[];
+  records: Array<InsightRecord>;
   levelCounts: Record<AdsEntityLevel, number>;
   /** Levels whose fetch failed, with the error. A failed level contributes no rows. */
   levelErrors: Partial<Record<AdsEntityLevel, string>>;
@@ -1085,7 +1085,7 @@ export async function buildAllLevelInsightRecords(
       "buildAllLevelInsightRecords: destinationTypes is required (buildDestinationTypeMaps)",
     );
   }
-  const allRows: InsightRecord[] = [];
+  const allRows: Array<InsightRecord> = [];
   const levelCounts: Record<AdsEntityLevel, number> = {
     campaign: 0,
     adset: 0,
@@ -1187,12 +1187,12 @@ export type LastMetaActivity = {
 const META_ACTIVITY_OBJECTS = new Set(["CAMPAIGN", "AD_SET", "AD"]);
 
 export function latestCampaignUpdatedTime(
-  campaigns: Record<string, CampaignStatus> | CampaignStatus[] = {},
+  campaigns: Record<string, CampaignStatus> | Array<CampaignStatus> = {},
 ): string | null {
   const list = Array.isArray(campaigns) ? campaigns : Object.values(campaigns);
   const times = list
     .map((campaign) => campaign?.updated_time)
-    .filter(Boolean) as string[];
+    .filter(Boolean) as Array<string>;
   return times.sort().at(-1) || null;
 }
 

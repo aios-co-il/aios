@@ -8,25 +8,25 @@ export type AudienceDb = Pick<DbClient, "from" | "rpc">;
 
 export type AudienceFilter = {
   source: "clients" | "leads" | "campaigners" | "list" | "wa_groups" | "manual";
-  statuses?: string[];
+  statuses?: Array<string>;
   statusMode?: "include" | "exclude";
-  serviceTags?: string[];
-  statusKeys?: string[];
-  stageKeys?: string[];
+  serviceTags?: Array<string>;
+  statusKeys?: Array<string>;
+  stageKeys?: Array<string>;
   stageMode?: "include" | "exclude";
-  salesPersonIds?: string[];
-  agencyIds?: string[];
-  campaignerIds?: string[];
-  tagIds?: string[];
+  salesPersonIds?: Array<string>;
+  agencyIds?: Array<string>;
+  campaignerIds?: Array<string>;
+  tagIds?: Array<string>;
   tagMode?: "include" | "exclude";
-  roles?: string[];
+  roles?: Array<string>;
   activeOnly?: boolean;
   listId?: string;
-  groupIds?: string[];
+  groupIds?: Array<string>;
   /** source = manual: typed email addresses / phone numbers */
-  manualContacts?: string[];
-  includeIds?: string[];
-  excludeIds?: string[];
+  manualContacts?: Array<string>;
+  includeIds?: Array<string>;
+  excludeIds?: Array<string>;
 };
 
 export type Recipient = {

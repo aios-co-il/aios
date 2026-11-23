@@ -52,7 +52,7 @@ export function WorkshopFeed({
   storyboard,
   openChat,
 }: {
-  artifacts: WorkshopArtifact[];
+  artifacts: Array<WorkshopArtifact>;
   loading: boolean;
   hasProject: boolean;
   tenantId?: string;

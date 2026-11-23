@@ -21,7 +21,7 @@ export function useAgentGoals(agentId: string | null) {
   return useQuery({
     queryKey: ["agent-goals", agentId],
     enabled: !!agentId,
-    queryFn: async (): Promise<AgentGoal[]> => {
+    queryFn: async (): Promise<Array<AgentGoal>> => {
       const { data, error } = await supabase
         .from("agent_goals" as any)
         .select("*")

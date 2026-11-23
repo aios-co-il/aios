@@ -161,12 +161,12 @@ export function buildExtractionSystemPrompt(
 export function splitTranscript(
   transcript: string,
   maxChars = TRANSCRIPT_CHUNK_SIZE,
-): string[] {
+): Array<string> {
   if (transcript.length <= maxChars) return [transcript];
 
   const lines = transcript.split("\n");
-  const chunks: string[] = [];
-  let current: string[] = [];
+  const chunks: Array<string> = [];
+  let current: Array<string> = [];
   let currentLength = 0;
 
   const flush = () => {

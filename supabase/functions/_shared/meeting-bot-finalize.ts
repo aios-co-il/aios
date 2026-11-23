@@ -50,7 +50,7 @@ export interface MeetingBotSession {
   client_id: string | null;
   lead_id: string | null;
   agency_id: string | null;
-  campaigner_ids: string[] | null;
+  campaigner_ids: Array<string> | null;
   // Text in the schema; the values are auto, client, lead, campaigner, agency.
   summary_scope: string;
   platform: string;

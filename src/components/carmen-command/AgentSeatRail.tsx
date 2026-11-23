@@ -28,7 +28,7 @@ const SEAT_ARIA: Record<AgentSeatKey, string> = {
 };
 
 interface AgentSeatRailProps {
-  routes: BrainRoute[];
+  routes: Array<BrainRoute>;
   selected: BrainRoute;
   status?: string | null;
   externalUrl?: string | null;
@@ -77,9 +77,9 @@ function SeatOptionIcon({ seatKey }: { seatKey: AgentSeatKey }) {
 const EXTRA_PREFIX = "route:";
 
 /** Seats for the header select: the fixed rail, then every other active brain. */
-export function seatSelectOptions(routes: BrainRoute[]): {
-  seats: AgentSeatKey[];
-  extras: BrainRoute[];
+export function seatSelectOptions(routes: Array<BrainRoute>): {
+  seats: Array<AgentSeatKey>;
+  extras: Array<BrainRoute>;
 } {
   const seats = RAIL_SEAT_ORDER.filter(
     (key) => key === "shared" || routeForSeatKey(routes, key),
@@ -87,7 +87,7 @@ export function seatSelectOptions(routes: BrainRoute[]): {
   const covered = new Set(
     seats
       .map((key) => routeForSeatKey(routes, key)?.id)
-      .filter(Boolean) as string[],
+      .filter(Boolean) as Array<string>,
   );
   const extras = routes.filter((r) => !covered.has(r.id));
   return { seats, extras };

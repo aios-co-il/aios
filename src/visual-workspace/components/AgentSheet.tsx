@@ -24,16 +24,20 @@ export function AgentSheet({ agentId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [agent, setAgent] = useState<Tables<"ai_agents"> | null>(null);
   const [runs, setRuns] = useState<
-    Pick<
-      Tables<"agent_runs">,
-      "id" | "status" | "started_at" | "completed_at"
-    >[]
+    Array<
+      Pick<
+        Tables<"agent_runs">,
+        "id" | "status" | "started_at" | "completed_at"
+      >
+    >
   >([]);
   const [actions, setActions] = useState<
-    Pick<
-      Tables<"agent_action_log">,
-      "id" | "action_type" | "status" | "created_at"
-    >[]
+    Array<
+      Pick<
+        Tables<"agent_action_log">,
+        "id" | "action_type" | "status" | "created_at"
+      >
+    >
   >([]);
 
   useEffect(() => {

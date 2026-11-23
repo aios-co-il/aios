@@ -78,7 +78,7 @@ export const RRF_K = 60;
 export type ToolDef = { name: string; description?: string; parameters?: any };
 
 export interface RoutedToolsResult {
-  tools: ToolDef[];
+  tools: Array<ToolDef>;
   fullSchemaNames: Set<string>;
 }
 
@@ -99,7 +99,7 @@ export function toolSig(s: string): string {
 
 export async function ensureToolEmbeddings(
   supabase: any,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
 ): Promise<void> {
   const { data: existing } = await supabase
     .from("agent_tool_embeddings")
@@ -126,7 +126,7 @@ export async function ensureToolEmbeddings(
     .upsert(rows, { onConflict: "tool_name" });
 }
 
-export function tokenizeForToolSearch(text: string): string[] {
+export function tokenizeForToolSearch(text: string): Array<string> {
   return String(text || "")
     .toLocaleLowerCase("he")
     .split(/[^\p{L}\p{N}_]+/u)
@@ -136,9 +136,9 @@ export function tokenizeForToolSearch(text: string): string[] {
 /** Lightweight BM25-style keyword rank — fast, no index build per request. */
 export function keywordRankToolNames(
   queryText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   limit = 40,
-): string[] {
+): Array<string> {
   const terms = tokenizeForToolSearch(queryText);
   if (!terms.length) return [];
   const scored = toolDefs
@@ -158,7 +158,9 @@ export function keywordRankToolNames(
 }
 
 /** Reciprocal Rank Fusion across multiple ranked name lists. */
-export function fuseRankedToolNames(rankedLists: string[][]): string[] {
+export function fuseRankedToolNames(
+  rankedLists: Array<Array<string>>,
+): Array<string> {
   const scores = new Map<string, number>();
   for (const list of rankedLists) {
     list.forEach((name, idx) => {
@@ -174,7 +176,7 @@ export async function matchToolNamesSemantic(
   supabase: any,
   queryText: string,
   matchCount: number,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const qvec = await aiEmbed(queryText);
   if (!qvec) return [];
   const { data } = await supabase.rpc("match_agent_tools", {
@@ -188,9 +190,9 @@ export async function matchToolNamesSemantic(
 export async function hybridMatchToolNames(
   supabase: any,
   queryText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   matchCount: number,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const pool = Math.max(matchCount * 2, 24);
   const keywordRanked = keywordRankToolNames(queryText, toolDefs, pool);
   await ensureToolEmbeddings(supabase, toolDefs);
@@ -221,7 +223,7 @@ export function applyToolForceIncludes(
   },
   fullSchemaNames?: Set<string>,
 ): void {
-  const promote = (names: string[]) => {
+  const promote = (names: Array<string>) => {
     for (const n of names) {
       picked.add(n);
       fullSchemaNames?.add(n);
@@ -329,7 +331,7 @@ function markFullSchema(
 export async function selectRelevantToolsForMessage(
   supabase: any,
   userText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   opts: {
     lazy: boolean;
     priorityTools: Set<string>;
@@ -337,7 +339,7 @@ export async function selectRelevantToolsForMessage(
     forceInclude: ForceIncludeFn;
   },
 ): Promise<RoutedToolsResult> {
-  const allFull = (tools: ToolDef[]) => ({
+  const allFull = (tools: Array<ToolDef>) => ({
     tools,
     fullSchemaNames: new Set(tools.map((t) => t.name)),
   });
@@ -429,7 +431,7 @@ export function buildToolApiEntry(
 }
 
 export function buildToolApiEntries(
-  tools: ToolDef[],
+  tools: Array<ToolDef>,
   promoted: Set<string>,
   compactMode: boolean,
 ): Array<{ type: "function"; function: ToolDef }> {
@@ -439,9 +441,9 @@ export function buildToolApiEntries(
 export async function searchToolsFromIndex(
   supabase: any,
   query: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   limit = 12,
-): Promise<ToolDef[]> {
+): Promise<Array<ToolDef>> {
   const q = String(query || "").trim();
   if (!q) return [];
   const names = await hybridMatchToolNames(supabase, q, toolDefs, limit);
@@ -458,10 +460,10 @@ export interface MemoryPointerHit {
 /** Semantic pointer recall — replaces bulk 80+50 row scans. */
 export async function fetchRelevantMemoryPointers(
   supabase: any,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   queryText: string,
   limit = 8,
-): Promise<MemoryPointerHit[]> {
+): Promise<Array<MemoryPointerHit>> {
   const q = String(queryText || "").trim();
   if (!q || !tenantIds.length) return [];
   try {

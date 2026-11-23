@@ -9,7 +9,7 @@ const turnSchema = z.object({
 export type SessionTurn = z.infer<typeof turnSchema>;
 
 /** Validate stored session messages, dropping malformed entries individually. */
-export function sessionHistoryEntries(value: unknown): SessionTurn[] {
+export function sessionHistoryEntries(value: unknown): Array<SessionTurn> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((raw) => {
     const parsed = turnSchema.safeParse(raw);
@@ -63,7 +63,7 @@ export function buildCarmenMergedHistory(
   recentContext: Array<{ role: string; content: string; timestamp?: string }>,
   storedHistory: unknown,
   hardCap = 40,
-): SessionTurn[] {
+): Array<SessionTurn> {
   const sessionHistory = sessionHistoryEntries(storedHistory);
   const sessionTimestamps = new Set(
     (sessionHistory || [])
@@ -88,7 +88,7 @@ export function buildCarmenMergedHistory(
     return true;
   });
 
-  const merged: SessionTurn[] = [];
+  const merged: Array<SessionTurn> = [];
   if (dedupedContext.length > 0) {
     merged.push({
       role: "user",

@@ -88,7 +88,7 @@ export function ClientReportScheduleSettings({
       ),
     );
     setSendTime(String(schedule?.send_time || "09:00").slice(0, 5));
-    const channels: string[] = schedule?.channels || ["whatsapp"];
+    const channels: Array<string> = schedule?.channels || ["whatsapp"];
     setSendWhatsApp(channels.includes("whatsapp"));
     setSendEmail(channels.includes("email"));
     setEmails((schedule?.email_recipients || []).join(", "));

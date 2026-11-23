@@ -30,7 +30,7 @@ export default function EditSalesPersonAgenciesDialog({
   salesPerson,
 }: EditSalesPersonAgenciesDialogProps) {
   const [agencySearchESPA, setAgencySearchESPA] = useState("");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>(
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>(
     salesPerson.agencies.map((a) => a.id),
   );
   const queryClient = useQueryClient();
@@ -39,7 +39,7 @@ export default function EditSalesPersonAgenciesDialog({
   const { data: agencies } = useAgencies();
 
   const updateMutation = useMutation({
-    mutationFn: async (agencyIds: string[]) => {
+    mutationFn: async (agencyIds: Array<string>) => {
       // Delete existing sales person agencies
       await supabase
         .from("sales_person_agencies")

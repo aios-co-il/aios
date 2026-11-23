@@ -5,7 +5,14 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".local"] },
+  {
+    ignores: [
+      "dist",
+      ".local",
+      "src/integrations/supabase/types.ts",
+      "supabase/functions/_shared/database.types.ts",
+    ],
+  },
   {
     rules: {
       curly: "warn",
@@ -37,9 +44,9 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "warn",
       "@typescript-eslint/unified-signatures": "error",
       "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/array-type": ["error", { default: "generic" }],
       // Temporary warning overrides; remove each after its linked AIO-26 cleanup.
       "@typescript-eslint/no-explicit-any": "warn", // AIO-52
-      "@typescript-eslint/array-type": ["warn", { default: "generic" }], // AIO-305
     },
   },
   {

@@ -17,7 +17,7 @@ export function TemplateFieldPicker({
   size = "sm",
 }: {
   onPick: (token: string) => void;
-  customKeys?: string[];
+  customKeys?: Array<string>;
   size?: "sm" | "default";
 }) {
   return (

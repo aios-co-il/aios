@@ -76,7 +76,7 @@ export function TableCardAlerts({
         .eq("is_active", true);
 
       if (error) throw error;
-      return data as ReportAlert[];
+      return data as Array<ReportAlert>;
     },
     enabled: !!tableId,
   });
@@ -97,14 +97,16 @@ export function TableCardAlerts({
         },
       );
       if (response.error) return [];
-      return Array.isArray(response.data) ? (response.data as CrmRecord[]) : [];
+      return Array.isArray(response.data)
+        ? (response.data as Array<CrmRecord>)
+        : [];
     },
     enabled: !!tableId && alerts.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const triggeredAlerts = useMemo(() => {
-    const triggered: TriggeredAlert[] = [];
+    const triggered: Array<TriggeredAlert> = [];
     const today = new Date();
 
     // Check account-level blocking first
@@ -142,7 +144,9 @@ export function TableCardAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const latestRecord = getLatestRecord(campaignRecords as CrmRecord[]);
+          const latestRecord = getLatestRecord(
+            campaignRecords as Array<CrmRecord>,
+          );
           const effectiveStatus = latestRecord?.data?.effective_status;
           const configuredStatus = latestRecord?.data?.configured_status;
 
@@ -152,7 +156,9 @@ export function TableCardAlerts({
 
             triggered.push({
               alert,
-              campaignName: getCampaignName(campaignRecords as CrmRecord[]),
+              campaignName: getCampaignName(
+                campaignRecords as Array<CrmRecord>,
+              ),
               currentValue: 0,
               previousValue: 0,
               changePercent: 0,
@@ -345,7 +351,7 @@ function getCampaignBlockReason(effectiveStatus: string): string {
   }
 }
 
-function getLatestRecord(records: CrmRecord[]): CrmRecord | null {
+function getLatestRecord(records: Array<CrmRecord>): CrmRecord | null {
   if (records.length === 0) return null;
   return records.reduce((latest, record) => {
     const recordDate = record.data?.date || record.data?.Date || "";
@@ -355,9 +361,9 @@ function getLatestRecord(records: CrmRecord[]): CrmRecord | null {
 }
 
 function groupRecordsByCampaign(
-  records: CrmRecord[],
-): Record<string, CrmRecord[]> {
-  const groups: Record<string, CrmRecord[]> = {};
+  records: Array<CrmRecord>,
+): Record<string, Array<CrmRecord>> {
+  const groups: Record<string, Array<CrmRecord>> = {};
   for (const record of records) {
     const campaignId =
       record.data?.campaign_id ||
@@ -370,13 +376,13 @@ function groupRecordsByCampaign(
   return groups;
 }
 
-function getCampaignName(records: CrmRecord[]): string {
+function getCampaignName(records: Array<CrmRecord>): string {
   if (records.length === 0) return "";
   return records[0].data?.campaign_name || records[0].data?.campaignName || "";
 }
 
 function calculateMetric(
-  records: CrmRecord[],
+  records: Array<CrmRecord>,
   startDate: Date,
   endDate: Date,
   metric: string,
@@ -464,7 +470,7 @@ function calculateMetric(
   }
 
   // For other metrics: sum them up
-  const metricKeys: Record<string, string[]> = {
+  const metricKeys: Record<string, Array<string>> = {
     spend: ["spend", "amount_spent", "Spend"],
     leads: ["leads", "results", "Leads"],
     impressions: ["impressions", "Impressions"],

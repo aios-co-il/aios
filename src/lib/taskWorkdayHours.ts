@@ -6,8 +6,8 @@ export const TASK_DAY_END_HOUR = 19;
 export function generateWorkdayTimeSlots(
   startHour = TASK_DAY_START_HOUR,
   endHour = TASK_DAY_END_HOUR,
-): string[] {
-  const slots: string[] = [];
+): Array<string> {
+  const slots: Array<string> = [];
   for (let hour = startHour; hour <= endHour; hour++) {
     const h = String(hour).padStart(2, "0");
     slots.push(`${h}:00`);

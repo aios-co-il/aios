@@ -10,14 +10,14 @@ import {
 import type { ManagerSettings } from "../../../_shared/manager-round/settings.ts";
 import type { CollectorContext } from "../types.ts";
 
-export const CHAT_KINDS: readonly FindingKind[] = [
+export const CHAT_KINDS: ReadonlyArray<FindingKind> = [
   "unanswered_request",
   "client_complaint",
   "unlinked_group",
 ];
 
 /** The kinds read from client threads (unlinked_group reads group names only). */
-export const THREAD_KINDS: readonly FindingKind[] = [
+export const THREAD_KINDS: ReadonlyArray<FindingKind> = [
   "unanswered_request",
   "client_complaint",
 ];
@@ -26,7 +26,7 @@ export const THREAD_KINDS: readonly FindingKind[] = [
 const WINDOW_DAYS = 7;
 
 /** The collector's kinds the tenant has not turned off. */
-export function enabledKinds(settings: ManagerSettings): FindingKind[] {
+export function enabledKinds(settings: ManagerSettings): Array<FindingKind> {
   return CHAT_KINDS.filter((kind) => kindMode(settings, kind) !== "off");
 }
 
@@ -37,7 +37,7 @@ export function enabledKinds(settings: ManagerSettings): FindingKind[] {
  */
 export function readSince(
   ctx: Pick<CollectorContext, "settings" | "now">,
-  kinds: readonly FindingKind[],
+  kinds: ReadonlyArray<FindingKind>,
 ): Date {
   const floor = ctx.now.getTime() - WINDOW_DAYS * 86_400_000;
   const starts = kinds.map((kind) => {

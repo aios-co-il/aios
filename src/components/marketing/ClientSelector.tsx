@@ -56,8 +56,8 @@ export function ClientSelector({
   disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [clients, setClients] = useState<Array<Client>>([]);
+  const [agencies, setAgencies] = useState<Array<Agency>>([]);
   const [selectedAgency, setSelectedAgency] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -78,8 +78,8 @@ export function ClientSelector({
         .order("name"),
     ]).then(([clientsRes, agenciesRes]) => {
       if (cancel) return;
-      setClients((clientsRes.data ?? []) as Client[]);
-      setAgencies((agenciesRes.data ?? []) as Agency[]);
+      setClients((clientsRes.data ?? []) as Array<Client>);
+      setAgencies((agenciesRes.data ?? []) as Array<Agency>);
     });
     return () => {
       cancel = true;

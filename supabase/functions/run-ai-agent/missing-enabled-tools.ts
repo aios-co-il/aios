@@ -5,11 +5,11 @@
  * denylist always wins.
  */
 export function missingEnabledTools<T extends { name: string }>(
-  pool: readonly { name: string }[],
-  allTools: readonly T[],
+  pool: ReadonlyArray<{ name: string }>,
+  allTools: ReadonlyArray<T>,
   names: Iterable<string>,
-  disabledTools: readonly string[],
-): T[] {
+  disabledTools: ReadonlyArray<string>,
+): Array<T> {
   const wanted = new Set(names);
   const present = new Set(pool.map((t) => t.name));
   return allTools.filter(

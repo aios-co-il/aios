@@ -59,9 +59,9 @@ function dedupeKey(value: string): string {
     .toLowerCase();
 }
 
-function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
+function dedupeBy<T>(items: Array<T>, key: (item: T) => string): Array<T> {
   const seen = new Set<string>();
-  const out: T[] = [];
+  const out: Array<T> = [];
   for (const item of items) {
     const k = key(item);
     if (!k || seen.has(k)) continue;
@@ -131,8 +131,8 @@ function SourceTag({ metricKey }: { metricKey: string }) {
 
 export function buildSeoMonthlySlides(
   snapshot: SeoMonthlyShareSnapshot,
-): Slide[] {
-  const slides: Slide[] = [{ kind: "cover", title: "פתיחה" }];
+): Array<Slide> {
+  const slides: Array<Slide> = [{ kind: "cover", title: "פתיחה" }];
   if (snapshot.metrics.length > 0 || snapshot.search) {
     slides.push({ kind: "metrics", title: "מדדים מרכזיים" });
   }
@@ -253,7 +253,7 @@ export function MetricsSlide({
   };
 
   // GSC: clicks + impressions (measured). Rankings and traffic estimates: Ahrefs.
-  const headline: HeadlineMetric[] = search
+  const headline: Array<HeadlineMetric> = search
     ? [
         {
           key: "gsc_clicks",

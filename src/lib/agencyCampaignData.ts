@@ -26,7 +26,7 @@ export type ClientCampaignTableData = {
   integrationType: string;
   /** Ecommerce when any of the table's campaigns is a sales campaign. */
   campaignType: "leads" | "ecommerce";
-  records: CampaignRecord[];
+  records: Array<CampaignRecord>;
   totals: CampaignRecord;
 };
 
@@ -84,12 +84,12 @@ type CampaignTableMeta = {
  */
 export function buildClientCampaignTableData(input: {
   clients: Array<{ id: string; name: string }>;
-  tables: CampaignTableMeta[];
-  records: RawCampaignRecord[];
+  tables: Array<CampaignTableMeta>;
+  records: Array<RawCampaignRecord>;
   startDate: string;
   endDate: string;
   platformFilter: AgencyPlatformFilter;
-}): ClientCampaignTableData[] {
+}): Array<ClientCampaignTableData> {
   const { clients, tables, records, startDate, endDate, platformFilter } =
     input;
   const clientMap = new Map(clients.map((client) => [client.id, client.name]));

@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       preferredUserId,
     });
 
-    const matches: Record<string, unknown>[] = [];
+    const matches: Array<Record<string, unknown>> = [];
     for (const recording of grouped.values()) {
       const match = chooseCalendarRecordingMatch(
         recording,

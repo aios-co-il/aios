@@ -183,7 +183,7 @@ Deno.test("trigger-automation: source guards", async (t) => {
     "only green-api-webhook fires WhatsApp-inbound trigger types",
     () => {
       const root = new URL("../", import.meta.url);
-      const senders: string[] = [];
+      const senders: Array<string> = [];
       for (const file of walk(root)) {
         const path = String(file);
         // Test code and test helpers (test-*.ts) build requests, not send them.
@@ -220,7 +220,7 @@ Deno.test("trigger-automation: source guards", async (t) => {
 });
 
 /** Every .ts/.tsx file under `dir`, recursively. */
-function walk(dir: URL, out: URL[] = []): URL[] {
+function walk(dir: URL, out: Array<URL> = []): Array<URL> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
     if (entry.isDirectory()) {

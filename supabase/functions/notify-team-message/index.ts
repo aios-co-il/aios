@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
     // 4. profile notification_group_link → send to profile group
     // 5. profile phone / campaigner phone → send to phone
     const groupsToNotify = new Set<string>();
-    const phonesToNotify: { phone: string; name: string }[] = [];
+    const phonesToNotify: Array<{ phone: string; name: string }> = [];
 
     for (const member of enabledMembers) {
       const profile = profiles.find((p) => p.id === member.user_id);
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     const notificationMessage = `🔔 *התראה מצ'אט צוות*\n\n📢 *ערוץ:* ${channelName || "ערוץ"}\n👤 *מאת:* ${senderName || "חבר צוות"}\n\n💬 ${messageContent}\n\n🔗 ${chatLink}`;
 
     let sentCount = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     const sendGreenApi = async (chatId: string, label: string) => {
       try {

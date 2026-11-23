@@ -5,9 +5,9 @@
 export async function withConsoleErrors<T>(
   fn: () => Promise<T>,
 ): Promise<{ result: T; logged: string }> {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
   const original = console.error;
-  console.error = (...args: unknown[]) => {
+  console.error = (...args: Array<unknown>) => {
     lines.push(args.map(String).join(" "));
   };
   try {

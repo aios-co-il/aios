@@ -399,7 +399,7 @@ export function CashFlowTab() {
       chartAgency === "all" || (id || UNASSIGNED) === chartAgency;
 
     // Actual events keyed by day
-    const actualDelta: number[] = Array(days + 1).fill(0);
+    const actualDelta: Array<number> = Array(days + 1).fill(0);
     (incomePayments || []).forEach((p) => {
       const c = clientById[p.client_id];
       if (!matchAgency(c?.agency_id || null)) return;
@@ -453,13 +453,13 @@ export function CashFlowTab() {
           expectedOneTime += Number(o.amount || 0);
       });
 
-    const expectedDelta: number[] = Array(days + 1).fill(0);
+    const expectedDelta: Array<number> = Array(days + 1).fill(0);
     expectedDelta[1] += expectedIncome - expectedExpense;
     expectedDelta[Math.min(15, days)] += expectedOneTime;
 
     let actualBal = 0;
     let expectedBal = 0;
-    const rows: any[] = [];
+    const rows: Array<any> = [];
     for (let d = 1; d <= days; d++) {
       actualBal += actualDelta[d];
       expectedBal += expectedDelta[d];
@@ -1038,8 +1038,11 @@ function DrillContent({
     const c = clients.find((cl: any) => cl.id === o.client_id);
     return o.payment_month === selectedMonth && c?.agency_id === agencyId;
   });
-  const monthExpenseSlots: { supplier: any; slot: number; amount: number }[] =
-    [];
+  const monthExpenseSlots: Array<{
+    supplier: any;
+    slot: number;
+    amount: number;
+  }> = [];
   suppliers.forEach((s: any) => {
     [1, 2, 3].forEach((i) => {
       if (

@@ -37,7 +37,7 @@ export interface IslandSummary {
   description: string;
   agentRole: AgentRole;
   agentName: string;
-  kpis: IslandKpi[];
+  kpis: Array<IslandKpi>;
   openTasks: number;
   alerts: number;
   status: IslandStatus;

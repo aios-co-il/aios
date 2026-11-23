@@ -52,7 +52,7 @@ export function getReportLastSyncAt(
  * stored rows, so the "עדכון מקור" time is older than it looks.
  */
 export function getReportSyncProblem(
-  tables: readonly SyncTableLike[],
+  tables: ReadonlyArray<SyncTableLike>,
 ): SyncProblem | null {
   return worstSyncProblem(tables.map((table) => syncOutcomeProblem(table)));
 }

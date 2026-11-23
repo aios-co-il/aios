@@ -40,9 +40,9 @@ export async function resolveAudience(
   tenantId: string,
   filter: AudienceFilter,
   depth = 0,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   if (!filter?.source) throw new Error("missing_filter_source");
-  let recipients: Recipient[];
+  let recipients: Array<Recipient>;
   switch (filter.source) {
     case "leads":
       recipients = await resolveLeads(db, tenantId, filter);

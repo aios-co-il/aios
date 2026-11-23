@@ -212,9 +212,9 @@ const sizeFromFormat = (format?: string): ImageSize => {
 };
 
 export const summarizeStoredImageCosts = (
-  images: StoredImageCost[],
+  images: Array<StoredImageCost>,
   fallbackQuality: ImageQuality,
-  runs: LoggedRunCost[] = [],
+  runs: Array<LoggedRunCost> = [],
 ): CostTotals => {
   const stored = images.filter((image) =>
     isImageGenerationCost(image.generationCost),

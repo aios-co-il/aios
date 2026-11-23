@@ -21,12 +21,12 @@ export async function sendRunMessages(
     InstantPulseAlertsInput,
     "supabase" | "tenantId" | "orgName" | "queueWhatsApp"
   >,
-  planned: PlannedInstantAlert[],
+  planned: Array<PlannedInstantAlert>,
   now: Date,
 ): Promise<{ messages: number }> {
   let messages = 0;
   // Per alert: each message text it went out in → the phones that got it.
-  const delivered = new Map<PlannedInstantAlert, Map<string, string[]>>();
+  const delivered = new Map<PlannedInstantAlert, Map<string, Array<string>>>();
   for (const [phone, items] of alertsByPhone(planned)) {
     const message = buildPulseRunMessage(
       input.orgName,
@@ -44,7 +44,8 @@ export async function sendRunMessages(
     messages += 1;
     for (const item of items) {
       item.sentTo.push(phone);
-      const phonesByText = delivered.get(item) ?? new Map<string, string[]>();
+      const phonesByText =
+        delivered.get(item) ?? new Map<string, Array<string>>();
       phonesByText.set(message, [...(phonesByText.get(message) ?? []), phone]);
       delivered.set(item, phonesByText);
     }
@@ -61,9 +62,9 @@ export async function sendRunMessages(
 
 /** Each recipient phone with the planned alerts for it, in plan order. */
 function alertsByPhone(
-  planned: PlannedInstantAlert[],
-): Map<string, PlannedInstantAlert[]> {
-  const byPhone = new Map<string, PlannedInstantAlert[]>();
+  planned: Array<PlannedInstantAlert>,
+): Map<string, Array<PlannedInstantAlert>> {
+  const byPhone = new Map<string, Array<PlannedInstantAlert>>();
   for (const item of planned) {
     for (const phone of item.recipients) {
       byPhone.set(phone, [...(byPhone.get(phone) ?? []), item]);
@@ -82,7 +83,7 @@ async function logInstantAlert(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
   message: string,
-  phones: string[],
+  phones: Array<string>,
 ): Promise<void> {
   const { error } = await input.supabase
     .from("pulse_instant_alert_log")
@@ -106,12 +107,12 @@ async function logInstantAlert(
 }
 
 /** pulse_instant_alert_log.recipient_phone: the phones, comma-joined. */
-export function joinRecipientPhones(phones: string[]): string {
+export function joinRecipientPhones(phones: Array<string>): string {
   return phones.join(",");
 }
 
 /** The phones a pulse_instant_alert_log.recipient_phone value lists. */
-export function splitRecipientPhones(value: string | null): string[] {
+export function splitRecipientPhones(value: string | null): Array<string> {
   return (value || "")
     .split(",")
     .map((phone) => phone.trim())

@@ -20,7 +20,7 @@ import { EmailWebhookMappingPanel } from "./EmailWebhookMappingPanel";
 
 interface Props {
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   tenantId: string | undefined;
   triggerType?: string;
   automationId?: string;

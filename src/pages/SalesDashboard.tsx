@@ -126,10 +126,10 @@ export default function SalesDashboard() {
 
       (data || []).forEach((lead: any) => {
         if (!lead.products) return;
-        let tokens: string[] = [];
+        let tokens: Array<string> = [];
 
         if (Array.isArray(lead.products)) {
-          tokens = lead.products as string[];
+          tokens = lead.products as Array<string>;
         } else if (typeof lead.products === "string") {
           const raw = lead.products.trim();
           // JSON array string (from edit dialog)
@@ -158,7 +158,7 @@ export default function SalesDashboard() {
                 const byName = normNameToId.get(normalize(s));
                 return byName || null;
               })
-              .filter(Boolean) as string[],
+              .filter(Boolean) as Array<string>,
           ),
         );
 

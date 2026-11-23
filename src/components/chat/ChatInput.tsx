@@ -82,7 +82,7 @@ export default function ChatInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Array<Blob>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = async () => {

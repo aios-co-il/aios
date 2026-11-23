@@ -78,12 +78,12 @@ interface CrmRecord {
 }
 
 interface GoogleAnalyticsDashboardProps {
-  records: CrmRecord[];
+  records: Array<CrmRecord>;
   externalDateFilter?: string;
   externalCustomDateRange?: { from: Date | undefined; to: Date | undefined };
   tableId?: string;
   /** Extra GA table ids to keep in sync when the mode toggle is changed. */
-  relatedTableIds?: string[];
+  relatedTableIds?: Array<string>;
   dashboardId?: string;
   defaultReportMode?: AnalyticsReportMode;
 }
@@ -191,7 +191,7 @@ export function GoogleAnalyticsDashboard({
   const persistReportMode = (newMode: AnalyticsReportMode) => {
     const tableIds = Array.from(
       new Set(
-        [tableId, ...(relatedTableIds || [])].filter(Boolean) as string[],
+        [tableId, ...(relatedTableIds || [])].filter(Boolean) as Array<string>,
       ),
     );
     for (const id of tableIds) {
@@ -338,7 +338,7 @@ export function GoogleAnalyticsDashboard({
 
   // Filter records by date range - only filter records that have a date field
   const filterRecordsByDate = (
-    records: CrmRecord[],
+    records: Array<CrmRecord>,
     startDate: Date,
     endDate: Date,
   ) => {
@@ -399,7 +399,7 @@ export function GoogleAnalyticsDashboard({
     trafficBreakdown,
     phoneCallEvents,
   } = useMemo(() => {
-    const aggregateTrafficSources = (sourceRecords: CrmRecord[]) => {
+    const aggregateTrafficSources = (sourceRecords: Array<CrmRecord>) => {
       const sourceMap = new Map<
         string,
         {
@@ -536,7 +536,7 @@ export function GoogleAnalyticsDashboard({
       (r) => r.data.source_medium || r.data.source || r.data.medium,
     );
 
-    let trafficSources: {
+    let trafficSources: Array<{
       name: string;
       sessions: number;
       users: number;
@@ -548,7 +548,7 @@ export function GoogleAnalyticsDashboard({
       addToCart: number;
       purchases: number;
       purchaseValue: number;
-    }[];
+    }>;
 
     if (currentDailySourceRecords.length > 0) {
       trafficSources = aggregateTrafficSources(currentDailySourceRecords);
@@ -700,7 +700,7 @@ export function GoogleAnalyticsDashboard({
 
     const eventSourceRecords = dateFilteredEventRecords;
 
-    const phoneCallEvents: { eventName: string; total: number }[] = [];
+    const phoneCallEvents: Array<{ eventName: string; total: number }> = [];
     const phoneEventMap = new Map<string, number>();
     for (const r of eventSourceRecords) {
       const eventName = (r.data.event_name || "").toLowerCase();

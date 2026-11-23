@@ -97,7 +97,7 @@ export function AlertsManagementDialog({
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as ReportAlert[];
+      return data as Array<ReportAlert>;
     },
     enabled: !!tableId && open,
   });

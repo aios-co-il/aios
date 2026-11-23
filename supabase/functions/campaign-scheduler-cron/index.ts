@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       .lte("next_run_at", nowIso)
       .limit(50);
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const row of due || []) {
       const route = pickFn(row.entity_type);
       if (!route) {

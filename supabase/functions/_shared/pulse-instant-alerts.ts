@@ -89,7 +89,7 @@ export type PulseSnapshotAlertInput = {
   client_name?: string | null;
   status?: string | null;
   cpl_change_pct?: number | null;
-  flags?: string[] | null;
+  flags?: Array<string> | null;
   last_client_call_at?: string | null;
   campaign_goal_mode?: string | null;
   lead_goal_status?: string | null;
@@ -155,24 +155,24 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   };
 }
 
-function flagList(flags: string[] | null | undefined): string[] {
+function flagList(flags: Array<string> | null | undefined): Array<string> {
   return Array.isArray(flags) ? flags.filter(Boolean) : [];
 }
 
 export function evaluatePulseInstantAlerts(
-  snapshots: PulseSnapshotAlertInput[],
-  criticalIssues: CriticalIssueLike[],
+  snapshots: Array<PulseSnapshotAlertInput>,
+  criticalIssues: Array<CriticalIssueLike>,
   rulesInput: unknown,
   nowMs = Date.now(),
   disconnects: Array<OpenIntegrationDisconnect> = [],
-): PulseInstantAlertCandidate[] {
+): Array<PulseInstantAlertCandidate> {
   const rules = parsePulseAlertRules(rulesInput);
   if (!rules.instant_wa_enabled) return [];
 
   // The org's lost connections lead the connection section (AIO-342).
   const candidates: Array<PulseInstantAlertCandidate> =
     rules.disconnected_enabled ? disconnectAlertCandidates(disconnects) : [];
-  const criticalByClient = new Map<string, CriticalIssueLike[]>();
+  const criticalByClient = new Map<string, Array<CriticalIssueLike>>();
   for (const issue of criticalIssues) {
     const list = criticalByClient.get(issue.clientId) || [];
     list.push(issue);
@@ -338,9 +338,9 @@ export type InstantPulseAlertsInput = {
   /** The organization's name, in the header of each run message. */
   orgName: string;
   /** Whom the organization's Carmen reports to; alerted ahead of the owners and managers. */
-  reportRecipients: CarmenReportRecipient[];
-  snapshots: PulseSnapshotAlertInput[];
-  criticalIssues: CriticalIssueLike[];
+  reportRecipients: Array<CarmenReportRecipient>;
+  snapshots: Array<PulseSnapshotAlertInput>;
+  criticalIssues: Array<CriticalIssueLike>;
   /** The org's own open connection disconnects (loadOpenIntegrationDisconnects). */
   disconnects?: Array<OpenIntegrationDisconnect>;
   rules: unknown;

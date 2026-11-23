@@ -4,13 +4,13 @@ import { ensurePipelineForClient } from "./ensurePipeline";
 const state = vi.hoisted(() => ({
   pipelines: [] as Array<{ id: string; created_at: string }>,
   lookupError: null as { message: string } | null,
-  calls: [] as Array<{ table: string; method: string; args: unknown[] }>,
+  calls: [] as Array<{ table: string; method: string; args: Array<unknown> }>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const query = (table: string) => {
     const chain: Record<string, unknown> = {};
-    const methods: string[] = [];
+    const methods: Array<string> = [];
     for (const method of [
       "select",
       "eq",
@@ -19,7 +19,7 @@ vi.mock("@/integrations/supabase/client", () => {
       "insert",
       "single",
     ]) {
-      chain[method] = (...args: unknown[]) => {
+      chain[method] = (...args: Array<unknown>) => {
         state.calls.push({ table, method, args });
         methods.push(method);
         return chain;

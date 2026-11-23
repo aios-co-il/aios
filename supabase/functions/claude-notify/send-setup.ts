@@ -17,12 +17,12 @@ import {
 import { loadNamedLines, loadTenantLines } from "./load-lines.ts";
 
 export type CarmenSendSetup = {
-  activeAutomationIds: string[];
-  steps: NotifyStepRow[];
-  integrations: NotifyIntegrationRow[];
+  activeAutomationIds: Array<string>;
+  steps: Array<NotifyStepRow>;
+  integrations: Array<NotifyIntegrationRow>;
   triggerPins: Record<string, string | null>;
   /** Lines of other tenants that a step or trigger names and that are shared with this tenant. */
-  sharedLineIds: string[];
+  sharedLineIds: Array<string>;
 };
 
 /** Send steps and lines of the bridge automation and every Carmen-triggered automation of the tenant. */
@@ -79,7 +79,7 @@ async function loadCarmenTriggers(
 
 /** automation_id → its first Carmen trigger's carmen_integration_id. */
 function triggerPinsOf(
-  triggers: Pick<NotifyStepRow, "automation_id" | "configuration">[],
+  triggers: Array<Pick<NotifyStepRow, "automation_id" | "configuration">>,
 ): Record<string, string | null> {
   const pins: Record<string, string | null> = {};
   for (const t of triggers) {
@@ -95,8 +95,8 @@ function triggerPinsOf(
 async function loadActiveAutomationIds(
   sb: Pick<DbClient, "from">,
   tenantId: string,
-  ids: string[],
-): Promise<string[]> {
+  ids: Array<string>,
+): Promise<Array<string>> {
   if (!ids.length) {
     return [];
   }
@@ -115,8 +115,8 @@ async function loadActiveAutomationIds(
 async function loadSendSteps(
   sb: Pick<DbClient, "from">,
   tenantId: string,
-  ids: string[],
-): Promise<NotifyStepRow[]> {
+  ids: Array<string>,
+): Promise<Array<NotifyStepRow>> {
   if (!ids.length) {
     return [];
   }
@@ -135,6 +135,6 @@ async function loadSendSteps(
 }
 
 /** Distinct non-empty values, first occurrence first. */
-function unique(values: (string | null | undefined)[]): string[] {
+function unique(values: Array<string | null | undefined>): Array<string> {
   return [...new Set(values.filter((v): v is string => v != null && v !== ""))];
 }

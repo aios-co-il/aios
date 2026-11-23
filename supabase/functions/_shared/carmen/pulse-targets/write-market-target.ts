@@ -9,8 +9,8 @@ import { writeTargetToTables } from "./write-target-tables.ts";
  * that stopped it, with any table whose restore failed and keeps the estimate.
  */
 export type MarketTargetWrite =
-  | { ok: true; written: WrittenTable[]; setAt: string }
-  | { ok: false; error: string; stillWritten: string[] };
+  | { ok: true; written: Array<WrittenTable>; setAt: string }
+  | { ok: false; error: string; stillWritten: Array<string> };
 
 type WrittenTable = { table_id: string; integration_type: string | null };
 
@@ -27,7 +27,7 @@ export async function writeMarketTarget(
     input: TargetInput;
     rationale: string;
     campaign: PulseCampaignMatch | null;
-    tables: PlatformTable[];
+    tables: Array<PlatformTable>;
   },
 ): Promise<MarketTargetWrite> {
   const setAt = (ctx.now?.() ?? new Date()).toISOString();

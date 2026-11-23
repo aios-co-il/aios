@@ -48,18 +48,18 @@ interface TasksToolbarFiltersProps {
   campaignerFilter: string;
   onCampaignerFilterChange: (value: string) => void;
   campaignerFilterDisabled?: boolean;
-  campaignersList: { id: string; full_name: string }[];
+  campaignersList: Array<{ id: string; full_name: string }>;
   relatedKind: TaskRelatedKind;
   relatedId: string;
   relatedLabel: string;
   onRelatedChange: (value: TaskRelatedPick) => void;
-  clientsList: { id: string; name: string }[];
-  leadsList: {
+  clientsList: Array<{ id: string; name: string }>;
+  leadsList: Array<{
     id: string;
     company_name: string | null;
     contact_name: string | null;
     created_at: string;
-  }[];
+  }>;
   period: TaskPeriodFilter;
   onPeriodChange: (value: TaskPeriodFilter) => void;
   onSaveFilterPreset?: () => void;

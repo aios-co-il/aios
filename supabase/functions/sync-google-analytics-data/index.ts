@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
 
     // If the stored connection lacks Data API access, try other org GA emails
     // (Anna / Yuval / David's other accounts) and persist the working one.
-    async function loadCandidateIntegrations(): Promise<any[]> {
+    async function loadCandidateIntegrations(): Promise<Array<any>> {
       const preferredNorm = String(propertyIdRaw).startsWith("properties/")
         ? propertyIdRaw
         : `properties/${propertyId}`;
@@ -652,7 +652,7 @@ Deno.serve(async (req) => {
     }
 
     // Process and insert data
-    const records: any[] = [];
+    const records: Array<any> = [];
 
     // Traffic sources
     if (trafficData.rows) {

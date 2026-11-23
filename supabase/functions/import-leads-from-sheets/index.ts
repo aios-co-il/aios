@@ -275,7 +275,9 @@ Deno.serve(async (req) => {
     if (fetchHeadersOnly) {
       const previewRows = rows
         .slice(1, 6)
-        .map((row: any[]) => row.map((cell: any) => String(cell || "").trim()));
+        .map((row: Array<any>) =>
+          row.map((cell: any) => String(cell || "").trim()),
+        );
       return new Response(JSON.stringify({ headers, previewRows }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -346,7 +348,7 @@ Deno.serve(async (req) => {
     let importedCount = 0;
     let updatedCount = 0;
     let updatesAddedCount = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     // Process each data row
     for (let i = 1; i < rows.length; i++) {

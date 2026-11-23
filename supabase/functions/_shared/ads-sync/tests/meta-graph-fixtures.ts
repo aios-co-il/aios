@@ -40,7 +40,7 @@ export const insight = (level: string, date: string, spend: string) => ({
 
 /** Graph responses per level: rows (one page each), or pages ending in an error. */
 export function stubGraph(
-  levels: Record<string, unknown[][] | "error-on-page-2">,
+  levels: Record<string, Array<Array<unknown>> | "error-on-page-2">,
 ) {
   const stub: typeof fetch = async (input) => {
     const url = String(input);

@@ -40,9 +40,9 @@ function defaultForType(type: EmailRecipient["type"]): EmailRecipient {
 
 interface Props {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
-  value: EmailRecipient[];
-  onChange: (next: EmailRecipient[]) => void;
+  availableFields: Array<{ key: string; label: string }>;
+  value: Array<EmailRecipient>;
+  onChange: (next: Array<EmailRecipient>) => void;
 }
 
 export function EmailRecipientsListEditor({
@@ -128,8 +128,8 @@ function RecipientRow({
   canRemove,
 }: {
   tenantId: string | undefined;
-  emailFields: { key: string; label: string }[];
-  availableFields: { key: string; label: string }[];
+  emailFields: Array<{ key: string; label: string }>;
+  availableFields: Array<{ key: string; label: string }>;
   value: EmailRecipient;
   onChange: (next: EmailRecipient) => void;
   onRemove: () => void;
@@ -148,11 +148,13 @@ function RecipientRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(TYPE_LABELS) as EmailRecipient["type"][]).map((t) => (
-              <SelectItem key={t} value={t}>
-                {TYPE_LABELS[t]}
-              </SelectItem>
-            ))}
+            {(Object.keys(TYPE_LABELS) as Array<EmailRecipient["type"]>).map(
+              (t) => (
+                <SelectItem key={t} value={t}>
+                  {TYPE_LABELS[t]}
+                </SelectItem>
+              ),
+            )}
           </SelectContent>
         </Select>
         {canRemove && (
@@ -186,8 +188,8 @@ function RecipientValueEditor({
   onChange,
 }: {
   tenantId: string | undefined;
-  emailFields: { key: string; label: string }[];
-  availableFields: { key: string; label: string }[];
+  emailFields: Array<{ key: string; label: string }>;
+  availableFields: Array<{ key: string; label: string }>;
   value: EmailRecipient;
   onChange: (next: EmailRecipient) => void;
 }) {
@@ -364,9 +366,9 @@ function ContactLookupEditor({
 
 export function migrateLegacyEmailRecipients(
   cfg: Record<string, any>,
-): EmailRecipient[] {
+): Array<EmailRecipient> {
   if (Array.isArray(cfg?.email_recipients) && cfg.email_recipients.length > 0) {
-    return cfg.email_recipients as EmailRecipient[];
+    return cfg.email_recipients as Array<EmailRecipient>;
   }
   if (cfg?.to_email) {
     return [{ type: "email_manual", email: cfg.to_email }];

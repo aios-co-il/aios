@@ -48,7 +48,7 @@ type PublishingSite = {
   client_id: string | null;
   connection_id: string | null;
   base_url: string | null;
-  categories: string[];
+  categories: Array<string>;
   status: string;
   is_hidden: boolean;
 };
@@ -84,12 +84,15 @@ type PublishingArticle = {
   source_row: number | null;
   title: string | null;
   excerpt: string | null;
-  content: string[];
+  content: Array<string>;
   hero_image_url: string | null;
   inline_image_url: string | null;
   image_alt: string | null;
-  faq: PublishingFaqItem[];
-  infographic: { title?: string; items?: PublishingInfographicItem[] } | null;
+  faq: Array<PublishingFaqItem>;
+  infographic: {
+    title?: string;
+    items?: Array<PublishingInfographicItem>;
+  } | null;
   updated_at: string;
 };
 type ImportRow = {
@@ -102,7 +105,7 @@ type ImportRow = {
   sheetName: string;
   rowNumber: number;
   sourceMonth: string;
-  errors: string[];
+  errors: Array<string>;
 };
 type ClientOption = { id: string; name: string };
 type VercelProject = {
@@ -278,7 +281,7 @@ function suggestDestination(
 ) {
   const text =
     `${row.customerName} ${row.primaryKeyword} ${row.topic}`.toLowerCase();
-  const includes = (...terms: string[]) =>
+  const includes = (...terms: Array<string>) =>
     terms.some((term) => text.includes(term));
   if (includes("שיניים", "חניכיים", "רופא", "רפוא", "טיפולית", "שיקום"))
     return {
@@ -340,7 +343,7 @@ function suggestDestination(
   return { siteKey: "site-10", category: "איך עושים" };
 }
 
-function readCell(record: Record<string, unknown>, aliases: string[]) {
+function readCell(record: Record<string, unknown>, aliases: Array<string>) {
   const entry = Object.entries(record).find(([key]) =>
     aliases.some((alias) => normalizeHeader(key).includes(alias)),
   );
@@ -383,7 +386,7 @@ export function PublishingStudio({
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const correlationSynced = useRef(false);
-  const [previewRows, setPreviewRows] = useState<ImportRow[]>([]);
+  const [previewRows, setPreviewRows] = useState<Array<ImportRow>>([]);
   const [fileName, setFileName] = useState("");
   const [sheetCount, setSheetCount] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -402,10 +405,12 @@ export function PublishingStudio({
   const [editorExcerpt, setEditorExcerpt] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [savingArticle, setSavingArticle] = useState(false);
-  const [selectedArticleIds, setSelectedArticleIds] = useState<string[]>([]);
-  const [generatingArticleIds, setGeneratingArticleIds] = useState<string[]>(
+  const [selectedArticleIds, setSelectedArticleIds] = useState<Array<string>>(
     [],
   );
+  const [generatingArticleIds, setGeneratingArticleIds] = useState<
+    Array<string>
+  >([]);
   const [generationProgress, setGenerationProgress] = useState<{
     current: number;
     total: number;
@@ -443,7 +448,7 @@ export function PublishingStudio({
         .eq("tenant_id", tenantId)
         .order("site_key");
       if (error) throw error;
-      return (data ?? []) as PublishingSite[];
+      return (data ?? []) as Array<PublishingSite>;
     },
   });
 
@@ -461,7 +466,7 @@ export function PublishingStudio({
       if (error) throw error;
       if (!data?.success)
         throw new Error(data?.detail || data?.error || "טעינת האתרים נכשלה");
-      return (data.projects ?? []) as VercelProject[];
+      return (data.projects ?? []) as Array<VercelProject>;
     },
     refetchInterval: 15000,
   });
@@ -475,7 +480,7 @@ export function PublishingStudio({
         .eq("tenant_id", tenantId)
         .eq("is_active", true);
       if (error) throw error;
-      return (data ?? []) as WordPressSite[];
+      return (data ?? []) as Array<WordPressSite>;
     },
   });
 
@@ -488,7 +493,7 @@ export function PublishingStudio({
         .eq("tenant_id", tenantId)
         .order("name");
       if (error) throw error;
-      return (data ?? []) as ClientOption[];
+      return (data ?? []) as Array<ClientOption>;
     },
   });
 
@@ -505,7 +510,7 @@ export function PublishingStudio({
         .order("customer_name")
         .limit(500);
       if (error) throw error;
-      return (data ?? []) as PublishingArticle[];
+      return (data ?? []) as Array<PublishingArticle>;
     },
   });
 
@@ -854,7 +859,7 @@ export function PublishingStudio({
     if (!missing.length)
       return toast.success("כל אתרי ה-PBN כבר קיימים ב-Vercel");
     setBusy(true);
-    const failed: string[] = [];
+    const failed: Array<string> = [];
     try {
       for (let index = 0; index < missing.length; index += 1) {
         const { site } = missing[index];
@@ -913,7 +918,7 @@ export function PublishingStudio({
   const refreshPbnDesign = async () => {
     if (!pbnRows.length) return;
     setBusy(true);
-    const failed: string[] = [];
+    const failed: Array<string> = [];
     try {
       for (let index = 0; index < pbnRows.length; index += 1) {
         const { site, project } = pbnRows[index];
@@ -1040,10 +1045,10 @@ export function PublishingStudio({
     try {
       const XLSX = await import("xlsx");
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const parsed: ImportRow[] = [];
+      const parsed: Array<ImportRow> = [];
       for (const sheetName of workbook.SheetNames) {
         const sourceMonth = sourceMonthFromSheet(sheetName);
-        const rows = XLSX.utils.sheet_to_json<unknown[]>(
+        const rows = XLSX.utils.sheet_to_json<Array<unknown>>(
           workbook.Sheets[sheetName],
           { header: 1, defval: "", raw: false },
         );
@@ -1086,7 +1091,7 @@ export function PublishingStudio({
             !targetUrl && "חסר קישור חיצוני",
             !!targetUrl && !isValidHttpUrl(targetUrl) && "כתובת URL לא תקינה",
             !sourceMonth && "לא זוהה חודש בשם הגיליון",
-          ].filter(Boolean) as string[];
+          ].filter(Boolean) as Array<string>;
           const suggestion = suggestDestination({
             customerName,
             primaryKeyword,
@@ -1299,7 +1304,7 @@ export function PublishingStudio({
     toast.info("ההרצה תיעצר מיד לאחר סיום המאמר הנוכחי");
   };
 
-  const generateArticles = async (articleIds: string[]) => {
+  const generateArticles = async (articleIds: Array<string>) => {
     const ids = articleIds.slice(0, 10);
     if (!ids.length || generatingArticleIds.length) return;
     stopGenerationRef.current = false;
@@ -1357,7 +1362,7 @@ export function PublishingStudio({
     }
   };
 
-  const generateArticleImages = async (articleIds: string[]) => {
+  const generateArticleImages = async (articleIds: Array<string>) => {
     const ids = articleIds.slice(0, 10);
     if (!ids.length || imageProgress) return;
     setImageProgress({ current: 0, total: ids.length });
@@ -1399,7 +1404,7 @@ export function PublishingStudio({
   };
 
   const publishArticles = async (
-    articleIds: string[],
+    articleIds: Array<string>,
     clearSelection = false,
   ) => {
     const selected = articles.filter(

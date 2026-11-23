@@ -39,7 +39,7 @@ interface OrgCreatedResult {
     tables: number;
     automations: number;
   };
-  warnings: string[];
+  warnings: Array<string>;
 }
 
 const SECTION_LABELS: Record<ShareableResourceKind, string> = {
@@ -50,7 +50,7 @@ const SECTION_LABELS: Record<ShareableResourceKind, string> = {
   automation: "אוטומציות",
 };
 
-const SECTION_ORDER: ShareableResourceKind[] = [
+const SECTION_ORDER: Array<ShareableResourceKind> = [
   "integration",
   "social_page",
   "wordpress_site",
@@ -141,7 +141,7 @@ export function CreateOrgForClientDialog({
   }, [open, resources]);
 
   const groupedResources = useMemo(() => {
-    const groups = new Map<ShareableResourceKind, ShareableResource[]>();
+    const groups = new Map<ShareableResourceKind, Array<ShareableResource>>();
     for (const kind of SECTION_ORDER) groups.set(kind, []);
     for (const resource of resources) {
       groups.get(resource.kind)?.push(resource);

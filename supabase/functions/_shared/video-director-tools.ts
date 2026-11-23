@@ -39,10 +39,10 @@ export const isVideoDirectorTool = (name: string) =>
 type QueryResult = { data: unknown; error: { message: string } | null };
 
 type Query = {
-  select: (...args: unknown[]) => Query;
-  eq: (...args: unknown[]) => Query;
-  order: (...args: unknown[]) => Query;
-  limit: (...args: unknown[]) => Query;
+  select: (...args: Array<unknown>) => Query;
+  eq: (...args: Array<unknown>) => Query;
+  order: (...args: Array<unknown>) => Query;
+  limit: (...args: Array<unknown>) => Query;
   maybeSingle: () => Promise<QueryResult>;
   then: (
     onFulfilled: (value: QueryResult) => unknown,
@@ -125,7 +125,7 @@ export async function executeVideoDirectorTool(
       .order("created_at", { ascending: false })
       .limit(1);
     if (render.error) return { error: render.error.message };
-    const sceneRows = rowsOf(scenes.data) as { status?: string }[];
+    const sceneRows = rowsOf(scenes.data) as Array<{ status?: string }>;
     return {
       item_id: project.id,
       title: project.title,
@@ -157,7 +157,7 @@ export async function executeVideoDirectorTool(
         return { error: "אין לסצנות קליפים להרכבה" };
       return { error: queued.error.message };
     }
-    const runs = rowsOf(queued.data) as { id?: string }[];
+    const runs = rowsOf(queued.data) as Array<{ id?: string }>;
     if (runs.length === 0)
       return { queued: false, message: "סרט כבר בהרכבה", cost_usd: 0 };
     return {

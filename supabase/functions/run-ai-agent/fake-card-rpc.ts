@@ -25,7 +25,7 @@ export function fakeCardRpc(opts: {
   ownerUserId?: string | null;
   error?: { code: string; message: string };
 }) {
-  const rows: FakeRow[] = [];
+  const rows: Array<FakeRow> = [];
   const calls: Array<{ name: string; args: RpcArgs }> = [];
   const supabase: ClientCardEntryRpc = {
     rpc: async (name: string, args: RpcArgs) => {

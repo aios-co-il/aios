@@ -160,7 +160,7 @@ export function ManageLeadStatusesDialog({
     useLeadStatusMutations();
 
   // Local state for immediate UI updates during drag
-  const [localStatuses, setLocalStatuses] = useState<LeadStatus[]>([]);
+  const [localStatuses, setLocalStatuses] = useState<Array<LeadStatus>>([]);
 
   // Sync local state with server data
   useEffect(() => {

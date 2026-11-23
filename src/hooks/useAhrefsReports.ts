@@ -28,7 +28,7 @@ interface UseAhrefsReportsOptions {
    * pass the full set of accessible tenant IDs (from useSeoScope) so reports
    * created in a different tenant aren't filtered out. RLS still applies.
    */
-  tenantIds?: string[];
+  tenantIds?: Array<string>;
 }
 
 export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
@@ -83,7 +83,7 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
           if (error.code === "42P01") return [];
           throw error;
         }
-        const rows = (data || []) as unknown as AhrefsReport[];
+        const rows = (data || []) as unknown as Array<AhrefsReport>;
         if (rows.length > 0) {
           return domain ? filterSeoReportsByDomain(rows, domain) : rows;
         }
@@ -100,7 +100,7 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
             throw domainError;
           }
           return filterSeoReportsByDomain(
-            (domainRows || []) as unknown as AhrefsReport[],
+            (domainRows || []) as unknown as Array<AhrefsReport>,
             normalized,
           );
         }
@@ -115,9 +115,9 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
         if (error.code === "42P01") return [];
         throw error;
       }
-      return (data || []) as unknown as AhrefsReport[];
+      return (data || []) as unknown as Array<AhrefsReport>;
     },
     enabled,
-    ...reportQueryOptions<AhrefsReport[]>(),
+    ...reportQueryOptions<Array<AhrefsReport>>(),
   });
 }

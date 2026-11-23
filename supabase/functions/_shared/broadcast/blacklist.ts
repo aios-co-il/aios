@@ -46,8 +46,8 @@ export type BlacklistDb = {
 };
 
 export type BlockAddresses = {
-  phones: (string | null | undefined)[];
-  emails: (string | null | undefined)[];
+  phones: Array<string | null | undefined>;
+  emails: Array<string | null | undefined>;
 };
 
 /** The parts of a broadcast recipient the unsubscribe link reads. */

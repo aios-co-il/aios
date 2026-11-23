@@ -415,7 +415,7 @@ serve(async (req) => {
       // Ask for the API maximum (200) and follow nextPageToken so a login
       // with 100+ accounts is not cut off after the first page.
       const fetchAccounts = async () => {
-        const accountSummaries: any[] = [];
+        const accountSummaries: Array<any> = [];
         let pageToken = "";
         for (let page = 0; page < 20; page++) {
           const url = new URL(
@@ -537,7 +537,7 @@ serve(async (req) => {
       }
 
       // Extract properties from account summaries
-      const properties: any[] = [];
+      const properties: Array<any> = [];
       if (accountsData.accountSummaries) {
         for (const account of accountsData.accountSummaries) {
           if (account.propertySummaries) {

@@ -78,7 +78,7 @@ Deno.test("anon or no user gets 401 before the body is read", async () => {
     status: 401,
     error: "Unauthorized",
   };
-  const callers: MergeAuth[] = [null, { kind: "service", userId: null }];
+  const callers: Array<MergeAuth> = [null, { kind: "service", userId: null }];
   for (const auth of callers) {
     for (const body of [JSON.stringify({ tenant_id: TENANT }), "null", "{"]) {
       const req = post(body);

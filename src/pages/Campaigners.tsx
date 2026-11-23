@@ -63,7 +63,7 @@ export default function Campaigners() {
       if (!tenantId) return [];
 
       // Fetch campaigner IDs linked to cross-tenant shared agencies
-      let crossTenantCampaignerIds: string[] = [];
+      let crossTenantCampaignerIds: Array<string> = [];
       if (crossTenantAgencyIds.length > 0) {
         const { data: caRows } = await supabase
           .from("campaigner_agencies")

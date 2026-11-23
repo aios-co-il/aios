@@ -164,7 +164,7 @@ export function ClientConnectionsTab({
     return out;
   };
 
-  const services: string[] = Array.isArray(c?.services) ? c.services : [];
+  const services: Array<string> = Array.isArray(c?.services) ? c.services : [];
   const filledCount = countFilledConnections(currentFields(), services);
   const createDashboard = shouldCreateDashboardForConnections(
     currentFields(),
@@ -178,7 +178,7 @@ export function ClientConnectionsTab({
         await persistClientFields();
       }
       const summary = await provision(clientId, { createDashboard });
-      const parts: string[] = [];
+      const parts: Array<string> = [];
       if (summary.resolved.length)
         parts.push(`זוהו: ${summary.resolved.join(", ")}`);
       if (summary.created.length)

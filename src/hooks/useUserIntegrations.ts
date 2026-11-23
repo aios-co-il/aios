@@ -118,7 +118,7 @@ export function useUserIntegrations(
         (p) => p.integration_id,
       );
 
-      let sharedIntegrations: any[] = [];
+      let sharedIntegrations: Array<any> = [];
       if (sharedIntegrationIds.length > 0) {
         const { data: shared, error: sharedError } = await selectIntegrations()
           .in("tenant_id", tenantIds)
@@ -151,7 +151,7 @@ export function useUserIntegrations(
 
       // 4. Combine and deduplicate
       const ownIds = new Set((ownIntegrations || []).map((i) => i.id));
-      const combined: ClientIntegration[] = [
+      const combined: Array<ClientIntegration> = [
         ...(ownIntegrations || []).map((i) =>
           toClientIntegration(i, { _isOwn: true, _sharedByName: null }),
         ),

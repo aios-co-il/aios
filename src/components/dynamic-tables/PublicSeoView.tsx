@@ -27,24 +27,24 @@ interface PublicGscKeyword {
 
 interface PublicSeoViewProps {
   tableName: string;
-  reports: any[];
+  reports: Array<any>;
   /** Optional GSC data aggregated per keyword — enables enrichment + GSC-only rows. */
-  gscData?: PublicGscKeyword[];
+  gscData?: Array<PublicGscKeyword>;
   /** Optional GSC keyword aggregates per historical period — enables monthly/3M/yearly change columns. */
   gscMultiPeriod?: {
-    prevMonth: PublicGscKeyword[];
-    threeMonth: PublicGscKeyword[];
-    yearly: PublicGscKeyword[];
+    prevMonth: Array<PublicGscKeyword>;
+    threeMonth: Array<PublicGscKeyword>;
+    yearly: Array<PublicGscKeyword>;
   } | null;
   /** Optional GA monthly non-paid sessions — replaces the Ahrefs traffic chart with real Analytics data. */
-  gaOrganicByMonth?: { month: string; sessions: number }[];
+  gaOrganicByMonth?: Array<{ month: string; sessions: number }>;
   /** Initial language filter persisted on the SEO crm_table — read-only in public view. */
   initialLangFilter?: "all" | "he" | "en";
   /** Client UUID — preferred relevance persist key (matches in-app). */
   clientId?: string | null;
   /** Server-persisted manual relevance overrides for this client. */
-  forceRelevant?: string[];
-  forceIrrelevant?: string[];
+  forceRelevant?: Array<string>;
+  forceIrrelevant?: Array<string>;
 }
 
 function normalizeKeyword(kw: any) {
@@ -146,7 +146,7 @@ export function PublicSeoView({
 
   // Historical GSC period maps — fallback for monthly / 3-month / yearly position changes
   // when Ahrefs comparison_data isn't cached on the report.
-  const buildPeriodMap = (rows?: PublicGscKeyword[]) => {
+  const buildPeriodMap = (rows?: Array<PublicGscKeyword>) => {
     const m = new Map<string, PublicGscKeyword>();
     for (const g of rows || []) {
       const name = String(g.keyword || "")

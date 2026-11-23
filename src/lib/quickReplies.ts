@@ -12,7 +12,7 @@ import { MAX_ANSWER } from "@functions/_shared/workshop/brief-answers.ts";
 
 export interface QuickReplyGroup {
   label: string;
-  options: string[];
+  options: Array<string>;
 }
 
 const GROUP = /\[\[\s*(?:בחירה|choice)\s*:([^\]]*)\]\]/gi;
@@ -24,9 +24,9 @@ const OTHER = /^\s*(?:אחר|אחרת|other)(?:[\s.…:()-]|$)/i;
 
 export function parseQuickReplies(content: string): {
   text: string;
-  groups: QuickReplyGroup[];
+  groups: Array<QuickReplyGroup>;
 } {
-  const groups: QuickReplyGroup[] = [];
+  const groups: Array<QuickReplyGroup> = [];
   const text = content
     .replace(GROUP, (_match, body: string) => {
       const [label, ...rest] = body.split("|").map((part) => part.trim());
@@ -62,7 +62,7 @@ export const freeAnswer = (text: string) =>
  * server only saves a bare answer to the brief when it is one of the options.
  */
 export function quickReplyAnswer(
-  groups: QuickReplyGroup[],
+  groups: Array<QuickReplyGroup>,
   picked: Record<string, string>,
 ): string {
   if (groups.length === 1) {
@@ -82,7 +82,7 @@ export function quickReplyAnswer(
  * Which message may still be answered by tapping: the latest assistant reply, as long as the user
  * has not written anything since. Tool rows after it do not close the question.
  */
-export function answerableIndex(messages: { role: string }[]): number {
+export function answerableIndex(messages: Array<{ role: string }>): number {
   for (let index = messages.length - 1; index >= 0; index--) {
     const role = messages[index].role;
     if (role === "user") return -1;

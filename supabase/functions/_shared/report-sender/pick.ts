@@ -37,7 +37,7 @@ export type PickReportSenderInput<T extends PickableSender> = {
    * Lines from list_report_whatsapp_senders for the caller (own and shared),
    * so another member's private line is never among them.
    */
-  senders: readonly T[];
+  senders: ReadonlyArray<T>;
   /** The line picked for this one send. */
   requestedId?: string | null;
   /** The schedule's own line. */
@@ -92,14 +92,14 @@ export function pickReportSender<T extends PickableSender>(
 
 /** The lines that can send reports now. */
 export function usableReportSenders<T extends PickableSender>(
-  senders: readonly T[],
-): UsableSender<T>[] {
+  senders: ReadonlyArray<T>,
+): Array<UsableSender<T>> {
   return senders.filter(isUsable);
 }
 
 /** The line with this id when it can send reports now, else null. */
 export function usableReportSender<T extends PickableSender>(
-  senders: readonly T[],
+  senders: ReadonlyArray<T>,
   id: string | null | undefined,
 ): T | null {
   if (!id) {

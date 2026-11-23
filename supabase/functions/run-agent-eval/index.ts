@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       .single();
     if (!evalRow) return jsonResponse({ error: "eval not found" }, 404);
 
-    const dataset: any[] = Array.isArray(evalRow.dataset)
+    const dataset: Array<any> = Array.isArray(evalRow.dataset)
       ? evalRow.dataset
       : [];
     const threshold = evalRow.pass_threshold ?? 70;
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     let totalScore = 0;
     let passed = 0;
 

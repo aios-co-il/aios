@@ -27,9 +27,9 @@ interface Option {
 
 interface BroadcastAudienceMultiSelectProps {
   label: string;
-  options: Option[];
-  selected: string[];
-  onSelectedChange: (values: string[]) => void;
+  options: Array<Option>;
+  selected: Array<string>;
+  onSelectedChange: (values: Array<string>) => void;
   mode?: AudienceFilterMode;
   /** Omit to hide the include / exclude toggle (include only). */
   onModeChange?: (mode: AudienceFilterMode) => void;

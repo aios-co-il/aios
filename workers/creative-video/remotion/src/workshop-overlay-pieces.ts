@@ -56,7 +56,7 @@ export const wrap = (x: number, span: number) => ((x % span) + span) % span;
 type Frame = { width: number; height: number; fps: number };
 
 /** Rising bubbles: they wobble as they rise, already spread over the frame, and fade at the top. */
-function bubbles(rand: () => number, t: number, f: Frame): Piece[] {
+function bubbles(rand: () => number, t: number, f: Frame): Array<Piece> {
   const unit = Math.min(f.width, f.height);
   return Array.from({ length: PIECES.bubbles }, () => {
     const size = unit * (0.028 + 0.07 * rand() ** 2);
@@ -81,7 +81,7 @@ function bubbles(rand: () => number, t: number, f: Frame): Piece[] {
 }
 
 /** Floating dust and bokeh: slow drift and twinkle, a few large ones out of focus. */
-function particles(rand: () => number, t: number, f: Frame): Piece[] {
+function particles(rand: () => number, t: number, f: Frame): Array<Piece> {
   const unit = Math.min(f.width, f.height);
   return Array.from({ length: PIECES.particles }, (_, i) => {
     const soft = i % 5 === 0;
@@ -111,7 +111,7 @@ function particles(rand: () => number, t: number, f: Frame): Piece[] {
 }
 
 /** Confetti: one burst at the scene's start that slows in the air and flutters down out of frame. */
-function confetti(rand: () => number, t: number, f: Frame): Piece[] {
+function confetti(rand: () => number, t: number, f: Frame): Array<Piece> {
   const unit = Math.min(f.width, f.height);
   const drag = 2.2;
   const fall = f.height * 0.42;
@@ -151,7 +151,7 @@ export function overlayPieces(
   sceneId: string,
   t: number,
   frame: Frame,
-): Piece[] {
+): Array<Piece> {
   const rand = random(seedOf(`${overlay}:${sceneId}`));
   if (overlay === "bubbles") return bubbles(rand, t, frame);
   if (overlay === "particles") return particles(rand, t, frame);

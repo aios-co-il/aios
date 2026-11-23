@@ -34,7 +34,7 @@ const PARAMS = {
   state: "tenant-1:state-1",
 };
 
-function requestedScopes(): string[] {
+function requestedScopes(): Array<string> {
   const url = new URL(buildFacebookAuthorizeUrl(PARAMS));
 
   return (url.searchParams.get("scope") ?? "").split(",");

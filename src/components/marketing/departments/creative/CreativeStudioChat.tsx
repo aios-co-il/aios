@@ -70,7 +70,7 @@ function AssistantText({ text }: { text: string }) {
 }
 
 /** Per project, kept while the studio is open so switching projects keeps each thread. */
-const threads = new Map<string, ChatEntry[]>();
+const threads = new Map<string, Array<ChatEntry>>();
 /** Per project, the server conversation its thread continues. */
 const conversations = new Map<string, string>();
 
@@ -84,7 +84,7 @@ export function CreativeStudioChat({
   onTurnDone,
   onClose,
 }: Props) {
-  const [entries, setEntries] = useState<ChatEntry[]>(
+  const [entries, setEntries] = useState<Array<ChatEntry>>(
     () => threads.get(itemId) ?? [],
   );
   const [draft, setDraft] = useState("");
@@ -241,11 +241,11 @@ export function CreativeStudioChat({
     }
   };
 
-  const uploadFiles = async (files: File[]) => {
+  const uploadFiles = async (files: Array<File>) => {
     if (files.length === 0) return;
     setUploading(true);
     try {
-      const lines: string[] = [];
+      const lines: Array<string> = [];
       for (const file of files.slice(0, 5)) {
         const asset = await uploadCreativeAsset({
           supabase,

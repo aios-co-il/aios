@@ -36,7 +36,7 @@ serve(async (_req) => {
         t.watch_expires_at < renewBefore,
     );
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const t of due) {
       try {
         const r = await fetch(

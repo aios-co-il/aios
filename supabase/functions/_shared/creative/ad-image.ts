@@ -34,7 +34,7 @@ export type AdImageResult =
     }
   | { success: false; error: string; suggestion?: string };
 
-const ENGINES: string[] = ["google", "elevenlabs", "higgsfield", "openai"];
+const ENGINES: Array<string> = ["google", "elevenlabs", "higgsfield", "openai"];
 export async function makeAdImage(
   supabase: Db,
   tenantId: string,

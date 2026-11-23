@@ -18,10 +18,10 @@ export interface ReconcileStore {
   listTables(opts: {
     afterId: string | null;
     limit: number;
-  }): Promise<ListedTable[]>;
+  }): Promise<Array<ListedTable>>;
   readAios: AiosReader;
   latestRun(tableId: string): Promise<LatestRun | null>;
-  saveRun(run: StoredRun, findings: ReconcileFinding[]): Promise<string>;
+  saveRun(run: StoredRun, findings: Array<ReconcileFinding>): Promise<string>;
   /** The orgs among these that switched the nightly check off (AIO-314). */
   tenantsOff(tenantIds: Array<string>): Promise<Set<string>>;
 }
@@ -49,11 +49,11 @@ export type ProcessedTable = {
 };
 
 export type ChunkResult = {
-  processed: ProcessedTable[];
+  processed: Array<ProcessedTable>;
   next_cursor: string | null;
   done: boolean;
   stopped: "budget" | "deadline" | "max_tables" | null;
   api_calls: number;
   /** Tables passed over after a platform-wide rate limit, to try again later. */
-  rate_limited_tables: string[];
+  rate_limited_tables: Array<string>;
 };

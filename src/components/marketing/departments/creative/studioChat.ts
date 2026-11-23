@@ -27,7 +27,7 @@ export interface StudioUiAction {
   drawer?: StudioDrawer;
 }
 
-const ACTION_TYPES: StudioUiActionType[] = [
+const ACTION_TYPES: Array<StudioUiActionType> = [
   "produce_video",
   "generate_variations",
   "single_variation",
@@ -39,7 +39,7 @@ const ACTION_TYPES: StudioUiActionType[] = [
   "focus_variation",
   "open_drawer",
 ];
-const DRAWERS: StudioDrawer[] = [
+const DRAWERS: Array<StudioDrawer> = [
   "projects",
   "project",
   "scene",
@@ -75,7 +75,7 @@ export function parseUiAction(value: unknown): StudioUiAction | null {
  * Paid actions whose studio button has no cost dialog of its own: the chat shows an
  * approval card first. Produce, animate and revise open their own dialogs on screen.
  */
-const NEEDS_CHAT_APPROVAL: StudioUiActionType[] = [
+const NEEDS_CHAT_APPROVAL: Array<StudioUiActionType> = [
   "generate_variations",
   "single_variation",
   "regenerate_frame",
@@ -154,12 +154,12 @@ export interface StudioStreamEvent {
 
 /** Splits an SSE buffer into complete `data:` events and the unfinished tail. */
 export function parseSseBuffer(buffer: string): {
-  events: StudioStreamEvent[];
+  events: Array<StudioStreamEvent>;
   rest: string;
 } {
   const lines = buffer.split("\n");
   const rest = lines.pop() ?? "";
-  const events: StudioStreamEvent[] = [];
+  const events: Array<StudioStreamEvent> = [];
   for (const line of lines) {
     if (!line.startsWith("data: ")) continue;
     const payload = line.slice(6).trim();
@@ -215,8 +215,8 @@ export type ChatPart =
 const MARKDOWN_IMAGE = /!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** Carmen's answer as text and pictures, so the skin portraits she shows appear as images. */
-export function chatParts(text: string): ChatPart[] {
-  const parts: ChatPart[] = [];
+export function chatParts(text: string): Array<ChatPart> {
+  const parts: Array<ChatPart> = [];
   let last = 0;
   for (const match of text.matchAll(MARKDOWN_IMAGE)) {
     const start = match.index ?? 0;
@@ -237,7 +237,7 @@ export interface StudioTurn {
   tenantId: string;
   clientId: string | null;
   contextAddon: string;
-  history: { role: "user" | "assistant"; content: string }[];
+  history: Array<{ role: "user" | "assistant"; content: string }>;
   /** The server's conversation for this project's chat, once its first turn started it. */
   conversationId?: string | null;
 }

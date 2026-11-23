@@ -42,10 +42,10 @@ function send({
   failing,
   fetchImpl,
 }: {
-  integrations: Row[];
-  responses?: { status?: number; body?: unknown }[];
+  integrations: Array<Row>;
+  responses?: Array<{ status?: number; body?: unknown }>;
   requesterUserId?: string | null;
-  roles?: Row[];
+  roles?: Array<Row>;
   failing?: Record<string, string>;
   fetchImpl?: typeof fetch;
 }) {
@@ -197,7 +197,7 @@ Deno.test("sendStaffAlert", async (t) => {
       assertStrictEquals(unknown.fetch.calls.length, 1);
 
       // A broken connection may come after the message left: not retried either.
-      const posted: string[] = [];
+      const posted: Array<string> = [];
       const broken = send({
         integrations: [
           line("manus-1", { created_at: "2026-02-01" }),

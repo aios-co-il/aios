@@ -2,7 +2,7 @@
 export type ErasePoint = { x: number; y: number };
 
 export type EraseMark =
-  | { type: "stroke"; points: ErasePoint[]; radius: number }
+  | { type: "stroke"; points: Array<ErasePoint>; radius: number }
   | { type: "rect"; x: number; y: number; width: number; height: number };
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -54,9 +54,9 @@ const erasePixel = (
   data[index + 3] = 0;
 };
 
-const interpolate = (points: ErasePoint[]): ErasePoint[] => {
+const interpolate = (points: Array<ErasePoint>): Array<ErasePoint> => {
   if (points.length <= 1) return points;
-  const result: ErasePoint[] = [points[0]];
+  const result: Array<ErasePoint> = [points[0]];
   for (let index = 1; index < points.length; index += 1) {
     const prev = points[index - 1];
     const next = points[index];
@@ -77,7 +77,7 @@ export const applyEraseMarks = <T extends ArrayBufferLike>(
   data: Uint8ClampedArray<T>,
   width: number,
   height: number,
-  marks: EraseMark[],
+  marks: Array<EraseMark>,
 ): Uint8ClampedArray<T> => {
   for (const mark of marks) {
     if (mark.type === "rect") {
