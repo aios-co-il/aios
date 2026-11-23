@@ -47,14 +47,20 @@ export async function readClientGscAccess(
   if (clientError) {
     throw accessCheckFailed("clients lookup", clientError.message);
   }
-  if (!client?.tenant_id) {
+  if (!client) {
     return { status: 403, error: "Client not found or access denied" };
   }
 
-  return {
-    userId: user.id,
-    tenantIds: await clientGscTenantIds(client.tenant_id, client.agency_id),
-  };
+  // An agency client may have no organization of its own; its agency's still count.
+  const tenantIds = await clientGscTenantIds(
+    client.tenant_id,
+    client.agency_id,
+  );
+  if (tenantIds.length === 0) {
+    return { status: 403, error: "Client not found or access denied" };
+  }
+
+  return { userId: user.id, tenantIds };
 }
 
 /** Whether access was refused. */
@@ -64,12 +70,15 @@ export function isGscRefusal(
   return "status" in result;
 }
 
-/** The client's organization plus every organization linked to its agency. */
+/** The client's organization, when it has one, plus every organization linked to its agency. */
 async function clientGscTenantIds(
-  clientTenantId: string,
+  clientTenantId: string | null,
   agencyId: string | null,
 ): Promise<Array<string>> {
-  const tenantIds = new Set([clientTenantId]);
+  const tenantIds = new Set<string>();
+  if (clientTenantId) {
+    tenantIds.add(clientTenantId);
+  }
   if (!agencyId) {
     return [...tenantIds];
   }

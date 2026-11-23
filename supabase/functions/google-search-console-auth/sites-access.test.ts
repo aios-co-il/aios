@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import { withRuntime } from "../_shared/testing/served-handler.ts";
 import { refuseGscSitesAccess } from "./sites-access.ts";
@@ -32,9 +32,13 @@ const env = {
 /**
  * A member of the client's organization and an outsider. The fake has no RLS,
  * so `visibleClient: false` leaves the client out, as RLS would for a caller
- * who may not see it.
+ * who may not see it. `failing` makes those tables or functions answer an error.
  */
-async function run<T>(fn: () => Promise<T>, visibleClient = true): Promise<T> {
+async function run<T>(
+  fn: () => Promise<T>,
+  visibleClient = true,
+  failing: Record<string, string> = {},
+): Promise<T> {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { member: MEMBER, outsider: OUTSIDER },
@@ -67,6 +71,7 @@ async function run<T>(fn: () => Promise<T>, visibleClient = true): Promise<T> {
       is_super_admin: () => false,
       user_has_integration_permission: () => false,
     },
+    failing,
   });
 
   return await withRuntime({ env, fetch: http.fetch }, fn);
@@ -104,6 +109,24 @@ Deno.test(
         refuseGscSitesAccess("Bearer member", AGENCY_GSC, CLIENT),
       ),
       null,
+    );
+  },
+);
+
+Deno.test(
+  "a failed membership lookup keeps the database message out of the error",
+  async () => {
+    const error = await assertRejects(() =>
+      run(
+        () => refuseGscSitesAccess("Bearer member", AGENCY_GSC, CLIENT),
+        true,
+        { tenant_users: "relation secret_internal_table does not exist" },
+      ),
+    );
+
+    assertEquals(
+      error instanceof Error ? error.message : null,
+      "Access check failed",
     );
   },
 );

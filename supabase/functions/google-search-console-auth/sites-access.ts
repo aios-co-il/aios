@@ -53,7 +53,13 @@ export async function refuseGscSitesAccess(
     return { status: 403, error: "Integration not found or access denied" };
   }
 
-  const access = await tenantUserAccess(sb, integration.tenant_id, user.id);
+  const access = await tenantUserAccess(
+    sb,
+    integration.tenant_id,
+    user.id,
+  ).catch((lookupError: unknown) => {
+    throw accessCheckFailed("membership lookup", String(lookupError));
+  });
   if (access.member || access.superAdmin) {
     return null;
   }

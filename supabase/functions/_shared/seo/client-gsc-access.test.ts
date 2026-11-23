@@ -31,17 +31,20 @@ const env = {
 
 /**
  * A member of the client's organization and an outsider. The fake has no RLS,
- * so `visibleClient: false` leaves the client out, as RLS would for a caller
- * who may not see it.
+ * so an empty `clients` leaves the client out, as RLS would for a caller who
+ * may not see it.
  */
-async function run<T>(fn: () => Promise<T>, visibleClient = true): Promise<T> {
+async function run<T>(
+  fn: () => Promise<T>,
+  clients: Array<Record<string, string | null>> = [
+    { id: CLIENT, tenant_id: CLIENT_TENANT, agency_id: AGENCY },
+  ],
+): Promise<T> {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { member: MEMBER, outsider: OUTSIDER },
     tables: {
-      clients: visibleClient
-        ? [{ id: CLIENT, tenant_id: CLIENT_TENANT, agency_id: AGENCY }]
-        : [],
+      clients,
       agency_tenant_access: [
         {
           agency_id: AGENCY,
@@ -104,10 +107,37 @@ Deno.test(
     );
     assertEquals(
       statusOf(
-        await run(() => readClientGscAccess("Bearer outsider", CLIENT), false),
+        await run(() => readClientGscAccess("Bearer outsider", CLIENT), []),
       ),
       403,
     );
+  },
+);
+
+Deno.test(
+  "an agency client without its own organization gets its agency's organizations",
+  async () => {
+    const access = await run(
+      () => readClientGscAccess("Bearer member", CLIENT),
+      [{ id: CLIENT, tenant_id: null, agency_id: AGENCY }],
+    );
+
+    assertEquals(
+      "tenantIds" in access ? [...access.tenantIds].sort() : [],
+      [CLIENT_TENANT, AGENCY_TENANT].sort(),
+    );
+  },
+);
+
+Deno.test(
+  "a client with neither an organization nor an agency is refused",
+  async () => {
+    const access = await run(
+      () => readClientGscAccess("Bearer member", CLIENT),
+      [{ id: CLIENT, tenant_id: null, agency_id: null }],
+    );
+
+    assertEquals(statusOf(access), 403);
   },
 );
 
