@@ -13,13 +13,15 @@ Before the first edit, before each push, and when reviewing code: read `CODING_S
 
 The CI gates already exist (AIO-24 TypeScript diagnostic baseline, AIO-25 ESLint with temporary per-rule warnings). A slice lowers that baseline or restores a rule to error severity.
 
+`pnpm typecheck` understates the type backlog: it checks only `src/`, leaves `noUnusedLocals` and `noUnusedParameters` off, and counts `any` as typed. Measure a TypeScript slice with its own flag or rule, before and after, as well as with `pnpm typecheck`.
+
 A **slice** is one rule or root cause in one directory or feature, at most ~15 files or ~100 changed lines, so a reviewer can verify it by reading the diff.
 
 ## 1. Claim
 
 1. Remeasure lint and typecheck on fresh `origin/develop`. Counts in the issues are history.
-2. List every sub-issue of AIO-26 with status, assignee, and linked PR. A slice is **taken** when any of these holds:
-   - its sub-issue is In Progress, In Review, or assigned to someone else (for example AIO-52, `no-explicit-any`, Stas);
+2. List every sub-issue of AIO-26 and the children of each (for example AIO-52's AIO-86 to AIO-92) with status, assignee, and linked PR. Search Linear issues and open PRs by the rule name too, since some rules live outside AIO-26 (for example AIO-258 covers `curly`, `func-style`, `no-non-null-assertion`). A slice is **taken** when any of these holds:
+   - its issue or one of its children is In Progress, In Review, or assigned to someone else (for example AIO-52, `no-explicit-any`, Stas). A parent issue that only groups work, such as AIO-258 in Backlog with no assignee or PR, does not take a slice;
    - an open PR, remote branch, or merged commit already covers the same rule and files;
    - it needs a runtime bug fix (AIO-19: agent mood/voice `tenantId`) or test-infrastructure repair (AIO-21: missing test dependencies, broken test imports), because other issues own those.
 3. Pick untaken slices. Cut oversized rules (`no-explicit-any`, `DynamicTableView`, broadcast hooks) down to one directory or file. With N > 1, pick N slices that share no files and no rule within one directory.
