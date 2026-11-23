@@ -11,6 +11,7 @@
 import { type Authorship, authorshipOf } from "./authorship.ts";
 import type { GroupHistory, GroupMessage } from "./messages.ts";
 import type { StaffRoster } from "../chat/roster.ts";
+import { isLeadNotice } from "./lead-notice.ts";
 import { isSubstantive } from "./substantive.ts";
 import type { GroupMark, GroupWatermark } from "./watermark.ts";
 
@@ -43,10 +44,15 @@ export function groupWindows(
 ): GroupWindow[] {
   return histories.flatMap((history) => {
     const mark = watermark.groups[history.group_id] ?? null;
-    const messages = history.messages
-      .filter((message) => isAfter(message, mark, from))
+    const fresh = history.messages.filter((message) =>
+      isAfter(message, mark, from),
+    );
+    // A lead notification is left out of the window but still moves the
+    // watermark, so a group with only new leads is not read again each round.
+    const messages = fresh
+      .filter((message) => !isLeadNotice(message.text))
       .map((message) => label(message, staff, history.client_tenant_id));
-    const last = messages.at(-1);
+    const last = fresh.at(-1);
     return last
       ? [
           {
