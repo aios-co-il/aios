@@ -625,7 +625,8 @@ async function getUserContext(supabase: any, userId: string, tenantId: string) {
     supabase
       .from("user_permissions")
       .select("module, can_access")
-      .eq("user_id", userId),
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId),
     supabase
       .from("profiles")
       .select("display_name, email")

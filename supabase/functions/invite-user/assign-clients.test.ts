@@ -4,7 +4,7 @@ import {
   type ClientAssignmentStore,
   supabaseClientAssignmentStore,
 } from "./assign-clients.ts";
-import { recordingDb } from "./recording-db.test-fixture.ts";
+import { recordingDb } from "../_shared/user-admin/recording-db.test-fixture.ts";
 
 /** In-memory store: clients by tenant and the existing client_team rows. */
 function fakeStore(

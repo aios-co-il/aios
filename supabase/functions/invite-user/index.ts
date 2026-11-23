@@ -742,6 +742,7 @@ serve(async (req: Request) => {
       if (modulePermissions && modulePermissions.length > 0) {
         const permissionsToInsert = modulePermissions.map((module) => ({
           user_id: newUserId,
+          tenant_id: tenantIdFinal,
           module,
           can_access: true,
         }));

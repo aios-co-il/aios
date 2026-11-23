@@ -5,18 +5,20 @@ import {
   joinExistingUser,
   supabaseExistingUserStore,
 } from "./join-existing-user.ts";
-import { recordingDb } from "./recording-db.test-fixture.ts";
+import { recordingDb } from "../_shared/user-admin/recording-db.test-fixture.ts";
 
 type FakeProfile = Record<string, string | null>;
 
-/** In-memory profile, memberships and permissions for one user. */
+type FakePermissions = Record<string, Array<string>>;
+
+/** In-memory profile, memberships and per-tenant permissions for one user. */
 function fakeStore(
   profile: FakeProfile | null,
   tenants: Array<string>,
-  permissions: Array<string>,
+  permissions: FakePermissions,
 ): ExistingUserStore & {
   profile: () => FakeProfile | null;
-  permissions: Array<string>;
+  permissions: FakePermissions;
 } {
   let current = profile;
   return {
@@ -38,13 +40,8 @@ function fakeStore(
       Object.assign(current ?? {}, links);
       return Promise.resolve();
     },
-    grantPermissions: (_userId, modules, keepOthers) => {
-      const kept = keepOthers ? permissions : [];
-      permissions.splice(
-        0,
-        permissions.length,
-        ...new Set([...kept, ...modules]),
-      );
+    setTenantPermissions: (_userId, tenantId, modules) => {
+      permissions[tenantId] = [...modules];
       return Promise.resolve();
     },
   };
@@ -74,7 +71,7 @@ describe("joinExistingUser", () => {
     const store = fakeStore(
       { status: "active", full_name: "Yuval", campaigner_id: "card-A" },
       ["A"],
-      ["leads", "clients"],
+      { A: ["leads", "clients"] },
     );
 
     await joinExistingUser(store, joinB);
@@ -84,11 +81,14 @@ describe("joinExistingUser", () => {
       full_name: "Yuval",
       campaigner_id: "card-A",
     });
-    assertEquals(store.permissions, ["leads", "clients", "tasks"]);
+    assertEquals(store.permissions, {
+      A: ["leads", "clients"],
+      B: ["clients", "tasks"],
+    });
   });
 
   it("a user in no other tenant gets B's card link and permissions", async () => {
-    const store = fakeStore({ status: "active", full_name: "" }, [], ["leads"]);
+    const store = fakeStore({ status: "active", full_name: "" }, [], {});
 
     await joinExistingUser(store, joinB);
 
@@ -97,11 +97,11 @@ describe("joinExistingUser", () => {
       full_name: "New Name",
       campaigner_id: "card-B",
     });
-    assertEquals(store.permissions, ["clients", "tasks"]);
+    assertEquals(store.permissions, { B: ["clients", "tasks"] });
   });
 
   it("a user without a profile gets a pending one", async () => {
-    const store = fakeStore(null, [], []);
+    const store = fakeStore(null, [], {});
 
     await joinExistingUser(store, { ...joinB, campaignerId: undefined });
 
@@ -109,15 +109,13 @@ describe("joinExistingUser", () => {
   });
 
   it("no modules leaves existing permissions untouched", async () => {
-    const store = fakeStore(
-      { status: "active", full_name: "Y" },
-      [],
-      ["leads"],
-    );
+    const store = fakeStore({ status: "active", full_name: "Y" }, [], {
+      B: ["leads"],
+    });
 
     await joinExistingUser(store, { ...joinB, modulePermissions: [] });
 
-    assertEquals(store.permissions, ["leads"]);
+    assertEquals(store.permissions, { B: ["leads"] });
   });
 });
 
@@ -143,36 +141,5 @@ describe("supabaseExistingUserStore", () => {
     await store.fillMissingName("u1", "New Name");
 
     assertEquals(calls.at(-1), ["or", "full_name.is.null,full_name.eq."]);
-  });
-
-  it("keeping others only adds modules the user lacks", async () => {
-    const { store, calls } = recordingStore();
-
-    await store.grantPermissions("u1", ["tasks"], true);
-
-    assertEquals(calls, [
-      ["from", "user_permissions"],
-      [
-        "upsert",
-        [{ user_id: "u1", module: "tasks", can_access: true }],
-        { onConflict: "user_id,module", ignoreDuplicates: true },
-      ],
-    ]);
-  });
-
-  it("replacing grants first, then revokes only the other modules", async () => {
-    const { store, calls } = recordingStore([
-      { module: "tasks" },
-      { module: "leads" },
-    ]);
-
-    await store.grantPermissions("u1", ["tasks"], false);
-
-    assertEquals(calls[1][0], "upsert");
-    assertEquals(calls.slice(-3), [
-      ["delete"],
-      ["eq", "user_id", "u1"],
-      ["in", "module", ["leads"]],
-    ]);
   });
 });
