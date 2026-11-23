@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCarmenFindingsMutation } from "@/hooks/useCarmenFindingsMutation";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   CollectorRunResult,
@@ -10,9 +10,9 @@ import type {
  * AIO-597) and refreshes the open findings it may have changed.
  */
 export function useRunCheckNow(tenantId: string | null) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (collector: RunnableCollectorId) => {
+  return useCarmenFindingsMutation(
+    tenantId,
+    async (collector: RunnableCollectorId) => {
       if (!tenantId) {
         throw new Error("אין ארגון פעיל");
       }
@@ -26,7 +26,5 @@ export function useRunCheckNow(tenantId: string | null) {
       }
       return data;
     },
-    onSettled: () =>
-      qc.invalidateQueries({ queryKey: ["carmen_findings", tenantId] }),
-  });
+  );
 }

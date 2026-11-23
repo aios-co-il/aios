@@ -1,8 +1,5 @@
-import { CampaignContinentsTab } from "@/components/dynamic-tables/CampaignContinents/CampaignContinentsTab";
-import {
-  googleCampaignNames,
-  namesCampaignsByDestination,
-} from "@/components/dynamic-tables/CampaignContinents/continentSections";
+import { DashboardContinentsView } from "@/components/dynamic-tables/CampaignContinents/DashboardContinentsView";
+import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinents/combinedContinents";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
 import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
@@ -675,10 +672,13 @@ export default function DashboardView() {
   }, [tables, hasSeoReports, hasWooCommerce]);
 
   // Travel accounts name each campaign by its destination; they get a tab per continent.
-  const hasContinentsTab = useMemo(
-    () => namesCampaignsByDestination(googleCampaignNames(displayAllRecords)),
+  // Meta and Google each earn a continents view when their campaign names
+  // name destinations; the tab shows when either does.
+  const continentsBy = useMemo(
+    () => continentPlatforms(displayAllRecords),
     [displayAllRecords],
   );
+  const hasContinentsTab = continentsBy.facebook || continentsBy.google;
   // A period whose campaigns stop naming destinations drops the tab; leave it too.
   useEffect(() => {
     if (platformFilter === "continents" && !hasContinentsTab) {
@@ -711,13 +711,13 @@ export default function DashboardView() {
         label: "Google Ads",
         iconNode: getIntegrationIcon("google_ads"),
       });
-      if (hasContinentsTab) {
-        items.push({
-          value: "continents",
-          label: "לפי יבשות",
-          iconNode: <Globe className="h-4 w-4 text-sky-600" />,
-        });
-      }
+    }
+    if (hasContinentsTab) {
+      items.push({
+        value: "continents",
+        label: "לפי יבשות",
+        iconNode: <Globe className="h-4 w-4 text-sky-600" />,
+      });
     }
     if (availablePlatforms.includes("google_analytics")) {
       items.push({
@@ -1160,7 +1160,9 @@ export default function DashboardView() {
   const facebookCampaignGroups = useMemo(
     () =>
       dashboardFacebookCampaigns(
-        platformFilter === "facebook" || platformFilter === "all"
+        platformFilter === "facebook" ||
+          platformFilter === "all" ||
+          platformFilter === "continents"
           ? filteredRecords
           : [],
         recordGoalOf,
@@ -1690,11 +1692,20 @@ export default function DashboardView() {
       ) : (
         <>
           {platformFilter === "continents" ? (
-            <CampaignContinentsTab
-              campaigns={googleAdsSummary.campaigns}
-              formatCurrency={money.google.formatCurrency}
-              formatNumber={formatNumber}
-              formatUnitCost={money.google.formatUnitCost}
+            <DashboardContinentsView
+              platforms={continentsBy}
+              facebook={{
+                campaigns: facebookCampaignGroups,
+                records: filteredRecords,
+                tables,
+                formatNumber,
+                ...money.facebook,
+              }}
+              google={{
+                campaigns: googleAdsSummary.campaigns,
+                formatNumber,
+                ...money.google,
+              }}
             />
           ) : platformFilter === "weekly" ? (
             <WeeklyCampaignComparison

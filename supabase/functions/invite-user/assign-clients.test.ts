@@ -4,6 +4,7 @@ import {
   type ClientAssignmentStore,
   supabaseClientAssignmentStore,
 } from "./assign-clients.ts";
+import { recordingDb } from "./recording-db.test-fixture.ts";
 
 /** In-memory store: clients by tenant and the existing client_team rows. */
 function fakeStore(
@@ -117,27 +118,6 @@ Deno.test(
     assertEquals(store.team, []);
   },
 );
-
-/** A Supabase client stand-in that records each query's calls and answers with `rows`. */
-function recordingDb(rows: Array<Record<string, unknown>>) {
-  const calls: Array<[string, ...Array<unknown>]> = [];
-  const result = Promise.resolve({ data: rows, error: null });
-  const chain: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "in", "or", "upsert"]) {
-    chain[method] = (...args: Array<unknown>) => {
-      calls.push([method, ...args]);
-      return chain;
-    };
-  }
-  chain.then = result.then.bind(result);
-  const db = {
-    from: (table: string) => {
-      calls.push(["from", table]);
-      return chain;
-    },
-  };
-  return { db, calls };
-}
 
 Deno.test("the store counts only assignments active today", async () => {
   const { db, calls } = recordingDb([{ client_id: "c1" }]);

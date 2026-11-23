@@ -36,6 +36,7 @@ export default defineConfig({
             "scripts/**/*.test.ts",
             ".github/scripts/**/*.test.mjs",
             ".claude/hooks/**/*.test.mjs",
+            ".claude/hooks/**/*.test.ts",
           ],
         },
       },
