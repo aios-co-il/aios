@@ -36,4 +36,4 @@ Only omit this section if the diff has no runtime behavior to exercise (pure doc
 
 ## Before opening
 
-Confirm the branch is pushed, then create the PR with the title from step 1 and a body containing the description (step 2) followed by the Verification section (step 3).
+Confirm `CODING_STANDARDS.md` step 3 passed on the current diff, including its recorded `/code-review`, and that the branch is pushed, then create the PR with the title from step 1 and a body containing the description (step 2) followed by the Verification section (step 3).
