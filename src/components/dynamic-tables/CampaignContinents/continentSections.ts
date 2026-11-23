@@ -2,10 +2,13 @@ import {
   addTotals,
   emptyTotals,
 } from "../GoogleAdsCampaignSection/googleAdsTotals";
+import { ratio } from "@/lib/reportNumber";
 import type {
   GoogleAdsCampaignSummaryRow,
+  GoogleAdsFormatters,
   GoogleAdsTotals,
 } from "../GoogleAdsCampaignSection/types";
+import { facebookCampaignNames } from "./facebookContinentSections";
 import {
   CONTINENT_TITLES,
   campaignContinent,
@@ -59,6 +62,29 @@ export function continentSections(
   );
 }
 
+export const GOOGLE_SUMMARY_HEADERS = [
+  "קמפיינים",
+  "הוצאה",
+  "קליקים",
+  "המרות",
+  "עלות להמרה",
+];
+
+/** A continent's Google Ads summary cells, under GOOGLE_SUMMARY_HEADERS. */
+export function googleSummaryCells(
+  { campaigns, totals }: ContinentSection,
+  { formatCurrency, formatNumber }: GoogleAdsFormatters,
+): Array<string> {
+  const cpa = ratio(totals.spend, totals.conversions);
+  return [
+    formatNumber(campaigns.length),
+    formatCurrency(totals.spend),
+    formatNumber(totals.clicks),
+    formatNumber(totals.conversions),
+    cpa > 0 ? formatCurrency(cpa) : "-",
+  ];
+}
+
 /**
  * Whether campaign names are destinations: at least two continents, and more
  * than half of the campaigns name one. Other accounts never see the tab.
@@ -98,4 +124,17 @@ export function recordCampaignNames(
       String(record.data?.campaign_name || record.data?.campaign || ""),
     )
     .filter(Boolean);
+}
+
+/**
+ * Which platforms' campaigns name destinations among a dashboard's records:
+ * each earns its own "לפי יבשות" view, and both together the combined one.
+ */
+export function continentPlatforms(
+  records: Array<{ _source?: string; data?: Record<string, unknown> | null }>,
+): { facebook: boolean; google: boolean } {
+  return {
+    facebook: namesCampaignsByDestination(facebookCampaignNames(records)),
+    google: namesCampaignsByDestination(googleCampaignNames(records)),
+  };
 }

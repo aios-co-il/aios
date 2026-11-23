@@ -37,4 +37,41 @@ describe("TableContinentsView", () => {
     expect(screen.getAllByText("כללי")).toHaveLength(2);
     expect(screen.getAllByText("$560").length).toBeGreaterThan(0);
   });
+
+  it("groups a Facebook table's campaigns by continent, in its currency", () => {
+    function meta(campaign_id: string, campaign_name: string, spend: number) {
+      return {
+        data: {
+          date: "2026-11-05",
+          entity_level: "campaign",
+          campaign_id,
+          campaign_name,
+          campaign_type: "lead",
+          result_kind: "leads",
+          spend,
+          clicks: 10,
+          impressions: 100,
+          leads: 2,
+        },
+      };
+    }
+
+    render(
+      <TableContinentsView
+        records={[
+          meta("1", "טיול לפטגוניה | לידים", 1200),
+          meta("2", "טיול ליפן | לידים", 800),
+        ]}
+        table={{
+          id: "eco-meta",
+          integration_type: "facebook_insights",
+          integration_settings: { currency: "ILS" },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("סיכום לפי יבשת")).toBeTruthy();
+    expect(screen.getByText("דרום אמריקה - Facebook לידים")).toBeTruthy();
+    expect(screen.getAllByText(/₪/).length).toBeGreaterThan(0);
+  });
 });
