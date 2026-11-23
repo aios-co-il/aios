@@ -7,15 +7,57 @@
 import { parseBlock } from "./page-block.ts";
 import { record } from "./page-fields.ts";
 
+/** Fields a lead form asks for besides name and phone (the app's leadForm.fields). */
+export const LANDING_FORM_FIELDS = ["companyName", "employees"] as const;
+export type LandingFormField = (typeof LANDING_FORM_FIELDS)[number];
+
 /** The lead form every landing page ends with; every call to action scrolls to it. */
 export interface LandingForm {
   buttonLabel: string;
   successMessage: string;
+  /** A line under the button, such as what the details are used for. */
+  privacyNote?: string;
+  fields?: Array<LandingFormField>;
+}
+
+/** A vertical video and its poster, files already in the pages repository (site/ or assets/). */
+export interface LandingVideo {
+  src: string;
+  poster: string;
+}
+
+/** A card: a title, and a line that explains it to a reader who is not an expert. */
+export interface LandingCard {
+  title: string;
+  body?: string;
 }
 
 export type LandingBlock =
-  | { type: "hero"; heading: string; subheading?: string; form: LandingForm }
-  | { type: "text"; heading?: string; body: string }
+  | {
+      type: "hero";
+      heading: string;
+      subheading?: string;
+      bullets?: Array<string>;
+      imageUrl?: string;
+      video?: LandingVideo;
+      form: LandingForm;
+    }
+  | {
+      type: "text";
+      heading?: string;
+      body: string;
+      points?: Array<string>;
+      closing?: string;
+      video?: LandingVideo;
+      /** A button under the text; like every call to action, it scrolls to the lead form. */
+      cta?: { label: string };
+    }
+  | {
+      type: "steps";
+      heading?: string;
+      items: Array<{ title: string; body: string }>;
+      closing?: string;
+    }
   | {
       type: "features";
       heading?: string;
@@ -29,8 +71,20 @@ export type LandingBlock =
   | {
       type: "services";
       heading?: string;
-      items: Array<string>;
+      items: Array<string | LandingCard>;
       tagline?: string;
+    }
+  | {
+      type: "testimonials";
+      heading?: string;
+      items: Array<{ quote: string; name: string; role?: string }>;
+      badges?: Array<string | LandingCard>;
+    }
+  | {
+      type: "comparison";
+      heading?: string;
+      columns: [string, string];
+      rows: Array<{ label: string; values: [string, string] }>;
     }
   | {
       type: "faq";
@@ -43,9 +97,12 @@ export type LandingBlock =
 export const LANDING_BLOCK_TYPES = [
   "hero",
   "text",
+  "steps",
   "features",
   "myths",
   "services",
+  "testimonials",
+  "comparison",
   "faq",
   "leadForm",
   "cta",

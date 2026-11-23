@@ -4,16 +4,27 @@ import {
   pageFolder,
   siteFile,
 } from "./page-files.ts";
+import {
+  type LoadPageAsset,
+  mediaFingerprint,
+  withPageAssets,
+} from "./page-assets.ts";
 import type { LandingTarget } from "./page-target.ts";
 import type { LandingState } from "./project.ts";
 import type { LandingRepo } from "./repo.ts";
 
 /** A page's files for one status, ready to push, and what the repository already holds. */
 export interface PreparedBuild {
-  files: Record<string, string>;
+  files: Record<string, string | Uint8Array>;
   digest: string;
   branch: string;
   newSite: boolean;
+  /**
+   * True when the build writes site.json (a new site, new tracking ids or a new domain). The landing-pages
+   * repository merges by itself only a pull request that changes exactly one page folder, so a
+   * person merges this one.
+   */
+  writesSite: boolean;
 }
 
 /**
@@ -24,14 +35,20 @@ export async function prepareBuild(
   repo: LandingRepo,
   target: LandingTarget,
   state: LandingState,
-  options: { itemId: string; status: "draft" | "published"; today: string },
+  options: {
+    itemId: string;
+    status: "draft" | "published";
+    today: string;
+    loadAsset: LoadPageAsset;
+  },
 ): Promise<PreparedBuild | { error: string }> {
   if (!state.blocks || !state.style) {
     return { error: "אין קופי וסגנון מאושרים לבנות מהם" };
   }
   const { subdomain } = target.site;
-  const existingSite = await repo.readFile(siteFile(subdomain));
-  if (existingSite !== null && !sameOwner(existingSite, target)) {
+  const siteText = await repo.readFile(siteFile(subdomain));
+  const existingSite = siteText === null ? null : jsonObjectOf(siteText);
+  if (siteText !== null && !sameOwner(existingSite, target)) {
     console.error(
       `landing build: site ${subdomain} in the repository belongs to another org or client`,
     );
@@ -40,25 +57,30 @@ export async function prepareBuild(
     };
   }
   const folder = pageFolder(subdomain, target.slug);
+  const media = await withPageAssets(state.blocks, folder, options.loadAsset);
+  if ("error" in media) {
+    return media;
+  }
   const existingPage = await repo.readFile(`${folder}/page.json`);
   const files = landingPageFiles({
     site: target.site,
     slug: target.slug,
     title: target.title,
     itemId: options.itemId,
-    blocks: state.blocks,
+    blocks: media.blocks,
     style: state.style,
     status: options.status,
-    createdAt: createdAtOf(existingPage) ?? options.today,
+    existingPage: existingPage ? jsonObjectOf(existingPage) : null,
     today: options.today,
-    newSite: existingSite === null,
+    existingSite,
   });
   const digest = await buildDigest(
     { subdomain, slug: target.slug, title: target.title },
-    files[`${folder}/content.json`],
+    files[`${folder}/content.json`] + (await mediaFingerprint(media.files)),
+    target.site,
   );
   return {
-    files,
+    files: { ...files, ...media.files },
     digest,
     // A draft lives on the page's own branch, which every rebuild replaces. A publish gets a
     // branch named after its build, so no later draft can change what a publishing pull request
@@ -68,30 +90,29 @@ export async function prepareBuild(
         ? `page/${subdomain}/${target.slug}`
         : `publish/${subdomain}/${target.slug}-${digest.slice(0, 12)}`,
     newSite: existingSite === null,
+    writesSite: siteFile(subdomain) in files,
   };
 }
 
 /** True when the repository's site.json names the same org and client as the project's site. */
-function sameOwner(siteJson: string, target: LandingTarget): boolean {
-  try {
-    const site = JSON.parse(siteJson) as Record<string, unknown>;
-    return (
-      site.tenantId === target.site.tenantId &&
-      site.clientId === target.site.clientId
-    );
-  } catch {
-    return false;
-  }
+function sameOwner(
+  site: Record<string, unknown> | null,
+  target: LandingTarget,
+): boolean {
+  return (
+    site !== null &&
+    site.tenantId === target.site.tenantId &&
+    site.clientId === target.site.clientId
+  );
 }
 
-/** The day an existing page was first built, from its page.json. */
-function createdAtOf(pageJson: string | null): string | null {
-  if (!pageJson) {
-    return null;
-  }
+/** A repository JSON file as an object; null for one that is not a JSON object. */
+function jsonObjectOf(text: string): Record<string, unknown> | null {
   try {
-    const created = (JSON.parse(pageJson) as Record<string, unknown>).createdAt;
-    return typeof created === "string" ? created : null;
+    const parsed: unknown = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }

@@ -43,16 +43,9 @@ import {
 } from "lucide-react";
 import { ShareIntegrationTenantsDialog } from "@/components/forms/ShareIntegrationTenantsDialog";
 import { IntegrationVisibilitySelector } from "@/components/forms/IntegrationVisibilitySelector";
+import { manusWebhookSecretToSave } from "@/lib/manusWebhookSecret";
 
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) || "";
-
-function genSecret() {
-  const arr = new Uint8Array(24);
-  crypto.getRandomValues(arr);
-  return Array.from(arr)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 type Integration = {
   id: string;
@@ -149,7 +142,7 @@ export default function ManusWhatsAppSettings({
       instanceId: "",
       apiKey: "",
       countryCode: "972",
-      webhookSecret: genSecret(),
+      webhookSecret: "",
     });
     setDialogOpen(true);
   };
@@ -173,7 +166,7 @@ export default function ManusWhatsAppSettings({
       if (!form.displayName.trim()) throw new Error("נא לתת שם לחיבור");
       if (!form.instanceId || !form.apiKey)
         throw new Error("נא למלא Instance ID ו-API Key");
-      const secret = form.webhookSecret || genSecret();
+      const secret = manusWebhookSecretToSave(form.webhookSecret);
       const existing = editingId
         ? integrations.find((i) => i.id === editingId)
         : null;
@@ -402,8 +395,9 @@ export default function ManusWhatsAppSettings({
                 3
               </Badge>
               <span>
-                בטאב ה-Webhook של ה-Instance, הדבק את ה-Webhook URL ואת
-                ה-Webhook Secret
+                בטאב ה-Webhook של ה-Instance, הדבק את ה-Webhook URL. את ה-Secret
+                ש-Manus מציג אפשר להעתיק לחיבור, ואם לא — הוא ייקלט מה-webhook
+                הראשון
               </span>
             </li>
           </ol>
@@ -537,6 +531,16 @@ export default function ManusWhatsAppSettings({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
+                  {s.webhook_error?.reason === "secret_mismatch" && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        הודעות נכנסות נדחות: הסוד ש-Manus שולח לא תואם ל-Webhook
+                        Secret שבכרטיס הזה. לחץ "סנכרן סוד" ושלח הודעת בדיקה, או
+                        הזן ב-Manus את הסוד שבכרטיס.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {s.instance_id && !inboundOk && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
@@ -545,8 +549,9 @@ export default function ManusWhatsAppSettings({
                         ה-Instance ID וה-API Key בלבד, אבל קבלה דורשת Webhook
                         בצד Manus: בדשבורד של Manus → Instance{" "}
                         <code dir="ltr">{s.instance_id}</code> → טאב Webhook,
-                        הזן את ה-Webhook URL מהכרטיס העליון ואת ה-Webhook Secret
-                        שבכרטיס הזה, וסמן <strong>message</strong> ו-
+                        הזן את ה-Webhook URL מהכרטיס העליון, ודא שה-Secret שם
+                        זהה לזה שבכרטיס הזה (או לחץ "סנכרן סוד"), וסמן{" "}
+                        <strong>message</strong> ו-
                         <strong>message_ack</strong>.
                       </AlertDescription>
                     </Alert>
@@ -569,7 +574,7 @@ export default function ManusWhatsAppSettings({
                           className="font-mono text-xs truncate flex-1"
                           dir="ltr"
                         >
-                          {s.webhook_secret || "(אין)"}
+                          {s.webhook_secret || "(ייקלט מה-webhook הבא)"}
                         </code>
                         {s.webhook_secret && (
                           <Button
@@ -668,7 +673,10 @@ export default function ManusWhatsAppSettings({
               <div className="flex gap-2">
                 <Input
                   value={form.webhookSecret}
-                  readOnly
+                  onChange={(e) =>
+                    setForm({ ...form, webhookSecret: e.target.value })
+                  }
+                  placeholder="ריק: ייקלט מה-webhook הראשון של Manus"
                   dir="ltr"
                   className="font-mono text-xs"
                 />
@@ -680,23 +688,14 @@ export default function ManusWhatsAppSettings({
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() =>
-                    setForm({ ...form, webhookSecret: genSecret() })
-                  }
-                >
-                  צור חדש
-                </Button>
               </div>
             </div>
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 בדשבורד של Manus → טאב Webhook של ה-Instance הזה: הזן את ה-URL
-                וה-Secret מלמעלה. סמן <strong>message</strong> ו-
+                מלמעלה והעתק לכאן את ה-Secret ש-Manus מציג (או השאר ריק). סמן{" "}
+                <strong>message</strong> ו-
                 <strong>message_ack</strong>.
               </AlertDescription>
             </Alert>

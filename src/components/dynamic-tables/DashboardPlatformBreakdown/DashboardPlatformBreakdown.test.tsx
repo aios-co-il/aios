@@ -1,80 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { FacebookCampaignRow } from "@/lib/adsMetrics";
 import {
-  combinedDashboardLeads,
-  combinedDashboardSales,
-  type DashboardStore,
-} from "@/lib/dashboardCombinedFigures";
-import { summarizeDashboardGoals } from "@/lib/dashboardGoalSummary";
-import type { GoogleAdsCampaignSummaryRow } from "../GoogleAdsCampaignSection/types";
-import { DashboardPlatformBreakdown } from "./DashboardPlatformBreakdown";
-
-const fbCampaign = (
-  name: string,
-  data: Partial<FacebookCampaignRow>,
-): FacebookCampaignRow => ({
-  name,
-  impressions: 1000,
-  clicks: 50,
-  spend: 0,
-  leads: 0,
-  purchases: 0,
-  purchase_value: 0,
-  add_to_cart: 0,
-  ...data,
-});
-
-const googleCampaign = (
-  name: string,
-  goal: "ecommerce" | "leads",
-  data: Partial<GoogleAdsCampaignSummaryRow>,
-): GoogleAdsCampaignSummaryRow => ({
-  name,
-  campaign_id: name,
-  goal,
-  off: false,
-  impressions: 500,
-  clicks: 25,
-  spend: 0,
-  conversions: 0,
-  conversions_value: 0,
-  ...data,
-});
-
-const format = {
-  formatCurrency: (value: number) => `₪${Math.round(value)}`,
-  formatNumber: (value: number) => String(Math.round(value)),
-  formatUnitCost: (value: number) => `₪${value.toFixed(2)}`,
-};
-
-function renderBreakdown(
-  platforms: Parameters<typeof summarizeDashboardGoals>[0],
-  store: DashboardStore | null,
-) {
-  const summary = summarizeDashboardGoals(platforms);
-  render(
-    <DashboardPlatformBreakdown
-      summary={summary}
-      sales={combinedDashboardSales(summary, store)}
-      leads={combinedDashboardLeads(summary)}
-      revenueSource={store?.source ?? null}
-      platformLabel={(platform) => ({
-        name: platform === "google_ads" ? "Google Ads" : "Facebook",
-        color: "",
-        icon: null,
-      })}
-      format={format}
-    />,
-  );
-}
-
-const headers = () =>
-  screen.getAllByRole("columnheader").map((cell) => cell.textContent);
-const cellsOf = (rowName: string | RegExp) =>
-  [...(screen.getByText(rowName).closest("tr")?.querySelectorAll("td") ?? [])]
-    .slice(1)
-    .map((cell) => cell.textContent);
+  cellsOf,
+  fbCampaign,
+  googleCampaign,
+  headers,
+  renderBreakdown,
+} from "./DashboardPlatformBreakdown.test-fixture";
 
 describe("DashboardPlatformBreakdown", () => {
   it("a dashboard of lead campaigns has no sales, revenue or ROAS columns", () => {

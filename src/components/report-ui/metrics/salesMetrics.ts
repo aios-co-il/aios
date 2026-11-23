@@ -11,7 +11,11 @@ import {
   costPerPurchase,
   purchaseValueUnreported,
 } from "@/lib/dashboardCombinedFigures";
-import type { ReportMetric, ReportMetricKey } from "./reportMetricTypes";
+import type {
+  ReportMetric,
+  ReportMetricKey,
+  ReportMoneyKind,
+} from "./reportMetricTypes";
 import {
   analyticsCarts,
   isWoo,
@@ -20,6 +24,7 @@ import {
   salesOf,
   salesSource,
 } from "./salesFigures";
+import type { ReportFigures } from "./reportFigures";
 
 type SalesKey =
   | "purchases"
@@ -48,6 +53,7 @@ export const SALES_METRICS: Record<SalesKey, ReportMetric> = {
       purchaseValueUnreported(salesOf(f)) ? null : salesOf(f).revenue,
     whyEmpty: () => "הרכישות ללא ערך",
     source: salesSource,
+    money: (f) => (f.store ? "site" : "ads"),
   },
   roas: {
     key: "roas",
@@ -62,6 +68,7 @@ export const SALES_METRICS: Record<SalesKey, ReportMetric> = {
         ? "הרכישות ללא ערך · נמדד בעלות לרכישה"
         : "אין הוצאה בתקופה",
     source: (f) => (f.store ? `${f.store.source} מול ההוצאה` : null),
+    money: spendAgainstSales,
   },
   purchases: {
     key: "purchases",
@@ -83,6 +90,7 @@ export const SALES_METRICS: Record<SalesKey, ReportMetric> = {
     compute: (f) => costPerPurchase(salesOf(f)),
     whyEmpty: () => "אין רכישות בתקופה",
     source: salesSource,
+    money: spendAgainstSales,
   },
   addToCart: {
     key: "addToCart",
@@ -139,5 +147,11 @@ export const SALES_METRICS: Record<SalesKey, ReportMetric> = {
     // Without a store the revenue already is the platforms' figure.
     available: (f) => f.store !== null,
     source: () => "ערך ההמרות שדיווחו Meta ו-Google",
+    money: () => "ads",
   },
 } satisfies Partial<Record<ReportMetricKey, ReportMetric>>;
+
+/** Spend over the store's sales, or over the campaigns' own without a store. */
+function spendAgainstSales(f: ReportFigures): ReportMoneyKind {
+  return f.store ? "spendVsSite" : "ads";
+}

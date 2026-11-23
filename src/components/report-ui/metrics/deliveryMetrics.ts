@@ -8,7 +8,11 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import type { ReportMetric, ReportMetricKey } from "./reportMetricTypes";
+import type {
+  ReportMetric,
+  ReportMetricKey,
+  ReportMoneyKind,
+} from "./reportMetricTypes";
 
 type DeliveryKey =
   | "spend"
@@ -31,6 +35,7 @@ export const DELIVERY_METRICS: Record<DeliveryKey, ReportMetric> = {
     goodWhen: "either",
     scopes: ["all", "ecommerce", "leads", "traffic"],
     compute: (f) => f.spend,
+    money: ads,
   },
   impressions: {
     key: "impressions",
@@ -69,6 +74,7 @@ export const DELIVERY_METRICS: Record<DeliveryKey, ReportMetric> = {
     scopes: ["all", "traffic"],
     compute: (f) => ratio(f.spend, f.clicks),
     whyEmpty: () => "אין קליקים",
+    money: ads,
   },
   cpm: {
     key: "cpm",
@@ -82,6 +88,7 @@ export const DELIVERY_METRICS: Record<DeliveryKey, ReportMetric> = {
       return perImpression === null ? null : perImpression * 1000;
     },
     whyEmpty: () => "אין חשיפות",
+    money: ads,
   },
   leads: {
     key: "leads",
@@ -101,6 +108,7 @@ export const DELIVERY_METRICS: Record<DeliveryKey, ReportMetric> = {
     scopes: ["all", "leads"],
     compute: (f) => ratio(f.spend, f.leads),
     whyEmpty: () => "אין לידים בתקופה",
+    money: ads,
   },
   sessions: {
     key: "sessions",
@@ -113,6 +121,11 @@ export const DELIVERY_METRICS: Record<DeliveryKey, ReportMetric> = {
     available: (f) => f.analytics !== null,
   },
 } satisfies Partial<Record<ReportMetricKey, ReportMetric>>;
+
+/** An ads platform amount. */
+function ads(): ReportMoneyKind {
+  return "ads";
+}
 
 /** a / b, or null when b is not positive. */
 export function ratio(a: number, b: number): number | null {

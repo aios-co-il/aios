@@ -34,7 +34,7 @@ export function groupWeeklyRowsByGoal(
   return groupRowsByCampaignGoal(rows, (row) => row.kind).map((group) => ({
     kind: group.goal,
     rows: group.rows,
-    totals: goalTotals(group.rows),
+    totals: weeklyGoalTotals(group.rows),
   }));
 }
 
@@ -89,7 +89,9 @@ export function weeklySourceModesForTables(
  * Totals of one goal: its own results, cost per result, (sales only) ROAS and
  * the followers its campaigns gained.
  */
-function goalTotals(rows: WeeklyCampaignRow[]): WeeklyGoalTotals {
+export function weeklyGoalTotals(
+  rows: Array<WeeklyCampaignRow>,
+): WeeklyGoalTotals {
   const totals = rows.reduce(
     (sum, row) => {
       sum.impressions += row.impressions;

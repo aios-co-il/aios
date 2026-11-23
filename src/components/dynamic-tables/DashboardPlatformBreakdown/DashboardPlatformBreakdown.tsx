@@ -1,51 +1,23 @@
-import { Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import {
-  costPerPurchase,
-  goalCpl,
-  goalRoas,
   purchaseValueUnreported,
   type DashboardCombinedSales,
-  type DashboardRevenueSource,
 } from "@/lib/dashboardCombinedFigures";
+import { hasSeveralGoals } from "@/lib/dashboardGoalSummary";
 import {
-  CAMPAIGN_GOAL_TITLES,
-  CAMPAIGN_GOAL_TOTAL_LABELS,
-  groupRowsByCampaignGoal,
-} from "@/lib/campaignGoals";
-import {
-  hasSeveralGoals,
-  type DashboardGoalRow,
-  type DashboardGoalSummary,
-} from "@/lib/dashboardGoalSummary";
-import type { GoogleAdsFormatters } from "../GoogleAdsCampaignSection/types";
-import {
-  DeliveryCells,
-  GoalRowLabel,
-  LeadCells,
-  SalesCells,
-  type PlatformLabelOf,
-} from "./BreakdownCells";
-
-type Props = {
-  summary: DashboardGoalSummary;
-  /** Combined sales of the total row (combinedDashboardSales). */
-  sales: DashboardCombinedSales;
-  /** Combined leads of the total row (combinedDashboardLeads). */
-  leads: { leads: number; cpl: number };
-  /** Null when the total row's revenue is what the sales campaigns report. */
-  revenueSource: DashboardRevenueSource | null;
-  platformLabel: PlatformLabelOf;
-  format: GoogleAdsFormatters;
-};
+  REVENUE_SOURCE_LABELS,
+  unvaluedSales,
+  type BreakdownProps,
+} from "./breakdownFigures";
+import { GoalSections } from "./GoalSections";
+import { MixedRows } from "./MixedRows";
 
 const DELIVERY_HEADERS = [
   "פלטפורמה",
@@ -66,17 +38,12 @@ const SALES_HEADERS = [
  * The sales columns; without revenue and ROAS when the purchases carry no
  * value, which are then measured by cost per purchase alone.
  */
-function salesHeaders(sales: DashboardCombinedSales): string[] {
+function salesHeaders(sales: DashboardCombinedSales): Array<string> {
   return purchaseValueUnreported(sales)
     ? SALES_HEADERS.filter((label) => label !== "הכנסות" && label !== "ROAS")
     : SALES_HEADERS;
 }
 const LEAD_HEADERS = ["לידים", "עלות לליד"];
-
-const REVENUE_SOURCE_LABELS: Record<DashboardRevenueSource, string> = {
-  WooCommerce: "הכנסות WooCommerce",
-  Analytics: "הכנסות מ-Analytics",
-};
 
 /**
  * The "All" tab's breakdown of the internal and shared dashboards: a row per
@@ -92,7 +59,8 @@ export function DashboardPlatformBreakdown({
   revenueSource,
   platformLabel,
   format,
-}: Props) {
+  currencies,
+}: BreakdownProps) {
   const showSales = summary.hasEcommerce;
   const showLeads = summary.hasLeads;
   const headers = [
@@ -126,6 +94,7 @@ export function DashboardPlatformBreakdown({
                   revenueSource={revenueSource}
                   platformLabel={platformLabel}
                   format={format}
+                  currencies={currencies}
                   columnCount={headers.length}
                 />
               ) : (
@@ -136,6 +105,7 @@ export function DashboardPlatformBreakdown({
                   revenueSource={revenueSource}
                   platformLabel={platformLabel}
                   format={format}
+                  currencies={currencies}
                 />
               )}
             </TableBody>
@@ -155,178 +125,5 @@ export function DashboardPlatformBreakdown({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-/** A sales row's figures; null for a row of another goal. */
-function rowSales({ goal, metrics }: DashboardGoalRow) {
-  return goal === "ecommerce"
-    ? {
-        ...metrics,
-        roas: goalRoas(metrics),
-        costPerPurchase: costPerPurchase(metrics),
-      }
-    : null;
-}
-
-/** Whether a sales row reports purchases without their value. */
-function unvaluedSales(summary: DashboardGoalSummary): boolean {
-  return summary.rows.some(
-    (row) => row.goal === "ecommerce" && purchaseValueUnreported(row.metrics),
-  );
-}
-
-/** A lead row's leads and cost per lead; null for a row of another goal. */
-function rowLeads({ goal, metrics }: DashboardGoalRow) {
-  return goal === "leads"
-    ? { leads: metrics.leads, cpl: goalCpl(metrics) }
-    : null;
-}
-
-/** One row per platform and goal, then one total row: a single-goal dashboard. */
-function MixedRows({
-  summary,
-  sales,
-  leads,
-  revenueSource,
-  platformLabel,
-  format,
-}: Props) {
-  const showSales = summary.hasEcommerce;
-  const showLeads = summary.hasLeads;
-  return (
-    <>
-      {summary.rows.map((row) => (
-        <TableRow key={row.key}>
-          <TableCell className="font-medium">
-            <GoalRowLabel row={row} platformLabel={platformLabel} />
-          </TableCell>
-          <DeliveryCells metrics={row.metrics} format={format} />
-          {showSales && (
-            <SalesCells
-              withValue={!purchaseValueUnreported(sales)}
-              figures={rowSales(row)}
-              format={format}
-            />
-          )}
-          {showLeads && <LeadCells figures={rowLeads(row)} format={format} />}
-        </TableRow>
-      ))}
-      <TableRow className="bg-muted/50 font-bold border-t-2">
-        <TableCell>
-          סה"כ
-          {showSales && revenueSource && (
-            <span className="text-xs font-normal text-muted-foreground block">
-              {REVENUE_SOURCE_LABELS[revenueSource]} / הוצאות פרסום ללא קמפייני
-              לידים
-            </span>
-          )}
-        </TableCell>
-        <DeliveryCells metrics={summary.total} format={format} />
-        {showSales && (
-          <SalesCells
-            withValue={!purchaseValueUnreported(sales)}
-            figures={{
-              ...sales,
-              addToCartTracked: sales.addToCart > 0,
-            }}
-            format={format}
-          />
-        )}
-        {showLeads && <LeadCells figures={leads} format={format} />}
-      </TableRow>
-    </>
-  );
-}
-
-/**
- * Each goal under its own heading with a subtotal of only what that goal is
- * measured on, then a total of what every goal shares: a dashboard with
- * campaigns of several goals.
- */
-function GoalSections({
-  summary,
-  sales,
-  leads,
-  revenueSource,
-  platformLabel,
-  format,
-  columnCount,
-}: Props & { columnCount: number }) {
-  const showSales = summary.hasEcommerce;
-  const showLeads = summary.hasLeads;
-  return (
-    <>
-      {groupRowsByCampaignGoal(summary.rows, (row) => row.goal).map(
-        ({ goal, rows }) => (
-          <Fragment key={goal}>
-            <TableRow className="bg-muted/30 hover:bg-muted/30">
-              <TableCell colSpan={columnCount} className="font-semibold">
-                {CAMPAIGN_GOAL_TITLES[goal]}
-              </TableCell>
-            </TableRow>
-            {rows.map((row) => (
-              <TableRow key={row.key}>
-                <TableCell className="font-medium">
-                  <GoalRowLabel row={row} platformLabel={platformLabel} />
-                </TableCell>
-                <DeliveryCells metrics={row.metrics} format={format} />
-                {showSales && (
-                  <SalesCells
-                    withValue={!purchaseValueUnreported(sales)}
-                    figures={rowSales(row)}
-                    format={format}
-                  />
-                )}
-                {showLeads && (
-                  <LeadCells figures={rowLeads(row)} format={format} />
-                )}
-              </TableRow>
-            ))}
-            <TableRow className="font-semibold border-b-2">
-              <TableCell>
-                {CAMPAIGN_GOAL_TOTAL_LABELS[goal]}
-                {goal === "ecommerce" && revenueSource && (
-                  <span className="text-xs font-normal text-muted-foreground block">
-                    {REVENUE_SOURCE_LABELS[revenueSource]} / הוצאות פרסום ללא
-                    קמפייני לידים
-                  </span>
-                )}
-              </TableCell>
-              <DeliveryCells metrics={summary.goals[goal]} format={format} />
-              {showSales && (
-                <SalesCells
-                  withValue={!purchaseValueUnreported(sales)}
-                  figures={
-                    goal === "ecommerce"
-                      ? { ...sales, addToCartTracked: sales.addToCart > 0 }
-                      : null
-                  }
-                  format={format}
-                />
-              )}
-              {showLeads && (
-                <LeadCells
-                  figures={goal === "leads" ? leads : null}
-                  format={format}
-                />
-              )}
-            </TableRow>
-          </Fragment>
-        ),
-      )}
-      <TableRow className="bg-muted/50 font-bold border-t-2">
-        <TableCell>סה"כ כל הקמפיינים</TableCell>
-        <DeliveryCells metrics={summary.total} format={format} />
-        {showSales && (
-          <SalesCells
-            withValue={!purchaseValueUnreported(sales)}
-            figures={null}
-            format={format}
-          />
-        )}
-        {showLeads && <LeadCells figures={null} format={format} />}
-      </TableRow>
-    </>
   );
 }

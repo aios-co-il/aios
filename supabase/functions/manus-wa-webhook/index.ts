@@ -1,4 +1,5 @@
 import { createWebhookHandler } from "./request-handler.ts";
+import { checkWebhookSecret, recordSecretCheck } from "./webhook-secret.ts";
 // redeploy trigger: rebundle _shared/carmen.ts — specific_phone no longer self-matches the
 // operator on outbound messages (stops Carmen replying in the operator's private chats).
 // redeploy trigger: session identity is chat JID only — never newest session / speaker phone (2026-08-27)
@@ -662,23 +663,37 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     }
 
     const settings = pickObj(integ.settings) || {};
-    const expectedSecret = settings.webhook_secret || "";
+    const secretCheck = checkWebhookSecret(
+      String(settings.webhook_secret || ""),
+      headerSecret,
+    );
 
     // Auto-heal: if DB has no secret yet, accept the first webhook secret we see and persist it.
-    if (!expectedSecret && headerSecret) {
-      const merged = { ...settings, webhook_secret: headerSecret };
+    if (secretCheck === "adopt") {
+      const merged = {
+        ...settings,
+        webhook_secret: headerSecret,
+        webhook_error: null,
+      };
       await supabase
         .from("tenant_integrations")
         .update({ settings: merged })
         .eq("id", integ.id);
       console.log("Auto-healed webhook_secret for instance", instanceId);
-    } else if (expectedSecret && expectedSecret !== headerSecret) {
-      // Log diagnostic info so we can see exactly what Manus sends, then ACK 200 so Manus doesn't disable the webhook.
+    } else {
+      await recordSecretCheck(
+        supabase,
+        { id: integ.id, tenant_id: integ.tenant_id, settings },
+        secretCheck,
+        Date.now(),
+      ).catch((err) => console.error("manus-wa-webhook:", err));
+    }
+    if (secretCheck === "mismatch") {
+      // ACK 200 so Manus doesn't disable the webhook; the settings page shows
+      // settings.webhook_error so the tenant can resync the secret.
       console.error(
         "Webhook secret mismatch for instance",
         instanceId,
-        "— received headers:",
-        JSON.stringify(Object.fromEntries(req.headers)),
         "received secret:",
         headerSecret ? `${headerSecret.slice(0, 6)}…` : "(none)",
       );

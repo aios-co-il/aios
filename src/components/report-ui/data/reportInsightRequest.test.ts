@@ -23,7 +23,11 @@ function campaign(name: string, spend: number): ReportCampaignRow {
 describe("reportInsightRequestOf", () => {
   it("sends each scope with its previous period and Analytics sessions", () => {
     const data: ReportData = {
-      currency: "ILS",
+      currencies: {
+        primary: "ILS",
+        byChannel: { facebook: "ILS", google_ads: "ILS" },
+        mixed: false,
+      },
       goals: ["leads"],
       askCarmen: true,
       scopes: {
@@ -37,6 +41,7 @@ describe("reportInsightRequestOf", () => {
           previousCampaigns: null,
           channels: [],
           daily: [],
+          dailyByChannel: [],
           campaigns: [campaign("א", 100)],
         },
       },
@@ -69,7 +74,11 @@ describe("reportInsightRequestOf", () => {
       campaign(`c${i}`, i),
     );
     const data: ReportData = {
-      currency: "ILS",
+      currencies: {
+        primary: "ILS",
+        byChannel: { facebook: "ILS", google_ads: "ILS" },
+        mixed: false,
+      },
       goals: ["traffic"],
       askCarmen: true,
       scopes: {
@@ -79,6 +88,7 @@ describe("reportInsightRequestOf", () => {
           previousCampaigns: null,
           channels: [],
           daily: [],
+          dailyByChannel: [],
           campaigns,
         },
       },
