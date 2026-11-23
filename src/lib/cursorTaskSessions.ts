@@ -27,7 +27,9 @@ export async function fetchActiveCursorSessions(
     .in("status", ["running", "busy"])
     .order("updated_at", { ascending: false })
     .limit(12);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []) as Array<CursorTaskSession>;
 }
 

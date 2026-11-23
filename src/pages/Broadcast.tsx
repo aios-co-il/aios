@@ -62,7 +62,9 @@ export default function Broadcast() {
   const broadcasts = (list.data || []) as Array<Broadcast>;
 
   const handleDelete = (id: string) => {
-    if (!confirm("למחוק את הדיוור?")) return;
+    if (!confirm("למחוק את הדיוור?")) {
+      return;
+    }
     remove.mutate(id, {
       onSuccess: () => toast.success("הדיוור נמחק"),
       onError: (e) => toast.error("שגיאה במחיקה: " + (e?.message || "")),

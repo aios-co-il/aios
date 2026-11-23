@@ -151,7 +151,9 @@ const discoverWabas = async (
     }
   };
 
-  if (explicitBusinessId) await readBusiness(explicitBusinessId, "business_id");
+  if (explicitBusinessId) {
+    await readBusiness(explicitBusinessId, "business_id");
+  }
 
   // A user token exposes the businesses it belongs to; a system user token does not.
   if (!found.length) {
@@ -166,8 +168,9 @@ const discoverWabas = async (
         .map((business: any) => business?.id)
         .filter(Boolean);
       steps.push({ source: "me/businesses", found: ids });
-      for (const businessId of ids)
+      for (const businessId of ids) {
         await readBusiness(businessId, `me/businesses/${businessId}`);
+      }
     } catch (error) {
       steps.push({
         source: "me/businesses",
@@ -200,11 +203,13 @@ const discoverWabas = async (
           const ids = (payload?.data ?? [])
             .map((entry: any) => entry?.id)
             .filter(Boolean);
-          if (edge === "assigned_whatsapp_business_accounts")
+          if (edge === "assigned_whatsapp_business_accounts") {
             found.push(...ids);
-          else
-            for (const businessId of ids)
+          } else {
+            for (const businessId of ids) {
               await readBusiness(businessId, `me/${businessId}`);
+            }
+          }
           steps.push({ source: `me/${edge}`, found: ids });
         } catch (error) {
           steps.push({
@@ -242,10 +247,12 @@ const listPhoneNumbers = async (
 };
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST")
+  }
+  if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -263,19 +270,23 @@ Deno.serve(async (request) => {
     const authHeader = request.headers.get("Authorization") ?? "";
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
 
-    if (!supabaseUrl || !serviceKey || !jwt)
+    if (!supabaseUrl || !serviceKey || !jwt) {
       return reply({ error: "unauthorized" }, 401);
+    }
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: authData, error: authError } = await admin.auth.getUser(jwt);
-    if (authError || !authData.user)
+    if (authError || !authData.user) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "config";
     const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
-    if (!tenantId) return reply({ error: "tenant_id_required" }, 400);
+    if (!tenantId) {
+      return reply({ error: "tenant_id_required" }, 400);
+    }
 
     const [{ data: membership }, { data: superAdmin }] = await Promise.all([
       admin
@@ -286,8 +297,9 @@ Deno.serve(async (request) => {
         .maybeSingle(),
       admin.rpc("is_super_admin", { _user_id: authData.user.id }),
     ]);
-    if (!membership && superAdmin !== true)
+    if (!membership && superAdmin !== true) {
       return reply({ error: "forbidden" }, 403);
+    }
 
     if (action === "config") {
       if (!appId || !configurationId) {
@@ -365,8 +377,9 @@ Deno.serve(async (request) => {
     if (action === "disconnect") {
       const integrationId =
         typeof body.integration_id === "string" ? body.integration_id : "";
-      if (!integrationId)
+      if (!integrationId) {
         return reply({ error: "integration_id_required" }, 400);
+      }
       const { data: integration } = await admin
         .from("tenant_integrations")
         .select("id,user_id")
@@ -384,20 +397,24 @@ Deno.serve(async (request) => {
         .from("tenant_integrations")
         .delete()
         .eq("id", integrationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return reply({ success: true });
     }
 
     /** One-time Cloud API registration for an already-connected number still ON_PREMISE. */
     if (action === "register_cloud_api") {
-      if (!appId || !appSecret)
+      if (!appId || !appSecret) {
         return reply({ error: "meta_whatsapp_not_configured" }, 503);
+      }
       const integrationId =
         typeof body.integration_id === "string" ? body.integration_id : "";
       const pin =
         typeof body.pin === "string" ? body.pin.replace(/\D/g, "") : "";
-      if (!integrationId)
+      if (!integrationId) {
         return reply({ error: "integration_id_required" }, 400);
+      }
       if (!/^\d{6}$/.test(pin)) {
         return reply(
           {
@@ -425,17 +442,21 @@ Deno.serve(async (request) => {
 
       const settings = (integration.settings ?? {}) as Record<string, unknown>;
       const phoneNumberId = String(settings.phone_number_id ?? "");
-      if (!phoneNumberId)
+      if (!phoneNumberId) {
         return reply({ error: "phone_number_id_missing" }, 400);
+      }
 
       const { data: tokenRow, error: tokenError } = await admin
         .from("meta_whatsapp_tokens")
         .select("access_token")
         .eq("integration_id", integrationId)
         .maybeSingle();
-      if (tokenError) throw tokenError;
-      if (!tokenRow?.access_token)
+      if (tokenError) {
+        throw tokenError;
+      }
+      if (!tokenRow?.access_token) {
         return reply({ error: "meta_whatsapp_token_missing" }, 400);
+      }
 
       const token = tokenRow.access_token;
       const fetchPhone = async () =>
@@ -523,7 +544,9 @@ Deno.serve(async (request) => {
         .from("tenant_integrations")
         .update({ settings: nextSettings })
         .eq("id", integrationId);
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       return reply({
         success: true,
@@ -556,8 +579,9 @@ Deno.serve(async (request) => {
       // The JS SDK cross-domain bridge sometimes hands back a "cb=" arbiter id.
       // That is never a usable authorization code.
       const code = rawCode.startsWith("cb=") ? "" : rawCode;
-      if (!code && !suppliedToken)
+      if (!code && !suppliedToken) {
         return reply({ error: "exchange_code_required" }, 400);
+      }
 
       if (code) {
         // Facebook Login for Business codes exchange with no redirect_uri at all.
@@ -586,8 +610,9 @@ Deno.serve(async (request) => {
           tokenUrl.searchParams.set("client_id", appId);
           tokenUrl.searchParams.set("client_secret", appSecret);
           tokenUrl.searchParams.set("code", code);
-          if (redirectUri !== null)
+          if (redirectUri !== null) {
             tokenUrl.searchParams.set("redirect_uri", redirectUri);
+          }
           const tokenResponse = await fetch(tokenUrl);
           const tokenPayload = await tokenResponse.json().catch(() => ({}));
           if (tokenResponse.ok && tokenPayload?.access_token) {
@@ -599,8 +624,9 @@ Deno.serve(async (request) => {
           // nothing left to retry, and further attempts only mask the real error.
           if (
             String(tokenPayload?.error?.message ?? "").includes("has been used")
-          )
+          ) {
             break;
+          }
         }
         if (!businessToken && !suppliedToken) {
           const metaMessage = lastError?.message ?? "";
@@ -645,9 +671,12 @@ Deno.serve(async (request) => {
           .select("access_token")
           .eq("tenant_id", tenantId)
           .maybeSingle();
-      if (storedCredentialError) throw storedCredentialError;
-      if (!storedCredential?.access_token)
+      if (storedCredentialError) {
+        throw storedCredentialError;
+      }
+      if (!storedCredential?.access_token) {
         return reply({ error: "access_token_required" }, 400);
+      }
       businessToken = String(storedCredential.access_token);
     }
 
@@ -689,7 +718,9 @@ Deno.serve(async (request) => {
       ...(Array.isArray(sessionInfo.waba_ids) ? sessionInfo.waba_ids : []),
       ...(sessionInfo.waba_id ? [sessionInfo.waba_id] : []),
     ]);
-    if (!wabaIds.length) wabaIds = debug.wabaIds;
+    if (!wabaIds.length) {
+      wabaIds = debug.wabaIds;
+    }
 
     let discoverySteps: Array<DiscoveryStep> = [];
     // Manual token management is intentionally broader than Embedded Signup:
@@ -707,7 +738,9 @@ Deno.serve(async (request) => {
           .select("settings")
           .eq("tenant_id", tenantId)
           .eq("integration_type", "meta_whatsapp");
-      if (knownIntegrationsError) throw knownIntegrationsError;
+      if (knownIntegrationsError) {
+        throw knownIntegrationsError;
+      }
       const knownWabaIds = (knownIntegrations ?? [])
         .map((integration: any) => integration?.settings?.waba_id)
         .filter(
@@ -772,7 +805,9 @@ Deno.serve(async (request) => {
           },
           { onConflict: "tenant_id" },
         );
-      if (credentialError) throw credentialError;
+      if (credentialError) {
+        throw credentialError;
+      }
     }
 
     // Lets the UI show the operator exactly which numbers Meta will connect.
@@ -879,11 +914,14 @@ Deno.serve(async (request) => {
         : allPhones;
       // A multi-WABA batch may select numbers from only some accounts. Accounts
       // without a selected phone are not errors; continue to the selected ones.
-      if (!phones.length && requestedPhoneIds.size) continue;
-      if (!phones.length)
+      if (!phones.length && requestedPhoneIds.size) {
+        continue;
+      }
+      if (!phones.length) {
         throw new Error(
           "No WhatsApp business phone number was returned by Meta",
         );
+      }
 
       for (const phone of phones) {
         if (requestedCoexistence && phone.is_on_biz_app !== true) {
@@ -928,7 +966,9 @@ Deno.serve(async (request) => {
             // Treat an already-registered number as success rather than failing
             // the whole connection.
             const message = error instanceof Error ? error.message : "";
-            if (!/already|registered/i.test(message)) throw error;
+            if (!/already|registered/i.test(message)) {
+              throw error;
+            }
             warnings.push(
               `${phone.display_phone_number || phone.id}: ${message}`,
             );
@@ -952,9 +992,11 @@ Deno.serve(async (request) => {
                 },
                 graphVersion,
               );
-              if (syncType === "history")
+              if (syncType === "history") {
                 historySyncRequestId = sync.request_id ?? null;
-              else contactsSyncRequestId = sync.request_id ?? null;
+              } else {
+                contactsSyncRequestId = sync.request_id ?? null;
+              }
             } catch (error) {
               warnings.push(
                 `${phone.display_phone_number || phone.id}: ${syncType} sync failed: ${
@@ -1018,7 +1060,9 @@ Deno.serve(async (request) => {
         const { data: saved, error: saveError } = await query
           .select("id")
           .single();
-        if (saveError) throw saveError;
+        if (saveError) {
+          throw saveError;
+        }
         const { error: tokenError } = await admin
           .from("meta_whatsapp_tokens")
           .upsert({
@@ -1027,8 +1071,9 @@ Deno.serve(async (request) => {
             updated_at: new Date().toISOString(),
           });
         if (tokenError) {
-          if (!existing)
+          if (!existing) {
             await admin.from("tenant_integrations").delete().eq("id", saved.id);
+          }
           throw tokenError;
         }
 

@@ -8,8 +8,9 @@ const pick = (
 ): string | null => {
   for (const k of keys) {
     const v = p[k];
-    if (v !== undefined && v !== null && String(v).trim() !== "")
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
       return String(v).trim();
+    }
   }
   return null;
 };
@@ -86,7 +87,9 @@ export function leadPhoneCandidates(event: PbxEvent): Array<string> {
   const keys: Array<string> = [];
   for (const phone of ordered) {
     const key = phoneMatchKey(phone);
-    if (key && !keys.includes(key)) keys.push(key);
+    if (key && !keys.includes(key)) {
+      keys.push(key);
+    }
   }
   return keys;
 }

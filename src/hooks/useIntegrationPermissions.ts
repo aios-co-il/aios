@@ -11,7 +11,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
   const { data: permissions, isLoading } = useQuery({
     queryKey: ["integration-permissions", integrationId],
     queryFn: async () => {
-      if (!integrationId) return [];
+      if (!integrationId) {
+        return [];
+      }
 
       // First get the permissions
       const { data: permData, error: permError } = await supabase
@@ -19,8 +21,12 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
         .select("*")
         .eq("integration_id", integrationId);
 
-      if (permError) throw permError;
-      if (!permData || permData.length === 0) return [];
+      if (permError) {
+        throw permError;
+      }
+      if (!permData || permData.length === 0) {
+        return [];
+      }
 
       // Then get the profiles for those users
       const userIds = permData.map((p) => p.user_id);
@@ -29,7 +35,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
         .select("id, full_name, email")
         .in("id", userIds);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        throw profilesError;
+      }
 
       // Combine the data
       return permData.map((perm) => ({
@@ -43,7 +51,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
   // Grant permission mutation
   const grantPermission = useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      if (!integrationId) throw new Error("No integration ID");
+      if (!integrationId) {
+        throw new Error("No integration ID");
+      }
 
       if (isGrantorLoading || !grantorId) {
         throw new Error("יש להתחבר מחדש כדי להעניק הרשאה");
@@ -57,7 +67,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
           granted_by: grantorId,
         });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -74,7 +86,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
   // Revoke permission mutation
   const revokePermission = useMutation({
     mutationFn: async ({ userId }: { userId: string }) => {
-      if (!integrationId) throw new Error("No integration ID");
+      if (!integrationId) {
+        throw new Error("No integration ID");
+      }
 
       const { error } = await supabase
         .from("integration_user_permissions")
@@ -82,7 +96,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
         .eq("integration_id", integrationId)
         .eq("user_id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -98,7 +114,9 @@ export function useIntegrationPermissions(integrationId: string | undefined) {
 
   // Check if user has permission
   const checkPermission = async (userId: string): Promise<boolean> => {
-    if (!integrationId) return false;
+    if (!integrationId) {
+      return false;
+    }
 
     const { data } = await supabase.rpc("user_has_integration_permission", {
       p_user_id: userId,

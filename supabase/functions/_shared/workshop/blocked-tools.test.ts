@@ -167,10 +167,12 @@ Deno.test(
       "recall_skills",
       ...NATIVE_DEV_TASK_TOOLS,
     ];
-    for (const name of kept)
+    for (const name of kept) {
       assertStrictEquals(isBlockedInWorkshop(name, true), false, name);
-    for (const name of kept)
+    }
+    for (const name of kept) {
       assertStrictEquals(workshopToolOffered(name, true), true, name);
+    }
   },
 );
 

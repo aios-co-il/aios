@@ -53,7 +53,9 @@ export function SystemJobEditor({
     queryKey: ["system-cron-jobs"],
     queryFn: async () => {
       const { data, error } = await db.rpc("list_system_cron_jobs");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<Record<string, any>>;
     },
   });
@@ -63,7 +65,9 @@ export function SystemJobEditor({
   const [schedule, setSchedule] = useState("");
   const [active, setActive] = useState(true);
   useEffect(() => {
-    if (!job) return;
+    if (!job) {
+      return;
+    }
     setSchedule(String(job.schedule ?? ""));
     setActive(Boolean(job.active));
   }, [job]);
@@ -82,7 +86,9 @@ export function SystemJobEditor({
         p_jobid: jobid,
         p_limit: 10,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<Record<string, any>>;
     },
   });
@@ -94,13 +100,17 @@ export function SystemJobEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!valid) throw new Error("תזמון לא תקין");
+      if (!valid) {
+        throw new Error("תזמון לא תקין");
+      }
       const { error } = await db.rpc("update_system_cron_job", {
         p_jobid: jobid,
         p_schedule: schedule,
         p_active: active,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -115,7 +125,9 @@ export function SystemJobEditor({
       const { error } = await db.rpc("run_system_cron_job_now", {
         p_jobid: jobid,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הופעל");
@@ -124,13 +136,16 @@ export function SystemJobEditor({
     onError: (e: any) => toast.error(e?.message ?? String(e)),
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">טוען…</p>;
-  if (!job)
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">טוען…</p>;
+  }
+  if (!job) {
     return (
       <p className="text-sm text-muted-foreground">
         המשימה לא נמצאה, או שאין הרשאה למשימות מערכת.
       </p>
     );
+  }
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -181,7 +196,9 @@ export function SystemJobEditor({
             className="h-8 w-32"
             onChange={(e) => {
               const [h, m] = e.target.value.split(":").map(Number);
-              if (Number.isNaN(h) || Number.isNaN(m)) return;
+              if (Number.isNaN(h) || Number.isNaN(m)) {
+                return;
+              }
               const utcHour = (h - israelOffsetHours() + 24) % 24;
               setSchedule(`${m} ${utcHour} * * *`);
             }}
@@ -237,7 +254,9 @@ export function SystemJobEditor({
         <Button
           variant="outline"
           onClick={() => {
-            if (window.confirm("להריץ את משימת המערכת עכשיו?")) runNow.mutate();
+            if (window.confirm("להריץ את משימת המערכת עכשיו?")) {
+              runNow.mutate();
+            }
           }}
           disabled={runNow.isPending}
         >

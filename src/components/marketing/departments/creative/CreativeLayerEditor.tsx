@@ -127,8 +127,9 @@ export function CreativeLayerEditor({
     }
     setSelectedLayerId((current) => {
       const layers = variation.layers ?? [];
-      if (current && layers.some((layer) => layer.id === current))
+      if (current && layers.some((layer) => layer.id === current)) {
         return current;
+      }
       return (
         layers.find((layer) => layer.type === "text")?.id ??
         layers.find((layer) => layer.type !== "background")?.id ??
@@ -227,7 +228,9 @@ export function CreativeLayerEditor({
   };
 
   const addLogoLayer = () => {
-    if (!logoUrl) return;
+    if (!logoUrl) {
+      return;
+    }
     const layer: CreativeLayer = {
       id: crypto.randomUUID(),
       type: "image",
@@ -258,7 +261,9 @@ export function CreativeLayerEditor({
   };
 
   const applyColor = (color: string) => {
-    if (!selectedLayer) return;
+    if (!selectedLayer) {
+      return;
+    }
     updateLayer(
       selectedLayer.id,
       selectedLayer.type === "shape" && !isIconLayer(selectedLayer)
@@ -288,7 +293,9 @@ export function CreativeLayerEditor({
   };
 
   const removeSelectedLayer = () => {
-    if (selectedLayerId) removeLayer(selectedLayerId);
+    if (selectedLayerId) {
+      removeLayer(selectedLayerId);
+    }
   };
 
   const applyShadow = (
@@ -296,7 +303,9 @@ export function CreativeLayerEditor({
     patch: Partial<ReturnType<typeof inferLayerShadow>>,
   ) => {
     const layer = layers.find((item) => item.id === layerId);
-    if (!layer) return;
+    if (!layer) {
+      return;
+    }
     updateLayer(
       layerId,
       withLayerShadow({ ...inferLayerShadow(layer), ...patch }),
@@ -314,17 +323,22 @@ export function CreativeLayerEditor({
   };
 
   useEffect(() => {
-    if (!isEditing) return;
+    if (!isEditing) {
+      return;
+    }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (event.key !== "Delete" && event.key !== "Backspace") {
+        return;
+      }
       const target = event.target as HTMLElement | null;
       if (
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
-      )
+      ) {
         return;
+      }
       if (selectedLayerId) {
         event.preventDefault();
         removeLayer(selectedLayerId);
@@ -339,7 +353,9 @@ export function CreativeLayerEditor({
     layer: CreativeLayer,
     mode: DragMode,
   ) => {
-    if (!isEditing) return;
+    if (!isEditing) {
+      return;
+    }
     event.stopPropagation();
     setSelectedLayerId(layer.id);
     dragRef.current = {
@@ -355,7 +371,9 @@ export function CreativeLayerEditor({
     const onMove = (event: MouseEvent) => {
       const drag = dragRef.current;
       const canvas = canvasRef.current;
-      if (!drag || !canvas) return;
+      if (!drag || !canvas) {
+        return;
+      }
 
       const rect = canvas.getBoundingClientRect();
       const dx = ((event.clientX - drag.startX) / rect.width) * 100;
@@ -506,10 +524,14 @@ export function CreativeLayerEditor({
             canvasClass,
           )}
           onClick={() => {
-            if (isEditing) setSelectedLayerId(null);
+            if (isEditing) {
+              setSelectedLayerId(null);
+            }
           }}
           onDoubleClick={() => {
-            if (!isEditing) setEditing(true);
+            if (!isEditing) {
+              setEditing(true);
+            }
           }}
         >
           <div ref={canvasRef} className="absolute inset-0">
@@ -568,11 +590,15 @@ export function CreativeLayerEditor({
                 }}
                 dir={layer.type === "text" ? overlayBoxDir : undefined}
                 onMouseDown={(event) => {
-                  if (!isEditing) return;
+                  if (!isEditing) {
+                    return;
+                  }
                   beginDrag(event, layer, "move");
                 }}
                 onClick={(event) => {
-                  if (!isEditing) return;
+                  if (!isEditing) {
+                    return;
+                  }
                   event.stopPropagation();
                   setSelectedLayerId(layer.id);
                 }}

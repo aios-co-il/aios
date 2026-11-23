@@ -36,8 +36,12 @@ const TALKING_USD_PER_SECOND = () =>
 
 const family = (model: string | null | undefined) => {
   const name = String(model ?? "").toLowerCase();
-  if (name.includes("veo")) return "veo";
-  if (name.includes("seedance")) return "seedance";
+  if (name.includes("veo")) {
+    return "veo";
+  }
+  if (name.includes("seedance")) {
+    return "seedance";
+  }
   return "kling";
 };
 
@@ -51,7 +55,9 @@ export const openRouterClipSeconds = (seconds: unknown, model = MODEL()) => {
     const value = Number(seconds) || 5;
     return value <= 4 ? 4 : value <= 6 ? 6 : 8;
   }
-  if (kind === "seedance") return between(seconds, 4, 30);
+  if (kind === "seedance") {
+    return between(seconds, 4, 30);
+  }
   return between(seconds, 3, 15);
 };
 
@@ -60,8 +66,12 @@ export const openRouterAspect = (
   aspect: string | undefined,
   model = MODEL(),
 ) => {
-  if (aspect === "16:9") return "16:9";
-  if (aspect === "1:1" && family(model) !== "veo") return "1:1";
+  if (aspect === "16:9") {
+    return "16:9";
+  }
+  if (aspect === "1:1" && family(model) !== "veo") {
+    return "1:1";
+  }
   return "9:16";
 };
 
@@ -73,7 +83,9 @@ export function openRouterClipBody({
   model,
   generateAudio = false,
 }: MediaInput) {
-  if (!imageUrl) throw new Error("openrouter needs a public image_url");
+  if (!imageUrl) {
+    throw new Error("openrouter needs a public image_url");
+  }
   return {
     model,
     prompt,
@@ -107,10 +119,11 @@ export function openRouterProvider({
 } = {}): OpenRouterProvider {
   const chosen = model || MODEL();
   const auth = () => {
-    if (!apiKey)
+    if (!apiKey) {
       throw beforeSubmit(
         "OpenRouter needs a connected OpenRouter brain with a key (brains, connections and AI keys)",
       );
+    }
     return {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
@@ -124,12 +137,15 @@ export function openRouterProvider({
       body: JSON.stringify(body),
     });
     const data = await providerJson<OpenRouterVideoResponse>(response);
-    if (!response.ok)
+    if (!response.ok) {
       throw beforeSubmit(
         `openrouter submit ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 300)}`,
         response.status,
       );
-    if (!data.id) throw beforeSubmit("openrouter submit returned no job id");
+    }
+    if (!data.id) {
+      throw beforeSubmit("openrouter submit returned no job id");
+    }
     return { jobId: data.id };
   };
   return {
@@ -172,10 +188,11 @@ export function openRouterProvider({
         headers: auth(),
       });
       const data = await providerJson<OpenRouterVideoResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `openrouter poll ${response.status}: ${JSON.stringify(data.error ?? data).slice(0, 200)}`,
         );
+      }
       if (data.status === "completed") {
         // The content URL needs the key, so the worker gets bytes, not a URL.
         const video = await fetchImpl(
@@ -184,10 +201,11 @@ export function openRouterProvider({
             headers: auth(),
           },
         );
-        if (!video.ok)
+        if (!video.ok) {
           throw new Error(
             `openrouter download ${video.status} (job ${jobId} kept for retry)`,
           );
+        }
         const cost = Number(data.usage?.cost);
         return {
           status: "succeeded",
@@ -200,7 +218,7 @@ export function openRouterProvider({
       if (
         data.status &&
         ["failed", "cancelled", "canceled", "expired"].includes(data.status)
-      )
+      ) {
         return {
           status: "failed",
           error:
@@ -208,6 +226,7 @@ export function openRouterProvider({
               ? data.error
               : data.error?.message) || `openrouter job ${data.status}`,
         };
+      }
       return { status: "pending" };
     },
   };

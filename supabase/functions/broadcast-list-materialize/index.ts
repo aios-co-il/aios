@@ -30,12 +30,15 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
-    if (!authHeader) return json({ error: "unauthorized" }, 401);
+    if (!authHeader) {
+      return json({ error: "unauthorized" }, 401);
+    }
     // Caller's JWT on purpose (not the service client): RLS keeps every
     // read and write inside the caller's tenant.
     const db = userClient(authHeader);
@@ -56,16 +59,23 @@ Deno.serve(async (req) => {
         .select("id, tenant_id, kind, source, source_config")
         .eq("id", body.listId)
         .maybeSingle();
-      if (error) throw error;
-      if (!data) return json({ error: "list_not_found" }, 404);
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        return json({ error: "list_not_found" }, 404);
+      }
       list = data;
       tenantId = data.tenant_id;
       filter = filter ?? toAudienceFilter(data.source_config) ?? undefined;
     }
 
-    if (!tenantId) return json({ error: "missing_tenant" }, 400);
-    if (!filter?.source || !["leads", "clients"].includes(filter.source))
+    if (!tenantId) {
+      return json({ error: "missing_tenant" }, 400);
+    }
+    if (!filter?.source || !["leads", "clients"].includes(filter.source)) {
       return json({ error: "filter_source_must_be_leads_or_clients" }, 400);
+    }
 
     const recipients = await resolveAudience(db, tenantId, filter);
     const withPhone = recipients.filter((r) => normalizePhone(r.phone)).length;
@@ -82,7 +92,9 @@ Deno.serve(async (req) => {
           .from("broadcast_lists")
           .update({ member_count: recipients.length })
           .eq("id", list.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
       return json({
         success: true,
@@ -93,9 +105,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!list) return json({ error: "missing_listId" }, 400);
-    if (list.kind !== "static" && list.kind !== "synced")
+    if (!list) {
+      return json({ error: "missing_listId" }, 400);
+    }
+    if (list.kind !== "static" && list.kind !== "synced") {
       return json({ error: "refresh_requires_member_list" }, 400);
+    }
 
     const rows = recipients
       .map((r) => ({
@@ -114,7 +129,9 @@ Deno.serve(async (req) => {
         p_rows: rows.slice(i, i + 500),
         p_added_via: "crm",
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       added += Number(data || 0);
     }
     await db

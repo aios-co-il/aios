@@ -19,7 +19,9 @@ const SIGNED_PATH = /\/storage\/v1\/object\/sign\/entity-attachments\/([^?]+)/;
 
 const extractAttachmentPath = (url: string): string | null => {
   const match = url.match(PUBLIC_PATH) ?? url.match(SIGNED_PATH);
-  if (!match?.[1]) return null;
+  if (!match?.[1]) {
+    return null;
+  }
   try {
     return decodeURIComponent(match[1]);
   } catch {
@@ -31,12 +33,16 @@ const CONCEPT_LEAD = /MUST FOLLOW THIS APPROVED VISUAL CONCEPT/i;
 
 const wrapSocialImagePrompt = (prompt: string) => {
   const trimmed = prompt.trim();
-  if (CONCEPT_LEAD.test(trimmed)) return trimmed;
+  if (CONCEPT_LEAD.test(trimmed)) {
+    return trimmed;
+  }
   return trimmed;
 };
 
 const parseImageUsage = (usage: unknown, quality: string, size: string) => {
-  if (!usage || typeof usage !== "object") return null;
+  if (!usage || typeof usage !== "object") {
+    return null;
+  }
   const row = usage as {
     input_tokens?: number;
     output_tokens?: number;
@@ -48,7 +54,9 @@ const parseImageUsage = (usage: unknown, quality: string, size: string) => {
   );
   const imageInTokens = Number(details?.image_tokens ?? 0);
   const outputTokens = Number(row.output_tokens ?? 0);
-  if (textTokens + imageInTokens + outputTokens <= 0) return null;
+  if (textTokens + imageInTokens + outputTokens <= 0) {
+    return null;
+  }
   const costUsd = +(
     (textTokens * 5 + imageInTokens * 10 + outputTokens * 40) /
     1e6
@@ -70,7 +78,9 @@ const uniqueUrls = (urls: Array<unknown>): Array<string> => {
   const seen = new Set<string>();
   const result: Array<string> = [];
   for (const url of urls) {
-    if (typeof url !== "string" || !url.trim() || seen.has(url)) continue;
+    if (typeof url !== "string" || !url.trim() || seen.has(url)) {
+      continue;
+    }
     seen.add(url);
     result.push(url);
   }
@@ -109,14 +119,17 @@ const callerDenied = async (
   tenantId: string,
 ): Promise<{ status: number; error: string } | null> => {
   const authHeader = req.headers.get("Authorization") ?? "";
-  if (!authHeader.startsWith("Bearer "))
+  if (!authHeader.startsWith("Bearer ")) {
     return { status: 401, error: "Unauthorized" };
+  }
   const {
     data: { user },
   } = await createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: authHeader } },
   }).auth.getUser();
-  if (!user) return { status: 401, error: "Unauthorized" };
+  if (!user) {
+    return { status: 401, error: "Unauthorized" };
+  }
   const [{ data: membership }, { data: superAdmin }] = await Promise.all([
     admin
       .from("tenant_users")
@@ -178,11 +191,12 @@ serve(async (req) => {
     // The service role bypasses RLS and this function spends the tenant's own AI keys:
     // only a signed-in member of tenant_id (or a super admin) may call it.
     const denied = await callerDenied(req, supabase, supabaseUrl, tenant_id);
-    if (denied)
+    if (denied) {
       return new Response(JSON.stringify({ error: denied.error }), {
         status: denied.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
 
     const refs = uniqueUrls([
       ...(Array.isArray(reference_image_urls) ? reference_image_urls : []),
@@ -197,10 +211,14 @@ serve(async (req) => {
         const { data, error } = await supabase.storage
           .from("entity-attachments")
           .download(path);
-        if (!error && data) return new Uint8Array(await data.arrayBuffer());
+        if (!error && data) {
+          return new Uint8Array(await data.arrayBuffer());
+        }
       }
       const res = await fetch(url);
-      if (!res.ok) return null;
+      if (!res.ok) {
+        return null;
+      }
       return new Uint8Array(await res.arrayBuffer());
     };
 
@@ -229,15 +247,18 @@ serve(async (req) => {
       });
 
     const decodePng = (raw: unknown): Uint8Array | null => {
-      if (typeof raw !== "string" || !raw.trim()) return null;
+      if (typeof raw !== "string" || !raw.trim()) {
+        return null;
+      }
       const b64 = raw
         .replace(/^data:image\/\w+;base64,/, "")
         .replace(/\s/g, "");
       try {
         const bin = atob(b64);
         const bytes = new Uint8Array(bin.length);
-        for (let index = 0; index < bin.length; index += 1)
+        for (let index = 0; index < bin.length; index += 1) {
           bytes[index] = bin.charCodeAt(index);
+        }
         return bytes;
       } catch {
         return null;
@@ -257,7 +278,9 @@ serve(async (req) => {
     } else {
       for (const [index, url] of refs.entries()) {
         const bytes = await loadReferenceBytes(url);
-        if (!bytes) continue;
+        if (!bytes) {
+          continue;
+        }
         const copy = bytes.buffer.slice(
           bytes.byteOffset,
           bytes.byteOffset + bytes.byteLength,
@@ -307,11 +330,14 @@ serve(async (req) => {
         );
       }
       const images: Array<Uint8Array> = [];
-      if (overrideBytes) images.push(overrideBytes);
-      else {
+      if (overrideBytes) {
+        images.push(overrideBytes);
+      } else {
         for (const url of refs) {
           const bytes = await loadReferenceBytes(url);
-          if (bytes) images.push(bytes);
+          if (bytes) {
+            images.push(bytes);
+          }
         }
       }
       const result = await generateGeminiImage({
@@ -350,7 +376,9 @@ serve(async (req) => {
           contentType: "image/png",
           upsert: true,
         });
-      if (uploadError) throw new Error(`Upload error: ${uploadError.message}`);
+      if (uploadError) {
+        throw new Error(`Upload error: ${uploadError.message}`);
+      }
       const { data: urlData } = supabase.storage
         .from("entity-attachments")
         .getPublicUrl(filePath);
@@ -374,7 +402,9 @@ serve(async (req) => {
       form.append("quality", quality);
       form.append("output_format", "png");
       form.append("input_fidelity", "high");
-      for (const file of files) form.append("image", file);
+      for (const file of files) {
+        form.append("image", file);
+      }
       if (maskBytes) {
         const maskCopy = maskBytes.buffer.slice(
           maskBytes.byteOffset,

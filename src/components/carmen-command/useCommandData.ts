@@ -299,7 +299,9 @@ export function useHealth(tenantId: string | null) {
       >();
       for (const r of probeRows) {
         const key = logical(r.service);
-        if (!histories.has(key)) histories.set(key, []);
+        if (!histories.has(key)) {
+          histories.set(key, []);
+        }
         histories.get(key)!.push(r);
       }
       const latestOf = (key: string) => histories.get(key)?.[0];
@@ -512,7 +514,9 @@ export function useOpenAiBilling(tenantId: string | null) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחוברת");
+      if (!session) {
+        throw new Error("לא מחוברת");
+      }
       const res = await fetch(BILLING_FN, {
         method: "POST",
         headers: {
@@ -594,7 +598,9 @@ export function useUsage(tenantId: string | null) {
         for (const r of rows) {
           const d = (r.created_at as string).slice(0, 10);
           const day = byDay.get(d);
-          if (!day) continue;
+          if (!day) {
+            continue;
+          }
           day.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
           day.cost += Number(r.cost_usd ?? 0);
           day.calls += 1;
@@ -654,7 +660,9 @@ export function useCcTasks(tenantId: string | null) {
         .neq("status", "done")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -668,7 +676,9 @@ export function useMarkTaskDone(tenantId: string | null) {
         .from("tasks")
         .update({ status: "done" })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc-tasks", tenantId] });
@@ -745,7 +755,9 @@ export function useCommandRealtime(
 ) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     const channel = supabase
       .channel("carmen-command-center")
       .on(
@@ -772,7 +784,9 @@ export function useCommandRealtime(
         },
         (payload: any) => {
           qc.invalidateQueries({ queryKey: ["cc-feed", tenantId] });
-          if (payload.new?.severity === "critical") onCritical();
+          if (payload.new?.severity === "critical") {
+            onCritical();
+          }
         },
       )
       .on(

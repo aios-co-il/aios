@@ -48,8 +48,12 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
           bearer_token: bearer || undefined,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (d) => {
@@ -75,8 +79,12 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
           connection_id: conn.id,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (d) => {
@@ -96,7 +104,9 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
         .from("agent_mcp_connections")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({

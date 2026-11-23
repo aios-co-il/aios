@@ -135,7 +135,9 @@ export type QueueWhatsApp = (
 ) => Promise<boolean>;
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_PULSE_ALERT_RULES };
+  }
   const input = raw as Record<string, unknown>;
   return {
     instant_wa_enabled: input.instant_wa_enabled !== false,
@@ -167,7 +169,9 @@ export function evaluatePulseInstantAlerts(
   disconnects: Array<OpenIntegrationDisconnect> = [],
 ): Array<PulseInstantAlertCandidate> {
   const rules = parsePulseAlertRules(rulesInput);
-  if (!rules.instant_wa_enabled) return [];
+  if (!rules.instant_wa_enabled) {
+    return [];
+  }
 
   // The org's lost connections lead the connection section (AIO-342).
   const candidates: Array<PulseInstantAlertCandidate> =
@@ -187,7 +191,9 @@ export function evaluatePulseInstantAlerts(
       : [];
 
     for (const campaign of campaignBreakdown) {
-      if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
+      if (campaign.alert_eligible !== true || !campaign.campaign_key) {
+        continue;
+      }
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -298,8 +304,12 @@ export function evaluatePulseInstantAlerts(
         snapshot.ecommerce_goal_status === "no_data";
       const critical = criticalByClient.get(snapshot.client_id) || [];
       const criticalLabels = critical.map((issue) => {
-        if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
-        if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
+        if (issue.alertType === "campaign_stopped") {
+          return "קמפיין הושהה/נעצר";
+        }
+        if (issue.alertType === "ad_disapproved") {
+          return "מודעה לא מאושרת";
+        }
         return issue.label || "בעיית קמפיין";
       });
 

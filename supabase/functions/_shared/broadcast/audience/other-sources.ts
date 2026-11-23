@@ -13,9 +13,13 @@ export async function resolveCampaigners(
     .from("campaigners")
     .select("id, full_name, phone, email, role, active")
     .eq("tenant_id", tenantId);
-  if (f.activeOnly !== false) q = q.eq("active", true);
+  if (f.activeOnly !== false) {
+    q = q.eq("active", true);
+  }
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const roles = f.roles;
   return (data || [])
     .filter((c) =>
@@ -42,13 +46,17 @@ export async function resolveWaGroups(
   tenantId: string,
   f: AudienceFilter,
 ): Promise<Array<Recipient>> {
-  if (!hasItems(f.groupIds)) throw new Error("missing_groupIds");
+  if (!hasItems(f.groupIds)) {
+    throw new Error("missing_groupIds");
+  }
   const { data, error } = await db
     .from("whatsapp_groups")
     .select("id, group_name, group_chat_id")
     .eq("tenant_id", tenantId)
     .in("id", f.groupIds);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).map((g): Recipient => ({
     entity_type: "wa_group",
     entity_id: g.id,

@@ -20,7 +20,9 @@ export function phoneTail9(value) {
 export function phonesMatch(a, b) {
   const ta = phoneTail9(a);
   const tb = phoneTail9(b);
-  if (!ta || !tb) return false;
+  if (!ta || !tb) {
+    return false;
+  }
   return ta === tb || digitsOnly(a).endsWith(tb) || digitsOnly(b).endsWith(ta);
 }
 
@@ -28,7 +30,9 @@ export function isPhoneInAllowedList(phone, allowedPhones) {
   const list = Array.isArray(allowedPhones)
     ? allowedPhones.map(digitsOnly).filter(Boolean)
     : [];
-  if (!list.length) return false;
+  if (!list.length) {
+    return false;
+  }
   return list.some((p) => phonesMatch(phone, p));
 }
 
@@ -57,7 +61,9 @@ export function looksLikeRealPhone(value) {
  */
 export function isUsableLidKey(value) {
   const d = digitsOnly(value);
-  if (d.length < 9) return false;
+  if (d.length < 9) {
+    return false;
+  }
   return !looksLikeRealPhone(d);
 }
 
@@ -68,11 +74,17 @@ export function pickInboundLidDigits({
   senderLidRaw = "",
 } = {}) {
   const senderLid = digitsOnly(senderLidRaw);
-  if (isUsableLidKey(senderLid)) return senderLid;
+  if (isUsableLidKey(senderLid)) {
+    return senderLid;
+  }
   for (const raw of [fromRaw, chatIdRaw]) {
-    if (!/@lid$/i.test(String(raw || ""))) continue;
+    if (!/@lid$/i.test(String(raw || ""))) {
+      continue;
+    }
     const d = digitsOnly(String(raw).split("@")[0]);
-    if (isUsableLidKey(d)) return d;
+    if (isUsableLidKey(d)) {
+      return d;
+    }
   }
   return "";
 }
@@ -86,9 +98,15 @@ export function pickPayloadRealPhone(candidates = [], lidDigits = "") {
   const fallbacks = [];
   for (const candidate of Array.isArray(candidates) ? candidates : []) {
     const d = digitsOnly(String(candidate || "").split("@")[0]);
-    if (!d || d === lid) continue;
-    if (looksLikeRealPhone(d)) return d;
-    if (d.length >= 9 && d.length <= 15) fallbacks.push(d);
+    if (!d || d === lid) {
+      continue;
+    }
+    if (looksLikeRealPhone(d)) {
+      return d;
+    }
+    if (d.length >= 9 && d.length <= 15) {
+      fallbacks.push(d);
+    }
   }
   return fallbacks[0] || "";
 }
@@ -142,7 +160,9 @@ export function resolveInboundLidToPhone({
       : {};
   if (lid && aliases[lid]) {
     const mapped = digitsOnly(aliases[lid]);
-    if (mapped) return { phone: mapped, reason: "configured_lid_alias" };
+    if (mapped) {
+      return { phone: mapped, reason: "configured_lid_alias" };
+    }
   }
 
   const fromMap = digitsOnly(waLidMapPhone);
@@ -220,15 +240,21 @@ export function outboundThirdPartyGuardDecision({
   messageText,
   hasActiveSessionForChat,
 } = {}) {
-  if (!isOutgoingFromPhone || pairedFromGreenApi || isGroup) return "continue";
+  if (!isOutgoingFromPhone || pairedFromGreenApi || isGroup) {
+    return "continue";
+  }
   const msgPrefix = String(messageText || "")
     .toLowerCase()
     .replace(/^\s*🎤\s*/u, "")
     .trim()
     .slice(0, 80);
   const hasOwnerTrigger = /[כק]א?רמן|carmen|קלוד|claude/i.test(msgPrefix);
-  if (hasOwnerTrigger) return "continue";
-  if (hasActiveSessionForChat) return "continue";
+  if (hasOwnerTrigger) {
+    return "continue";
+  }
+  if (hasActiveSessionForChat) {
+    return "continue";
+  }
   return "skip";
 }
 
@@ -255,7 +281,9 @@ export function buildPrivateRoutingAcceptanceCases() {
 export function manusGroupSenderCandidates(payload, groupChatId = "") {
   const groupDigits = digitsOnly(String(groupChatId).split("@")[0]);
   const lid = digitsOnly(payload?.senderLid);
-  if (lid && lid !== groupDigits && isUsableLidKey(lid)) return [`${lid}@lid`];
+  if (lid && lid !== groupDigits && isUsableLidKey(lid)) {
+    return [`${lid}@lid`];
+  }
   const phone = digitsOnly(payload?.senderPhone);
   if (phone && phone !== groupDigits && looksLikeRealPhone(phone)) {
     return [`${phone}@c.us`];

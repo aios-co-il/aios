@@ -150,7 +150,9 @@ export const pickCompositionId = (
         ? available
         : CREATIVE_COMPOSITIONS;
   let hash = 0;
-  for (const char of seed) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  for (const char of seed) {
+    hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  }
   return pool[hash % pool.length].id;
 };
 
@@ -169,7 +171,9 @@ export const pickVariationComposition = ({
   hasConcept?: boolean;
   lockedId?: CompositionId | null;
 }): CompositionId => {
-  if (lockedId) return lockedId;
+  if (lockedId) {
+    return lockedId;
+  }
   const taken = [...used].filter(isCompositionId);
   return pickCompositionId(seed, taken, { exclude: AUTO_COMPOSITION_EXCLUDE });
 };

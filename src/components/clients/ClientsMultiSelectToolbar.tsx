@@ -48,13 +48,17 @@ export function ClientsMultiSelectToolbar({
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies-for-bulk", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -66,7 +70,9 @@ export function ClientsMultiSelectToolbar({
         .from("clients")
         .update({ agency_id: agencyId })
         .in("id", selectedIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
@@ -87,7 +93,9 @@ export function ClientsMultiSelectToolbar({
         .from("clients")
         .update({ status })
         .in("id", selectedIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });
@@ -106,7 +114,9 @@ export function ClientsMultiSelectToolbar({
         .from("clients")
         .delete()
         .in("id", selectedIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clients", tenantId] });

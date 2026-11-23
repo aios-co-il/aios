@@ -8,7 +8,9 @@ export function patchLeadNotesInCache(
   leadId: string,
   notes: string | null,
 ): unknown {
-  if (!old) return old;
+  if (!old) {
+    return old;
+  }
   if (Array.isArray(old)) {
     return old.map((lead) =>
       lead &&
@@ -18,7 +20,9 @@ export function patchLeadNotesInCache(
         : lead,
     );
   }
-  if (typeof old !== "object") return old;
+  if (typeof old !== "object") {
+    return old;
+  }
 
   const updated: Record<string, unknown> = {
     ...(old as Record<string, unknown>),

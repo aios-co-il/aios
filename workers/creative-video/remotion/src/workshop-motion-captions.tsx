@@ -38,8 +38,11 @@ function runsOf(items: Array<Item>) {
   for (const item of items) {
     const ltr = item.word.ltr === true;
     const last = runs[runs.length - 1];
-    if (last && last.ltr && ltr) last.items.push(item);
-    else runs.push({ ltr, items: [item] });
+    if (last && last.ltr && ltr) {
+      last.items.push(item);
+    } else {
+      runs.push({ ltr, items: [item] });
+    }
   }
   return runs;
 }
@@ -158,7 +161,9 @@ export const MotionCaptions: React.FC<{
   let shade = 0;
   for (const caption of captions) {
     const start = caption.startFrame - LEAD;
-    if (start - 6 > frame || caption.endFrame + 8 < frame) continue;
+    if (start - 6 > frame || caption.endFrame + 8 < frame) {
+      continue;
+    }
     shade = Math.max(
       shade,
       interpolate(

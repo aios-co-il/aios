@@ -5,8 +5,9 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { MODEL_CATALOG } from "../_shared/models.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   return new Response(
     JSON.stringify({ models: MODEL_CATALOG, source: "catalog" }),

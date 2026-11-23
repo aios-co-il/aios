@@ -61,7 +61,9 @@ export function clipEstimate(engine: SceneEngine, scenes: Array<CostScene>) {
     (sum, scene) => sum + sceneClipSeconds(engine, scene.duration_s),
     0,
   );
-  if (engine === "mock") return { usd: 0, credits: 0, seconds };
+  if (engine === "mock") {
+    return { usd: 0, credits: 0, seconds };
+  }
   if (engine === "kling") {
     const blocks = seconds / 5;
     return {

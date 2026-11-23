@@ -96,7 +96,9 @@ export function resolveDashboardCurrency(
 
   for (const table of tables) {
     const code = table.integration_settings?.currency;
-    if (code) return normalizeCurrencyCode(code);
+    if (code) {
+      return normalizeCurrencyCode(code);
+    }
   }
 
   return "ILS";

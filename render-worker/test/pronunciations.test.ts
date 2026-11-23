@@ -162,7 +162,9 @@ describe("the voice run with pronunciations", () => {
     });
     const db = {
       async select(table: string) {
-        if (table === "carmen_pronunciations") throw new Error("down");
+        if (table === "carmen_pronunciations") {
+          throw new Error("down");
+        }
         if (table === "marketing_work_items") {
           return [{ id: "item1", tenant_id: "t1", client_id: "c1" }];
         }

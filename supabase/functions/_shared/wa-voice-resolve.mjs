@@ -41,7 +41,9 @@ export function formatVoiceMessageText({ transcript, status, isVoice }) {
     return `${VOICE_MARKER} ${t}`;
   }
   if (!isVoice) {
-    if (status === VOICE_STATUSES.NOT_VOICE_MEDIA) return "[מדיה]";
+    if (status === VOICE_STATUSES.NOT_VOICE_MEDIA) {
+      return "[מדיה]";
+    }
     return t || "";
   }
   switch (status) {
@@ -104,21 +106,31 @@ export function pickAudioUrlFromContainers(containers) {
     "link",
   ];
   for (const c of containers || []) {
-    if (!c || typeof c !== "object") continue;
+    if (!c || typeof c !== "object") {
+      continue;
+    }
     for (const f of fields) {
       const v = c[f];
-      if (typeof v === "string" && /^https?:\/\//.test(v)) return v;
+      if (typeof v === "string" && /^https?:\/\//.test(v)) {
+        return v;
+      }
     }
   }
   return null;
 }
 
 export function looksLikeAudioPayload({ type, mime, url, hasAudioMessage }) {
-  if (hasAudioMessage) return true;
+  if (hasAudioMessage) {
+    return true;
+  }
   const t = String(type || "").toLowerCase();
-  if (/audio|ptt|voice/.test(t)) return true;
+  if (/audio|ptt|voice/.test(t)) {
+    return true;
+  }
   const m = String(mime || "").toLowerCase();
-  if (/audio|ogg|opus|voice|ptt|mpeg|mp4a|amr/.test(m)) return true;
+  if (/audio|ogg|opus|voice|ptt|mpeg|mp4a|amr/.test(m)) {
+    return true;
+  }
   return !!url && /\.(ogg|opus|mp3|m4a|wav|aac|amr)(\?|$)/i.test(url);
 }
 

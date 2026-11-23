@@ -21,7 +21,9 @@ export function clampCardPosition(
 function readStored(key: string, fallback: CardPosition): CardPosition {
   try {
     const v = JSON.parse(localStorage.getItem(key) || "null");
-    if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) return v;
+    if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) {
+      return v;
+    }
   } catch {
     /* ignore */
   }
@@ -58,7 +60,9 @@ export function useDraggableCard(storageKey: string, fallback: CardPosition) {
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // Buttons inside the card keep working as buttons.
-    if ((e.target as HTMLElement).closest("button, a")) return;
+    if ((e.target as HTMLElement).closest("button, a")) {
+      return;
+    }
     drag.current = {
       dx: e.clientX - pos.x,
       dy: e.clientY - pos.y,
@@ -68,11 +72,15 @@ export function useDraggableCard(storageKey: string, fallback: CardPosition) {
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    if (!d || d.id !== e.pointerId) return;
+    if (!d || d.id !== e.pointerId) {
+      return;
+    }
     setPos(clampToView({ x: e.clientX - d.dx, y: e.clientY - d.dy }));
   };
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag.current) return;
+    if (!drag.current) {
+      return;
+    }
     drag.current = null;
     e.currentTarget.releasePointerCapture(e.pointerId);
     setPos((p) => {

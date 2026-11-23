@@ -38,9 +38,13 @@ export const brandColorsFromPayload = (
   payload: Record<string, unknown>,
 ): Array<string> => {
   const book = payload.brand_book;
-  if (!book || typeof book !== "object") return [];
+  if (!book || typeof book !== "object") {
+    return [];
+  }
   const colors = (book as { colors?: unknown }).colors;
-  if (!Array.isArray(colors)) return [];
+  if (!Array.isArray(colors)) {
+    return [];
+  }
   return colors.filter(
     (item): item is string =>
       typeof item === "string" && item.trim().length > 0,
@@ -51,11 +55,15 @@ export const logoUrlFromPayload = (
   payload: Record<string, unknown>,
 ): string | undefined => {
   const direct = payload.logo_url;
-  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  if (typeof direct === "string" && direct.trim()) {
+    return direct.trim();
+  }
   const book = payload.brand_book;
   if (book && typeof book === "object") {
     const logo = (book as { logoUrl?: unknown }).logoUrl;
-    if (typeof logo === "string" && logo.trim()) return logo.trim();
+    if (typeof logo === "string" && logo.trim()) {
+      return logo.trim();
+    }
   }
   return undefined;
 };

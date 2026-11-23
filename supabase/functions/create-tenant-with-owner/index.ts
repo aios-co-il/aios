@@ -122,7 +122,9 @@ serve(async (req: Request) => {
         .eq("slug", slug)
         .maybeSingle();
 
-      if (!existing) break;
+      if (!existing) {
+        break;
+      }
       slug = `${baseSlug}-${counter}`;
       counter++;
     }

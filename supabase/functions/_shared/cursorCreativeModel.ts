@@ -47,7 +47,9 @@ export function pickCreativeModelFromCatalog(
         : [];
       return id === preferred.id || aliases.includes(preferred.id);
     }) ?? list.find((item) => String(item.id ?? "").startsWith("composer-"));
-  if (!match?.id) return preferred;
+  if (!match?.id) {
+    return preferred;
+  }
   const hasFast = (match.parameters ?? []).some(
     (parameter) =>
       parameter.id === "fast" &&

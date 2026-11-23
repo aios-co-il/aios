@@ -87,7 +87,9 @@ Deno.test(
   () => {
     const plan = planBrainEngine(smart, conns, modelRoutes, all);
     assertStrictEquals(plan.kind, "connections");
-    if (plan.kind !== "connections") return;
+    if (plan.kind !== "connections") {
+      return;
+    }
     assertEquals(
       plan.connections.map((c) => c.id),
       ["free-a", "free-b"],

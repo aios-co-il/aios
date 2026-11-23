@@ -30,7 +30,9 @@ export function fakeDb(answer: (call: FakeCall) => FakeAnswer) {
     };
     const chain = {
       select: (columns?: string) => {
-        if (call.op === "select") call.columns = columns;
+        if (call.op === "select") {
+          call.columns = columns;
+        }
         return chain;
       },
       update: (values: unknown) => {

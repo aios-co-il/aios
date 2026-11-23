@@ -19,7 +19,9 @@ async function userHasSeoScope(admin: any, userId: string): Promise<boolean> {
   const { data: hasScope, error } = await admin.rpc("user_has_seo_scope", {
     _user_id: userId,
   });
-  if (!error) return !!hasScope;
+  if (!error) {
+    return !!hasScope;
+  }
 
   const [{ data: seoRole }, { data: isSeoStaff }] = await Promise.all([
     admin
@@ -31,14 +33,18 @@ async function userHasSeoScope(admin: any, userId: string): Promise<boolean> {
       .maybeSingle(),
     admin.rpc("is_seo_staff", { _user_id: userId }),
   ]);
-  if (seoRole || isSeoStaff) return true;
+  if (seoRole || isSeoStaff) {
+    return true;
+  }
 
   const { data: profileRow } = await admin
     .from("profiles")
     .select("campaigner_id")
     .eq("id", userId)
     .maybeSingle();
-  if (!profileRow?.campaigner_id) return false;
+  if (!profileRow?.campaigner_id) {
+    return false;
+  }
 
   const { data: campaignerRow } = await admin
     .from("campaigners")
@@ -53,7 +59,9 @@ async function getSeoClientIds(
   admin: any,
   userId: string,
 ): Promise<Set<string> | null> {
-  if (!(await userHasSeoScope(admin, userId))) return null;
+  if (!(await userHasSeoScope(admin, userId))) {
+    return null;
+  }
 
   const { data: clientIds } = await admin.rpc("get_user_client_ids", {
     _user_id: userId,
@@ -83,7 +91,9 @@ async function getCampaignerScope(
       .eq("id", userId)
       .maybeSingle(),
   ]);
-  if (!campaignerRole || !profileRow?.campaigner_id) return null;
+  if (!campaignerRole || !profileRow?.campaigner_id) {
+    return null;
+  }
 
   const [{ data: agencyRows }, { data: teamRows }] = await Promise.all([
     admin
@@ -107,7 +117,9 @@ async function isClientInCampaignerScope(
   clientId: string,
   scope: CampaignerScope,
 ): Promise<boolean> {
-  if (scope.clientIds.has(clientId)) return true;
+  if (scope.clientIds.has(clientId)) {
+    return true;
+  }
   const { data: clientRow } = await admin
     .from("clients")
     .select("id, agency_id")
@@ -131,7 +143,9 @@ function applyClientIdFilter(query: any, clientIdFilter: string) {
 }
 
 function tableMatchesClientFilter(table: any, clientIdFilter: string): boolean {
-  if (!clientIdFilter) return true;
+  if (!clientIdFilter) {
+    return true;
+  }
   const settings = (table?.integration_settings || {}) as Record<
     string,
     unknown
@@ -145,7 +159,9 @@ function tableMatchesClientFilter(table: any, clientIdFilter: string): boolean {
 async function syncClientCardAfterTableChange(
   tableRow: Record<string, unknown> | null | undefined,
 ) {
-  if (!tableRow?.client_id || !tableRow?.integration_type) return;
+  if (!tableRow?.client_id || !tableRow?.integration_type) {
+    return;
+  }
   try {
     await syncClientCardFromReportTable(serviceRoleClient(), tableRow as any);
   } catch (err) {
@@ -200,7 +216,9 @@ serve(async (req) => {
             .eq("user_id", user.id)
             .eq("tenant_id", requestedTenantId)
             .maybeSingle();
-          if (membership) tenantId = requestedTenantId;
+          if (membership) {
+            tenantId = requestedTenantId;
+          }
         }
         if (!tenantId) {
           const { data: fallbackTenantId } = await supabase.rpc(
@@ -241,12 +259,17 @@ serve(async (req) => {
             `agency_id.eq.${agencyIdFilter},agency_id.is.null`,
           );
         }
-        if (slugFilter) ownQuery = ownQuery.eq("slug", slugFilter);
-        if (clientIdFilter)
+        if (slugFilter) {
+          ownQuery = ownQuery.eq("slug", slugFilter);
+        }
+        if (clientIdFilter) {
           ownQuery = applyClientIdFilter(ownQuery, clientIdFilter);
+        }
 
         const { data: ownTables, error: ownError } = await ownQuery;
-        if (ownError) throw ownError;
+        if (ownError) {
+          throw ownError;
+        }
         allTables = ownTables || [];
 
         // 2) Tables in foreign tenants from shared agencies
@@ -262,9 +285,12 @@ serve(async (req) => {
           if (agencyIdFilter && agencyIdFilter !== "all") {
             sharedQuery = sharedQuery.eq("agency_id", agencyIdFilter);
           }
-          if (slugFilter) sharedQuery = sharedQuery.eq("slug", slugFilter);
-          if (clientIdFilter)
+          if (slugFilter) {
+            sharedQuery = sharedQuery.eq("slug", slugFilter);
+          }
+          if (clientIdFilter) {
             sharedQuery = applyClientIdFilter(sharedQuery, clientIdFilter);
+          }
 
           const { data: sharedTables, error: sharedError } = await sharedQuery;
           if (sharedError) {
@@ -290,13 +316,15 @@ serve(async (req) => {
               agencyIdFilter,
             );
           }
-          if (slugFilter)
+          if (slugFilter) {
             ownedForeignQuery = ownedForeignQuery.eq("slug", slugFilter);
-          if (clientIdFilter)
+          }
+          if (clientIdFilter) {
             ownedForeignQuery = applyClientIdFilter(
               ownedForeignQuery,
               clientIdFilter,
             );
+          }
 
           const { data: ownedForeignTables, error: ownedForeignError } =
             await ownedForeignQuery;
@@ -337,16 +365,18 @@ serve(async (req) => {
                 .order("category", { ascending: true, nullsFirst: false })
                 .order("created_at", { ascending: false });
 
-              if (slugFilter)
+              if (slugFilter) {
                 foreignByClientQuery = foreignByClientQuery.eq(
                   "slug",
                   slugFilter,
                 );
-              if (clientIdFilter)
+              }
+              if (clientIdFilter) {
                 foreignByClientQuery = applyClientIdFilter(
                   foreignByClientQuery,
                   clientIdFilter,
                 );
+              }
 
               const { data: foreignByClient, error: foreignByClientErr } =
                 await foreignByClientQuery;
@@ -365,9 +395,12 @@ serve(async (req) => {
         // Dedupe by id; when scoping to a client, keep legacy settings-only links too.
         const seen = new Set<string>();
         allTables = allTables.filter((t) => {
-          if (clientIdFilter && !tableMatchesClientFilter(t, clientIdFilter))
+          if (clientIdFilter && !tableMatchesClientFilter(t, clientIdFilter)) {
             return false;
-          if (seen.has(t.id)) return false;
+          }
+          if (seen.has(t.id)) {
+            return false;
+          }
           seen.add(t.id);
           return true;
         });
@@ -478,7 +511,9 @@ serve(async (req) => {
           ? null
           : await getSeoClientIds(admin, user.id);
 
-        if (!scope && !seoClientIds) throw error;
+        if (!scope && !seoClientIds) {
+          throw error;
+        }
 
         const inScope = scope
           ? (client_id &&
@@ -504,7 +539,9 @@ serve(async (req) => {
             .insert(insertPayload)
             .select()
             .single();
-        if (campaignerInsertError) throw campaignerInsertError;
+        if (campaignerInsertError) {
+          throw campaignerInsertError;
+        }
 
         await syncClientCardAfterTableChange(campaignerTable);
         return new Response(JSON.stringify(campaignerTable), {
@@ -535,15 +572,30 @@ serve(async (req) => {
         }
 
         const updateData: any = { updated_at: new Date().toISOString() };
-        if (name) updateData.name = name;
-        if (slug) updateData.slug = slug;
-        if (description !== undefined) updateData.description = description;
-        if (icon !== undefined) updateData.icon = icon;
-        if (category !== undefined) updateData.category = category;
-        if (agency_id !== undefined) updateData.agency_id = agency_id || null;
-        if (client_id !== undefined) updateData.client_id = client_id || null;
-        if (campaign_active !== undefined)
+        if (name) {
+          updateData.name = name;
+        }
+        if (slug) {
+          updateData.slug = slug;
+        }
+        if (description !== undefined) {
+          updateData.description = description;
+        }
+        if (icon !== undefined) {
+          updateData.icon = icon;
+        }
+        if (category !== undefined) {
+          updateData.category = category;
+        }
+        if (agency_id !== undefined) {
+          updateData.agency_id = agency_id || null;
+        }
+        if (client_id !== undefined) {
+          updateData.client_id = client_id || null;
+        }
+        if (campaign_active !== undefined) {
           updateData.campaign_active = !!campaign_active;
+        }
         let existingSettings: Record<string, unknown> = {};
         if (integration_settings !== undefined || client_id !== undefined) {
           const { data: existingTable } = await supabase
@@ -587,7 +639,9 @@ serve(async (req) => {
           .select()
           .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         if (table) {
           await syncClientCardAfterTableChange(table);
@@ -627,7 +681,9 @@ serve(async (req) => {
           .select("id, tenant_id, agency_id, client_id")
           .eq("id", table_id)
           .maybeSingle();
-        if (tableErr) throw tableErr;
+        if (tableErr) {
+          throw tableErr;
+        }
         if (!tableRow) {
           return new Response(JSON.stringify({ error: "Table not found" }), {
             status: 404,
@@ -669,7 +725,9 @@ serve(async (req) => {
           .eq("id", table_id)
           .select()
           .single();
-        if (linkErr) throw linkErr;
+        if (linkErr) {
+          throw linkErr;
+        }
 
         await syncClientCardAfterTableChange(linkedTable);
         return new Response(JSON.stringify({ table: linkedTable }), {
@@ -693,7 +751,9 @@ serve(async (req) => {
           .delete()
           .eq("id", table_id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -91,8 +91,12 @@ export const getVoiceId = (
 /** Veo on ElevenLabs only renders 4, 6 or 8 seconds. */
 export const elevenLabsClipSeconds = (duration: number) => {
   const seconds = Number(duration) || 5;
-  if (seconds <= 4) return 4;
-  if (seconds <= 6) return 6;
+  if (seconds <= 4) {
+    return 4;
+  }
+  if (seconds <= 6) {
+    return 6;
+  }
   return 8;
 };
 
@@ -101,11 +105,15 @@ export const elevenLabsClipSeconds = (duration: number) => {
  * scene length; OpenRouter (Kling 3) too, from 3 to 15 s.
  */
 export const sceneClipSeconds = (engine: SceneEngine, duration: number) => {
-  if (engine === "elevenlabs") return elevenLabsClipSeconds(duration);
-  if (engine === "higgsfield")
+  if (engine === "elevenlabs") {
+    return elevenLabsClipSeconds(duration);
+  }
+  if (engine === "higgsfield") {
     return Math.min(15, Math.max(1, Math.ceil(Number(duration) || 5)));
-  if (engine === "openrouter")
+  }
+  if (engine === "openrouter") {
     return Math.min(15, Math.max(3, Math.ceil(Number(duration) || 5)));
+  }
   return Number(duration) > 5 ? 10 : 5;
 };
 

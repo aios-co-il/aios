@@ -107,10 +107,18 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   // The engine is never a question for the user: the best connected one is used.
   const askEngine = false;
   const missing: BriefingGate["missing"] = [];
-  if (!styleOk) missing.push("style");
-  if (!filmOk) missing.push("film");
-  if (askEngine) missing.push("engine");
-  if (missing.length === 0) return null;
+  if (!styleOk) {
+    missing.push("style");
+  }
+  if (!filmOk) {
+    missing.push("film");
+  }
+  if (askEngine) {
+    missing.push("engine");
+  }
+  if (missing.length === 0) {
+    return null;
+  }
 
   const choices: Array<Choice> = unanswered(
     [
@@ -142,13 +150,14 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   if (input.auto) {
     return autoBriefingGate(missing, fromAnswers);
   }
-  if (choices.length === 0)
+  if (choices.length === 0) {
     return {
       needs_input: true,
       missing,
       say_to_user: "",
       carmen_next: fromAnswers,
     };
+  }
   if (input.asked !== true && input.read !== true) {
     return {
       needs_input: true,

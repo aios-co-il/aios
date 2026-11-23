@@ -72,7 +72,9 @@ function builtinRow(
 
 function bySlug(keys: Array<BuiltinKeys>, slug: string): BuiltinKeys {
   const found = keys.find((k) => k.slug === slug);
-  if (!found) throw new Error(`no ${slug}`);
+  if (!found) {
+    throw new Error(`no ${slug}`);
+  }
   return found;
 }
 

@@ -19,7 +19,9 @@ export function pickCrmWhatsappIntegration(
   integrations: ReadonlyArray<CrmWhatsappIntegration> | null | undefined,
 ): { id: string; type: CrmWhatsappProvider; user_id: string | null } | null {
   const list = integrations || [];
-  if (list.length === 0) return null;
+  if (list.length === 0) {
+    return null;
+  }
 
   const asProvider = (type: string): CrmWhatsappProvider | null =>
     WA_ORDER.includes(type as CrmWhatsappProvider)
@@ -44,8 +46,14 @@ export function pickCrmWhatsappIntegration(
 }
 
 export function crmWhatsappFunctionName(type: CrmWhatsappProvider): string {
-  if (type === "manus_wa") return "send-manus-wa-message";
-  if (type === "meta_whatsapp") return "send-meta-whatsapp-message";
-  if (type === "manychat") return "send-chat-message";
+  if (type === "manus_wa") {
+    return "send-manus-wa-message";
+  }
+  if (type === "meta_whatsapp") {
+    return "send-meta-whatsapp-message";
+  }
+  if (type === "manychat") {
+    return "send-chat-message";
+  }
   return "send-green-api-message";
 }

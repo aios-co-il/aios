@@ -95,8 +95,9 @@ const scenes = [
 
 Deno.test("every studio tool has a schema and is recognised", () => {
   assertStrictEquals(CREATIVE_STUDIO_TOOLS.length, 7);
-  for (const tool of CREATIVE_STUDIO_TOOLS)
+  for (const tool of CREATIVE_STUDIO_TOOLS) {
     assert(isCreativeStudioTool(tool.name));
+  }
   assertStrictEquals(isCreativeStudioTool("render_video_film"), false);
 });
 

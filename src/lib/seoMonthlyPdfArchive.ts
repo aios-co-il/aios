@@ -3,8 +3,12 @@ import type { Attachment } from "@/components/forms/AttachmentsField";
 import { buildSeoMonthlyPdfArchivePath } from "@/lib/seoMonthlyPdfPath";
 
 function parseAttachments(value: unknown): Array<Attachment> {
-  if (Array.isArray(value)) return value as Array<Attachment>;
-  if (typeof value !== "string") return [];
+  if (Array.isArray(value)) {
+    return value as Array<Attachment>;
+  }
+  if (typeof value !== "string") {
+    return [];
+  }
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
@@ -27,15 +31,21 @@ export async function archiveSeoMonthlyPdf(input: {
     .select("attachments")
     .eq("id", input.clientId)
     .maybeSingle();
-  if (clientError) throw clientError;
-  if (!client) throw new Error("Client not found");
+  if (clientError) {
+    throw clientError;
+  }
+  if (!client) {
+    throw new Error("Client not found");
+  }
 
   // The bucket has INSERT/DELETE policies rather than UPDATE, so replace explicitly.
   await supabase.storage.from("entity-attachments").remove([path]);
   const { error: uploadError } = await supabase.storage
     .from("entity-attachments")
     .upload(path, input.blob, { contentType: "application/pdf" });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    throw uploadError;
+  }
 
   const existing = parseAttachments(client.attachments);
   const attachment: Attachment = {
@@ -53,5 +63,7 @@ export async function archiveSeoMonthlyPdf(input: {
     .from("clients")
     .update({ attachments: attachments as never })
     .eq("id", input.clientId);
-  if (updateError) throw updateError;
+  if (updateError) {
+    throw updateError;
+  }
 }

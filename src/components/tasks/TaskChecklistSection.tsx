@@ -38,7 +38,9 @@ export function TaskChecklistSection({
         .eq("task_id", taskId)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as Array<ChecklistItem>;
     },
     enabled: Boolean(taskId),
@@ -56,7 +58,9 @@ export function TaskChecklistSection({
         title,
         sort_order: items.length,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setDraft("");
@@ -71,7 +75,9 @@ export function TaskChecklistSection({
         .from("task_checklist_items")
         .update({ is_done: isDone, updated_at: new Date().toISOString() })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async ({ id, isDone }) => {
       await queryClient.cancelQueries({ queryKey: ["task-checklist", taskId] });
@@ -103,7 +109,9 @@ export function TaskChecklistSection({
         .from("task_checklist_items")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: invalidate,
     onError: () => toast.error("שגיאה במחיקת תת-משימה"),
@@ -177,7 +185,9 @@ export function TaskChecklistSection({
         onSubmit={(event) => {
           event.preventDefault();
           const title = draft.trim();
-          if (!title) return;
+          if (!title) {
+            return;
+          }
           addItem.mutate(title);
         }}
       >

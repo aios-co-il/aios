@@ -9,7 +9,9 @@ export function signatureStoragePath(
     const match = url.pathname.match(
       /\/storage\/v1\/object\/(?:public|sign|authenticated)\/signature-documents\/(.+)$/,
     );
-    if (!match) return null;
+    if (!match) {
+      return null;
+    }
     path = decodeURIComponent(match[1]);
   } else if (/^[a-z][a-z0-9+.-]*:/i.test(fileUrl)) {
     throw new Error("invalid_document_url");

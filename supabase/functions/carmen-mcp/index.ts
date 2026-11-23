@@ -153,7 +153,9 @@ function resolveUserId(): string {
 type HistoryItem = { role: "user" | "assistant"; content: string };
 
 function normalizeHistory(raw: unknown): Array<HistoryItem> {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw
     .filter(
       (m) =>
@@ -225,9 +227,13 @@ async function invokeCarmen(opts: {
     throw new Error("Carmen returned non-JSON response");
   }
 
-  if (!data?.success && data?.error) throw new Error(String(data.error));
+  if (!data?.success && data?.error) {
+    throw new Error(String(data.error));
+  }
   const output = String(data?.output ?? "").trim();
-  if (!output) throw new Error("Carmen returned an empty reply");
+  if (!output) {
+    throw new Error("Carmen returned an empty reply");
+  }
   return {
     output,
     conversation_id: data?.conversation_id
@@ -272,10 +278,14 @@ async function handleToolCall(
   args: Record<string, any>,
   ctx: { tenantId: string; userId: string },
 ): Promise<string> {
-  if (name !== "ask_carmen") throw new Error(`Unknown tool: ${name}`);
+  if (name !== "ask_carmen") {
+    throw new Error(`Unknown tool: ${name}`);
+  }
 
   const message = String(args?.message ?? "").trim();
-  if (!message) throw new Error("ask_carmen requires a non-empty 'message'.");
+  if (!message) {
+    throw new Error("ask_carmen requires a non-empty 'message'.");
+  }
   const context = String(args?.context ?? "").trim();
   const conversationId = String(args?.conversation_id ?? "").trim() || null;
   const conversationHistory = normalizeHistory(args?.conversation_history);
@@ -384,8 +394,9 @@ function authFailure(id: unknown, message: string, httpStatus = 401): Response {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const pathname = new URL(req.url).pathname;
   const streamable =

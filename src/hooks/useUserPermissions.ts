@@ -74,10 +74,14 @@ export function useUserPermissions() {
 
   const hasPermission = (module: ModulePermission): boolean => {
     // While loading or user unknown, do NOT allow (prevents leaks)
-    if (isLoading) return false;
+    if (isLoading) {
+      return false;
+    }
 
     // Super admins can access all modules in the UI
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin) {
+      return true;
+    }
 
     const { permissions, hasAnyPermissions } = permissionsData || {
       permissions: null,
@@ -128,7 +132,9 @@ export function useUserPermissions() {
     }
 
     // Campaigners need pulse dashboard access; row scope is enforced in DMMDashboard + RLS.
-    if (isCampaigner && module === "crm_dashboard") return true;
+    if (isCampaigner && module === "crm_dashboard") {
+      return true;
+    }
 
     // ── מודולים נגישים לכל המשתמשים המאומתים ─────────────────────────
     const alwaysAccessibleModules: Array<ModulePermission> = [
@@ -137,16 +143,22 @@ export function useUserPermissions() {
       "reports",
     ];
 
-    if (alwaysAccessibleModules.includes(module)) return true;
+    if (alwaysAccessibleModules.includes(module)) {
+      return true;
+    }
 
     // ── אם אין הרשאות מוגדרות כלל ────────────────────────────────────
     if (!hasAnyPermissions) {
-      if (hasManagementAccess) return true;
+      if (hasManagementAccess) {
+        return true;
+      }
       return false;
     }
 
     // ── בעלים / מנהלי צוות / בעלי סוכנות — מודולים לא-מוגבלים ─────────
-    if (hasManagementAccess && !restrictedModules.includes(module)) return true;
+    if (hasManagementAccess && !restrictedModules.includes(module)) {
+      return true;
+    }
 
     return permissions?.[module] === true;
   };

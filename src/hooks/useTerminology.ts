@@ -33,14 +33,18 @@ export function useTerminology() {
   const { data: terms, isLoading } = useQuery({
     queryKey: ["terminology", tenantId],
     queryFn: async () => {
-      if (!tenantId) return {};
+      if (!tenantId) {
+        return {};
+      }
 
       const { data, error } = await supabase
         .from("tenant_terminology" as any)
         .select("term_key, singular, plural")
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Convert to map for easy lookup
       const termsMap: Record<string, { singular: string; plural: string }> = {};
@@ -64,7 +68,9 @@ export function useTerminology() {
    */
   const t = (key: string, isPlural: boolean = false): string => {
     const term = terms?.[key] || DEFAULT_TERMS[key];
-    if (!term) return key; // Fallback to key if not found
+    if (!term) {
+      return key;
+    } // Fallback to key if not found
     return isPlural ? term.plural : term.singular;
   };
 

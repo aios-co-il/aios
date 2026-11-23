@@ -46,10 +46,18 @@ export function routeCarmenTask(
   }
 
   const eligible = candidates.filter((m) => {
-    if (!m.enabled || !m.healthy || !m.quotaAvailable || !m.id) return false;
-    if (task.needsToolCalling && !m.supportsTools) return false;
-    if (task.needsVision && !m.supportsVision) return false;
-    if (task.containsClientData && !m.approvedForClientData) return false;
+    if (!m.enabled || !m.healthy || !m.quotaAvailable || !m.id) {
+      return false;
+    }
+    if (task.needsToolCalling && !m.supportsTools) {
+      return false;
+    }
+    if (task.needsVision && !m.supportsVision) {
+      return false;
+    }
+    if (task.containsClientData && !m.approvedForClientData) {
+      return false;
+    }
     return true;
   });
   const byPriority = (a: ModelCandidate, b: ModelCandidate) =>
@@ -112,7 +120,9 @@ export function routeCarmenTask(
   };
 
   if (pick) {
-    if (pick.tier === "premium") return paidDecision(pick);
+    if (pick.tier === "premium") {
+      return paidDecision(pick);
+    }
     return result(
       "ready",
       override !== "auto" ? "task_rule" : "free_first",
@@ -122,10 +132,13 @@ export function routeCarmenTask(
     );
   }
 
-  if (strictFree || override === "premium")
+  if (strictFree || override === "premium") {
     return result("unavailable", "no_eligible_model");
+  }
   if (alternative[0]) {
-    if (alternative[0].tier === "premium") return paidDecision(alternative[0]);
+    if (alternative[0].tier === "premium") {
+      return paidDecision(alternative[0]);
+    }
     // A premium task can fall back to free only when no premium model exists.
     return result(
       "ready",

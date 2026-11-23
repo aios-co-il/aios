@@ -24,7 +24,9 @@ export async function kickNextBatch(
     p_function: functionName,
     p_body: body,
   });
-  if (!error) return;
+  if (!error) {
+    return;
+  }
 
   console.error(
     `[kick] ${functionName} rpc failed, falling back to fetch:`,
@@ -44,10 +46,12 @@ export async function kickNextBatch(
   const runtime = (
     globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }
   ).EdgeRuntime;
-  if (runtime?.waitUntil) runtime.waitUntil(task);
-  else
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(task);
+  } else {
     await Promise.race([
       task,
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
+  }
 }

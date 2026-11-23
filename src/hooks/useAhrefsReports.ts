@@ -62,7 +62,9 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
           .select("*")
           .order("received_at", { ascending: false })
           .limit(limit);
-        if (reportType) q = q.eq("report_type", reportType);
+        if (reportType) {
+          q = q.eq("report_type", reportType);
+        }
         return q;
       };
 
@@ -80,7 +82,9 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
       if (clientId) {
         const { data, error } = await baseQuery().eq("client_id", clientId);
         if (error) {
-          if (error.code === "42P01") return [];
+          if (error.code === "42P01") {
+            return [];
+          }
           throw error;
         }
         const rows = (data || []) as unknown as Array<AhrefsReport>;
@@ -96,7 +100,9 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
             baseQuery(),
           ).ilike("domain", `%${normalized}%`);
           if (domainError) {
-            if (domainError.code === "42P01") return [];
+            if (domainError.code === "42P01") {
+              return [];
+            }
             throw domainError;
           }
           return filterSeoReportsByDomain(
@@ -108,11 +114,15 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
       }
 
       let query = scopeByTenants(baseQuery());
-      if (domain) query = query.eq("domain", domain);
+      if (domain) {
+        query = query.eq("domain", domain);
+      }
 
       const { data, error } = await query;
       if (error) {
-        if (error.code === "42P01") return [];
+        if (error.code === "42P01") {
+          return [];
+        }
         throw error;
       }
       return (data || []) as unknown as Array<AhrefsReport>;

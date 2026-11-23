@@ -51,7 +51,9 @@ export default function EditTenantAgenciesDialog({
         .eq("tenant_id", currentTenantId)
         .order("name");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentTenantId && open,
@@ -70,7 +72,9 @@ export default function EditTenantAgenciesDialog({
         .eq("source_tenant_id", currentTenantId)
         .eq("accessing_tenant_id", tenant.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((a) => a.agency_id) || [];
     },
     enabled: !!currentTenantId && open,

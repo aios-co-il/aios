@@ -49,7 +49,9 @@ export function ManualTriggerDialog({
         .from("automation_flow_steps" as any)
         .select("*")
         .eq("automation_id", automationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<any>;
     },
     enabled: open && !!automationId,
@@ -77,7 +79,9 @@ export function ManualTriggerDialog({
   }, [open]);
 
   const handleRun = async () => {
-    if (!commandText.trim()) return;
+    if (!commandText.trim()) {
+      return;
+    }
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -107,7 +111,9 @@ export function ManualTriggerDialog({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Extract agent output from flow results
       const result = data?.results?.[0];

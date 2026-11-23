@@ -75,7 +75,9 @@ export function ImportAnalyticsDialog({
   const clientsQuery = useQuery({
     queryKey: ["clients-import", tenantId, open],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<{ id: string; name: string }>;
+      if (!tenantId) {
+        return [] as Array<{ id: string; name: string }>;
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name")
@@ -90,7 +92,9 @@ export function ImportAnalyticsDialog({
   const trackingConfigsQuery = useQuery({
     queryKey: ["tracking_configs_import", tenantId, open],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<TrackingConfig>;
+      if (!tenantId) {
+        return [] as Array<TrackingConfig>;
+      }
       const { data } = await supabase
         .from("site_tracking_configs")
         .select("id, client_id, website_domain")
@@ -103,7 +107,9 @@ export function ImportAnalyticsDialog({
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     setImportResult(null);
 
@@ -182,7 +188,9 @@ export function ImportAnalyticsDialog({
 
   const parseDuration = (duration: string): number => {
     // Parse duration like "02:30" or "2m 30s" to seconds
-    if (!duration) return 0;
+    if (!duration) {
+      return 0;
+    }
 
     const colonMatch = duration.match(/(\d+):(\d+)/);
     if (colonMatch) {
@@ -193,8 +201,12 @@ export function ImportAnalyticsDialog({
     const secsMatch = duration.match(/(\d+)\s*s/i);
 
     let seconds = 0;
-    if (minsMatch) seconds += parseInt(minsMatch[1]) * 60;
-    if (secsMatch) seconds += parseInt(secsMatch[1]);
+    if (minsMatch) {
+      seconds += parseInt(minsMatch[1]) * 60;
+    }
+    if (secsMatch) {
+      seconds += parseInt(secsMatch[1]);
+    }
 
     return seconds;
   };
@@ -222,7 +234,9 @@ export function ImportAnalyticsDialog({
           .select("id")
           .single();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         trackingConfigId = newConfig.id;
       }
 
@@ -370,7 +384,9 @@ export function ImportAnalyticsDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) resetDialog();
+        if (!o) {
+          resetDialog();
+        }
       }}
     >
       <DialogTrigger asChild>

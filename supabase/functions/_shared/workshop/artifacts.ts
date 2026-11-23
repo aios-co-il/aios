@@ -95,8 +95,9 @@ export function folderTree(
   artifacts: Array<{ folder: string }>,
 ): Array<{ folder: string; label: string; count: number }> {
   const counts = new Map<string, number>();
-  for (const artifact of artifacts)
+  for (const artifact of artifacts) {
     counts.set(artifact.folder, (counts.get(artifact.folder) ?? 0) + 1);
+  }
   return [...counts.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([folder, count]) => ({
@@ -112,19 +113,22 @@ export function skinForTool(tool: string): string | null {
     /^workshop_(plan_concepts|write_copy|save_concepts|save_copy|save_script)$/.test(
       tool,
     )
-  )
+  ) {
     return "copywriter";
+  }
   if (
     /^workshop_(storyboard|update_scene|make_stills|animate|sound|produce_video|edit_video)$/.test(
       tool,
     )
-  )
+  ) {
     return "video_director";
+  }
   if (
     /^workshop_(start_project|make_creative|revise|attach|assign_client|check_connections|inspect_site|add_assets)$/.test(
       tool,
     )
-  )
+  ) {
     return "creative_studio";
+  }
   return null;
 }

@@ -143,7 +143,9 @@ export default function FieldsManagement() {
         .eq("entity_type", selectedEntity)
         .order("sort_order");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<CustomField>;
     },
     enabled: !!tenantId,
@@ -164,7 +166,9 @@ export default function FieldsManagement() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -196,7 +200,9 @@ export default function FieldsManagement() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -218,7 +224,9 @@ export default function FieldsManagement() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["custom-fields", tenantId] });
@@ -245,7 +253,9 @@ export default function FieldsManagement() {
   };
 
   const handleEditField = () => {
-    if (!editingField) return;
+    if (!editingField) {
+      return;
+    }
 
     if (!editingField.field_label) {
       toast.error("יש למלא את תווית השדה");

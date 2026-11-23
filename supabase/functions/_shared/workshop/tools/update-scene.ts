@@ -44,7 +44,9 @@ function findScene(
 
 /** The scene's still is a picture the user uploaded (workshop_edit_from_assets attaches it so). */
 async function isOwnPicture(supabase: Db, tenantId: string, scene: SceneRow) {
-  if (!scene.still_asset_id) return false;
+  if (!scene.still_asset_id) {
+    return false;
+  }
   const { data } = await supabase
     .from("marketing_assets")
     .select("id, meta")
@@ -76,9 +78,13 @@ async function refreshStoryboardPage(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (!data?.id) return null;
+    if (!data?.id) {
+      return null;
+    }
     const meta = storyboardPageWith(data.meta, scene, edit);
-    if (!meta) return null;
+    if (!meta) {
+      return null;
+    }
     const updated = await supabase
       .from("workshop_artifacts")
       .update({ meta })
@@ -93,34 +99,41 @@ async function refreshStoryboardPage(
 export async function workshopUpdateScene(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
-  if (!String(args.scene_id ?? "").trim() && args.scene_number == null)
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
+  if (!String(args.scene_id ?? "").trim() && args.scene_number == null) {
     return {
       error:
         "scene_id נדרש: הסצנה שהמשתמש בחר בלוח, או scene_number כשהוא אמר מספר סצנה.",
     };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   // While the film is being produced its scenes stay as they are: the running production would
   // lip-sync a new line, or miss its narration, with nothing priced for it. The board's own edit
   // (workshop_edit_scene_text) refuses too.
-  if (productionRunning(asRecord(asRecord(project.payload.video).production)))
+  if (productionRunning(asRecord(asRecord(project.payload.video).production))) {
     return { ...PRODUCTION_LOCKED };
+  }
   const scenes = await loadScenes(supabase, tenantId, itemId);
   const found = findScene(scenes, args);
-  if (!found)
+  if (!found) {
     return {
       error:
         scenes.length === 0
           ? "אין סצנות בפרויקט הזה עדיין."
           : `הסצנה לא נמצאה בפרויקט הזה (יש בו ${scenes.length} סצנות). קראי ל-workshop_get_state לרשימת הסצנות.`,
     };
+  }
   const target = found.scene as SceneRow;
   const ownPicture = await isOwnPicture(supabase, tenantId, target);
   const engine = asRecord(project.payload.video).scene_engine;
@@ -128,7 +141,9 @@ export async function workshopUpdateScene(ctx: ToolContext) {
     ownPicture,
     engine: isSceneEngine(engine) ? engine : null,
   });
-  if ("error" in plan) return plan;
+  if ("error" in plan) {
+    return plan;
+  }
 
   let scene: SceneRow = target;
   if (Object.keys(plan.patch).length > 0) {
@@ -140,8 +155,12 @@ export async function workshopUpdateScene(ctx: ToolContext) {
       .eq("item_id", itemId)
       .select(SCENE_COLUMNS)
       .maybeSingle();
-    if (written.error) return { error: written.error.message };
-    if (!written.data) return { error: "הסצנה לא נמצאה בפרויקט הזה." };
+    if (written.error) {
+      return { error: written.error.message };
+    }
+    if (!written.data) {
+      return { error: "הסצנה לא נמצאה בפרויקט הזה." };
+    }
     scene = written.data as SceneRow;
   }
   // A new description for a generated picture: only this picture waits for workshop_make_stills.
@@ -156,11 +175,12 @@ export async function workshopUpdateScene(ctx: ToolContext) {
       .maybeSingle();
     const payload = asRecord(fresh?.data?.payload ?? project.payload);
     const waiting = stringList(payload[REDO_KEY]);
-    if (!waiting.includes(target.id))
+    if (!waiting.includes(target.id)) {
       await savePayload(supabase, tenantId, itemId, {
         ...payload,
         [REDO_KEY]: [...waiting, target.id],
       });
+    }
   }
   const pageId = await refreshStoryboardPage(
     supabase,

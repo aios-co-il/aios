@@ -58,7 +58,9 @@ export function SignatureDateField({
           locale={he}
           selected={selected}
           onSelect={(date) => {
-            if (!date) return;
+            if (!date) {
+              return;
+            }
             onChange(format(date, "dd/MM/yyyy"));
             setOpen(false);
             onCommit?.();

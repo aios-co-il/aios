@@ -95,11 +95,18 @@ export const LAYER_ROLE_LABEL: Record<CreativeLayerRole, string> = {
 };
 
 export const layerLabel = (layer: CreativeLayer, index: number): string => {
-  if (layer.role && LAYER_ROLE_LABEL[layer.role])
+  if (layer.role && LAYER_ROLE_LABEL[layer.role]) {
     return LAYER_ROLE_LABEL[layer.role];
-  if (layer.type === "image") return "לוגו";
-  if (layer.icon) return "אייקון";
-  if (layer.type === "shape") return `צורה ${index + 1}`;
+  }
+  if (layer.type === "image") {
+    return "לוגו";
+  }
+  if (layer.icon) {
+    return "אייקון";
+  }
+  if (layer.type === "shape") {
+    return `צורה ${index + 1}`;
+  }
   return `טקסט ${index + 1}`;
 };
 

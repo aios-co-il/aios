@@ -47,8 +47,12 @@ export function AhrefsProjectPicker({
       const { data, error } = await supabase.functions.invoke(
         "list-ahrefs-projects",
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       return (data as any)?.projects as Array<AhrefsProject>;
     },
     enabled: open,
@@ -57,7 +61,9 @@ export function AhrefsProjectPicker({
 
   const projects = data || [];
   const filtered = projects.filter((p) => {
-    if (!search.trim()) return true;
+    if (!search.trim()) {
+      return true;
+    }
     const q = search.toLowerCase();
     return (
       p.project_name.toLowerCase().includes(q) ||
@@ -81,8 +87,12 @@ export function AhrefsProjectPicker({
           },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       const organic = (data as any)?.keywords_count ?? 0;
       const tracked = (data as any)?.tracked_count ?? 0;
       toast.success(

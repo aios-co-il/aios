@@ -84,7 +84,9 @@ export function ProcessInvoicesDialog({
         .select("id, name, email")
         .eq("tenant_id", tenantId!)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open && !!tenantId,
@@ -99,7 +101,9 @@ export function ProcessInvoicesDialog({
           body: { messageIds, tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -160,7 +164,9 @@ export function ProcessInvoicesDialog({
         });
         if (!error) {
           const idx = results.indexOf(r);
-          if (idx >= 0) updateResult(idx, { saved: true });
+          if (idx >= 0) {
+            updateResult(idx, { saved: true });
+          }
           savedCount++;
         }
       } catch (e) {

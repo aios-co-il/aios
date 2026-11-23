@@ -148,7 +148,9 @@ export function isChannelActive(
   channel: ClientChannel,
   services: Array<string> | null | undefined,
 ): boolean {
-  if (channel.services.length === 0) return true;
+  if (channel.services.length === 0) {
+    return true;
+  }
   const s = Array.isArray(services) ? services : [];
   return channel.services.some((svc) => s.includes(svc));
 }

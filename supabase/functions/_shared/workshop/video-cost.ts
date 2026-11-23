@@ -50,7 +50,9 @@ export function quotedProductionEstimate(
       ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
       : { ...own, pricedOn: engine };
   const again = relipEstimate(relip, connections);
-  if (again.usd === 0) return quote;
+  if (again.usd === 0) {
+    return quote;
+  }
   return {
     ...quote,
     lipsync: {
@@ -136,7 +138,9 @@ function withLipsyncFallback(
   const pass = lipsyncPassScenes(engine, scenes).filter(
     (scene) => scene.chosen_voice !== true,
   );
-  if (!connections.openrouter || pass.length === 0) return estimate;
+  if (!connections.openrouter || pass.length === 0) {
+    return estimate;
+  }
   const own = lipsyncPassUsd(pass);
   const veo = roundUsd(
     pass.reduce(
@@ -145,7 +149,9 @@ function withLipsyncFallback(
       0,
     ),
   );
-  if (veo <= own) return estimate;
+  if (veo <= own) {
+    return estimate;
+  }
   return {
     ...estimate,
     lipsync: {

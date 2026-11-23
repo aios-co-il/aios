@@ -57,22 +57,28 @@ export function capabilityReport(
   // An OpenRouter brain also makes pictures and narrates (ElevenLabs voices through OpenRouter).
   const openRouter = connections.openrouter === true;
   const missing: Array<string> = [];
-  if (images.length === 0 && !openRouter)
+  if (images.length === 0 && !openRouter) {
     missing.push(
       "אין מפתח ליצירת תמונות: צריך מוח OpenRouter או אחד מ-OpenAI, Google, ElevenLabs או Higgsfield",
     );
-  if (!connected.elevenlabs && !connected.google && !openRouter)
+  }
+  if (!connected.elevenlabs && !connected.google && !openRouter) {
     missing.push("בלי ElevenLabs, OpenRouter או Google אין קריינות");
-  if (!connected.elevenlabs)
+  }
+  if (!connected.elevenlabs) {
     missing.push(
       "בלי ElevenLabs אין מוזיקה (הסרט יורכב בלי מיטת מוזיקה) והנפשה במנוע ElevenLabs",
     );
-  if (engine === "mock")
+  }
+  if (engine === "mock") {
     missing.push(
       "אין מנוע וידאו אמיתי (ElevenLabs, Higgsfield או OpenRouter): הסרט יופק במנוע בדיקה",
     );
+  }
   // Carmen's own engine continues on the OpenRouter brain when no provider key answers.
-  if (brains.length === 0 && !openRouter) missing.push("אין מפתח למודל שפה");
+  if (brains.length === 0 && !openRouter) {
+    missing.push("אין מפתח למודל שפה");
+  }
   return {
     connected,
     brains: [

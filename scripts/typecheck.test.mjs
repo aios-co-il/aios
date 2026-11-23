@@ -147,7 +147,9 @@ test("real missing-declaration diagnostics remain identical across different che
       resolved: [],
     });
   } finally {
-    for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true });
+    for (const dir of dirs) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 });
 

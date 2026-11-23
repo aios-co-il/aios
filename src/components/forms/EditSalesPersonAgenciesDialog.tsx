@@ -55,7 +55,9 @@ export default function EditSalesPersonAgenciesDialog({
           })),
         );
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {

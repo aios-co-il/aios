@@ -114,7 +114,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   };
   /** Switching channel drops the other channel's template and content. */
   const pickChannel = (c: "whatsapp" | "email") => {
-    if (c === channel) return;
+    if (c === channel) {
+      return;
+    }
     applyTemplate(null);
     setSubject("");
     setBodyText("");
@@ -216,8 +218,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
 
   // Default the sending domain once the tenant's domains load
   useEffect(() => {
-    if (open && !fromDomain && defaultDomain)
+    if (open && !fromDomain && defaultDomain) {
       setFromDomain(defaultDomain.domain);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultDomain?.domain]);
 
@@ -231,7 +234,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         .filter("tenant_id", "eq", tenantId)
         .in("integration_type", ["green_api", "manus_wa"])
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });
@@ -245,7 +250,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         .select("id, name, color")
         .filter("tenant_id", "eq", tenantId)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });
@@ -261,25 +268,33 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         .filter("tenant_id", "eq", tenantId)
         .eq("is_blocked", false)
         .order("group_name", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
   });
 
   const selectedProvider = useMemo<"green_api" | "manus_wa" | "resend">(() => {
-    if (channel === "email") return "resend";
+    if (channel === "email") {
+      return "resend";
+    }
     const i = (integrations || []).find((x: any) => x.id === integrationId);
     return (i?.integration_type as "green_api" | "manus_wa") || "green_api";
   }, [integrations, integrationId, channel]);
 
   const buildFilter = (): AudienceFilter => {
-    if (source === "wa_groups")
+    if (source === "wa_groups") {
       return { source: "wa_groups", groupIds: selectedGroupIds };
-    if (source === "list") return { source: "list", listId };
-    if (source === "manual")
+    }
+    if (source === "list") {
+      return { source: "list", listId };
+    }
+    if (source === "manual") {
       return { source: "manual", manualContacts: splitContacts(manualText) };
+    }
     const include = pickMode ? { includeIds: selectedIds } : {};
-    if (source === "clients")
+    if (source === "clients") {
       return {
         source,
         statuses: clientStatuses,
@@ -288,6 +303,7 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         tagMode,
         ...include,
       };
+    }
     if (source === "leads") {
       return {
         source,
@@ -378,7 +394,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
         .from("campaigners")
         .select("id, full_name, phone, email")
         .filter("tenant_id", "eq", tenantId);
-      if (activeOnly) q = q.eq("active", true);
+      if (activeOnly) {
+        q = q.eq("active", true);
+      }
       const { data } = await q.limit(1000);
       return (data || []).map((c: any) => ({
         id: c.id,
@@ -463,24 +481,33 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const emailEditable = channel === "email" && !templateId;
 
   const canNext = () => {
-    if (step === 1)
+    if (step === 1) {
       return channel === "email" ? domains.length > 0 : !!integrationId;
+    }
     if (step === 2) {
-      if (source === "wa_groups") return selectedGroupIds.length > 0;
+      if (source === "wa_groups") {
+        return selectedGroupIds.length > 0;
+      }
       return (audienceCount ?? 0) > 0;
     }
     if (step === 3) {
       if (emailEditable) {
-        if (!emailBodyHasContent(bodyHtml)) return false;
-      } else if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0)
+        if (!emailBodyHasContent(bodyHtml)) {
+          return false;
+        }
+      } else if (bodyText.trim().length === 0 && bodyHtml.trim().length === 0) {
         return false;
+      }
       if (channel === "email") {
-        if (subject.trim().length === 0) return false;
+        if (subject.trim().length === 0) {
+          return false;
+        }
         if (
           fromMode === "custom" &&
           (!/^[a-zA-Z0-9._%+-]+$/.test(fromLocal) || !fromDomain)
-        )
+        ) {
           return false;
+        }
       }
       return true;
     }
@@ -488,7 +515,9 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   };
 
   const submit = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setSubmitting(true);
     try {
       // 1) create draft

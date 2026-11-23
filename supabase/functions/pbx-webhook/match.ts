@@ -26,11 +26,15 @@ export async function findCallById(
   tenantId: string,
   callId: string | null,
 ): Promise<CallLogRow | null> {
-  if (!callId) return null;
+  if (!callId) {
+    return null;
+  }
   const { data, error } = await pbxCalls(sb, tenantId)
     .eq("provider_call_id", callId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 
@@ -45,10 +49,16 @@ export async function findOwnerByPhone(
       p_tenant_id: tenantId,
       p_match_key: key,
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const row = data?.[0];
-    if (row?.lead_id) return { leadId: row.lead_id, clientId: null };
-    if (row?.client_id) return { leadId: null, clientId: row.client_id };
+    if (row?.lead_id) {
+      return { leadId: row.lead_id, clientId: null };
+    }
+    if (row?.client_id) {
+      return { leadId: null, clientId: row.client_id };
+    }
   }
   return { leadId: null, clientId: null };
 }
@@ -65,13 +75,16 @@ export async function findDuplicateRecording(
       .eq("recording_url", event.recordingUrl)
       .limit(1)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data;
   }
   // Without a URL the file itself has no key; caller, called and a non-zero
   // duration make a retry recognizable (two 0 s calls are not the same call).
-  if (!hasFile || !event.caller || !event.called || !event.duration)
+  if (!hasFile || !event.caller || !event.called || !event.duration) {
     return null;
+  }
   const { data, error } = await recentPbxCalls(sb, tenantId)
     .eq("from_number", event.caller)
     .eq("to_number", event.called)
@@ -79,7 +92,9 @@ export async function findDuplicateRecording(
     .not("recording_path", "is", null)
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 
@@ -95,11 +110,15 @@ export async function findOpenCall(
   bringsRecording: boolean,
 ): Promise<CallLogRow | null> {
   let q = recentPbxCalls(sb, tenantId);
-  if (owner.leadId) q = q.eq("lead_id", owner.leadId);
-  else if (owner.clientId) q = q.eq("client_id", owner.clientId);
-  else if (event.caller && event.called)
+  if (owner.leadId) {
+    q = q.eq("lead_id", owner.leadId);
+  } else if (owner.clientId) {
+    q = q.eq("client_id", owner.clientId);
+  } else if (event.caller && event.called) {
     q = q.eq("from_number", event.caller).eq("to_number", event.called);
-  else return null;
+  } else {
+    return null;
+  }
   q = bringsRecording
     ? q.is("recording_url", null).is("recording_path", null)
     : q.in("status", OPEN_STATUSES);
@@ -107,7 +126,9 @@ export async function findOpenCall(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 

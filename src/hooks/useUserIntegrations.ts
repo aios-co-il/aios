@@ -46,7 +46,9 @@ export function useUserIntegrations(
   return useQuery({
     queryKey: ["user-integrations", tenantsKey, integrationType, userId],
     queryFn: async () => {
-      if (tenantIds.length === 0 || !userId) return [];
+      if (tenantIds.length === 0 || !userId) {
+        return [];
+      }
 
       // Report OAuth connections are tenant-scoped (see reportIntegrationTypes).
       const isTenantScoped = isReportTenantScopedIntegration(integrationType);
@@ -72,7 +74,9 @@ export function useUserIntegrations(
 
       const { data: ownIntegrations, error: ownError } = await ownQuery;
 
-      if (ownError) throw ownError;
+      if (ownError) {
+        throw ownError;
+      }
 
       // For tenant-scoped types, mark _isOwn correctly based on actual ownership
       if (isTenantScoped) {
@@ -112,7 +116,9 @@ export function useUserIntegrations(
         .select("integration_id")
         .eq("user_id", userId);
 
-      if (permError) throw permError;
+      if (permError) {
+        throw permError;
+      }
 
       const sharedIntegrationIds = (permissions || []).map(
         (p) => p.integration_id,
@@ -126,7 +132,9 @@ export function useUserIntegrations(
           .eq("is_active", true)
           .in("id", sharedIntegrationIds);
 
-        if (sharedError) throw sharedError;
+        if (sharedError) {
+          throw sharedError;
+        }
         sharedIntegrations = shared || [];
       }
 

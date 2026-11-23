@@ -149,7 +149,9 @@ export function CampaignLauncher({
         const account =
           filteredAccounts.find((a) => a.id === selectedAccountId) ??
           filteredAccounts[0];
-        if (!account) throw new Error("לא נמצא חשבון Meta Ads מחובר");
+        if (!account) {
+          throw new Error("לא נמצא חשבון Meta Ads מחובר");
+        }
 
         const { data, error } = await supabase.functions.invoke(
           "fb-campaign-control",
@@ -199,7 +201,9 @@ export function CampaignLauncher({
         const account =
           filteredAccounts.find((a) => a.id === selectedAccountId) ??
           filteredAccounts[0];
-        if (!account) throw new Error("לא נמצא חשבון Google Ads מחובר");
+        if (!account) {
+          throw new Error("לא נמצא חשבון Google Ads מחובר");
+        }
 
         const { data, error } = await supabase.functions.invoke(
           "google-ads-auth",

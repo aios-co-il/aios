@@ -77,7 +77,9 @@ async function tenantNames(
   ids: Array<string>,
 ): Promise<Map<string, string>> {
   const unique = [...new Set(ids)];
-  if (!unique.length) return new Map();
+  if (!unique.length) {
+    return new Map();
+  }
   const { data, error } = await ctx.sb
     .from("tenants")
     .select("id, name")

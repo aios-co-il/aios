@@ -11,7 +11,9 @@ export function mergeCreativeVariations(
   const seen = new Set<string>();
   const merged: Array<CreativeVariation> = [];
   for (const row of incoming) {
-    if (drop.has(row.id)) continue;
+    if (drop.has(row.id)) {
+      continue;
+    }
     seen.add(row.id);
     const existing = liveById.get(row.id);
     if (!existing) {
@@ -29,8 +31,12 @@ export function mergeCreativeVariations(
     });
   }
   for (const row of live) {
-    if (drop.has(row.id) || seen.has(row.id)) continue;
-    if (row.imageUrl) merged.push(row);
+    if (drop.has(row.id) || seen.has(row.id)) {
+      continue;
+    }
+    if (row.imageUrl) {
+      merged.push(row);
+    }
   }
   return merged;
 }

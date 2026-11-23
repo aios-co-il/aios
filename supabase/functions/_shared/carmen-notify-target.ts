@@ -73,11 +73,15 @@ export type ResolveCarmenNotifyTargetResult = {
 export function normalizeNotifyPhone(
   raw: string | null | undefined,
 ): string | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   // Strip WhatsApp JID suffix (@c.us / @g.us / @lid)
   const local = String(raw).trim().split("@")[0] ?? "";
   let digits = local.replace(/\D/g, "");
-  if (!digits) return null;
+  if (!digits) {
+    return null;
+  }
   if (digits.startsWith("0") && digits.length >= 9) {
     digits = `972${digits.slice(1)}`;
   }
@@ -93,12 +97,16 @@ export function phonesMatch(
 ): boolean {
   const na = normalizeNotifyPhone(a);
   const nb = normalizeNotifyPhone(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.endsWith(nb) || nb.endsWith(na);
 }
 
 export function isManagerStaffRole(role: string | null | undefined): boolean {
-  if (!role) return false;
+  if (!role) {
+    return false;
+  }
   const r = String(role).toLowerCase();
   return (
     r.includes("manager") ||
@@ -123,7 +131,9 @@ function findSessionForPhone(
   // Matching on phone alone would steal private pulse/notify into that group.
   return (
     sessions.find((s) => {
-      if (isGroupChatId(s.chat_id)) return false;
+      if (isGroupChatId(s.chat_id)) {
+        return false;
+      }
       return phonesMatch(s.chat_id, phone) || phonesMatch(s.phone, phone);
     }) ?? null
   );
@@ -198,9 +208,13 @@ export function resolveCarmenNotifyTarget(
     fallbackName: string | null = null,
   ): ResolveCarmenNotifyTargetResult | null => {
     const phone = normalizeNotifyPhone(phoneRaw);
-    if (!phone) return null;
+    if (!phone) {
+      return null;
+    }
     // Never treat a group JID as a private notify target
-    if (String(phoneRaw || "").includes("@g.us")) return null;
+    if (String(phoneRaw || "").includes("@g.us")) {
+      return null;
+    }
     const session = findSessionForPhone(sessions, phone);
     const chatId = isGroupChatId(session?.chat_id)
       ? phone
@@ -214,7 +228,9 @@ export function resolveCarmenNotifyTarget(
   };
 
   const preferred = tryPhone(input.preferredPhone, "preferred_phone");
-  if (preferred) return preferred;
+  if (preferred) {
+    return preferred;
+  }
 
   const listed = notifyReportRecipient(input.reportRecipients);
   const report = tryPhone(listed?.phone, "report_recipient", listed?.name);
@@ -235,7 +251,9 @@ export function resolveCarmenNotifyTarget(
 
   for (const staffPhone of rankedStaffPhones) {
     const session = findSessionForPhone(sessions, staffPhone);
-    if (!session) continue;
+    if (!session) {
+      continue;
+    }
     return {
       chatId: session.chat_id,
       phone: normalizeNotifyPhone(session.phone) ?? staffPhone,

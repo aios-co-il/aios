@@ -84,7 +84,9 @@ export function SimpleTableDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const slug = name
         .toLowerCase()
@@ -103,7 +105,9 @@ export function SimpleTableDialog({
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {

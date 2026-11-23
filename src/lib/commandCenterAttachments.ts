@@ -55,7 +55,9 @@ export async function uploadCommandCenterAttachments(
         upsert: false,
         contentType: file.type || undefined,
       });
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      throw uploadError;
+    }
 
     const { data: urlData, error: urlError } = await supabase.storage
       .from(BUCKET)

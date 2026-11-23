@@ -146,7 +146,9 @@ export function TasksChatView({
   );
 
   useEffect(() => {
-    if (isMobile) return;
+    if (isMobile) {
+      return;
+    }
     const stillPresent = Boolean(
       selectedTaskId && tasks.some((task) => task.id === selectedTaskId),
     );
@@ -285,7 +287,9 @@ export function TasksChatView({
             open={Boolean(selectedTask)}
             variant="panel"
             onOpenChange={(open) => {
-              if (!open) onSelectTask(null);
+              if (!open) {
+                onSelectTask(null);
+              }
             }}
             onDelete={(taskId) => {
               const idx = filteredTasks.findIndex((task) => task.id === taskId);
@@ -306,7 +310,9 @@ export function TasksChatView({
           open={Boolean(selectedTask)}
           variant="dialog"
           onOpenChange={(open) => {
-            if (!open) onSelectTask(null);
+            if (!open) {
+              onSelectTask(null);
+            }
           }}
           onDelete={(taskId) => {
             onDelete(taskId, selectedTask?.google_calendar_event_id);

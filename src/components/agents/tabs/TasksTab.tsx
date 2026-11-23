@@ -88,7 +88,9 @@ export function TasksTab({
         .select("*")
         .eq("agent_id", agent.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -105,7 +107,9 @@ export function TasksTab({
       const { error } = await supabase.functions.invoke("run-agent-task", {
         body: { task_id: taskId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
@@ -120,7 +124,9 @@ export function TasksTab({
         .from("agent_tasks")
         .delete()
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
@@ -147,7 +153,9 @@ export function TasksTab({
         status: "scheduled",
         created_by: user?.id ?? null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-tasks", agent.id] });
@@ -384,7 +392,9 @@ function NewTaskDialog({
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
-    if (!tenantId || !title.trim()) return;
+    if (!tenantId || !title.trim()) {
+      return;
+    }
     setSubmitting(true);
     try {
       const payload: any = {
@@ -395,12 +405,17 @@ function NewTaskDialog({
         schedule_type: scheduleType,
         status: scheduleType === "immediate" ? "pending" : "scheduled",
       };
-      if (scheduleType === "scheduled" && scheduledAt)
+      if (scheduleType === "scheduled" && scheduledAt) {
         payload.scheduled_at = new Date(scheduledAt).toISOString();
-      if (scheduleType === "recurring") payload.cron_expression = cron;
+      }
+      if (scheduleType === "recurring") {
+        payload.cron_expression = cron;
+      }
 
       const { error } = await supabase.from("agent_tasks").insert(payload);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("המשימה נוצרה");
       onCreated();
     } catch (e: any) {

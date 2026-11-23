@@ -8,7 +8,9 @@ function stripKeys(
   keys: Array<keyof InsertPayload>,
 ): InsertPayload {
   const next = { ...payload };
-  for (const key of keys) delete next[key];
+  for (const key of keys) {
+    delete next[key];
+  }
   return next;
 }
 
@@ -46,7 +48,9 @@ export async function insertSignatureDocument(
 
   for (const attempt of attempts) {
     const key = JSON.stringify(attempt);
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
 
     const res = await supabase
@@ -68,7 +72,9 @@ export async function insertSignatureDocument(
       msg.includes("template_name") ||
       msg.includes("lead_id") ||
       msg.includes("client_id");
-    if (!retryable) break;
+    if (!retryable) {
+      break;
+    }
   }
 
   if (wantsTemplate && lastError?.message?.includes("is_template")) {

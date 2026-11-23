@@ -20,10 +20,15 @@ export const aspectRatioForSize = (
     format === "9:16" ||
     format === "1:1" ||
     format === "4:5"
-  )
+  ) {
     return format;
-  if (size === "1536x1024") return "16:9";
-  if (size === "1024x1536") return "9:16";
+  }
+  if (size === "1536x1024") {
+    return "16:9";
+  }
+  if (size === "1024x1536") {
+    return "9:16";
+  }
   return "1:1";
 };
 
@@ -88,10 +93,11 @@ export async function generateGeminiImage({
       lastError = `${model}: 404`;
       continue;
     }
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         `Gemini image error: ${response.status} - ${await response.text()}`,
       );
+    }
     const data = await response.json();
     const candidateParts = data?.candidates?.[0]?.content?.parts ?? [];
     const image = candidateParts.find(

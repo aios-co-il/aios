@@ -73,7 +73,9 @@ vi.mock("@/components/workshop/useWorkshopArtifacts", () => ({
 vi.mock("@/components/workshop/useWorkshopScenes", () => ({
   useWorkshopScenes: () => ({ data: [], isLoading: false }),
   useEditSceneText: (_t: unknown, projectId: string | null, edit = false) => {
-    if (projectId) state.edits.push(edit);
+    if (projectId) {
+      state.edits.push(edit);
+    }
     return { mutateAsync: vi.fn() };
   },
 }));
@@ -82,7 +84,9 @@ vi.mock("@/components/workshop/WorkshopFeed", () => ({
     projectId: string | null;
     storyboard: { aspect: string };
   }) => {
-    if (props.projectId) state.aspects.push(props.storyboard.aspect);
+    if (props.projectId) {
+      state.aspects.push(props.storyboard.aspect);
+    }
     return null;
   },
 }));

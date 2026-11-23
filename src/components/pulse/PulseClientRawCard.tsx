@@ -60,8 +60,12 @@ const outcomeColumnLabel = (
   goal: PulseCampaignGoal,
   outcomeKind: string | null,
 ) => {
-  if (goal === "leads") return "לידים";
-  if (goal === "ecommerce") return "רכישות";
+  if (goal === "leads") {
+    return "לידים";
+  }
+  if (goal === "ecommerce") {
+    return "רכישות";
+  }
   if (goal === "engagement") {
     const labels: Record<string, string> = {
       video_views: "צפיות",
@@ -77,15 +81,25 @@ const outcomeColumnLabel = (
 };
 
 const efficiencyColumnLabel = (row: PulseCampaignGoalRow) => {
-  if (row.goal === "ecommerce") return "ROAS";
-  if (row.goal === "leads") return "עלות לליד";
-  if (row.goal === "engagement") return "עלות לתוצאה";
+  if (row.goal === "ecommerce") {
+    return "ROAS";
+  }
+  if (row.goal === "leads") {
+    return "עלות לליד";
+  }
+  if (row.goal === "engagement") {
+    return "עלות לתוצאה";
+  }
   return "יעילות";
 };
 
 const formatEfficiency = (row: PulseCampaignGoalRow) => {
-  if (row.efficiency_7d === null || row.efficiency_7d === undefined) return "—";
-  if (row.goal === "ecommerce") return row.efficiency_7d.toFixed(2);
+  if (row.efficiency_7d === null || row.efficiency_7d === undefined) {
+    return "—";
+  }
+  if (row.goal === "ecommerce") {
+    return row.efficiency_7d.toFixed(2);
+  }
   return formatPulseMoney(row.efficiency_7d);
 };
 

@@ -77,8 +77,9 @@ export const wrapLines = (
   let current = "";
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
-    if (next.length <= maxChars || !current) current = next;
-    else {
+    if (next.length <= maxChars || !current) {
+      current = next;
+    } else {
       lines.push(current);
       current = word;
       if (lines.length >= maxLines - 1) {
@@ -92,13 +93,17 @@ export const wrapLines = (
       }
     }
   }
-  if (current) lines.push(current);
+  if (current) {
+    lines.push(current);
+  }
   return lines.slice(0, maxLines).join("\n");
 };
 
 export const fitCta = (text: string, max = 26): string => {
   const value = text.replace(/\s+/g, " ").trim();
-  if (value.length <= max) return value;
+  if (value.length <= max) {
+    return value;
+  }
   const cut = value.slice(0, max);
   const space = cut.lastIndexOf(" ");
   return `${(space > 10 ? cut.slice(0, space) : cut).trim()}…`;
@@ -111,7 +116,9 @@ export const parseOfferBullets = (copyText: string): Array<string> => {
     .filter((line) => /^[-*•✓]/.test(line))
     .map((line) => line.replace(/^[-*•✓]+\s*/, "").trim())
     .filter((line) => line.length >= 2 && line.length <= 42);
-  if (fromMarks.length > 0) return fromMarks.slice(0, 4);
+  if (fromMarks.length > 0) {
+    return fromMarks.slice(0, 4);
+  }
   return [];
 };
 
@@ -119,7 +126,9 @@ export const footerModules = (bullets: Array<string> = []) => {
   const usable = bullets.filter(
     (item) => item.length >= 2 && item.length <= 16,
   );
-  if (usable.length < 2) return [];
+  if (usable.length < 2) {
+    return [];
+  }
   return usable.slice(0, 4).map((label, index) => ({
     icon: iconForLabel(label, index),
     label,
@@ -128,12 +137,24 @@ export const footerModules = (bullets: Array<string> = []) => {
 
 const iconForLabel = (label: string, index: number): OfferIconName => {
   const value = label.toLowerCase();
-  if (/חיפוש|search|\bai\b|גוגל|צ['׳]אט/.test(value)) return "search";
-  if (/אתר|audit|בדיק/.test(value)) return "file-search";
-  if (/אסטרטג|תכנון|strategy/.test(value)) return "clipboard-list";
-  if (/ליווי|support|הגנ/.test(value)) return "shield";
-  if (/שיח|וואטסאפ|whatsapp|message/.test(value)) return "message-circle";
-  if (/טלפון|שיחה|phone/.test(value)) return "phone";
+  if (/חיפוש|search|\bai\b|גוגל|צ['׳]אט/.test(value)) {
+    return "search";
+  }
+  if (/אתר|audit|בדיק/.test(value)) {
+    return "file-search";
+  }
+  if (/אסטרטג|תכנון|strategy/.test(value)) {
+    return "clipboard-list";
+  }
+  if (/ליווי|support|הגנ/.test(value)) {
+    return "shield";
+  }
+  if (/שיח|וואטסאפ|whatsapp|message/.test(value)) {
+    return "message-circle";
+  }
+  if (/טלפון|שיחה|phone/.test(value)) {
+    return "phone";
+  }
   return OFFER_ICON_NAMES[index % OFFER_ICON_NAMES.length];
 };
 

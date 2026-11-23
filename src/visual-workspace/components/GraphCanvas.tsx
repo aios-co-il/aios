@@ -17,19 +17,29 @@ export function nodeKind(
   fileType: string | null,
   sourceFile: string | null,
 ): string {
-  if (fileType === "concept" || fileType === "rationale") return fileType;
+  if (fileType === "concept" || fileType === "rationale") {
+    return fileType;
+  }
   const f = sourceFile || "";
-  if (f.startsWith("supabase/functions")) return "edge_function";
-  if (f.startsWith("src/pages")) return "page";
-  if (f.startsWith("src/hooks")) return "hook";
-  if (f.startsWith("src/components") || f.startsWith("src/visual-workspace"))
+  if (f.startsWith("supabase/functions")) {
+    return "edge_function";
+  }
+  if (f.startsWith("src/pages")) {
+    return "page";
+  }
+  if (f.startsWith("src/hooks")) {
+    return "hook";
+  }
+  if (f.startsWith("src/components") || f.startsWith("src/visual-workspace")) {
     return "component";
+  }
   if (
     f.startsWith("src/lib") ||
     f.startsWith("src/contexts") ||
     f.startsWith("src/integrations")
-  )
+  ) {
     return "lib";
+  }
   return "other";
 }
 
@@ -111,7 +121,9 @@ export function GraphCanvas({
             dy = Math.random() - 0.5;
             d2 = 1;
           }
-          if (d2 > 40000) continue;
+          if (d2 > 40000) {
+            continue;
+          }
           const f = (900 * alpha) / d2;
           a.vx += dx * f;
           a.vy += dy * f;
@@ -153,8 +165,9 @@ export function GraphCanvas({
   }, [nodes, edges, nodeIndex]);
 
   const positioned = useMemo(() => {
-    if (!layout)
+    if (!layout) {
       return { byId: new Map<string, SimNode>(), list: [] as Array<SimNode> };
+    }
     return { byId: new Map(layout.map((n) => [n.id, n])), list: layout };
   }, [layout]);
 
@@ -175,7 +188,9 @@ export function GraphCanvas({
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || !svgRef.current) return;
+    if (!dragRef.current || !svgRef.current) {
+      return;
+    }
     const { startX, startY, vb } = dragRef.current;
     const rect = svgRef.current.getBoundingClientRect();
     const scaleX = vb[2] / rect.width,
@@ -211,7 +226,9 @@ export function GraphCanvas({
         {edges.map((e, i) => {
           const s = positioned.byId.get(e.source),
             t = positioned.byId.get(e.target);
-          if (!s || !t) return null;
+          if (!s || !t) {
+            return null;
+          }
           return (
             <line key={i} x1={s.x} y1={s.y} x2={t.x} y2={t.y} strokeWidth={1} />
           );

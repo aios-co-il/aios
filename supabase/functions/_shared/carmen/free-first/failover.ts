@@ -45,12 +45,18 @@ export function planSafeFailover(
   if (state.completedToolCalls > 0 || !state.inferenceOnly) {
     return { kind: "resume_from_checkpoint", reason: failure };
   }
-  if (failure === "tool_execution") return { kind: "stop", reason: failure };
-  if (!RETRYABLE.has(failure)) return { kind: "stop", reason: failure };
-  if (state.attemptedModelIds.length >= (state.maxRetries ?? 3) + 1)
+  if (failure === "tool_execution") {
+    return { kind: "stop", reason: failure };
+  }
+  if (!RETRYABLE.has(failure)) {
+    return { kind: "stop", reason: failure };
+  }
+  if (state.attemptedModelIds.length >= (state.maxRetries ?? 3) + 1) {
     return { kind: "stop", reason: "retry_limit" };
-  if (decision.status !== "ready")
+  }
+  if (decision.status !== "ready") {
     return { kind: "stop", reason: "no_fallback" };
+  }
   const next = decision.fallbackIds.find(
     (id) => !state.attemptedModelIds.includes(id) && id !== decision.modelId,
   );

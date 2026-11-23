@@ -84,7 +84,9 @@ export default function Branding() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    if (!file || !currentTenantId) return;
+    if (!file || !currentTenantId) {
+      return;
+    }
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
@@ -127,7 +129,9 @@ export default function Branding() {
         .from("tenant-logos")
         .upload(filePath, file, { upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
 
       // Get public URL
       const {
@@ -153,7 +157,9 @@ export default function Branding() {
   };
 
   const handleRemoveLogo = async () => {
-    if (!currentTenantId || !logoUrl) return;
+    if (!currentTenantId || !logoUrl) {
+      return;
+    }
 
     try {
       const oldPath = logoUrl.split("/").pop();

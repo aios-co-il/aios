@@ -7,16 +7,18 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader)
+    if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
       });
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -29,11 +31,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } },
     ).auth.getUser();
-    if (!user)
+    if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
       });
+    }
 
     const url = new URL(req.url);
     const tenant_id = url.searchParams.get("tenant_id");
@@ -52,11 +55,12 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (!settings)
+    if (!settings) {
       return new Response(JSON.stringify({ error: "Maskyoo not configured" }), {
         status: 422,
         headers: corsHeaders,
       });
+    }
 
     const baseUrl = settings.base_url.replace(/\/$/, "");
     const params = new URLSearchParams({

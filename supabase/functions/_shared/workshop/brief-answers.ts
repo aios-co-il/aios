@@ -67,7 +67,9 @@ export type BriefAnswers = Record<string, string>;
 
 /** The answer to a question under any of its names (סיום, סגיר, קריאה לפעולה…). */
 export function answerFor(answers: BriefAnswers, label: string): string {
-  if (answers[label]) return answers[label];
+  if (answers[label]) {
+    return answers[label];
+  }
   const topic = topicOf(label);
   const match = Object.entries(answers).find(
     ([asked, answer]) => answer && topicOf(asked) === topic,
@@ -95,10 +97,13 @@ export function answersFromMessage(
   const answers: BriefAnswers = {};
   for (const line of String(text ?? "").split("\n")) {
     const match = line.match(/^\s*([^:]{1,40}):\s*(.+?)\s*$/);
-    if (match && known(match[1].trim()))
+    if (match && known(match[1].trim())) {
       answers[match[1].trim()] = match[2].slice(0, MAX_ANSWER);
+    }
   }
-  if (Object.keys(answers).length > 0) return answers;
+  if (Object.keys(answers).length > 0) {
+    return answers;
+  }
   const lone = String(text ?? "").trim();
   const owners = open.filter((choice) => choice.options.includes(lone));
   return owners.length === 1 ? { [owners[0].label]: lone } : {};
@@ -143,7 +148,9 @@ export function withBriefAnswers(
   payload: Record<string, unknown>,
   answers: BriefAnswers,
 ): Record<string, unknown> {
-  if (Object.keys(answers).length === 0) return payload;
+  if (Object.keys(answers).length === 0) {
+    return payload;
+  }
   return {
     ...payload,
     [KEY]: {

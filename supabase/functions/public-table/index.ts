@@ -152,7 +152,9 @@ function normalizeSeoDomain(value?: string | null): string {
   let v = String(value || "")
     .trim()
     .toLowerCase();
-  if (!v) return "";
+  if (!v) {
+    return "";
+  }
   v = v.replace(/^sc-domain:/, "");
   v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
   v = v.split("/")[0].split("?")[0].split("#")[0];
@@ -164,7 +166,9 @@ function normalizeSeoDomain(value?: string | null): string {
 function seoDomainsMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizeSeoDomain(a);
   const nb = normalizeSeoDomain(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.endsWith(`.${nb}`) || nb.endsWith(`.${na}`);
 }
 
@@ -174,7 +178,9 @@ function filterSeoReportsByDomain<T extends { domain?: string | null }>(
   expectedDomain?: string | null,
 ): Array<T> {
   const expected = normalizeSeoDomain(expectedDomain);
-  if (!expected) return reports || [];
+  if (!expected) {
+    return reports || [];
+  }
   const matching = (reports || []).filter((r) =>
     seoDomainsMatch(r.domain, expected),
   );
@@ -206,7 +212,9 @@ async function resolveGscSiteForClient(
       : [];
     const mappedForClient: string | null = clientSites[clientId] || null;
     const isMappingUsable = (siteUrl: string | null) => {
-      if (!siteUrl) return false;
+      if (!siteUrl) {
+        return false;
+      }
       const meta = availableSites.find((x: any) => x?.siteUrl === siteUrl);
       return !meta || meta.permissionLevel !== "siteUnverifiedUser";
     };
@@ -250,7 +258,9 @@ const seoShareResponseCache = new Map<
 
 function readSeoShareCacheLocal(cacheKey: string): string | null {
   const hit = seoShareResponseCache.get(cacheKey);
-  if (!hit) return null;
+  if (!hit) {
+    return null;
+  }
   if (Date.now() > hit.expiresAt) {
     seoShareResponseCache.delete(cacheKey);
     return null;
@@ -265,7 +275,9 @@ function writeSeoShareCacheLocal(cacheKey: string, body: string) {
   });
   if (seoShareResponseCache.size > 150) {
     const oldest = seoShareResponseCache.keys().next().value;
-    if (oldest) seoShareResponseCache.delete(oldest);
+    if (oldest) {
+      seoShareResponseCache.delete(oldest);
+    }
   }
 }
 
@@ -274,9 +286,13 @@ async function readSeoShareCache(
   cacheKey: string,
 ): Promise<string | null> {
   const local = readSeoShareCacheLocal(cacheKey);
-  if (local) return local;
+  if (local) {
+    return local;
+  }
   const db = await readSeoShareCacheFromDb(supabase, cacheKey);
-  if (db) writeSeoShareCacheLocal(cacheKey, db);
+  if (db) {
+    writeSeoShareCacheLocal(cacheKey, db);
+  }
   return db;
 }
 
@@ -309,7 +325,9 @@ function withTimeout<T>(
 function trimAhrefsReportsForPublic(reports: Array<any>): Array<any> {
   return (reports || []).map((report, index) => {
     const rd = report?.report_data;
-    if (!rd || typeof rd !== "object") return report;
+    if (!rd || typeof rd !== "object") {
+      return report;
+    }
     const trimmedRd: Record<string, unknown> = {};
     for (const key of [
       "domain",
@@ -322,7 +340,9 @@ function trimAhrefsReportsForPublic(reports: Array<any>): Array<any> {
       "tracked_keywords",
       "project_name",
     ]) {
-      if (rd[key] !== undefined) trimmedRd[key] = rd[key];
+      if (rd[key] !== undefined) {
+        trimmedRd[key] = rd[key];
+      }
     }
     // HTML deck only on the default (latest) report — same as typical public view.
     if (index === 0 && typeof rd.html === "string" && rd.html.trim()) {
@@ -368,7 +388,9 @@ async function fetchGaRecordsForSeoChart(
       console.error("Error fetching GA records for SEO chart:", error);
       continue;
     }
-    if (data?.length) out.push(...data);
+    if (data?.length) {
+      out.push(...data);
+    }
   }
   return out;
 }
@@ -566,7 +588,9 @@ Deno.serve(async (req) => {
       let seoForceIrrelevant: Array<string> = [];
 
       const clientContextPromise = (async () => {
-        if (!targetClientId) return;
+        if (!targetClientId) {
+          return;
+        }
         try {
           const { data: clientRow } = await supabase
             .from("clients")
@@ -575,8 +599,9 @@ Deno.serve(async (req) => {
             )
             .eq("id", targetClientId)
             .maybeSingle();
-          if (clientRow?.tenant_id)
+          if (clientRow?.tenant_id) {
             accessibleTenantIds.add(clientRow.tenant_id);
+          }
           clientAgencyId = clientRow?.agency_id || null;
           clientName = (clientRow as any)?.name || null;
           clientWebsite = (clientRow as any)?.website || null;
@@ -597,10 +622,12 @@ Deno.serve(async (req) => {
               .select("accessing_tenant_id, source_tenant_id")
               .eq("agency_id", clientAgencyId);
             for (const r of accessRows || []) {
-              if (r.accessing_tenant_id)
+              if (r.accessing_tenant_id) {
                 accessibleTenantIds.add(r.accessing_tenant_id);
-              if (r.source_tenant_id)
+              }
+              if (r.source_tenant_id) {
                 accessibleTenantIds.add(r.source_tenant_id);
+              }
             }
           }
         } catch (e) {
@@ -625,12 +652,14 @@ Deno.serve(async (req) => {
                 .order("received_at", { ascending: false })
                 .order("report_date", { ascending: false, nullsFirst: false })
                 .limit(12);
-              if (targetClientId)
+              if (targetClientId) {
                 reportsQuery = reportsQuery.eq("client_id", targetClientId);
+              }
               const { data: ahrefsReportsRaw, error: reportsErr } =
                 await reportsQuery;
-              if (reportsErr)
+              if (reportsErr) {
                 console.error("Error fetching ahrefs reports:", reportsErr);
+              }
               return trimAhrefsReportsForPublic(
                 filterSeoReportsByDomain(ahrefsReportsRaw || [], targetDomain),
               );
@@ -694,7 +723,9 @@ Deno.serve(async (req) => {
               period: { start: string; end: string } | null;
             }> => {
               await clientContextPromise;
-              if (!targetClientId) return { snapshots: [], period: null };
+              if (!targetClientId) {
+                return { snapshots: [], period: null };
+              }
               try {
                 const now = new Date();
                 const prevMonthEnd = new Date(
@@ -761,7 +792,9 @@ Deno.serve(async (req) => {
                 share_token: null,
                 months: [],
               };
-              if (!targetClientId) return seoMonthly;
+              if (!targetClientId) {
+                return seoMonthly;
+              }
               try {
                 const [{ data: monthlyRows }, { data: monthlyShare }] =
                   await Promise.all([
@@ -866,8 +899,9 @@ Deno.serve(async (req) => {
           yearly: Array<GscKeywordRow>;
         } | null = null;
         let gscSyncedAt: string | null = null;
-        if (!effectiveGscSiteUrl)
+        if (!effectiveGscSiteUrl) {
           return { gscRecords, gscMultiPeriod, gscSyncedAt };
+        }
 
         try {
           const snapshotBundle = await readGscSnapshots(
@@ -896,9 +930,13 @@ Deno.serve(async (req) => {
                 .eq("table_id", gscTable.id)
                 .order("created_at", { ascending: false })
                 .range(from, from + 999);
-              if (error || !page || page.length === 0) break;
+              if (error || !page || page.length === 0) {
+                break;
+              }
               gscRecords.push(...page);
-              if (page.length < 1000) break;
+              if (page.length < 1000) {
+                break;
+              }
             }
           } catch (e) {
             console.error("Error fetching GSC records:", e);
@@ -1079,9 +1117,13 @@ Deno.serve(async (req) => {
         console.error("Error fetching records page:", error);
         break;
       }
-      if (!page || page.length === 0) break;
+      if (!page || page.length === 0) {
+        break;
+      }
       allRecords.push(...page);
-      if (page.length < pageSize) break;
+      if (page.length < pageSize) {
+        break;
+      }
     }
 
     // Filter by date — uses ONLY record.data.date so it matches the internal
@@ -1091,8 +1133,12 @@ Deno.serve(async (req) => {
       ? allRecords
       : allRecords.filter((r: any) => {
           const recordDate = r.data?.date;
-          if (!recordDate) return true; // keep non-dated records (matches internal)
-          if (endDate) return recordDate >= startDate && recordDate <= endDate;
+          if (!recordDate) {
+            return true;
+          } // keep non-dated records (matches internal)
+          if (endDate) {
+            return recordDate >= startDate && recordDate <= endDate;
+          }
           return recordDate >= startDate;
         });
 

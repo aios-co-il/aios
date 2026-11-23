@@ -5,15 +5,20 @@ function keywordRankToolNames(queryText, toolDefs, limit = 40) {
     .toLocaleLowerCase("he")
     .split(/[^\p{L}\p{N}_]+/u)
     .filter((t) => t.length >= 2);
-  if (!terms.length) return [];
+  if (!terms.length) {
+    return [];
+  }
   return toolDefs
     .map((t) => {
       const name = t.name.toLowerCase();
       const hay = `${name} ${(t.description || "").toLocaleLowerCase("he")}`;
       let score = 0;
       for (const term of terms) {
-        if (name.includes(term)) score += 4;
-        else if (hay.includes(term)) score += 1;
+        if (name.includes(term)) {
+          score += 4;
+        } else if (hay.includes(term)) {
+          score += 1;
+        }
       }
       return { name: t.name, score };
     })

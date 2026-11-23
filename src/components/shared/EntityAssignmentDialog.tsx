@@ -63,7 +63,9 @@ export function EntityAssignmentDialog({
     : "none";
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const initialType = currentSelection?.type || groups[0]?.type || "";
     setActiveType(initialType);
     setSelectedIds(

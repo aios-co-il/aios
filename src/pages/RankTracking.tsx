@@ -102,7 +102,9 @@ export default function RankTracking() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return { connected: false };
+      if (!session) {
+        return { connected: false };
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-auth?action=status`,
@@ -115,7 +117,9 @@ export default function RankTracking() {
         },
       );
 
-      if (!response.ok) return { connected: false };
+      if (!response.ok) {
+        return { connected: false };
+      }
       return response.json();
     },
   });
@@ -124,7 +128,9 @@ export default function RankTracking() {
   const { data: projects, isLoading } = useQuery({
     queryKey: ["rank-tracking-projects", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data: projectsData, error } = await supabase
         .from("rank_tracking_projects")
@@ -132,7 +138,9 @@ export default function RankTracking() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Get keyword stats for each project
       const projectsWithStats = await Promise.all(
@@ -182,7 +190,9 @@ export default function RankTracking() {
   const { data: clients } = useQuery({
     queryKey: ["clients", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name")
@@ -196,7 +206,9 @@ export default function RankTracking() {
   // Create project mutation
   const createMutation = useMutation({
     mutationFn: async (data: typeof newProject) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const { error } = await supabase.from("rank_tracking_projects").insert({
         tenant_id: tenantId,
@@ -212,7 +224,9 @@ export default function RankTracking() {
         agency_id: data.agency_id || null,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("פרויקט נוצר בהצלחה!");
@@ -243,7 +257,9 @@ export default function RankTracking() {
         .from("rank_tracking_projects")
         .delete()
         .eq("id", projectId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("פרויקט נמחק");
@@ -262,7 +278,9 @@ export default function RankTracking() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-search`,
@@ -280,7 +298,9 @@ export default function RankTracking() {
       );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Scan failed");
+      if (!response.ok) {
+        throw new Error(data.error || "Scan failed");
+      }
       return data;
     },
     onSuccess: (data) => {

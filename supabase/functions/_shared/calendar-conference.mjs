@@ -18,18 +18,24 @@ export function collectExtraAttendeeEmails(args) {
   const out = [];
   const push = (raw) => {
     if (Array.isArray(raw)) {
-      for (const item of raw) push(item);
+      for (const item of raw) {
+        push(item);
+      }
       return;
     }
     if (raw && typeof raw === "object") {
       const email = normalizeEmail(raw.email);
-      if (email) out.push(email);
+      if (email) {
+        out.push(email);
+      }
       return;
     }
     const text = String(raw || "");
     for (const part of text.split(/[,\s;]+/)) {
       const email = normalizeEmail(part);
-      if (email) out.push(email);
+      if (email) {
+        out.push(email);
+      }
     }
   };
   push(args?.add_attendee_emails);
@@ -43,12 +49,16 @@ export function mergeAttendees(existing, extraEmails, extraNamed = []) {
   const byEmail = new Map();
   for (const row of existing || []) {
     const email = normalizeEmail(row?.email);
-    if (!email) continue;
+    if (!email) {
+      continue;
+    }
     byEmail.set(email, { ...row, email });
   }
   for (const named of extraNamed) {
     const email = normalizeEmail(named?.email);
-    if (!email || byEmail.has(email)) continue;
+    if (!email || byEmail.has(email)) {
+      continue;
+    }
     byEmail.set(email, {
       email,
       ...(named.displayName ? { displayName: String(named.displayName) } : {}),
@@ -56,7 +66,9 @@ export function mergeAttendees(existing, extraEmails, extraNamed = []) {
   }
   for (const email of extraEmails || []) {
     const normalized = normalizeEmail(email);
-    if (!normalized || byEmail.has(normalized)) continue;
+    if (!normalized || byEmail.has(normalized)) {
+      continue;
+    }
     byEmail.set(normalized, { email: normalized });
   }
   return [...byEmail.values()];
@@ -79,15 +91,21 @@ export function mergeNamedPrimaryAttendee(
 
 export function extractConferenceUrl(event) {
   const hangout = String(event?.hangoutLink || "").trim();
-  if (hangout) return hangout;
+  if (hangout) {
+    return hangout;
+  }
   const entries = event?.conferenceData?.entryPoints || [];
   const video =
     entries.find((e) => e?.entryPointType === "video" && e?.uri) ||
     entries.find((e) => e?.uri);
-  if (video?.uri) return String(video.uri);
+  if (video?.uri) {
+    return String(video.uri);
+  }
   const location = String(event?.location || "");
   const locMatch = location.match(/https?:\/\/\S+/i);
-  if (locMatch) return locMatch[0];
+  if (locMatch) {
+    return locMatch[0];
+  }
   const description = String(event?.description || "");
   const descMatch = description.match(
     /https?:\/\/(?:[\w.-]+\.)?(?:zoom\.(?:us|com)\/\S+|meet\.google\.com\/\S+)/i,
@@ -97,18 +115,27 @@ export function extractConferenceUrl(event) {
 
 export function conferenceKindFromUrl(url) {
   const value = String(url || "").toLowerCase();
-  if (value.includes("zoom.us") || value.includes("zoom.com")) return "zoom";
-  if (value.includes("meet.google.com")) return "meet";
-  if (value.includes("teams.microsoft.com") || value.includes("teams.live.com"))
+  if (value.includes("zoom.us") || value.includes("zoom.com")) {
+    return "zoom";
+  }
+  if (value.includes("meet.google.com")) {
+    return "meet";
+  }
+  if (
+    value.includes("teams.microsoft.com") ||
+    value.includes("teams.live.com")
+  ) {
     return "teams";
+  }
   return url ? "other" : "none";
 }
 
 export function eventDurationMinutes(event, fallback = 60) {
   const start = Date.parse(event?.start?.dateTime || "");
   const end = Date.parse(event?.end?.dateTime || "");
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
     return fallback;
+  }
   return Math.max(15, Math.round((end - start) / 60_000));
 }
 
@@ -118,16 +145,22 @@ export function resolveRequestedConference(args) {
   )
     .trim()
     .toLowerCase();
-  if (raw === "none" || raw === "off" || args?.add_conference === false)
+  if (raw === "none" || raw === "off" || args?.add_conference === false) {
     return "none";
-  if (/zoom|זום/.test(raw)) return "zoom";
-  if (/meet|google|גוגל/.test(raw)) return "meet";
+  }
+  if (/zoom|זום/.test(raw)) {
+    return "zoom";
+  }
+  if (/meet|google|גוגל/.test(raw)) {
+    return "meet";
+  }
   if (
     args?.add_conference === true ||
     args?.add_video === true ||
     args?.add_meet === true
-  )
+  ) {
     return "meet";
+  }
   return "none";
 }
 
@@ -155,7 +188,9 @@ export function applyZoomLinkToEvent(event, joinUrl) {
 
 export function googleEventPatchUrl(eventId, { conference = false } = {}) {
   const params = new URLSearchParams({ sendUpdates: "all" });
-  if (conference) params.set("conferenceDataVersion", "1");
+  if (conference) {
+    params.set("conferenceDataVersion", "1");
+  }
   return `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(String(eventId))}?${params}`;
 }
 
@@ -183,7 +218,9 @@ export function summarizeEventResult(event, extras = {}) {
  */
 async function findCampaignerEmailByName(supabase, tenantId, assistantName) {
   const name = String(assistantName || "").trim();
-  if (!name || isCarmenName(name)) return { email: null, error: null };
+  if (!name || isCarmenName(name)) {
+    return { email: null, error: null };
+  }
   const { data, error } = await supabase
     .from("campaigners")
     .select("email, name")
@@ -191,7 +228,9 @@ async function findCampaignerEmailByName(supabase, tenantId, assistantName) {
     .ilike("name", `%${name.replace(/[%_\\]/g, "\\$&")}%`)
     .not("email", "is", null)
     .limit(5);
-  if (error) return { email: null, error: error.message };
+  if (error) {
+    return { email: null, error: error.message };
+  }
   const hit = (data || []).find((row) => normalizeEmail(row.email));
   return { email: hit ? normalizeEmail(hit.email) : null, error: null };
 }
@@ -212,13 +251,17 @@ export async function resolveCarmenAttendeeEmail(
   assistantName,
 ) {
   const fromArg = normalizeEmail(explicitEmail);
-  if (fromArg) return { email: fromArg, source: "argument" };
+  if (fromArg) {
+    return { email: fromArg, source: "argument" };
+  }
 
   const envEmail = normalizeEmail(
     (typeof Deno !== "undefined" && Deno.env?.get?.("CARMEN_CALENDAR_EMAIL")) ||
       "",
   );
-  if (envEmail) return { email: envEmail, source: "env" };
+  if (envEmail) {
+    return { email: envEmail, source: "env" };
+  }
 
   if (!supabase || !tenantId) {
     return {
@@ -234,13 +277,16 @@ export async function resolveCarmenAttendeeEmail(
     tenantId,
     assistantName,
   );
-  if (renamed.error)
+  if (renamed.error) {
     return {
       email: null,
       source: null,
       error: `חיפוש מייל כרמן נכשל: ${renamed.error}`,
     };
-  if (renamed.email) return { email: renamed.email, source: "campaigner" };
+  }
+  if (renamed.email) {
+    return { email: renamed.email, source: "campaigner" };
+  }
   const { data, error } = await supabase
     .from("campaigners")
     .select("email, name")
@@ -248,14 +294,17 @@ export async function resolveCarmenAttendeeEmail(
     .or("name.ilike.%כרמן%,name.ilike.%carmen%")
     .not("email", "is", null)
     .limit(5);
-  if (error)
+  if (error) {
     return {
       email: null,
       source: null,
       error: `חיפוש מייל כרמן נכשל: ${error.message}`,
     };
+  }
   const hit = (data || []).find((row) => normalizeEmail(row.email));
-  if (hit) return { email: normalizeEmail(hit.email), source: "campaigner" };
+  if (hit) {
+    return { email: normalizeEmail(hit.email), source: "campaigner" };
+  }
   return {
     email: null,
     source: null,
@@ -276,7 +325,9 @@ export async function fetchZoomAccessToken(
     .eq("integration_type", "zoom")
     .eq("is_active", true)
     .maybeSingle();
-  if (error) return { error: `שגיאת Zoom: ${error.message}` };
+  if (error) {
+    return { error: `שגיאת Zoom: ${error.message}` };
+  }
   const settings = data?.settings || {};
   if (!settings.account_id || !settings.client_id || !settings.client_secret) {
     return { error: zoomUnavailableMessage(), configured: false };
@@ -300,8 +351,9 @@ export async function fetchZoomAccessToken(
     };
   }
   const tokenData = await tokenResponse.json();
-  if (!tokenData.access_token)
+  if (!tokenData.access_token) {
     return { error: "Zoom לא החזיר access_token", configured: true };
+  }
   return { accessToken: tokenData.access_token, configured: true };
 }
 
@@ -336,7 +388,9 @@ export async function createZoomMeeting({
   if (!resp.ok) {
     return { error: `יצירת פגישת Zoom נכשלה: ${data?.message || resp.status}` };
   }
-  if (!data.join_url) return { error: "Zoom לא החזיר join_url" };
+  if (!data.join_url) {
+    return { error: "Zoom לא החזיר join_url" };
+  }
   return {
     join_url: data.join_url,
     meeting_id: data.id,
@@ -402,7 +456,9 @@ export async function updateExistingCalendarEvent({
   fetchImpl = fetch,
 }) {
   const got = await googleCalendarGetEvent(accessToken, eventId, fetchImpl);
-  if (got.error) return got;
+  if (got.error) {
+    return got;
+  }
   const existing = got.event;
 
   const patch = { ...fieldPatch };
@@ -416,7 +472,9 @@ export async function updateExistingCalendarEvent({
     mergedAttendees.length !== existingAttendees.length ||
     extraEmails.length > 0 ||
     extraNamed.length > 0;
-  if (attendeesChanged) patch.attendees = mergedAttendees;
+  if (attendeesChanged) {
+    patch.attendees = mergedAttendees;
+  }
 
   let zoom_available = null;
   let zoom_status = null;
@@ -475,7 +533,9 @@ export async function updateExistingCalendarEvent({
     { conference: needsConferenceVersion },
     fetchImpl,
   );
-  if (patched.error) return patched;
+  if (patched.error) {
+    return patched;
+  }
 
   return summarizeEventResult(patched.event, {
     zoom_available,
@@ -499,11 +559,22 @@ function buildUpdateMessage({
   attendeesChanged,
 }) {
   const parts = ["האירוע עודכן"];
-  if (appliedConference === "meet") parts.push("נוסף קישור Google Meet");
-  if (appliedConference === "zoom") parts.push("נוסף קישור Zoom");
-  if (conferenceType === "zoom" && appliedConference !== "zoom" && zoom_status)
+  if (appliedConference === "meet") {
+    parts.push("נוסף קישור Google Meet");
+  }
+  if (appliedConference === "zoom") {
+    parts.push("נוסף קישור Zoom");
+  }
+  if (
+    conferenceType === "zoom" &&
+    appliedConference !== "zoom" &&
+    zoom_status
+  ) {
     parts.push(zoom_status);
-  if (attendeesChanged) parts.push("נוספו מוזמנים בלי להסיר קיימים");
+  }
+  if (attendeesChanged) {
+    parts.push("נוספו מוזמנים בלי להסיר קיימים");
+  }
   parts.push("כל המשתתפים קיבלו מייל עדכון");
   return `${parts.join(" — ")}.`;
 }

@@ -60,7 +60,9 @@ export default function Campaigners() {
       selectedAgency,
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Fetch campaigner IDs linked to cross-tenant shared agencies
       let crossTenantCampaignerIds: Array<string> = [];
@@ -103,7 +105,9 @@ export default function Campaigners() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return data?.map((campaigner) => ({
         ...campaigner,
@@ -119,8 +123,12 @@ export default function Campaigners() {
   });
 
   const filteredCampaigners = useMemo(() => {
-    if (!campaigners) return [];
-    if (!selectedAgency || selectedAgency === "all") return campaigners;
+    if (!campaigners) {
+      return [];
+    }
+    if (!selectedAgency || selectedAgency === "all") {
+      return campaigners;
+    }
     return campaigners.filter((campaigner: any) =>
       campaigner.campaigner_agencies?.some(
         (ca: any) => ca.agency_id === selectedAgency,

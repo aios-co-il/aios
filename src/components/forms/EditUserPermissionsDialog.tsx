@@ -43,7 +43,9 @@ export function EditUserPermissionsDialog({
   const { data: isOwnerInTenant } = useQuery({
     queryKey: ["user-is-owner", userId, tenantId],
     queryFn: async () => {
-      if (!userId || !tenantId) return false;
+      if (!userId || !tenantId) {
+        return false;
+      }
 
       const { data, error } = await supabase
         .from("user_roles")
@@ -51,8 +53,12 @@ export function EditUserPermissionsDialog({
         .eq("user_id", userId)
         .eq("role", "owner");
 
-      if (error) throw error;
-      if (!data || data.length === 0) return false;
+      if (error) {
+        throw error;
+      }
+      if (!data || data.length === 0) {
+        return false;
+      }
 
       const { data: tenantUser } = await supabase
         .from("tenant_users")
@@ -77,7 +83,9 @@ export function EditUserPermissionsDialog({
         .eq("user_id", userId)
         .eq("tenant_id", requireTenantId(tenantId));
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // ברירת מחדל: כל המודולים כבויים
       const permissionsMap: Record<string, boolean> = {};

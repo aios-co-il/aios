@@ -50,14 +50,18 @@ const MODES: Array<{ value: string; label: string }> = [
 ];
 
 function toLocalInput(iso: string | null | undefined) {
-  if (!iso) return "";
+  if (!iso) {
+    return "";
+  }
   const d = new Date(iso);
   const off = d.getTimezoneOffset();
   return new Date(d.getTime() - off * 60_000).toISOString().slice(0, 16);
 }
 
 function fmt(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) {
+    return "—";
+  }
   return new Date(iso).toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
     weekday: "short",
@@ -73,7 +77,9 @@ function fireRun(taskId: string) {
   supabase.functions
     .invoke("run-agent-task", { body: { task_id: taskId } })
     .then(({ error }) => {
-      if (error) toast.error(`הריצה נכשלה: ${error.message}`);
+      if (error) {
+        toast.error(`הריצה נכשלה: ${error.message}`);
+      }
     })
     .catch((e) => toast.error(`הריצה נכשלה: ${e?.message ?? e}`));
 }
@@ -104,7 +110,9 @@ export function AgentTaskEditor({
         .select("*")
         .eq("id", taskId)
         .maybeSingle();
-      if (full.error) throw full.error;
+      if (full.error) {
+        throw full.error;
+      }
       return full.data as Record<string, any> | null;
     },
   });
@@ -145,7 +153,9 @@ export function AgentTaskEditor({
       } else if (task.scheduled_at) {
         setWhen("at");
         setAt(toLocalInput(task.scheduled_at));
-      } else setWhen("now");
+      } else {
+        setWhen("now");
+      }
       setAgentId(task.agent_id ?? "");
       setCustomEngine(Boolean(task.engine_model));
       setEngine(task.engine_model ?? "");
@@ -165,7 +175,9 @@ export function AgentTaskEditor({
   }, [task, template]);
 
   useEffect(() => {
-    if (!agentId && carmen) setAgentId(carmen.id);
+    if (!agentId && carmen) {
+      setAgentId(carmen.id);
+    }
   }, [agentId, carmen]);
 
   const cron = when === "recurring" ? buildCron(rec) : null;
@@ -178,12 +190,21 @@ export function AgentTaskEditor({
 
   const save = useMutation({
     mutationFn: async (opts: { runNow?: boolean } = {}) => {
-      if (!tenantId) throw new Error("אין ארגון פעיל");
-      if (!title.trim()) throw new Error("חסרה כותרת");
-      if (!agentId) throw new Error("בחרו מי מבצע את המשימה");
-      if (when === "recurring" && !cronOk)
+      if (!tenantId) {
+        throw new Error("אין ארגון פעיל");
+      }
+      if (!title.trim()) {
+        throw new Error("חסרה כותרת");
+      }
+      if (!agentId) {
+        throw new Error("בחרו מי מבצע את המשימה");
+      }
+      if (when === "recurring" && !cronOk) {
         throw new Error("תזמון לא תקין (או מהיר מדי)");
-      if (when === "at" && !at) throw new Error("בחרו מועד");
+      }
+      if (when === "at" && !at) {
+        throw new Error("בחרו מועד");
+      }
 
       const payload: Record<string, unknown> = {
         title: title.trim(),
@@ -247,14 +268,18 @@ export function AgentTaskEditor({
           })
           .select("id")
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         id = data.id;
       } else {
         const { error } = await db
           .from("agent_tasks")
           .update(payload)
           .eq("id", taskId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
       if (id && enabled && (opts.runNow || (isNew && when === "now"))) {
         if (when === "recurring" || !isNew) {
@@ -293,7 +318,9 @@ export function AgentTaskEditor({
   const remove = useMutation({
     mutationFn: async () => {
       const { error } = await db.from("agent_tasks").delete().eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: carmenTasksKey(tenantId) });
@@ -303,10 +330,12 @@ export function AgentTaskEditor({
     onError: (e: any) => toast.error(e?.message ?? String(e)),
   });
 
-  if (taskId && isLoading)
+  if (taskId && isLoading) {
     return <p className="text-sm text-muted-foreground">טוען…</p>;
-  if (taskId && !task)
+  }
+  if (taskId && !task) {
     return <p className="text-sm text-muted-foreground">המשימה לא נמצאה.</p>;
+  }
 
   const lastOutput =
     task?.result?.final_output ?? task?.result?.last_output ?? null;
@@ -613,7 +642,9 @@ export function AgentTaskEditor({
             variant="ghost"
             className="ms-auto text-destructive"
             onClick={() => {
-              if (window.confirm("למחוק את המשימה?")) remove.mutate();
+              if (window.confirm("למחוק את המשימה?")) {
+                remove.mutate();
+              }
             }}
             disabled={remove.isPending}
           >

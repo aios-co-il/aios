@@ -38,14 +38,18 @@ export function useClientHealthScores(
   const { data: commLogs = [] } = useQuery({
     queryKey: ["communication-logs-latest", clientIds.join(","), tenantId],
     queryFn: async () => {
-      if (!clientIds.length || !tenantId) return [];
+      if (!clientIds.length || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("communication_logs")
         .select("client_id, status, created_at")
         .in("client_id", clientIds)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: clientIds.length > 0 && !!tenantId,
@@ -56,14 +60,18 @@ export function useClientHealthScores(
   const { data: seoUpdates = [] } = useQuery({
     queryKey: ["seo-monthly-latest", clientIds.join(","), tenantId],
     queryFn: async () => {
-      if (!clientIds.length || !tenantId) return [];
+      if (!clientIds.length || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("seo_monthly_updates")
         .select("client_id, month, status")
         .in("client_id", clientIds)
         .eq("tenant_id", tenantId)
         .order("month", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: clientIds.length > 0 && !!tenantId,
@@ -118,7 +126,9 @@ export function useClientHealthScore(
   const { data: commLogs = [] } = useQuery({
     queryKey: ["communication-logs-single", clientId, tenantId],
     queryFn: async () => {
-      if (!clientId || !tenantId) return [];
+      if (!clientId || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("communication_logs")
         .select("client_id, status, created_at")
@@ -126,7 +136,9 @@ export function useClientHealthScore(
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(1);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!clientId && !!tenantId,
@@ -136,7 +148,9 @@ export function useClientHealthScore(
   const { data: seoUpdates = [] } = useQuery({
     queryKey: ["seo-monthly-single", clientId, tenantId],
     queryFn: async () => {
-      if (!clientId || !tenantId) return [];
+      if (!clientId || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("seo_monthly_updates")
         .select("client_id, month, status")
@@ -144,7 +158,9 @@ export function useClientHealthScore(
         .eq("tenant_id", tenantId)
         .order("month", { ascending: false })
         .limit(3);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!clientId && !!tenantId,

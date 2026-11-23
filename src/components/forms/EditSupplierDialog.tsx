@@ -110,7 +110,9 @@ export function EditSupplierDialog({
         })
         .eq("id", supplier.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הספק עודכן בהצלחה");

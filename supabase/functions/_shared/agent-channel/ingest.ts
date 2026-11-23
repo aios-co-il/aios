@@ -21,14 +21,17 @@ async function resolveSession(
 ) {
   if (payload.session_id) {
     const byId = await loadSession(sb, payload.session_id);
-    if (byId) return byId;
+    if (byId) {
+      return byId;
+    }
   }
   if (
     !payload.conversation_id ||
     origin === "internal" ||
     origin === "parliament"
-  )
+  ) {
     return null;
+  }
   return await getRunningSession(sb, payload.conversation_id, origin);
 }
 
@@ -48,8 +51,12 @@ export async function ingestChannelReply(
   payload: CallbackPayload,
 ): Promise<{ duplicate: boolean; message_id: string }> {
   const content = String(payload.content || "").trim();
-  if (!content) throw new Error("content is required");
-  if (!payload.conversation_id) throw new Error("conversation_id is required");
+  if (!content) {
+    throw new Error("content is required");
+  }
+  if (!payload.conversation_id) {
+    throw new Error("conversation_id is required");
+  }
 
   const sb = serviceClient();
   const hinted = payload.session_id
@@ -61,10 +68,11 @@ export async function ingestChannelReply(
     payload.tenant_id ||
     session?.tenant_id ||
     (await conversationTenant(sb, payload.conversation_id));
-  if (!tenantId)
+  if (!tenantId) {
     throw new Error(
       `conversation ${payload.conversation_id} not found in this AIOS environment`,
     );
+  }
   if (session && session.conversation_id !== payload.conversation_id) {
     throw new Error("session does not belong to this conversation");
   }
@@ -149,7 +157,9 @@ export async function ingestChannelReply(
     }
   }
 
-  if (duplicate) return { duplicate: true, message_id: row.id };
+  if (duplicate) {
+    return { duplicate: true, message_id: row.id };
+  }
 
   if (eventType === "message") {
     const codingOrigins = new Set<ChannelProvider>([
@@ -177,7 +187,9 @@ export async function ingestChannelReply(
     }
     const inParliament =
       !!session?.parliament_run_id || origin === "parliament";
-    if (session) await completeSession(sb, session.id, "completed");
+    if (session) {
+      await completeSession(sb, session.id, "completed");
+    }
     if (inParliament) {
       await onParliamentCallback({
         tenantId,

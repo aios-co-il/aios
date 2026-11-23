@@ -39,7 +39,9 @@ function quotedFilm() {
     },
     {},
   );
-  if (!checked.ok) throw new Error("budget refused");
+  if (!checked.ok) {
+    throw new Error("budget refused");
+  }
   return spendBudget(checked.payload, "workshop_produce_video", 1);
 }
 

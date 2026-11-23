@@ -12,8 +12,9 @@ vi.mock("@/lib/seoGeoDb", () => {
     maybeSingle: async () => empty,
     single: async () => empty,
   };
-  for (const method of ["select", "eq", "order", "insert", "update", "gte"])
+  for (const method of ["select", "eq", "order", "insert", "update", "gte"]) {
     chain[method] = () => chain;
+  }
   return { seoGeoDb: { from: () => chain } };
 });
 vi.mock("@/integrations/supabase/client", () => {
@@ -21,7 +22,9 @@ vi.mock("@/integrations/supabase/client", () => {
     then: (resolve: (value: unknown) => unknown) =>
       resolve({ data: [], error: null }),
   };
-  for (const method of ["select", "eq", "order"]) chain[method] = () => chain;
+  for (const method of ["select", "eq", "order"]) {
+    chain[method] = () => chain;
+  }
   return { supabase: { from: () => chain, functions: { invoke: vi.fn() } } };
 });
 

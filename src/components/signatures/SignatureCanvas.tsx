@@ -14,14 +14,19 @@ export function SignatureCanvas({
   useEffect(() => {
     const canvas = ref.current;
     const context = canvas?.getContext("2d");
-    if (!canvas || !context || drawing.current) return;
+    if (!canvas || !context || drawing.current) {
+      return;
+    }
     context.clearRect(0, 0, canvas.width, canvas.height);
-    if (!value) return;
+    if (!value) {
+      return;
+    }
     let cancelled = false;
     const image = new Image();
     image.onload = () => {
-      if (!cancelled && !drawing.current)
+      if (!cancelled && !drawing.current) {
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      }
     };
     image.src = value;
     return () => {
@@ -30,7 +35,9 @@ export function SignatureCanvas({
   }, [value]);
 
   const finish = () => {
-    if (!drawing.current || !ref.current) return;
+    if (!drawing.current || !ref.current) {
+      return;
+    }
     drawing.current = false;
     onChange(ref.current.toDataURL("image/png"));
   };
@@ -46,7 +53,9 @@ export function SignatureCanvas({
         event.preventDefault();
         const canvas = event.currentTarget;
         const context = canvas.getContext("2d");
-        if (!context) return;
+        if (!context) {
+          return;
+        }
         canvas.setPointerCapture(event.pointerId);
         const rect = canvas.getBoundingClientRect();
         const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
@@ -62,10 +71,14 @@ export function SignatureCanvas({
         drawing.current = true;
       }}
       onPointerMove={(event) => {
-        if (!drawing.current) return;
+        if (!drawing.current) {
+          return;
+        }
         const canvas = event.currentTarget;
         const context = canvas.getContext("2d");
-        if (!context) return;
+        if (!context) {
+          return;
+        }
         const rect = canvas.getBoundingClientRect();
         context.lineTo(
           ((event.clientX - rect.left) * canvas.width) / rect.width,

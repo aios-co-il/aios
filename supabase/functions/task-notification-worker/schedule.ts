@@ -63,7 +63,9 @@ function isBeforeMorning(parts: LocalParts) {
 export function taskOverdueNotifyAt(task: {
   due_date: string | null;
 }): Date | null {
-  if (!task.due_date) return null;
+  if (!task.due_date) {
+    return null;
+  }
   const [year, month, day] = task.due_date.split("-").map(Number);
   const dayAfterDue = shiftLocalDate(
     { year, month, day, hour: 0, minute: 0 },
@@ -106,7 +108,9 @@ function plannedReminderAt(task: ReminderTask): Date | null {
     return fiveHoursLater;
   }
 
-  if (!task.due_date) return null;
+  if (!task.due_date) {
+    return null;
+  }
   const [year, month, day] = task.due_date.split("-").map(Number);
   const [hour = 9, minute = 0] = (task.due_time || "09:00")
     .split(":")

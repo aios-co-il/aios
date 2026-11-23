@@ -27,13 +27,19 @@ function storageKey(tenantId: string): string {
 }
 
 function readStoredAgency(tenantId: string | null): string {
-  if (!tenantId) return "all";
+  if (!tenantId) {
+    return "all";
+  }
   try {
     const scoped = localStorage.getItem(storageKey(tenantId));
-    if (scoped && scoped.length > 0) return scoped;
+    if (scoped && scoped.length > 0) {
+      return scoped;
+    }
     // One-time migration from the old global key.
     const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-    if (legacy && legacy.length > 0) return legacy;
+    if (legacy && legacy.length > 0) {
+      return legacy;
+    }
   } catch {
     // ignore storage failures (private mode, etc.)
   }
@@ -41,7 +47,9 @@ function readStoredAgency(tenantId: string | null): string {
 }
 
 function writeStoredAgency(tenantId: string | null, agencyId: string) {
-  if (!tenantId) return;
+  if (!tenantId) {
+    return;
+  }
   try {
     localStorage.setItem(storageKey(tenantId), agencyId);
   } catch {
@@ -67,8 +75,12 @@ export function AgencyProvider({ children }: { children: ReactNode }) {
 
   // Hydrate per-tenant selection when the active tenant changes (not on every remount).
   useEffect(() => {
-    if (!currentTenantId) return;
-    if (hydratedTenantRef.current === currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
+    if (hydratedTenantRef.current === currentTenantId) {
+      return;
+    }
     hydratedTenantRef.current = currentTenantId;
     setSelectedAgencyState(readStoredAgency(currentTenantId));
     if (
@@ -91,7 +103,9 @@ export function AgencyProvider({ children }: { children: ReactNode }) {
   } = useQuery({
     queryKey: ["agencies-filter", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [] as Array<any>;
+      if (!currentTenantId) {
+        return [] as Array<any>;
+      }
 
       const [
         { data: ownedAgencies, error: ownedError },
@@ -140,13 +154,19 @@ export function AgencyProvider({ children }: { children: ReactNode }) {
 
   // Ensure a valid selection once agencies are fully loaded for this tenant.
   useEffect(() => {
-    if (!agencies || agencies.length === 0) return;
-    if (!isAgenciesFetched || isLoadingAgencies || isFetchingAgencies) return;
+    if (!agencies || agencies.length === 0) {
+      return;
+    }
+    if (!isAgenciesFetched || isLoadingAgencies || isFetchingAgencies) {
+      return;
+    }
 
     if (agencies.length === 1) {
       const onlyId = agencies[0].id;
       // Keep "all" — tasks "שלי בלבד" needs cross-agency visibility even with one agency row.
-      if (selectedAgency === "all") return;
+      if (selectedAgency === "all") {
+        return;
+      }
       if (selectedAgency !== onlyId) {
         setSelectedAgency(onlyId);
       }

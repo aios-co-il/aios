@@ -83,7 +83,9 @@ export function buildCodexWorkspaceAgentInput(args: {
 function attachmentBlock(
   attachments: Array<ChannelAttachment> | undefined,
 ): string {
-  if (!attachments?.length) return "";
+  if (!attachments?.length) {
+    return "";
+  }
   const lines = attachments.map((a) => {
     const label = a.type === "image" ? "image" : "file";
     return `- ${label}: ${a.name} → ${a.url}`;

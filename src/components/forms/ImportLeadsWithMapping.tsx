@@ -137,13 +137,17 @@ export function ImportLeadsWithMapping() {
   const { data: customFields = [] } = useQuery({
     queryKey: ["custom-fields", tenantId, "lead"],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("custom_fields")
         .select("field_key, field_label, is_required, is_visible")
         .eq("tenant_id", tenantId)
         .eq("entity_type", "lead");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && open,
@@ -153,12 +157,16 @@ export function ImportLeadsWithMapping() {
   const { data: existingStatuses = [] } = useQuery({
     queryKey: ["lead-statuses", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("lead_statuses")
         .select("id, status_key, label, color")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && open,
@@ -168,12 +176,16 @@ export function ImportLeadsWithMapping() {
   const { data: existingTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("id, name, color")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && open,
@@ -197,13 +209,17 @@ export function ImportLeadsWithMapping() {
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && open,
@@ -213,14 +229,18 @@ export function ImportLeadsWithMapping() {
   const { data: salesPeople = [] } = useQuery({
     queryKey: ["sales_people", defaultAgencyId],
     queryFn: async () => {
-      if (!defaultAgencyId) return [];
+      if (!defaultAgencyId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
         .eq("agency_id", defaultAgencyId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!defaultAgencyId && open,
@@ -284,7 +304,9 @@ export function ImportLeadsWithMapping() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     const extension = file.name.split(".").pop()?.toLowerCase();
     if (!["csv", "xlsx", "xls"].includes(extension || "")) {
@@ -385,11 +407,16 @@ export function ImportLeadsWithMapping() {
 
       let statusColorIdx = 0;
       uniqueValues.forEach((val) => {
-        if (looksLikePipelineStatusLabel(val)) return;
-        if (resolveResponseStatusKey(val, existingStatuses)) return;
-        const classified = classifyLeadImportStatus(val, existingStatuses);
-        if (classified.pipelineStatus && classified.pipelineStatus !== "new")
+        if (looksLikePipelineStatusLabel(val)) {
           return;
+        }
+        if (resolveResponseStatusKey(val, existingStatuses)) {
+          return;
+        }
+        const classified = classifyLeadImportStatus(val, existingStatuses);
+        if (classified.pipelineStatus && classified.pipelineStatus !== "new") {
+          return;
+        }
         const normalizedVal = val.toLowerCase().trim();
         if (
           !existingStatusLabels.includes(normalizedVal) &&
@@ -446,12 +473,16 @@ export function ImportLeadsWithMapping() {
         let campaign = "";
         campaignMappings.forEach((mapping) => {
           const val = row[mapping.csvColumn];
-          if (val && String(val).trim()) campaign = String(val).trim();
+          if (val && String(val).trim()) {
+            campaign = String(val).trim();
+          }
         });
         let sourceRaw = "";
         sourceMappings.forEach((mapping) => {
           const val = row[mapping.csvColumn];
-          if (val && String(val).trim()) sourceRaw = String(val).trim();
+          if (val && String(val).trim()) {
+            sourceRaw = String(val).trim();
+          }
         });
         const source = sourceRaw ? inferLeadSource(sourceRaw) : "paid_ads";
         leadOriginTagNames({ campaign_name: campaign || null, source }).forEach(
@@ -517,7 +548,9 @@ export function ImportLeadsWithMapping() {
   }, [systemFields, mappings]);
 
   const previewData = useMemo(() => {
-    if (rawData.length === 0) return [];
+    if (rawData.length === 0) {
+      return [];
+    }
 
     return rawData.slice(0, 5).map((row) => {
       const mapped: Record<string, any> = {};
@@ -531,10 +564,14 @@ export function ImportLeadsWithMapping() {
   }, [rawData, mappings]);
 
   const parseDate = (val: string) => {
-    if (!val) return null;
+    if (!val) {
+      return null;
+    }
 
     const strVal = String(val).trim();
-    if (!strVal) return null;
+    if (!strVal) {
+      return null;
+    }
 
     // Helper function to validate year is reasonable (1900-2100)
     const isValidYear = (year: number) => year >= 1900 && year <= 2100;
@@ -547,7 +584,9 @@ export function ImportLeadsWithMapping() {
       let year = parseInt(slashParts[2], 10);
 
       // Convert 2-digit year
-      if (year < 100) year = year > 50 ? 1900 + year : 2000 + year;
+      if (year < 100) {
+        year = year > 50 ? 1900 + year : 2000 + year;
+      }
 
       if (
         isValidYear(year) &&
@@ -662,7 +701,9 @@ export function ImportLeadsWithMapping() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("משתמש לא מחובר");
+      if (!user) {
+        throw new Error("משתמש לא מחובר");
+      }
 
       // Create new statuses
       const newStatuses = newValues.filter((v) => v.type === "status");
@@ -812,8 +853,9 @@ export function ImportLeadsWithMapping() {
             value === undefined ||
             value === null ||
             String(value).trim() === ""
-          )
+          ) {
             return;
+          }
 
           const strValue = String(value).trim();
 
@@ -830,14 +872,18 @@ export function ImportLeadsWithMapping() {
               lead.campaign_name = strValue;
               break;
             case "email":
-              if (strValue.includes("@")) lead.email = strValue;
+              if (strValue.includes("@")) {
+                lead.email = strValue;
+              }
               break;
             case "phone":
               lead.phone = strValue.replace(/[^\d+\-\s]/g, "");
               break;
             case "source":
               lead.source = mapSource(strValue);
-              if (!lead.campaign_name) lead.campaign_name = strValue;
+              if (!lead.campaign_name) {
+                lead.campaign_name = strValue;
+              }
               break;
             case "status":
               applyImportedStatus(lead, strValue, statusKeyMap);
@@ -862,12 +908,16 @@ export function ImportLeadsWithMapping() {
             case "three_month_budget":
             case "estimated_deal_value": {
               const num = parseFloat(strValue.replace(/[^\d.-]/g, ""));
-              if (!isNaN(num) && num > 0) lead[sysField] = num;
+              if (!isNaN(num) && num > 0) {
+                lead[sysField] = num;
+              }
               break;
             }
             case "created_at": {
               const createdDate = parseDate(strValue);
-              if (createdDate) lead.created_at = createdDate + "T00:00:00Z";
+              if (createdDate) {
+                lead.created_at = createdDate + "T00:00:00Z";
+              }
               break;
             }
             case "proposal_date": {
@@ -880,12 +930,16 @@ export function ImportLeadsWithMapping() {
             }
             case "follow_up_date": {
               const followUpDate = parseDate(strValue);
-              if (followUpDate) lead.follow_up_date = followUpDate;
+              if (followUpDate) {
+                lead.follow_up_date = followUpDate;
+              }
               break;
             }
             case "meeting_date": {
               const meetingDate = parseDate(strValue);
-              if (meetingDate) lead.meeting_date = meetingDate;
+              if (meetingDate) {
+                lead.meeting_date = meetingDate;
+              }
               break;
             }
             case "won_date": {
@@ -905,9 +959,15 @@ export function ImportLeadsWithMapping() {
         if (!lead.company_name && lead.contact_name) {
           lead.company_name = lead.contact_name;
         }
-        if (!lead.source) lead.source = "paid_ads";
-        if (!lead.status) lead.status = "new";
-        if (!lead.created_at) lead.created_at = new Date().toISOString();
+        if (!lead.source) {
+          lead.source = "paid_ads";
+        }
+        if (!lead.status) {
+          lead.status = "new";
+        }
+        if (!lead.created_at) {
+          lead.created_at = new Date().toISOString();
+        }
 
         const originTags = leadOriginTagNames({
           campaign_name: lead.campaign_name,
@@ -917,7 +977,9 @@ export function ImportLeadsWithMapping() {
         const mergedTags: Array<string> = [];
         for (const tag of [...rowTags, ...originTags]) {
           const key = tag.toLowerCase();
-          if (seenTags.has(key)) continue;
+          if (seenTags.has(key)) {
+            continue;
+          }
           seenTags.add(key);
           mergedTags.push(tag);
         }
@@ -967,7 +1029,9 @@ export function ImportLeadsWithMapping() {
 
       // Normalize phone function for consistent matching
       const normalizePhone = (phone: string | null | undefined): string => {
-        if (!phone) return "";
+        if (!phone) {
+          return "";
+        }
         // Remove all non-digits
         let digits = phone.toString().replace(/\D/g, "");
         // Handle Israeli numbers - convert 972 prefix to 0
@@ -988,7 +1052,9 @@ export function ImportLeadsWithMapping() {
       const existingPhoneSet = new Set<string>();
       existingLeads?.forEach((l) => {
         const normalized = normalizePhone(l.phone);
-        if (normalized) existingPhoneSet.add(normalized);
+        if (normalized) {
+          existingPhoneSet.add(normalized);
+        }
       });
 
       const normalizeStr = (s: string | null | undefined) =>
@@ -1088,7 +1154,9 @@ export function ImportLeadsWithMapping() {
         const { error } = await supabase
           .from("leads")
           .upsert(uniqueLeadUpdates.map((u) => u.lead));
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       // Execute inserts and get new IDs (deduplicated)
@@ -1098,7 +1166,9 @@ export function ImportLeadsWithMapping() {
           .from("leads")
           .insert(uniqueLeadInserts.map((i) => i.lead))
           .select("id");
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         if (insertedData) {
           insertedIds.push(...insertedData.map((d) => d.id));
         }
@@ -1584,8 +1654,11 @@ export function ImportLeadsWithMapping() {
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) handleClose();
-        else setOpen(true);
+        if (!isOpen) {
+          handleClose();
+        } else {
+          setOpen(true);
+        }
       }}
     >
       <DialogTrigger asChild>

@@ -53,7 +53,9 @@ export function useGraphifyOverview() {
     queryKey: ["graphify-overview", tenantId],
     queryFn: async (): Promise<GraphifyOverview> => {
       const { data, error } = await supabase.rpc("graphify_overview" as any);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? { active: false }) as GraphifyOverview;
     },
     enabled: !!tenantId,
@@ -77,7 +79,9 @@ export function useGraphifyCommunity(groupKey: string | null) {
           p_limit: 400,
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const parsed = (data ?? {}) as any;
       return {
         nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
@@ -101,7 +105,9 @@ export function useGraphifySearch(query: string) {
         p_depth: 1,
         p_limit: 40,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return Array.isArray(data) ? (data as Array<GraphifySearchHit>) : [];
     },
     enabled: trimmed.length >= 2 && !!tenantId,

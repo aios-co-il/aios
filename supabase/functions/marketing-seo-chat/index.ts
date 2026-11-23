@@ -20,24 +20,31 @@ const respond = (body: unknown, status = 200) =>
   });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   try {
     const auth = await requireAuth(req);
-    if (!auth) return respond({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
     const { work_item_id, message } = await req.json();
-    if (!work_item_id || !message?.trim())
+    if (!work_item_id || !message?.trim()) {
       return respond({ error: "work_item_id and message required" }, 400);
+    }
 
     const { data: item } = await admin
       .from("marketing_work_items")
       .select("*")
       .eq("id", work_item_id)
       .single();
-    if (!item) return respond({ error: "Not found" }, 404);
+    if (!item) {
+      return respond({ error: "Not found" }, 404);
+    }
     if (auth.kind === "user") {
       const { data: membership } = await admin
         .from("tenant_users")
@@ -45,7 +52,9 @@ serve(async (req) => {
         .eq("tenant_id", item.tenant_id)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return respond({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return respond({ error: "Forbidden" }, 403);
+      }
     }
 
     const text = String(message).trim().toLowerCase();

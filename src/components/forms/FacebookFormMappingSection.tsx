@@ -139,7 +139,9 @@ export function FacebookFormMappingSection({
         .select("id,name,contact_name,phone")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: Boolean(tenantId),
@@ -149,7 +151,9 @@ export function FacebookFormMappingSection({
   const { data: sourceToken } = useQuery({
     queryKey: ["source-integration-token", sharedFromIntegrationId],
     queryFn: async () => {
-      if (!sharedFromIntegrationId) return null;
+      if (!sharedFromIntegrationId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -158,7 +162,9 @@ export function FacebookFormMappingSection({
         .eq("is_active", true)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.api_key || null;
     },
     enabled: !!sharedFromIntegrationId && !accessToken,
@@ -180,8 +186,9 @@ export function FacebookFormMappingSection({
   } = useQuery({
     queryKey: ["facebook-pages", tenantId, effectiveAccessToken],
     queryFn: async () => {
-      if (!effectiveAccessToken)
+      if (!effectiveAccessToken) {
         return { pages: [], pageTokens: {}, tokenExpired: false };
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "get-facebook-forms",
@@ -247,7 +254,9 @@ export function FacebookFormMappingSection({
       effectivePageTokens[selectedPageId],
     ],
     queryFn: async () => {
-      if (!effectiveAccessToken || !selectedPageId) return { forms: [] };
+      if (!effectiveAccessToken || !selectedPageId) {
+        return { forms: [] };
+      }
 
       // Use page-specific token from the effective tokens map
       const pageAccessToken =
@@ -265,7 +274,9 @@ export function FacebookFormMappingSection({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled:
@@ -278,7 +289,9 @@ export function FacebookFormMappingSection({
   const { data: existingSettings } = useQuery({
     queryKey: ["facebook-integration-settings", integrationId],
     queryFn: async () => {
-      if (!integrationId) return null;
+      if (!integrationId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -286,7 +299,9 @@ export function FacebookFormMappingSection({
         .eq("id", integrationId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.settings as any;
     },
     enabled: !!integrationId,
@@ -379,7 +394,9 @@ export function FacebookFormMappingSection({
         })
         .eq("id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Auto-subscribe the page to leadgen webhook
       if (selectedPageId) {
@@ -427,7 +444,9 @@ export function FacebookFormMappingSection({
   // Delete form mapping mutation
   const deleteFormMutation = useMutation({
     mutationFn: async (formIdToDelete: string) => {
-      if (!integrationId) throw new Error("חסר מזהה אינטגרציה");
+      if (!integrationId) {
+        throw new Error("חסר מזהה אינטגרציה");
+      }
 
       const currentSettings = existingSettings || {};
       const formMappings = { ...(currentSettings.form_mappings || {}) };
@@ -446,7 +465,9 @@ export function FacebookFormMappingSection({
         })
         .eq("id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הטופס הוסר בהצלחה");

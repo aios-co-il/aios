@@ -70,7 +70,9 @@ export function ClientReportScheduleSettings({
           ? query.eq("table_id", target.id)
           : query.eq("dashboard_id", target.id);
       const { data, error } = await query.maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!clientId && !!target.id,
@@ -119,7 +121,9 @@ export function ClientReportScheduleSettings({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
       const payload = {
         tenant_id: tenantId,
         client_id: clientId,
@@ -146,7 +150,9 @@ export function ClientReportScheduleSettings({
       const result = schedule?.id
         ? await schedules.update(payload).eq("id", schedule.id)
         : await schedules.insert({ ...payload, created_by: user.id });
-      if (result.error) throw result.error;
+      if (result.error) {
+        throw result.error;
+      }
       await queryClient.invalidateQueries({ queryKey });
       toast.success(
         enabled ? "תזמון הדוח נשמר והופעל" : "הגדרת התזמון נשמרה ללא הפעלה",

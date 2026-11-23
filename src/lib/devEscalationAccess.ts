@@ -24,9 +24,13 @@ type Allowlist = {
 };
 
 function normalizePhoneSuffix(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   const digits = phone.replace(/[^0-9]/g, "");
-  if (digits.length < 9) return null;
+  if (digits.length < 9) {
+    return null;
+  }
   return digits.slice(-9);
 }
 
@@ -38,15 +42,19 @@ function matches(
   },
   allowlist: Allowlist,
 ): boolean {
-  if (identity.userId && allowlist.user_ids.includes(identity.userId))
+  if (identity.userId && allowlist.user_ids.includes(identity.userId)) {
     return true;
+  }
   if (
     identity.campaignerId &&
     allowlist.campaigner_ids.includes(identity.campaignerId)
-  )
+  ) {
     return true;
+  }
   const suffix = normalizePhoneSuffix(identity.phone);
-  if (suffix && allowlist.phone_suffixes.includes(suffix)) return true;
+  if (suffix && allowlist.phone_suffixes.includes(suffix)) {
+    return true;
+  }
   return false;
 }
 
@@ -55,8 +63,12 @@ export function getDevEscalationTier(identity: {
   campaignerId?: string | null;
   phone?: string | null;
 }): DevEscalationTier {
-  if (matches(identity, FULL)) return "full";
-  if (matches(identity, BUGFIX)) return "bugfix";
+  if (matches(identity, FULL)) {
+    return "full";
+  }
+  if (matches(identity, BUGFIX)) {
+    return "bugfix";
+  }
   return null;
 }
 

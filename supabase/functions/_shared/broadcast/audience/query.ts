@@ -13,9 +13,13 @@ export async function fetchAll<T>(build: () => Pageable<T>): Promise<Array<T>> {
   const out: Array<T> = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build().range(from, from + PAGE - 1);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     out.push(...(data || []));
-    if (!data || data.length < PAGE) break;
+    if (!data || data.length < PAGE) {
+      break;
+    }
   }
   return out;
 }
@@ -29,7 +33,9 @@ export async function fetchByIds<T>(
   const out: Array<T> = [];
   for (let i = 0; i < unique.length; i += IN_CHUNK) {
     const { data, error } = await query(unique.slice(i, i + IN_CHUNK));
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     out.push(...(data || []));
   }
   return out;

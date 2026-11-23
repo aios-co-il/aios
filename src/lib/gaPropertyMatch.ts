@@ -10,12 +10,22 @@ export type GaPropertyRef = {
 
 function fieldScore(value: string | undefined, host: string): number {
   const raw = String(value || "").trim();
-  if (!raw) return 0;
+  if (!raw) {
+    return 0;
+  }
   const nameHost = normalizeSeoDomain(raw);
-  if (nameHost && nameHost === host) return 4;
-  if (nameHost && seoDomainsMatch(nameHost, host)) return 3;
-  if (raw.toLowerCase().includes(host)) return 2;
-  if (nameHost && host.includes(nameHost) && nameHost.length >= 4) return 1;
+  if (nameHost && nameHost === host) {
+    return 4;
+  }
+  if (nameHost && seoDomainsMatch(nameHost, host)) {
+    return 3;
+  }
+  if (raw.toLowerCase().includes(host)) {
+    return 2;
+  }
+  if (nameHost && host.includes(nameHost) && nameHost.length >= 4) {
+    return 1;
+  }
   return 0;
 }
 
@@ -24,7 +34,9 @@ export function scoreGaProperty(
   domain: string,
 ): number {
   const host = normalizeSeoDomain(domain);
-  if (!host || !String(property.id || "").trim()) return 0;
+  if (!host || !String(property.id || "").trim()) {
+    return 0;
+  }
   return Math.max(
     fieldScore(property.name, host),
     fieldScore(property.displayName, host),
@@ -39,7 +51,9 @@ export function pickGaPropertyForDomain(
   domain: string,
 ): string | null {
   const host = normalizeSeoDomain(domain);
-  if (!host || !properties?.length) return null;
+  if (!host || !properties?.length) {
+    return null;
+  }
 
   let bestId = "";
   let bestScore = 0;
@@ -70,7 +84,9 @@ export function bestGaPropertyMatch(
   property: GaPropertyRef;
 } | null {
   const host = normalizeSeoDomain(domain);
-  if (!host) return null;
+  if (!host) {
+    return null;
+  }
 
   let best: {
     integrationId: string;
@@ -86,7 +102,9 @@ export function bestGaPropertyMatch(
     for (const property of group.properties || []) {
       const propertyId = String(property.id || "").trim();
       const score = scoreGaProperty(property, host);
-      if (!propertyId || score <= 0) continue;
+      if (!propertyId || score <= 0) {
+        continue;
+      }
       // The account the user picked wins a tie. Otherwise their own login
       // wins over a shared login. A higher domain score always wins.
       const rank = score * 4 + (preferred ? 2 : 0) + (group.own ? 1 : 0);
@@ -128,7 +146,9 @@ export async function findGaIntegrationForDomain(
   property: GaPropertyRef;
 } | null> {
   const host = normalizeSeoDomain(domain);
-  if (!host || !integrations.length) return null;
+  if (!host || !integrations.length) {
+    return null;
+  }
 
   const loaded = await Promise.all(
     integrations.map(async (integration) => ({
@@ -148,20 +168,28 @@ export async function findGaIntegrationForDomain(
   );
 
   const named = bestGaPropertyMatch(reachable, host, preferredIntegrationId);
-  if (named && scoreGaProperty(named.property, host) >= 2) return named;
+  if (named && scoreGaProperty(named.property, host) >= 2) {
+    return named;
+  }
 
   const withUrls: Array<GaPropertyGroup> = [];
   for (const group of reachable) {
-    if (group.properties.length === 0) continue;
+    if (group.properties.length === 0) {
+      continue;
+    }
     const properties = await loadProperties(group.integrationId, host);
-    if (!properties?.length) continue;
+    if (!properties?.length) {
+      continue;
+    }
     withUrls.push({
       integrationId: group.integrationId,
       own: group.own,
       properties,
     });
     const found = bestGaPropertyMatch(withUrls, host, preferredIntegrationId);
-    if (found && scoreGaProperty(found.property, host) >= 4) return found;
+    if (found && scoreGaProperty(found.property, host) >= 4) {
+      return found;
+    }
   }
 
   return bestGaPropertyMatch(withUrls, host, preferredIntegrationId) || named;

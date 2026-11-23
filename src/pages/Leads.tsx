@@ -200,7 +200,9 @@ function keepCrmLeadDialogOpen(event: {
   preventDefault: () => void;
 }) {
   const target = event.target;
-  if (!(target instanceof Element)) return;
+  if (!(target instanceof Element)) {
+    return;
+  }
   if (
     target.closest(
       "[data-radix-popper-content-wrapper], [data-radix-select-content], [role='listbox'], [role='menu'], [role='dialog']",
@@ -253,9 +255,13 @@ const PRODUCT_LABELS: Record<string, string> = {
 
 // Helper function to get style for a status
 function getStatusStyle(statusKey: string | null, statuses: Array<LeadStatus>) {
-  if (!statusKey) return "";
+  if (!statusKey) {
+    return "";
+  }
   const status = statuses.find((s) => s.status_key === statusKey);
-  if (!status) return "";
+  if (!status) {
+    return "";
+  }
   return `border-2`;
 }
 
@@ -343,8 +349,11 @@ function LeadCardContent({
             className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer hover:opacity-70 transition-opacity"
             onClick={(e) => {
               e.stopPropagation();
-              if (openLeadInChat) openLeadInChat(lead.id);
-              else setEditDialogOpen(true);
+              if (openLeadInChat) {
+                openLeadInChat(lead.id);
+              } else {
+                setEditDialogOpen(true);
+              }
             }}
           >
             <User className="h-4 w-4 text-primary shrink-0" />
@@ -764,7 +773,9 @@ export default function Leads() {
     saveScope: saveStageScope,
   } = useLeadStageScopeDefault();
   const [tableLayout, setTableLayoutState] = useState<LeadTableLayout>(() => {
-    if (typeof window === "undefined") return "by_date";
+    if (typeof window === "undefined") {
+      return "by_date";
+    }
     return parseLeadTableLayout(
       window.localStorage.getItem(LEAD_TABLE_LAYOUT_STORAGE_KEY),
     );
@@ -795,7 +806,9 @@ export default function Leads() {
   };
 
   useEffect(() => {
-    if (viewMode !== "table") setTableDialogLeadId(null);
+    if (viewMode !== "table") {
+      setTableDialogLeadId(null);
+    }
   }, [viewMode]);
   const [openTables, setOpenTables] = useState<Record<string, boolean>>({});
   const [selectedMobileStage, setSelectedMobileStage] = useState<string>("");
@@ -817,7 +830,9 @@ export default function Leads() {
 
   // Kanban is not paginated (we cap to KANBAN_FETCH_LIMIT); keep page locked to 1 there.
   useEffect(() => {
-    if (isKanbanView) setPage(1);
+    if (isKanbanView) {
+      setPage(1);
+    }
   }, [isKanbanView]);
 
   // Open on new leads per the saved default (else chat only), once per view.
@@ -912,13 +927,17 @@ export default function Leads() {
   const { data: autoOpenLead } = useQuery({
     queryKey: ["lead-auto-open", autoOpenLeadId],
     queryFn: async () => {
-      if (!autoOpenLeadId) return null;
+      if (!autoOpenLeadId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("leads")
         .select("*")
         .eq("id", autoOpenLeadId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!autoOpenLeadId,
@@ -945,7 +964,9 @@ export default function Leads() {
 
   // Keep the mobile stage on a column the filter still shows
   useEffect(() => {
-    if (KANBAN_STAGES.length === 0) return;
+    if (KANBAN_STAGES.length === 0) {
+      return;
+    }
     if (!KANBAN_STAGES.some((stage) => stage.id === selectedMobileStage)) {
       setSelectedMobileStage(KANBAN_STAGES[0].id);
     }
@@ -973,7 +994,9 @@ export default function Leads() {
       isOwner,
     ],
     queryFn: async () => {
-      if (!tenantId) return 0;
+      if (!tenantId) {
+        return 0;
+      }
 
       // Use RPC for tag filtering - efficient server-side filtering
       if (filterTagIds.length > 0 && !filterTagIds.includes("none")) {
@@ -988,7 +1011,9 @@ export default function Leads() {
           p_agency_ids: agencyIds,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data || 0;
       }
 
@@ -1065,7 +1090,9 @@ export default function Leads() {
       }
 
       const { count, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return count || 0;
     },
     enabled: !!tenantId && !isKanbanView, // Skip count for Kanban view
@@ -1099,7 +1126,9 @@ export default function Leads() {
       leadsPerStageLimit,
     ],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
@@ -1152,7 +1181,9 @@ export default function Leads() {
             : undefined,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Transform RPC result to map: { [stageId]: { leads: [...], totalCount: number } }
       const stageMap: Record<
@@ -1259,7 +1290,9 @@ export default function Leads() {
       viewAsSalesPersonId,
     ],
     queryFn: async () => {
-      if (!tenantId) return {} as Record<string, number>;
+      if (!tenantId) {
+        return {} as Record<string, number>;
+      }
 
       const agencyIds =
         selectedAgency && selectedAgency !== "all"
@@ -1296,7 +1329,9 @@ export default function Leads() {
             ? filterTagIds
             : undefined,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const counts: Record<string, number> = {};
       if (Array.isArray(data)) {
@@ -1351,7 +1386,9 @@ export default function Leads() {
       isOwner,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       const from = (effectivePage - 1) * effectiveLimit;
 
@@ -1373,7 +1410,9 @@ export default function Leads() {
           },
         );
 
-        if (rpcError) throw rpcError;
+        if (rpcError) {
+          throw rpcError;
+        }
 
         // Fetch related data (agencies, sales_people) for the RPC results
         if (rpcLeads && rpcLeads.length > 0) {
@@ -1543,7 +1582,9 @@ export default function Leads() {
       query = query.range(from, to);
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !isKanbanView,
@@ -1563,7 +1604,9 @@ export default function Leads() {
     if (!isKanbanView) {
       return tableLeads || [];
     }
-    if (!kanbanStageData) return [];
+    if (!kanbanStageData) {
+      return [];
+    }
 
     const allLeads: Array<any> = [];
     const seen = new Set<string>();
@@ -1573,7 +1616,9 @@ export default function Leads() {
         ...(accumulatedLeads[stageId] || []),
       ];
       for (const lead of combined) {
-        if (seen.has(lead.id)) continue;
+        if (seen.has(lead.id)) {
+          continue;
+        }
         seen.add(lead.id);
         allLeads.push(lead);
       }
@@ -1588,7 +1633,9 @@ export default function Leads() {
 
   // Calculate total leads count for Kanban view from RPC data
   const kanbanTotalLeadsCount = useMemo(() => {
-    if (!kanbanStageData) return 0;
+    if (!kanbanStageData) {
+      return 0;
+    }
     let total = 0;
     for (const stageId of Object.keys(kanbanStageData)) {
       total += kanbanStageData[stageId].totalCount;
@@ -1610,7 +1657,9 @@ export default function Leads() {
 
   // 🔒 SECURITY GUARD: Filter leads by current tenant and accessible agencies
   const secureFilteredLeads = useMemo(() => {
-    if (!leads || !tenantId) return [];
+    if (!leads || !tenantId) {
+      return [];
+    }
 
     return leads.filter((lead) => {
       // ALWAYS check tenant match first - strict isolation
@@ -1622,9 +1671,12 @@ export default function Leads() {
       }
 
       // For non-owners: allow tenant match OR accessible agency
-      if (isTenantMatch) return true;
-      if (lead.agency_id && userAgencyIds?.includes(lead.agency_id))
+      if (isTenantMatch) {
         return true;
+      }
+      if (lead.agency_id && userAgencyIds?.includes(lead.agency_id)) {
+        return true;
+      }
 
       // Block everything else
       return false;
@@ -1635,14 +1687,18 @@ export default function Leads() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people-filter", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<SurfaceSalesPerson>;
+      if (!tenantId) {
+        return [] as Array<SurfaceSalesPerson>;
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name, agency_id, sales_person_agencies(agency_id)")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((person: any) => ({
         id: person.id,
         full_name: person.full_name,
@@ -1660,12 +1716,16 @@ export default function Leads() {
   const { data: allProducts } = useQuery({
     queryKey: ["products-lookup", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("products")
         .select("id, name, price")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -1674,7 +1734,9 @@ export default function Leads() {
 
   // Create products lookup map
   const productsLookup = useMemo(() => {
-    if (!allProducts) return {};
+    if (!allProducts) {
+      return {};
+    }
     return allProducts.reduce(
       (acc, product) => {
         acc[product.id] = { name: product.name, price: product.price };
@@ -1688,14 +1750,18 @@ export default function Leads() {
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -1720,7 +1786,9 @@ export default function Leads() {
   const { data: leadsTagsMap = {} } = useQuery({
     queryKey: ["leads-tags-visible", tenantId, visibleLeadIds],
     queryFn: async () => {
-      if (!tenantId || visibleLeadIds.length === 0) return {};
+      if (!tenantId || visibleLeadIds.length === 0) {
+        return {};
+      }
 
       const { data, error } = await supabase
         .from("chat_contact_tags")
@@ -1728,13 +1796,17 @@ export default function Leads() {
         .eq("tenant_id", tenantId)
         .in("lead_id", visibleLeadIds);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Group by lead_id
       const map: Record<string, Array<string>> = {};
       data.forEach((item) => {
         if (item.lead_id) {
-          if (!map[item.lead_id]) map[item.lead_id] = [];
+          if (!map[item.lead_id]) {
+            map[item.lead_id] = [];
+          }
           map[item.lead_id].push(item.tag_id);
         }
       });
@@ -1789,7 +1861,9 @@ export default function Leads() {
         .update({ status: newStatus as any })
         .eq("id", leadId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Trigger bubble animation when status changes to a final stage (won/lost/closed)
       const finalStages = ["closed", "won", "lost"];
@@ -1841,7 +1915,9 @@ export default function Leads() {
 
       // Optimistically update ALL Kanban caches: actually MOVE the lead between stages
       queryClient.setQueriesData({ queryKey: ["leads-kanban"] }, (old: any) => {
-        if (!old || typeof old !== "object") return old;
+        if (!old || typeof old !== "object") {
+          return old;
+        }
         const updated: any = { ...old };
         let movedLead: any = null;
         for (const stageKey in updated) {
@@ -1888,7 +1964,9 @@ export default function Leads() {
 
       // Optimistically update ALL Table caches (flat array)
       queryClient.setQueriesData({ queryKey: ["leads-table"] }, (old: any) => {
-        if (!old || !Array.isArray(old)) return old;
+        if (!old || !Array.isArray(old)) {
+          return old;
+        }
         return old.map((lead: any) =>
           lead.id === leadId ? { ...lead, status: newStatus } : lead,
         );
@@ -2028,7 +2106,9 @@ export default function Leads() {
         .update({ response_status: responseStatus })
         .eq("id", leadId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Trigger automation for lead_status_changed
       if (responseStatus && tenantId && leadData) {
@@ -2082,7 +2162,9 @@ export default function Leads() {
       });
       // Update kanban cache
       queryClient.setQueriesData({ queryKey: ["leads-kanban"] }, (old: any) => {
-        if (!old) return old;
+        if (!old) {
+          return old;
+        }
         const updated = { ...old };
         for (const stageKey in updated) {
           if (
@@ -2101,7 +2183,9 @@ export default function Leads() {
       });
       // Update table cache
       queryClient.setQueriesData({ queryKey: ["leads-table"] }, (old: any) => {
-        if (!old || !Array.isArray(old)) return old;
+        if (!old || !Array.isArray(old)) {
+          return old;
+        }
         return old.map((l: any) =>
           l.id === leadId ? { ...l, response_status: responseStatus } : l,
         );
@@ -2145,7 +2229,9 @@ export default function Leads() {
           body: { tenant_id: tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data: any) => {
@@ -2220,7 +2306,9 @@ export default function Leads() {
         targetStatus = overLeadOptimisticStatus;
       } else {
         const overLead = filteredLeads?.find((l: any) => l.id === over.id);
-        if (overLead) targetStatus = overLead.status;
+        if (overLead) {
+          targetStatus = overLead.status;
+        }
       }
     }
 
@@ -2245,7 +2333,9 @@ export default function Leads() {
   // Filters are now applied server-side, but we still need to handle "none" tag filter client-side
   // IMPORTANT: always start from secureFilteredLeads to avoid cross-tenant/agency leakage
   const filteredLeads = useMemo(() => {
-    if (!secureFilteredLeads) return [];
+    if (!secureFilteredLeads) {
+      return [];
+    }
 
     let result = secureFilteredLeads;
 
@@ -2466,7 +2556,9 @@ export default function Leads() {
       });
       return;
     }
-    if (isExporting) return;
+    if (isExporting) {
+      return;
+    }
 
     setIsExporting(true);
     toast({
@@ -2532,13 +2624,19 @@ export default function Leads() {
     stageId: string,
     opts?: { skipGuard?: boolean; silent?: boolean },
   ) => {
-    if (!tenantId) return 0;
+    if (!tenantId) {
+      return 0;
+    }
     if (!leadMatchesStageFilter(stageId, filterStageIds, stageFilterMode)) {
       return 0;
     }
-    if (!opts?.skipGuard && loadingMoreStage) return 0;
+    if (!opts?.skipGuard && loadingMoreStage) {
+      return 0;
+    }
 
-    if (!opts?.skipGuard) setLoadingMoreStage(stageId);
+    if (!opts?.skipGuard) {
+      setLoadingMoreStage(stageId);
+    }
 
     try {
       const currentOffset = stageOffsets[stageId] || 0;
@@ -2587,12 +2685,16 @@ export default function Leads() {
             : undefined,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Extract leads from the response.
       // NOTE: get_leads_by_stages RETURNS jsonb (object keyed by stage_key), not an array.
       const newLeads = (() => {
-        if (!data) return [] as Array<any>;
+        if (!data) {
+          return [] as Array<any>;
+        }
 
         // Defensive: support legacy/alternate array format too
         if (Array.isArray(data)) {
@@ -2671,7 +2773,9 @@ export default function Leads() {
       });
       return 0;
     } finally {
-      if (!opts?.skipGuard) setLoadingMoreStage(null);
+      if (!opts?.skipGuard) {
+        setLoadingMoreStage(null);
+      }
     }
   };
 
@@ -2684,7 +2788,9 @@ export default function Leads() {
     // For Kanban view: use stage data directly from RPC (already pre-filtered per stage)
     if (isKanbanView && kanbanStageData) {
       const stageData = kanbanStageData[stageId];
-      if (!stageData) return [];
+      if (!stageData) {
+        return [];
+      }
 
       // Combine initial leads with accumulated leads from "Load more"
       const initialLeads = stageData.leads || [];
@@ -2705,7 +2811,9 @@ export default function Leads() {
       allStageLeads = allStageLeads.filter((lead: any) => {
         const effectiveStatus = optimisticStatusByLeadId[lead.id];
         // If optimistic status exists and differs from stageId, remove from this stage
-        if (effectiveStatus && effectiveStatus !== stageId) return false;
+        if (effectiveStatus && effectiveStatus !== stageId) {
+          return false;
+        }
         return true;
       });
 
@@ -2720,7 +2828,9 @@ export default function Leads() {
       // Remove duplicates (in case a lead appears in both initial and accumulated)
       const seenIds = new Set<string>();
       allStageLeads = allStageLeads.filter((lead: any) => {
-        if (seenIds.has(lead.id)) return false;
+        if (seenIds.has(lead.id)) {
+          return false;
+        }
         seenIds.add(lead.id);
         return true;
       });
@@ -2746,7 +2856,9 @@ export default function Leads() {
 
   // Get loaded count for a stage (initial + accumulated)
   const getLoadedCountByStage = (stageId: string) => {
-    if (!kanbanStageData) return 0;
+    if (!kanbanStageData) {
+      return 0;
+    }
     const stageData = kanbanStageData[stageId];
     const initialCount = stageData?.leads?.length || 0;
     const accumulatedCount = accumulatedLeads[stageId]?.length || 0;
@@ -2757,7 +2869,9 @@ export default function Leads() {
     // For Kanban view: use total_count from RPC (includes leads beyond display limit)
     if (isKanbanView && kanbanStageData) {
       const stageData = kanbanStageData[stageId];
-      if (!stageData) return 0;
+      if (!stageData) {
+        return 0;
+      }
 
       // Adjust for optimistic moves
       const count = stageData.totalCount;
@@ -2775,7 +2889,9 @@ export default function Leads() {
       // Count optimistic moves into this stage
       const movedIn = Object.entries(optimisticStatusByLeadId).filter(
         ([leadId, newStatus]) => {
-          if (newStatus !== stageId) return false;
+          if (newStatus !== stageId) {
+            return false;
+          }
           // Check if lead originally wasn't in this stage
           const inOtherStage = Object.values(kanbanStageData).some(
             (sd: any) =>
@@ -2815,12 +2931,16 @@ export default function Leads() {
   }, 0);
 
   const loadMoreChatLeads = async () => {
-    if (!tenantId || loadingMoreStage) return;
+    if (!tenantId || loadingMoreStage) {
+      return;
+    }
     const toLoad = chatStageIds.filter(
       (stageId) =>
         getLoadedCountByStage(stageId) < getLeadsCountByStage(stageId),
     );
-    if (toLoad.length === 0) return;
+    if (toLoad.length === 0) {
+      return;
+    }
     setLoadingMoreStage(toLoad[0]);
     try {
       let added = 0;
@@ -2883,9 +3003,12 @@ export default function Leads() {
       if (!oldStatus) {
         oldStatus = leads?.find((l: any) => l.id === leadId)?.status;
       }
-      if (!oldStatus || oldStatus === newStatus) continue;
-      if (counts[oldStatus] != null)
+      if (!oldStatus || oldStatus === newStatus) {
+        continue;
+      }
+      if (counts[oldStatus] != null) {
         counts[oldStatus] = Math.max(0, counts[oldStatus] - 1);
+      }
       counts[newStatus] = (counts[newStatus] || 0) + 1;
     }
 
@@ -3178,7 +3301,9 @@ export default function Leads() {
                 onDragCancel={handleDragCancel}
               >
                 {KANBAN_STAGES.map((stage) => {
-                  if (stage.id !== selectedMobileStage) return null;
+                  if (stage.id !== selectedMobileStage) {
+                    return null;
+                  }
                   const allStageLeads = getLeadsByStage(stage.id);
                   const totalInStage = getLeadsCountByStage(stage.id);
                   const loadedCount = getLoadedCountByStage(stage.id);
@@ -3597,7 +3722,9 @@ export default function Leads() {
                     endDate,
                   ],
                   (old: any) => {
-                    if (!old) return old;
+                    if (!old) {
+                      return old;
+                    }
                     return Object.fromEntries(
                       Object.entries(old).map(([key, leads]: [string, any]) => [
                         key,
@@ -3706,7 +3833,9 @@ export default function Leads() {
         <Dialog
           open={!!tableDialogLeadId}
           onOpenChange={(open) => {
-            if (!open) setTableDialogLeadId(null);
+            if (!open) {
+              setTableDialogLeadId(null);
+            }
           }}
         >
           <DialogContent
@@ -3746,7 +3875,9 @@ export default function Leads() {
                     queryClient.setQueriesData(
                       { queryKey: ["leads-table"] },
                       (old: any) => {
-                        if (!old || !Array.isArray(old)) return old;
+                        if (!old || !Array.isArray(old)) {
+                          return old;
+                        }
                         return old.map((lead: any) =>
                           lead.id === leadId
                             ? { ...lead, follow_up_date: newDate }
@@ -3780,9 +3911,15 @@ function LeadPlainCell({ text }: { text: string }) {
 }
 
 function leadTableOptionalWidth(key: string): number {
-  if (key === "notes") return 240;
-  if (key === "files") return 120;
-  if (key === "call_recording") return 180;
+  if (key === "notes") {
+    return 240;
+  }
+  if (key === "files") {
+    return 120;
+  }
+  if (key === "call_recording") {
+    return 180;
+  }
   return 160;
 }
 
@@ -3824,14 +3961,18 @@ function TableWithStickyScroll({
   const { data: salesPeople = [] } = useQuery({
     queryKey: ["sales-people-for-assign", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -3912,14 +4053,18 @@ function TableWithStickyScroll({
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -3928,7 +4073,9 @@ function TableWithStickyScroll({
 
   // Get visible lead IDs from stageLeads prop
   const visibleLeadIds = useMemo(() => {
-    if (!stageLeads || stageLeads.length === 0) return [];
+    if (!stageLeads || stageLeads.length === 0) {
+      return [];
+    }
     return stageLeads.map((lead: any) => lead.id);
   }, [stageLeads]);
   const showCallRecording = isLeadTableColumnVisible(
@@ -3965,8 +4112,12 @@ function TableWithStickyScroll({
           .in("lead_id", visibleLeadIds)
           .order("created_at", { ascending: false }),
       ]);
-      if (callsResult.error) throw callsResult.error;
-      if (filesResult.error) throw filesResult.error;
+      if (callsResult.error) {
+        throw callsResult.error;
+      }
+      if (filesResult.error) {
+        throw filesResult.error;
+      }
       return {
         calls: (callsResult.data || []) as Array<StoredCallRecording>,
         files: (filesResult.data || []) as Array<StoredFileRecording>,
@@ -3987,7 +4138,9 @@ function TableWithStickyScroll({
   const { data: leadsTagsMap = {} } = useQuery({
     queryKey: ["leads-tags-table", tenantId, visibleLeadIds],
     queryFn: async () => {
-      if (!tenantId || visibleLeadIds.length === 0) return {};
+      if (!tenantId || visibleLeadIds.length === 0) {
+        return {};
+      }
 
       const { data, error } = await supabase
         .from("chat_contact_tags")
@@ -3995,13 +4148,17 @@ function TableWithStickyScroll({
         .eq("tenant_id", tenantId)
         .in("lead_id", visibleLeadIds);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Group by lead_id
       const map: Record<string, Array<string>> = {};
       data.forEach((item) => {
         if (item.lead_id) {
-          if (!map[item.lead_id]) map[item.lead_id] = [];
+          if (!map[item.lead_id]) {
+            map[item.lead_id] = [];
+          }
           map[item.lead_id].push(item.tag_id);
         }
       });
@@ -4028,7 +4185,9 @@ function TableWithStickyScroll({
         .update({ status: newStatus as any })
         .eq("id", leadId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async ({ leadId, newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ["leads-table"] });
@@ -4043,7 +4202,9 @@ function TableWithStickyScroll({
 
       // Optimistically update table caches (flat array)
       queryClient.setQueriesData({ queryKey: ["leads-table"] }, (old: any) => {
-        if (!old || !Array.isArray(old)) return old;
+        if (!old || !Array.isArray(old)) {
+          return old;
+        }
         return old.map((lead: any) =>
           lead.id === leadId ? { ...lead, status: newStatus } : lead,
         );
@@ -4051,7 +4212,9 @@ function TableWithStickyScroll({
 
       // Optimistically MOVE lead between stages in kanban caches
       queryClient.setQueriesData({ queryKey: ["leads-kanban"] }, (old: any) => {
-        if (!old || typeof old !== "object") return old;
+        if (!old || typeof old !== "object") {
+          return old;
+        }
         const updated: any = { ...old };
         let movedLead: any = null;
         for (const stageKey in updated) {
@@ -4138,7 +4301,9 @@ function TableWithStickyScroll({
         .update({ response_status: responseStatus })
         .eq("id", leadId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Trigger automation for lead_status_changed
       if (responseStatus && tenantId && leadData) {
@@ -4209,7 +4374,9 @@ function TableWithStickyScroll({
         .update({ status: status as any })
         .in("id", leadIds);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
@@ -4273,9 +4440,12 @@ function TableWithStickyScroll({
         .select("id, tenant_id")
         .in("id", leadIds);
 
-      if (leadsError) throw leadsError;
-      if (!leadsData || leadsData.length === 0)
+      if (leadsError) {
+        throw leadsError;
+      }
+      if (!leadsData || leadsData.length === 0) {
         throw new Error("לא נמצאו לידים");
+      }
 
       const assignments = buildLeadSalesPersonAssignments(
         leadsData,
@@ -4290,7 +4460,9 @@ function TableWithStickyScroll({
           ignoreDuplicates: true,
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
 
       // Also update the legacy sales_person_id on leads table (for backwards compatibility)
       // Set to the first selected sales person
@@ -4299,8 +4471,9 @@ function TableWithStickyScroll({
         .update({ sales_person_id: salesPersonIds[0] })
         .in("id", leadIds);
 
-      if (legacyError)
+      if (legacyError) {
         console.warn("Legacy sales_person_id update failed:", legacyError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads-kanban", tenantId] });
@@ -4352,14 +4525,18 @@ function TableWithStickyScroll({
   };
 
   const handleSelectAllLeads = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsLoadingAllIds(true);
     try {
       const { data, error } = await excludeArchivedLeads(
         supabase.from("leads").select("id").eq("tenant_id", tenantId),
       ).order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const allIds = data.map((l) => l.id);
       setAllLeadIds(allIds);
@@ -4747,7 +4924,9 @@ function TableWithStickyScroll({
         open={assignDialogOpen}
         onOpenChange={(open) => {
           setAssignDialogOpen(open);
-          if (!open) setSelectedSalesPeople([]);
+          if (!open) {
+            setSelectedSalesPeople([]);
+          }
         }}
         leadCount={selectedLeads.length}
         salesPeople={salesPeople}

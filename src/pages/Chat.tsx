@@ -104,11 +104,17 @@ type SelectedContact = {
 };
 
 const normalizePhone = (phone?: string | null) => {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   const digits = (phone.match(/\d+/g) || []).join("");
   let p = digits.replace(/^00/, "");
-  if (p.startsWith("972")) p = p.slice(3);
-  if (p.startsWith("0")) p = p.slice(1);
+  if (p.startsWith("972")) {
+    p = p.slice(3);
+  }
+  if (p.startsWith("0")) {
+    p = p.slice(1);
+  }
   return p.slice(-9);
 };
 
@@ -154,14 +160,18 @@ export default function Chat() {
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -180,18 +190,25 @@ export default function Chat() {
     (contact: Contact): Array<string> => {
       return allContactTags
         .filter((ct) => {
-          if (contact.contact_type === "client" && ct.client_id === contact.id)
+          if (
+            contact.contact_type === "client" &&
+            ct.client_id === contact.id
+          ) {
             return true;
-          if (contact.contact_type === "lead" && ct.lead_id === contact.id)
+          }
+          if (contact.contact_type === "lead" && ct.lead_id === contact.id) {
             return true;
-          if (contact.contact_type === "group" && ct.group_id === contact.id)
+          }
+          if (contact.contact_type === "group" && ct.group_id === contact.id) {
             return true;
+          }
           if (
             contact.contact_type === "unknown" &&
             contact.sender_phone &&
             ct.sender_phone === contact.sender_phone
-          )
+          ) {
             return true;
+          }
           return false;
         })
         .map((ct) => ct.tag_id);
@@ -223,7 +240,9 @@ export default function Chat() {
   // When filtering by a specific connection, also constrain by its provider
   // (helps disambiguate e.g. Green API vs Telegram owned by the same user).
   const providerFilter = useMemo<string | null>(() => {
-    if (chatFilter.kind !== "connection") return null;
+    if (chatFilter.kind !== "connection") {
+      return null;
+    }
     const c = chatConnections.find((c) => c.id === chatFilter.integrationId);
     return c?.active_chat_provider ?? null;
   }, [chatConnections, chatFilter]);
@@ -238,7 +257,9 @@ export default function Chat() {
       providerFilter ?? "any",
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase.rpc("get_chat_contacts", {
         p_tenant_id: tenantId,
@@ -278,7 +299,9 @@ export default function Chat() {
 
   // Realtime subscription for whatsapp_groups updates (name changes)
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
 
     const channel = supabase
       .channel("whatsapp-groups-changes")
@@ -307,14 +330,18 @@ export default function Chat() {
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ["search-contacts", tenantId, debouncedSearch],
     queryFn: async () => {
-      if (!tenantId || !debouncedSearch) return [];
+      if (!tenantId || !debouncedSearch) {
+        return [];
+      }
 
       const { data, error } = await supabase.rpc("search_contacts_for_chat", {
         p_search_term: debouncedSearch,
         p_tenant_id: tenantId,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return (data || []).map((contact: any) => ({
         id: contact.contact_id,
@@ -345,7 +372,9 @@ export default function Chat() {
   const { data: telegramContacts = [] } = useQuery({
     queryKey: ["telegram-contacts", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       // Get distinct chat_ids from telegram_messages for all user's tenants (RLS handles filtering)
       const { data, error } = await supabase
         .from("telegram_messages")
@@ -356,7 +385,9 @@ export default function Chat() {
         .order("created_at", { ascending: false })
         .limit(500);
 
-      if (error || !data) return [];
+      if (error || !data) {
+        return [];
+      }
 
       // Group by chat_id to get unique contacts.
       // Names live on inbound messages (sender_name/sender_username may be null on outbound),
@@ -433,7 +464,9 @@ export default function Chat() {
   }, []);
 
   const isTodayLocal = (iso?: string | null) => {
-    if (!iso) return false;
+    if (!iso) {
+      return false;
+    }
     const d = new Date(iso);
     return (
       d.getFullYear() === todayParts.y &&
@@ -590,7 +623,9 @@ export default function Chat() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || !tenantId) throw new Error("No user found");
+      if (!user || !tenantId) {
+        throw new Error("No user found");
+      }
 
       // Delete messages permanently
       const { error } = await supabase
@@ -598,7 +633,9 @@ export default function Chat() {
         .delete()
         .eq("connection_user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success("ההיסטוריה נמחקה לצמיתות");
       queryClient.invalidateQueries({ queryKey: ["active-chats", tenantId] });
@@ -702,14 +739,18 @@ export default function Chat() {
                 title="סמן הכל כנקרא"
                 onClick={async () => {
                   try {
-                    if (!tenantId) return;
+                    if (!tenantId) {
+                      return;
+                    }
 
                     const { error } = await supabase.rpc(
                       "mark_all_chats_read",
                       { p_tenant_id: tenantId },
                     );
 
-                    if (error) throw error;
+                    if (error) {
+                      throw error;
+                    }
                     toast.success("כל ההודעות סומנו כנקראו");
                     queryClient.invalidateQueries({
                       queryKey: ["active-chats", tenantId],
@@ -1072,7 +1113,9 @@ export default function Chat() {
           client={editingContact.data}
           open={true}
           onOpenChange={(open) => {
-            if (!open) setEditingContact(null);
+            if (!open) {
+              setEditingContact(null);
+            }
           }}
         />
       )}
@@ -1082,7 +1125,9 @@ export default function Chat() {
           lead={editingContact.data}
           open={true}
           onOpenChange={(open) => {
-            if (!open) setEditingContact(null);
+            if (!open) {
+              setEditingContact(null);
+            }
           }}
         />
       )}

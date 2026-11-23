@@ -41,7 +41,9 @@ export function AgentSheet({ agentId, onClose }: Props) {
   >([]);
 
   useEffect(() => {
-    if (!agentId) return;
+    if (!agentId) {
+      return;
+    }
     setLoading(true);
     Promise.all([
       supabase.from("ai_agents").select("*").eq("id", agentId).maybeSingle(),

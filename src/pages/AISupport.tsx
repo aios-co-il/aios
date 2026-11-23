@@ -76,7 +76,9 @@ export default function AISupport() {
           .select("*")
           .order("updated_at", { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return (data || []).map((conv) => ({
           id: conv.id,
@@ -119,7 +121,9 @@ export default function AISupport() {
         .from("ai_conversations")
         .delete()
         .eq("id", convId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (currentConversationId === convId) {
         startNewConversation();
@@ -139,7 +143,9 @@ export default function AISupport() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming) {
+      return;
+    }
 
     const userMessage: Message = {
       role: "user",
@@ -200,18 +206,26 @@ export default function AISupport() {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.trim() || line.startsWith(":")) continue;
-          if (!line.startsWith("data: ")) continue;
+          if (!line.trim() || line.startsWith(":")) {
+            continue;
+          }
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
 
           const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          if (data === "[DONE]") {
+            continue;
+          }
 
           try {
             const parsed = JSON.parse(data);

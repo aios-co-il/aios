@@ -33,6 +33,8 @@ export async function loadBrainEnv(
 export async function sendEnv(
   ctx: SendContext,
 ): Promise<Record<string, string | undefined>> {
-  if (!ctx.env) ctx.env = await loadBrainEnv(serviceClient(), ctx.tenantId);
+  if (!ctx.env) {
+    ctx.env = await loadBrainEnv(serviceClient(), ctx.tenantId);
+  }
   return ctx.env;
 }

@@ -20,8 +20,12 @@ export function isLeadAlertSendWhatsappFailure(
   const sendFailed =
     Array.isArray(failedSteps) &&
     failedSteps.some((step) => step?.action_type === "send_whatsapp");
-  if (!sendFailed) return false;
-  if (triggerActionType === "inbound_webhook_lead") return true;
+  if (!sendFailed) {
+    return false;
+  }
+  if (triggerActionType === "inbound_webhook_lead") {
+    return true;
+  }
   // Make/Webhook lead alerts carry client_phone + lead identity even when trigger
   // metadata is unavailable at log time.
   const clientPhone = payload?.client_phone ?? payload?.recipient_phone;
@@ -66,7 +70,9 @@ export async function queueLeadAlertFailureNotification(
   supabase: SupabaseClient,
   row: LeadAlertFailureRow,
 ): Promise<void> {
-  if (row.tenant_id !== MARKETING_CAPTAIN_TENANT_ID) return;
+  if (row.tenant_id !== MARKETING_CAPTAIN_TENANT_ID) {
+    return;
+  }
 
   const { error } = await supabase
     .from("lead_alert_failure_notifications")
@@ -111,7 +117,9 @@ export async function deliverPendingLeadAlertFailureNotifications(
     );
     return { delivered: 0, skipped: pendingError.message };
   }
-  if (!pending?.length) return { delivered: 0, skipped: null };
+  if (!pending?.length) {
+    return { delivered: 0, skipped: null };
+  }
 
   const since = new Date(
     Date.now() - throttleMinutes * 60 * 1000,

@@ -24,7 +24,9 @@ export function FolderLinksField({
   const [newUrl, setNewUrl] = useState("");
 
   const handleAdd = () => {
-    if (!newName.trim() || !newUrl.trim()) return;
+    if (!newName.trim() || !newUrl.trim()) {
+      return;
+    }
 
     // Validate URL
     try {

@@ -501,7 +501,9 @@ function buildKnowledgeBaseRules(): string {
 // ─── Role-Based Access ───────────────────────────────────────────────────────
 
 function buildCallerIdentity(caller: CallerContext): string {
-  if (!caller.callerCampaignerId || !caller.callerName) return "";
+  if (!caller.callerCampaignerId || !caller.callerName) {
+    return "";
+  }
 
   const roleLabel: Record<string, string> = {
     super_admin: "סופר־אדמין",
@@ -607,7 +609,9 @@ function buildMemoryContext(memory: MemoryContext): string {
 }
 
 function buildLeadContext(leadData?: Record<string, string>): string {
-  if (!leadData) return "";
+  if (!leadData) {
+    return "";
+  }
   const parts = Object.entries(leadData)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}: ${v}`);
@@ -780,7 +784,9 @@ export function buildWritingStyle(
       casual: "כתוב בסגנון קזואלי ונגיש.",
       empathetic: "כתוב בסגנון אמפתי ומבין.",
     };
-    if (styleMap[style]) section += `\n${styleMap[style]}`;
+    if (styleMap[style]) {
+      section += `\n${styleMap[style]}`;
+    }
   }
 
   if (length) {
@@ -788,7 +794,9 @@ export function buildWritingStyle(
       short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
       detailed: "תן תשובות מפורטות ומקיפות.",
     };
-    if (lengthMap[length]) section += `\n${lengthMap[length]}`;
+    if (lengthMap[length]) {
+      section += `\n${lengthMap[length]}`;
+    }
   }
 
   return section;

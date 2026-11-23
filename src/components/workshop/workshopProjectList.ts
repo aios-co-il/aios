@@ -78,7 +78,7 @@ export function groupProjects(
   rows: Array<WorkshopListRow>,
   byClient: boolean,
 ): Array<ClientGroup> {
-  if (!byClient)
+  if (!byClient) {
     return rows.length
       ? [
           {
@@ -89,17 +89,22 @@ export function groupProjects(
           },
         ]
       : [];
+  }
   const order: Array<string | null> = [];
   const byClientId = new Map<string | null, Array<WorkshopListRow>>();
   for (const row of rows) {
     const key = row.client_id ?? null;
     if (!byClientId.has(key)) {
       byClientId.set(key, []);
-      if (key !== null) order.push(key);
+      if (key !== null) {
+        order.push(key);
+      }
     }
     byClientId.get(key)!.push(row);
   }
-  if (byClientId.has(null)) order.push(null);
+  if (byClientId.has(null)) {
+    order.push(null);
+  }
   return order.map((clientId) => {
     const items = byClientId.get(clientId) ?? [];
     return {

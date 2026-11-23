@@ -63,14 +63,18 @@ export function PulseStatusOverrideDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!target) return;
+    if (!target) {
+      return;
+    }
     setOverrideStatus(
       target.activeOverride?.override_status ?? target.algorithmOverall,
     );
     setReason("");
   }, [target]);
 
-  if (!target) return null;
+  if (!target) {
+    return null;
+  }
 
   const algorithmLabel = target.pulse
     ? pulseStatusLabel(target.pulse.status)
@@ -99,7 +103,9 @@ export function PulseStatusOverrideDialog({
           .update({ cleared_at: new Date().toISOString(), cleared_by: user.id })
           .eq("id", target.activeOverride.id)
           .is("cleared_at", null);
-        if (clearError) throw clearError;
+        if (clearError) {
+          throw clearError;
+        }
       }
 
       if (overrideStatus !== target.algorithmOverall) {
@@ -117,7 +123,9 @@ export function PulseStatusOverrideDialog({
             snapshot_calculated_at: target.pulse?.calculated_at ?? null,
             created_by: user.id,
           });
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
 
         const algoOverall = pulseStatusToOverall(algorithmStatus as any);
         const historyContent = [
@@ -154,7 +162,9 @@ export function PulseStatusOverrideDialog({
   };
 
   const handleClearOverride = async () => {
-    if (!target.activeOverride?.id || !user?.id) return;
+    if (!target.activeOverride?.id || !user?.id) {
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await (supabase as any)
@@ -162,7 +172,9 @@ export function PulseStatusOverrideDialog({
         .update({ cleared_at: new Date().toISOString(), cleared_by: user.id })
         .eq("id", target.activeOverride.id)
         .is("cleared_at", null);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הוחזר לחישוב אוטומטי");
       onSaved();
       onOpenChange(false);

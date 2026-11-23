@@ -71,7 +71,9 @@ export function HudMenu({
 
   const measureAnchor = useCallback(() => {
     const el = triggerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const rect = el.getBoundingClientRect();
     setPanelAnchor({
       top: rect.bottom + 6,
@@ -95,22 +97,27 @@ export function HudMenu({
   }, [open, measureAnchor]);
 
   let body: ReactNode = null;
-  if (open === "tasks")
+  if (open === "tasks") {
     body = (
       <TasksPanel tenantId={tenantId} className="max-h-[min(60dvh,28rem)]" />
     );
-  if (open === "timeline")
+  }
+  if (open === "timeline") {
     body = (
       <TimelinePanel tenantId={tenantId} className="max-h-[min(60dvh,24rem)]" />
     );
-  if (open === "core") body = <CoreOverviewPanel tenantId={tenantId} />;
-  if (open === "intel")
+  }
+  if (open === "core") {
+    body = <CoreOverviewPanel tenantId={tenantId} />;
+  }
+  if (open === "intel") {
     body = (
       <IntelFeedPanel
         tenantId={tenantId}
         className="max-h-[min(60dvh,28rem)]"
       />
     );
+  }
   if (open === "commands") {
     body = (
       <QuickCommandsPanel
@@ -126,8 +133,12 @@ export function HudMenu({
       />
     );
   }
-  if (open === "health") body = <HealthPanel tenantId={tenantId} />;
-  if (open === "usage") body = <UsagePanel tenantId={tenantId} />;
+  if (open === "health") {
+    body = <HealthPanel tenantId={tenantId} />;
+  }
+  if (open === "usage") {
+    body = <UsagePanel tenantId={tenantId} />;
+  }
   if (open === "face") {
     body = (
       <div className="relative h-[min(55dvh,22rem)] overflow-hidden rounded-lg">

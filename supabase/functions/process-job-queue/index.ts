@@ -94,7 +94,9 @@ Deno.serve(async (req) => {
             );
             const result = await res.json();
             success = res.ok && result.success !== false;
-            if (!success) error = result.error || `HTTP ${res.status}`;
+            if (!success) {
+              error = result.error || `HTTP ${res.status}`;
+            }
             break;
           }
 
@@ -119,8 +121,9 @@ Deno.serve(async (req) => {
               },
             );
             success = res.ok;
-            if (!success)
+            if (!success) {
               error = `HTTP ${res.status}: ${await res.text().catch(() => "")}`;
+            }
 
             // Record integration result for circuit breaker
             const provider = job.job_type.replace("integration_", "");
@@ -152,7 +155,9 @@ Deno.serve(async (req) => {
               },
             );
             success = res.ok;
-            if (!success) error = `HTTP ${res.status}`;
+            if (!success) {
+              error = `HTTP ${res.status}`;
+            }
             break;
           }
 

@@ -30,14 +30,18 @@ import {
 import { insertCall, updateCall } from "./save.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return preflight();
-  if (req.method !== "POST" && req.method !== "GET")
+  if (req.method === "OPTIONS") {
+    return preflight();
+  }
+  if (req.method !== "POST" && req.method !== "GET") {
     return json({ error: "Method not allowed" }, 405);
+  }
   try {
     return await handle(req);
   } catch (error) {
-    if (error instanceof WebhookError)
+    if (error instanceof WebhookError) {
       return json({ error: error.message }, error.status);
+    }
     return internalError("pbx-webhook", error);
   }
 });
@@ -109,7 +113,8 @@ async function authorize(
   const secret = integration?.isActive
     ? integration.settings.inbound_secret
     : "";
-  if (!secret || !timingSafeEqual(secret, readSecret(req, request.params)))
+  if (!secret || !timingSafeEqual(secret, readSecret(req, request.params))) {
     throw new WebhookError("Invalid secret", 403);
+  }
   return integration!.settings;
 }

@@ -128,7 +128,9 @@ Deno.serve(async (req) => {
             .eq("tenant_id", resolvedTenantId)
             .ilike("phone", `%${normalizedPhone.slice(-9)}%`)
             .limit(1);
-          if (existingByPhone?.length) isDuplicate = true;
+          if (existingByPhone?.length) {
+            isDuplicate = true;
+          }
         }
 
         if (!isDuplicate && lead.email) {
@@ -138,7 +140,9 @@ Deno.serve(async (req) => {
             .eq("tenant_id", resolvedTenantId)
             .ilike("email", lead.email)
             .limit(1);
-          if (existingByEmail?.length) isDuplicate = true;
+          if (existingByEmail?.length) {
+            isDuplicate = true;
+          }
         }
 
         if (isDuplicate) {
@@ -196,7 +200,9 @@ Deno.serve(async (req) => {
 });
 
 function normalizePhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   return phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
 }
 
@@ -302,9 +308,17 @@ function parseLeadItem(item: any): ParsedLead {
 
 function buildLeadNotes(lead: ParsedLead): string {
   const parts: Array<string> = ["מקור: Meta Lead Ads"];
-  if (lead.form_name) parts.push(`טופס: ${lead.form_name}`);
-  if (lead.campaign_name) parts.push(`קמפיין: ${lead.campaign_name}`);
-  if (lead.ad_name) parts.push(`מודעה: ${lead.ad_name}`);
-  if (lead.leadgen_id) parts.push(`leadgen_id: ${lead.leadgen_id}`);
+  if (lead.form_name) {
+    parts.push(`טופס: ${lead.form_name}`);
+  }
+  if (lead.campaign_name) {
+    parts.push(`קמפיין: ${lead.campaign_name}`);
+  }
+  if (lead.ad_name) {
+    parts.push(`מודעה: ${lead.ad_name}`);
+  }
+  if (lead.leadgen_id) {
+    parts.push(`leadgen_id: ${lead.leadgen_id}`);
+  }
   return parts.join("\n");
 }

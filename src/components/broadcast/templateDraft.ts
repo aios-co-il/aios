@@ -32,7 +32,9 @@ const EMPTY_DRAFT: TemplateDraft = {
 
 /** A draft from a saved template (only its channel's content), or empty. */
 export function draftFrom(template: MessageTemplate | null): TemplateDraft {
-  if (!template) return EMPTY_DRAFT;
+  if (!template) {
+    return EMPTY_DRAFT;
+  }
   const content = templateContent(template);
   const base = { ...EMPTY_DRAFT, name: template.name };
   return content.channel === "email"

@@ -103,9 +103,13 @@ export const sampleColorsFromImageData = (data: Uint8ClampedArray) => {
     const g = data[index + 1];
     const b = data[index + 2];
     const a = data[index + 3];
-    if (a < 180) continue;
+    if (a < 180) {
+      continue;
+    }
     const brightness = (r + g + b) / 3;
-    if (brightness > 245 || brightness < 12) continue;
+    if (brightness > 245 || brightness < 12) {
+      continue;
+    }
     const key = toHex(
       Math.round(r / 32) * 32,
       Math.round(g / 32) * 32,
@@ -210,7 +214,9 @@ export const uploadCreativeAsset = async ({
   const { error } = await supabase.storage
     .from("entity-attachments")
     .upload(path, file);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const { data } = supabase.storage
     .from("entity-attachments")
     .getPublicUrl(path);
@@ -223,8 +229,9 @@ export const sampleColorsFromFile = async (
   if (
     typeof createImageBitmap !== "function" ||
     typeof document === "undefined"
-  )
+  ) {
     return [];
+  }
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
   const max = 64;
@@ -245,12 +252,18 @@ export const sampleColorsFromFile = async (
 export const filesFromAttachments = (
   attachments: unknown,
 ): Array<ClientAttachment> => {
-  if (!Array.isArray(attachments)) return [];
+  if (!Array.isArray(attachments)) {
+    return [];
+  }
   return attachments.flatMap((file) => {
-    if (!file || typeof file !== "object") return [];
+    if (!file || typeof file !== "object") {
+      return [];
+    }
     const rec = file as Record<string, unknown>;
     const name = typeof rec.name === "string" ? rec.name : "";
-    if (!name) return [];
+    if (!name) {
+      return [];
+    }
     return [
       {
         name,
@@ -267,7 +280,9 @@ export const isImageAttachment = (file: ClientAttachment) =>
   /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name);
 
 export const websiteHref = (website?: string | null) => {
-  if (!website) return undefined;
+  if (!website) {
+    return undefined;
+  }
   return /^https?:\/\//i.test(website) ? website : `https://${website}`;
 };
 
@@ -297,20 +312,25 @@ export const styleRefsFromClientFiles = (
 export const GENERATION_ABORTED = "ABORTED";
 
 export const isGenerationAborted = (error: unknown) => {
-  if (error instanceof Error && error.message === GENERATION_ABORTED)
+  if (error instanceof Error && error.message === GENERATION_ABORTED) {
     return true;
+  }
   if (
     typeof error === "object" &&
     error &&
     "name" in error &&
     (error as { name?: string }).name === "AbortError"
-  )
+  ) {
     return true;
-  if (error instanceof Error && /aborted|AbortError/i.test(error.message))
+  }
+  if (error instanceof Error && /aborted|AbortError/i.test(error.message)) {
     return true;
+  }
   return false;
 };
 
 export const throwIfGenerationAborted = (aborted: boolean) => {
-  if (aborted) throw new Error(GENERATION_ABORTED);
+  if (aborted) {
+    throw new Error(GENERATION_ABORTED);
+  }
 };

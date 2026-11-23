@@ -23,7 +23,9 @@ interface SheetRow {
 
 // Map platform strings from the sheet to service keys
 function mapPlatformToServices(platformStr: string | null): Array<string> {
-  if (!platformStr) return [];
+  if (!platformStr) {
+    return [];
+  }
   const services: Array<string> = [];
   const parts = platformStr.split("+").map((p) => p.trim().toUpperCase());
   for (const part of parts) {
@@ -152,7 +154,9 @@ Deno.serve(async (req) => {
     // Map rows to client objects
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      if (!row || row.length === 0) continue;
+      if (!row || row.length === 0) {
+        continue;
+      }
 
       const client: SheetRow = {};
 

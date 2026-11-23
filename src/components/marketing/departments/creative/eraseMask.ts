@@ -34,7 +34,9 @@ export const createKeepMask = (
 
 export const maskHasCoverage = (data: Uint8ClampedArray): boolean => {
   for (let index = 3; index < data.length; index += 4) {
-    if (data[index] < 128) return true;
+    if (data[index] < 128) {
+      return true;
+    }
   }
   return false;
 };
@@ -46,7 +48,9 @@ const erasePixel = (
   x: number,
   y: number,
 ) => {
-  if (x < 0 || y < 0 || x >= width || y >= height) return;
+  if (x < 0 || y < 0 || x >= width || y >= height) {
+    return;
+  }
   const index = (y * width + x) * 4;
   data[index] = 0;
   data[index + 1] = 0;
@@ -55,7 +59,9 @@ const erasePixel = (
 };
 
 const interpolate = (points: Array<ErasePoint>): Array<ErasePoint> => {
-  if (points.length <= 1) return points;
+  if (points.length <= 1) {
+    return points;
+  }
   const result: Array<ErasePoint> = [points[0]];
   for (let index = 1; index < points.length; index += 1) {
     const prev = points[index - 1];
@@ -86,8 +92,9 @@ export const applyEraseMarks = <T extends ArrayBufferLike>(
       const right = Math.ceil(clamp01(mark.x + mark.width) * width);
       const bottom = Math.ceil(clamp01(mark.y + mark.height) * height);
       for (let y = top; y < bottom; y += 1) {
-        for (let x = left; x < right; x += 1)
+        for (let x = left; x < right; x += 1) {
           erasePixel(data, width, height, x, y);
+        }
       }
       continue;
     }
@@ -100,8 +107,9 @@ export const applyEraseMarks = <T extends ArrayBufferLike>(
       const cy = Math.round(clamp01(point.y) * (height - 1));
       for (let dy = -radius; dy <= radius; dy += 1) {
         for (let dx = -radius; dx <= radius; dx += 1) {
-          if (dx * dx + dy * dy <= radius * radius)
+          if (dx * dx + dy * dy <= radius * radius) {
             erasePixel(data, width, height, cx + dx, cy + dy);
+          }
         }
       }
     }

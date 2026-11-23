@@ -81,9 +81,15 @@ export function CreativeVariationGrid({
           const busy = generatingIds?.includes(variation.id) ?? false;
           const liveText = isVariationLiveText(variation);
           const overlayLayers = (variation.layers ?? []).filter((layer) => {
-            if (layer.type === "background") return false;
-            if (isLogoLayer(layer) || layer.role === "logo") return false;
-            if (liveText) return true;
+            if (layer.type === "background") {
+              return false;
+            }
+            if (isLogoLayer(layer) || layer.role === "logo") {
+              return false;
+            }
+            if (liveText) {
+              return true;
+            }
             return layer.type === "image";
           });
           return (

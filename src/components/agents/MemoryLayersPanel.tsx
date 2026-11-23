@@ -69,14 +69,19 @@ export function MemoryLayersPanel({ agentId }: { agentId: string }) {
         .eq("memory_type", active)
         .order("created_at", { ascending: false })
         .limit(100);
-      if (contact.trim()) q = q.ilike("contact_phone", `%${contact.trim()}%`);
-      if (search.trim())
+      if (contact.trim()) {
+        q = q.ilike("contact_phone", `%${contact.trim()}%`);
+      }
+      if (search.trim()) {
         q = q.textSearch("fts", search.trim(), {
           type: "websearch",
           config: "simple",
         });
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });

@@ -11,7 +11,9 @@ import { type ToolContext } from "../tool-context.ts";
 export async function workshopGetState(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const studio = (await executeCreativeStudioTool(
     supabase,
     tenantId,
@@ -19,7 +21,9 @@ export async function workshopGetState(ctx: ToolContext) {
     { item_id: itemId },
     assertClientAccess,
   )) as Record<string, unknown>;
-  if (studio.error) return studio;
+  if (studio.error) {
+    return studio;
+  }
   const [artifacts, running, item, assets] = await Promise.all([
     supabase
       .from("workshop_artifacts")

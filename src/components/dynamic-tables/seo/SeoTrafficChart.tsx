@@ -46,7 +46,9 @@ export function SeoTrafficChart({
 
   const isGaData = gaOrganicByMonth.length > 0;
 
-  if (chartData.length === 0) return null;
+  if (chartData.length === 0) {
+    return null;
+  }
 
   return (
     <Card>

@@ -38,9 +38,13 @@ const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 export function extractConversationId(text: string): string | null {
   const raw = String(text || "");
   const labeled = raw.match(/conversation_id:\s*([0-9a-f-]{36})/i);
-  if (labeled?.[1]) return labeled[1].toLowerCase();
+  if (labeled?.[1]) {
+    return labeled[1].toLowerCase();
+  }
   const jsonish = raw.match(/"conversation_id"\s*:\s*"([0-9a-f-]{36})"/i);
-  if (jsonish?.[1]) return jsonish[1].toLowerCase();
+  if (jsonish?.[1]) {
+    return jsonish[1].toLowerCase();
+  }
   return null;
 }
 
@@ -134,9 +138,15 @@ export function brainStreamResult(
 }
 
 export function statusForKind(kind: ChannelProvider): ConversationStatus {
-  if (kind === "internal") return "streaming";
-  if (kind === "parliament") return "debating";
-  if (kind === "model") return "idle";
+  if (kind === "internal") {
+    return "streaming";
+  }
+  if (kind === "parliament") {
+    return "debating";
+  }
+  if (kind === "model") {
+    return "idle";
+  }
   return "waiting_external";
 }
 
@@ -164,7 +174,9 @@ export function parliamentRounds(
   config: Record<string, unknown> | null | undefined,
 ): number {
   const n = Number(config?.rounds ?? 1);
-  if (!Number.isFinite(n)) return 1;
+  if (!Number.isFinite(n)) {
+    return 1;
+  }
   return Math.min(2, Math.max(1, Math.floor(n)));
 }
 
@@ -200,8 +212,11 @@ export function recordParliamentAnswer(
     },
   };
   const seat = next.seats[provider];
-  if (round <= 1) seat.round1 = content;
-  else seat.round2 = content;
+  if (round <= 1) {
+    seat.round1 = content;
+  } else {
+    seat.round2 = content;
+  }
   return next;
 }
 
@@ -230,17 +245,27 @@ export function livingSeats(
 }
 
 export function canAdvanceToReview(state: ParliamentState): boolean {
-  if (state.status !== "round1") return false;
+  if (state.status !== "round1") {
+    return false;
+  }
   const living = livingSeats(state);
-  if (!living.length) return false;
+  if (!living.length) {
+    return false;
+  }
   return living.every((s) => !!s.round1 || s.failed);
 }
 
 export function canSynthesize(state: ParliamentState): boolean {
-  if (state.status === "done" || state.status === "cancelled") return false;
+  if (state.status === "done" || state.status === "cancelled") {
+    return false;
+  }
   const living = livingSeats(state);
-  if (!living.length) return false;
-  if (state.max_rounds <= 1) return living.every((s) => !!s.round1 || s.failed);
+  if (!living.length) {
+    return false;
+  }
+  if (state.max_rounds <= 1) {
+    return living.every((s) => !!s.round1 || s.failed);
+  }
   return living.every((s) => !!s.round2 || !!s.round1 || s.failed);
 }
 
@@ -331,7 +356,9 @@ export function acceptedMessageFor(
 }
 
 export function speakerForOrigin(origin: ChannelProvider): string {
-  if (origin === "internal") return "carmen";
+  if (origin === "internal") {
+    return "carmen";
+  }
   return origin;
 }
 

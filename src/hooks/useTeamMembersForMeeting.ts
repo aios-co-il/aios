@@ -19,7 +19,9 @@ export function useTeamMembersForMeeting(
   return useQuery({
     queryKey: ["team-members-for-meeting", tenantId],
     queryFn: async (): Promise<Array<MeetingTeamMember>> => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data: sessionData } = await supabase.auth.getSession();
       const currentUserId = sessionData?.session?.user?.id;
@@ -42,12 +44,18 @@ export function useTeamMembersForMeeting(
 
       const ids = new Set<string>();
       (tenantUsers || []).forEach((row) => {
-        if (row.user_id) ids.add(row.user_id);
+        if (row.user_id) {
+          ids.add(row.user_id);
+        }
       });
       (roleRows || []).forEach((row) => {
-        if (row.user_id) ids.add(row.user_id);
+        if (row.user_id) {
+          ids.add(row.user_id);
+        }
       });
-      if (currentUserId) ids.add(currentUserId);
+      if (currentUserId) {
+        ids.add(currentUserId);
+      }
 
       const agencyIds = (sharedAccess || [])
         .map((row) => row.agency_id)
@@ -81,13 +89,17 @@ export function useTeamMembersForMeeting(
             .select("id")
             .or(orParts.join(","));
           (linked || []).forEach((row) => {
-            if (row.id) ids.add(row.id);
+            if (row.id) {
+              ids.add(row.id);
+            }
           });
         }
       }
 
       const idList = Array.from(ids);
-      if (idList.length === 0) return [];
+      if (idList.length === 0) {
+        return [];
+      }
 
       const { data: profiles, error } = await supabase
         .from("profiles")
@@ -95,7 +107,9 @@ export function useTeamMembersForMeeting(
         .in("id", idList)
         .not("email", "is", null)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return (profiles || [])
         .filter((row): row is MeetingTeamMember =>

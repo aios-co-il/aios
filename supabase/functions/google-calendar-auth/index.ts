@@ -34,7 +34,9 @@ Deno.serve(async (req) => {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
       const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
       const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
-      if (!clientId) throw new Error("Missing GOOGLE_CLIENT_ID secret");
+      if (!clientId) {
+        throw new Error("Missing GOOGLE_CLIENT_ID secret");
+      }
 
       // Exchange code for tokens
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {

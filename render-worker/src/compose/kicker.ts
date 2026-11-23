@@ -35,16 +35,23 @@ export function kickerTitle(caption: unknown, line: unknown = "") {
   const text = String(caption ?? "")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text || text.length > KICKER_MAX_CHARS) return null;
-  if (text.split(" ").length > KICKER_MAX_WORDS) return null;
+  if (!text || text.length > KICKER_MAX_CHARS) {
+    return null;
+  }
+  if (text.split(" ").length > KICKER_MAX_WORDS) {
+    return null;
+  }
   const title = plainWords(text);
-  if (!title.length) return null;
+  if (!title.length) {
+    return null;
+  }
   const spoken = plainWords(line);
   if (
     spoken.length &&
     (contains(title, spoken) ||
       (contains(spoken, title) && title.length * 5 >= spoken.length * 3))
-  )
+  ) {
     return null;
+  }
   return text;
 }

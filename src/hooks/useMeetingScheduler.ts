@@ -33,7 +33,9 @@ export function useMeetingScheduler(tenantId?: string | null) {
    * טעינת אירועי יומן לתאריך נתון (דרך Unified)
    */
   const fetchCalendarEvents = async (selectedDate: Date) => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsLoadingCalendar(true);
     setCalendarError(null);
     setCalendarEvents([]);
@@ -115,7 +117,9 @@ export function useMeetingScheduler(tenantId?: string | null) {
    * עדכון אוטומטי של שעת סיום כששעת התחלה משתנה
    */
   useEffect(() => {
-    if (!meetingTime) return;
+    if (!meetingTime) {
+      return;
+    }
 
     const [startHour, startMinute] = meetingTime.split(":").map(Number);
     const nextHour = new Date();

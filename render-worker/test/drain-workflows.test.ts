@@ -49,12 +49,18 @@ function steps(text: string): Array<Step> {
 function script(chunk: string) {
   const lines = chunk.split("\n");
   const at = lines.findIndex((line) => /^\s*run: /.test(line));
-  if (at < 0) return "";
+  if (at < 0) {
+    return "";
+  }
   const inline = lines[at].replace(/^\s*run: /, "");
-  if (inline !== "|") return inline;
+  if (inline !== "|") {
+    return inline;
+  }
   const body: Array<string> = [];
   for (const line of lines.slice(at + 1)) {
-    if (line.trim() && indentOf(line) <= indentOf(lines[at])) break;
+    if (line.trim() && indentOf(line) <= indentOf(lines[at])) {
+      break;
+    }
     body.push(line);
   }
   const pad = Math.min(
@@ -85,8 +91,9 @@ test.each(WORKFLOWS)(
     // The lockfile pins every dependency, and no install script runs.
     const installs = all.filter((step) => /\bnpm\b/.test(step.run));
     expect(installs.length).toBeGreaterThan(0);
-    for (const step of installs)
+    for (const step of installs) {
       expect(step.run).toMatch(/^npm ci --ignore-scripts /);
+    }
   },
 );
 
@@ -131,8 +138,9 @@ test("the Staging drain installs nothing while no run is waiting", () => {
   expect(at).toBeGreaterThan(0);
   // Only the key is resolved before the probe; every later step waits for it.
   expect(all.slice(0, at).every(usesToken)).toBe(true);
-  for (const step of all.slice(at + 1))
+  for (const step of all.slice(at + 1)) {
     expect(step.if).toBe("steps.queue.outputs.work == 'true'");
+  }
 
   const env = {
     SUPABASE_URL: "https://staging.example",
@@ -165,8 +173,9 @@ test("a branch without a Supabase preview installs nothing", () => {
   const all = steps(workflow("render-worker-preview.yml"));
   const at = all.findIndex((step) => step.id === "preview");
   expect(at).toBe(0);
-  for (const step of all.slice(at + 1))
+  for (const step of all.slice(at + 1)) {
     expect(step.if).toBe("steps.preview.outputs.ref != ''");
+  }
 });
 
 test("a preview is looked up only under the Production project", () => {
@@ -206,8 +215,9 @@ test("the preview drain runs on its own only for video changes", () => {
     "render-worker/**",
     "workers/creative-video/**",
     "supabase/functions/_shared/workshop/**",
-  ])
+  ]) {
     expect(paths).toContain(`"${path}"`);
+  }
   // Any other PR can still run it by hand.
   expect(text).toMatch(/^ {2}workflow_dispatch:/m);
 });

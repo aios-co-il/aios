@@ -130,7 +130,9 @@ function TimeSlotDroppable({
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
 
   const slotTasks = tasks.filter((t) => {
-    if (!t.due_time) return false;
+    if (!t.due_time) {
+      return false;
+    }
     return t.due_time.startsWith(time);
   });
 

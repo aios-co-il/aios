@@ -49,7 +49,11 @@ export const CLIENT_STATUS_LABELS: Record<string, string> = {
 
 /** Read a stored filter (broadcast_lists.source_config); null when it has no source. */
 export function toAudienceFilter(value: Json | null): AudienceFilter | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  if (typeof value.source !== "string" || !value.source) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  if (typeof value.source !== "string" || !value.source) {
+    return null;
+  }
   return value as AudienceFilter;
 }

@@ -60,7 +60,9 @@ export default function ChatIntegrations() {
         .eq("integration_type", "manychat")
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -70,7 +72,9 @@ export default function ChatIntegrations() {
   const { data: greenApiIntegration } = useQuery({
     queryKey: ["integration-green-api", tenantId, userId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!userId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -80,7 +84,9 @@ export default function ChatIntegrations() {
         .eq("integration_type", "green_api")
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !!userId,
@@ -90,7 +96,9 @@ export default function ChatIntegrations() {
   const { data: manusWaIntegration } = useQuery({
     queryKey: ["integration-manus-wa", tenantId, userId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!userId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -98,7 +106,9 @@ export default function ChatIntegrations() {
         .eq("user_id", userId)
         .eq("integration_type", "manus_wa")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !!userId,
@@ -114,7 +124,9 @@ export default function ChatIntegrations() {
         .eq("integration_type", "meta_whatsapp")
         .order("created_at")
         .limit(1);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.[0] || null;
     },
     enabled: !!tenantId,
@@ -124,7 +136,9 @@ export default function ChatIntegrations() {
   const { data: permittedGreenApiIntegrations = [] } = useQuery({
     queryKey: ["permitted-green-api-integrations", tenantId, userId],
     queryFn: async () => {
-      if (!tenantId || !userId) return [];
+      if (!tenantId || !userId) {
+        return [];
+      }
 
       // First get permissions granted to the current user
       const { data: permissions, error: permError } = await supabase
@@ -137,7 +151,9 @@ export default function ChatIntegrations() {
         return [];
       }
 
-      if (!permissions?.length) return [];
+      if (!permissions?.length) {
+        return [];
+      }
 
       const integrationIds = permissions.map((p) => p.integration_id);
 
@@ -153,7 +169,9 @@ export default function ChatIntegrations() {
         return [];
       }
 
-      if (!integrations?.length) return [];
+      if (!integrations?.length) {
+        return [];
+      }
 
       // Get owner profiles
       const ownerIds = [
@@ -163,8 +181,9 @@ export default function ChatIntegrations() {
             .filter((id): id is string => Boolean(id)),
         ),
       ];
-      if (ownerIds.length === 0)
+      if (ownerIds.length === 0) {
         return integrations.map((i) => ({ ...i, owner_profile: null }));
+      }
 
       const { data: profiles } = await supabase
         .from("profiles")
@@ -185,7 +204,9 @@ export default function ChatIntegrations() {
   const { data: whatsappGroups = [], isLoading: groupsLoading } = useQuery({
     queryKey: ["whatsapp-groups", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("whatsapp_groups")
@@ -193,7 +214,9 @@ export default function ChatIntegrations() {
         .eq("tenant_id", tenantId)
         .order("group_name");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -208,11 +231,15 @@ export default function ChatIntegrations() {
       providerId: string;
       isActive: boolean;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       // For Green API: user-specific connection
       if (providerId === "green_api") {
-        if (!userId) throw new Error("User not authenticated");
+        if (!userId) {
+          throw new Error("User not authenticated");
+        }
 
         const integration = greenApiIntegration;
         if (!integration) {
@@ -225,33 +252,43 @@ export default function ChatIntegrations() {
           .eq("id", integration.id)
           .eq("user_id", userId);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
       // For Manus WA: user-specific connection
       if (providerId === "manus_wa") {
-        if (!userId) throw new Error("User not authenticated");
+        if (!userId) {
+          throw new Error("User not authenticated");
+        }
         const integration = manusWaIntegration;
-        if (!integration)
+        if (!integration) {
           throw new Error("אין חיבור Manus WhatsApp. יש להגדיר חיבור תחילה.");
+        }
         const { error } = await supabase
           .from("tenant_integrations")
           .update({ is_active: isActive })
           .eq("id", integration.id)
           .eq("user_id", userId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
       if (providerId === "meta_whatsapp") {
-        if (!metaWhatsAppIntegration)
+        if (!metaWhatsAppIntegration) {
           throw new Error("אין חיבור Meta WhatsApp. יש להגדיר חיבור תחילה.");
+        }
         const { error } = await supabase
           .from("tenant_integrations")
           .update({ is_active: isActive })
           .eq("id", metaWhatsAppIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
@@ -272,7 +309,9 @@ export default function ChatIntegrations() {
             .update({ is_active: true })
             .eq("id", integration.id);
 
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
         }
       } else {
         // Deactivate the provider
@@ -283,7 +322,9 @@ export default function ChatIntegrations() {
             .update({ is_active: false })
             .eq("id", integration.id);
 
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
         }
       }
     },
@@ -322,7 +363,9 @@ export default function ChatIntegrations() {
         .update({ is_blocked: isBlocked })
         .eq("id", groupId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("סטטוס קבוצה עודכן בהצלחה");

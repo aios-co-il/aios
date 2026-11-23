@@ -21,7 +21,9 @@ async function token() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session) throw new Error("לא מחובר");
+  if (!session) {
+    throw new Error("לא מחובר");
+  }
   return session.access_token;
 }
 
@@ -70,7 +72,9 @@ export function DevTaskEditor({
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!title.trim()) throw new Error("חסרה כותרת");
+      if (!title.trim()) {
+        throw new Error("חסרה כותרת");
+      }
       return devTaskAction(await token(), {
         action: "create",
         tenant_id: tenantId,
@@ -107,11 +111,13 @@ export function DevTaskEditor({
   });
 
   if (!isNew) {
-    if (isLoading)
+    if (isLoading) {
       return <p className="text-sm text-muted-foreground">טוען…</p>;
+    }
     const t = data?.task;
-    if (!t)
+    if (!t) {
       return <p className="text-sm text-muted-foreground">המשימה לא נמצאה.</p>;
+    }
     const open = !["done", "cancelled"].includes(t.status);
     return (
       <div className="space-y-3 text-sm" dir="rtl">

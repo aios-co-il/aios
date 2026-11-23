@@ -38,7 +38,9 @@ export function ChatTopicRail({
   const commitRename = async (conv: TopicChat) => {
     const title = draft.replace(/\s+/g, " ").trim();
     setRenamingId(null);
-    if (title && title !== (conv.title ?? "")) await onRename?.(conv, title);
+    if (title && title !== (conv.title ?? "")) {
+      await onRename?.(conv, title);
+    }
   };
 
   return (

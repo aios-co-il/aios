@@ -47,8 +47,9 @@ const responseHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");

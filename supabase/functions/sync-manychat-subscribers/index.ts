@@ -8,7 +8,9 @@ const corsHeaders = {
 
 // Normalize phone number - remove ALL non-digit characters
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
 
   // Remove all non-digit characters including +, -, spaces, parentheses, etc.
   const digits = phone.replace(/\D/g, "");
@@ -23,7 +25,9 @@ function normalizePhone(phone: string): string {
 
 // Get comprehensive phone variations for matching
 function getPhoneVariations(phone: string): Array<string> {
-  if (!phone) return [];
+  if (!phone) {
+    return [];
+  }
 
   const normalized = normalizePhone(phone);
   const variations = new Set<string>();
@@ -363,7 +367,9 @@ Deno.serve(async (req) => {
       console.error("❌ Error fetching leads:", leadsError);
     } else {
       for (const lead of leadsNeedingSync || []) {
-        if (!lead.phone) continue;
+        if (!lead.phone) {
+          continue;
+        }
 
         const normalizedLeadPhone = normalizePhone(lead.phone);
         const phoneVariations = getPhoneVariations(lead.phone);

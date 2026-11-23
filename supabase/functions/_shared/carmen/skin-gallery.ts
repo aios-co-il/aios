@@ -40,10 +40,14 @@ export function customSkinPaths(
   const skins = asRecord(asRecord(asRecord(metadata).visual_identity).skins);
   const prefix = `${tenantId}/agent-avatars/`;
   const out: Record<string, string> = {};
-  if (!tenantId) return out;
+  if (!tenantId) {
+    return out;
+  }
   for (const [slug, value] of Object.entries(skins)) {
     const path = asRecord(value).avatarPath;
-    if (typeof path === "string" && path.startsWith(prefix)) out[slug] = path;
+    if (typeof path === "string" && path.startsWith(prefix)) {
+      out[slug] = path;
+    }
   }
   return out;
 }
@@ -54,7 +58,9 @@ export function customPathForRole(
   paths: Record<string, string>,
 ): { skin: string; path: string } | null {
   for (const skin of [role.slug, ...role.members]) {
-    if (paths[skin]) return { skin, path: paths[skin] };
+    if (paths[skin]) {
+      return { skin, path: paths[skin] };
+    }
   }
   return null;
 }
@@ -72,7 +78,7 @@ export function carmenSkinEntries(
     };
     const custom = customPathForRole(role, paths);
     const customUrl = custom ? signed[custom.path] : undefined;
-    if (custom && customUrl)
+    if (custom && customUrl) {
       return {
         ...base,
         has_portrait: true,
@@ -80,13 +86,15 @@ export function carmenSkinEntries(
         source: "custom" as const,
         custom_skin: custom.skin,
       };
-    if (role.portrait)
+    }
+    if (role.portrait) {
       return {
         ...base,
         has_portrait: true,
         portrait_url: `${SKIN_PORTRAIT_ROOT}${role.portrait}.webp`,
         source: "builtin" as const,
       };
+    }
     return {
       ...base,
       has_portrait: false,
@@ -101,7 +109,9 @@ export function pathsToSign(paths: Record<string, string>): Array<string> {
   const out = new Set<string>();
   for (const role of CARMEN_ROLES) {
     const custom = customPathForRole(role, paths);
-    if (custom) out.add(custom.path);
+    if (custom) {
+      out.add(custom.path);
+    }
   }
   return [...out];
 }
@@ -135,11 +145,13 @@ export function appOrigin(
     ((request.protocol === "https:" && APP_HOST.test(request.hostname)) ||
       (request.protocol === "http:" &&
         /^(localhost|127\.0\.0\.1)$/.test(request.hostname)))
-  )
+  ) {
     return request.origin;
+  }
   const configured = originOf(appUrl);
-  if (configured && /^https?:$/.test(configured.protocol))
+  if (configured && /^https?:$/.test(configured.protocol)) {
     return configured.origin;
+  }
   return DEFAULT_APP_ORIGIN;
 }
 

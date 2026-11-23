@@ -124,7 +124,9 @@ export default function SignatureFieldPlacer({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const update = () => setContainerHeight(el.getBoundingClientRect().height);
     update();
     const ro = new ResizeObserver(update);
@@ -145,9 +147,13 @@ export default function SignatureFieldPlacer({
 
   const placeFieldAt = useCallback(
     (clientX: number, clientY: number) => {
-      if (!selectedType) return;
+      if (!selectedType) {
+        return;
+      }
       const container = containerRef.current;
-      if (!container) return;
+      if (!container) {
+        return;
+      }
       const rect = container.getBoundingClientRect();
       const xPct = ((clientX - rect.left) / rect.width) * 100;
       const yPct = ((clientY - rect.top) / rect.height) * 100;
@@ -174,7 +180,9 @@ export default function SignatureFieldPlacer({
   );
 
   const startDrag = (e: React.PointerEvent, fieldId: string) => {
-    if ((e.target as HTMLElement).closest("[data-resize-handle]")) return;
+    if ((e.target as HTMLElement).closest("[data-resize-handle]")) {
+      return;
+    }
 
     e.stopPropagation();
     e.preventDefault();
@@ -182,7 +190,9 @@ export default function SignatureFieldPlacer({
 
     const container = containerRef.current;
     const field = fieldsRef.current.find((f) => f.id === fieldId);
-    if (!container || !field) return;
+    if (!container || !field) {
+      return;
+    }
 
     const rect = container.getBoundingClientRect();
     dragOffsetRef.current = {
@@ -200,7 +210,9 @@ export default function SignatureFieldPlacer({
     setSelectedFieldId(fieldId);
 
     const field = fieldsRef.current.find((f) => f.id === fieldId);
-    if (!field) return;
+    if (!field) {
+      return;
+    }
 
     activeResizeIdRef.current = fieldId;
     activeDragIdRef.current = null;
@@ -234,7 +246,9 @@ export default function SignatureFieldPlacer({
   const nudgeFieldSize = (fieldId: string, delta: number) => {
     onFieldsChange(
       fieldsRef.current.map((f) => {
-        if (f.id !== fieldId) return f;
+        if (f.id !== fieldId) {
+          return f;
+        }
         const newW = Math.max(
           MIN_FIELD_WIDTH,
           Math.min(
@@ -255,7 +269,9 @@ export default function SignatureFieldPlacer({
   };
 
   const handleContainerPointerDown = (e: React.PointerEvent) => {
-    if (isFieldTarget(e.target)) return;
+    if (isFieldTarget(e.target)) {
+      return;
+    }
     if (!isPlacing) {
       setSelectedFieldId(null);
       return;
@@ -264,20 +280,28 @@ export default function SignatureFieldPlacer({
   };
 
   const handleContainerPointerUp = (e: React.PointerEvent) => {
-    if (!isPlacing || isFieldTarget(e.target)) return;
+    if (!isPlacing || isFieldTarget(e.target)) {
+      return;
+    }
     const start = placePointerRef.current;
     placePointerRef.current = null;
-    if (!start) return;
+    if (!start) {
+      return;
+    }
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
-    if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) return;
+    if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+      return;
+    }
     placeFieldAt(e.clientX, e.clientY);
   };
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container) {
+        return;
+      }
       const rect = container.getBoundingClientRect();
 
       if (activeResizeIdRef.current && resizeStartRef.current) {
@@ -305,11 +329,15 @@ export default function SignatureFieldPlacer({
         return;
       }
 
-      if (!activeDragIdRef.current) return;
+      if (!activeDragIdRef.current) {
+        return;
+      }
       const field = fieldsRef.current.find(
         (f) => f.id === activeDragIdRef.current,
       );
-      if (!field) return;
+      if (!field) {
+        return;
+      }
 
       const xPct =
         ((e.clientX - rect.left - dragOffsetRef.current.x) / rect.width) * 100;
@@ -350,13 +378,17 @@ export default function SignatureFieldPlacer({
 
   const removeField = (id: string) => {
     onFieldsChange(fieldsRef.current.filter((f) => f.id !== id));
-    if (selectedFieldId === id) setSelectedFieldId(null);
+    if (selectedFieldId === id) {
+      setSelectedFieldId(null);
+    }
   };
 
   const selectField = (field: DocumentField) => {
     setSelectedFieldId(field.id);
     const page = field.position.page ?? 1;
-    if (page !== currentPage) setCurrentPage(page);
+    if (page !== currentPage) {
+      setCurrentPage(page);
+    }
   };
 
   const goToPage = (page: number) => {
@@ -555,7 +587,9 @@ export default function SignatureFieldPlacer({
             page={currentPage}
             onNumPagesChange={(n) => {
               setNumPages(n);
-              if (currentPage > n) setCurrentPage(n);
+              if (currentPage > n) {
+                setCurrentPage(n);
+              }
             }}
             onHeightChange={setContainerHeight}
             onPointerDown={handleContainerPointerDown}

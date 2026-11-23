@@ -36,7 +36,9 @@ export function lazyBrainTail<T extends { connectionId?: string }>(
 ): () => Promise<boolean> {
   let loaded = !load;
   return async () => {
-    if (loaded || !load) return false;
+    if (loaded || !load) {
+      return false;
+    }
     loaded = true;
     const tail = await load().catch((e) => {
       console.warn(
@@ -60,9 +62,12 @@ export function movesToNextLink(
   body: string,
   connected: boolean,
 ): boolean {
-  if (connected) return true;
-  if (status === 401 || status === 402 || status === 403 || status === 429)
+  if (connected) {
     return true;
+  }
+  if (status === 401 || status === 402 || status === 403 || status === 429) {
+    return true;
+  }
   return (
     isModelUnavailable(status, body) ||
     /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
@@ -108,7 +113,9 @@ export async function openRouterTail(
       .maybeSingle();
     tenantId = agent?.tenant_id ?? tenantId;
   }
-  if (!tenantId) return [];
+  if (!tenantId) {
+    return [];
+  }
   // Only a free brain runs without being picked (the smart router's rule): a paid one has no
   // budget ledger yet (AIO-211).
   const { data: conns } = await sb
@@ -126,7 +133,9 @@ export async function openRouterTail(
       profile: sanitizeProfile(c.profile),
     }),
   )?.id as string | undefined;
-  if (!connectionId) return [];
+  if (!connectionId) {
+    return [];
+  }
   const { data: route } = await sb
     .from("agent_brain_routes")
     .select("slug")
@@ -137,7 +146,9 @@ export async function openRouterTail(
     .order("slug", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (!route?.slug) return [];
+  if (!route?.slug) {
+    return [];
+  }
   const engine = await resolveBrainEngine(sb, auth, {
     brain_slug: route.slug,
     tenant_id: tenantId,

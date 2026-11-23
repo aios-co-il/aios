@@ -27,17 +27,25 @@ function formatNum(n: number): string {
 }
 
 function deltaLabel(current: number, prev?: number): string | null {
-  if (prev == null || !Number.isFinite(prev)) return null;
+  if (prev == null || !Number.isFinite(prev)) {
+    return null;
+  }
   const d = current - prev;
-  if (d === 0) return "ללא שינוי";
+  if (d === 0) {
+    return "ללא שינוי";
+  }
   const sign = d > 0 ? "+" : "";
   return `${sign}${formatNum(d)} מול חודש קודם`;
 }
 
 /** Percentage growth against the campaign-start baseline. */
 function growthPct(current: number, base?: number | null): number | null {
-  if (base == null || !Number.isFinite(base)) return null;
-  if (base === 0) return current > 0 ? 100 : null;
+  if (base == null || !Number.isFinite(base)) {
+    return null;
+  }
+  if (base === 0) {
+    return current > 0 ? 100 : null;
+  }
   return Math.round(((current - base) / base) * 100);
 }
 
@@ -64,7 +72,9 @@ function dedupeBy<T>(items: Array<T>, key: (item: T) => string): Array<T> {
   const out: Array<T> = [];
   for (const item of items) {
     const k = key(item);
-    if (!k || seen.has(k)) continue;
+    if (!k || seen.has(k)) {
+      continue;
+    }
     seen.add(k);
     out.push(item);
   }
@@ -121,7 +131,9 @@ function metricLabel(key: string, fallback: string): string {
 
 function SourceTag({ metricKey }: { metricKey: string }) {
   const source = METRIC_SOURCE[metricKey];
-  if (!source) return null;
+  if (!source) {
+    return null;
+  }
   return (
     <span className="mt-1 block text-[10px] font-medium text-slate-400">
       מקור: {SOURCE_LABELS[source]}
@@ -136,8 +148,9 @@ export function buildSeoMonthlySlides(
   if (snapshot.metrics.length > 0 || snapshot.search) {
     slides.push({ kind: "metrics", title: "מדדים מרכזיים" });
   }
-  if (snapshot.keywords.length > 0)
+  if (snapshot.keywords.length > 0) {
     slides.push({ kind: "keywords", title: "ביטויים מרכזיים" });
+  }
   // Performance + forward plan (from real metrics). Cover carries סיכום כללי separately.
   if (
     snapshot.search ||
@@ -146,10 +159,12 @@ export function buildSeoMonthlySlides(
   ) {
     slides.push({ kind: "summary", title: "סיכום ומבט קדימה" });
   }
-  if (snapshot.work.onsite.length > 0)
+  if (snapshot.work.onsite.length > 0) {
     slides.push({ kind: "onsite", title: "עבודה באתר" });
-  if (snapshot.work.articles.length > 0)
+  }
+  if (snapshot.work.articles.length > 0) {
     slides.push({ kind: "articles", title: "מאמרים" });
+  }
   if ((snapshot.recentLinks?.length || snapshot.work.links.length) > 0) {
     slides.push({ kind: "links", title: "קישורים" });
   }
@@ -243,7 +258,9 @@ export function MetricsSlide({
 
   const fromSnapshot = (key: string): HeadlineMetric | null => {
     const m = metricOf(key);
-    if (!m) return null;
+    if (!m) {
+      return null;
+    }
     return {
       key,
       label: metricLabel(key, m.label),

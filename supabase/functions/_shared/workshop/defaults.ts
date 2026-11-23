@@ -36,9 +36,15 @@ const FORMAT_WORDS: Array<{ format: Format; words: RegExp }> = [
 export function inferKind(text: string): ProjectKind {
   // A landing page named before any film word is the deliverable; named after one it is only
   // where the film leads ("סרטון לקידום עמוד נחיתה").
-  if (asksForLanding(text, text.search(VIDEO_WORDS))) return "landing";
-  if (VIDEO_WORDS.test(text)) return "video";
-  if (CAMPAIGN_WORDS.test(text)) return "campaign";
+  if (asksForLanding(text, text.search(VIDEO_WORDS))) {
+    return "landing";
+  }
+  if (VIDEO_WORDS.test(text)) {
+    return "video";
+  }
+  if (CAMPAIGN_WORDS.test(text)) {
+    return "campaign";
+  }
   return "static";
 }
 
@@ -47,7 +53,9 @@ export function inferFormats(text: string, kind: ProjectKind): Array<Format> {
   const named = FORMAT_WORDS.filter((entry) => entry.words.test(text)).map(
     (entry) => entry.format,
   );
-  if (named.length > 0) return kind === "video" ? [named[0]] : named;
+  if (named.length > 0) {
+    return kind === "video" ? [named[0]] : named;
+  }
   return [kind === "video" ? "9:16" : "1:1"];
 }
 
@@ -62,9 +70,13 @@ export function inferFilmSeconds(request: string): number {
   const seconds = SECONDS.exec(text);
   const minutes = MINUTES.exec(text);
   let value = DEFAULT_FILM_SECONDS;
-  if (seconds) value = Number(seconds[1]);
-  else if (minutes) value = Number(minutes[1]) * 60;
-  else if (ONE_MINUTE.test(text)) value = 60;
+  if (seconds) {
+    value = Number(seconds[1]);
+  } else if (minutes) {
+    value = Number(minutes[1]) * 60;
+  } else if (ONE_MINUTE.test(text)) {
+    value = 60;
+  }
   return Math.min(Math.max(Math.round(value), 3), MAX_FILM_SECONDS);
 }
 
@@ -84,8 +96,12 @@ export function planScenes(totalSeconds: number) {
 export type ContentType = "posts" | "ads" | "script";
 
 export function inferContentType(text: string, kind: ProjectKind): ContentType {
-  if (kind === "video" || /תסריט|\bscript\b/i.test(text)) return "script";
-  if (/מודעה|מודעות|ממומן|\bads?\b/i.test(text)) return "ads";
+  if (kind === "video" || /תסריט|\bscript\b/i.test(text)) {
+    return "script";
+  }
+  if (/מודעה|מודעות|ממומן|\bads?\b/i.test(text)) {
+    return "ads";
+  }
   return "posts";
 }
 

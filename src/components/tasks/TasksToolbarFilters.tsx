@@ -152,7 +152,9 @@ export function TasksToolbarFilters({
           open={relatedOpen}
           onOpenChange={(open) => {
             setRelatedOpen(open);
-            if (open) setPickerTab(relatedKind === "lead" ? "lead" : "client");
+            if (open) {
+              setPickerTab(relatedKind === "lead" ? "lead" : "client");
+            }
           }}
         >
           <PopoverTrigger asChild>

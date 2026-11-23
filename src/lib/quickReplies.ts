@@ -33,7 +33,9 @@ export function parseQuickReplies(content: string): {
       const options = [...new Set(rest.filter(Boolean))]
         .map((option) => option.slice(0, MAX_OPTION_CHARS))
         .slice(0, MAX_OPTIONS);
-      if (label && options.length > 0) groups.push({ label, options });
+      if (label && options.length > 0) {
+        groups.push({ label, options });
+      }
       return "";
     })
     .replace(/\n{3,}/g, "\n\n")
@@ -85,8 +87,12 @@ export function quickReplyAnswer(
 export function answerableIndex(messages: Array<{ role: string }>): number {
   for (let index = messages.length - 1; index >= 0; index--) {
     const role = messages[index].role;
-    if (role === "user") return -1;
-    if (role === "assistant") return index;
+    if (role === "user") {
+      return -1;
+    }
+    if (role === "assistant") {
+      return index;
+    }
   }
   return -1;
 }

@@ -33,11 +33,15 @@ const fail = (error: string, url = ""): PublicFetchResult => ({
 
 async function lookupIps(hostname: string): Promise<Array<string>> {
   const host = hostname.replace(/^\[|\]$/g, "");
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":")) return [host];
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(":")) {
+    return [host];
+  }
   const resolveDns = (
     Deno as { resolveDns?: (q: string, t: string) => Promise<Array<string>> }
   ).resolveDns;
-  if (typeof resolveDns !== "function") return [];
+  if (typeof resolveDns !== "function") {
+    return [];
+  }
   const [a, aaaa] = await Promise.all([
     resolveDns(host, "A").catch(() => [] as Array<string>),
     resolveDns(host, "AAAA").catch(() => [] as Array<string>),
@@ -47,9 +51,13 @@ async function lookupIps(hostname: string): Promise<Array<string>> {
 
 async function publicTarget(raw: string) {
   const url = parsePublicHttpUrl(raw);
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   const ips = await lookupIps(url.hostname);
-  if (ips.length === 0 || ips.some((ip) => isBlockedAddress(ip))) return null;
+  if (ips.length === 0 || ips.some((ip) => isBlockedAddress(ip))) {
+    return null;
+  }
   return { url, ip: ips[0] };
 }
 
@@ -129,7 +137,9 @@ async function pinnedGet(
   } finally {
     limit.clear();
     closeQuietly(conn);
-    if (conn !== tcp) closeQuietly(tcp);
+    if (conn !== tcp) {
+      closeQuietly(tcp);
+    }
   }
 }
 
@@ -146,17 +156,25 @@ export async function fetchPublic(
   const accept = options.accept ?? "text/html,application/xhtml+xml,*/*";
   try {
     let target = await publicTarget(rawUrl);
-    if (!target) return fail("הכתובת לא ציבורית או לא תקינה", rawUrl);
+    if (!target) {
+      return fail("הכתובת לא ציבורית או לא תקינה", rawUrl);
+    }
     for (let hop = 0; hop < 5; hop++) {
       const response = await pinnedGet(target, { timeoutMs, maxBytes, accept });
-      if (!response) return fail("תשובה לא תקינה מהאתר", target.url.href);
+      if (!response) {
+        return fail("תשובה לא תקינה מהאתר", target.url.href);
+      }
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
-        if (!location) return fail("הפניה בלי יעד", target.url.href);
+        if (!location) {
+          return fail("הפניה בלי יעד", target.url.href);
+        }
         const next = await publicTarget(
           new URL(location, target.url).toString(),
         );
-        if (!next) return fail("האתר הפנה לכתובת לא ציבורית", target.url.href);
+        if (!next) {
+          return fail("האתר הפנה לכתובת לא ציבורית", target.url.href);
+        }
         target = next;
         continue;
       }
@@ -168,7 +186,9 @@ export async function fetchPublic(
             cleanClose: response.cleanClose,
           })
         : null;
-      if (incomplete) return fail(incomplete, target.url.href);
+      if (incomplete) {
+        return fail(incomplete, target.url.href);
+      }
       return {
         ok,
         status: response.status,

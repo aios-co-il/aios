@@ -87,7 +87,9 @@ export function relipEstimate(
 
 /** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
 export function lipsyncPassUsd(scenes: Array<CostScene>) {
-  if (scenes.length === 0) return 0;
+  if (scenes.length === 0) {
+    return 0;
+  }
   const seconds = scenes.reduce(
     (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
     0,

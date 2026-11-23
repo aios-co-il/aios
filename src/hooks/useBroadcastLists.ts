@@ -80,7 +80,9 @@ export function useBroadcastLists() {
         .select("*")
         .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as unknown as Array<BroadcastList>;
     },
   });
@@ -100,7 +102,9 @@ export function useBroadcastLists() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as BroadcastList;
     },
     onSuccess: () =>
@@ -113,7 +117,9 @@ export function useBroadcastLists() {
         .from("broadcast_lists")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] }),
@@ -128,7 +134,9 @@ export function useBroadcastLists() {
         .from("broadcast_lists")
         .update(patch as any)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] }),
@@ -145,7 +153,9 @@ export function useBroadcastLists() {
           .filter("list_id", "eq", listId)
           .order("created_at", { ascending: false })
           .limit(1000);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return (data || []) as unknown as Array<ListMember>;
       },
     });
@@ -180,7 +190,9 @@ export function useBroadcastLists() {
             p_added_via: via,
           },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         added += Number(data || 0);
       }
       return added;
@@ -199,7 +211,9 @@ export function useBroadcastLists() {
         .from("broadcast_list_members")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({
@@ -217,7 +231,9 @@ export function useBroadcastLists() {
         body: { sheetId, fetchHeadersOnly: true, tenantId },
       },
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as {
       headers: Array<string>;
       previewRows: Array<Array<string>>;
@@ -245,7 +261,9 @@ export function useBroadcastLists() {
           body: { listId, sheetId, range, fieldMap, tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await supabase
         .from("broadcast_lists")
         .update({
@@ -273,7 +291,9 @@ export function useBroadcastLists() {
           .from("broadcast_list_rules")
           .select("*")
           .filter("list_id", "eq", listId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return (data || []) as unknown as Array<ListRule>;
       },
     });
@@ -288,7 +308,9 @@ export function useBroadcastLists() {
         enabled: true,
         created_by: userId,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) =>
       qc.invalidateQueries({
@@ -302,7 +324,9 @@ export function useBroadcastLists() {
         .from("broadcast_list_rules")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) =>
       qc.invalidateQueries({

@@ -21,11 +21,21 @@ const MAX_INLINE_FILE_SIZE = 150 * 1024 * 1024;
 // Map content-type -> Gemini audio format name
 function geminiAudioFormat(mime: string): string {
   const m = mime.split(";")[0].trim().toLowerCase();
-  if (m.includes("mp3") || m === "audio/mpeg") return "mp3";
-  if (m.includes("wav")) return "wav";
-  if (m.includes("flac")) return "flac";
-  if (m.includes("ogg")) return "ogg";
-  if (m.includes("webm")) return "webm";
+  if (m.includes("mp3") || m === "audio/mpeg") {
+    return "mp3";
+  }
+  if (m.includes("wav")) {
+    return "wav";
+  }
+  if (m.includes("flac")) {
+    return "flac";
+  }
+  if (m.includes("ogg")) {
+    return "ogg";
+  }
+  if (m.includes("webm")) {
+    return "webm";
+  }
   // mp4/m4a/aac and video/mp4 all decode as mp4 for Gemini
   return "mp4";
 }
@@ -47,16 +57,21 @@ async function setTranscriptionStatus(
   error?: string,
 ) {
   const update: any = { transcription_status: status };
-  if (transcription !== undefined) update.transcription = transcription;
-  if (error !== undefined) update.transcription_error = error;
+  if (transcription !== undefined) {
+    update.transcription = transcription;
+  }
+  if (error !== undefined) {
+    update.transcription_error = error;
+  }
 
   const { error: dbError } = await supabase
     .from("zoom_recordings")
     .update(update)
     .eq("id", recordingId);
 
-  if (dbError)
+  if (dbError) {
     console.error("⚠️ Failed to update transcription status:", dbError.message);
+  }
 }
 
 // ── Main handler ──────────────────────────────────────────────
@@ -296,7 +311,9 @@ async function whisperTranscribe(
     language: "he",
     filename: `recording.${ext}`,
   });
-  if (!text) throw new Error("Whisper returned empty transcription");
+  if (!text) {
+    throw new Error("Whisper returned empty transcription");
+  }
   return text;
 }
 
@@ -312,9 +329,13 @@ async function whisperTranscribe(
 const CHANNEL_LABELS: Record<string, string> = { mic: "מקליט", sys: "משתתפים" };
 
 function channelLabel(channel: string): string {
-  if (CHANNEL_LABELS[channel]) return CHANNEL_LABELS[channel];
+  if (CHANNEL_LABELS[channel]) {
+    return CHANNEL_LABELS[channel];
+  }
   const guest = channel.match(/^guest(\d+)$/);
-  if (guest) return `משתתף ${guest[1]}`;
+  if (guest) {
+    return `משתתף ${guest[1]}`;
+  }
   return channel;
 }
 
@@ -323,7 +344,9 @@ function partChannel(path: string): {
   part: number;
 } {
   const m = path.match(/_(mic|sys|audio)_part(\d+)\.\w+$/);
-  if (!m) return { channel: "mixed", part: 0 };
+  if (!m) {
+    return { channel: "mixed", part: 0 };
+  }
   return {
     channel: m[1] === "audio" ? "mixed" : (m[1] as "mic" | "sys"),
     part: parseInt(m[2], 10),
@@ -367,8 +390,9 @@ async function transcribeChannelParts(
       if (segs) {
         const speakerOrder = new Map<string, number>();
         diarized = segs.map((s) => {
-          if (!speakerOrder.has(s.speaker))
+          if (!speakerOrder.has(s.speaker)) {
             speakerOrder.set(s.speaker, speakerOrder.size + 1);
+          }
           return {
             at: s.start,
             channel: `guest${speakerOrder.get(s.speaker)}`,
@@ -407,10 +431,14 @@ async function transcribeChannelParts(
     .filter((path) => !(diarized && partChannel(path).channel === "sys"))
     .forEach((path, i) => {
       const { channel, part } = partChannel(path);
-      if (!channels.has(channel)) channels.set(channel, []);
+      if (!channels.has(channel)) {
+        channels.set(channel, []);
+      }
       channels.get(channel)!.push({ path, part: part || i + 1 });
     });
-  for (const list of channels.values()) list.sort((a, b) => a.part - b.part);
+  for (const list of channels.values()) {
+    list.sort((a, b) => a.part - b.part);
+  }
 
   // Download + transcribe every part in parallel (each is a few MB).
   type PartResult = {
@@ -427,12 +455,14 @@ async function transcribeChannelParts(
           const { data: blob, error } = await supabase.storage
             .from("recordings")
             .download(path);
-          if (error || !blob)
+          if (error || !blob) {
             throw new Error(
               `Failed to download segment ${path}: ${error?.message || "unknown"}`,
             );
-          if (blob.size > WHISPER_MAX_BYTES)
+          }
+          if (blob.size > WHISPER_MAX_BYTES) {
             throw new Error(`Segment ${path} exceeds 25MB`);
+          }
           console.log(
             `🎙️ Transcribing ${channel} part ${part} (${(blob.size / 1024 / 1024).toFixed(1)}MB)`,
           );
@@ -440,7 +470,9 @@ async function transcribeChannelParts(
             language: "he",
             filename: `part.webm`,
           });
-          if (!verbose) throw new Error(`Whisper failed on segment ${path}`);
+          if (!verbose) {
+            throw new Error(`Whisper failed on segment ${path}`);
+          }
           return {
             channel,
             part,
@@ -469,8 +501,9 @@ async function transcribeChannelParts(
     }
   }
 
-  if (timeline.length === 0)
+  if (timeline.length === 0) {
     throw new Error("Whisper returned empty transcription");
+  }
   timeline.sort((a, b) => a.at - b.at);
 
   // Single mixed channel → plain transcript (legacy behavior, no fake speakers).
@@ -517,7 +550,9 @@ async function resolveSpeakerNames(
   overrides: Map<string, string>,
 ): Promise<void> {
   const pathMatch = sysFullPath.match(/^(.+)\/(\d+)_sys_full\.\w+$/);
-  if (!pathMatch) return;
+  if (!pathMatch) {
+    return;
+  }
   const [, folder, ts] = pathMatch;
 
   const { data: files } = await supabase.storage
@@ -555,19 +590,29 @@ async function resolveSpeakerNames(
             Math.abs(b.sec - (seg.start + seg.end) / 2),
         );
       const best = inWindow.find((f) => !chosen.some((c) => c.path === f.path));
-      if (best) chosen.push(best);
-      if (chosen.length >= 3) break;
+      if (best) {
+        chosen.push(best);
+      }
+      if (chosen.length >= 3) {
+        break;
+      }
     }
-    if (chosen.length === 0) continue;
+    if (chosen.length === 0) {
+      continue;
+    }
 
     const blobs: Array<Blob> = [];
     for (const frame of chosen) {
       const { data: blob } = await supabase.storage
         .from("recordings")
         .download(frame.path);
-      if (blob) blobs.push(blob);
+      if (blob) {
+        blobs.push(blob);
+      }
     }
-    if (blobs.length === 0) continue;
+    if (blobs.length === 0) {
+      continue;
+    }
 
     const result = await aiVisionJSON(
       `בצילומי המסך האלה מפגישת וידאו (Zoom/Google Meet/Teams), אותו משתתף מדבר בכל התמונות — הוא מסומן כדובר הפעיל (מסגרת צבעונית סביב האריח שלו, או אינדיקציית קול לצד שמו). קרא את תווית השם המוצגת על האריח של הדובר הפעיל. אם לא רואים רשת משתתפים, או שאי אפשר לקבוע בוודאות מי הדובר, החזר null. החזר JSON בלבד: {"name": string | null}`,
@@ -670,7 +715,9 @@ async function splitWav(blob: Blob): Promise<Array<Blob> | null> {
   const tag = (off: number) =>
     String.fromCharCode(head[off], head[off + 1], head[off + 2], head[off + 3]);
 
-  if (blob.size < 44 || tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  if (blob.size < 44 || tag(0) !== "RIFF" || tag(8) !== "WAVE") {
+    return null;
+  }
 
   let off = 12;
   let blockAlign = 0;
@@ -678,7 +725,9 @@ async function splitWav(blob: Blob): Promise<Array<Blob> | null> {
   while (off + 8 <= headLen) {
     const id = tag(off);
     const size = dv.getUint32(off + 4, true);
-    if (id === "fmt ") blockAlign = dv.getUint16(off + 8 + 12, true) || 0;
+    if (id === "fmt ") {
+      blockAlign = dv.getUint16(off + 8 + 12, true) || 0;
+    }
     if (id === "data") {
       dataOff = off + 8;
       break;
@@ -686,12 +735,16 @@ async function splitWav(blob: Blob): Promise<Array<Blob> | null> {
     off += 8 + size + (size % 2);
   }
   // 'data' chunk not found within the first 4KB — unusual layout, bail out.
-  if (dataOff < 0 || blockAlign <= 0) return null;
+  if (dataOff < 0 || blockAlign <= 0) {
+    return null;
+  }
 
   const dataLen = blob.size - dataOff;
   const payloadPerChunk =
     Math.floor((CHUNK_TARGET_BYTES - dataOff) / blockAlign) * blockAlign;
-  if (payloadPerChunk <= 0) return null;
+  if (payloadPerChunk <= 0) {
+    return null;
+  }
 
   const chunks: Array<Blob> = [];
   for (let start = 0; start < dataLen; start += payloadPerChunk) {

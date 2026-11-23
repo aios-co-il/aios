@@ -27,7 +27,9 @@ export function useSkins(
         )
         .order("scope", { ascending: true })
         .order("name", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<Skin>;
     },
     enabled: !!tenantId,
@@ -58,7 +60,9 @@ export function useSkins(
           .from("ai_skills")
           .update(payload)
           .eq("id", s.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("ai_skills").insert({
           ...payload,
@@ -67,7 +71,9 @@ export function useSkins(
           scope: "tenant",
           tenant_id: tenantId,
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {

@@ -27,8 +27,12 @@ async function invoke(functionName: string, body: Record<string, unknown>) {
     method: "POST",
     body,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(String(data.error));
+  if (error) {
+    throw error;
+  }
+  if (data?.error) {
+    throw new Error(String(data.error));
+  }
 }
 
 /**
@@ -61,7 +65,9 @@ export async function syncReportTable(
         if (isSeoReportSource(settings.data_source)) {
           const clientId =
             settings.clientId || settings.client_id || table.client_id;
-          if (!clientId) throw new Error("Missing client ID for SEO report");
+          if (!clientId) {
+            throw new Error("Missing client ID for SEO report");
+          }
           await invoke("fetch-ahrefs-snapshot", {
             clientId,
             domain: settings.targetDomain || settings.target || settings.domain,

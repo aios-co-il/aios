@@ -12,8 +12,9 @@ const TENANT = "ac7f9a3e-a042-4a64-afea-53e21a544d3d";
 const USER = "bcd21d1c-3b39-4a7c-9dbf-4c89679110b9";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -58,7 +59,9 @@ Deno.serve(async (req) => {
         return row;
       });
       const { error } = await supabase.from("leads").insert(batch);
-      if (error) throw new Error(`leads batch ${i}: ${error.message}`);
+      if (error) {
+        throw new Error(`leads batch ${i}: ${error.message}`);
+      }
       inserted += batch.length;
     }
 
@@ -72,7 +75,9 @@ Deno.serve(async (req) => {
         lead_id: l.lead_id,
       }));
       const { error } = await supabase.from("chat_contact_tags").insert(batch);
-      if (error) throw new Error(`ct batch ${i}: ${error.message}`);
+      if (error) {
+        throw new Error(`ct batch ${i}: ${error.message}`);
+      }
       linksInserted += batch.length;
     }
 

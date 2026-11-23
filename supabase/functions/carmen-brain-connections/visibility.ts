@@ -12,7 +12,9 @@ export async function setActive(ctx: ActionContext) {
     .eq("id", routeId)
     .maybeSingle();
   check(route.error, "Loading the brain");
-  if (!route.data) throw new HttpError(404, "Brain not found");
+  if (!route.data) {
+    throw new HttpError(404, "Brain not found");
+  }
 
   if (!active) {
     const others = await ctx.sb
@@ -22,8 +24,9 @@ export async function setActive(ctx: ActionContext) {
       .eq("active", true)
       .neq("id", routeId);
     check(others.error, "Counting visible brains");
-    if (!others.count)
+    if (!others.count) {
       throw new HttpError(400, "At least one brain must stay visible");
+    }
   }
 
   const { error } = await ctx.sb

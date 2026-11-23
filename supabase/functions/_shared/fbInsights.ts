@@ -290,15 +290,20 @@ export function resolveCampaignResultMetric(
   promotedObject: any,
 ): CampaignResultMetric | null {
   const po = promotedObject || {};
-  if (po.custom_conversion_id) return null;
+  if (po.custom_conversion_id) {
+    return null;
+  }
   const cet = String(po.custom_event_type || "").toUpperCase();
   if (
     cet === "CONTENT_VIEW" &&
     (po.custom_event_str || extractPixelRuleEvent(po.pixel_rule))
-  )
+  ) {
     return null;
+  }
   const event = ECOMMERCE_RESULT_EVENTS[cet];
-  if (!event) return null;
+  if (!event) {
+    return null;
+  }
   return {
     kind: event.kind,
     label: RESULT_KIND_LABELS[event.kind],
@@ -322,12 +327,17 @@ export function buildResultMetricMaps(
   const maps: ResultMetricMaps = { byCampaign: {}, byAdset: {} };
   for (const adset of adsets || []) {
     const metric = resolveCampaignResultMetric(adset?.promoted_object);
-    if (!metric) continue;
+    if (!metric) {
+      continue;
+    }
     const adsetId = String(adset?.id || "");
     const campaignId = String(adset?.campaign_id || "");
-    if (adsetId) maps.byAdset[adsetId] = metric;
-    if (campaignId && !maps.byCampaign[campaignId])
+    if (adsetId) {
+      maps.byAdset[adsetId] = metric;
+    }
+    if (campaignId && !maps.byCampaign[campaignId]) {
       maps.byCampaign[campaignId] = metric;
+    }
   }
   return maps;
 }
@@ -446,12 +456,18 @@ export function countCallLeads(
 ): number {
   for (const type of CALL_PLACED_ACTION_PRIORITY) {
     const value = sumByTypes([type]);
-    if (value > 0) return value;
+    if (value > 0) {
+      return value;
+    }
   }
-  if (!options.includeClickFallbacks) return 0;
+  if (!options.includeClickFallbacks) {
+    return 0;
+  }
   for (const type of CALL_CLICK_FALLBACK_TYPES) {
     const value = sumByTypes([type]);
-    if (value > 0) return value;
+    if (value > 0) {
+      return value;
+    }
   }
   return 0;
 }
@@ -484,7 +500,9 @@ const ADD_TO_CART_ACTION_TYPE_PRIORITY = [
 /** Extract a custom pixel event name from a promoted_object `pixel_rule` JSON
  *  string, e.g. {"event":{"eq":"NewLead"}} → "NewLead". Returns null if none. */
 function extractPixelRuleEvent(pixelRule: any): string | null {
-  if (!pixelRule) return null;
+  if (!pixelRule) {
+    return null;
+  }
   try {
     const s =
       typeof pixelRule === "string" ? pixelRule : JSON.stringify(pixelRule);
@@ -522,7 +540,9 @@ export function resolveResultLeadTypes(
   //    the `pixel_rule` JSON ({"event":{"eq":"NewLead"}}). Handle both.
   if (cet === "OTHER" || cet === "" || cet === "CONTENT_VIEW") {
     const name = po.custom_event_str || extractPixelRuleEvent(po.pixel_rule);
-    if (name) return ["offsite_conversion.fb_pixel_custom." + name];
+    if (name) {
+      return ["offsite_conversion.fb_pixel_custom." + name];
+    }
   }
   // 3) Standard pixel events, mapped to their insights action_type.
   const STD: Record<string, Array<string>> = {
@@ -539,9 +559,13 @@ export function resolveResultLeadTypes(
     ],
     SUBSCRIBE: ["offsite_conversion.fb_pixel_subscribe", "subscribe"],
   };
-  if (STD[cet]) return STD[cet];
+  if (STD[cet]) {
+    return STD[cet];
+  }
   // PURCHASE / sales optimization is not a lead — let the caller handle it.
-  if (cet === "PURCHASE") return null;
+  if (cet === "PURCHASE") {
+    return null;
+  }
 
   // 4) No pixel event: on-Facebook instant Lead Form.
   if (goal === "LEAD_GENERATION" || goal === "QUALITY_LEAD") {
@@ -578,13 +602,17 @@ export function buildResultLeadTypeMap(
   const map: Record<string, Array<string>> = {};
   for (const as of adsets || []) {
     const cid = String(as?.campaign_id || "");
-    if (!cid || map[cid]) continue;
+    if (!cid || map[cid]) {
+      continue;
+    }
     const types = resolveResultLeadTypes(
       as?.promoted_object,
       as?.optimization_goal,
       campaignObjectives[cid],
     );
-    if (types && types.length > 0) map[cid] = types;
+    if (types && types.length > 0) {
+      map[cid] = types;
+    }
   }
   return map;
 }
@@ -762,8 +790,11 @@ export function buildInsightRecord(
     includeClickFallbacks: _callOptimized || leads === 0,
   });
   if (!_callActionCounted && _callLeadsValue > 0) {
-    if (_callOptimized || leads === 0) leads = _callLeadsValue;
-    else leads += _callLeadsValue;
+    if (_callOptimized || leads === 0) {
+      leads = _callLeadsValue;
+    } else {
+      leads += _callLeadsValue;
+    }
   }
   // Aggregate `lead` does not include calls. Use it only when no lead signal fired.
   // Not for sales, traffic and awareness: the aggregate can carry the
@@ -809,7 +840,9 @@ export function buildInsightRecord(
   // "Purchases" column instead of summing duplicate types.
   const pickFirstAvailable = (priority: Array<string>) => {
     for (const type of priority) {
-      if (actionTypeSet.has(type)) return [type];
+      if (actionTypeSet.has(type)) {
+        return [type];
+      }
     }
     return [];
   };
@@ -1200,9 +1233,13 @@ export function cachedLastMetaActivity(
   settings: Record<string, unknown> | null | undefined,
 ): LastMetaActivity | null {
   const cached = settings?.last_meta_activity;
-  if (!cached || typeof cached !== "object") return null;
+  if (!cached || typeof cached !== "object") {
+    return null;
+  }
   const activity = cached as LastMetaActivity;
-  if (!activity.at && !activity.availability) return null;
+  if (!activity.at && !activity.availability) {
+    return null;
+  }
   return activity;
 }
 
@@ -1211,7 +1248,7 @@ export async function fetchLastMetaCampaignActivity(
   token: string | null,
   adAccountId: string | null,
 ): Promise<LastMetaActivity> {
-  if (!adAccountId)
+  if (!adAccountId) {
     return {
       at: null,
       type: null,
@@ -1219,7 +1256,8 @@ export async function fetchLastMetaCampaignActivity(
       object: null,
       availability: "ad_account_not_connected",
     };
-  if (!token)
+  }
+  if (!token) {
     return {
       at: null,
       type: null,
@@ -1227,6 +1265,7 @@ export async function fetchLastMetaCampaignActivity(
       object: null,
       availability: "meta_token_unavailable",
     };
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2500);
   try {
@@ -1268,7 +1307,7 @@ export async function fetchLastMetaCampaignActivity(
           new Date(b.event_time || b.date_time_in_timezone || 0).getTime() -
           new Date(a.event_time || a.date_time_in_timezone || 0).getTime(),
       )[0];
-    if (!latest)
+    if (!latest) {
       return {
         at: null,
         type: null,
@@ -1276,6 +1315,7 @@ export async function fetchLastMetaCampaignActivity(
         object: null,
         availability: "no_campaign_change_in_30d",
       };
+    }
     return {
       at: latest.event_time || latest.date_time_in_timezone || null,
       type: latest.translated_event_type || latest.event_type || null,

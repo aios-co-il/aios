@@ -142,7 +142,9 @@ Deno.serve(async (req) => {
           if (!existing.client_id && resolved_client_id) {
             updatePayload.client_id = resolved_client_id;
           }
-          if (agency_id) updatePayload.agency_id = agency_id;
+          if (agency_id) {
+            updatePayload.agency_id = agency_id;
+          }
 
           const { error: updateError } = await supabase
             .from("ahrefs_reports")
@@ -177,8 +179,12 @@ Deno.serve(async (req) => {
         report_date: report_date || null,
         tenant_id: tenant_id || null,
       };
-      if (resolved_client_id) insertPayload.client_id = resolved_client_id;
-      if (agency_id) insertPayload.agency_id = agency_id;
+      if (resolved_client_id) {
+        insertPayload.client_id = resolved_client_id;
+      }
+      if (agency_id) {
+        insertPayload.agency_id = agency_id;
+      }
 
       const { data: inserted, error: insertError } = await supabase
         .from("ahrefs_reports")

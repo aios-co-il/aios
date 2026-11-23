@@ -89,19 +89,27 @@ serve(async (req: Request) => {
         .neq("phone", "")
         .range(from, from + pageSize - 1);
 
-      if (pageError) throw pageError;
+      if (pageError) {
+        throw pageError;
+      }
 
-      if (!pageLeads || pageLeads.length === 0) break;
+      if (!pageLeads || pageLeads.length === 0) {
+        break;
+      }
 
       allLeads = [...allLeads, ...pageLeads];
 
-      if (pageLeads.length < pageSize) break;
+      if (pageLeads.length < pageSize) {
+        break;
+      }
       from += pageSize;
     }
 
     const leadsError = null;
 
-    if (leadsError) throw leadsError;
+    if (leadsError) {
+      throw leadsError;
+    }
 
     // Normalize phones and group duplicates
     const phoneGroups: Map<string, Array<any>> = new Map();
@@ -188,17 +196,23 @@ serve(async (req: Request) => {
         // Total activity score
         const aActivity = a.updates_count + a.tasks_count + a.messages_count;
         const bActivity = b.updates_count + b.tasks_count + b.messages_count;
-        if (aActivity !== bActivity) return bActivity - aActivity;
+        if (aActivity !== bActivity) {
+          return bActivity - aActivity;
+        }
 
         // Has specific response status
         const aHasStatus =
           a.response_status && !a.response_status.startsWith("custom_") ? 1 : 0;
         const bHasStatus =
           b.response_status && !b.response_status.startsWith("custom_") ? 1 : 0;
-        if (aHasStatus !== bHasStatus) return bHasStatus - aHasStatus;
+        if (aHasStatus !== bHasStatus) {
+          return bHasStatus - aHasStatus;
+        }
 
         // More tags
-        if (a.tags_count !== b.tags_count) return b.tags_count - a.tags_count;
+        if (a.tags_count !== b.tags_count) {
+          return b.tags_count - a.tags_count;
+        }
 
         // Oldest
         return (

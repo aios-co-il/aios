@@ -10,7 +10,9 @@ export const RETURNING_LEAD_TAG = "ליד חוזר";
 export function normalizeLeadPhone(
   phone: string | null | undefined,
 ): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   const digits = phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
   return digits || null;
 }
@@ -30,8 +32,12 @@ export function isSameInboundLead(
   incoming: CandidateLead,
 ): boolean {
   const incomingPhone = normalizeLeadPhone(incoming.phone);
-  if (!incomingPhone) return false;
-  if (normalizeLeadPhone(existing.phone) !== incomingPhone) return false;
+  if (!incomingPhone) {
+    return false;
+  }
+  if (normalizeLeadPhone(existing.phone) !== incomingPhone) {
+    return false;
+  }
 
   return (
     normalizeLeadEmail(existing.email) === normalizeLeadEmail(incoming.email)
@@ -50,7 +56,9 @@ export function leadPhoneVariants(
   phone: string | null | undefined,
 ): Array<string> {
   const normalized = normalizeLeadPhone(phone);
-  if (!normalized) return [];
+  if (!normalized) {
+    return [];
+  }
   const local = normalized.replace(/^972/, "");
   return [
     ...new Set(

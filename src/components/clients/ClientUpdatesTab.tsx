@@ -137,7 +137,9 @@ export function ClientUpdatesTab({
 
   // Sync local state with the actual client mood_status whenever it changes
   useEffect(() => {
-    if (currentMoodStatus) setCommStatus(currentMoodStatus);
+    if (currentMoodStatus) {
+      setCommStatus(currentMoodStatus);
+    }
   }, [currentMoodStatus]);
 
   // Fetch latest communication log for this client
@@ -152,7 +154,9 @@ export function ClientUpdatesTab({
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (error) return null;
+        if (error) {
+          return null;
+        }
         return data;
       } catch {
         return null;
@@ -164,14 +168,18 @@ export function ClientUpdatesTab({
   // Save communication log mutation
   const saveCommMutation = useMutation({
     mutationFn: async (statusOverride?: string) => {
-      if (!tenantId || !user?.id) throw new Error("Missing tenant or user");
+      if (!tenantId || !user?.id) {
+        throw new Error("Missing tenant or user");
+      }
       const statusToSave = statusOverride ?? commStatus;
       // 1) Update mood_status FIRST so the main badge syncs even if log insert fails
       const { error: clientError } = await supabase
         .from("clients")
         .update({ mood_status: statusToSave } as any)
         .eq("id", clientId);
-      if (clientError) throw clientError;
+      if (clientError) {
+        throw clientError;
+      }
       // 2) Then insert into communication_logs (best-effort)
       const { error: logError } = await (supabase as any)
         .from("communication_logs")
@@ -182,7 +190,9 @@ export function ClientUpdatesTab({
           interaction_type: commInteraction,
           updated_by: user.id,
         });
-      if (logError) console.warn("communication_logs insert failed:", logError);
+      if (logError) {
+        console.warn("communication_logs insert failed:", logError);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -233,7 +243,9 @@ export function ClientUpdatesTab({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return withTaskCreatorNames(data || []);
     },
     enabled: !!clientId,
@@ -260,7 +272,9 @@ export function ClientUpdatesTab({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!clientId,
@@ -278,7 +292,9 @@ export function ClientUpdatesTab({
           .select("id, status, interaction_type, note, created_at")
           .eq("client_id", clientId)
           .order("created_at", { ascending: true });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data ?? [];
       },
       enabled: !!clientId,
@@ -296,7 +312,9 @@ export function ClientUpdatesTab({
       content: string;
       updateType: string;
     }) => {
-      if (!tenantId || !user?.id) throw new Error("Missing tenant or user");
+      if (!tenantId || !user?.id) {
+        throw new Error("Missing tenant or user");
+      }
       const { error } = await supabase.from("client_updates").insert({
         client_id: clientId,
         tenant_id: tenantId,
@@ -304,7 +322,9 @@ export function ClientUpdatesTab({
         content,
         update_type: updateType,
       } as any);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-updates", clientId] });
@@ -358,7 +378,9 @@ export function ClientUpdatesTab({
         .from("tasks")
         .update({ status })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-tasks", clientId] });
@@ -375,7 +397,9 @@ export function ClientUpdatesTab({
       setSeoUpdateOpen(true);
       return;
     }
-    if (!newUpdate.trim()) return;
+    if (!newUpdate.trim()) {
+      return;
+    }
     saveCommMutation.mutate(commStatus);
     addUpdateMutation.mutate({
       content: newUpdate.trim(),
@@ -391,8 +415,12 @@ export function ClientUpdatesTab({
   const historyEvents = useMemo(() => {
     const moodChanges = getClientMoodChanges(communicationLogs || []);
     const cutoff = new Date();
-    if (dateFilter === "week") cutoff.setDate(cutoff.getDate() - 7);
-    if (dateFilter === "month") cutoff.setDate(cutoff.getDate() - 30);
+    if (dateFilter === "week") {
+      cutoff.setDate(cutoff.getDate() - 7);
+    }
+    if (dateFilter === "month") {
+      cutoff.setDate(cutoff.getDate() - 30);
+    }
     const isInDateRange = (createdAt?: string | null) =>
       dateFilter === "all" || new Date(createdAt ?? 0) >= cutoff;
 
@@ -508,7 +536,9 @@ export function ClientUpdatesTab({
                   value={newUpdateType}
                   onValueChange={(value) => {
                     setNewUpdateType(value);
-                    if (value === "seo_update") setSeoUpdateOpen(true);
+                    if (value === "seo_update") {
+                      setSeoUpdateOpen(true);
+                    }
                   }}
                 >
                   <SelectTrigger className="h-8 text-sm bg-card">
@@ -573,7 +603,9 @@ export function ClientUpdatesTab({
                       value={updateTypeFilter}
                       onValueChange={(value) => {
                         setUpdateTypeFilter(value);
-                        if (value !== "mood_change") setMoodFilter("all");
+                        if (value !== "mood_change") {
+                          setMoodFilter("all");
+                        }
                       }}
                     >
                       <SelectTrigger className="h-8 text-sm bg-card">
@@ -604,7 +636,9 @@ export function ClientUpdatesTab({
                       value={moodFilter}
                       onValueChange={(value) => {
                         setMoodFilter(value as MoodFilter);
-                        if (value !== "all") setUpdateTypeFilter("mood_change");
+                        if (value !== "all") {
+                          setUpdateTypeFilter("mood_change");
+                        }
                       }}
                     >
                       <SelectTrigger className="h-8 text-sm bg-card">
@@ -954,7 +988,9 @@ export function ClientUpdatesTab({
         open={seoUpdateOpen}
         onOpenChange={(open) => {
           setSeoUpdateOpen(open);
-          if (!open) setNewUpdateType("weekly_update");
+          if (!open) {
+            setNewUpdateType("weekly_update");
+          }
         }}
       />
     </div>

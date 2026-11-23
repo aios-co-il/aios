@@ -56,8 +56,11 @@ const run = (
     const settle = (error: Error | null) => {
       clearTimeout(timer);
       process.off("exit", stop);
-      if (error) reject(error);
-      else resolve();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
     };
     let stderr = "";
     child.stderr.on("data", (chunk) => {
@@ -65,15 +68,18 @@ const run = (
     });
     child.on("error", settle);
     child.on("exit", () => {
-      if (timedOut)
+      if (timedOut) {
         settle(
           new Error(
             `remotion render timed out after ${Math.round(timeoutMs / 1000)} s`,
           ),
         );
+      }
     });
     child.on("close", (code) => {
-      if (timedOut) return;
+      if (timedOut) {
+        return;
+      }
       settle(
         code === 0
           ? null
@@ -107,8 +113,9 @@ export async function assembleWithRemotion(
   // Music and effects levelled first (sound-prep.ts), then measured for the edit.
   const levelled = await prepare(timeline, join(workDir, "sound"));
   const plan = buildWorkshopManifest(await measured(levelled, probeFile));
-  for (const file of plan.files)
+  for (const file of plan.files) {
     await copyFile(file.from, join(stage, file.to));
+  }
   const manifestPath = join(stage, "manifest.json");
   await writeFile(manifestPath, JSON.stringify(plan.manifest));
   await run(

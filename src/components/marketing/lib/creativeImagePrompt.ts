@@ -59,7 +59,9 @@ export const wrapCreativeImagePrompt = (
   options?: CreativeImageWrapOptions,
 ): string => {
   const trimmed = prompt.trim();
-  if (options?.inpaint) return trimmed;
+  if (options?.inpaint) {
+    return trimmed;
+  }
   const lock = options?.liveTextLayers
     ? buildNoGlyphLock(options)
     : buildFinishedAdLock(options);

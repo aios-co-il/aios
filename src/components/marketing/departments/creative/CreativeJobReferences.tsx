@@ -28,7 +28,9 @@ export function CreativeJobReferences({
   const [uploading, setUploading] = useState(false);
 
   const upload = async (files: FileList | null) => {
-    if (!files?.length) return;
+    if (!files?.length) {
+      return;
+    }
     setUploading(true);
     try {
       const uploaded: Array<StyleReference> = [];
@@ -54,7 +56,9 @@ export function CreativeJobReferences({
       );
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     }
   };
 

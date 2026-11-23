@@ -48,8 +48,11 @@ export default function CarmenCommandCenter() {
         (prev) => {
           const next = new URLSearchParams(prev);
           next.delete("settings");
-          if (value === null) next.delete("panel");
-          else next.set("panel", value);
+          if (value === null) {
+            next.delete("panel");
+          } else {
+            next.set("panel", value);
+          }
           return next;
         },
         { replace: true },
@@ -60,9 +63,12 @@ export default function CarmenCommandCenter() {
   const { data: tasksData } = useCarmenTasks(tenantId);
   const runningCount = countRunning(tasksData?.rows ?? []);
 
-  if (access.loading) return <div className="cc-root h-full" />;
-  if (!access.allowed)
+  if (access.loading) {
+    return <div className="cc-root h-full" />;
+  }
+  if (!access.allowed) {
     return <Navigate to={tenantSlug ? `/t/${tenantSlug}` : "/"} replace />;
+  }
 
   const headerActions = (
     <>

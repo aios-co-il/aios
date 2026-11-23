@@ -21,7 +21,9 @@ export function buildDefaultReportRecipientEmails(
   const seen = new Set<string>();
   for (const opt of DEFAULT_REPORT_EMAIL_RECIPIENTS) {
     const email = normalizeEmail(opt.email);
-    if (!email || seen.has(email)) continue;
+    if (!email || seen.has(email)) {
+      continue;
+    }
     seen.add(email);
     out.push(email);
   }
@@ -49,7 +51,9 @@ export function buildReportEmailOptions(args: {
 
   const push = (opt: EmailOption) => {
     const email = normalizeEmail(opt.email || "");
-    if (!email || seen.has(email)) return;
+    if (!email || seen.has(email)) {
+      return;
+    }
     seen.add(email);
     out.push({ ...opt, email });
   };
@@ -61,7 +65,9 @@ export function buildReportEmailOptions(args: {
       icon: "📋",
     });
   }
-  for (const opt of DEFAULT_REPORT_EMAIL_RECIPIENTS) push(opt);
+  for (const opt of DEFAULT_REPORT_EMAIL_RECIPIENTS) {
+    push(opt);
+  }
   for (const t of args.teamMembers || []) {
     push({
       email: t.campaigners?.email || "",

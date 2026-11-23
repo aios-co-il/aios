@@ -23,12 +23,19 @@ import {
 } from "../_shared/meta-whatsapp.ts";
 
 function normalizePhone(raw: string | null | undefined): string | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   let digits = digitsOnly(String(raw).split("@")[0]).replace(/^00/, "");
-  if (!digits) return null;
-  if (digits.startsWith("0") && digits.length >= 9)
+  if (!digits) {
+    return null;
+  }
+  if (digits.startsWith("0") && digits.length >= 9) {
     digits = `972${digits.slice(1)}`;
-  if (digits.startsWith("9720")) digits = `972${digits.slice(4)}`;
+  }
+  if (digits.startsWith("9720")) {
+    digits = `972${digits.slice(4)}`;
+  }
   return digits;
 }
 
@@ -57,8 +64,9 @@ async function authorize(
   integrationId: string,
 ) {
   const { data: authData, error: authError } = await admin.auth.getUser(jwt);
-  if (authError || !authData.user)
+  if (authError || !authData.user) {
     return { error: reply({ error: "unauthorized" }, 401) };
+  }
 
   const [{ data: membership }, { data: superAdmin }, { data: integration }] =
     await Promise.all([
@@ -96,8 +104,9 @@ async function authorize(
     });
     canUse = canShare === true || superAdmin === true;
   }
-  if (!canUse)
+  if (!canUse) {
     return { error: reply({ error: "integration_access_denied" }, 403) };
+  }
 
   return {
     user: authData.user,
@@ -134,7 +143,9 @@ async function buildAudience(
   if (source === "manual") {
     for (const raw of manualPhones) {
       const phone = normalizePhone(raw);
-      if (!phone || phone.length < 10) continue;
+      if (!phone || phone.length < 10) {
+        continue;
+      }
       byPhone.set(phone, {
         phone,
         contact_name: null,
@@ -156,7 +167,9 @@ async function buildAudience(
         .limit(2000);
       for (const row of msgs ?? []) {
         const phone = normalizePhone(row.sender_phone);
-        if (!phone || byPhone.has(phone)) continue;
+        if (!phone || byPhone.has(phone)) {
+          continue;
+        }
         byPhone.set(phone, {
           phone,
           contact_name: row.sender_name ?? null,
@@ -176,7 +189,9 @@ async function buildAudience(
         .limit(2000);
       for (const row of clients ?? []) {
         const phone = normalizePhone(row.phone);
-        if (!phone || byPhone.has(phone)) continue;
+        if (!phone || byPhone.has(phone)) {
+          continue;
+        }
         byPhone.set(phone, {
           phone,
           contact_name: row.name ?? null,
@@ -198,7 +213,9 @@ async function buildAudience(
       .in("phone", phones);
     for (const row of opted ?? []) {
       const p = normalizePhone(row.phone);
-      if (p) byPhone.delete(p);
+      if (p) {
+        byPhone.delete(p);
+      }
     }
   }
 
@@ -220,18 +237,21 @@ async function refreshCampaignStats(admin: any, campaignId: string) {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST")
+  }
+  if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const authHeader = request.headers.get("Authorization") ?? "";
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!supabaseUrl || !serviceKey || !jwt)
+    if (!supabaseUrl || !serviceKey || !jwt) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -246,12 +266,16 @@ Deno.serve(async (request) => {
     }
 
     const auth = await authorize(admin, jwt, tenantId, integrationId);
-    if ("error" in auth && auth.error instanceof Response) return auth.error;
+    if ("error" in auth && auth.error instanceof Response) {
+      return auth.error;
+    }
     const { user, integration, canManage } = auth as any;
 
     // ── configure auto-reply on the lead number ──────────────────────────
     if (action === "configure_auto_reply") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const enabled = body.enabled !== false;
       const thanksText =
         String(body.thanks_text ?? DEFAULT_LEAD_THANKS_TEXT).trim() ||
@@ -267,7 +291,9 @@ Deno.serve(async (request) => {
         .from("tenant_integrations")
         .update({ settings })
         .eq("id", integrationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return reply({
         success: true,
         settings: {
@@ -280,21 +306,26 @@ Deno.serve(async (request) => {
 
     // ── ensure opt-in template exists (submit to Meta for approval) ───────
     if (action === "ensure_optin_template") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const settings = integration.settings ?? {};
       const wabaId = String(settings.waba_id ?? "");
       const graphVersion = String(
         settings.graph_version ?? DEFAULT_META_GRAPH_VERSION,
       );
-      if (!wabaId) return reply({ error: "waba_id_missing" }, 400);
+      if (!wabaId) {
+        return reply({ error: "waba_id_missing" }, 400);
+      }
 
       const { data: tokenRow } = await admin
         .from("meta_whatsapp_tokens")
         .select("access_token")
         .eq("integration_id", integrationId)
         .maybeSingle();
-      if (!tokenRow?.access_token)
+      if (!tokenRow?.access_token) {
         return reply({ error: "meta_whatsapp_token_missing" }, 400);
+      }
 
       const templateName = String(
         body.template_name ?? LEAD_OPTIN_TEMPLATE_NAME,
@@ -399,7 +430,9 @@ Deno.serve(async (request) => {
 
     // ── create campaign (draft + freeze recipients) ───────────────────────
     if (action === "create_campaign") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const source = String(body.audience_source ?? "prior_meta_chats");
       const manual = Array.isArray(body.manual_phones)
         ? body.manual_phones.map(String)
@@ -411,8 +444,9 @@ Deno.serve(async (request) => {
         source,
         manual,
       );
-      if (!audience.length)
+      if (!audience.length) {
         return reply({ error: "no_recipients_after_dedup" }, 400);
+      }
 
       const { data: campaign, error: campErr } = await admin
         .from("wa_warm_campaigns")
@@ -449,7 +483,9 @@ Deno.serve(async (request) => {
         })
         .select("*")
         .single();
-      if (campErr) throw campErr;
+      if (campErr) {
+        throw campErr;
+      }
 
       const rows = audience.map((a) => ({
         campaign_id: campaign.id,
@@ -465,7 +501,9 @@ Deno.serve(async (request) => {
         const { error } = await admin
           .from("wa_warm_recipients")
           .insert(rows.slice(i, i + 200));
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       return reply({
@@ -480,11 +518,15 @@ Deno.serve(async (request) => {
 
     // ── confirm + launch ─────────────────────────────────────────────────
     if (action === "confirm_and_launch") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const campaignId = String(body.campaign_id ?? "");
       const phrase = String(body.confirm_phrase ?? "").trim();
       const confirmCount = Number(body.confirm_count ?? 0);
-      if (!campaignId) return reply({ error: "campaign_id_required" }, 400);
+      if (!campaignId) {
+        return reply({ error: "campaign_id_required" }, 400);
+      }
       if (phrase !== CONFIRM_PHRASE) {
         return reply(
           {
@@ -502,7 +544,9 @@ Deno.serve(async (request) => {
         .eq("id", campaignId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (!campaign) return reply({ error: "campaign_not_found" }, 404);
+      if (!campaign) {
+        return reply({ error: "campaign_not_found" }, 404);
+      }
       if (!["draft", "paused", "failed"].includes(campaign.status)) {
         return reply(
           { error: `campaign_not_launchable_status_${campaign.status}` },
@@ -537,7 +581,9 @@ Deno.serve(async (request) => {
           last_error: null,
         })
         .eq("id", campaignId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return reply({
         success: true,
@@ -549,7 +595,9 @@ Deno.serve(async (request) => {
 
     // ── dispatch one throttled batch ─────────────────────────────────────
     if (action === "dispatch_batch") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const campaignId = String(body.campaign_id ?? "");
       const { data: campaign } = await admin
         .from("wa_warm_campaigns")
@@ -557,7 +605,9 @@ Deno.serve(async (request) => {
         .eq("id", campaignId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (!campaign) return reply({ error: "campaign_not_found" }, 404);
+      if (!campaign) {
+        return reply({ error: "campaign_not_found" }, 404);
+      }
       if (campaign.status !== "running") {
         return reply({ error: `campaign_not_running_${campaign.status}` }, 400);
       }
@@ -694,7 +744,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === "pause_campaign") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const campaignId = String(body.campaign_id ?? "");
       await admin
         .from("wa_warm_campaigns")
@@ -706,7 +758,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === "retry_failed") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
       const campaignId = String(body.campaign_id ?? "");
       // Only retry failed that are not Meta engagement/payment (heuristic via error text)
       const { data: failed } = await admin
@@ -761,7 +815,9 @@ Deno.serve(async (request) => {
         .eq("id", campaignId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (!campaign) return reply({ error: "campaign_not_found" }, 404);
+      if (!campaign) {
+        return reply({ error: "campaign_not_found" }, 404);
+      }
       const { data: recipients } = await admin
         .from("wa_warm_recipients")
         .select(

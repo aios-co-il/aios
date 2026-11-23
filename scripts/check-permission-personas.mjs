@@ -53,7 +53,9 @@ async function queryDb(sql) {
     process.env.SUPABASE_STAGING_PROJECT_ID ||
     process.env.PROJECT_REF ||
     process.env.SUPABASE_PROJECT_REF;
-  if (!token || !ref) return null;
+  if (!token || !ref) {
+    return null;
+  }
 
   const res = await fetch(
     `https://api.supabase.com/v1/projects/${ref}/database/query`,
@@ -79,7 +81,9 @@ async function queryDb(sql) {
 
 function resolveRef(map, key) {
   const v = map?.[key];
-  if (!v) throw new Error(`Unknown fixture key: ${key}`);
+  if (!v) {
+    throw new Error(`Unknown fixture key: ${key}`);
+  }
   return v;
 }
 
@@ -203,12 +207,16 @@ async function main() {
 
   if (warnings.length) {
     console.warn("Permission persona warnings:");
-    for (const w of warnings) console.warn(` - ${w}`);
+    for (const w of warnings) {
+      console.warn(` - ${w}`);
+    }
   }
 
   if (failures.length) {
     console.error("Permission persona guard FAILED:\n");
-    for (const f of failures) console.error(` - ${f}`);
+    for (const f of failures) {
+      console.error(` - ${f}`);
+    }
     console.error(
       "\nSee docs/postmortems/2026-09-09-hybrid-seo-report-access-regression.md",
     );

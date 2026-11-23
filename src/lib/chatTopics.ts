@@ -18,8 +18,12 @@ export function topicTitle(title?: string | null): string {
     .split(/\n|[.?!](?=\s|$)/)
     .map((p) => p.replace(/\s+/g, " ").trim())
     .find(Boolean);
-  if (!first) return "שיחה חדשה";
-  if (first.length <= TOPIC_MAX) return first;
+  if (!first) {
+    return "שיחה חדשה";
+  }
+  if (first.length <= TOPIC_MAX) {
+    return first;
+  }
   const cut = first.slice(0, TOPIC_MAX);
   const space = cut.lastIndexOf(" ");
   return `${space > TOPIC_MAX / 2 ? cut.slice(0, space) : cut}…`;
@@ -34,9 +38,15 @@ export function topicIsLive(status?: string | null): boolean {
 }
 
 export function topicModeLabel(routing?: string | null): string {
-  if (routing === "parliament") return "שולחן";
-  if (routing === "direct_channel") return "ישיר";
-  if (routing === "internal") return "כרמן";
+  if (routing === "parliament") {
+    return "שולחן";
+  }
+  if (routing === "direct_channel") {
+    return "ישיר";
+  }
+  if (routing === "internal") {
+    return "כרמן";
+  }
   return "";
 }
 
@@ -59,16 +69,22 @@ export function composerLockedForChat(args: {
   /** The turn has been "streaming" too long to be real (carmenResumeChat). */
   stale?: boolean;
 }): boolean {
-  if (args.stale) return false;
-  if (args.conversationId && args.liveStreamIds.includes(args.conversationId))
+  if (args.stale) {
+    return false;
+  }
+  if (args.conversationId && args.liveStreamIds.includes(args.conversationId)) {
     return true;
+  }
   // A turn still running on the server, e.g. after the panel was reopened.
-  if (args.conversationId && args.status === "streaming") return true;
+  if (args.conversationId && args.status === "streaming") {
+    return true;
+  }
   if (
     !args.conversationId &&
     args.liveStreamIds.length &&
     args.status === "streaming"
-  )
+  ) {
     return true;
+  }
   return false;
 }
