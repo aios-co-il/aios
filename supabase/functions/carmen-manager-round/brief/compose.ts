@@ -16,12 +16,19 @@ export const BRIEF_MAX_TEAM_LINES = 3;
 
 export type BriefItem = { short_code: number; summary_he: string };
 
+/** Live card_stale_group drafts the reader may approve; `link` opens the card-drafts page. */
+export type PendingDrafts = { count: number; link: string | null };
+
+/** The card-drafts page link for a tenant (app-link.ts); null when it cannot be built. */
+export type CardDraftsLink = (
+  tenantId: string,
+) => Promise<PendingDrafts["link"]>;
+
 export type BriefInput = {
   recipientName: string;
   now: Date;
   decisions: BriefItem[];
-  /** Live card_stale_group drafts the reader may approve; `link` opens the card-drafts page. */
-  pendingDrafts: { count: number; link: string | null };
+  pendingDrafts: PendingDrafts;
   team: { name: string; open: number }[];
   activity: { autoCleared: number; messages: number };
 };
@@ -31,17 +38,23 @@ export function composeMorningBrief(input: BriefInput): string {
   const name = firstName(input.recipientName);
   const day = dayMonth(input.now);
   const lines = [`בוקר טוב${name ? ` ${name}` : ""}, הסיכום של כרמן ל־${day}:`];
-  lines.push(...decisionLines(input.decisions));
+  lines.push(...decisionLines(input.decisions, input.pendingDrafts.count > 0));
   lines.push(...draftLines(input.pendingDrafts));
   lines.push(...teamLines(input.team));
   lines.push(...activityLines(input.activity));
   return lines.slice(0, BRIEF_MAX_LINES).join("\n");
 }
 
-/** Up to five items with their codes, or 'all is well'. */
-function decisionLines(decisions: BriefItem[]): string[] {
+/**
+ * Up to five items with their codes, or 'all is well' when nothing needs the
+ * reader at all: with drafts waiting, the drafts line stands alone instead.
+ */
+function decisionLines(
+  decisions: Array<BriefItem>,
+  draftsWaiting: boolean,
+): Array<string> {
   if (!decisions.length) {
-    return ["הכל תקין, אין משהו שדורש החלטה שלך."];
+    return draftsWaiting ? [] : ["הכל תקין, אין משהו שדורש החלטה שלך."];
   }
   const shown = decisions.slice(0, BRIEF_MAX_DECISIONS);
   const more = decisions.length - shown.length;
@@ -55,10 +68,7 @@ function decisionLines(decisions: BriefItem[]): string[] {
 }
 
 /** One line counting the drafts waiting for approval; nothing when none waits. */
-function draftLines({
-  count,
-  link,
-}: BriefInput["pendingDrafts"]): Array<string> {
+function draftLines({ count, link }: PendingDrafts): Array<string> {
   if (count <= 0) {
     return [];
   }

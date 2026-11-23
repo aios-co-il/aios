@@ -11,7 +11,7 @@ import type { FindingsStore } from "../findings/store.ts";
 import type { FindingRow } from "../findings/types.ts";
 import type { PeopleDirectory } from "../recipients/directory.ts";
 import { isDeliverable, type NotifyFloors } from "../router/route.ts";
-import type { BriefInput } from "./compose.ts";
+import type { BriefInput, CardDraftsLink, PendingDrafts } from "./compose.ts";
 
 const BRIEF_SCAN_LIMIT = 300;
 const DAY_MS = 86_400_000;
@@ -21,7 +21,7 @@ export type GatherDeps = {
   deliveries: Pick<DeliveriesStore, "activitySince">;
   directory: PeopleDirectory;
   /** `<APP_URL>/t/<slug>/card-drafts`, or null without APP_URL or a slug. */
-  cardDraftsLink: (tenantId: string) => Promise<string | null>;
+  cardDraftsLink: CardDraftsLink;
 };
 
 /** What every recipient's brief is composed from. */
@@ -86,7 +86,7 @@ function isCardDraft(finding: FindingRow): boolean {
 async function draftsLink(
   deps: GatherDeps,
   tenantId: string,
-): Promise<string | null> {
+): Promise<PendingDrafts["link"]> {
   try {
     return await deps.cardDraftsLink(tenantId);
   } catch (error) {

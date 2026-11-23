@@ -5,7 +5,8 @@ import {
 } from "../_shared/manager-round/card-draft-write.ts";
 import { sendStaffAlert } from "../_shared/staff-alert/send.ts";
 import type { DbClient } from "../_shared/supabase-clients.ts";
-import { cardDraftsLink } from "./brief/drafts-link.ts";
+import { tenantAppLink } from "./app-link.ts";
+import type { CardDraftsLink } from "./brief/compose.ts";
 import { COLLECTORS } from "./collectors/registry.ts";
 import type { CollectorRunDeps } from "./collectors/run.ts";
 import type { Collector } from "./collectors/types.ts";
@@ -26,8 +27,8 @@ export type RoundDeps = CollectorRunDeps & {
   directory: PeopleDirectory;
   cardDrafts: CardDraftWritePorts;
   send: SendStaffMessage;
-  /** The morning brief's link to the card-drafts page (brief/drafts-link.ts). */
-  cardDraftsLink: (tenantId: string) => Promise<string | null>;
+  /** The morning brief's link to the card-drafts page (app-link.ts). */
+  cardDraftsLink: CardDraftsLink;
   collectors: readonly Collector[];
   clock: () => Date;
 };
@@ -56,7 +57,8 @@ export function createRoundDeps(
         phone,
         message,
       }),
-    cardDraftsLink: (tenantId) => cardDraftsLink(db, tenantId, env.appUrl),
+    cardDraftsLink: (tenantId) =>
+      tenantAppLink(db, tenantId, env.appUrl, "card-drafts"),
     collectors: COLLECTORS,
     clock: () => new Date(),
   };

@@ -39,7 +39,7 @@ Deno.test("composeMorningBrief", async (t) => {
   });
 
   await t.step(
-    "one draft reads in the singular, and without a link points to the app",
+    "one draft reads in the singular and stands alone without decisions; without a link it points to the app",
     () => {
       /** The brief's lines for one waiting draft with this link. */
       function brief(link: string | null) {
@@ -54,13 +54,11 @@ Deno.test("composeMorningBrief", async (t) => {
       }
 
       assertEquals(brief(LINK).slice(1), [
-        "הכל תקין, אין משהו שדורש החלטה שלך.",
         `📝 עדכון אחד לכרטיס לקוח מחכה לאישור: ${LINK}`,
       ]);
-      assertEquals(
-        brief(null)[2],
+      assertEquals(brief(null).slice(1), [
         "📝 עדכון אחד לכרטיס לקוח מחכה לאישור במערכת",
-      );
+      ]);
     },
   );
 
