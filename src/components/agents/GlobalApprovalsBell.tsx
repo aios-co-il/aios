@@ -36,7 +36,7 @@ export function GlobalApprovalsBell() {
         .limit(20);
       if (error) throw error;
       return (data ?? []).filter(
-        (it: any) => !it.expires_at || new Date(it.expires_at) > new Date(),
+        (it) => !it.expires_at || new Date(it.expires_at) > new Date(),
       );
     },
     enabled: !!currentTenantId,
@@ -99,7 +99,7 @@ export function GlobalApprovalsBell() {
                 אין בקשות
               </p>
             )}
-            {items.map((it: any) => (
+            {items.map((it) => (
               <button
                 key={it.id}
                 onClick={() =>
