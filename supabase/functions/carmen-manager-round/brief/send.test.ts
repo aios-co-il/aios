@@ -123,7 +123,8 @@ Deno.test("sendBriefIfDue", async (t) => {
 
       await brief(w, { mode: "david_only", notify_since: SINCE }, { ports });
 
-      assertEquals(w.sent[0].message.split("\n").slice(1), [
+      // The world's activity lines follow; this step checks the decisions and drafts lines.
+      assertEquals(w.sent[0].message.split("\n").slice(1, 4), [
         "דורש החלטה שלך:",
         "1) #5 ברמת בעלים",
         `📝 2 עדכונים לכרטיסי לקוחות מחכים לאישור: ${link}`,
