@@ -28,7 +28,7 @@ BEGIN
 
   -- Stored as Vault secrets, whose stored value is not the token.
   SELECT count(*) INTO n FROM vault.secrets
-  WHERE name IN (format('google_integration_access_%s', google_id), format('google_integration_refresh_%s', google_id))
+  WHERE name IN (public.google_token_secret_name('access', google_id), public.google_token_secret_name('refresh', google_id))
     AND secret NOT IN ('qa-access-' || tag, 'qa-refresh-' || tag);
   IF n <> 2 THEN
     failures := failures || format('want 2 encrypted secrets, got %s', n);

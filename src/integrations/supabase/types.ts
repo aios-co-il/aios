@@ -18529,6 +18529,10 @@ export type Database = {
           refresh_token: string;
         }[];
       };
+      google_token_secret_name: {
+        Args: { p_integration_id: string; p_kind: string };
+        Returns: string;
+      };
       graphify_group_subgraph: {
         Args: { p_group: string; p_limit?: number };
         Returns: Json;

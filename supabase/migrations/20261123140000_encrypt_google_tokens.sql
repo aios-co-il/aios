@@ -10,6 +10,18 @@
 -- plain copies in integration_secrets stay until a later migration drops them,
 -- after these functions are live, so the deploy order does not matter.
 
+-- The Vault secret name of a connection's token: the one place the naming lives.
+create or replace function public.google_token_secret_name(p_kind text, p_integration_id uuid)
+returns text
+language sql
+immutable
+set search_path to 'public'
+as $$
+  select format('google_integration_%s_%s', p_kind, p_integration_id)
+$$;
+
+revoke all on function public.google_token_secret_name(text, uuid) from public, anon, authenticated;
+
 -- Stores one token of a connection in Vault: creates its secret, or replaces
 -- its value. A null token leaves the stored one.
 create or replace function public.store_google_token_in_vault(
@@ -23,7 +35,7 @@ security definer
 set search_path to 'public'
 as $$
 declare
-  v_name text := format('google_integration_%s_%s', p_kind, p_integration_id);
+  v_name text := public.google_token_secret_name(p_kind, p_integration_id);
   v_secret_id uuid;
 begin
   if p_token is null then
@@ -83,8 +95,8 @@ as $$
 begin
   delete from vault.secrets
   where name in (
-    format('google_integration_access_%s', old.integration_id),
-    format('google_integration_refresh_%s', old.integration_id)
+    public.google_token_secret_name('access', old.integration_id),
+    public.google_token_secret_name('refresh', old.integration_id)
   );
 
   return null;
@@ -112,12 +124,12 @@ as $$
     s.integration_id,
     coalesce(
       (select d.decrypted_secret from vault.decrypted_secrets d
-       where d.name = format('google_integration_access_%s', s.integration_id)),
+       where d.name = public.google_token_secret_name('access', s.integration_id)),
       s.access_token
     ),
     coalesce(
       (select d.decrypted_secret from vault.decrypted_secrets d
-       where d.name = format('google_integration_refresh_%s', s.integration_id)),
+       where d.name = public.google_token_secret_name('refresh', s.integration_id)),
       s.refresh_token
     )
   from public.integration_secrets s
@@ -140,10 +152,10 @@ begin
     select 1 from public.integration_secrets s
     where (s.access_token is not null and not exists (
              select 1 from vault.secrets v
-             where v.name = format('google_integration_access_%s', s.integration_id)))
+             where v.name = public.google_token_secret_name('access', s.integration_id)))
        or (s.refresh_token is not null and not exists (
              select 1 from vault.secrets v
-             where v.name = format('google_integration_refresh_%s', s.integration_id)))
+             where v.name = public.google_token_secret_name('refresh', s.integration_id)))
   ) then
     raise exception 'encrypt_google_tokens: a stored token has no Vault secret';
   end if;
