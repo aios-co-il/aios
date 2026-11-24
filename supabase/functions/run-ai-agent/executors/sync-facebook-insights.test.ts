@@ -68,4 +68,31 @@ describe("executeSyncFacebookInsights", () => {
       error: "לטבלה זו אין לקוח משויך — רק מנהל יכול לסנכרן אותה",
     });
   });
+
+  it("refuses a table with no client to a non-manager with no campaigner identity", async () => {
+    const fixture = executorClient(
+      (url) => (url.pathname.endsWith("/crm_tables") ? [tableRow(null)] : []),
+      200,
+      {
+        callerScope: {
+          callerCampaignerId: null,
+          isManagerRole: false,
+          isTeamManager: false,
+          managedAgencyIds: [],
+          accessibleTenantIds: ["t1"],
+        },
+      },
+    );
+
+    const result = await withGlobalFetch(noSyncRequest, () =>
+      executeSyncFacebookInsights(
+        { table_id: "tbl1" },
+        { ...fixture.context, name: "sync_facebook_insights" },
+      ),
+    );
+
+    assertEquals(result, {
+      error: "לטבלה זו אין לקוח משויך — רק מנהל יכול לסנכרן אותה",
+    });
+  });
 });
