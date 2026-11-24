@@ -7,14 +7,16 @@ import {
 } from "./shimmer.ts";
 
 test("every cell stays inside the colour and opacity range", () => {
-  for (let t = 0; t < 20; t += 0.7)
-    for (let row = 0; row < 12; row++)
+  for (let t = 0; t < 20; t += 0.7) {
+    for (let row = 0; row < 12; row++) {
       for (let col = 0; col < 9; col++) {
         const cell = shimmerCell(col, row, 9, 12, t);
         expect(cell.hue >= HUE_MINT && cell.hue <= HUE_DEEP_BLUE).toBeTruthy();
         expect(cell.lightness >= 26 && cell.lightness <= 70).toBeTruthy();
         expect(cell.alpha >= 0.22 && cell.alpha <= 1).toBeTruthy();
       }
+    }
+  }
 });
 
 test("the waves move over time and differ across the field", () => {

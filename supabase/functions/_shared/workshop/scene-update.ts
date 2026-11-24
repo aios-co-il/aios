@@ -43,7 +43,7 @@ export interface SceneRow {
 
 export interface SceneUpdate {
   patch: Record<string, unknown>;
-  changed: string[];
+  changed: Array<string>;
   /** Only this scene's clip is made again in the next production. */
   clipRedo: boolean;
   /** The clip stays; the next production records the new line and lip-syncs it again. */
@@ -94,34 +94,45 @@ export function planSceneUpdate(
   const meta = asRecord(scene.meta);
   const footage = isOwnFootage(scene);
   const patch: Record<string, unknown> = {};
-  const changed: string[] = [];
+  const changed: Array<string> = [];
   const setText = (key: keyof typeof LIMITS & string) => {
-    if (!given(args, key)) return;
+    if (!given(args, key)) {
+      return;
+    }
     const next = clean(args[key], LIMITS[key]);
     const current = (scene as unknown as Record<string, unknown>)[key];
-    if (next === String(current ?? "").trim()) return;
+    if (next === String(current ?? "").trim()) {
+      return;
+    }
     patch[key] = next;
     changed.push(key);
   };
 
-  if (footage && (given(args, "visual_prompt") || given(args, "motion_prompt")))
+  if (
+    footage &&
+    (given(args, "visual_prompt") || given(args, "motion_prompt"))
+  ) {
     return {
       error:
         "הסצנה הזו היא סרטון של המשתמש: אין לה תיאור תמונה או תנועה לשנות. אפשר לשנות בה כיתוב, קריינות, שם ואורך.",
     };
-  if (footage && (args.lipsync === true || args.redo_clip === true))
+  }
+  if (footage && (args.lipsync === true || args.redo_clip === true)) {
     return {
       error:
         "הסצנה הזו היא סרטון של המשתמש: אי אפשר להנפיש אותו מחדש או להוסיף לו ליפ סינק. אפשר לשנות בה כיתוב, קריינות, שם ואורך.",
     };
+  }
   if (given(args, "visual_prompt")) {
-    if (!clean(args.visual_prompt, LIMITS.visual_prompt))
+    if (!clean(args.visual_prompt, LIMITS.visual_prompt)) {
       return { error: "visual_prompt לא יכול להיות ריק." };
-    if (ownPicture)
+    }
+    if (ownPicture) {
       return {
         error:
           "התמונה בסצנה הזו היא התמונה של המשתמש ולא נוצרה מתיאור, ולכן אין מה לשנות ב-visual_prompt. תמונה אחרת: המשתמש מעלה אותה בלשונית הנכסים, ואז עורכים מחדש עם workshop_edit_from_assets.",
       };
+    }
   }
 
   const posing = changedMotionRefusal(scene, args);
@@ -137,8 +148,9 @@ export function planSceneUpdate(
 
   if (given(args, "duration_s")) {
     const seconds = Number(args.duration_s);
-    if (!Number.isFinite(seconds) || seconds <= 0)
+    if (!Number.isFinite(seconds) || seconds <= 0) {
       return { error: "duration_s חייב להיות מספר שניות חיובי." };
+    }
     const next = Math.round(Math.min(Math.max(seconds, 0.5), 120) * 100) / 100;
     if (next !== Number(scene.duration_s)) {
       patch.duration_s = next;
@@ -150,9 +162,13 @@ export function planSceneUpdate(
   const nextMeta: Record<string, unknown> = { ...meta };
   let metaChanged = false;
   const setMeta = (key: "dialogue" | "speaker") => {
-    if (!given(args, key)) return;
+    if (!given(args, key)) {
+      return;
+    }
     const next = clean(args[key], LIMITS[key]);
-    if (next === String(meta[key] ?? "").trim()) return;
+    if (next === String(meta[key] ?? "").trim()) {
+      return;
+    }
     nextMeta[key] = next;
     changed.push(key);
     metaChanged = true;
@@ -201,16 +217,19 @@ export function planSceneUpdate(
     nextMeta.chosen_voice = true;
     metaChanged = true;
   }
-  if (metaChanged) patch.meta = nextMeta;
+  if (metaChanged) {
+    patch.meta = nextMeta;
+  }
 
   const voiceover = String(patch.voiceover_text ?? scene.voiceover_text ?? "");
   const lineBefore = talkingLine(meta, scene.voiceover_text);
   const lineAfter = talkingLine(nextMeta, voiceover);
-  if (nextMeta.lipsync === true && !lineAfter)
+  if (nextMeta.lipsync === true && !lineAfter) {
     return {
       error:
         "לסצנה מדברת צריך משפט: dialogue (מה שהדמות אומרת למצלמה) או voiceover_text.",
     };
+  }
 
   const hasClip = Boolean(scene.clip_asset_id) && !footage;
   const redoAsked = args.redo_clip === true;
@@ -231,18 +250,21 @@ export function planSceneUpdate(
       changed.includes("motion_prompt") ||
       (lineChanged && (clipSpeaks || stoppedTalking)));
   const lineRedo = hasClip && lineChanged && lineAfter !== "" && !clipRedo;
-  if (clipRedo && scene.clip_stale !== true) patch.clip_stale = true;
+  if (clipRedo && scene.clip_stale !== true) {
+    patch.clip_stale = true;
+  }
   const stillRedo =
     changed.includes("visual_prompt") &&
     Boolean(scene.still_asset_id) &&
     !ownPicture;
 
-  if (changed.length === 0 && !clipRedo)
+  if (changed.length === 0 && !clipRedo) {
     return {
       error: redoAsked
         ? "לסצנה הזו עוד אין סרטון, וההפקה הבאה תנפיש אותה בכל מקרה."
         : "לא נשלח שום שינוי לסצנה: הערכים זהים למה שכבר יש בה.",
     };
+  }
   return { patch, changed, clipRedo, lineRedo, stillRedo };
 }
 

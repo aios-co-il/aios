@@ -28,14 +28,17 @@ async function getFbToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key || null;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(
@@ -70,37 +73,41 @@ Deno.serve(async (req) => {
     }
 
     const token = await getFbToken(supabase, tenant_id);
-    if (!token)
+    if (!token) {
       return new Response(JSON.stringify({ error: "fb_not_connected" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     // Fetch current state for audit
     const beforeRes = await fetch(
       `https://graph.facebook.com/v21.0/${campaign_id}?fields=id,name,status,daily_budget,lifetime_budget&access_token=${token}`,
     );
     const before = await beforeRes.json();
-    if (before?.error)
+    if (before?.error) {
       return new Response(
         JSON.stringify({ error: "fb_api_error", fb_error: before.error }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     let result: any = null;
 
     if (action === "update_budget") {
       const params = new URLSearchParams({ access_token: token });
-      if (daily_budget != null)
+      if (daily_budget != null) {
         params.set(
           "daily_budget",
           String(Math.round(Number(daily_budget) * 100)),
-        ); // currency minor units
-      if (lifetime_budget != null)
+        );
+      } // currency minor units
+      if (lifetime_budget != null) {
         params.set(
           "lifetime_budget",
           String(Math.round(Number(lifetime_budget) * 100)),
         );
+      }
       if (!params.has("daily_budget") && !params.has("lifetime_budget")) {
         return new Response(
           JSON.stringify({ error: "daily_budget or lifetime_budget required" }),
@@ -112,32 +119,35 @@ Deno.serve(async (req) => {
         body: params,
       });
       result = await r.json();
-      if (result?.error)
+      if (result?.error) {
         return new Response(
           JSON.stringify({ error: "fb_api_error", fb_error: result.error }),
           { status: 400, headers: corsHeaders },
         );
+      }
     } else if (action === "duplicate") {
       const params = new URLSearchParams({
         access_token: token,
         deep_copy: "true",
         status_option: "PAUSED",
       });
-      if (name_suffix)
+      if (name_suffix) {
         params.set(
           "rename_options",
           JSON.stringify({ rename_suffix: name_suffix }),
         );
+      }
       const r = await fetch(
         `https://graph.facebook.com/v21.0/${campaign_id}/copies`,
         { method: "POST", body: params },
       );
       result = await r.json();
-      if (result?.error)
+      if (result?.error) {
         return new Response(
           JSON.stringify({ error: "fb_api_error", fb_error: result.error }),
           { status: 400, headers: corsHeaders },
         );
+      }
     } else {
       return new Response(
         JSON.stringify({

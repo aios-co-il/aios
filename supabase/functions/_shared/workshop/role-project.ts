@@ -22,8 +22,9 @@ const UUID = contextId("item_id");
 
 /** The open project id: sent by the workshop chat, or read from its context line. */
 export function workshopItemIdFrom(body: Record<string, unknown>) {
-  if (typeof body.workshop_item_id === "string" && body.workshop_item_id)
+  if (typeof body.workshop_item_id === "string" && body.workshop_item_id) {
     return body.workshop_item_id;
+  }
   const addon =
     typeof body.system_prompt_addon === "string"
       ? body.system_prompt_addon
@@ -69,7 +70,9 @@ export async function workshopProjectKind(
   itemId: string | null,
   sceneId: string | null = null,
 ): Promise<ProjectKind | null> {
-  if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
+  if (!itemId || typeof tenantId !== "string" || !tenantId) {
+    return null;
+  }
   try {
     const { data } = await supabase
       .from("marketing_work_items")
@@ -81,7 +84,9 @@ export async function workshopProjectKind(
     if (isLandingProject(payload)) {
       return { video: false, edit: false, landing: true };
     }
-    if (payload.project_type !== "video") return { video: false, edit: false };
+    if (payload.project_type !== "video") {
+      return { video: false, edit: false };
+    }
     const edit = payload.workshop_edit === true;
     const writing =
       !edit &&

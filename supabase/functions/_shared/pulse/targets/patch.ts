@@ -112,7 +112,7 @@ function campaignSlotPatch(
 function platformPatch(
   settings: JsonObject,
   goal: string,
-  kinds: readonly PulseTargetKind[],
+  kinds: ReadonlyArray<PulseTargetKind>,
   entry: JsonObject | null,
 ): JsonObject {
   const platformTargets = {

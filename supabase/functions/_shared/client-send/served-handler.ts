@@ -24,7 +24,7 @@ export async function loadServedHandler(moduleUrl: URL): Promise<Handler> {
   const caught: { handler?: Handler } = {};
   Object.defineProperty(Deno, "serve", {
     configurable: true,
-    value: (...args: unknown[]) => {
+    value: (...args: Array<unknown>) => {
       caught.handler = args.find(isHandler);
       return { finished: Promise.resolve() };
     },
@@ -54,14 +54,16 @@ export async function callServedHandler(
   request: Request,
   routes: Record<string, unknown>,
   providerReply: unknown,
+  observeRequest?: (url: URL) => void,
 ) {
-  const rest: BackendCall[] = [];
-  const provider: BackendCall[] = [];
+  const rest: Array<BackendCall> = [];
+  const provider: Array<BackendCall> = [];
   const realFetch = globalThis.fetch;
   const restoreEnv = setEnv(TEST_ENV);
   globalThis.fetch = async (input, init) => {
     const call = new Request(input, init);
     const url = new URL(call.url);
+    observeRequest?.(url);
     const record = {
       method: call.method,
       path: url.origin === SUPABASE_URL ? url.pathname : url.href,

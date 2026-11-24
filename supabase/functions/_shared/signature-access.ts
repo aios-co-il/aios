@@ -11,7 +11,9 @@ export async function requireSignatureAccess(
     .select("id, tenant_id, client_id, lead_id")
     .eq("id", documentId)
     .maybeSingle();
-  if (error || !document) throw new Error("signature_access_denied");
+  if (error || !document) {
+    throw new Error("signature_access_denied");
+  }
   for (const id of new Set(
     [links.clientId, document.client_id].filter(Boolean),
   )) {
@@ -20,8 +22,9 @@ export async function requireSignatureAccess(
       .select("id")
       .eq("id", id)
       .maybeSingle();
-    if (result.error || !result.data)
+    if (result.error || !result.data) {
       throw new Error("signature_access_denied");
+    }
   }
   for (const id of new Set([links.leadId, document.lead_id].filter(Boolean))) {
     const result = await client
@@ -29,8 +32,9 @@ export async function requireSignatureAccess(
       .select("id")
       .eq("id", id)
       .maybeSingle();
-    if (result.error || !result.data)
+    if (result.error || !result.data) {
       throw new Error("signature_access_denied");
+    }
   }
   return document.tenant_id;
 }

@@ -31,7 +31,9 @@ interface ClientFollowUpDatePickerProps {
 }
 
 function getOverdueInfo(dateStr: string | null) {
-  if (!dateStr) return { isOverdue: false, isToday: false, daysLate: 0 };
+  if (!dateStr) {
+    return { isOverdue: false, isToday: false, daysLate: 0 };
+  }
   const today = startOfDay(new Date());
   const followUp = startOfDay(new Date(dateStr));
   const diff = differenceInCalendarDays(today, followUp);
@@ -74,7 +76,9 @@ export function ClientFollowUpDatePicker({
         .update({ follow_up_date: dateString })
         .eq("id", clientId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_data, dateArg) => {
       let dateString: string | null = null;
@@ -143,7 +147,9 @@ export function ClientFollowUpDatePicker({
             selected={selectedDate}
             onSelect={(date) => {
               setSelectedDate(date);
-              if (date) updateFollowUpDate.mutate(date);
+              if (date) {
+                updateFollowUpDate.mutate(date);
+              }
             }}
             initialFocus
             locale={he}

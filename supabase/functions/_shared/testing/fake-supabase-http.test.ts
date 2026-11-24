@@ -17,7 +17,7 @@ async function tasks(query: string) {
     },
   });
   const res = await http.fetch(`${SUPABASE_URL}/rest/v1/tasks?${query}`);
-  const rows: { id: string }[] = await res.json();
+  const rows: Array<{ id: string }> = await res.json();
   return rows.map((row) => row.id);
 }
 

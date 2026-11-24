@@ -24,14 +24,18 @@ export function useAssignableClients(options?: {
       activeOnly,
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       let query = supabase
         .from("clients")
         .select("id, name, agency_id, status")
         .order("name");
 
-      if (activeOnly) query = query.eq("status", "active");
+      if (activeOnly) {
+        query = query.eq("status", "active");
+      }
       query =
         crossTenantAgencyIds.length > 0
           ? query.or(
@@ -40,7 +44,9 @@ export function useAssignableClients(options?: {
           : query.eq("tenant_id", tenantId);
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && (options?.enabled ?? true),

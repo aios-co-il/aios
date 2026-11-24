@@ -13,13 +13,13 @@ import {
 import { groupBacklogTasks } from "./groupBacklogTasks";
 
 interface TaskBacklogPanelProps {
-  tasks: Task[];
+  tasks: Array<Task>;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onTaskClick: (task: Task) => void;
   onAddTask?: (payload: QuickTaskPayload) => void;
   isLoading?: boolean;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   defaultCampaignerId?: string | null;
   onUpdateClient?: (taskId: string, clientId: string | null) => void;
   onUpdateCampaigner?: (taskId: string, campaignerId: string | null) => void;

@@ -13,8 +13,8 @@ import type {
  * Google campaign shows by its own goal. Undefined without the report's tables.
  */
 export function useWeeklyGoogleCampaignGoals(
-  records: WeeklyAdsRecord[],
-  tables: GoogleReportTable[] | undefined,
+  records: Array<WeeklyAdsRecord>,
+  tables: Array<GoogleReportTable> | undefined,
   defaultSource: WeeklyAdsSource | undefined,
 ) {
   return useMemo(

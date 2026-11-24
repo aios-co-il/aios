@@ -85,7 +85,7 @@ test("noisy frames fall back to the composition slots", () => {
 });
 
 test("applySlotsToLayers moves headline and CTA without touching footer chrome", () => {
-  const layers: CreativeLayer[] = [
+  const layers: Array<CreativeLayer> = [
     {
       id: "field",
       type: "shape",

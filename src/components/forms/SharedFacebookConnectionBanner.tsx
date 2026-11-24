@@ -22,7 +22,9 @@ export function SharedFacebookConnectionBanner({
       integration?.shared_from_integration_id,
     ],
     queryFn: async () => {
-      if (!integration?.shared_from_integration_id) return null;
+      if (!integration?.shared_from_integration_id) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -40,7 +42,9 @@ export function SharedFacebookConnectionBanner({
         .eq("id", integration.shared_from_integration_id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!integration?.shared_from_integration_id,

@@ -162,7 +162,9 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
       normalize: async (file, to, gain) => written.push([file, to, gain]),
       vary: async (file, to, pitch) => {
         shifted.push([file, to, pitch]);
-        if (file === "/s.mp3") throw new Error("atempo failed");
+        if (file === "/s.mp3") {
+          throw new Error("atempo failed");
+        }
       },
       log: () => {},
     },
@@ -202,7 +204,9 @@ test("prepareSound levels the bed and every effect's hit, and measures the voice
     out,
     {
       measure: async (file) => {
-        if (file === "/w.mp3") throw new Error("unreadable");
+        if (file === "/w.mp3") {
+          throw new Error("unreadable");
+        }
         return readings[file];
       },
       normalize: async () => {

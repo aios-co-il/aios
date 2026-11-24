@@ -97,7 +97,9 @@ export function InvoiceIntakeTab() {
   });
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files || !tenantId) return;
+    if (!files || !tenantId) {
+      return;
+    }
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
@@ -109,7 +111,9 @@ export function InvoiceIntakeTab() {
             contentType: file.type,
             upsert: false,
           });
-        if (upErr) throw upErr;
+        if (upErr) {
+          throw upErr;
+        }
 
         const { data: row, error: insErr } = await supabase
           .from("invoice_uploads")
@@ -121,7 +125,9 @@ export function InvoiceIntakeTab() {
           })
           .select("id")
           .single();
-        if (insErr) throw insErr;
+        if (insErr) {
+          throw insErr;
+        }
 
         // Trigger extraction
         const { error: fnErr } = await supabase.functions.invoke(
@@ -246,9 +252,9 @@ function InvoiceCard({
   onChanged,
 }: {
   invoice: Invoice;
-  suppliers: any[];
-  clients: any[];
-  agencies: any[];
+  suppliers: Array<any>;
+  clients: Array<any>;
+  agencies: Array<any>;
   tenantId: string;
   onChanged: () => void;
 }) {
@@ -335,7 +341,9 @@ function InvoiceCard({
         })
         .select("id")
         .single();
-      if (finErr) throw finErr;
+      if (finErr) {
+        throw finErr;
+      }
 
       const { error: upErr } = await supabase
         .from("invoice_uploads")
@@ -352,7 +360,9 @@ function InvoiceCard({
           finance_id: fin.id,
         })
         .eq("id", invoice.id);
-      if (upErr) throw upErr;
+      if (upErr) {
+        throw upErr;
+      }
 
       toast.success("נשמר כהוצאה");
       onChanged();
@@ -365,7 +375,9 @@ function InvoiceCard({
   };
 
   const remove = async () => {
-    if (!confirm("למחוק חשבונית זו?")) return;
+    if (!confirm("למחוק חשבונית זו?")) {
+      return;
+    }
     await supabase.storage.from("invoices").remove([invoice.file_path]);
     await supabase.from("invoice_uploads").delete().eq("id", invoice.id);
     toast.success("נמחק");

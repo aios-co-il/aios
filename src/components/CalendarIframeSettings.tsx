@@ -73,7 +73,9 @@ export function CalendarIframeSettings() {
   const { data: connectionStatus, isLoading: statusLoading } = useQuery({
     queryKey: ["calendar-status", userId, tenantId, provider],
     queryFn: async () => {
-      if (!userId || !tenantId) return null;
+      if (!userId || !tenantId) {
+        return null;
+      }
       return await checkCalendarConnection({ tenantId, provider });
     },
     enabled: !!userId && !!tenantId,
@@ -85,7 +87,9 @@ export function CalendarIframeSettings() {
   // Connect – Unified
   const connectUnifiedMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("לא נמצא ארגון פעיל.");
+      if (!tenantId) {
+        throw new Error("לא נמצא ארגון פעיל.");
+      }
       listenerCleanupRef.current?.();
       listenerCleanupRef.current = listenForUnifiedConnection(() => {
         listenerCleanupRef.current = null;
@@ -129,9 +133,13 @@ export function CalendarIframeSettings() {
   // Disconnect – Unified
   const disconnectUnifiedMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("לא נמצא ארגון פעיל.");
+      if (!tenantId) {
+        throw new Error("לא נמצא ארגון פעיל.");
+      }
       const integrationId = await findUnifiedCalendarConnectionId(tenantId);
-      if (!integrationId) throw new Error("לא נמצא חיבור יומן פעיל לניתוק.");
+      if (!integrationId) {
+        throw new Error("לא נמצא חיבור יומן פעיל לניתוק.");
+      }
       const { error } = await supabase.functions.invoke("unified-connections", {
         body: {
           action: "delete",
@@ -139,7 +147,9 @@ export function CalendarIframeSettings() {
           connection_id: integrationId,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -182,7 +192,9 @@ export function CalendarIframeSettings() {
       start: string;
       end?: string;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       return await addCalendarEvent(eventData, { tenantId, provider });
     },
     onSuccess: () => {

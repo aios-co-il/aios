@@ -13,8 +13,9 @@ const BATCH = 100;
 const MAX_RETRIES = 5;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   const supabase = svc();
 
   // Pull a batch of unprocessed outbox rows
@@ -65,7 +66,9 @@ Deno.serve(async (req) => {
 
 async function processEvent(supabase: any, row: any) {
   const { entity_type, entity_id, op, payload, tenant_id } = row;
-  if (!tenant_id) return; // skip rows without tenant_id
+  if (!tenant_id) {
+    return;
+  } // skip rows without tenant_id
 
   if (op === "delete") {
     // Soft-invalidate pointers for this entity
@@ -165,7 +168,9 @@ async function indexCampaigner(supabase: any, tenant_id: string, c: any) {
 
 async function indexTask(supabase: any, tenant_id: string, t: any) {
   const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
-  if (!assignee) return;
+  if (!assignee) {
+    return;
+  }
   await upsertPointer(supabase, {
     tenant_id,
     category: "team",
@@ -199,7 +204,9 @@ async function indexTask(supabase: any, tenant_id: string, t: any) {
 async function indexChatMessage(supabase: any, tenant_id: string, m: any) {
   // Skip noise: very short or empty messages
   const body = m.message ?? m.body ?? m.text ?? "";
-  if (!body || String(body).trim().length < 2) return;
+  if (!body || String(body).trim().length < 2) {
+    return;
+  }
 
   const date = (m.created_at ?? new Date().toISOString()).slice(0, 10);
   const channel = m.provider ?? "unknown";

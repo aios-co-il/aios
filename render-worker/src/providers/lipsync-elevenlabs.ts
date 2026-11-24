@@ -19,10 +19,12 @@ import type { ApiKeyOptions } from "./lipsync.ts";
  * https://elevenlabs.io/docs/eleven-api/guides/cookbooks/image-and-video (API model table)
  */
 export function elevenLabsLipsyncBody({ imageBytes, audioBytes }: MediaInput) {
-  if (!imageBytes?.length)
+  if (!imageBytes?.length) {
     throw new Error("elevenlabs lipsync needs the still");
-  if (!audioBytes?.length)
+  }
+  if (!audioBytes?.length) {
     throw new Error("elevenlabs lipsync needs the voice line");
+  }
   return {
     model_id: process.env.ELEVENLABS_LIPSYNC_MODEL || "creatify-aurora",
     image: {
@@ -45,7 +47,9 @@ export function elevenLabsLipsyncProvider({
   fetchImpl = fetch,
 }: ApiKeyOptions = {}): LipsyncProvider {
   const auth = () => {
-    if (!apiKey) throw new Error("ELEVENLABS_API_KEY is required for lip sync");
+    if (!apiKey) {
+      throw new Error("ELEVENLABS_API_KEY is required for lip sync");
+    }
     return { "xi-api-key": apiKey, "Content-Type": "application/json" };
   };
   return {
@@ -63,11 +67,14 @@ export function elevenLabsLipsyncProvider({
         },
       );
       const data = await providerJson<ElevenLabsFlowResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `elevenlabs lipsync ${response.status}: ${errorText(data)}`,
         );
-      if (!data.id) throw new Error("elevenlabs lipsync returned no id");
+      }
+      if (!data.id) {
+        throw new Error("elevenlabs lipsync returned no id");
+      }
       return { jobId: data.id };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -76,15 +83,17 @@ export function elevenLabsLipsyncProvider({
         { headers: auth() },
       );
       const data = await providerJson<ElevenLabsFlowResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `elevenlabs lipsync poll ${response.status}: ${errorText(data)}`,
         );
-      if (data.status === "completed")
+      }
+      if (data.status === "completed") {
         return data.content_url
           ? { status: "succeeded", url: data.content_url }
           : { status: "failed", error: "elevenlabs returned no video url" };
-      if (data.status === "failed")
+      }
+      if (data.status === "failed") {
         return {
           status: "failed",
           error:
@@ -92,6 +101,7 @@ export function elevenLabsLipsyncProvider({
             data.failure_reason ||
             "elevenlabs lipsync failed",
         };
+      }
       return { status: "pending" };
     },
   };

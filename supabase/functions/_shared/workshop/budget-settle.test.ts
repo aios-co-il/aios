@@ -5,14 +5,14 @@ import { settleFromRuns } from "./budget-settle.ts";
 type Run = { kind: string; status: string; cost_usd: number };
 
 /** marketing_runs as the render worker left them; the query keeps only the kinds it asks for. */
-function runsDb(rows: Run[]) {
+function runsDb(rows: Array<Run>) {
   return {
     from: () => {
-      let kinds: string[] | null = null;
+      let kinds: Array<string> | null = null;
       const query = {
         select: () => query,
         eq: () => query,
-        in: (_column: string, values: string[]) => {
+        in: (_column: string, values: Array<string>) => {
           kinds = values;
           return query;
         },
@@ -39,7 +39,9 @@ function quotedFilm() {
     },
     {},
   );
-  if (!checked.ok) throw new Error("budget refused");
+  if (!checked.ok) {
+    throw new Error("budget refused");
+  }
   return spendBudget(checked.payload, "workshop_produce_video", 1);
 }
 

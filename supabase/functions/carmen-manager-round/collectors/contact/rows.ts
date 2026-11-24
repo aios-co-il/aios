@@ -9,7 +9,9 @@ import type {
 type RawRow = { [key: string]: Json | undefined };
 
 /** Rows with a client id and name, each as evidence. */
-export function parseRows(rows: readonly (RawRow | Json)[]): ContactEvidence[] {
+export function parseRows(
+  rows: ReadonlyArray<RawRow | Json>,
+): Array<ContactEvidence> {
   return rows.flatMap((row) => {
     const evidence = isRawRow(row) ? toEvidence(row) : null;
     return evidence ? [evidence] : [];

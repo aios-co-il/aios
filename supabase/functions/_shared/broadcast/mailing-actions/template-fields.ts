@@ -14,7 +14,9 @@ export async function loadTemplate(
   templateId: unknown,
 ): Promise<Template> {
   const id = idParam(templateId);
-  if (!id) throw new Error("לא נבחר טמפלייט");
+  if (!id) {
+    throw new Error("לא נבחר טמפלייט");
+  }
   const { data, error } = await db
     .from("message_templates")
     .select("*")
@@ -22,8 +24,12 @@ export async function loadTemplate(
     .eq("id", id)
     .is("archived_at", null)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("הטמפלייט לא נמצא");
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error("הטמפלייט לא נמצא");
+  }
   return data;
 }
 
@@ -72,7 +78,9 @@ export async function broadcastFieldsFromTemplate(
   const { data: integ } = await (integrationId ? q.eq("id", integrationId) : q)
     .limit(1)
     .maybeSingle();
-  if (!integ) throw new Error("לא נמצא חיבור WhatsApp פעיל לשליחה");
+  if (!integ) {
+    throw new Error("לא נמצא חיבור WhatsApp פעיל לשליחה");
+  }
   return {
     ...common,
     provider: integ.integration_type === "manus_wa" ? "manus_wa" : "green_api",

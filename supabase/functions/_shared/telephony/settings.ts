@@ -16,7 +16,9 @@ export async function loadPbxIntegration(
     .select("is_active, config, inbound_secret, outbound_auth_value")
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   return {
     isActive: data.is_active,
     settings: {

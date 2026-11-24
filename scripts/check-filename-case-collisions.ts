@@ -6,7 +6,7 @@ const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
   .split("\0")
   .filter(Boolean);
 
-const byLowercase = new Map<string, string[]>();
+const byLowercase = new Map<string, Array<string>>();
 for (const path of tracked) {
   const key = path.toLowerCase();
   byLowercase.set(key, [...(byLowercase.get(key) ?? []), path]);

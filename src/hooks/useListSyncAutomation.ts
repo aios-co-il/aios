@@ -32,7 +32,9 @@ export async function insertSyncAutomation(
     .insert(automationRow)
     .select("id")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const discard = () =>
     supabase.from("automations").delete().eq("id", automation.id);
   const trigger: TablesInsert<"automation_flow_steps"> = {

@@ -17,7 +17,7 @@ export function BuiltinShareSection({
   write,
 }: {
   builtin: BuiltinBrainState;
-  shareTargets: TenantRef[];
+  shareTargets: Array<TenantRef>;
   write: ReturnType<typeof useBrainConnections>["write"];
 }) {
   const sharedTo = new Set(builtin.shared_to.map((t) => t.id));

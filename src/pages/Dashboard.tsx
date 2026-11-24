@@ -53,7 +53,9 @@ export default function Dashboard() {
 
   // Realtime subscriptions for auto-updates
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
 
     const channel = supabase
       .channel("dashboard-changes")
@@ -167,14 +169,18 @@ export default function Dashboard() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -183,7 +189,9 @@ export default function Dashboard() {
   const { data: clients } = useQuery({
     queryKey: ["clients", tenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("id, name, agency_id, is_seo_client, services");
@@ -197,7 +205,9 @@ export default function Dashboard() {
       const { data, error } = await query
         .in("status", ["active", "onboarding"])
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -206,12 +216,16 @@ export default function Dashboard() {
   const { data: assignedClientIds = [] } = useQuery({
     queryKey: ["dashboard-assigned-client-ids", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return [];
+      if (!campaignerId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id")
         .eq("campaigner_id", campaignerId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((ct) => ct.client_id).filter(Boolean) || [];
     },
     enabled: !!campaignerId && isRestrictedCampaignerViewer,
@@ -220,13 +234,17 @@ export default function Dashboard() {
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("suppliers")
         .select("id, name, related_campaigner_id")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -245,7 +263,9 @@ export default function Dashboard() {
       crossTenantAgencyIds,
     ],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       let agencyQuery = supabase
         .from("agencies")
         .select("*", { count: "exact", head: true })
@@ -489,8 +509,9 @@ export default function Dashboard() {
         retainerByClient.set(row.client_id, Number(row.retainer || 0));
       });
       const retainers = activeClientsList.reduce((sum, client) => {
-        if (hasFinancialRow.has(client.id))
+        if (hasFinancialRow.has(client.id)) {
           return sum + (retainerByClient.get(client.id) || 0);
+        }
         return sum + Number(client.retainer || 0);
       }, 0);
 
@@ -502,12 +523,15 @@ export default function Dashboard() {
             Number(supplier.payment_2 || 0) +
             Number(supplier.payment_3 || 0);
         } else {
-          if (supplier.agency_id_1 === selectedAgency)
+          if (supplier.agency_id_1 === selectedAgency) {
             manualSupplierPayments += Number(supplier.payment_1 || 0);
-          if (supplier.agency_id_2 === selectedAgency)
+          }
+          if (supplier.agency_id_2 === selectedAgency) {
             manualSupplierPayments += Number(supplier.payment_2 || 0);
-          if (supplier.agency_id_3 === selectedAgency)
+          }
+          if (supplier.agency_id_3 === selectedAgency) {
             manualSupplierPayments += Number(supplier.payment_3 || 0);
+          }
         }
       });
 

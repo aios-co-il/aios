@@ -78,8 +78,12 @@ async function recomputeStats(db: any, broadcastId: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok");
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (req.method === "OPTIONS") {
+    return new Response("ok");
+  }
+  if (req.method !== "POST") {
+    return json({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const raw = await req.text();
@@ -103,7 +107,9 @@ Deno.serve(async (req) => {
     const emailId: string | undefined =
       event?.data?.email_id || event?.data?.id;
     const at = event?.created_at || new Date().toISOString();
-    if (!emailId) return json({ ok: true, skipped: "no_email_id" });
+    if (!emailId) {
+      return json({ ok: true, skipped: "no_email_id" });
+    }
 
     const db = createClient(SB_URL, SB_SERVICE, {
       auth: { persistSession: false },
@@ -113,12 +119,16 @@ Deno.serve(async (req) => {
       .select("id, broadcast_id, tenant_id, email, status")
       .eq("provider_message_id", emailId)
       .maybeSingle();
-    if (!r) return json({ ok: true, skipped: "recipient_not_found" });
+    if (!r) {
+      return json({ ok: true, skipped: "recipient_not_found" });
+    }
 
     const patch: any = {};
     switch (type) {
       case "email.sent":
-        if (!r.status || r.status === "pending") patch.status = "sent";
+        if (!r.status || r.status === "pending") {
+          patch.status = "sent";
+        }
         patch.sent_at = at;
         break;
       case "email.delivered":
@@ -130,7 +140,9 @@ Deno.serve(async (req) => {
         break;
       case "email.clicked":
         patch.clicked_at = at;
-        if (!("opened_at" in patch)) patch.opened_at = at;
+        if (!("opened_at" in patch)) {
+          patch.opened_at = at;
+        }
         break;
       case "email.bounced":
         patch.status = "failed";

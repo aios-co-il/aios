@@ -5,7 +5,9 @@ const COMPACT_TABS_BREAKPOINT = 1024;
 
 function useCompactTabsNav() {
   const [isCompact, setIsCompact] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
+    if (typeof window === "undefined") {
+      return false;
+    }
     return window.innerWidth < COMPACT_TABS_BREAKPOINT;
   });
 
@@ -64,7 +66,7 @@ function TabItemVisual({ item }: { item: ResponsiveTabItem }) {
 }
 
 type ResponsiveTabsListProps = {
-  items: ResponsiveTabItem[];
+  items: Array<ResponsiveTabItem>;
   value: string;
   onValueChange: (value: string) => void;
   className?: string;

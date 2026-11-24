@@ -183,18 +183,24 @@ export function InteractiveCalendar() {
   });
 
   // Transform Google Calendar events to react-big-calendar format
-  const events: CalendarEvent[] = useMemo(() => {
-    if (!eventsData?.events) return [];
+  const events: Array<CalendarEvent> = useMemo(() => {
+    if (!eventsData?.events) {
+      return [];
+    }
     return eventsData.events
       .map((event: any) => {
         const startStr = event?.start?.dateTime || event?.start?.date;
         const endStr = event?.end?.dateTime || event?.end?.date;
-        if (!startStr) return null;
+        if (!startStr) {
+          return null;
+        }
         const start = new Date(startStr);
         let end = endStr
           ? new Date(endStr)
           : new Date(start.getTime() + 60 * 60 * 1000);
-        if (isNaN(start.getTime())) return null;
+        if (isNaN(start.getTime())) {
+          return null;
+        }
         if (isNaN(end.getTime()) || end <= start) {
           end = new Date(start.getTime() + 60 * 60 * 1000);
         }
@@ -208,7 +214,7 @@ export function InteractiveCalendar() {
           calendarColor: event.calendarColor,
         } as CalendarEvent;
       })
-      .filter(Boolean) as CalendarEvent[];
+      .filter(Boolean) as Array<CalendarEvent>;
   }, [eventsData]);
 
   const calendars = useMemo(() => {
@@ -239,7 +245,9 @@ export function InteractiveCalendar() {
   };
 
   const handleDeleteEvent = () => {
-    if (!selectedEvent) return;
+    if (!selectedEvent) {
+      return;
+    }
     if (window.confirm("האם אתה בטוח שברצונך למחוק את האירוע?")) {
       deleteMutation.mutate(selectedEvent.id);
     }

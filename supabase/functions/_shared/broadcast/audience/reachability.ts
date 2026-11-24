@@ -12,26 +12,32 @@ export async function filterReachable(
   db: AudienceDb,
   tenantId: string,
   channel: string,
-  recipients: Recipient[],
-): Promise<Recipient[]> {
+  recipients: Array<Recipient>,
+): Promise<Array<Recipient>> {
   const seen = new Set<string>();
-  const deduped: Recipient[] = [];
+  const deduped: Array<Recipient> = [];
   for (const r of recipients) {
     if (r.entity_type === "wa_group") {
       const key = `g:${r.group_chat_id || r.entity_id}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       deduped.push(r);
       continue;
     }
     if (channel === "email") {
       const email = (r.email || "").trim().toLowerCase();
-      if (!email || seen.has(email)) continue;
+      if (!email || seen.has(email)) {
+        continue;
+      }
       seen.add(email);
       deduped.push({ ...r, email, phone: null });
     } else {
       const phone = normalizePhone(r.phone);
-      if (!phone || seen.has(phone)) continue;
+      if (!phone || seen.has(phone)) {
+        continue;
+      }
       seen.add(phone);
       deduped.push({ ...r, phone });
     }
@@ -49,7 +55,9 @@ export async function filterReachable(
     optOuts.map((o) => (o.email || "").toLowerCase()).filter(Boolean),
   );
   return deduped.filter((r) => {
-    if (r.entity_type === "wa_group") return true;
+    if (r.entity_type === "wa_group") {
+      return true;
+    }
     return channel === "email"
       ? !optEmails.has(r.email || "")
       : !optPhones.has(r.phone || "");
@@ -70,11 +78,15 @@ export async function isOptedOut(
     .in("channel", [channel, "all"])
     .limit(1);
   if (channel === "email") {
-    if (!address.email) return false;
+    if (!address.email) {
+      return false;
+    }
     q = q.eq("email", address.email.toLowerCase());
   } else {
     const phone = normalizePhone(address.phone);
-    if (!phone) return false;
+    if (!phone) {
+      return false;
+    }
     q = q.eq("phone", phone);
   }
   const { data } = await q;

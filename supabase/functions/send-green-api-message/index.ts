@@ -1,3 +1,4 @@
+import { contactMatchesTenant } from "./contact-tenant.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { checkWhatsAppSend } from "../_shared/integration-guard.ts";
 import { lineSetting } from "../_shared/report-sender/line-access.ts";
@@ -189,6 +190,16 @@ Deno.serve(async (req) => {
       console.error("❌ Could not determine tenant for user:", userId);
       return new Response(JSON.stringify({ error: "Tenant not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (
+      !(await contactMatchesTenant(serviceClient(), tenantId, clientId, leadId))
+    ) {
+      console.warn("[send-green-api] refused mismatched contact tenant");
+      return new Response(JSON.stringify({ error: "contact_not_found" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

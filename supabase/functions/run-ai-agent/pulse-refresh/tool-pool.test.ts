@@ -10,10 +10,10 @@ const ANALYZE = { name: "analyze_campaign_performance" };
 const ALL_TOOLS = [LATEST, ANALYZE, REFRESH_CAMPAIGN_PULSE_TOOL];
 
 /** The pool of an agent whose allowed_tools lists only `allowed`. */
-const poolOf = (...allowed: string[]) =>
+const poolOf = (...allowed: Array<string>) =>
   ALL_TOOLS.filter((t) => allowed.includes(t.name));
 
-const names = (tools: { name: string }[]) => tools.map((t) => t.name);
+const names = (tools: Array<{ name: string }>) => tools.map((t) => t.name);
 
 Deno.test("keepCarmenPulseTools", async (t) => {
   await t.step(
@@ -153,7 +153,7 @@ Deno.test("skinToolDenylist", async (t) => {
   /** The pool after a matched pulse skin adds its tools, as run-ai-agent does. */
   const afterPulseSkin = (
     caller: Parameters<typeof skinToolDenylist>[1],
-    disabledTools: string[] = [],
+    disabledTools: Array<string> = [],
   ) => {
     const pool = keepCarmenPulseTools(
       poolOf("analyze_campaign_performance"),

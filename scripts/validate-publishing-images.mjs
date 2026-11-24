@@ -67,5 +67,7 @@ for (const testCase of cases) {
   }
 }
 
-if (failed) process.exit(1);
+if (failed) {
+  process.exit(1);
+}
 console.log("validation passed", { failed, total: cases.length });

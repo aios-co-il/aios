@@ -92,7 +92,9 @@ export async function ensureCreativeDirect({
     tenant_id: tenantId,
   });
   const chat = parseChat(data);
-  if (!chat.agentUrl) throw new Error("קריאייטיב דיירקט לא החזיר כתובת סשן");
+  if (!chat.agentUrl) {
+    throw new Error("קריאייטיב דיירקט לא החזיר כתובת סשן");
+  }
   return chat;
 }
 
@@ -126,7 +128,7 @@ export async function dispatchCursorCreative({
   jobMeta?: {
     visual_style?: string;
     composition_id?: string;
-    brand_colors?: string[];
+    brand_colors?: Array<string>;
     live_text_layers?: boolean;
     title?: string;
     logo_url?: string;
@@ -134,7 +136,9 @@ export async function dispatchCursorCreative({
   };
   signal?: AbortSignal;
 }): Promise<{ agentUrl: string; jobId: string }> {
-  if (signal?.aborted) throw new Error(GENERATION_ABORTED);
+  if (signal?.aborted) {
+    throw new Error(GENERATION_ABORTED);
+  }
   const data = await invokeCreativeDirect(
     supabase,
     {
@@ -160,8 +164,9 @@ export async function dispatchCursorCreative({
   );
   const agentUrl = String(data.agent_url ?? "");
   const jobId = String(data.job_id ?? "");
-  if (!agentUrl || !jobId)
+  if (!agentUrl || !jobId) {
     throw new Error("קריאייטיב דיירקט לא החזיר כתובת סשן");
+  }
   return { agentUrl, jobId };
 }
 
@@ -180,18 +185,24 @@ export async function waitForCursorCreative({
 }): Promise<CreativeVariation> {
   const started = Date.now();
   while (Date.now() - started < TIMEOUT_MS) {
-    if (signal?.aborted) throw new Error(GENERATION_ABORTED);
+    if (signal?.aborted) {
+      throw new Error(GENERATION_ABORTED);
+    }
     const { data, error } = await supabase
       .from("marketing_work_items")
       .select("payload")
       .eq("id", itemId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const payload = (data?.payload ?? {}) as Record<string, unknown>;
     const list = Array.isArray(payload.variations) ? payload.variations : [];
     const found = list.find((row) => {
-      if (!row || typeof row !== "object") return false;
+      if (!row || typeof row !== "object") {
+        return false;
+      }
       const variation = row as CreativeVariation;
       return (
         variation.id === variationId &&
@@ -199,7 +210,9 @@ export async function waitForCursorCreative({
         variation.imageUrl.length > 0
       );
     }) as CreativeVariation | undefined;
-    if (found) return found;
+    if (found) {
+      return found;
+    }
     const jobs = Array.isArray(payload.creative_jobs)
       ? payload.creative_jobs
       : [];
@@ -209,9 +222,12 @@ export async function waitForCursorCreative({
         typeof row === "object" &&
         (row as { variation_id?: string }).variation_id === variationId,
     ) as { status?: string; error?: string } | undefined;
-    if (job?.status === "failed")
+    if (job?.status === "failed") {
       throw new Error(job.error || "קריאייטיב דיירקט נכשל");
-    if (job?.status === "cancelled") throw new Error(GENERATION_ABORTED);
+    }
+    if (job?.status === "cancelled") {
+      throw new Error(GENERATION_ABORTED);
+    }
     await sleep(POLL_MS, signal);
   }
   throw new Error("קריאייטיב דיירקט לא סיים בזמן");

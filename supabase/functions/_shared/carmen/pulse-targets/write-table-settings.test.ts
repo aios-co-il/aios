@@ -56,9 +56,9 @@ Deno.test(
   "writeTableSettings logs the database error and returns a generic reason",
   async () => {
     const db = fakeDb(seed(), { table: "crm_tables", op: "update" });
-    const logged: unknown[] = [];
+    const logged: Array<unknown> = [];
     const originalError = console.error;
-    console.error = (...args: unknown[]) => logged.push(args);
+    console.error = (...args: Array<unknown>) => logged.push(args);
     try {
       assertStrictEquals(
         await writeTableSettings(db, WRITE),

@@ -33,7 +33,9 @@ export function higgsfieldClipBody({
   durationS,
   generateAudio,
 }: MediaInput) {
-  if (!imageUrl) throw new Error("higgsfield needs a public image_url");
+  if (!imageUrl) {
+    throw new Error("higgsfield needs a public image_url");
+  }
   return {
     prompt,
     image_url: imageUrl,
@@ -58,7 +60,9 @@ export function higgsfieldTalkingBody({
   imageUrl,
   durationS,
 }: MediaInput) {
-  if (!imageUrl) throw new Error("higgsfield needs a public image_url");
+  if (!imageUrl) {
+    throw new Error("higgsfield needs a public image_url");
+  }
   return {
     prompt,
     image_url: imageUrl,
@@ -75,8 +79,9 @@ export function higgsfieldProvider({
 }: HiggsfieldKeys & { fetchImpl?: FetchImpl } = {}): VideoProvider {
   const credential = higgsfieldCredential(keyId, keySecret);
   const auth = () => {
-    if (!credential.includes(":"))
+    if (!credential.includes(":")) {
       throw new Error("A Higgsfield key in id:secret form is required");
+    }
     return {
       Authorization: `Key ${credential}`,
       "Content-Type": "application/json",
@@ -104,12 +109,14 @@ export function higgsfieldProvider({
         ),
       });
       const data = await providerJson<HiggsfieldRequestResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `higgsfield submit ${response.status}: ${JSON.stringify(data).slice(0, 300)}`,
         );
-      if (!data.request_id)
+      }
+      if (!data.request_id) {
         throw new Error("higgsfield submit returned no request_id");
+      }
       return { jobId: data.request_id, model };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -118,21 +125,23 @@ export function higgsfieldProvider({
         { headers: auth() },
       );
       const data = await providerJson<HiggsfieldRequestResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `higgsfield poll ${response.status}: ${data.message ?? response.status}`,
         );
+      }
       if (data.status === "completed") {
         const url = data.video?.url;
         return url
           ? { status: "succeeded", url }
           : { status: "failed", error: "higgsfield returned no video url" };
       }
-      if (data.status === "failed" || data.status === "nsfw")
+      if (data.status === "failed" || data.status === "nsfw") {
         return {
           status: "failed",
           error: data.error || data.message || "higgsfield task failed",
         };
+      }
       return { status: "pending" };
     },
   };

@@ -24,7 +24,9 @@ export async function settleFromRuns(
       .eq("item_id", itemId)
       .in("kind", WORKER_KINDS);
     const runs = Array.isArray(data) ? data : [];
-    if (runs.length === 0) return payload;
+    if (runs.length === 0) {
+      return payload;
+    }
     return settleProduction(payload, {
       usd: runs.reduce((sum, run) => sum + (Number(run.cost_usd) || 0), 0),
       inFlight: runs.some((run) => IN_FLIGHT.has(String(run.status))),

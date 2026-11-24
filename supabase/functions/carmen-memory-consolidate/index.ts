@@ -9,8 +9,9 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -23,7 +24,9 @@ Deno.serve(async (req) => {
       "carmen_memory_decay_episodes",
       { p_lambda: 0.02 },
     );
-    if (decayErr) throw decayErr;
+    if (decayErr) {
+      throw decayErr;
+    }
 
     // 2. Prune episodes whose retention_score < 0.05 AND not accessed in 90 days
     const ninetyDaysAgo = new Date(
@@ -35,7 +38,9 @@ Deno.serve(async (req) => {
       .lt("retention_score", 0.05)
       .lt("last_accessed_at", ninetyDaysAgo)
       .select("id");
-    if (pruneErr) throw pruneErr;
+    if (pruneErr) {
+      throw pruneErr;
+    }
 
     // 3. Expire pointers whose source rows no longer exist is left to the worker; here we
     //    just clear obviously stale pointers older than 1 year with no access.

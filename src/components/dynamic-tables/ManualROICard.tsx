@@ -70,7 +70,9 @@ export function ManualROICard({
   const roi = spend > 0 ? (profit / spend) * 100 : 0;
 
   const save = async (newClosures: string, newRevenue: string) => {
-    if (readOnly) return;
+    if (readOnly) {
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -80,7 +82,9 @@ export function ManualROICard({
       if (saveFn) {
         await saveFn(payload);
       } else {
-        if (!tableId) return;
+        if (!tableId) {
+          return;
+        }
         // Merge-only patch so currency / sync metadata are not wiped by a stale settings blob.
         const { error } = await supabase.functions.invoke("crm-tables", {
           method: "PATCH",
@@ -89,7 +93,9 @@ export function ManualROICard({
             integration_settings: { manual_roi: payload },
           },
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     } catch (e: any) {
       toast.error("שגיאה בשמירת נתוני ROI: " + (e?.message || ""));
@@ -99,7 +105,9 @@ export function ManualROICard({
   };
 
   const scheduleSave = (c: string, r: string) => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+    }
     debounceRef.current = window.setTimeout(() => save(c, r), 600);
   };
 

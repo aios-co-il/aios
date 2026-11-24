@@ -17,7 +17,7 @@ function matchingIds(
   tenantId: string,
   entityType: "lead" | "client",
   f: AudienceFilter,
-): Promise<string[]> {
+): Promise<Array<string>> {
   return fetchAll(() =>
     db.rpc("broadcast_matching_entity_ids", {
       p_tenant_id: tenantId,
@@ -28,7 +28,10 @@ function matchingIds(
 }
 
 /** Rows in the order of `ids` (the RPC's created_at, id order). */
-function inIdOrder<T extends { id: string }>(ids: string[], rows: T[]): T[] {
+function inIdOrder<T extends { id: string }>(
+  ids: Array<string>,
+  rows: Array<T>,
+): Array<T> {
   const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.flatMap((id) => {
     const row = byId.get(id);
@@ -40,7 +43,7 @@ export async function resolveLeads(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   const ids = await matchingIds(db, tenantId, "lead", f);
   const rows = await fetchByIds(ids, (chunk) =>
     db
@@ -57,7 +60,7 @@ export async function resolveClients(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   const ids = await matchingIds(db, tenantId, "client", f);
   const rows = await fetchByIds(ids, (chunk) =>
     db

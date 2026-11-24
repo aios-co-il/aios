@@ -75,9 +75,13 @@ export function getCronMeta(jobname: string): CronJobMeta {
 const HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 export function describeCronExpression(expr: string): string {
-  if (!expr) return "—";
+  if (!expr) {
+    return "—";
+  }
   const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return `Cron: ${expr}`;
+  if (parts.length !== 5) {
+    return `Cron: ${expr}`;
+  }
   const [minute, hour, dom, month, dow] = parts;
 
   const pad = (s: string) => s.padStart(2, "0");
@@ -85,15 +89,21 @@ export function describeCronExpression(expr: string): string {
     `${pad(h)}:${pad(m === "*" ? "00" : m)}`;
 
   // every minute
-  if (expr === "* * * * *") return "כל דקה";
+  if (expr === "* * * * *") {
+    return "כל דקה";
+  }
   // every N minutes
-  if (hour === "*" && minute.startsWith("*/"))
+  if (hour === "*" && minute.startsWith("*/")) {
     return `כל ${minute.slice(2)} דקות`;
+  }
   // every hour at minute X
-  if (hour === "*" && /^\d+$/.test(minute)) return `כל שעה ב-:${pad(minute)}`;
+  if (hour === "*" && /^\d+$/.test(minute)) {
+    return `כל שעה ב-:${pad(minute)}`;
+  }
   // every N hours
-  if (hour.startsWith("*/") && /^\d+$/.test(minute))
+  if (hour.startsWith("*/") && /^\d+$/.test(minute)) {
     return `כל ${hour.slice(2)} שעות`;
+  }
 
   if (
     dom === "*" &&
@@ -101,11 +111,13 @@ export function describeCronExpression(expr: string): string {
     dow === "*" &&
     /^\d+$/.test(hour) &&
     /^\d+$/.test(minute)
-  )
+  ) {
     return `כל יום ב-${timeStr(hour, minute)}`;
+  }
 
-  if (dom === "*" && month === "*" && /^\d+$/.test(dow) && /^\d+$/.test(hour))
+  if (dom === "*" && month === "*" && /^\d+$/.test(dow) && /^\d+$/.test(hour)) {
     return `כל יום ${HEBREW_DAYS[parseInt(dow) % 7]} ב-${timeStr(hour, minute)}`;
+  }
 
   // multiple hours: "0 5,14 * * *"
   if (

@@ -40,7 +40,9 @@ export function useStoryboardBoard({
 
   const select = (scene: StoryboardScene | null) => {
     setSceneId(scene?.id ?? null);
-    if (scene) onPickScene();
+    if (scene) {
+      onPickScene();
+    }
   };
 
   const storyboard: StoryboardGridProps = {

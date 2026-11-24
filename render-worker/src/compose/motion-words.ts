@@ -85,13 +85,27 @@ export function keyScore(
 ) {
   const shown = displayWord(text);
   const word = plain(shown);
-  if (!word) return 0;
-  if (isNumber(word, shown)) return 5;
-  if (brand.some((b) => sameWord(word, b))) return 4;
-  if (title.some((t) => sameWord(word, t))) return 3;
-  if (/[A-Za-z]{2,}/.test(shown)) return 2;
-  if (EMPHATIC.has(word) || EMPHATIC.has(unprefixed(word))) return 1;
-  if (/[!?]$/.test(shown)) return 1;
+  if (!word) {
+    return 0;
+  }
+  if (isNumber(word, shown)) {
+    return 5;
+  }
+  if (brand.some((b) => sameWord(word, b))) {
+    return 4;
+  }
+  if (title.some((t) => sameWord(word, t))) {
+    return 3;
+  }
+  if (/[A-Za-z]{2,}/.test(shown)) {
+    return 2;
+  }
+  if (EMPHATIC.has(word) || EMPHATIC.has(unprefixed(word))) {
+    return 1;
+  }
+  if (/[!?]$/.test(shown)) {
+    return 1;
+  }
   return 0;
 }
 

@@ -29,14 +29,20 @@ function criterion(
 
 Deno.test("slugifyKey produces stable keys", () => {
   const k = slugifyKey("דוחות מהירים לכל המשתמשים", 0);
-  if (!k.length) throw new Error("empty key");
-  if (slugifyKey("test", 0) !== "test") throw new Error("ascii slug");
+  if (!k.length) {
+    throw new Error("empty key");
+  }
+  if (slugifyKey("test", 0) !== "test") {
+    throw new Error("ascii slug");
+  }
 });
 
 Deno.test("hashInput is deterministic", () => {
   const a = hashInput({ x: 1 });
   const b = hashInput({ x: 1 });
-  if (a !== b) throw new Error("hash mismatch");
+  if (a !== b) {
+    throw new Error("hash mismatch");
+  }
 });
 
 Deno.test("checkCompletionGate requires all required PASS", () => {
@@ -44,13 +50,17 @@ Deno.test("checkCompletionGate requires all required PASS", () => {
     criterion({ criterion_key: "a", status: "PASS" }),
     criterion({ criterion_key: "b", status: "NOT_TESTED" }),
   ]);
-  if (open.complete) throw new Error("should not complete");
+  if (open.complete) {
+    throw new Error("should not complete");
+  }
 
   const done = checkCompletionGate([
     criterion({ criterion_key: "a", status: "PASS" }),
     criterion({ criterion_key: "b", status: "PASS", required: false }),
   ]);
-  if (!done.complete) throw new Error("should complete");
+  if (!done.complete) {
+    throw new Error("should complete");
+  }
 });
 
 Deno.test("detectStuckPatterns increments on repeated hash", () => {
@@ -61,8 +71,12 @@ Deno.test("detectStuckPatterns increments on repeated hash", () => {
     error: "e",
   }));
   const r = detectStuckPatterns(actions, 0);
-  if (!r.stuck) throw new Error("expected stuck");
-  if (r.score < 4) throw new Error("score too low");
+  if (!r.stuck) {
+    throw new Error("expected stuck");
+  }
+  if (r.score < 4) {
+    throw new Error("score too low");
+  }
 });
 
 Deno.test("buildContextPackage includes objective and criteria", () => {
@@ -90,6 +104,10 @@ Deno.test("buildContextPackage includes objective and criteria", () => {
     recentActions: [],
     blockers: [],
   });
-  if (pkg.objective !== "Objective") throw new Error("objective missing");
-  if (!Array.isArray(pkg.success_criteria)) throw new Error("criteria missing");
+  if (pkg.objective !== "Objective") {
+    throw new Error("objective missing");
+  }
+  if (!Array.isArray(pkg.success_criteria)) {
+    throw new Error("criteria missing");
+  }
 });

@@ -17,7 +17,7 @@ export type GraphAdset = {
 
 /** One page of the Graph API's ad set list. */
 type AdsetPage = {
-  data?: GraphAdset[];
+  data?: Array<GraphAdset>;
   error?: { message?: string };
   paging?: { next?: string };
 };
@@ -33,8 +33,8 @@ export async function fetchAdsets(
   accessToken: string,
   logLabel: string,
   fetchPage: typeof fetch = fetch,
-): Promise<GraphAdset[]> {
-  const adsets: GraphAdset[] = [];
+): Promise<Array<GraphAdset>> {
+  const adsets: Array<GraphAdset> = [];
   let next: string | null =
     `https://graph.facebook.com/v21.0/${adAccountId}/adsets?fields=${FB_ADSET_FIELDS}&limit=500&access_token=${accessToken}`;
   while (next) {
@@ -69,7 +69,9 @@ export type DestinationTypeMaps = {
 };
 
 /** Map ad set and campaign ids to their destination_type. */
-export function buildDestinationTypeMaps(adsets: Adset[]): DestinationTypeMaps {
+export function buildDestinationTypeMaps(
+  adsets: Array<Adset>,
+): DestinationTypeMaps {
   const byAdset: Record<string, string> = {};
   for (const adset of adsets) {
     const adsetId = String(adset.id ?? "");
@@ -105,7 +107,7 @@ export function resolveDestinationType(
  * that sorts first, so a re-sync stores the same value.
  */
 export function dominantAdsetValueByCampaign<T extends Adset>(
-  adsets: T[],
+  adsets: Array<T>,
   valueOf: (adset: T) => unknown,
 ): Record<string, string> {
   const counts = new Map<string, Map<string, number>>();

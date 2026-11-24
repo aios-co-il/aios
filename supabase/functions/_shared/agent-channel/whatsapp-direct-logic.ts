@@ -30,7 +30,9 @@ export function parseWhatsAppDirectCommand(
   const raw = String(text || "");
   for (const { provider, pattern } of TRIGGERS) {
     const match = raw.match(pattern);
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
     const content = raw.slice(match[0].length).trim();
     return content ? { provider, content } : null;
   }
@@ -47,7 +49,7 @@ function phoneTail(value: unknown): string {
 export function isOwnerSender(args: {
   senderPhone: string;
   ownerPhones: Array<string | null | undefined>;
-  roles: string[];
+  roles: Array<string>;
 }): boolean {
   const sender = phoneTail(args.senderPhone);
   return (

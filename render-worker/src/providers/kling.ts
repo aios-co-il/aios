@@ -68,12 +68,13 @@ export function klingKeys(
 export function klingAuth(keys: KlingKeyPair) {
   const { accessKey, secretKey, tenant } = klingKeys(keys);
   return () => {
-    if (!accessKey || !secretKey)
+    if (!accessKey || !secretKey) {
       throw new Error(
         tenant
           ? "Kling needs both the Access Key and the Secret Key in AI keys settings"
           : "Kling needs an Access Key and a Secret Key (AI keys settings, or KLING_ACCESS_KEY / KLING_SECRET_KEY)",
       );
+    }
     return {
       Authorization: `Bearer ${klingToken(accessKey, secretKey)}`,
       "Content-Type": "application/json",
@@ -117,12 +118,15 @@ export function klingProvider(keys: KlingKeyPair = {}): VideoProvider {
         }),
       });
       const data = await providerJson<KlingTaskResponse>(response);
-      if (!response.ok || data.code)
+      if (!response.ok || data.code) {
         throw new Error(
           `kling submit ${response.status}: ${data.message ?? JSON.stringify(data).slice(0, 300)}`,
         );
+      }
       const jobId = data.data?.task_id;
-      if (!jobId) throw new Error("kling submit returned no task_id");
+      if (!jobId) {
+        throw new Error("kling submit returned no task_id");
+      }
       return { jobId };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -131,8 +135,9 @@ export function klingProvider(keys: KlingKeyPair = {}): VideoProvider {
         { headers: auth() },
       );
       const data = await providerJson<KlingTaskResponse>(response);
-      if (!response.ok || data.code)
+      if (!response.ok || data.code) {
         throw new Error(`kling poll ${response.status}: ${data.message ?? ""}`);
+      }
       const status = data.data?.task_status;
       if (status === "succeed") {
         const url = data.data?.task_result?.videos?.[0]?.url;
@@ -140,11 +145,12 @@ export function klingProvider(keys: KlingKeyPair = {}): VideoProvider {
           ? { status: "succeeded", url }
           : { status: "failed", error: "kling returned no video url" };
       }
-      if (status === "failed")
+      if (status === "failed") {
         return {
           status: "failed",
           error: data.data?.task_status_msg || "kling task failed",
         };
+      }
       return { status: "pending" };
     },
   };

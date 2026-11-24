@@ -25,11 +25,17 @@ export function useCarmenContentFade<T extends HTMLElement>() {
 
   const fade = useCallback(() => {
     const element = ref.current;
-    if (!element || typeof element.animate !== "function") return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (!element || typeof element.animate !== "function") {
+      return;
+    }
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
     // Never fade the scroll container while Carmen (or her wait) is inside it —
     // that animates the eye from opacity 0 and reads as a flicker/jump.
-    if (!shouldFadeRouteContent(getCarmenLoaderSnapshot())) return;
+    if (!shouldFadeRouteContent(getCarmenLoaderSnapshot())) {
+      return;
+    }
     element.animate(
       [
         { opacity: 0, transform: "translateY(4px)" },
@@ -42,7 +48,9 @@ export function useCarmenContentFade<T extends HTMLElement>() {
   useEffect(fade, [pathname, fade]);
 
   useEffect(() => {
-    if (previousScenes.current > 0 && snapshot.scenes === 0) fade();
+    if (previousScenes.current > 0 && snapshot.scenes === 0) {
+      fade();
+    }
     previousScenes.current = snapshot.scenes;
   }, [snapshot.scenes, fade]);
 

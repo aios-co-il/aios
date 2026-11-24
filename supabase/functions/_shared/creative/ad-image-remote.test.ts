@@ -2,7 +2,7 @@ import { assert, assertEquals, assertStrictEquals } from "jsr:@std/assert@1";
 import { remoteAdImage } from "./ad-image-remote.ts";
 
 const call = (respond: (url: string, init: RequestInit) => Response) => {
-  const seen: { url: string; init: RequestInit }[] = [];
+  const seen: Array<{ url: string; init: RequestInit }> = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     seen.push({ url, init });
     return respond(url, init);

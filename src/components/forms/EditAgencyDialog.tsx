@@ -102,7 +102,9 @@ export function EditAgencyDialog({
           notes: values.notes || null,
         })
         .eq("id", agency.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success(`${t("agency")} עודכנה בהצלחה`);

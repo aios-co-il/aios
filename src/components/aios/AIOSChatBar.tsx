@@ -13,12 +13,12 @@ export interface AIOSMessage {
 export interface DisplayData {
   view_type: "table" | "cards" | "stats" | "list";
   title: string;
-  columns?: string[];
-  data: any[];
+  columns?: Array<string>;
+  data: Array<any>;
 }
 
 interface AIOSChatBarProps {
-  messages: AIOSMessage[];
+  messages: Array<AIOSMessage>;
   onSend: (message: string) => void;
   isLoading: boolean;
   streamingContent: string;
@@ -40,7 +40,9 @@ export function AIOSChatBar({
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading) {
+      return;
+    }
     onSend(trimmed);
     setInput("");
     if (textareaRef.current) {

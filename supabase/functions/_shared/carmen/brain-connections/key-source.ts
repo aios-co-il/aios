@@ -40,9 +40,9 @@ export async function resolveBuiltinKeys(
   sb: SecretClient,
   tenantId: string,
   project: Env,
-): Promise<BuiltinKeys[]> {
+): Promise<Array<BuiltinKeys>> {
   const loaded = await loadSources(sb, tenantId);
-  const out: BuiltinKeys[] = [];
+  const out: Array<BuiltinKeys> = [];
   for (const spec of BUILTIN_BRAIN_KEYS) {
     out.push(await resolveOne(sb, spec, tenantId, loaded, project));
   }
@@ -53,15 +53,19 @@ export async function resolveBuiltinKeys(
 export function withoutBuiltinEnv(project: Env): Env {
   const out = { ...project };
   for (const spec of BUILTIN_BRAIN_KEYS) {
-    for (const name of spec.envNames) delete out[name];
+    for (const name of spec.envNames) {
+      delete out[name];
+    }
   }
   return out;
 }
 
 /** The env a send reads: project env minus brain keys, plus resolved keys. */
-export function brainEnvFrom(project: Env, keys: BuiltinKeys[]): Env {
+export function brainEnvFrom(project: Env, keys: Array<BuiltinKeys>): Env {
   const out = withoutBuiltinEnv(project);
-  for (const k of keys) Object.assign(out, k.env);
+  for (const k of keys) {
+    Object.assign(out, k.env);
+  }
   return out;
 }
 
@@ -102,8 +106,12 @@ async function heldKeys(
     (r) => r.tenant_id === tenantId && r.slug === spec.slug,
   );
   const own = row ? await rowEnv(sb, spec, row) : null;
-  if (own) return { env: own, via: "own" };
-  if (!loaded.homes.has(tenantId)) return null;
+  if (own) {
+    return { env: own, via: "own" };
+  }
+  if (!loaded.homes.has(tenantId)) {
+    return null;
+  }
   const env = projectEnvFor(spec, project);
   return env ? { env, via: "project" } : null;
 }
@@ -115,11 +123,17 @@ async function rowEnv(
   row: BuiltinRow,
 ): Promise<Record<string, string> | null> {
   const id = settingString(row.settings, "external_id");
-  if (!row.secret_id || (spec.idEnv && !id)) return null;
+  if (!row.secret_id || (spec.idEnv && !id)) {
+    return null;
+  }
   const secret = (await connectionSecret(sb, row.id)).trim();
-  if (!secret) return null;
+  if (!secret) {
+    return null;
+  }
   const env: Record<string, string> = { [spec.secretEnv]: secret };
-  if (spec.idEnv) env[spec.idEnv] = id;
+  if (spec.idEnv) {
+    env[spec.idEnv] = id;
+  }
   return env;
 }
 
@@ -131,7 +145,9 @@ function projectEnvFor(
   const env: Record<string, string> = {};
   for (const name of spec.envNames) {
     const value = project[name]?.trim();
-    if (value) env[name] = value;
+    if (value) {
+      env[name] = value;
+    }
   }
   return Object.keys(env).length ? env : null;
 }

@@ -78,7 +78,9 @@ export function ChannelManager() {
   });
 
   const handleCreate = async () => {
-    if (!form.platform || !form.channel_name) return;
+    if (!form.platform || !form.channel_name) {
+      return;
+    }
     await createChannel.mutateAsync({
       platform: form.platform as SocialMediaChannel["platform"],
       channel_name: form.channel_name,

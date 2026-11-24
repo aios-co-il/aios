@@ -96,22 +96,32 @@ async function getMetaToken(
       .eq("id", data.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (source.data?.api_key) data = { ...data, api_key: source.data.api_key };
+    if (source.data?.api_key) {
+      data = { ...data, api_key: source.data.api_key };
+    }
   }
   return data?.api_key || null;
 }
 
 function bearerAuthorized(authHeader: string | null): boolean {
-  if (!authHeader) return false;
+  if (!authHeader) {
+    return false;
+  }
   const cronSecret = Deno.env.get("CAMPAIGN_PULSE_CRON_SECRET");
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
-  if (SERVICE_KEY && authHeader === `Bearer ${SERVICE_KEY}`) return true;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+  if (SERVICE_KEY && authHeader === `Bearer ${SERVICE_KEY}`) {
+    return true;
+  }
   // Accept any service_role JWT for this project (keys can differ between
   // callers / rotated secrets while still being valid for the same ref).
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   try {
     const payloadPart = token.split(".")[1];
-    if (!payloadPart) return false;
+    if (!payloadPart) {
+      return false;
+    }
     const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
     const payload = JSON.parse(atob(padded));
@@ -133,7 +143,9 @@ async function queuePulseWhatsApp(
   message: string,
   chatId: string | null,
 ): Promise<boolean> {
-  if (isPulseDeliveryExcludedPhone(chatId, tenantSlug)) return false;
+  if (isPulseDeliveryExcludedPhone(chatId, tenantSlug)) {
+    return false;
+  }
   const delivery = await supabase.rpc("claude_notify_david", {
     p_message: message,
     p_tenant: tenantId,
@@ -157,7 +169,7 @@ async function loadTeamManagerDeliveryPlans(
   tenantId: string,
   tenantSlug: string,
   snapshots: Array<{ client_id: string; agency_id?: string | null }>,
-): Promise<PulseDeliveryPlan[]> {
+): Promise<Array<PulseDeliveryPlan>> {
   const { data: roles } = await supabase
     .from("user_roles")
     .select("user_id")
@@ -166,7 +178,9 @@ async function loadTeamManagerDeliveryPlans(
   const userIds = Array.from(
     new Set((roles || []).map((row: any) => row.user_id).filter(Boolean)),
   );
-  if (!userIds.length) return [];
+  if (!userIds.length) {
+    return [];
+  }
 
   const [{ data: profiles }, { data: managed }] = await Promise.all([
     supabase
@@ -179,9 +193,11 @@ async function loadTeamManagerDeliveryPlans(
       .in("user_id", userIds),
   ]);
 
-  const agenciesByUser = new Map<string, string[]>();
+  const agenciesByUser = new Map<string, Array<string>>();
   for (const row of managed || []) {
-    if (!row.user_id || !row.agency_id) continue;
+    if (!row.user_id || !row.agency_id) {
+      continue;
+    }
     agenciesByUser.set(row.user_id, [
       ...(agenciesByUser.get(row.user_id) || []),
       row.agency_id,
@@ -201,7 +217,9 @@ async function loadTeamManagerDeliveryPlans(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok");
+  if (req.method === "OPTIONS") {
+    return new Response("ok");
+  }
   if (!bearerAuthorized(req.headers.get("authorization"))) {
     return json({ error: "Unauthorized" }, 401);
   }
@@ -232,13 +250,16 @@ Deno.serve(async (req) => {
     error: settingsError,
     legacySchema,
   } = await loadPulseSettings(supabase, body.tenant_id);
-  if (settingsError) return json({ error: settingsError.message }, 500);
-  if (legacySchema)
+  if (settingsError) {
+    return json({ error: settingsError.message }, 500);
+  }
+  if (legacySchema) {
     console.warn(
       "[campaign-pulse] pulse_alert_rules missing; instant alerts disabled until schema deployment",
     );
+  }
 
-  const results: any[] = [];
+  const results: Array<any> = [];
   for (const setting of settings || []) {
     const started = Date.now();
     const tenantId = setting.tenant_id;
@@ -343,7 +364,7 @@ Deno.serve(async (req) => {
         latestOnboardingByClient.set(onboarding.client_id, onboarding);
       }
     }
-    const openTasksByClient = new Map<string, any[]>();
+    const openTasksByClient = new Map<string, Array<any>>();
     for (const task of tasksResult.data || []) {
       openTasksByClient.set(task.client_id, [
         ...(openTasksByClient.get(task.client_id) || []),
@@ -451,7 +472,7 @@ Deno.serve(async (req) => {
     // Israel full days ending yesterday, like campaign_breakdown: the 7-day window
     // and its prior week never include today's partial day.
     const windows = pulseClientWindows(now);
-    const snapshots: any[] = [];
+    const snapshots: Array<any> = [];
     // Switched-off tables that still spend, read by report_off_spending alone
     // (AIO-501): never a snapshot flag, which the digest counts and the
     // connection_lost rule matches by text.
@@ -912,7 +933,7 @@ Deno.serve(async (req) => {
     );
     let sent = false;
     let deliveryClaimed = false;
-    const scopedDeliveries: any[] = [];
+    const scopedDeliveries: Array<any> = [];
     if (deliveryRequested && setting.campaign_pulse_enabled) {
       if (manualDeliveryBypass) {
         deliveryClaimed = true;
@@ -921,11 +942,12 @@ Deno.serve(async (req) => {
           p_tenant_id: tenantId,
         });
         deliveryClaimed = claim.data === true && !claim.error;
-        if (claim.error)
+        if (claim.error) {
           console.error(
             "Failed to claim campaign pulse delivery:",
             claim.error.message,
           );
+        }
       }
     }
     if (deliveryClaimed || instantAlerts.sent > 0) {
@@ -953,7 +975,7 @@ Deno.serve(async (req) => {
         const snapshotClientIds = snapshots.map(
           (snapshot) => snapshot.client_id,
         );
-        const plans: PulseDeliveryPlan[] = [];
+        const plans: Array<PulseDeliveryPlan> = [];
 
         if (deliverToCampaigners && snapshotClientIds.length) {
           const [{ data: links }, { data: campaigners }] = await Promise.all([

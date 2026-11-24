@@ -17,8 +17,12 @@ export const overlayFlexJustify = (
   align?: CreativeTextAlign | null,
 ): CSSProperties["justifyContent"] => {
   const resolved = hebrewTextAlign(align);
-  if (resolved === "center") return "center";
-  if (resolved === "left") return "flex-start";
+  if (resolved === "center") {
+    return "center";
+  }
+  if (resolved === "left") {
+    return "flex-start";
+  }
   return "flex-end";
 };
 

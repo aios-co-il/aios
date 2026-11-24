@@ -16,7 +16,7 @@ export function quotedList(
   sql: string,
   anchor: string,
   marker: string,
-): string[] {
+): Array<string> {
   const from = sql.indexOf(anchor);
   const at = from < 0 ? -1 : sql.indexOf(marker, from);
   if (at < 0) {

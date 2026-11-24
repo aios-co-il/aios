@@ -33,10 +33,10 @@ const VERIFY_DEADLINE_MS = 75_000;
 
 type VerifyInput = {
   db: Pick<DbClient, "from">;
-  tables: ListedTable[];
+  tables: Array<ListedTable>;
   days: number;
   now: Date;
-  fallbackTenantIds?: string[];
+  fallbackTenantIds?: Array<string>;
   fetch?: FetchLike;
   sleep?: Sleep;
   budget?: CallBudget;

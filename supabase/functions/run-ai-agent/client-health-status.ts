@@ -28,7 +28,7 @@ type ClientMoodStatusDb = {
     update(values: { mood_status: ClientMoodStatus }): {
       match(query: { id: string }): {
         select(columns: "id"): PromiseLike<{
-          data: { id: string }[] | null;
+          data: Array<{ id: string }> | null;
           error: DbError | null;
         }>;
       };

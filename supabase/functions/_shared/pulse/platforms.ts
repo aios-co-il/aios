@@ -2,7 +2,7 @@
 export type PulsePlatform = "meta" | "google";
 
 /** The ad platforms the pulse reads, Meta first. */
-export const PULSE_PLATFORMS: readonly PulsePlatform[] = ["meta", "google"];
+export const PULSE_PLATFORMS: ReadonlyArray<PulsePlatform> = ["meta", "google"];
 
 /**
  * The report-table integration types of each ad platform. The dashboard editor,
@@ -10,14 +10,14 @@ export const PULSE_PLATFORMS: readonly PulsePlatform[] = ["meta", "google"];
  * map, so a target is written to the same tables it is read from.
  */
 export const PULSE_PLATFORM_INTEGRATION_TYPES: Readonly<
-  Record<PulsePlatform, readonly string[]>
+  Record<PulsePlatform, ReadonlyArray<string>>
 > = {
   meta: ["facebook_insights", "facebook_ecommerce"],
   google: ["google_ads"],
 };
 
 /** Every report-table integration type the pulse reads, Meta first. */
-export const PULSE_AD_INTEGRATION_TYPES: readonly string[] =
+export const PULSE_AD_INTEGRATION_TYPES: ReadonlyArray<string> =
   PULSE_PLATFORMS.flatMap(
     (platform) => PULSE_PLATFORM_INTEGRATION_TYPES[platform],
   );

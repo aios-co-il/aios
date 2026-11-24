@@ -27,7 +27,9 @@ export async function mintCallbackToken(args: {
   secret?: string;
 }): Promise<string> {
   const secret = args.secret ?? callbackSecret();
-  if (!secret) throw new Error("Callback secret is not configured");
+  if (!secret) {
+    throw new Error("Callback secret is not configured");
+  }
   return hmacSha256Hex(
     secret,
     `${TOKEN_VERSION}:${args.sessionId}:${args.conversationId}:${args.tenantId}`,

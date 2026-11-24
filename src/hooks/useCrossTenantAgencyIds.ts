@@ -13,12 +13,16 @@ export function useCrossTenantAgencyIds() {
   const { data: crossTenantAgencyIds = [] } = useQuery({
     queryKey: ["cross-tenant-agency-ids", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
         .eq("accessing_tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((r) => r.agency_id) || [];
     },
     enabled: !!tenantId,
@@ -30,8 +34,12 @@ export function useCrossTenantAgencyIds() {
    * Returns null if no cross-tenant agencies exist (use simple .eq instead).
    */
   const buildCrossTenantFilter = (): string | null => {
-    if (!tenantId) return null;
-    if (crossTenantAgencyIds.length === 0) return null;
+    if (!tenantId) {
+      return null;
+    }
+    if (crossTenantAgencyIds.length === 0) {
+      return null;
+    }
     return `tenant_id.eq.${tenantId},agency_id.in.(${crossTenantAgencyIds.join(",")})`;
   };
 

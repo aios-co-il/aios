@@ -22,8 +22,12 @@ const USD_PER_SECOND = () =>
 
 export const elevenLabsClipSeconds = (seconds: unknown) => {
   const value = Number(seconds) || 5;
-  if (value <= 4) return 4;
-  if (value <= 6) return 6;
+  if (value <= 4) {
+    return 4;
+  }
+  if (value <= 6) {
+    return 6;
+  }
   return 8;
 };
 
@@ -33,8 +37,12 @@ export const elevenLabsAspect = (aspect: string | undefined) =>
 export const elevenLabsBaseUrl = BASE;
 
 export const imageMime = (bytes: Uint8Array | null | undefined) => {
-  if (bytes?.[0] === 0xff && bytes?.[1] === 0xd8) return "image/jpeg";
-  if (bytes?.[0] === 0x89 && bytes?.[1] === 0x50) return "image/png";
+  if (bytes?.[0] === 0xff && bytes?.[1] === 0xd8) {
+    return "image/jpeg";
+  }
+  if (bytes?.[0] === 0x89 && bytes?.[1] === 0x50) {
+    return "image/png";
+  }
   return "image/webp";
 };
 
@@ -70,7 +78,9 @@ export function elevenLabsProvider({
   fetchImpl = fetch,
 }: { apiKey?: string | null; fetchImpl?: FetchImpl } = {}): VideoProvider {
   const auth = () => {
-    if (!apiKey) throw new Error("ELEVENLABS_API_KEY is required");
+    if (!apiKey) {
+      throw new Error("ELEVENLABS_API_KEY is required");
+    }
     return { "xi-api-key": apiKey, "Content-Type": "application/json" };
   };
   return {
@@ -92,11 +102,14 @@ export function elevenLabsProvider({
         body: JSON.stringify(elevenLabsVideoBody({ ...input, model: MODEL() })),
       });
       const data = await providerJson<ElevenLabsFlowResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `elevenlabs submit ${response.status}: ${JSON.stringify(data).slice(0, 300)}`,
         );
-      if (!data.id) throw new Error("elevenlabs submit returned no id");
+      }
+      if (!data.id) {
+        throw new Error("elevenlabs submit returned no id");
+      }
       return { jobId: data.id };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -105,21 +118,23 @@ export function elevenLabsProvider({
         { headers: auth() },
       );
       const data = await providerJson<ElevenLabsFlowResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `elevenlabs poll ${response.status}: ${JSON.stringify(data).slice(0, 300)}`,
         );
+      }
       if (data.status === "completed") {
         return data.content_url
           ? { status: "succeeded", url: data.content_url }
           : { status: "failed", error: "elevenlabs returned no video url" };
       }
-      if (data.status === "failed")
+      if (data.status === "failed") {
         return {
           status: "failed",
           error:
             data.error_message || data.failure_reason || "elevenlabs failed",
         };
+      }
       return { status: "pending" };
     },
   };

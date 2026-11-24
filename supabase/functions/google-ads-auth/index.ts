@@ -342,7 +342,7 @@ async function getAccessibleGoogleAdsIntegrations(
   serviceClient: any,
   tenantId: string,
   userId: string,
-): Promise<any[]> {
+): Promise<Array<any>> {
   // Source tenants from cross-tenant agency access (current tenant accesses others' agencies)
   const { data: accessRows } = await serviceClient
     .from("agency_tenant_access")
@@ -369,7 +369,7 @@ async function getAccessibleGoogleAdsIntegrations(
     .eq("user_id", userId);
   const sharedIds = (permissions || []).map((p: any) => p.integration_id);
 
-  let sharedIntegrations: any[] = [];
+  let sharedIntegrations: Array<any> = [];
   if (sharedIds.length > 0) {
     const { data } = await serviceClient
       .from("tenant_integrations")
@@ -382,13 +382,17 @@ async function getAccessibleGoogleAdsIntegrations(
 
   const map = new Map<string, any>();
   for (const i of [...(tenantIntegrations || []), ...sharedIntegrations]) {
-    if (i?.id && i?.api_key) map.set(i.id, i);
+    if (i?.id && i?.api_key) {
+      map.set(i.id, i);
+    }
   }
   return Array.from(map.values());
 }
 
 async function refreshIntegrationToken(serviceClient: any, integration: any) {
-  if (!integration?.settings?.refresh_token) return integration;
+  if (!integration?.settings?.refresh_token) {
+    return integration;
+  }
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -451,7 +455,9 @@ async function refreshIntegrationToken(serviceClient: any, integration: any) {
   };
 }
 
-async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
+async function fetchAccountsForIntegration(
+  integration: any,
+): Promise<Array<any>> {
   const accessToken = integration.api_key;
   const response = await fetch(
     "https://googleads.googleapis.com/v23/customers:listAccessibleCustomers",
@@ -468,9 +474,11 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
     `load accessible Google Ads accounts for integration ${integration.id}`,
   );
 
-  if (!accessibleCustomersResult.success) return [];
+  if (!accessibleCustomersResult.success) {
+    return [];
+  }
 
-  const accounts: any[] = [];
+  const accounts: Array<any> = [];
   const resourceNames = accessibleCustomersResult.data?.resourceNames || [];
   const detailQuery = `
     SELECT
@@ -482,13 +490,15 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
     LIMIT 1
   `;
 
-  const mccIds: string[] = [];
-  const failedIds: string[] = [];
+  const mccIds: Array<string> = [];
+  const failedIds: Array<string> = [];
 
   for (const resourceName of resourceNames) {
     const customerId =
       typeof resourceName === "string" ? resourceName.split("/")[1] : null;
-    if (!customerId) continue;
+    if (!customerId) {
+      continue;
+    }
     try {
       const detailResponse = await fetch(
         `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:search`,
@@ -513,7 +523,9 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
       }
       const customer = detailResult.data?.results?.[0]?.customer;
       const isManager = Boolean(customer?.manager);
-      if (isManager) mccIds.push(customerId);
+      if (isManager) {
+        mccIds.push(customerId);
+      }
       accounts.push({
         id: customerId,
         name: customer?.descriptiveName || `Account ${customerId}`,
@@ -608,11 +620,15 @@ async function fetchAccountsForIntegration(integration: any): Promise<any[]> {
       if (childResult.success && childResult.data?.results) {
         for (const row of childResult.data.results) {
           const client = row.customerClient;
-          if (!client?.id) continue;
+          if (!client?.id) {
+            continue;
+          }
           const childId = String(client.id);
           if (existingIds.has(childId)) {
             const existing = accounts.find((a) => a.id === childId);
-            if (existing && !existing.manager_id) existing.manager_id = mccId;
+            if (existing && !existing.manager_id) {
+              existing.manager_id = mccId;
+            }
             continue;
           }
           existingIds.add(childId);
@@ -698,7 +714,9 @@ async function getGoogleAdsAccounts(
       }
       const existingIsOwn = existing.integration_user_id === userId;
       const accIsOwn = acc.integration_user_id === userId;
-      if (accIsOwn && !existingIsOwn) map.set(acc.id, acc);
+      if (accIsOwn && !existingIsOwn) {
+        map.set(acc.id, acc);
+      }
     }
   }
 

@@ -24,15 +24,19 @@ export function useAssignableCampaigners(options?: {
       activeOnly,
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
-      let sharedCampaignerIds: string[] = [];
+      let sharedCampaignerIds: Array<string> = [];
       if (crossTenantAgencyIds.length > 0) {
         const { data: agencyRows, error: agencyError } = await supabase
           .from("campaigner_agencies")
           .select("campaigner_id")
           .in("agency_id", crossTenantAgencyIds);
-        if (agencyError) throw agencyError;
+        if (agencyError) {
+          throw agencyError;
+        }
 
         sharedCampaignerIds = Array.from(
           new Set((agencyRows || []).map((row) => row.campaigner_id)),
@@ -44,7 +48,9 @@ export function useAssignableCampaigners(options?: {
         .select("id, full_name, email, phone, active, tenant_id")
         .order("full_name");
 
-      if (activeOnly) query = query.eq("active", true);
+      if (activeOnly) {
+        query = query.eq("active", true);
+      }
 
       query =
         sharedCampaignerIds.length > 0
@@ -54,7 +60,9 @@ export function useAssignableCampaigners(options?: {
           : query.eq("tenant_id", tenantId);
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && (options?.enabled ?? true),

@@ -10,8 +10,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -22,7 +23,9 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("enabled", true);
 
-    if (settingsError) throw settingsError;
+    if (settingsError) {
+      throw settingsError;
+    }
     if (!settings || settings.length === 0) {
       return new Response(
         JSON.stringify({ message: "No tenants with heartbeat enabled" }),
@@ -36,7 +39,7 @@ Deno.serve(async (req) => {
 
     for (const setting of settings) {
       const tenantId = setting.tenant_id;
-      const allowedActions = (setting.allowed_actions || []) as string[];
+      const allowedActions = (setting.allowed_actions || []) as Array<string>;
 
       // Check active hours
       const now = new Date();
@@ -53,7 +56,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const actionsLog: any[] = [];
+      const actionsLog: Array<any> = [];
       let tasksReviewed = 0;
 
       // 1. Find overdue tasks
@@ -173,8 +176,9 @@ Deno.serve(async (req) => {
       ];
       if (anomalyTasks && anomalyTasks.length > 0) {
         summaryLines.push("", "חריגות שזוהו:");
-        for (const t of anomalyTasks.slice(0, 5))
+        for (const t of anomalyTasks.slice(0, 5)) {
           summaryLines.push(`• ${t.title}`);
+        }
       }
       const summary = summaryLines.join("\n");
 

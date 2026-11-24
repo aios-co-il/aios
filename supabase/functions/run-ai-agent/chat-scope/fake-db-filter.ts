@@ -5,7 +5,7 @@
 export type Row = Record<string, unknown>;
 
 export type FilterNode =
-  | { kind: "and" | "or"; items: FilterNode[] }
+  | { kind: "and" | "or"; items: Array<FilterNode> }
   | { kind: "cond"; col: string; not: boolean; op: string; value: string };
 
 /** Parses the argument of supabase-js .or(): a comma list under an implicit or(). */
@@ -57,7 +57,7 @@ function readValue(s: string, i: number): [string, number] {
 
 /** One and(...)/or(...) group or col.[not.]op.value condition at `i`. */
 function parseExpr(s: string, i: number): [FilterNode, number] {
-  const groups: ("and" | "or")[] = ["and", "or"];
+  const groups: Array<"and" | "or"> = ["and", "or"];
   for (const kind of groups) {
     if (s.startsWith(`${kind}(`, i)) {
       const [items, next] = parseList(s, i + kind.length + 1);
@@ -84,8 +84,8 @@ function parseExpr(s: string, i: number): [FilterNode, number] {
 }
 
 /** A comma-separated list of expressions starting at `i`. */
-function parseList(s: string, i: number): [FilterNode[], number] {
-  const items: FilterNode[] = [];
+function parseList(s: string, i: number): [Array<FilterNode>, number] {
+  const items: Array<FilterNode> = [];
   let pos = i;
   for (;;) {
     const [node, next] = parseExpr(s, pos);

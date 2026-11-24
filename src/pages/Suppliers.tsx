@@ -27,7 +27,9 @@ export default function Suppliers() {
   } = useQuery({
     queryKey: ["suppliers", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("suppliers")
         .select(
@@ -40,7 +42,9 @@ export default function Suppliers() {
         )
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -55,7 +59,9 @@ export default function Suppliers() {
         .from("suppliers")
         .delete()
         .eq("id", supplierId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers", tenantId] });

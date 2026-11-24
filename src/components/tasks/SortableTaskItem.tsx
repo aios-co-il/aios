@@ -47,8 +47,8 @@ interface SortableTaskItemProps {
   onClick: () => void;
   compact?: boolean;
   slotHeight?: number;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   onUpdateClient?: (taskId: string, clientId: string | null) => void;
   onUpdateCampaigner?: (taskId: string, campaignerId: string | null) => void;
 }

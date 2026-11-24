@@ -25,7 +25,9 @@ export function useWorkspaceLayout() {
 
   // Load saved layout
   useEffect(() => {
-    if (!userId || !tenantId) return;
+    if (!userId || !tenantId) {
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -34,7 +36,9 @@ export function useWorkspaceLayout() {
           .select("module_id, x_position, y_position, width, height, is_open")
           .eq("user_id", userId)
           .eq("tenant_id", tenantId);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         const merged: LayoutMap = { ...DEFAULT_LAYOUTS };
         (data ?? []).forEach((row: any) => {
           merged[row.module_id] = {
@@ -50,7 +54,9 @@ export function useWorkspaceLayout() {
       } catch (e) {
         console.warn("[VisualWorkspace] layout load failed", e);
       } finally {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) {
+          setLoaded(true);
+        }
       }
     })();
     return () => {
@@ -60,7 +66,9 @@ export function useWorkspaceLayout() {
 
   const persist = useCallback(
     (moduleId: string, item: LayoutItem) => {
-      if (!userId || !tenantId) return;
+      if (!userId || !tenantId) {
+        return;
+      }
       clearTimeout(saveTimers.current[moduleId]);
       saveTimers.current[moduleId] = setTimeout(async () => {
         await supabase.from("user_workspace_layout").upsert(

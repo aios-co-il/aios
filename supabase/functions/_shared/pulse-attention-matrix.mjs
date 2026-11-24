@@ -19,9 +19,13 @@ const MOOD_STATUS_LABELS = {
 const MS_PER_DAY = 86_400_000;
 
 function daysSince(iso) {
-  if (!iso) return null;
+  if (!iso) {
+    return null;
+  }
   const parsed = new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso);
-  if (Number.isNaN(parsed.getTime())) return null;
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
   return Math.floor((Date.now() - parsed.getTime()) / MS_PER_DAY);
 }
 
@@ -45,16 +49,24 @@ function platformConfiguredGoal(tables, clientId, platform) {
   const goals = new Set(
     matches.map((table) => reportTableGoal(table)).filter(Boolean),
   );
-  if (goals.size === 1) return [...goals][0];
-  if (matches.length && !matches.some((table) => isEcommerceReportTable(table)))
+  if (goals.size === 1) {
+    return [...goals][0];
+  }
+  if (
+    matches.length &&
+    !matches.some((table) => isEcommerceReportTable(table))
+  ) {
     return "leads";
+  }
   return null;
 }
 
 function goalFromRows(rows, configuredGoal = null) {
   const counts = new Map();
   for (const row of rows) {
-    if (row.goal === "unknown") continue;
+    if (row.goal === "unknown") {
+      continue;
+    }
     counts.set(row.goal, (counts.get(row.goal) ?? 0) + (row.spend_7d ?? 0));
   }
   let best = "leads";
@@ -65,16 +77,23 @@ function goalFromRows(rows, configuredGoal = null) {
       bestSpend = spend;
     }
   }
-  if (configuredGoal === "leads" && (counts.get("leads") ?? 0) > 0)
+  if (configuredGoal === "leads" && (counts.get("leads") ?? 0) > 0) {
     return "leads";
+  }
   // Each row carries its campaign's report goal (buildPulseCampaignRows), so a
   // platform whose leads report holds only sales campaigns is measured on ROAS.
   if (configuredGoal === "leads" && best === "ecommerce" && counts.size === 1) {
     return "ecommerce";
   }
-  if (configuredGoal === "leads" && best === "ecommerce") return "leads";
-  if (configuredGoal && configuredGoal !== "unknown") return configuredGoal;
-  if (bestSpend >= 0) return best;
+  if (configuredGoal === "leads" && best === "ecommerce") {
+    return "leads";
+  }
+  if (configuredGoal && configuredGoal !== "unknown") {
+    return configuredGoal;
+  }
+  if (bestSpend >= 0) {
+    return best;
+  }
   return rows.find((row) => row.goal !== "unknown")?.goal ?? "leads";
 }
 
@@ -142,16 +161,21 @@ function aggregatePlatformMetrics(rows, configuredGoal = null) {
 }
 
 function evaluateCampaignTouchIssue(lastChangeAt, spend7d, hasEfficiencyIssue) {
-  if (spend7d <= 0) return null;
+  if (spend7d <= 0) {
+    return null;
+  }
   const days = daysSince(lastChangeAt);
-  if (days === null)
+  if (days === null) {
     return hasEfficiencyIssue
       ? { level: "watch", label: "אין תיעוד מגע בקמפיין" }
       : null;
-  if (days >= 7)
+  }
+  if (days >= 7) {
     return { level: "alert", label: `${days} ימים ללא מגע בקמפיין` };
-  if (days >= 3 && hasEfficiencyIssue)
+  }
+  if (days >= 3 && hasEfficiencyIssue) {
     return { level: "watch", label: `${days} ימים ללא מגע + ירידה בביצועים` };
+  }
   return null;
 }
 
@@ -160,10 +184,15 @@ function evaluateLastCommunicationIssue(
   lastClientCallAt,
 ) {
   const days = daysSinceLastCommunication ?? daysSince(lastClientCallAt);
-  if (days === null)
+  if (days === null) {
     return { level: "watch", label: "אין תיעוד שיחה עם הלקוח" };
-  if (days >= 45) return { level: "alert", label: `${days} ימים ללא תקשורת` };
-  if (days >= 30) return { level: "watch", label: `${days} ימים ללא תקשורת` };
+  }
+  if (days >= 45) {
+    return { level: "alert", label: `${days} ימים ללא תקשורת` };
+  }
+  if (days >= 30) {
+    return { level: "watch", label: `${days} ימים ללא תקשורת` };
+  }
   return null;
 }
 
@@ -171,32 +200,42 @@ function evaluateComplaintIssue({
   recentCommunicationStatus,
   hasRecentComplaintUpdate,
 }) {
-  if (recentCommunicationStatus === "complaint" || hasRecentComplaintUpdate)
+  if (recentCommunicationStatus === "complaint" || hasRecentComplaintUpdate) {
     return { level: "alert", label: "תלונה / עדכון רגיש" };
-  if (recentCommunicationStatus === "sensitive")
+  }
+  if (recentCommunicationStatus === "sensitive") {
     return { level: "watch", label: "עדכון רגיש" };
+  }
   return null;
 }
 
 function evaluateSatisfactionIssue(moodStatus) {
-  if (!moodStatus || moodStatus === "happy" || moodStatus === "normal")
+  if (!moodStatus || moodStatus === "happy" || moodStatus === "normal") {
     return null;
+  }
   const label = MOOD_STATUS_LABELS[moodStatus] ?? moodStatus;
-  if (moodStatus === "churn_risk" || moodStatus === "complaint")
+  if (moodStatus === "churn_risk" || moodStatus === "complaint") {
     return { level: "alert", label };
+  }
   return { level: "watch", label };
 }
 
 function pickPrimaryTable(tables, platform, goal) {
   const matches = tables.filter((table) => {
-    if (platform === "google") return table.integration_type === "google_ads";
+    if (platform === "google") {
+      return table.integration_type === "google_ads";
+    }
     return (
       table.integration_type === "facebook_insights" ||
       table.integration_type === "facebook_ecommerce"
     );
   });
-  if (!matches.length) return null;
-  if (platform === "google") return matches[0];
+  if (!matches.length) {
+    return null;
+  }
+  if (platform === "google") {
+    return matches[0];
+  }
   if (goal === "ecommerce") {
     return (
       matches.find(
@@ -235,7 +274,9 @@ export function buildPulseAttentionRows({
 
   const grouped = new Map();
   for (const row of campaignRows) {
-    if (row.platform !== "meta" && row.platform !== "google") continue;
+    if (row.platform !== "meta" && row.platform !== "google") {
+      continue;
+    }
     const key = `${row.client_id}:${row.platform}`;
     const list = grouped.get(key) ?? [];
     list.push(row);
@@ -246,11 +287,15 @@ export function buildPulseAttentionRows({
   for (const [key, rows] of grouped) {
     const [clientId, platform] = key.split(":");
     const client = clientMap.get(clientId);
-    if (!client) continue;
+    if (!client) {
+      continue;
+    }
 
     const configuredGoal = platformConfiguredGoal(tables, clientId, platform);
     const metrics = aggregatePlatformMetrics(rows, configuredGoal);
-    if (metrics.spend7d <= 0) continue;
+    if (metrics.spend7d <= 0) {
+      continue;
+    }
 
     const clientTables = tablesByClient.get(clientId) ?? [];
     const primaryTable = pickPrimaryTable(
@@ -288,7 +333,9 @@ export function buildPulseAttentionRows({
       satisfaction: evaluateSatisfactionIssue(client.moodStatus),
     };
 
-    if (!rowHasIssue(issues)) continue;
+    if (!rowHasIssue(issues)) {
+      continue;
+    }
 
     result.push({
       clientId,

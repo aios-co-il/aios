@@ -41,7 +41,9 @@ export function parseLevel(v: unknown): BrainLevel | null {
 
 /** Narrows a database row to a BrainAccessRow, or null when it isn't one. */
 export function toAccessRow(data: unknown): BrainAccessRow {
-  if (!data || typeof data !== "object") return null;
+  if (!data || typeof data !== "object") {
+    return null;
+  }
   const row = data as Record<string, unknown>;
   const brains = row.brain_access;
   return {
@@ -63,21 +65,25 @@ export function brainLevel(
   slug: string | null | undefined,
 ): BrainLevel | null {
   const brains = grantedBrains(row);
-  if (brains === "none" || !slug) return null;
+  if (brains === "none" || !slug) {
+    return null;
+  }
   return brains === "all" ? "full" : parseLevel(brains[slug]);
 }
 
 /** May this user open Carmen at all? */
 export function carmenEnabledFor(row: BrainAccessRow | undefined): boolean {
   const brains = grantedBrains(row);
-  if (brains === "all") return true;
+  if (brains === "all") {
+    return true;
+  }
   return brains !== "none" && Object.values(brains).some(parseLevel);
 }
 
 export function allowedRoutes<T extends { slug: string }>(
-  routes: T[],
+  routes: Array<T>,
   row: BrainAccessRow | undefined,
-): T[] {
+): Array<T> {
   return routes.filter((r) => brainLevel(row, r.slug) !== null);
 }
 
@@ -90,7 +96,11 @@ export function applyBrainLimit(level: BrainLevel | null, text: string) {
 function grantedBrains(
   row: BrainAccessRow | undefined,
 ): "all" | "none" | Record<string, unknown> {
-  if (!row) return "all";
-  if (row.enabled === false) return "none";
+  if (!row) {
+    return "all";
+  }
+  if (row.enabled === false) {
+    return "none";
+  }
   return row.brain_access ?? "all";
 }

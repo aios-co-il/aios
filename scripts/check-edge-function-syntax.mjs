@@ -25,7 +25,9 @@ function walk(dir) {
       walk(full);
       continue;
     }
-    if (!/\.(ts|mjs)$/.test(entry.name)) continue;
+    if (!/\.(ts|mjs)$/.test(entry.name)) {
+      continue;
+    }
     checked += 1;
     const source = ts.createSourceFile(
       full,
@@ -50,7 +52,9 @@ if (failures.length > 0) {
   console.error(
     "Edge function syntax guard FAILED — these files cannot be bundled by Supabase:\n",
   );
-  for (const failure of failures) console.error(` - ${failure}`);
+  for (const failure of failures) {
+    console.error(` - ${failure}`);
+  }
   process.exit(1);
 }
 

@@ -15,7 +15,7 @@ export type LevelWritePlan = {
   /** Final status when `write` is false; the status to record after a clean write otherwise. */
   status: SyncOutcomeStatus;
   /** Levels whose stored rows this run may replace. */
-  levelsOk: AdsEntityLevel[];
+  levelsOk: Array<AdsEntityLevel>;
   /** Rows fetched across the usable levels. */
   rows: number;
   error?: string;
@@ -36,9 +36,9 @@ export type LevelWritePlan = {
 export function planLevelWrite(input: {
   levelCounts: Partial<Record<AdsEntityLevel, number>>;
   levelErrors?: Partial<Record<AdsEntityLevel, string | null | undefined>>;
-  levels?: readonly AdsEntityLevel[];
+  levels?: ReadonlyArray<AdsEntityLevel>;
 }): LevelWritePlan {
-  const levels: readonly AdsEntityLevel[] = input.levels || ADS_LEVELS;
+  const levels: ReadonlyArray<AdsEntityLevel> = input.levels || ADS_LEVELS;
   const errors = input.levelErrors || {};
   const failed = levels.filter((level) => !!errors[level]);
   const levelsOk = levels.filter((level) => !errors[level]);

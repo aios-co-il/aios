@@ -114,10 +114,12 @@ export default function RankTrackingProject() {
 
   // File import states
   const [inputMode, setInputMode] = useState<"manual" | "file">("manual");
-  const [parsedKeywords, setParsedKeywords] = useState<string[]>([]);
-  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [parsedKeywords, setParsedKeywords] = useState<Array<string>>([]);
+  const [csvColumns, setCsvColumns] = useState<Array<string>>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
-  const [allCsvData, setAllCsvData] = useState<Record<string, string>[]>([]);
+  const [allCsvData, setAllCsvData] = useState<Array<Record<string, string>>>(
+    [],
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scan progress state for batching
@@ -132,13 +134,17 @@ export default function RankTrackingProject() {
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["rank-tracking-project", projectId],
     queryFn: async () => {
-      if (!projectId) return null;
+      if (!projectId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("rank_tracking_projects")
         .select("*")
         .eq("id", projectId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!projectId,
@@ -148,14 +154,18 @@ export default function RankTrackingProject() {
   const { data: keywords, isLoading: keywordsLoading } = useQuery({
     queryKey: ["rank-tracking-keywords", projectId],
     queryFn: async () => {
-      if (!projectId) return [];
+      if (!projectId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("rank_tracking_keywords")
         .select("*")
         .eq("project_id", projectId)
         .order("current_position", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return data as Keyword[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<Keyword>;
     },
     enabled: !!projectId,
   });
@@ -164,23 +174,29 @@ export default function RankTrackingProject() {
   const { data: keywordHistory } = useQuery({
     queryKey: ["rank-tracking-history", selectedKeywordId],
     queryFn: async () => {
-      if (!selectedKeywordId) return [];
+      if (!selectedKeywordId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("rank_tracking_history")
         .select("*")
         .eq("keyword_id", selectedKeywordId)
         .order("checked_at", { ascending: true })
         .limit(60);
-      if (error) throw error;
-      return data as HistoryRecord[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<HistoryRecord>;
     },
     enabled: !!selectedKeywordId,
   });
 
   // Add keywords mutation
   const addKeywordsMutation = useMutation({
-    mutationFn: async (keywordsList: string[]) => {
-      if (!projectId) throw new Error("No project");
+    mutationFn: async (keywordsList: Array<string>) => {
+      if (!projectId) {
+        throw new Error("No project");
+      }
 
       const keywordsToInsert = keywordsList.map((keyword) => ({
         project_id: projectId,
@@ -191,7 +207,9 @@ export default function RankTrackingProject() {
         .from("rank_tracking_keywords")
         .insert(keywordsToInsert);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("ביטויים נוספו בהצלחה!");
@@ -213,7 +231,9 @@ export default function RankTrackingProject() {
         .from("rank_tracking_keywords")
         .delete()
         .eq("id", keywordId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("ביטוי נמחק");
@@ -228,7 +248,9 @@ export default function RankTrackingProject() {
 
   // Helper function to check if keyword was scanned today
   const isScannedToday = (keyword: Keyword): boolean => {
-    if (!keyword.last_checked_at) return false;
+    if (!keyword.last_checked_at) {
+      return false;
+    }
     const lastChecked = new Date(keyword.last_checked_at);
     const today = new Date();
     return lastChecked.toDateString() === today.toDateString();
@@ -239,13 +261,15 @@ export default function RankTrackingProject() {
   const BATCH_SIZE = 5;
 
   const scanMutation = useMutation({
-    mutationFn: async (keywordIds?: string[]) => {
+    mutationFn: async (keywordIds?: Array<string>) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
-      let idsToScan: string[] = [];
+      let idsToScan: Array<string> = [];
       let skippedCount = 0;
 
       // If scanning all (no specific keywordIds provided), filter out keywords already scanned today
@@ -268,7 +292,7 @@ export default function RankTrackingProject() {
       }
 
       // Split into batches
-      const batches: string[][] = [];
+      const batches: Array<Array<string>> = [];
       for (let i = 0; i < idsToScan.length; i += BATCH_SIZE) {
         batches.push(idsToScan.slice(i, i + BATCH_SIZE));
       }
@@ -342,7 +366,7 @@ export default function RankTrackingProject() {
   });
 
   const handleAddKeywords = () => {
-    let keywordsList: string[] = [];
+    let keywordsList: Array<string> = [];
 
     if (inputMode === "manual") {
       keywordsList = newKeywords
@@ -363,7 +387,9 @@ export default function RankTrackingProject() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
@@ -388,7 +414,7 @@ export default function RankTrackingProject() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          const data = results.data as Record<string, string>[];
+          const data = results.data as Array<Record<string, string>>;
           if (data.length === 0) {
             toast.error("הקובץ ריק");
             return;
@@ -484,12 +510,15 @@ export default function RankTrackingProject() {
         </Badge>
       );
     }
-    if (position <= 3)
+    if (position <= 3) {
       return <Badge className="bg-green-500">{position}</Badge>;
-    if (position <= 10)
+    }
+    if (position <= 10) {
       return <Badge className="bg-blue-500">{position}</Badge>;
-    if (position <= 20)
+    }
+    if (position <= 20) {
       return <Badge className="bg-amber-500">{position}</Badge>;
+    }
     return <Badge variant="secondary">{position}</Badge>;
   };
 
@@ -535,7 +564,9 @@ export default function RankTrackingProject() {
         keywords
           ?.map((k) => k.current_position)
           .filter((p): p is number => p !== null) || [];
-      if (positions.length === 0) return null;
+      if (positions.length === 0) {
+        return null;
+      }
       return (
         Math.round(
           (positions.reduce((a, b) => a + b, 0) / positions.length) * 10,
@@ -631,7 +662,9 @@ export default function RankTrackingProject() {
                 value={inputMode}
                 onValueChange={(v) => {
                   setInputMode(v as "manual" | "file");
-                  if (v === "manual") resetFileState();
+                  if (v === "manual") {
+                    resetFileState();
+                  }
                 }}
               >
                 <TabsList className="grid w-full grid-cols-2">

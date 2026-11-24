@@ -15,7 +15,7 @@ export type DevAgent = keyof typeof AGENT_SPELLINGS;
 export const AGENT_WORDS = Object.values(AGENT_SPELLINGS).flat();
 
 /** One of these names as a word of its own, maybe after "ל" ("לקרסר"): "מנוסה" is not Manus. */
-export const asWord = (names: string[]) =>
+export const asWord = (names: Array<string>) =>
   `(?<![א-תa-z0-9])(?:ו?ל-?)?(?:${names.join("|")})(?![א-תa-z0-9])`;
 
 const AGENT_NAME = Object.fromEntries(
@@ -28,7 +28,7 @@ const AGENT_NAME = Object.fromEntries(
 /** The coding agent the user's yes names ("כן, לקלוד"), if exactly one. */
 export function namedDevAgent(text: unknown): DevAgent | null {
   const t = normalizeApprovalText(text);
-  const named = (Object.keys(AGENT_NAME) as DevAgent[]).filter((agent) =>
+  const named = (Object.keys(AGENT_NAME) as Array<DevAgent>).filter((agent) =>
     AGENT_NAME[agent].test(t),
   );
   return named.length === 1 ? named[0] : null;

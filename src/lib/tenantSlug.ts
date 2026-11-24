@@ -16,7 +16,9 @@ export function isValidTenantSlug(slug: string): boolean {
 }
 
 export function tenantSlugValidationMessage(slug: string): string | null {
-  if (!slug) return "יש להזין סלאג";
+  if (!slug) {
+    return "יש להזין סלאג";
+  }
   if (!isValidTenantSlug(slug)) {
     return "סלאג חייב להיות 3-64 תווים: אותיות באנגלית, מספרים, מקפים או קווים תחתונים";
   }

@@ -10,14 +10,14 @@ export interface FakeResult {
  * A client whose queries record every builder call as [table, method, ...args].
  * Each from(table) resolves to the next entry of `results[table]`.
  */
-export function fakeDb(results: Record<string, FakeResult[]>) {
-  const calls: unknown[][] = [];
+export function fakeDb(results: Record<string, Array<FakeResult>>) {
+  const calls: Array<Array<unknown>> = [];
   const client = {
     from(table: string) {
       const result = results[table]?.shift() ?? { data: null, error: null };
       const record =
         (method: string) =>
-        (...args: unknown[]) => {
+        (...args: Array<unknown>) => {
           calls.push([table, method, ...args]);
           return query;
         };

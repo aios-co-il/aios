@@ -13,7 +13,9 @@ import { VIEW_CLIENT_DENIED, startProjectClient } from "../view-client.ts";
 export async function workshopStartProject(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, userId, deps } = ctx;
   const brief = String(args.brief ?? "").trim();
-  if (!brief) return { error: "brief נדרש" };
+  if (!brief) {
+    return { error: "brief נדרש" };
+  }
   const refusal = openProjectRefusal(deps.openItemId, deps.userText);
   if (refusal) {
     return refusal;
@@ -25,10 +27,11 @@ export async function workshopStartProject(ctx: ToolContext) {
     try {
       await assertClientAccess(clientId);
     } catch (error) {
-      if (!start.fromView)
+      if (!start.fromView) {
         return {
           error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
         };
+      }
       clientId = null;
       clientNote = VIEW_CLIENT_DENIED;
     }
@@ -38,7 +41,7 @@ export async function workshopStartProject(ctx: ToolContext) {
     title: typeof args.title === "string" ? args.title : undefined,
     kind: namedKind(args.kind),
     formats: Array.isArray(args.formats)
-      ? (args.formats as unknown[]).map(String)
+      ? (args.formats as Array<unknown>).map(String)
       : undefined,
     duration_s:
       typeof args.duration_s === "number" ? args.duration_s : undefined,
@@ -81,7 +84,9 @@ export async function workshopStartProject(ctx: ToolContext) {
     })
     .select("id")
     .single();
-  if (created.error) return { error: created.error.message };
+  if (created.error) {
+    return { error: created.error.message };
+  }
   const itemId = created.data.id as string;
   const artifact = await recordArtifact(supabase, {
     tenantId,
@@ -125,7 +130,7 @@ function targetChannel(plan: StartProjectPlan): string {
   return plan.projectType === "static" ? "creative" : plan.projectType;
 }
 
-const KINDS: readonly StartProjectPlan["kind"][] = [
+const KINDS: ReadonlyArray<StartProjectPlan["kind"]> = [
   "video",
   "static",
   "campaign",

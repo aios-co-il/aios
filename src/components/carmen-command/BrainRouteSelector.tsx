@@ -18,7 +18,7 @@ import { BrainRouteNote } from "./BrainRouteNote";
 import { statusLabel } from "./brainRouteStatus";
 
 interface BrainRouteSelectorProps {
-  routes: BrainRoute[];
+  routes: Array<BrainRoute>;
   value: string | null;
   onChange: (route: BrainRoute) => void;
   disabled?: boolean;
@@ -42,11 +42,11 @@ export function BrainRouteSelector({
   const list = routes.length ? routes : FALLBACK_BRAIN_ROUTES;
   const current =
     list.find((r) => r.id === value || r.slug === value) || list[0];
-  const grouped = list.reduce<Record<string, BrainRoute[]>>((acc, r) => {
+  const grouped = list.reduce<Record<string, Array<BrainRoute>>>((acc, r) => {
     (acc[r.route_type] ||= []).push(r);
     return acc;
   }, {});
-  const groups = Object.keys(grouped) as BrainRouteType[];
+  const groups = Object.keys(grouped) as Array<BrainRouteType>;
 
   return (
     <div

@@ -123,7 +123,7 @@ serve(async (req) => {
       synced: 0,
       updated: 0,
       failed: 0,
-      errors: [] as string[],
+      errors: [] as Array<string>,
     };
 
     for (const task of tasks || []) {

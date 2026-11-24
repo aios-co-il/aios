@@ -11,7 +11,7 @@ export async function resolveClearedAlerts(
   input: {
     tenantId: string;
     adAccountId: string;
-    findings: Finding[];
+    findings: Array<Finding>;
     now?: Date;
   },
 ): Promise<number> {

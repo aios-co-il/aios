@@ -12,7 +12,7 @@ export interface AgentToolEntry {
   group: string;
 }
 
-export const AGENT_TOOLS_CATALOG: AgentToolEntry[] = [
+export const AGENT_TOOLS_CATALOG: Array<AgentToolEntry> = [
   { name: "create_lead", label: "יצירת ליד", group: "לידים" },
   { name: "list_leads", label: "צפייה בלידים", group: "לידים" },
   { name: "update_lead_status", label: "עדכון סטטוס ליד", group: "לידים" },

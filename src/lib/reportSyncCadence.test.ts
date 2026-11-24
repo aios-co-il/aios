@@ -5,7 +5,7 @@ import {
   WOO_SYNC_SCHEDULE,
 } from "./cronJobsCatalog.ts";
 
-function minutesOfDay(cron: string): number[] {
+function minutesOfDay(cron: string): Array<number> {
   const [minute, hour] = cron.split(/\s+/);
   const minutes = minute.split(",").map(Number);
   const hours = hour.split(",").map(Number);

@@ -44,7 +44,7 @@ export interface FlowNodeData {
   sort_order: number;
   parent_step_id?: string | null;
   condition_branch?: string | null;
-  switch_branches?: string[];
+  switch_branches?: Array<string>;
 }
 
 export const NODE_WIDTH = 240;

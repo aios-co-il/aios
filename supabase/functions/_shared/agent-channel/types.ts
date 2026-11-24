@@ -93,7 +93,7 @@ export type SendContext = {
   conversationId: string;
   route: BrainRouteRow;
   content: string;
-  attachments?: ChannelAttachment[];
+  attachments?: Array<ChannelAttachment>;
   inputMode: InputMode;
   idempotencyKey: string;
   history: Array<{ role: string; content: string }>;

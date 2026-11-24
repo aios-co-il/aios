@@ -17,7 +17,7 @@ interface UnifiedProvider {
   name: string;
   type: string;
   icon_url: string | null;
-  categories: string[];
+  categories: Array<string>;
 }
 
 interface Props {
@@ -38,7 +38,7 @@ export default function UnifiedProviderPicker({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [providers, setProviders] = useState<UnifiedProvider[]>([]);
+  const [providers, setProviders] = useState<Array<UnifiedProvider>>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(false);
   const [selectedProvider, setSelectedProvider] =
     useState<UnifiedProvider | null>(null);
@@ -52,7 +52,9 @@ export default function UnifiedProviderPicker({
   };
 
   const handleOpenChange = (val: boolean) => {
-    if (!val) resetState();
+    if (!val) {
+      resetState();
+    }
     onOpenChange(val);
   };
 
@@ -72,7 +74,9 @@ export default function UnifiedProviderPicker({
   }, []);
 
   const fetchProviders = async () => {
-    if (!selectedCategory) return;
+    if (!selectedCategory) {
+      return;
+    }
     setIsLoadingProviders(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -85,7 +89,9 @@ export default function UnifiedProviderPicker({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setProviders(data?.integrations || []);
     } catch (err: any) {
       toast({
@@ -152,7 +158,9 @@ export default function UnifiedProviderPicker({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data?.embed_url) {
         window.open(data.embed_url, "_blank", "width=600,height=700");
       }

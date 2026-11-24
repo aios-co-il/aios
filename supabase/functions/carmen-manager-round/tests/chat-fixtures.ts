@@ -61,7 +61,7 @@ export function staffRow(fields: Partial<ActivityRow> = {}): ActivityRow {
 }
 
 /** One thread from rows, with the staff key on the roster. */
-export function thread(rows: ActivityRow[]): Thread {
+export function thread(rows: Array<ActivityRow>): Thread {
   const [built] = buildThreads(rows, new Set([STAFF_KEY]), []);
   return built;
 }
@@ -119,7 +119,7 @@ export const REPORT_VERDICT: ChatVerdict = {
 };
 
 /** A wait with a request but no request marker (c1), then the client's receipt (c2). */
-export function receiptRows(): ActivityRow[] {
+export function receiptRows(): Array<ActivityRow> {
   return [
     staffRow({ message_id: "hi", created_at: il("08:00") }),
     row({

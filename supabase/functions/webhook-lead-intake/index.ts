@@ -55,7 +55,9 @@ interface LeadPayload {
 function pickCampaignName(
   body: Record<string, unknown> | null | undefined,
 ): string | undefined {
-  if (!body) return undefined;
+  if (!body) {
+    return undefined;
+  }
   const candidates = [
     body.campaign_name,
     body.campaign,
@@ -64,8 +66,9 @@ function pickCampaignName(
     body["שם הקמפיין"],
   ];
   for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim())
+    if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
+    }
   }
   return undefined;
 }
@@ -118,7 +121,9 @@ Deno.serve(async (req) => {
       for (const sub of wixSubmissions) {
         const label = (sub.label || "").trim().toLowerCase();
         const value = (sub.value || "").trim();
-        if (!value) continue;
+        if (!value) {
+          continue;
+        }
         parsedFormData[String(sub.label || label)] = value;
 
         // Map Hebrew and English Wix form labels to lead fields
@@ -643,10 +648,11 @@ Deno.serve(async (req) => {
         signal: automationAbort.signal,
       })
         .then((r) => {
-          if (!r.ok)
+          if (!r.ok) {
             r.text().then((t) =>
               console.error("⚠️ Automation trigger failed:", t),
             );
+          }
         })
         .catch((e) => console.error("⚠️ Automation trigger error:", e.message));
     }

@@ -25,8 +25,15 @@ test("the ten specialist personas resolve to shipped portraits", () => {
 });
 
 test("marketing manager and unrelated skills keep their original fallback", () => {
-  for (const slug of [null, undefined, "marketing_manager", "legal", "unknown"])
+  for (const slug of [
+    null,
+    undefined,
+    "marketing_manager",
+    "legal",
+    "unknown",
+  ]) {
     assert.equal(getSkinPortrait(slug), undefined);
+  }
   assert.equal(
     getSkinPortrait("tenant-editor", "עורכת וידאו"),
     getSkinPortrait("video_editor"),

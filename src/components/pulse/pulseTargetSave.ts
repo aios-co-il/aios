@@ -11,7 +11,7 @@ export type PulseTargetSaveInput = {
    * A campaign target: the one table that holds it. A platform target: every
    * report table of the client × platform.
    */
-  tableIds: string[];
+  tableIds: Array<string>;
   goal: PulseCampaignGoal;
   kind: PulseTargetKind;
   value: number | null;
@@ -49,7 +49,7 @@ export async function savePulseTargetToTables(
   if (!input.tableIds.length) {
     throw new Error("אין טבלת קמפיינים לשמירת היעד");
   }
-  const written: SavedTable[] = [];
+  const written: Array<SavedTable> = [];
   for (const tableId of input.tableIds) {
     try {
       written.push(await saveToTable(tableId, input, tenantId, setBy));
@@ -133,12 +133,12 @@ async function writeSettings(
  * tables that keep the new target because their restore failed too.
  */
 async function restoreTables(
-  written: SavedTable[],
+  written: Array<SavedTable>,
   input: PulseTargetSaveInput,
   tenantId: string,
   failure: unknown,
 ): Promise<unknown> {
-  const kept: string[] = [];
+  const kept: Array<string> = [];
   for (const table of written) {
     try {
       await restoreTable(table, input, tenantId);

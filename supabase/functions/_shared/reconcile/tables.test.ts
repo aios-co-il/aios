@@ -2,23 +2,23 @@ import { assertEquals } from "jsr:@std/assert@1";
 import { describe, it } from "jsr:@std/testing@1/bdd";
 import { readAiosCampaignRows } from "./tables.ts";
 
-type Call = { method: string; args: unknown[] };
+type Call = { method: string; args: Array<unknown> };
 
 /** A PostgREST-style builder that records calls and answers each `range` with the next page. */
 function pagedDb(pages: Array<Array<Record<string, unknown>>>) {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   let pageIndex = 0;
   const db = {
     from(table: string) {
       calls.push({ method: "from", args: [table] });
       const builder: Record<string, unknown> = {};
       for (const m of ["select", "eq", "gte", "lte", "or", "order"]) {
-        builder[m] = (...args: unknown[]) => {
+        builder[m] = (...args: Array<unknown>) => {
           calls.push({ method: m, args });
           return builder;
         };
       }
-      builder.range = (...args: unknown[]) => {
+      builder.range = (...args: Array<unknown>) => {
         calls.push({ method: "range", args });
         return Promise.resolve({ data: pages[pageIndex++] || [], error: null });
       };

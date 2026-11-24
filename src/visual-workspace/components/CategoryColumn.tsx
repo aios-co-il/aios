@@ -69,7 +69,9 @@ export function CategoryColumn({
                   onRenameSection(draftSection);
                   setEditingSection(false);
                 }
-                if (e.key === "Escape") setEditingSection(false);
+                if (e.key === "Escape") {
+                  setEditingSection(false);
+                }
               }}
             />
             <button
@@ -171,7 +173,9 @@ function CardWithChildren({
                 onRename(draft);
                 setRenaming(false);
               }
-              if (e.key === "Escape") setRenaming(false);
+              if (e.key === "Escape") {
+                setRenaming(false);
+              }
             }}
           />
           <button

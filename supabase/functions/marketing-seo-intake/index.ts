@@ -33,14 +33,18 @@ const MANUAL_QUESTIONS = [
 ];
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   try {
     const auth = await requireAuth(req);
-    if (!auth) return respond({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
 
     const body = await req.json();
     const {
@@ -53,16 +57,18 @@ serve(async (req) => {
       user_prompt = "",
     } = body as Record<string, unknown>;
 
-    if (!work_item_id || !mode)
+    if (!work_item_id || !mode) {
       return respond({ error: "work_item_id and mode required" }, 400);
+    }
 
     const { data: item } = await admin
       .from("marketing_work_items")
       .select("*")
       .eq("id", work_item_id)
       .single();
-    if (!item?.client_id)
+    if (!item?.client_id) {
       return respond({ error: "Work item must have a client" }, 400);
+    }
     if (auth.kind === "user") {
       const { data: membership } = await admin
         .from("tenant_users")
@@ -70,12 +76,15 @@ serve(async (req) => {
         .eq("tenant_id", item.tenant_id)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return respond({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return respond({ error: "Forbidden" }, 403);
+      }
     }
     // The program belongs to the client it was made for: never point it at another one.
     const program = await findSeoProgram(admin, item.id);
-    if (program && program.client_id !== item.client_id)
+    if (program && program.client_id !== item.client_id) {
       return respond({ error: PROGRAM_OF_ANOTHER_CLIENT }, 409);
+    }
 
     const context = await gatherSeoClientContext(
       admin,
@@ -134,7 +143,9 @@ serve(async (req) => {
           .maybeSingle();
         settings = (source?.settings ?? settings) as Record<string, string>;
       }
-      if (!settings.openai_api_key) throw new Error("OpenAI API key missing");
+      if (!settings.openai_api_key) {
+        throw new Error("OpenAI API key missing");
+      }
 
       const system = `${skinBlock}\n\nאת כרמן — מנהלת SEO/GEO. בני בריף עבודה מנתונים אמיתיים בלבד; סמני מה חסר. החזירי JSON:
 {"brief_text":"","competitors":[""],"keyword_seeds":[""],"ai_visibility_notes":[""],"data_gaps":[""]}`;
@@ -168,7 +179,9 @@ serve(async (req) => {
           ],
         }),
       });
-      if (!ai.ok) throw new Error(`Intake AI failed: ${ai.status}`);
+      if (!ai.ok) {
+        throw new Error(`Intake AI failed: ${ai.status}`);
+      }
       const parsed = JSON.parse(
         (await ai.json()).choices?.[0]?.message?.content ?? "{}",
       );
@@ -184,7 +197,9 @@ serve(async (req) => {
       return respond({ error: "Invalid mode" }, 400);
     }
 
-    if (!briefText) return respond({ error: "Brief is empty" }, 400);
+    if (!briefText) {
+      return respond({ error: "Brief is empty" }, 400);
+    }
 
     // Before the brief is saved: a program another intake just made on another client refuses.
     const saved = await ensureSeoProgram(
@@ -193,7 +208,9 @@ serve(async (req) => {
       program,
       wpSite?.id ?? null,
     );
-    if (!saved) return respond({ error: PROGRAM_OF_ANOTHER_CLIENT }, 409);
+    if (!saved) {
+      return respond({ error: PROGRAM_OF_ANOTHER_CLIENT }, 409);
+    }
     // The site the program publishes to, which the intake does not change once it exists.
     const siteId = saved.wordpress_site_id;
 

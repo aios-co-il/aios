@@ -10,6 +10,6 @@ import type { CarmenReportRecipient } from "./resolve.ts";
 /** The first recipient from the configured list, or undefined. */
 export function notifyReportRecipient<
   T extends Pick<CarmenReportRecipient, "source">,
->(recipients: T[] | undefined): T | undefined {
+>(recipients: Array<T> | undefined): T | undefined {
   return recipients?.find((recipient) => recipient.source === "configured");
 }

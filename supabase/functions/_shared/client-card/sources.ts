@@ -18,7 +18,7 @@ export const CLIENT_CARD_SOURCES = [
 export type ClientCardSource = (typeof CLIENT_CARD_SOURCES)[number];
 
 /** Sources whose rows may count as client contact; the SQL keeps its own copy as the owner. */
-export const CONTACT_COUNTING_SOURCES: readonly ClientCardSource[] = [
+export const CONTACT_COUNTING_SOURCES: ReadonlyArray<ClientCardSource> = [
   "human",
   "carmen_confirmed",
 ];

@@ -23,7 +23,7 @@ function jsonResponse(body: any, status = 200) {
 
 async function route(
   supervisor: any,
-  children: any[],
+  children: Array<any>,
   goal: string,
   context: any,
 ) {
@@ -56,8 +56,9 @@ async function route(
       response_format: { type: "json_object" },
     }),
   });
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`routing LLM ${resp.status}: ${await resp.text()}`);
+  }
   const data = await resp.json();
   const content = data.choices?.[0]?.message?.content ?? "{}";
   let parsed: any;
@@ -70,8 +71,9 @@ async function route(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const body = await req.json();
@@ -90,7 +92,9 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", supervisor_agent_id)
       .single();
-    if (!supervisor) throw new Error("supervisor agent not found");
+    if (!supervisor) {
+      throw new Error("supervisor agent not found");
+    }
 
     const { data: children } = await supabase
       .from("agent_supervisors")
@@ -123,7 +127,9 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    if (parentErr) throw parentErr;
+    if (parentErr) {
+      throw parentErr;
+    }
 
     const delegations = await route(supervisor, children, goal, context);
 
@@ -145,8 +151,9 @@ Deno.serve(async (req) => {
         const validChild = children.find(
           (c: any) => c.child_agent_id === d.agent_id,
         );
-        if (!validChild)
+        if (!validChild) {
           return { agent_id: d.agent_id, error: "child not authorized" };
+        }
         try {
           const { data, error } = await supabase.functions.invoke(
             "run-ai-agent-v2",
@@ -162,7 +169,9 @@ Deno.serve(async (req) => {
               },
             },
           );
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return { agent_id: d.agent_id, ...data };
         } catch (e: any) {
           return { agent_id: d.agent_id, error: String(e?.message ?? e) };

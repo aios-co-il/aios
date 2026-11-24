@@ -17,12 +17,14 @@ Deno.serve(async (req) => {
   try {
     const TIKTOK_ACCESS_TOKEN = Deno.env.get("TIKTOK_ACCESS_TOKEN");
     const TIKTOK_API_KEY = Deno.env.get("TIKTOK_API_KEY");
-    if (!TIKTOK_ACCESS_TOKEN)
+    if (!TIKTOK_ACCESS_TOKEN) {
       throw new Error("TIKTOK_ACCESS_TOKEN not configured");
-    if (!TIKTOK_API_KEY)
+    }
+    if (!TIKTOK_API_KEY) {
       throw new Error(
         "TIKTOK_API_KEY not configured — TikTok connector not linked",
       );
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -140,7 +142,9 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("id", existing.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     } else {
       const { error } = await supabaseAdmin.from("tenant_integrations").insert({
         tenant_id: tenantId,
@@ -148,7 +152,9 @@ Deno.serve(async (req) => {
         is_active: true,
         settings,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     }
 
     return new Response(JSON.stringify({ success: true, account: settings }), {

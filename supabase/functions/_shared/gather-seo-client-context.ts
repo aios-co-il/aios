@@ -99,7 +99,9 @@ export async function gatherSeoClientContext(
       .limit(35);
     const seen = new Set(chatsMerged.map((m) => m.id));
     for (const row of groupChats ?? []) {
-      if (!seen.has(row.id)) chatsMerged.push(row);
+      if (!seen.has(row.id)) {
+        chatsMerged.push(row);
+      }
     }
     chatsMerged.sort((a, b) =>
       String(b.created_at).localeCompare(String(a.created_at)),
@@ -121,7 +123,9 @@ export async function gatherSeoClientContext(
     .map((row) => {
       const payload = (row.payload ?? {}) as Record<string, unknown>;
       const text = String(payload.brief_text ?? payload.brief ?? "").trim();
-      if (!text) return null;
+      if (!text) {
+        return null;
+      }
       return {
         id: row.id,
         title: row.title,
@@ -187,7 +191,9 @@ export async function fetchPublicWebsiteSnippet(
       },
       signal: AbortSignal.timeout(12_000),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return null;
+    }
     const html = await res.text();
     const text = html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")

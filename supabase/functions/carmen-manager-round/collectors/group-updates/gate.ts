@@ -17,7 +17,7 @@ export type WindowAction = "advance" | "wait" | "digest";
 /** The action for one window, given the tenant's card entries. */
 export function gateWindow(
   window: GroupWindow,
-  entries: CardEntry[],
+  entries: Array<CardEntry>,
 ): WindowAction {
   const counted = substantive(window);
   const first = counted[0];

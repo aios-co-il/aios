@@ -20,11 +20,13 @@ interface Props {
 export function CustomerSheet({ clientId, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [client, setClient] = useState<any>(null);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<Array<any>>([]);
+  const [messages, setMessages] = useState<Array<any>>([]);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId) {
+      return;
+    }
     setLoading(true);
     const sb = supabase as any;
     Promise.all([

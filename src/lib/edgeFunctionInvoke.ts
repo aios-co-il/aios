@@ -20,11 +20,16 @@ export async function invokeEdgeFunction<T = Record<string, unknown>>(
     if (ctx && typeof ctx.json === "function") {
       try {
         const payload = await ctx.clone().json();
-        if (payload?.error) throw new Error(String(payload.error));
-        if (payload?.message) throw new Error(String(payload.message));
+        if (payload?.error) {
+          throw new Error(String(payload.error));
+        }
+        if (payload?.message) {
+          throw new Error(String(payload.message));
+        }
       } catch (inner) {
-        if (inner instanceof Error && inner.message !== error.message)
+        if (inner instanceof Error && inner.message !== error.message) {
           throw inner;
+        }
       }
     }
     throw new Error(error.message || `קריאה ל-${name} נכשלה`);

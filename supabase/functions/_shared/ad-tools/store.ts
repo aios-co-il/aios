@@ -128,7 +128,10 @@ export function createAdScopeStore(db: StoreDb): AdScopeStore {
 
 /** The rows, or the query's error thrown so a failed lookup is never read as
  * "no rows". */
-function rowsOrThrow<T>(res: { data: T[] | null; error: unknown }): T[] {
+function rowsOrThrow<T>(res: {
+  data: Array<T> | null;
+  error: unknown;
+}): Array<T> {
   if (res.error) {
     throw res.error;
   }
@@ -137,8 +140,8 @@ function rowsOrThrow<T>(res: { data: T[] | null; error: unknown }): T[] {
 
 /** clients.id or crm_tables.client_id of each row. */
 function clientIdsOf(
-  rows: { id?: string | null; client_id?: string | null }[],
-): string[] {
+  rows: Array<{ id?: string | null; client_id?: string | null }>,
+): Array<string> {
   return rows
     .map((r) => r.id ?? r.client_id)
     .filter((id): id is string => !!id);
@@ -146,6 +149,6 @@ function clientIdsOf(
 
 /** Variants are digits, "act_<digits>" or "ddd-ddd-dddd", so they are safe
  * inside a PostgREST in.(...) list. */
-function inList(variants: string[]): string {
+function inList(variants: Array<string>): string {
   return `in.(${variants.join(",")})`;
 }

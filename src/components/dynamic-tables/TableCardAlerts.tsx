@@ -75,8 +75,10 @@ export function TableCardAlerts({
         .eq("table_id", tableId)
         .eq("is_active", true);
 
-      if (error) throw error;
-      return data as ReportAlert[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<ReportAlert>;
     },
     enabled: !!tableId,
   });
@@ -88,7 +90,9 @@ export function TableCardAlerts({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return [];
+      if (!session) {
+        return [];
+      }
 
       const response = await supabase.functions.invoke(
         `crm-records?table_id=${tableId}&date_filter=last_30_days`,
@@ -96,15 +100,19 @@ export function TableCardAlerts({
           method: "GET",
         },
       );
-      if (response.error) return [];
-      return Array.isArray(response.data) ? (response.data as CrmRecord[]) : [];
+      if (response.error) {
+        return [];
+      }
+      return Array.isArray(response.data)
+        ? (response.data as Array<CrmRecord>)
+        : [];
     },
     enabled: !!tableId && alerts.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const triggeredAlerts = useMemo(() => {
-    const triggered: TriggeredAlert[] = [];
+    const triggered: Array<TriggeredAlert> = [];
     const today = new Date();
 
     // Check account-level blocking first
@@ -142,17 +150,23 @@ export function TableCardAlerts({
         for (const [campaignId, campaignRecords] of Object.entries(
           campaignGroups,
         )) {
-          const latestRecord = getLatestRecord(campaignRecords as CrmRecord[]);
+          const latestRecord = getLatestRecord(
+            campaignRecords as Array<CrmRecord>,
+          );
           const effectiveStatus = latestRecord?.data?.effective_status;
           const configuredStatus = latestRecord?.data?.configured_status;
 
           // Only show alert if BLOCKED by Meta (not manually paused)
           if (effectiveStatus && BLOCKED_STATUSES.includes(effectiveStatus)) {
-            if (configuredStatus === "PAUSED") continue;
+            if (configuredStatus === "PAUSED") {
+              continue;
+            }
 
             triggered.push({
               alert,
-              campaignName: getCampaignName(campaignRecords as CrmRecord[]),
+              campaignName: getCampaignName(
+                campaignRecords as Array<CrmRecord>,
+              ),
               currentValue: 0,
               previousValue: 0,
               changePercent: 0,
@@ -222,7 +236,9 @@ export function TableCardAlerts({
         alert.metric,
       );
 
-      if (previousValue === 0) continue;
+      if (previousValue === 0) {
+        continue;
+      }
 
       const changePercent =
         ((currentValue - previousValue) / previousValue) * 100;
@@ -258,7 +274,9 @@ export function TableCardAlerts({
     return triggered;
   }, [alerts, records, integrationSettings]);
 
-  if (triggeredAlerts.length === 0) return null;
+  if (triggeredAlerts.length === 0) {
+    return null;
+  }
 
   // Show compact version for card
   const blockingAlerts = triggeredAlerts.filter((t) => t.isBlocking);
@@ -345,8 +363,10 @@ function getCampaignBlockReason(effectiveStatus: string): string {
   }
 }
 
-function getLatestRecord(records: CrmRecord[]): CrmRecord | null {
-  if (records.length === 0) return null;
+function getLatestRecord(records: Array<CrmRecord>): CrmRecord | null {
+  if (records.length === 0) {
+    return null;
+  }
   return records.reduce((latest, record) => {
     const recordDate = record.data?.date || record.data?.Date || "";
     const latestDate = latest?.data?.date || latest?.data?.Date || "";
@@ -355,28 +375,32 @@ function getLatestRecord(records: CrmRecord[]): CrmRecord | null {
 }
 
 function groupRecordsByCampaign(
-  records: CrmRecord[],
-): Record<string, CrmRecord[]> {
-  const groups: Record<string, CrmRecord[]> = {};
+  records: Array<CrmRecord>,
+): Record<string, Array<CrmRecord>> {
+  const groups: Record<string, Array<CrmRecord>> = {};
   for (const record of records) {
     const campaignId =
       record.data?.campaign_id ||
       record.data?.campaignId ||
       record.data?.campaign_name ||
       "unknown";
-    if (!groups[campaignId]) groups[campaignId] = [];
+    if (!groups[campaignId]) {
+      groups[campaignId] = [];
+    }
     groups[campaignId].push(record);
   }
   return groups;
 }
 
-function getCampaignName(records: CrmRecord[]): string {
-  if (records.length === 0) return "";
+function getCampaignName(records: Array<CrmRecord>): string {
+  if (records.length === 0) {
+    return "";
+  }
   return records[0].data?.campaign_name || records[0].data?.campaignName || "";
 }
 
 function calculateMetric(
-  records: CrmRecord[],
+  records: Array<CrmRecord>,
   startDate: Date,
   endDate: Date,
   metric: string,
@@ -386,12 +410,16 @@ function calculateMetric(
 
   const filtered = records.filter((r) => {
     const recordDate = r.data?.date || r.data?.Date;
-    if (!recordDate) return false;
+    if (!recordDate) {
+      return false;
+    }
     // Use >= startStr and < endStr to avoid overlap between periods
     return recordDate >= startStr && recordDate < endStr;
   });
 
-  if (filtered.length === 0) return 0;
+  if (filtered.length === 0) {
+    return 0;
+  }
 
   // For cost_per_lead: calculate as total spend / total leads
   if (metric === "cost_per_lead") {
@@ -413,7 +441,9 @@ function calculateMetric(
       totalLeads += leads;
     }
 
-    if (totalLeads === 0) return 0;
+    if (totalLeads === 0) {
+      return 0;
+    }
     return totalSpend / totalLeads;
   }
 
@@ -436,7 +466,9 @@ function calculateMetric(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalSpend / totalImpressions) * 1000;
   }
 
@@ -459,12 +491,14 @@ function calculateMetric(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalClicks / totalImpressions) * 100;
   }
 
   // For other metrics: sum them up
-  const metricKeys: Record<string, string[]> = {
+  const metricKeys: Record<string, Array<string>> = {
     spend: ["spend", "amount_spent", "Spend"],
     leads: ["leads", "results", "Leads"],
     impressions: ["impressions", "Impressions"],

@@ -58,14 +58,18 @@ async function applyPlanResponse(
   json: Record<string, unknown>,
 ): Promise<{ ok: boolean; error?: string }> {
   const steps = Array.isArray(json.plan_steps) ? json.plan_steps : [];
-  if (!steps.length) return { ok: false, error: "empty_plan_steps" };
+  if (!steps.length) {
+    return { ok: false, error: "empty_plan_steps" };
+  }
 
   const { data: goal } = await supabase
     .from("goals")
     .select("tenant_id, title")
     .eq("id", request.goal_id)
     .maybeSingle();
-  if (!goal) return { ok: false, error: "goal_not_found" };
+  if (!goal) {
+    return { ok: false, error: "goal_not_found" };
+  }
 
   const slice = steps.slice(0, 8) as Array<Record<string, unknown>>;
   for (const [i, step] of slice.entries()) {
@@ -125,7 +129,9 @@ async function applyStepExecuteResponse(
     .select("tenant_id")
     .eq("id", request.goal_id)
     .maybeSingle();
-  if (!goal) return { ok: false, error: "goal_not_found" };
+  if (!goal) {
+    return { ok: false, error: "goal_not_found" };
+  }
 
   const { data: criteria } = await supabase
     .from("goal_success_criteria")
@@ -159,8 +165,12 @@ async function applyStepExecuteResponse(
     const criterion = (criteria || []).find(
       (c: { criterion_key: string }) => c.criterion_key === key,
     );
-    if (!criterion) continue;
-    if (!["PASS", "FAIL", "UNKNOWN", "NOT_TESTED"].includes(status)) continue;
+    if (!criterion) {
+      continue;
+    }
+    if (!["PASS", "FAIL", "UNKNOWN", "NOT_TESTED"].includes(status)) {
+      continue;
+    }
     await supabase
       .from("goal_success_criteria")
       .update({

@@ -35,7 +35,7 @@ export function SeoContentPlanReview({
 }: Props) {
   const plan = payload?.seo_plan;
   const planStatus = String(payload?.seo_plan_status ?? "pending");
-  const [items, setItems] = useState<ContentPlanItem[]>([]);
+  const [items, setItems] = useState<Array<ContentPlanItem>>([]);
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
   const [revising, setRevising] = useState(false);
@@ -47,7 +47,7 @@ export function SeoContentPlanReview({
   const approved = planStatus === "approved";
 
   const savePlan = async (
-    nextItems: ContentPlanItem[],
+    nextItems: Array<ContentPlanItem>,
     extraPayload?: Pick<SeoPayload, "seo_plan_status">,
   ) => {
     setSaving(true);
@@ -63,7 +63,9 @@ export function SeoContentPlanReview({
           },
         })
         .eq("id", workItemId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("תוכנית התוכן נשמרה");
       onUpdated();
     } catch (e: unknown) {
@@ -94,8 +96,12 @@ export function SeoContentPlanReview({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(String(data.error));
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(String(data.error));
+      }
       await supabase
         .from("marketing_work_items")
         .update({

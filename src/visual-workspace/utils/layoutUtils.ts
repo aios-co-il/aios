@@ -84,7 +84,7 @@ export const DEFAULT_LAYOUTS: Record<IslandId, LayoutItem> = {
   },
 };
 
-export const ISLAND_IDS: IslandId[] = [
+export const ISLAND_IDS: Array<IslandId> = [
   "management",
   "marketing",
   "sales",

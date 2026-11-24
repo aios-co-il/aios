@@ -32,7 +32,9 @@ serve(async (req) => {
       .eq("woocommerce_enabled", true)
       .eq("woo_sync_enabled", true);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     if (!sites || sites.length === 0) {
       console.log("[cron-sync-woocommerce] No sites to sync");
@@ -48,7 +50,9 @@ serve(async (req) => {
     const { data: syncResult, error: syncError } =
       await supabase.functions.invoke("sync-woocommerce-data", { body: {} });
 
-    if (syncError) throw syncError;
+    if (syncError) {
+      throw syncError;
+    }
 
     console.log("[cron-sync-woocommerce] Sync completed:", syncResult);
 

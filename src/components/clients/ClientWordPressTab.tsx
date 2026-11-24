@@ -47,8 +47,10 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         .from("social_media_wordpress_sites" as any)
         .select("*")
         .eq("client_id", clientId);
-      if (error) throw error;
-      return (data || []) as any[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<any>;
     },
     enabled: !!clientId,
   });
@@ -59,15 +61,19 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
   const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ["client-woo-orders", siteIds],
     queryFn: async () => {
-      if (siteIds.length === 0) return [];
+      if (siteIds.length === 0) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("woocommerce_orders" as any)
         .select("*")
         .in("site_id", siteIds)
         .order("date_created", { ascending: false })
         .limit(50);
-      if (error) throw error;
-      return (data || []) as any[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });
@@ -75,15 +81,19 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
   const { data: products = [] } = useQuery({
     queryKey: ["client-woo-products", siteIds],
     queryFn: async () => {
-      if (siteIds.length === 0) return [];
+      if (siteIds.length === 0) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("woocommerce_products" as any)
         .select("*")
         .in("site_id", siteIds)
         .order("total_sales", { ascending: false })
         .limit(50);
-      if (error) throw error;
-      return (data || []) as any[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });
@@ -91,15 +101,19 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
   const { data: customers = [] } = useQuery({
     queryKey: ["client-woo-customers", siteIds],
     queryFn: async () => {
-      if (siteIds.length === 0) return [];
+      if (siteIds.length === 0) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("woocommerce_customers" as any)
         .select("*")
         .in("site_id", siteIds)
         .order("total_spent", { ascending: false })
         .limit(50);
-      if (error) throw error;
-      return (data || []) as any[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });
@@ -113,7 +127,9 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
           body: { site_id: siteId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {

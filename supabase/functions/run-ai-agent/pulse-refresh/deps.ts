@@ -9,7 +9,7 @@ const PULSE_REFRESH_TIMEOUT_MS = 120_000;
 export type PulseRefreshDepsOptions = {
   supabase: RefreshClient;
   tenantId: string;
-  accessibleTenantIds?: string[];
+  accessibleTenantIds?: Array<string>;
   assertCallerCanAccessClient?: (clientId: string) => Promise<unknown>;
   requestedBy?: string | null;
   supabaseUrl?: string | null;
@@ -57,7 +57,7 @@ async function assertClientVisible(
   supabase: RefreshClient,
   clientId: string,
   scope: {
-    accessibleTenantIds: string[];
+    accessibleTenantIds: Array<string>;
     assertCallerCanAccessClient?: (clientId: string) => Promise<unknown>;
   },
 ): Promise<void> {

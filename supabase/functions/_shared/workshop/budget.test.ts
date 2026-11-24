@@ -43,7 +43,9 @@ Deno.test(
       userText: yes,
     });
     assertStrictEquals(check.ok, true);
-    if (!check.ok) return;
+    if (!check.ok) {
+      return;
+    }
     const budget = budgetOf(check.payload);
     assertStrictEquals(budget.cap_usd, 10);
     assertStrictEquals(budget.request, undefined);
@@ -117,7 +119,9 @@ Deno.test(
     const approved = { workshop_budget: { cap_usd: 10, spent_usd: 1 } };
     const check = checkBudget(approved, film, { turnId: "turn-9" });
     assertStrictEquals(check.ok, true);
-    if (!check.ok) return;
+    if (!check.ok) {
+      return;
+    }
     const after = spendBudget(check.payload, film.tool, 5);
     assertStrictEquals(budgetOf(after).spent_usd, 3.5);
   },
@@ -158,8 +162,9 @@ Deno.test(
       "https://example.com/ab2026cd",
       "מאשר תקציב 20261",
       "לא מאשר תקציב 2026",
-    ])
+    ]) {
       assertStrictEquals(answer(userText), false, userText);
+    }
     for (const userText of [
       "מאשר תקציב 2026",
       "מאשרת תקציב 2026!",
@@ -167,8 +172,9 @@ Deno.test(
       "קצב: רגוע\nלאשר תקציב של $10 לפרויקט?: מאשר תקציב 2026",
       // The button, which names the amount it approves.
       "מאשר תקציב $10 · 2026",
-    ])
+    ]) {
       assertStrictEquals(answer(userText), true, userText);
+    }
   },
 );
 
@@ -179,7 +185,9 @@ const filmBudget = () => {
     {},
   );
   assertStrictEquals(priced.ok, true);
-  if (!priced.ok) throw new Error("budget refused");
+  if (!priced.ok) {
+    throw new Error("budget refused");
+  }
   return spendBudget(priced.payload, "workshop_produce_video", 5);
 };
 
@@ -224,7 +232,9 @@ Deno.test(
     // The first film was quoted $2.50 and really cost $2.
     const first = settleProduction(filmBudget(), { usd: 2, inFlight: false });
     const checked = checkBudget(first, film, {});
-    if (!checked.ok) throw new Error("budget refused");
+    if (!checked.ok) {
+      throw new Error("budget refused");
+    }
     const second = spendBudget(checked.payload, "workshop_produce_video", 5);
     assertStrictEquals(budgetOf(second).spent_usd, 4.5);
     // Nothing new charged yet: the first film's cost and the second's quote.
@@ -252,7 +262,9 @@ Deno.test("pictures that were not made give their reservation back", () => {
     still,
     {},
   );
-  if (!checked.ok) throw new Error("budget refused");
+  if (!checked.ok) {
+    throw new Error("budget refused");
+  }
   const spent = spendBudget(checked.payload, "workshop_make_stills", 4);
   assertStrictEquals(budgetOf(spent).spent_usd, 0.4);
   assertStrictEquals(
@@ -270,7 +282,9 @@ Deno.test("approving a budget keeps what was already settled", () => {
     { turnId: "turn-2", userText: yes },
   );
   assertStrictEquals(check.ok, true);
-  if (!check.ok) return;
+  if (!check.ok) {
+    return;
+  }
   const budget = budgetOf(check.payload);
   assertStrictEquals(budget.spent_usd, 4.2);
   assertStrictEquals(budget.production_usd, 4.2);

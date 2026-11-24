@@ -27,7 +27,9 @@ export async function tenantOpenRouterConnectionId(
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (error || !data?.id) return null;
+  if (error || !data?.id) {
+    return null;
+  }
   return data.id;
 }
 
@@ -37,7 +39,9 @@ export async function tenantOpenRouterKey(
   tenantId: string,
 ): Promise<string> {
   const id = await tenantOpenRouterConnectionId(sb, tenantId);
-  if (!id) return "";
+  if (!id) {
+    return "";
+  }
   return await connectionSecret(sb, id);
 }
 
@@ -50,7 +54,7 @@ export async function generateOpenRouterImage(args: {
   prompt: string;
   aspectRatio?: string;
   model?: string;
-  references?: { bytes: Uint8Array; mime: string }[];
+  references?: Array<{ bytes: Uint8Array; mime: string }>;
   fetchImpl?: typeof fetch;
 }): Promise<{
   b64: string;
@@ -85,12 +89,15 @@ export async function generateOpenRouterImage(args: {
     redirect: "manual",
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
+  if (!res.ok) {
     throw new Error(
       `OpenRouter image ${res.status}: ${JSON.stringify(data?.error ?? data).slice(0, 200)}`,
     );
+  }
   const image = data?.data?.[0];
-  if (!image?.b64_json) throw new Error("OpenRouter returned no image");
+  if (!image?.b64_json) {
+    throw new Error("OpenRouter returned no image");
+  }
   return {
     b64: image.b64_json,
     mediaType: image.media_type || "image/png",

@@ -64,7 +64,7 @@ Deno.test(
   "clips that are stale, failed or from the free preview are priced before a paid run",
   async () => {
     const ask = async (
-      scenes: Record<string, unknown>[],
+      scenes: Array<Record<string, unknown>>,
       engine: "openrouter" | "mock",
       extra: Record<string, unknown> = {},
     ) =>

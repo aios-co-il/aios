@@ -15,7 +15,7 @@ export const MAX_DEFERRED = 100;
 export type ChainStep = {
   phase: "tables" | "retry" | "accounts";
   cursor: string | null;
-  deferred?: string[];
+  deferred?: Array<string>;
 };
 
 /**
@@ -27,7 +27,7 @@ export type ChainStep = {
  */
 export function nextAfterChunk(
   phase: "tables" | "retry",
-  deferred: string[],
+  deferred: Array<string>,
   chunk: Pick<ChunkResult, "done" | "next_cursor" | "rate_limited_tables">,
 ): ChainStep {
   const carry =

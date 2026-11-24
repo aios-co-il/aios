@@ -35,7 +35,7 @@ export async function pictureFromEngines(
     prompt: string;
     aspectRatio: unknown;
     engine?: ImageProvider;
-    references: ImageReference[];
+    references: Array<ImageReference>;
   },
   deps: PictureDeps = {},
 ): Promise<{ bytes: Uint8Array; mime: string; provider: string }> {
@@ -44,7 +44,7 @@ export async function pictureFromEngines(
   const aspect =
     typeof input.aspectRatio === "string" ? input.aspectRatio : "1:1";
   const refs = input.references;
-  const failures: string[] = [];
+  const failures: Array<string> = [];
   let openRouterTried = false;
   let openRouterSentRefs = false;
   let openRouterRefused = false;
@@ -74,11 +74,13 @@ export async function pictureFromEngines(
   };
   if (input.openRouterKey && !input.engine) {
     const made = await viaOpenRouter(refs.length > 0);
-    if (made) return made;
+    if (made) {
+      return made;
+    }
   }
   let stillTimedOut = false;
   let stillError: string | undefined;
-  if (input.otherEngines || input.engine)
+  if (input.otherEngines || input.engine) {
     try {
       return await still(
         input.keys,
@@ -93,15 +95,20 @@ export async function pictureFromEngines(
       stillError = message;
       failures.push(message.replace(ALL_FAILED, "").trim());
     }
+  }
   if (input.openRouterKey && !stillTimedOut && !openRouterRefused) {
     if (refs.length > 0 && !openRouterSentRefs) {
       const made = await viaOpenRouter(true);
-      if (made) return made;
+      if (made) {
+        return made;
+      }
     }
     // References OpenRouter could not take are left out; the prompt carries the look.
     if ((!openRouterTried || refs.length > 0) && !openRouterRefused) {
       const made = await viaOpenRouter(false);
-      if (made) return made;
+      if (made) {
+        return made;
+      }
     }
   }
   throw new Error(

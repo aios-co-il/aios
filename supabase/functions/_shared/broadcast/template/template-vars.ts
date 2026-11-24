@@ -4,7 +4,7 @@
 export type TemplateVars = Record<string, string>;
 
 /** Merge fields every recipient can have. Custom list/file columns come on top. */
-export const STANDARD_TEMPLATE_FIELDS: { key: string; label: string }[] = [
+export const STANDARD_TEMPLATE_FIELDS: Array<{ key: string; label: string }> = [
   { key: "contact_name", label: "שם איש קשר" },
   { key: "first_name", label: "שם פרטי" },
   { key: "company_name", label: "שם חברה / לקוח" },
@@ -22,12 +22,22 @@ export function normalizePhone(
   input: string | number | null | undefined,
   cc = "972",
 ): string | null {
-  if (input === null || input === undefined) return null;
+  if (input === null || input === undefined) {
+    return null;
+  }
   let d = String(input).replace(/[^0-9]/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(cc)) return d;
-  if (d.startsWith("0")) return cc + d.slice(1);
+  if (!d) {
+    return null;
+  }
+  if (d.startsWith("00")) {
+    d = d.slice(2);
+  }
+  if (d.startsWith(cc)) {
+    return d;
+  }
+  if (d.startsWith("0")) {
+    return cc + d.slice(1);
+  }
   return cc + d;
 }
 
@@ -41,9 +51,15 @@ export function fieldKeyFromHeader(header: string): string {
 }
 
 const toStr = (v: unknown): string | null => {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "string") return v.trim() || null;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v === null || v === undefined) {
+    return null;
+  }
+  if (typeof v === "string") {
+    return v.trim() || null;
+  }
+  if (typeof v === "number" || typeof v === "boolean") {
+    return String(v);
+  }
   return null;
 };
 
@@ -69,7 +85,9 @@ export function buildTemplateVars(input: {
   for (const [k, v] of Object.entries(input.extra || {})) {
     const s = toStr(v);
     const key = fieldKeyFromHeader(k);
-    if (s !== null && key) vars[key] = s;
+    if (s !== null && key) {
+      vars[key] = s;
+    }
   }
   const contact = toStr(input.contact_name) ?? toStr(input.company_name);
   const std: Record<string, string | null> = {
@@ -86,7 +104,11 @@ export function buildTemplateVars(input: {
     lead_status: toStr(input.lead_status),
     client_status: toStr(input.client_status),
   };
-  for (const [k, v] of Object.entries(std)) if (v !== null) vars[k] = v;
+  for (const [k, v] of Object.entries(std)) {
+    if (v !== null) {
+      vars[k] = v;
+    }
+  }
   return vars;
 }
 
@@ -110,10 +132,13 @@ export function renderTemplate(
   vars: TemplateVars,
   opts: { html?: boolean } = {},
 ): string {
-  if (!template) return "";
+  if (!template) {
+    return "";
+  }
   const lookup = new Map<string, string>();
-  for (const [k, v] of Object.entries(vars || {}))
+  for (const [k, v] of Object.entries(vars || {})) {
     lookup.set(k.toLowerCase(), v);
+  }
   return template.replace(FIELD_RE, (_m, rawKey: string, fallback?: string) => {
     const key = fieldKeyFromHeader(rawKey);
     const value = lookup.get(key) ?? lookup.get(rawKey.trim().toLowerCase());
@@ -125,10 +150,13 @@ export function renderTemplate(
 /** Field keys a template references (for the editor's "missing field" hint). */
 export function templateFieldKeys(
   template: string | null | undefined,
-): string[] {
-  if (!template) return [];
+): Array<string> {
+  if (!template) {
+    return [];
+  }
   const keys = new Set<string>();
-  for (const m of template.matchAll(FIELD_RE))
+  for (const m of template.matchAll(FIELD_RE)) {
     keys.add(fieldKeyFromHeader(m[1]));
+  }
   return [...keys];
 }

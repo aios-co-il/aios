@@ -32,20 +32,23 @@ function json(body: any, status = 200) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const auth = (req.headers.get("authorization") || "")
     .replace(/^Bearer\s+/i, "")
     .trim();
-  if (!CLAUDE_MCP_BEARER || auth !== CLAUDE_MCP_BEARER)
+  if (!CLAUDE_MCP_BEARER || auth !== CLAUDE_MCP_BEARER) {
     return json({ error: "unauthorized" }, 401);
+  }
 
   const { activation_id, tenant_id, integration_id, phone, code } = await req
     .json()
     .catch(() => ({}));
-  if (!tenant_id || !phone || !code)
+  if (!tenant_id || !phone || !code) {
     return json({ error: "missing tenant_id/phone/code" }, 400);
+  }
 
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -58,7 +61,9 @@ Deno.serve(async (req) => {
       .select("id, user_id")
       .eq("id", integration_id)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) {
+      integ = data as any;
+    }
   }
   if (!integ) {
     const { data } = await sb
@@ -70,10 +75,13 @@ Deno.serve(async (req) => {
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (data) integ = data as any;
+    if (data) {
+      integ = data as any;
+    }
   }
-  if (!integ)
+  if (!integ) {
     return json({ error: "no active manus_wa integration for tenant" }, 404);
+  }
 
   const message = `היי 👋 המספר שלך הוגדר כמורשה לשוחח עם כרמן.\nכדי שאזהה אותך, השב להודעה זו עם הקוד: ${code}`;
   const res = await fetch(

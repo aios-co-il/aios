@@ -12,16 +12,16 @@ import {
 } from "./tenant-publish-access.ts";
 
 const TENANT = "tenant-a";
-const members: Record<string, string[]> = {
+const members: Record<string, Array<string>> = {
   "member-a": [TENANT],
   "member-b": ["tenant-b"],
 };
 const superAdmins = new Set(["super"]);
-const clientAccess: Record<string, string[]> = {
+const clientAccess: Record<string, Array<string>> = {
   "member-a": ["client-1"],
 };
 
-const calls: string[] = [];
+const calls: Array<string> = [];
 const lookups: PublishAccessLookups = {
   isTenantMember: async (userId, tenantId) => {
     calls.push(`member:${userId}:${tenantId}`);

@@ -14,8 +14,9 @@ const corsHeaders = {
 const GRAPH = "https://graph.facebook.com/v21.0";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -30,29 +31,32 @@ Deno.serve(async (req) => {
       message,
       comment_row_id,
     } = body;
-    if (!action || !tenant_id)
+    if (!action || !tenant_id) {
       return new Response(
         JSON.stringify({ error: "action, tenant_id required" }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     if (action === "fetch") {
-      if (!page_id)
+      if (!page_id) {
         return new Response(JSON.stringify({ error: "page_id required" }), {
           status: 400,
           headers: corsHeaders,
         });
+      }
       const { data: page } = await supabase
         .from("social_pages")
         .select("*")
         .eq("id", page_id)
         .eq("tenant_id", tenant_id)
         .maybeSingle();
-      if (!page)
+      if (!page) {
         return new Response(JSON.stringify({ error: "page_not_found" }), {
           status: 404,
           headers: corsHeaders,
         });
+      }
       const token = page.page_access_token;
 
       let count = 0;
@@ -62,11 +66,12 @@ Deno.serve(async (req) => {
           `${GRAPH}/${page.page_id}/posts?fields=id,message,created_time&limit=20&access_token=${token}`,
         );
         const postsJ = await postsR.json();
-        if (postsJ?.error)
+        if (postsJ?.error) {
           return new Response(
             JSON.stringify({ error: "fb_api_error", fb_error: postsJ.error }),
             { status: 400, headers: corsHeaders },
           );
+        }
         for (const post of postsJ?.data || []) {
           const cR = await fetch(
             `${GRAPH}/${post.id}/comments?fields=id,from,message,created_time,parent,is_hidden&limit=100&access_token=${token}`,
@@ -148,22 +153,27 @@ Deno.serve(async (req) => {
       .from("social_comments")
       .select("*, social_pages!inner(page_access_token, platform, page_id)")
       .eq("tenant_id", tenant_id);
-    if (comment_row_id) q = q.eq("id", comment_row_id);
-    else q = q.eq("external_comment_id", external_comment_id);
+    if (comment_row_id) {
+      q = q.eq("id", comment_row_id);
+    } else {
+      q = q.eq("external_comment_id", external_comment_id);
+    }
     const { data: comment } = await q.maybeSingle();
-    if (!comment)
+    if (!comment) {
       return new Response(JSON.stringify({ error: "comment_not_found" }), {
         status: 404,
         headers: corsHeaders,
       });
+    }
     const token = (comment as any).social_pages.page_access_token;
 
     if (action === "reply") {
-      if (!message)
+      if (!message) {
         return new Response(JSON.stringify({ error: "message required" }), {
           status: 400,
           headers: corsHeaders,
         });
+      }
       const r = await fetch(
         `${GRAPH}/${comment.external_comment_id}/comments`,
         {
@@ -172,11 +182,12 @@ Deno.serve(async (req) => {
         },
       );
       const j = await r.json();
-      if (j?.error)
+      if (j?.error) {
         return new Response(
           JSON.stringify({ error: "fb_api_error", fb_error: j.error }),
           { status: 400, headers: corsHeaders },
         );
+      }
       await supabase
         .from("social_comments")
         .update({
@@ -194,11 +205,12 @@ Deno.serve(async (req) => {
         body: new URLSearchParams({ is_hidden: "true", access_token: token }),
       });
       const j = await r.json();
-      if (j?.error)
+      if (j?.error) {
         return new Response(
           JSON.stringify({ error: "fb_api_error", fb_error: j.error }),
           { status: 400, headers: corsHeaders },
         );
+      }
       await supabase
         .from("social_comments")
         .update({ hidden_at: new Date().toISOString() })
@@ -213,11 +225,12 @@ Deno.serve(async (req) => {
         { method: "DELETE" },
       );
       const j = await r.json();
-      if (j?.error)
+      if (j?.error) {
         return new Response(
           JSON.stringify({ error: "fb_api_error", fb_error: j.error }),
           { status: 400, headers: corsHeaders },
         );
+      }
       await supabase.from("social_comments").delete().eq("id", comment.id);
       return new Response(JSON.stringify({ success: true }), {
         headers: corsHeaders,

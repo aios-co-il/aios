@@ -34,7 +34,7 @@ type RunMessageAlert = Pick<
 export function buildPulseRunMessage(
   orgName: string,
   now: Date,
-  alerts: RunMessageAlert[],
+  alerts: Array<RunMessageAlert>,
 ): string {
   const sections = SECTIONS.flatMap(({ rule, title }) => {
     const lines = alerts
@@ -62,7 +62,7 @@ function header(orgName: string, now: Date): string {
 }
 
 /** The title, a "• " line per alert up to the cap, then "ועוד X" for the rest. */
-function sectionText(title: string, lines: string[]): string {
+function sectionText(title: string, lines: Array<string>): string {
   const shown = lines.slice(0, PULSE_RUN_SECTION_MAX_LINES);
   const rest = lines.length - shown.length;
   return [

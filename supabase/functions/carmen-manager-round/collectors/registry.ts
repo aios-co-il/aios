@@ -16,7 +16,7 @@ import { groupUpdatesCollector } from "./group-updates/collector.ts";
 import { selfTestCollector } from "./self-test.ts";
 import type { Collector } from "./types.ts";
 
-export const COLLECTORS: readonly Collector[] = [
+export const COLLECTORS: ReadonlyArray<Collector> = [
   selfTestCollector,
   chatCollector,
   contactCollector,
@@ -30,7 +30,7 @@ export type DueCollector = {
 };
 
 export type DueRequest = {
-  collectorIds: string[] | null;
+  collectorIds: Array<string> | null;
   fixtures: Json | null;
 };
 
@@ -41,12 +41,12 @@ export type DueRequest = {
  * (its trigger decides in the runner).
  */
 export function dueCollectors(
-  collectors: readonly Collector[],
-  state: RoundStateRow[],
+  collectors: ReadonlyArray<Collector>,
+  state: Array<RoundStateRow>,
   now: Date,
   request: DueRequest,
-): DueCollector[] {
-  return collectors.flatMap((collector): DueCollector[] => {
+): Array<DueCollector> {
+  return collectors.flatMap((collector): Array<DueCollector> => {
     if (collector.fixturesOnly && !hasFixture(request.fixtures, collector.id)) {
       return [];
     }

@@ -18,15 +18,15 @@ export type PulseCampaignMatch = {
   targetKind: string | null;
   targetScope: string | null;
   /** The tables the pulse reads the campaign from (null in an older snapshot). */
-  readTableIds: string[] | null;
+  readTableIds: Array<string> | null;
 };
 
 /** campaign_breakdown rows of the freshest snapshot of each client. */
 export async function latestCampaignRows(
   db: PulseTargetDb,
   ctx: PulseTargetToolContext,
-  clientIds: string[],
-): Promise<JsonObject[]> {
+  clientIds: Array<string>,
+): Promise<Array<JsonObject>> {
   if (!clientIds.length) {
     return [];
   }
@@ -42,7 +42,7 @@ export async function latestCampaignRows(
     throw error;
   }
   const seen = new Set<string>();
-  const rows: JsonObject[] = [];
+  const rows: Array<JsonObject> = [];
   for (const snapshot of data || []) {
     if (seen.has(snapshot.client_id)) {
       continue;
@@ -57,7 +57,7 @@ export async function latestCampaignRows(
 
 /** The requested campaign's row in the latest pulse of this platform, if any. */
 export function matchCampaign(
-  rows: JsonObject[],
+  rows: Array<JsonObject>,
   input: TargetInput,
 ): PulseCampaignMatch | null {
   if (!input.campaignId) {
@@ -97,9 +97,9 @@ export function matchCampaign(
  * table of the client × platform, which can only refuse more.
  */
 export function campaignReadTables<T extends { id: string }>(
-  tables: T[],
+  tables: Array<T>,
   campaign: PulseCampaignMatch,
-): T[] {
+): Array<T> {
   const ids = new Set(campaign.readTableIds ?? []);
   const read = tables.filter((table) => ids.has(table.id));
   return read.length ? read : tables;
