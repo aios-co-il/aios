@@ -1,6 +1,8 @@
 import { BarChart3, Globe } from "lucide-react";
+import type { AdAccountShortcut } from "@functions/_shared/share-links/ad-account-links.ts";
 import type { AdsReportView } from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { ResponsiveTabsList } from "@/components/ui/responsive-tabs-list";
 import { Tabs } from "@/components/ui/tabs";
@@ -12,6 +14,8 @@ import type { useSharedPreviousPeriod } from "./useSharedPreviousPeriod";
 
 type Props = {
   table: SharedTableInfo;
+  /** The "open ad account" buttons, built by public-table. */
+  adAccountLinks: Array<AdAccountShortcut> | undefined;
   /** The window picker; null in the send capture, which shows no controls. */
   dates: {
     value: SharedDateSelection;
@@ -33,15 +37,27 @@ type Props = {
 
 /**
  * The share link's header, in the internal report's two rows: the title with
- * its agency, then the views with the dates and the comparison. A share shows
- * no internal actions and no sync status.
+ * its agency and the ad account buttons, then the views with the dates and
+ * the comparison. A share shows no other internal actions and no sync status.
  */
-export function SharedReportHeader({ table, dates, views, comparison }: Props) {
+export function SharedReportHeader({
+  table,
+  adAccountLinks,
+  dates,
+  views,
+  comparison,
+}: Props) {
   return (
     <ReportHeader
       title={table.name}
       badges={getIntegrationIcon(table.integration_type, "h-5 w-5 shrink-0")}
       meta={table.agency_name ? <span>{table.agency_name}</span> : undefined}
+      // The send capture (no date picker) shows no buttons, like no controls.
+      actions={
+        dates && adAccountLinks?.length ? (
+          <AdAccountButtons links={adAccountLinks} />
+        ) : undefined
+      }
       tabs={views && <ViewTabs views={views} />}
       controls={
         (dates || comparison) && (

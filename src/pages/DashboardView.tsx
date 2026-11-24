@@ -59,7 +59,6 @@ import {
 } from "@/components/ui/table";
 import {
   ArrowRight,
-  ExternalLink,
   Facebook,
   ShoppingCart,
   FileSpreadsheet,
@@ -77,7 +76,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { adAccountShortcutLabel, getAdAccountLinks } from "@/lib/adAccountUrl";
+import { getAdAccountLinks } from "@/lib/adAccountUrl";
+import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
 import { useClientAdLinks } from "@/hooks/useClientAdLinks";
 import { format } from "date-fns";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -1656,20 +1656,7 @@ export default function DashboardView() {
                   כרטיס לקוח
                 </Button>
               )}
-              {adAccountLinks.map((link) => (
-                <Button
-                  key={link.url}
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() =>
-                    window.open(link.url, "_blank", "noopener,noreferrer")
-                  }
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  {adAccountShortcutLabel(link, adAccountLinks.length)}
-                </Button>
-              ))}
+              <AdAccountButtons links={adAccountLinks} />
               {currentTenantId && dashboardId && (
                 <ShareDashboardDialog
                   dashboardId={dashboardId}
