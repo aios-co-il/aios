@@ -196,9 +196,22 @@ describe("FacebookReportTab", () => {
     const cells = cellsOf(table, "Leads");
     expect(cells[4]?.className).toContain("text-green-600");
     expect(cells[5]?.className).not.toContain("text-green-600");
+    expect(cells[5]?.className).toContain("text-muted-foreground");
     expect(cells[8]?.className).toContain("text-green-600");
     // A campaign that did not run then has no previous value and no mark.
     expect(figures(table, "New")[3]).toBe("1");
     expect(figures(table, "New")[4]).toBe("—");
+  });
+
+  it("leaves a cost per lead without leads unmarked", () => {
+    renderTab(
+      [day("Leads", { campaign_type: "leads", spend: 100, leads: 0 })],
+      [day("Leads", { campaign_type: "leads", spend: 100, leads: 5 })],
+    );
+
+    const leads = figures(tableOf("קמפיינים לידים - Facebook"), "Leads");
+    // No leads now means no cost per lead to compare with the previous 20.
+    expect(leads[7]).toBe("-");
+    expect(leads[8]).toBe("20 ₪");
   });
 });

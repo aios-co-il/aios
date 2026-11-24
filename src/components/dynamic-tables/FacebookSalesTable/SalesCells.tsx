@@ -1,19 +1,17 @@
-import {
-  changeMarksFor,
-  previousCellsFor,
-} from "@/components/reports/PreviousPeriod/previousCells";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { facebookCostPerResult } from "@/lib/facebookResultMetric";
 import { formatReportNumber, resultCellClass } from "@/lib/reportNumber";
-import type { FacebookReportCampaign } from "../facebookReportCampaigns";
-import { MarkedCell } from "../MarkedCell";
-import type { SalesColumns } from "./salesColumns";
 import {
   costPerLead,
-  costPerPurchase,
-  roas,
-  summed,
+  leadsOf,
+  spendOf,
   sumOf,
-} from "./salesMetrics";
+  summed,
+} from "../facebookMetrics";
+import type { FacebookReportCampaign } from "../facebookReportCampaigns";
+import type { SalesColumns } from "./salesColumns";
+import { costPerPurchase, roas } from "./salesMetrics";
 
 type Rows = Array<FacebookReportCampaign>;
 
@@ -28,10 +26,8 @@ type Props = {
   isTotal: boolean;
 };
 
-const spendOf = summed("spend");
 const purchasesOf = summed("purchases");
 const purchaseValueOf = summed("purchase_value");
-const leadsOf = summed("leads");
 
 /**
  * Metric cells of one campaign or, given every campaign, of the total row.
@@ -45,16 +41,19 @@ export function SalesCells({
   currency,
   isTotal,
 }: Props) {
-  const prev = previousCellsFor(campaigns, previous);
-  const mark = changeMarksFor(campaigns, previous);
-  const spend = spendOf(campaigns);
+  const compared = compareCellsFor(campaigns, previous);
+  const spend = compared(spendOf, money, "neutral");
+  const purchases = compared(purchasesOf, formatReportNumber, "higher");
+  const value = compared(purchaseValueOf, money, "higher");
+  const roasMetric = compared(roas, times, "higher");
+  const cpp = compared(costPerPurchase, (cost) => money(cost, 1), "lower");
+  const leads = compared(leadsOf, formatReportNumber, "higher");
+  const cpl = compared(costPerLead, (cost) => money(cost, 1), "lower");
+  const green = resultCellClass("text-green-600", isTotal);
+  const blue = resultCellClass("text-blue-600", isTotal);
   /** An amount in the report's currency. */
-  function money(value: number, digits = 0) {
-    return `${currency}${formatReportNumber(value, digits)}`;
-  }
-  /** A result-toned cell's classes. */
-  function resultClass(color: string) {
-    return resultCellClass(color, isTotal);
+  function money(amount: number, digits = 0) {
+    return `${currency}${formatReportNumber(amount, digits)}`;
   }
   return (
     <>
@@ -64,13 +63,13 @@ export function SalesCells({
       <td className="p-2 text-center">
         {formatReportNumber(sumOf(campaigns, "clicks"))}
       </td>
-      <MarkedCell className="p-2 text-center" mark={mark(spendOf, "neutral")}>
-        {money(spend)}
+      <MarkedCell className="p-2 text-center" mark={spend.mark}>
+        {money(spendOf(campaigns))}
       </MarkedCell>
-      {prev(spendOf, money, "neutral")}
+      {spend.previousCell}
       {columns.results && (
         <>
-          <td className={resultClass("text-green-600")}>
+          <td className={green}>
             {result.count === null ? (
               "—"
             ) : (
@@ -84,9 +83,12 @@ export function SalesCells({
               </>
             )}
           </td>
-          <td className={resultClass("text-blue-600")}>
+          <td className={blue}>
             {result.count
-              ? money(facebookCostPerResult(spend, result.count), 1)
+              ? money(
+                  facebookCostPerResult(spendOf(campaigns), result.count),
+                  1,
+                )
               : "—"}
           </td>
         </>
@@ -96,57 +98,42 @@ export function SalesCells({
           {formatReportNumber(sumOf(campaigns, "add_to_cart"))}
         </td>
       )}
-      <MarkedCell
-        className={resultClass("text-green-600")}
-        mark={mark(purchasesOf, "higher")}
-      >
+      <MarkedCell className={green} mark={purchases.mark}>
         {formatReportNumber(purchasesOf(campaigns))}
       </MarkedCell>
-      {prev(purchasesOf, formatReportNumber, "higher")}
+      {purchases.previousCell}
       {columns.value ? (
         <>
           <MarkedCell
             className="p-2 text-center text-green-600"
-            mark={mark(purchaseValueOf, "higher")}
+            mark={value.mark}
           >
             {money(purchaseValueOf(campaigns))}
           </MarkedCell>
-          {prev(purchaseValueOf, money, "higher")}
-          <MarkedCell
-            className={resultClass("text-blue-600")}
-            mark={mark(roas, "higher")}
-          >
-            {formatReportNumber(roas(campaigns), 1)}x
+          {value.previousCell}
+          <MarkedCell className={blue} mark={roasMetric.mark}>
+            {times(roas(campaigns) ?? 0)}
           </MarkedCell>
-          {prev(roas, (value) => `${formatReportNumber(value, 1)}x`, "higher")}
+          {roasMetric.previousCell}
         </>
       ) : (
         <>
-          <MarkedCell
-            className={resultClass("text-blue-600")}
-            mark={mark(costPerPurchase, "lower")}
-          >
-            {money(costPerPurchase(campaigns), 1)}
+          <MarkedCell className={blue} mark={cpp.mark}>
+            {money(costPerPurchase(campaigns) ?? 0, 1)}
           </MarkedCell>
-          {prev(costPerPurchase, (value) => money(value, 1), "lower")}
+          {cpp.previousCell}
         </>
       )}
       {columns.leads && (
         <>
-          <MarkedCell
-            className={resultClass("text-green-600")}
-            mark={mark(leadsOf, "higher")}
-          >
+          <MarkedCell className={green} mark={leads.mark}>
             {formatReportNumber(leadsOf(campaigns))}
           </MarkedCell>
-          {prev(leadsOf, formatReportNumber, "higher")}
-          <MarkedCell
-            className={resultClass("text-blue-600")}
-            mark={mark(costPerLead, "lower")}
-          >
-            {money(costPerLead(campaigns), 1)}
+          {leads.previousCell}
+          <MarkedCell className={blue} mark={cpl.mark}>
+            {money(costPerLead(campaigns) ?? 0, 1)}
           </MarkedCell>
-          {prev(costPerLead, (value) => money(value, 1), "lower")}
+          {cpl.previousCell}
         </>
       )}
       {columns.conversations && (
@@ -156,4 +143,9 @@ export function SalesCells({
       )}
     </>
   );
+}
+
+/** A return on ad spend, as a multiple. */
+function times(value: number): string {
+  return `${formatReportNumber(value, 1)}x`;
 }

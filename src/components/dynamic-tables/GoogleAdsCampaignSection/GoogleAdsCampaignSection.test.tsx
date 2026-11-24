@@ -155,10 +155,48 @@ describe("GoogleAdsCampaignSection", () => {
     const lead = cellTexts(within(leadsTable).getByText("PMax לידים"));
     expect(lead.filter((text) => text === "—")).toHaveLength(4);
   });
+
+  it("leaves the cost per conversion of a campaign without conversions unmarked", () => {
+    const leadsTable = { ...table, integration_settings: {} };
+    render(
+      <GoogleAdsCampaignSection
+        summary={summarizeGoogleAdsCampaigns([leadRow(0)], [leadsTable])}
+        previous={summarizeGoogleAdsCampaigns([leadRow(3)], [leadsTable])}
+        icon={null}
+        formatCurrency={format}
+        formatNumber={format}
+        formatUnitCost={format}
+      />,
+    );
+
+    // Conversions 0 against 3 drop; cost per conversion "-" against 20 is
+    // not compared, so its cell carries no arrow and no colour.
+    const cells = [
+      ...(screen.getByText("PMax לידים").closest("tr")?.children ?? []),
+    ];
+    const [conversions, , costPerConversion, costBefore] = cells.slice(8, 12);
+    expect(conversions).toHaveTextContent("▼ 0");
+    expect(costPerConversion).toHaveTextContent(/^-$/);
+    expect(costPerConversion).not.toHaveClass("text-green-600");
+    expect(costPerConversion).not.toHaveClass("text-red-600");
+    expect(costBefore).toHaveTextContent("20");
+    expect(costBefore).toHaveClass("text-muted-foreground");
+  });
 });
 
 /** The texts of the cells in the row of this name cell. */
 function cellTexts(name: HTMLElement): Array<string> {
   const cells = name.closest("tr")?.children ?? [];
   return [...cells].map((cell) => cell.textContent ?? "");
+}
+
+/** The lead campaign's row with this many conversions. */
+function leadRow(conversions: number) {
+  return row({
+    campaign_id: "lead",
+    campaign_name: "PMax לידים",
+    conversion_goal: "leads",
+    cost: 60,
+    conversions,
+  });
 }

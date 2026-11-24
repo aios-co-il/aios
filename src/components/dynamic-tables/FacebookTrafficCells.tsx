@@ -1,17 +1,18 @@
-import {
-  changeMarksFor,
-  previousCellsFor,
-} from "@/components/reports/PreviousPeriod/previousCells";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import {
   costPerFollower,
   formatFollowerCell,
   sumFacebookFollowers,
 } from "@/lib/facebookFollowers";
 import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
+import { leadsOf, perUnit, spendOf, sumOf, summed } from "./facebookMetrics";
 import type { FacebookReportCampaign } from "./facebookReportCampaigns";
-import { MarkedCell } from "./MarkedCell";
 
 type Rows = Array<FacebookReportCampaign>;
+
+const clicksOf = summed("clicks");
+const costPerClick = perUnit("spend", "clicks");
 
 /**
  * Metric cells of one campaign or, given every campaign, of the total row.
@@ -34,76 +35,56 @@ export function TrafficCells({
   isTotal: boolean;
 }) {
   const impressions = sumOf(campaigns, "impressions");
-  const clicks = clicksOf(campaigns);
-  const spend = spendOf(campaigns);
-  const newFollowers = newFollowersOf(campaigns);
-  const prev = previousCellsFor(campaigns, previous);
-  const mark = changeMarksFor(campaigns, previous);
-  // An unmeasured current count shows a dash, with nothing to mark.
-  const followersMark =
-    newFollowers === null ? null : mark(newFollowersOf, "higher");
+  const compared = compareCellsFor(campaigns, previous);
+  const clicks = compared(clicksOf, formatReportNumber, "higher");
+  const spend = compared(spendOf, money, "neutral");
+  const cpc = compared(costPerClick, moneyCents, "lower");
+  const leads = compared(leadsOf, formatReportNumber, "higher");
+  const followers = compared(newFollowersOf, formatReportNumber, "higher");
+  const green = resultCellClass("text-green-600", isTotal);
+  const blue = resultCellClass("text-blue-600", isTotal);
   /** An amount in the report's currency. */
   function money(value: number) {
     return `${currency}${formatReportNumber(value)}`;
   }
-  /** A result-toned cell's classes. */
-  function resultClass(color: string) {
-    return resultCellClass(color, isTotal);
+  /** A small amount in the report's currency, to the agora. */
+  function moneyCents(value: number) {
+    return `${currency}${formatReportNumber(value, 2)}`;
   }
   return (
     <>
       <td className="p-2 text-center">{formatReportNumber(impressions)}</td>
-      <MarkedCell
-        className={resultClass("text-green-600")}
-        mark={mark(clicksOf, "higher")}
-      >
-        {formatReportNumber(clicks)}
+      <MarkedCell className={green} mark={clicks.mark}>
+        {formatReportNumber(clicksOf(campaigns))}
       </MarkedCell>
-      {prev(clicksOf, formatReportNumber, "higher")}
-      <MarkedCell className="p-2 text-center" mark={mark(spendOf, "neutral")}>
-        {money(spend)}
+      {clicks.previousCell}
+      <MarkedCell className="p-2 text-center" mark={spend.mark}>
+        {money(spendOf(campaigns))}
       </MarkedCell>
-      {prev(spendOf, money, "neutral")}
+      {spend.previousCell}
       <td className="p-2 text-center">
-        {formatReportNumber(ratio(clicks, impressions) * 100, 2)}%
+        {formatReportNumber(ratio(clicksOf(campaigns), impressions) * 100, 2)}%
       </td>
-      <MarkedCell
-        className={resultClass("text-blue-600")}
-        mark={mark(costPerClick, "lower")}
-      >
-        {currency}
-        {formatReportNumber(costPerClick(campaigns), 2)}
+      <MarkedCell className={blue} mark={cpc.mark}>
+        {moneyCents(costPerClick(campaigns) ?? 0)}
       </MarkedCell>
-      {prev(
-        costPerClick,
-        (value) => `${currency}${formatReportNumber(value, 2)}`,
-        "lower",
-      )}
+      {cpc.previousCell}
       {withLeads && (
         <>
-          <MarkedCell
-            className="p-2 text-center"
-            mark={mark(leadsOf, "higher")}
-          >
+          <MarkedCell className="p-2 text-center" mark={leads.mark}>
             {formatReportNumber(leadsOf(campaigns))}
           </MarkedCell>
-          {prev(leadsOf, formatReportNumber, "higher")}
+          {leads.previousCell}
         </>
       )}
       {withFollowers && (
         <>
-          <MarkedCell
-            className={resultClass("text-green-600")}
-            mark={followersMark}
-          >
-            {formatFollowerCell(newFollowers, formatReportNumber)}
+          <MarkedCell className={green} mark={followers.mark}>
+            {formatFollowerCell(newFollowersOf(campaigns), formatReportNumber)}
           </MarkedCell>
-          {prev(newFollowersOf, formatReportNumber, "higher")}
-          <td className={resultClass("text-blue-600")}>
-            {formatFollowerCell(
-              costPerFollower(campaigns),
-              (cost) => `${currency}${formatReportNumber(cost, 2)}`,
-            )}
+          {followers.previousCell}
+          <td className={blue}>
+            {formatFollowerCell(costPerFollower(campaigns), moneyCents)}
           </td>
         </>
       )}
@@ -111,35 +92,7 @@ export function TrafficCells({
   );
 }
 
-/** Clicks of the rows. */
-function clicksOf(rows: Rows): number {
-  return sumOf(rows, "clicks");
-}
-
-/** Spend of the rows. */
-function spendOf(rows: Rows): number {
-  return sumOf(rows, "spend");
-}
-
-/** Leads of the rows. */
-function leadsOf(rows: Rows): number {
-  return sumOf(rows, "leads");
-}
-
-/** Spend per click of the rows. */
-function costPerClick(rows: Rows): number {
-  return ratio(spendOf(rows), clicksOf(rows));
-}
-
 /** New followers of the rows; null when none of them measured it. */
 function newFollowersOf(rows: Rows): number | null {
   return sumFacebookFollowers(rows).newFollowers;
-}
-
-/** One number summed over the rows. */
-function sumOf(
-  rows: Rows,
-  key: "impressions" | "clicks" | "spend" | "leads",
-): number {
-  return rows.reduce((total, row) => total + row[key], 0);
 }

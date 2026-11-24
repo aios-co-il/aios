@@ -100,6 +100,39 @@ describe("previous period columns in the Facebook tables", () => {
     expect(cells(total).slice(3, 5)).toStrictEqual(["▲ 15", "8"]);
   });
 
+  it("leave a cost per lead unmarked when a period has no leads", () => {
+    render(
+      <FacebookLeadsTable
+        rows={[
+          ["a", campaign("Form", { leads: 0, spend: 50 })],
+          ["z", campaign("Idle", { leads: 0, spend: 0 })],
+        ]}
+        entityHeader="קמפיין"
+        currency="₪"
+        previous={
+          facebookPreviousPeriod({
+            ecommerce: [],
+            leads: [
+              ["a", campaign("Form", { leads: 5, spend: 100 })],
+              ["z", campaign("Idle", { leads: 0, spend: 20 })],
+            ],
+            traffic: [],
+          }).leads
+        }
+      />,
+    );
+
+    const form = screen.getByText("Form").closest("tr");
+    const idle = screen.getByText("Idle").closest("tr");
+
+    // No leads now: the cost keeps its ₪0 text with no arrow or colour,
+    // against last period's ₪20.
+    expect(cells(form).slice(7)).toStrictEqual(["₪0", "₪20"]);
+    expect(form?.children[7].className).not.toMatch(/text-(green|red)-600/);
+    // No leads in either period: nothing to compare, so the previous is a dash.
+    expect(cells(idle).slice(7)).toStrictEqual(["₪0", "—"]);
+  });
+
   it("compare purchases and cost per purchase in a sales table without value", () => {
     render(
       <FacebookSalesTable

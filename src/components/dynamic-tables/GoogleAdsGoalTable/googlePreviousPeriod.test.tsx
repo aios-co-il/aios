@@ -97,4 +97,37 @@ describe("GoogleAdsGoalTable previous period", () => {
       expect(before).not.toHaveClass("text-green-600");
     }
   });
+
+  it("leaves a cost per lead without current leads unmarked", () => {
+    const metrics = { impressions: 1000, clicks: 40, conversions_value: 0 };
+    const before = { ...metrics, cost: 300, conversions: 6 };
+    render(
+      <GoogleAdsGoalTable
+        goal="leads"
+        rows={[
+          {
+            key: "search",
+            name: "Search",
+            ...metrics,
+            cost: 300,
+            conversions: 0,
+          },
+        ]}
+        entityColumnLabel="קמפיין"
+        currency="₪"
+        previous={{ byKey: new Map([["search", before]]), total: before }}
+      />,
+    );
+
+    const row = screen.getByText("Search").closest("tr");
+    const [, , , leads, , , , costPerLead, costPerLeadBefore] = [
+      ...(row?.children ?? []),
+    ];
+    expect(leads).toHaveTextContent("▼");
+    expect(leads).toHaveClass("text-red-600");
+    expect(costPerLead).not.toHaveTextContent(/[▲▼]/);
+    expect(costPerLead).not.toHaveClass("text-green-600");
+    expect(costPerLead).not.toHaveClass("text-red-600");
+    expect(costPerLeadBefore).toHaveTextContent("₪50");
+  });
 });

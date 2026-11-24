@@ -1,21 +1,17 @@
 import { Fragment } from "react";
 import {
   REPORT_CELL,
+  REPORT_POSITIVE,
   ReportTd,
   ReportTh,
 } from "@/components/report-ui/ReportTable";
-import {
-  type ChangeMark,
-  PreviousValueHead,
-} from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import { cn } from "@/lib/utils";
-import { MarkedCell } from "../MarkedCell";
 import {
-  googleChangeMark,
-  googlePreviousCell,
-  positiveTone,
+  googleComparedFor,
   type GoogleComparedMetric,
 } from "./googleAdsCompare";
 import type {
@@ -26,16 +22,16 @@ import type {
 
 /**
  * The column heads of one goal's table, each compared column followed by its
- * previous-period head while `compared` is set.
+ * previous-period head while `comparedMetrics` is set.
  */
 export function GoogleAdsHeadCells({
   goal,
   showLeads,
-  compared,
+  comparedMetrics,
 }: {
   goal: GoogleReportGoal;
   showLeads: boolean;
-  compared?: Partial<Record<string, GoogleComparedMetric>> | null;
+  comparedMetrics?: Partial<Record<string, GoogleComparedMetric>> | null;
 }) {
   const results =
     goal === "traffic"
@@ -47,7 +43,9 @@ export function GoogleAdsHeadCells({
     (label) => (
       <Fragment key={label}>
         <ReportTh>{label}</ReportTh>
-        {compared?.[label] && <PreviousValueHead cellClassName={REPORT_CELL} />}
+        {comparedMetrics?.[label] && (
+          <PreviousValueHead cellClassName={REPORT_CELL} />
+        )}
       </Fragment>
     ),
   );
@@ -58,7 +56,7 @@ export function GoogleAdsCampaignCells({
   row,
   goal,
   showLeads,
-  compared,
+  comparedMetrics,
   previous,
   formatCurrency,
   formatNumber,
@@ -67,14 +65,16 @@ export function GoogleAdsCampaignCells({
   row: GoogleAdsCampaignSummaryRow;
   goal: GoogleReportGoal;
   showLeads: boolean;
-  compared?: Partial<Record<string, GoogleComparedMetric>> | null;
+  comparedMetrics?: Partial<Record<string, GoogleComparedMetric>> | null;
   /** The campaign's previous row; null when it did not run then. */
   previous?: GoogleAdsTotals | null;
 }) {
-  const prev = googlePreviousCell(row, previous, compared);
-  const mark = googleChangeMark(row, previous, compared);
-  const conversionsMark = mark(goal === "ecommerce" ? "רכישות" : "המרות");
-  const revenueMark = mark("הכנסות");
+  const compared = googleComparedFor(row, previous, comparedMetrics);
+  const clicks = compared("קליקים");
+  const spend = compared("הוצאה");
+  const conversions = compared(goal === "ecommerce" ? "רכישות" : "המרות");
+  const revenue = compared("הכנסות");
+  const costPerConversion = compared("עלות להמרה");
   const cpc = ratio(row.spend, row.clicks);
   const cpa = ratio(row.spend, row.conversions);
   const roas = ratio(row.conversions_value, row.spend);
@@ -82,61 +82,53 @@ export function GoogleAdsCampaignCells({
   return (
     <>
       <ReportTd>{formatNumber(row.impressions)}</ReportTd>
-      <MarkedCell className={REPORT_CELL} mark={mark("קליקים")}>
+      <MarkedCell className={REPORT_CELL} mark={clicks.mark}>
         {formatNumber(row.clicks)}
       </MarkedCell>
-      {prev("קליקים")}
+      {clicks.previousCell}
       <ReportTd>
         {(ratio(row.clicks, row.impressions) * 100).toFixed(2)}%
       </ReportTd>
       <ReportTd>{cpc > 0 ? formatUnitCost(cpc) : "-"}</ReportTd>
-      <MarkedCell className={REPORT_CELL} mark={mark("הוצאה")}>
+      <MarkedCell className={REPORT_CELL} mark={spend.mark}>
         {formatCurrency(row.spend)}
       </MarkedCell>
-      {prev("הוצאה")}
-      {goal === "traffic" ? null : goal === "ecommerce" ? (
+      {spend.previousCell}
+      {goal === "traffic" ? null : (
         <>
           <MarkedCell
-            className={cn(REPORT_CELL, good(row.conversions, conversionsMark))}
-            mark={conversionsMark}
+            className={cn(REPORT_CELL, row.conversions > 0 && REPORT_POSITIVE)}
+            mark={conversions.mark}
           >
             {formatNumber(row.conversions)}
           </MarkedCell>
-          {prev("רכישות")}
-          <MarkedCell
-            className={cn(
-              REPORT_CELL,
-              good(row.conversions_value, revenueMark),
-            )}
-            mark={revenueMark}
-          >
-            {formatCurrency(row.conversions_value)}
-          </MarkedCell>
-          {prev("הכנסות")}
-          <ReportTd>{roas > 0 ? roas.toFixed(2) : "-"}</ReportTd>
-          <ReportTd>{aov > 0 ? formatCurrency(aov) : "-"}</ReportTd>
-          {showLeads && <ReportTd>{formatNumber(row.leads ?? 0)}</ReportTd>}
-        </>
-      ) : (
-        <>
-          <MarkedCell
-            className={cn(REPORT_CELL, good(row.conversions, conversionsMark))}
-            mark={conversionsMark}
-          >
-            {formatNumber(row.conversions)}
-          </MarkedCell>
-          {prev("המרות")}
-          <MarkedCell className={REPORT_CELL} mark={mark("עלות להמרה")}>
-            {cpa > 0 ? formatCurrency(cpa) : "-"}
-          </MarkedCell>
-          {prev("עלות להמרה")}
+          {conversions.previousCell}
+          {goal === "ecommerce" ? (
+            <>
+              <MarkedCell
+                className={cn(
+                  REPORT_CELL,
+                  row.conversions_value > 0 && REPORT_POSITIVE,
+                )}
+                mark={revenue.mark}
+              >
+                {formatCurrency(row.conversions_value)}
+              </MarkedCell>
+              {revenue.previousCell}
+              <ReportTd>{roas > 0 ? roas.toFixed(2) : "-"}</ReportTd>
+              <ReportTd>{aov > 0 ? formatCurrency(aov) : "-"}</ReportTd>
+              {showLeads && <ReportTd>{formatNumber(row.leads ?? 0)}</ReportTd>}
+            </>
+          ) : (
+            <>
+              <MarkedCell className={REPORT_CELL} mark={costPerConversion.mark}>
+                {cpa > 0 ? formatCurrency(cpa) : "-"}
+              </MarkedCell>
+              {costPerConversion.previousCell}
+            </>
+          )}
         </>
       )}
     </>
   );
-}
-
-/** The accent for a positive result, under its change mark. */
-function good(value: number, mark: ChangeMark | null): string | undefined {
-  return value > 0 ? positiveTone(mark) : undefined;
 }

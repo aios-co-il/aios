@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
-import {
-  ChangeArrow,
-  type ChangeMark,
-} from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { cn } from "@/lib/utils";
+import type { ChangeMark } from "./changeMark";
 
 /**
  * A current-period cell of a compared metric: its change mark's colour
@@ -14,13 +11,13 @@ export function MarkedCell({
   mark,
   children,
 }: {
-  className: string;
+  className?: string;
   mark: ChangeMark | null;
   children: ReactNode;
 }) {
   return (
     <td className={cn(className, mark?.className)}>
-      <ChangeArrow mark={mark} />
+      {mark?.arrow && <span aria-hidden="true">{mark.arrow} </span>}
       {children}
     </td>
   );

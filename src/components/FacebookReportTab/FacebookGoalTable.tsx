@@ -1,14 +1,10 @@
 import { Fragment, type ReactNode, useState } from "react";
 import { Facebook } from "lucide-react";
 import { ReportSection } from "@/components/report-ui/ReportSection";
-import {
-  changeMarksFor,
-  previousCellsFor,
-} from "@/components/reports/PreviousPeriod/previousCells";
-import {
-  ChangeArrow,
-  PreviousValueHead,
-} from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import type { ChangeDirection } from "@/components/reports/PreviousPeriod/changeMark";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import {
   REPORT_CELL,
   ReportNameCell,
@@ -34,7 +30,7 @@ export type FacebookColumn = {
   compare?: {
     metric: (rows: Array<FacebookCampaignRow>) => number | null;
     format: (value: number) => string;
-    direction: "higher" | "lower" | "neutral";
+    direction: ChangeDirection;
   };
 };
 
@@ -143,23 +139,21 @@ function Cells({
   rows: Array<FacebookCampaignRow>;
   previous: Array<FacebookCampaignRow> | null | undefined;
 }) {
-  const prev = previousCellsFor(rows, previous, REPORT_CELL);
-  const markOf = changeMarksFor(rows, previous);
+  const compared = compareCellsFor(rows, previous, REPORT_CELL);
   return columns.map((column) => {
     const { compare } = column;
-    const mark = compare ? markOf(compare.metric, compare.direction) : null;
-    const tone = column.tone?.(rows);
-    // A coloured mark replaces the tone, whose dark-mode colour would win.
-    const className = mark?.className
-      ? cn(tone && "font-medium", mark.className)
-      : tone;
+    const cells = compare
+      ? compared(compare.metric, compare.format, compare.direction)
+      : null;
     return (
       <Fragment key={column.label}>
-        <ReportTd className={className}>
-          <ChangeArrow mark={mark} />
+        <MarkedCell
+          className={cn(REPORT_CELL, column.tone?.(rows))}
+          mark={cells?.mark ?? null}
+        >
           {column.value(rows)}
-        </ReportTd>
-        {compare && prev(compare.metric, compare.format, compare.direction)}
+        </MarkedCell>
+        {cells?.previousCell}
       </Fragment>
     );
   });

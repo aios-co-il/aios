@@ -71,6 +71,7 @@ describe("GoalCampaignTable", () => {
     expect(cells[1]?.className).toContain("text-green-600");
     expect(cells[2]?.textContent).toBe("2");
     expect(cells[2]?.className).not.toContain("text-green-600");
+    expect(cells[2]?.className).toContain("text-muted-foreground");
     // Cost per lead fell from 50 to 20: good news, marked on the current value.
     expect(cells[3]?.textContent).toMatch(/^▼ /);
     expect(cells[3]?.className).toContain("text-green-600");
@@ -99,6 +100,19 @@ describe("GoalCampaignTable", () => {
     const cells = screen.getByText("f1").closest("tr")?.children ?? [];
     expect(cells[1]?.textContent).toBe("5");
     expect(cells[2]?.textContent).toBe("—");
+  });
+
+  it("leaves a cost per lead without leads unmarked", () => {
+    renderTable(
+      [campaign("f1", "facebook", { leads: 0, spend: 100 })],
+      [campaign("f1", "facebook", { leads: 5, spend: 100 })],
+    );
+
+    const cells = screen.getByText("f1").closest("tr")?.children ?? [];
+    // No leads now means no cost per lead to compare with the previous 20.
+    expect(cells[3]?.textContent).not.toMatch(/[▲▼]/);
+    expect(cells[3]?.className).not.toContain("text-green-600");
+    expect(cells[4]?.textContent).toBe(formatCurrency(20, "ILS"));
   });
 });
 

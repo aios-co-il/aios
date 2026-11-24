@@ -1,17 +1,15 @@
 import { Fragment } from "react";
 import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import {
-  changeMarksFor,
-  previousCellsFor,
-} from "@/components/reports/PreviousPeriod/previousCells";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
-import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
+import { formatReportNumber, resultCellClass } from "@/lib/reportNumber";
 import {
   type FacebookTablePrevious,
   previousRowsOf,
 } from "./facebookPreviousPeriod";
-import { MarkedCell } from "./MarkedCell";
+import { costPerLead, leadsOf, spendOf, sumOf } from "./facebookMetrics";
 import type {
   FacebookReportCampaign,
   FacebookReportEntry,
@@ -113,8 +111,10 @@ function LeadCells({
   currency: string;
   isTotal: boolean;
 }) {
-  const prev = previousCellsFor(campaigns, previous);
-  const mark = changeMarksFor(campaigns, previous);
+  const compared = compareCellsFor(campaigns, previous);
+  const leads = compared(leadsOf, formatReportNumber, "higher");
+  const spend = compared(spendOf, money, "neutral");
+  const cpl = compared(costPerLead, (value) => money(value, 1), "lower");
   /** An amount in the report's currency. */
   function money(value: number, digits = 0) {
     return `${currency}${formatReportNumber(value, digits)}`;
@@ -129,38 +129,22 @@ function LeadCells({
       </td>
       <MarkedCell
         className={resultCellClass("text-green-600", isTotal)}
-        mark={mark((rows) => sumOf(rows, "leads"), "higher")}
+        mark={leads.mark}
       >
-        {formatReportNumber(sumOf(campaigns, "leads"))}
+        {formatReportNumber(leadsOf(campaigns))}
       </MarkedCell>
-      {prev((rows) => sumOf(rows, "leads"), formatReportNumber, "higher")}
-      <MarkedCell
-        className="p-2 text-center"
-        mark={mark((rows) => sumOf(rows, "spend"), "neutral")}
-      >
-        {money(sumOf(campaigns, "spend"))}
+      {leads.previousCell}
+      <MarkedCell className="p-2 text-center" mark={spend.mark}>
+        {money(spendOf(campaigns))}
       </MarkedCell>
-      {prev((rows) => sumOf(rows, "spend"), money, "neutral")}
+      {spend.previousCell}
       <MarkedCell
         className={resultCellClass("text-blue-600", isTotal)}
-        mark={mark(costPerLead, "lower")}
+        mark={cpl.mark}
       >
-        {money(costPerLead(campaigns), 1)}
+        {money(costPerLead(campaigns) ?? 0, 1)}
       </MarkedCell>
-      {prev(costPerLead, (value) => money(value, 1), "lower")}
+      {cpl.previousCell}
     </>
   );
-}
-
-/** Spend per lead of the rows. */
-function costPerLead(rows: Rows): number {
-  return ratio(sumOf(rows, "spend"), sumOf(rows, "leads"));
-}
-
-/** One number summed over the rows. */
-function sumOf(
-  rows: Rows,
-  key: "impressions" | "clicks" | "spend" | "leads",
-): number {
-  return rows.reduce((total, row) => total + row[key], 0);
 }

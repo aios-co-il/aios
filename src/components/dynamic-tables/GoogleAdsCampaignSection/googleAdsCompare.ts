@@ -1,15 +1,9 @@
+import { REPORT_CELL } from "@/components/report-ui/ReportTable";
+import type { ChangeDirection } from "@/components/reports/PreviousPeriod/changeMark";
 import {
-  REPORT_CELL,
-  REPORT_POSITIVE,
-} from "@/components/report-ui/ReportTable";
-import {
-  changeMarksFor,
-  previousCellsFor,
+  compareCellsFor,
+  type ComparedMetric,
 } from "@/components/reports/PreviousPeriod/previousCells";
-import type {
-  ChangeMark,
-  PreviousValueProps,
-} from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import type {
@@ -22,7 +16,7 @@ import type {
 export type GoogleComparedMetric = {
   metric: (totals: GoogleAdsTotals) => number | null;
   format: (value: number) => string;
-  direction: PreviousValueProps["direction"];
+  direction: ChangeDirection;
 };
 
 /** One table's previous period: each campaign's row, and the table's total. */
@@ -75,6 +69,7 @@ export function googleComparedMetrics(
         direction: "higher",
       },
       "עלות להמרה": {
+        // Null without conversions or spend, as its cell then shows "-".
         metric: (t) => {
           const cost = ratio(t.spend, t.conversions);
           return cost > 0 ? cost : null;
@@ -103,44 +98,25 @@ export function googleTablePrevious(
   };
 }
 
-/**
- * The previous-period cell of a column, or nothing when the column is not
- * compared or the comparison is off. `previous` is null for a campaign that
- * did not run then.
- */
-export function googlePreviousCell(
-  current: GoogleAdsTotals,
-  previous: GoogleAdsTotals | null | undefined,
-  compared: Partial<Record<string, GoogleComparedMetric>> | null | undefined,
-) {
-  const cell = previousCellsFor(current, previous, REPORT_CELL);
-  return function previousOf(label: string) {
-    const metric = compared?.[label];
-    return metric ? cell(metric.metric, metric.format, metric.direction) : null;
-  };
-}
+/** A column that does not compare: no mark and no previous cell. */
+const NOT_COMPARED: ComparedMetric = { mark: null, previousCell: null };
 
 /**
- * The change mark of a column's current value, read by its header like
- * googlePreviousCell: null when the column is not compared, the comparison is
- * off or the campaign did not run then.
+ * The comparison of a row's columns, read by header: the current cell's mark
+ * and the previous cell of a compared column, or nothing for a column that is
+ * not compared or while the comparison is off. `previous` is null for a
+ * campaign that did not run then.
  */
-export function googleChangeMark(
+export function googleComparedFor(
   current: GoogleAdsTotals,
   previous: GoogleAdsTotals | null | undefined,
-  compared: Partial<Record<string, GoogleComparedMetric>> | null | undefined,
+  metrics: Partial<Record<string, GoogleComparedMetric>> | null | undefined,
 ) {
-  const markOf = changeMarksFor(current, previous);
-  return function changeOf(label: string): ChangeMark | null {
-    const metric = compared?.[label];
-    return metric ? markOf(metric.metric, metric.direction) : null;
+  const compareMetric = compareCellsFor(current, previous, REPORT_CELL);
+  return function compared(label: string): ComparedMetric {
+    const metric = metrics?.[label];
+    return metric
+      ? compareMetric(metric.metric, metric.format, metric.direction)
+      : NOT_COMPARED;
   };
-}
-
-/**
- * The accent of a positive result cell under its change mark: a coloured mark
- * replaces the accent, whose dark-mode colour would otherwise win over it.
- */
-export function positiveTone(mark: ChangeMark | null): string {
-  return mark?.className ? "font-medium" : REPORT_POSITIVE;
 }

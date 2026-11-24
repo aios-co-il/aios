@@ -1,12 +1,14 @@
-import { REPORT_CELL, ReportTd } from "@/components/report-ui/ReportTable";
+import {
+  REPORT_CELL,
+  REPORT_POSITIVE,
+  ReportTd,
+} from "@/components/report-ui/ReportTable";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import { cn } from "@/lib/utils";
-import { MarkedCell } from "../MarkedCell";
 import {
-  googleChangeMark,
-  googlePreviousCell,
-  positiveTone,
+  googleComparedFor,
   type GoogleComparedMetric,
 } from "./googleAdsCompare";
 import type {
@@ -21,7 +23,7 @@ type Props = GoogleAdsFormatters & {
   showLeads?: boolean;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;
-  compared?: Partial<Record<string, GoogleComparedMetric>> | null;
+  comparedMetrics?: Partial<Record<string, GoogleComparedMetric>> | null;
   /** The table's previous total; Google's own figures, never WooCommerce's. */
   previous?: GoogleAdsTotals | null;
   /** The store totals come from WooCommerce, which has no previous figures here. */
@@ -37,7 +39,7 @@ export function GoogleAdsCampaignTotalsRow({
   showLeads = false,
   groupTotals,
   store,
-  compared,
+  comparedMetrics,
   previous,
   storeFromWoo = false,
   formatCurrency,
@@ -47,8 +49,11 @@ export function GoogleAdsCampaignTotalsRow({
   const totalCtr = ratio(groupTotals.clicks, groupTotals.impressions) * 100;
   const totalCpc = ratio(groupTotals.spend, groupTotals.clicks);
   const totalCpa = ratio(groupTotals.spend, groupTotals.conversions);
-  const prev = googlePreviousCell(groupTotals, previous, compared);
-  const mark = googleChangeMark(groupTotals, previous, compared);
+  const compared = googleComparedFor(groupTotals, previous, comparedMetrics);
+  const clicks = compared("קליקים");
+  const spend = compared("הוצאה");
+  const conversions = compared("המרות");
+  const costPerConversion = compared("עלות להמרה");
   // The sales cells show the store's figures; WooCommerce's previous period
   // is not loaded, so they compare only when Google's own figures show.
   const storeShown = {
@@ -58,41 +63,43 @@ export function GoogleAdsCampaignTotalsRow({
   };
   const storePrevious =
     storeFromWoo && previous !== undefined ? null : previous;
-  const prevStore = googlePreviousCell(storeShown, storePrevious, compared);
-  const markStore = googleChangeMark(storeShown, storePrevious, compared);
-  const purchasesMark = markStore("רכישות");
-  const revenueMark = markStore("הכנסות");
-  const conversionsMark = mark("המרות");
+  const comparedStore = googleComparedFor(
+    storeShown,
+    storePrevious,
+    comparedMetrics,
+  );
+  const purchases = comparedStore("רכישות");
+  const revenue = comparedStore("הכנסות");
   return (
     <>
       <ReportTd>סה"כ</ReportTd>
       <ReportTd>{formatNumber(groupTotals.impressions)}</ReportTd>
-      <MarkedCell className={REPORT_CELL} mark={mark("קליקים")}>
+      <MarkedCell className={REPORT_CELL} mark={clicks.mark}>
         {formatNumber(groupTotals.clicks)}
       </MarkedCell>
-      {prev("קליקים")}
+      {clicks.previousCell}
       <ReportTd>{totalCtr.toFixed(2)}%</ReportTd>
       <ReportTd>{totalCpc > 0 ? formatUnitCost(totalCpc) : "-"}</ReportTd>
-      <MarkedCell className={REPORT_CELL} mark={mark("הוצאה")}>
+      <MarkedCell className={REPORT_CELL} mark={spend.mark}>
         {formatCurrency(groupTotals.spend)}
       </MarkedCell>
-      {prev("הוצאה")}
+      {spend.previousCell}
       {goal === "traffic" ? null : goal === "ecommerce" ? (
         <>
           <MarkedCell
-            className={cn(REPORT_CELL, positiveTone(purchasesMark))}
-            mark={purchasesMark}
+            className={cn(REPORT_CELL, REPORT_POSITIVE)}
+            mark={purchases.mark}
           >
             {formatNumber(store.purchases)}
           </MarkedCell>
-          {prevStore("רכישות")}
+          {purchases.previousCell}
           <MarkedCell
-            className={cn(REPORT_CELL, positiveTone(revenueMark))}
-            mark={revenueMark}
+            className={cn(REPORT_CELL, REPORT_POSITIVE)}
+            mark={revenue.mark}
           >
             {formatCurrency(store.revenue)}
           </MarkedCell>
-          {prevStore("הכנסות")}
+          {revenue.previousCell}
           <ReportTd>
             {groupTotals.spend > 0 ? store.roas.toFixed(2) : "-"}
           </ReportTd>
@@ -108,16 +115,16 @@ export function GoogleAdsCampaignTotalsRow({
       ) : (
         <>
           <MarkedCell
-            className={cn(REPORT_CELL, positiveTone(conversionsMark))}
-            mark={conversionsMark}
+            className={cn(REPORT_CELL, REPORT_POSITIVE)}
+            mark={conversions.mark}
           >
             {formatNumber(groupTotals.conversions)}
           </MarkedCell>
-          {prev("המרות")}
-          <MarkedCell className={REPORT_CELL} mark={mark("עלות להמרה")}>
+          {conversions.previousCell}
+          <MarkedCell className={REPORT_CELL} mark={costPerConversion.mark}>
             {totalCpa > 0 ? formatCurrency(totalCpa) : "-"}
           </MarkedCell>
-          {prev("עלות להמרה")}
+          {costPerConversion.previousCell}
         </>
       )}
     </>

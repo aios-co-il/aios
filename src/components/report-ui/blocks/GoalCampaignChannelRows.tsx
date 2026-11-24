@@ -1,11 +1,7 @@
 import { Fragment } from "react";
-import {
-  ChangeArrow,
-  changeMark,
-  PreviousValueCell,
-} from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
-import { cn } from "@/lib/utils";
 import { CampaignStatusSwitch } from "../CampaignStatusSwitch";
 import type { ReportCampaignRow } from "../data/reportData";
 import type { ReportFigures } from "../metrics/reportFigures";
@@ -125,38 +121,42 @@ export function MetricCells({
   money: ReportMoney;
   previous?: ReportFigures | null;
 }) {
+  const compared = compareCellsFor(figures, previous, CELL);
   return metrics.map((key) => {
     const metric = REPORT_METRICS[key];
     const split = isSplitMetric(key, figures, money);
-    const before = previous && !split ? metric.compute(previous) : null;
-    const current = metric.compute(figures) ?? 0;
-    const direction = GOOD_WHEN_DIRECTION[metric.goodWhen];
     const available = isMetricAvailable(key, figures);
-    // A dash for a metric the row cannot measure carries no change mark.
-    const mark =
-      available && before !== null
-        ? changeMark(current, before, direction)
-        : null;
+    const cells = compared(
+      (data) => (split ? null : comparedValue(key, data)),
+      (value) => formatMetricValue(metric.format, value, money.ads),
+      GOOD_WHEN_DIRECTION[metric.goodWhen],
+    );
     return (
       <Fragment key={key}>
-        <td className={cn(CELL, mark?.className)}>
-          <ChangeArrow mark={mark} />
+        <MarkedCell className={CELL} mark={cells.mark}>
           {available ? readReportMetric(key, figures, money).text : "—"}
-        </td>
-        {previous !== undefined && (
-          <PreviousValueCell
-            current={current}
-            previous={before ?? undefined}
-            format={(value) =>
-              formatMetricValue(metric.format, value, money.ads)
-            }
-            direction={direction}
-            cellClassName={CELL}
-          />
-        )}
+        </MarkedCell>
+        {cells.previousCell}
       </Fragment>
     );
   });
+}
+
+/**
+ * A metric's value as the comparison reads it: null where the figures cannot
+ * measure it, and for a cost of 0, which only means nothing was bought (no
+ * leads for a cost per lead), so it is no fall in cost to mark.
+ */
+function comparedValue(
+  key: ReportMetricKey,
+  figures: ReportFigures,
+): number | null {
+  const metric = REPORT_METRICS[key];
+  if (!isMetricAvailable(key, figures)) {
+    return null;
+  }
+  const value = metric.compute(figures);
+  return metric.goodWhen === "down" && value === 0 ? null : value;
 }
 
 /** The report catalog's good direction as the comparison cell reads it. */

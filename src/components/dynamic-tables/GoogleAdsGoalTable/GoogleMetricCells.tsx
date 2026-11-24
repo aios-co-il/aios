@@ -1,10 +1,7 @@
-import {
-  changeMarksFor,
-  previousCellsFor,
-} from "@/components/reports/PreviousPeriod/previousCells";
-import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import { formatReportNumber, resultCellClass } from "@/lib/reportNumber";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
-import { MarkedCell } from "../MarkedCell";
 import type { GoogleGoalMetrics } from "./googleGoalMetrics";
 
 type Props = {
@@ -24,104 +21,116 @@ export function GoogleMetricCells({
   currency,
   isTotal,
 }: Props) {
-  const prev = previousCellsFor(m, previous);
-  const mark = changeMarksFor(m, previous);
+  const compared = compareCellsFor(m, previous);
   /** An amount in the report's currency. */
   function money(value: number, digits = 0) {
     return `${currency}${formatReportNumber(value, digits)}`;
   }
-  const cost = (
+  const cost = compared((data) => data.cost, money, "neutral");
+  const costCells = (
     <>
-      <MarkedCell
-        className="p-2 text-center"
-        mark={mark((data) => data.cost, "neutral")}
-      >
+      <MarkedCell className="p-2 text-center" mark={cost.mark}>
         {money(m.cost)}
       </MarkedCell>
-      {prev((data) => data.cost, money, "neutral")}
+      {cost.previousCell}
     </>
   );
   if (goal === "traffic") {
+    const clicks = compared(
+      (data) => data.clicks,
+      formatReportNumber,
+      "higher",
+    );
+    const perClick = compared(
+      costPerClick,
+      (value) => money(value, 2),
+      "lower",
+    );
     return (
       <>
         <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
-        <MarkedCell
-          className="p-2 text-center"
-          mark={mark((data) => data.clicks, "higher")}
-        >
+        <MarkedCell className="p-2 text-center" mark={clicks.mark}>
           {formatReportNumber(m.clicks)}
         </MarkedCell>
-        {prev((data) => data.clicks, formatReportNumber, "higher")}
-        {cost}
+        {clicks.previousCell}
+        {costCells}
         <MarkedCell
           className={resultCellClass("text-blue-600", isTotal)}
-          mark={mark(costPerClick, "lower")}
+          mark={perClick.mark}
         >
-          {money(costPerClick(m), 2)}
+          {money(costPerClick(m) ?? 0, 2)}
         </MarkedCell>
-        {prev(costPerClick, (value) => money(value, 2), "lower")}
+        {perClick.previousCell}
       </>
     );
   }
+  const conversions = compared(
+    (data) => data.conversions,
+    (value) => formatReportNumber(Math.round(value)),
+    "higher",
+  );
+  const value = compared((data) => data.conversions_value, money, "higher");
+  const returnOnSpend = compared(
+    roas,
+    (ratio) => `${formatReportNumber(ratio, 2)}x`,
+    "higher",
+  );
+  const perLead = compared(costPerLead, (cpl) => money(cpl, 1), "lower");
   return (
     <>
       <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
       <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
       <MarkedCell
         className={resultCellClass("text-green-600", isTotal)}
-        mark={mark((data) => data.conversions, "higher")}
+        mark={conversions.mark}
       >
         {formatReportNumber(Math.round(m.conversions))}
       </MarkedCell>
-      {prev(
-        (data) => data.conversions,
-        (value) => formatReportNumber(Math.round(value)),
-        "higher",
-      )}
-      {cost}
+      {conversions.previousCell}
+      {costCells}
       {goal === "ecommerce" ? (
         <>
           <MarkedCell
             className={resultCellClass("text-purple-600", isTotal)}
-            mark={mark((data) => data.conversions_value, "higher")}
+            mark={value.mark}
           >
             {money(m.conversions_value)}
           </MarkedCell>
-          {prev((data) => data.conversions_value, money, "higher")}
+          {value.previousCell}
           <MarkedCell
             className={resultCellClass("text-blue-600", isTotal)}
-            mark={mark(roas, "higher")}
+            mark={returnOnSpend.mark}
           >
-            {formatReportNumber(roas(m), 2)}x
+            {formatReportNumber(roas(m) ?? 0, 2)}x
           </MarkedCell>
-          {prev(roas, (value) => `${formatReportNumber(value, 2)}x`, "higher")}
+          {returnOnSpend.previousCell}
         </>
       ) : (
         <>
           <MarkedCell
             className={resultCellClass("text-blue-600", isTotal)}
-            mark={mark(costPerLead, "lower")}
+            mark={perLead.mark}
           >
-            {money(costPerLead(m), 1)}
+            {money(costPerLead(m) ?? 0, 1)}
           </MarkedCell>
-          {prev(costPerLead, (value) => money(value, 1), "lower")}
+          {perLead.previousCell}
         </>
       )}
     </>
   );
 }
 
-/** Cost per click. */
-function costPerClick(m: GoogleGoalMetrics): number {
-  return ratio(m.cost, m.clicks);
+/** Cost per click; null without clicks, so it is not compared. */
+function costPerClick(m: GoogleGoalMetrics): number | null {
+  return m.clicks > 0 ? m.cost / m.clicks : null;
 }
 
-/** Conversion value per unit of cost. */
-function roas(m: GoogleGoalMetrics): number {
-  return ratio(m.conversions_value, m.cost);
+/** Conversion value per unit of cost; null without spend, so it is not compared. */
+function roas(m: GoogleGoalMetrics): number | null {
+  return m.cost > 0 ? m.conversions_value / m.cost : null;
 }
 
-/** Cost per conversion (lead). */
-function costPerLead(m: GoogleGoalMetrics): number {
-  return ratio(m.cost, m.conversions);
+/** Cost per conversion (lead); null without conversions, so it is not compared. */
+function costPerLead(m: GoogleGoalMetrics): number | null {
+  return m.conversions > 0 ? m.cost / m.conversions : null;
 }
