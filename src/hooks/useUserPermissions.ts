@@ -1,4 +1,4 @@
-import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentTenant } from "./useCurrentTenant";
 import { useUserRole } from "./useUserRole";
@@ -31,14 +31,18 @@ export function useUserPermissions() {
     isError: permissionsError,
     isFetchedAfterMount: permissionsFetchedAfterMount,
   } = useQuery({
-    queryKey: ["user-permissions", userId],
+    queryKey: ["user-permissions", userId, tenantId],
     queryFn: async () => {
-      if (!userId) return { permissions: null, hasAnyPermissions: false };
+      if (!userId || !tenantId) {
+        return { tenantId, permissions: null, hasAnyPermissions: false };
+      }
 
+      // Modules are granted per tenant: read only the active tenant's.
       const { data, error } = await supabase
         .from("user_permissions")
         .select("module, can_access")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId);
 
       if (error) {
         console.error("Error fetching permissions:", error);
@@ -51,6 +55,7 @@ export function useUserPermissions() {
       });
 
       return {
+        tenantId,
         permissions: permissionsMap,
         hasAnyPermissions: !!data && data.length > 0,
       };
@@ -58,7 +63,10 @@ export function useUserPermissions() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
-    placeholderData: keepPreviousData,
+    // Keep the previous result only within the same tenant: after a switch,
+    // the other tenant's modules must not show while the new ones load.
+    placeholderData: (previous) =>
+      previous?.tenantId === tenantId ? previous : undefined,
   });
 
   // Block only on first load — keep using cached permissions during background refetch.
@@ -66,10 +74,14 @@ export function useUserPermissions() {
 
   const hasPermission = (module: ModulePermission): boolean => {
     // While loading or user unknown, do NOT allow (prevents leaks)
-    if (isLoading) return false;
+    if (isLoading) {
+      return false;
+    }
 
     // Super admins can access all modules in the UI
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin) {
+      return true;
+    }
 
     const { permissions, hasAnyPermissions } = permissionsData || {
       permissions: null,
@@ -77,7 +89,7 @@ export function useUserPermissions() {
     };
 
     // ── מודולים שדורשים הרשאה מפורשת (גם לבעלים) ─────────────────────
-    const restrictedModules: ModulePermission[] = [
+    const restrictedModules: Array<ModulePermission> = [
       "sales_dashboard",
       "leads",
       "sales_people",
@@ -120,25 +132,33 @@ export function useUserPermissions() {
     }
 
     // Campaigners need pulse dashboard access; row scope is enforced in DMMDashboard + RLS.
-    if (isCampaigner && module === "crm_dashboard") return true;
+    if (isCampaigner && module === "crm_dashboard") {
+      return true;
+    }
 
     // ── מודולים נגישים לכל המשתמשים המאומתים ─────────────────────────
-    const alwaysAccessibleModules: ModulePermission[] = [
+    const alwaysAccessibleModules: Array<ModulePermission> = [
       "team_chat",
       "settings",
       "reports",
     ];
 
-    if (alwaysAccessibleModules.includes(module)) return true;
+    if (alwaysAccessibleModules.includes(module)) {
+      return true;
+    }
 
     // ── אם אין הרשאות מוגדרות כלל ────────────────────────────────────
     if (!hasAnyPermissions) {
-      if (hasManagementAccess) return true;
+      if (hasManagementAccess) {
+        return true;
+      }
       return false;
     }
 
     // ── בעלים / מנהלי צוות / בעלי סוכנות — מודולים לא-מוגבלים ─────────
-    if (hasManagementAccess && !restrictedModules.includes(module)) return true;
+    if (hasManagementAccess && !restrictedModules.includes(module)) {
+      return true;
+    }
 
     return permissions?.[module] === true;
   };

@@ -102,11 +102,11 @@ export interface ProvisionOptions {
 }
 
 export interface ProvisionSummary {
-  created: string[];
-  updated: string[];
-  skipped: string[];
-  synced: string[];
-  resolved: string[];
+  created: Array<string>;
+  updated: Array<string>;
+  skipped: Array<string>;
+  synced: Array<string>;
+  resolved: Array<string>;
   dashboardCreated: boolean;
   createDashboard: boolean;
 }
@@ -136,12 +136,14 @@ async function resolveSeoAccountsFromWebsite(
   tenantId: string | null,
 ): Promise<{
   updates: Partial<Record<ChannelFieldKey, string>>;
-  resolved: string[];
+  resolved: Array<string>;
 }> {
   const updates: Partial<Record<ChannelFieldKey, string>> = {};
-  const resolved: string[] = [];
+  const resolved: Array<string> = [];
   const domain = normalizeSeoDomain(client.website);
-  if (!domain || !tenantId) return { updates, resolved };
+  if (!domain || !tenantId) {
+    return { updates, resolved };
+  }
 
   if (!String(client.ahrefs_domain || "").trim()) {
     updates.ahrefs_domain = domain;
@@ -236,10 +238,14 @@ export function useProvisionClientChannels() {
         )
         .eq("id", clientId)
         .single();
-      if (clientErr || !client) throw clientErr || new Error("הלקוח לא נמצא");
+      if (clientErr || !client) {
+        throw clientErr || new Error("הלקוח לא נמצא");
+      }
 
       const c = { ...(client as Record<string, any>) };
-      const services: string[] = Array.isArray(c.services) ? c.services : [];
+      const services: Array<string> = Array.isArray(c.services)
+        ? c.services
+        : [];
       const tenantId: string | null = c.tenant_id ?? null;
       const agencyId: string | null = c.agency_id ?? null;
 
@@ -287,7 +293,7 @@ export function useProvisionClientChannels() {
           .from("tenant_integrations")
           .select("id, integration_type, is_active")
           .eq("tenant_id", tenantId);
-        for (const row of (integrations as any[]) ?? []) {
+        for (const row of (integrations as Array<any>) ?? []) {
           if (row.is_active && !integrationIdByType[row.integration_type]) {
             integrationIdByType[row.integration_type] = row.id;
           }
@@ -298,7 +304,9 @@ export function useProvisionClientChannels() {
         tenantId ? `crm-tables?tenant_id=${tenantId}` : "crm-tables",
         { method: "GET" },
       );
-      if (listRes.error) throw listRes.error;
+      if (listRes.error) {
+        throw listRes.error;
+      }
       const existing = (Array.isArray(listRes.data) ? listRes.data : []).filter(
         (t: any) => t.client_id === clientId,
       );
@@ -308,7 +316,9 @@ export function useProvisionClientChannels() {
       for (const channel of CLIENT_CHANNELS) {
         for (const tbl of channel.tables) {
           const meta = TABLE_META[tbl.integrationType];
-          if (!meta) continue;
+          if (!meta) {
+            continue;
+          }
           const idValue: string = (
             c[tbl.requiresField as ChannelFieldKey] ?? ""
           )
@@ -332,9 +342,9 @@ export function useProvisionClientChannels() {
               method: "PATCH",
               body: { table_id: found.id, integration_settings: settings },
             });
-            if (patch.error)
+            if (patch.error) {
               summary.skipped.push(`${meta.label}: ${patch.error.message}`);
-            else {
+            } else {
               summary.updated.push(meta.label);
               provisioned.push({
                 id: found.id,
@@ -358,29 +368,34 @@ export function useProvisionClientChannels() {
               client_id: clientId,
             },
           });
-          if (create.error)
+          if (create.error) {
             summary.skipped.push(`${meta.label}: ${create.error.message}`);
-          else {
+          } else {
             summary.created.push(meta.label);
             const newId = (create.data as any)?.id;
-            if (newId)
+            if (newId) {
               provisioned.push({
                 id: newId,
                 integrationType: tbl.integrationType,
                 label: meta.label,
               });
+            }
           }
         }
       }
 
       for (const p of provisioned) {
         const syncFn = syncFunctionFor(p.integrationType);
-        if (!syncFn) continue;
+        if (!syncFn) {
+          continue;
+        }
         try {
           const res = await supabase.functions.invoke(syncFn, {
             body: { table_id: p.id },
           });
-          if (!res.error) summary.synced.push(p.label);
+          if (!res.error) {
+            summary.synced.push(p.label);
+          }
         } catch {
           // ignore — manual sync remains available
         }
@@ -409,7 +424,9 @@ export function useProvisionClientChannels() {
               dashboard_type: "client",
               settings: {},
             } as never);
-          if (!dashErr) summary.dashboardCreated = true;
+          if (!dashErr) {
+            summary.dashboardCreated = true;
+          }
         }
       }
 

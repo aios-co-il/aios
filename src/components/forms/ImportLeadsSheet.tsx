@@ -149,9 +149,9 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   // Mapping state
-  const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
-  const [sheetData, setSheetData] = useState<any[]>([]);
-  const [mappings, setMappings] = useState<FieldMapping[]>([]);
+  const [sheetHeaders, setSheetHeaders] = useState<Array<string>>([]);
+  const [sheetData, setSheetData] = useState<Array<any>>([]);
+  const [mappings, setMappings] = useState<Array<FieldMapping>>([]);
   const [importResult, setImportResult] = useState<{
     imported: number;
     updated: number;
@@ -164,13 +164,17 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies", tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return [];
+      if (!tenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenant.id)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenant?.id,
@@ -227,8 +231,12 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
         },
       );
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       const headers = data.headers || [];
       const rows = data.previewRows || [];
@@ -238,7 +246,7 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
       }
 
       // Auto-detect mappings
-      const autoMappings: FieldMapping[] = headers.map((col: string) => {
+      const autoMappings: Array<FieldMapping> = headers.map((col: string) => {
         const normalizedCol = col.trim().toLowerCase();
         const detectedField =
           AUTO_DETECT_MAPPINGS[col] ||
@@ -272,7 +280,9 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
 
   // Preview data with current mappings
   const previewData = useMemo(() => {
-    if (sheetData.length === 0) return [];
+    if (sheetData.length === 0) {
+      return [];
+    }
 
     return sheetData.slice(0, 5).map((row) => {
       const mapped: Record<string, any> = {};
@@ -320,8 +330,12 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
         },
       );
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       setImportResult({ imported: data.imported, updated: data.updated });
 
@@ -589,8 +603,11 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) handleClose();
-        else setOpen(true);
+        if (!isOpen) {
+          handleClose();
+        } else {
+          setOpen(true);
+        }
       }}
     >
       <DialogTrigger asChild>

@@ -16,7 +16,7 @@ export const GRID_CLASSES =
   "grid grid-cols-1 gap-4 [@container(min-width:22rem)]:grid-cols-2 [@container(min-width:36rem)]:grid-cols-3 [@container(min-width:46rem)]:grid-cols-4";
 
 export interface StoryboardGridProps {
-  scenes: StoryboardScene[];
+  scenes: Array<StoryboardScene>;
   /** The film's frame, e.g. "9:16". */
   aspect: string;
   loading?: boolean;
@@ -44,10 +44,14 @@ export function StoryboardGrid({
   const selected = scenes.find((scene) => scene.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      return;
+    }
     // On document, so it runs before the session column's window listener (Escape closes it).
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
       event.preventDefault();
       onSelectRef.current(null);
     };
@@ -55,12 +59,13 @@ export function StoryboardGrid({
     return () => document.removeEventListener("keydown", onKey);
   }, [selectedId]);
 
-  if (loading && scenes.length === 0)
+  if (loading && scenes.length === 0) {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
+  }
 
   return (
     <section

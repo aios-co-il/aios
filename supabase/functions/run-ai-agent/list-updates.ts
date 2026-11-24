@@ -9,7 +9,7 @@ interface ListUpdatesInput {
   entityType: unknown;
   entityId: string;
   tenantId: string;
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   limit?: number;
 }
 

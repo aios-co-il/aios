@@ -18,7 +18,9 @@ async function readInvokeError(
 ): Promise<string> {
   try {
     const body = await error?.context?.json?.();
-    if (body?.error) return body.error;
+    if (body?.error) {
+      return body.error;
+    }
   } catch {
     /* the gateway error has no JSON body */
   }
@@ -28,7 +30,9 @@ async function readInvokeError(
 /** Open during the click so the later navigation is not treated as a popup. */
 export function beginExternalOpen(): Window | null {
   const pending = window.open("about:blank", "_blank");
-  if (pending) pending.opener = null;
+  if (pending) {
+    pending.opener = null;
+  }
   return pending;
 }
 
@@ -38,7 +42,9 @@ export function finishExternalOpen(url: string, pending: Window | null) {
     return;
   }
   const opened = window.open(url, "_blank");
-  if (opened) opened.opener = null;
+  if (opened) {
+    opened.opener = null;
+  }
 }
 
 export function cancelExternalOpen(pending: Window | null) {
@@ -50,8 +56,12 @@ export async function resolveExternalRecordingUrl(
   rec: ExternalRecordingRef,
 ): Promise<string | null> {
   const stored = rec.recording_url;
-  if (!recordingNeedsRecallRefresh(rec)) return stored;
-  if (stored && presignedUrlStillValid(stored)) return stored;
+  if (!recordingNeedsRecallRefresh(rec)) {
+    return stored;
+  }
+  if (stored && presignedUrlStillValid(stored)) {
+    return stored;
+  }
 
   const { data, error } = await supabase.functions.invoke(
     "refresh-recording-playback",
@@ -59,8 +69,11 @@ export async function resolveExternalRecordingUrl(
       body: { recording_id: rec.id },
     },
   );
-  if (typeof data?.url === "string" && data.url) return data.url;
-  if (typeof data?.error === "string" && data.error)
+  if (typeof data?.url === "string" && data.url) {
+    return data.url;
+  }
+  if (typeof data?.error === "string" && data.error) {
     throw new Error(data.error);
+  }
   throw new Error(await readInvokeError(error));
 }

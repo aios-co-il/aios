@@ -53,10 +53,10 @@ export function ports(
   roles: Record<string, string> = ROLES,
   refuse = false,
 ) {
-  const written: ClientCardEntryInput[] = [];
-  const closed: (string | null)[] = [];
-  const looked: number[] = [];
-  const asked: unknown[][] = [];
+  const written: Array<ClientCardEntryInput> = [];
+  const closed: Array<string | null> = [];
+  const looked: Array<number> = [];
+  const asked: Array<Array<unknown>> = [];
   const fake: ApprovalPorts = {
     findLive: (_tenant, code) => {
       looked.push(code);

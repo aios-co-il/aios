@@ -18,11 +18,15 @@ export function useSaveTemplate(
   const { save } = useMessageTemplates();
 
   const handleSave = (d: TemplateDraft) => {
-    if (!d.name.trim()) return toast.error("צריך שם לטמפלייט");
-    if (channel === "email" && !d.subject.trim())
+    if (!d.name.trim()) {
+      return toast.error("צריך שם לטמפלייט");
+    }
+    if (channel === "email" && !d.subject.trim()) {
       return toast.error("צריך נושא למייל");
-    if (channel === "whatsapp" && !d.bodyText.trim())
+    }
+    if (channel === "whatsapp" && !d.bodyText.trim()) {
       return toast.error("צריך תוכן להודעה");
+    }
     // Only the channel's own content is stored; the other columns are cleared.
     const content = templateContent({
       channel,

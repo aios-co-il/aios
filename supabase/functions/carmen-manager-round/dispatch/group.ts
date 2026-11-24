@@ -33,10 +33,10 @@ export type GroupInput = TriageInput & {
 export async function dispatchGroup(
   deps: DispatchDeps,
   input: GroupInput,
-  batch: { group: DeliveryRow[]; findings: Map<string, FindingRow> },
+  batch: { group: Array<DeliveryRow>; findings: Map<string, FindingRow> },
   report: DispatchReport,
 ): Promise<boolean> {
-  const record = (rows: DeliveryRow[], outcome: SendOutcome) =>
+  const record = (rows: Array<DeliveryRow>, outcome: SendOutcome) =>
     rows.length
       ? deps.deliveries.recordSend(
           input.tenantId,
@@ -90,10 +90,10 @@ export async function dispatchGroup(
 
 /** Ready rows that did not go, grouped by when they are tried again (ISO time). */
 function byRetryTime(
-  rows: DeliveryRow[],
+  rows: Array<DeliveryRow>,
   input: GroupInput,
-): Map<string, DeliveryRow[]> {
-  const groups = new Map<string, DeliveryRow[]>();
+): Map<string, Array<DeliveryRow>> {
+  const groups = new Map<string, Array<DeliveryRow>>();
   for (const row of rows) {
     const at = retryAt(row, input).toISOString();
     groups.set(at, [...(groups.get(at) ?? []), row]);

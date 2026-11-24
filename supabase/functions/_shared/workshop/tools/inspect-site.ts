@@ -7,15 +7,21 @@ import { type ToolContext } from "../tool-context.ts";
 export async function workshopInspectSite(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
-  if (!deps.fetchPublic) return { error: "קריאת אתרים לא זמינה כאן" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
+  if (!deps.fetchPublic) {
+    return { error: "קריאת אתרים לא זמינה כאן" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   const assets = await loadAssets(supabase, tenantId, itemId);
   let wanted = String(args.url ?? "").trim();
@@ -35,17 +41,19 @@ export async function workshopInspectSite(ctx: ToolContext) {
       .maybeSingle();
     wanted = String(client.data?.website ?? "").trim();
   }
-  if (!wanted)
+  if (!wanted) {
     return {
       error:
         "אין כתובת אתר. בקשי מהמשתמש את הכתובת, או שייכי את הפרויקט ללקוח שיש לו אתר.",
     };
+  }
   const target = isHttpUrl(wanted) ? wanted : `https://${wanted}`;
   const page = await deps.fetchPublic(target, { maxBytes: 1_500_000 });
-  if (!page.ok)
+  if (!page.ok) {
     return {
       error: `לא הצלחתי לקרוא את האתר: ${page.error ?? "אין תשובה"}. אפשר לבקש מהמשתמש להעלות לוגו ותמונות ידנית.`,
     };
+  }
   const html = new TextDecoder().decode(page.bytes);
   let report = siteReport(html, page.url || target);
   const styles = await Promise.all(
@@ -93,7 +101,9 @@ export async function workshopInspectSite(ctx: ToolContext) {
         text: summary,
         meta,
       });
-  if (savedSite.error) return { error: savedSite.error.message };
+  if (savedSite.error) {
+    return { error: savedSite.error.message };
+  }
   let applied = false;
   let logoUrl: string | null = null;
   let logoError: string | null = null;
@@ -102,8 +112,9 @@ export async function workshopInspectSite(ctx: ToolContext) {
   if (
     typeof nextPayload.client_website !== "string" ||
     !nextPayload.client_website
-  )
+  ) {
     nextPayload.client_website = report.url;
+  }
   if (args.apply_brand === true) {
     nextPayload.brand_book = {
       ...brand,
@@ -118,13 +129,20 @@ export async function workshopInspectSite(ctx: ToolContext) {
       const copied = deps.importImage
         ? await deps.importImage(report.logo, { tenantId, itemId })
         : { error: "ייבוא תמונות לא זמין כאן" };
-      if (copied.url) nextPayload.logo_url = logoUrl = copied.url;
-      else logoError = copied.error ?? "הלוגו לא נקרא";
+      if (copied.url) {
+        nextPayload.logo_url = logoUrl = copied.url;
+      } else {
+        logoError = copied.error ?? "הלוגו לא נקרא";
+      }
     }
     applied = true;
   }
-  if (applied || nextPayload.client_website !== project.payload.client_website)
+  if (
+    applied ||
+    nextPayload.client_website !== project.payload.client_website
+  ) {
     await savePayload(supabase, tenantId, itemId, nextPayload);
+  }
   return {
     success: true,
     url: report.url,

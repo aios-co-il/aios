@@ -38,12 +38,12 @@ const INSTRUCTIONS = [
 export type VerdictPrompt = {
   text: string;
   /** Line n's message id at index n - 1 when it is a new client line, else null. */
-  lineIds: (string | null)[];
+  lineIds: Array<string | null>;
 };
 
 /** The prompt for a thread's newest turns; `fresh` holds the new client lines. */
 export function verdictPrompt(
-  turns: Turn[],
+  turns: Array<Turn>,
   fresh: ReadonlySet<string>,
 ): VerdictPrompt {
   const shown = newestThatFit(turns);
@@ -58,8 +58,8 @@ export function verdictPrompt(
 }
 
 /** The newest turns whose lines fit the character budget, oldest first. */
-function newestThatFit(turns: Turn[]): Turn[] {
-  const shown: Turn[] = [];
+function newestThatFit(turns: Array<Turn>): Array<Turn> {
+  const shown: Array<Turn> = [];
   let used = 0;
   for (const turn of turns.slice(-MAX_TURNS).reverse()) {
     const size = NUMBER_WIDTH + body(turn).length;

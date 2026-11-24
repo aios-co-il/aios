@@ -19,9 +19,14 @@ export function titleSimilarity(a: string, b: string): number {
       .split(" ")
       .filter((w) => w.length > 2),
   );
-  if (!wa.size || !wb.size)
+  if (!wa.size || !wb.size) {
     return normalizeTitle(a) === normalizeTitle(b) ? 1 : 0;
+  }
   let inter = 0;
-  for (const w of wa) if (wb.has(w)) inter++;
+  for (const w of wa) {
+    if (wb.has(w)) {
+      inter++;
+    }
+  }
   return inter / Math.max(wa.size, wb.size);
 }

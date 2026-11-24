@@ -15,7 +15,9 @@ const json = (body: unknown, status = 200) =>
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isRecallHost(url: string | null): boolean {
-  if (!url) return false;
+  if (!url) {
+    return false;
+  }
   try {
     const host = new URL(url).hostname.toLowerCase();
     return host.includes("recallai") || host.endsWith("recall.ai");
@@ -25,12 +27,18 @@ function isRecallHost(url: string | null): boolean {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers });
-  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers });
+  }
+  if (req.method !== "POST") {
+    return json({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "חסרה הזדהות" }, 401);
+    if (!authHeader) {
+      return json({ error: "חסרה הזדהות" }, 401);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -41,7 +49,9 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-    if (authError || !user) return json({ error: "אין הרשאה" }, 401);
+    if (authError || !user) {
+      return json({ error: "אין הרשאה" }, 401);
+    }
 
     const body = await req.json().catch(() => ({}));
     const recordingId = body?.recording_id;
@@ -54,8 +64,12 @@ Deno.serve(async (req) => {
       .select("id, source, meeting_id, recording_url, recording_type")
       .eq("id", recordingId)
       .maybeSingle();
-    if (recError) throw recError;
-    if (!rec) return json({ error: "ההקלטה לא נמצאה" }, 404);
+    if (recError) {
+      throw recError;
+    }
+    if (!rec) {
+      return json({ error: "ההקלטה לא נמצאה" }, 404);
+    }
     if (
       (rec.source !== "meeting_bot" && !isRecallHost(rec.recording_url)) ||
       !rec.meeting_id
@@ -69,18 +83,21 @@ Deno.serve(async (req) => {
       rec.recording_type === "audio_only"
         ? audioUrl || videoUrl
         : videoUrl || audioUrl;
-    if (!url) return json({ error: "אין קובץ וידאו זמין אצל Recall" }, 404);
+    if (!url) {
+      return json({ error: "אין קובץ וידאו זמין אצל Recall" }, 404);
+    }
 
     const { error: updateError } = await supabase
       .from("zoom_recordings")
       .update({ recording_url: url })
       .eq("id", rec.id);
-    if (updateError)
+    if (updateError) {
       console.error(
         "[refresh-recording-playback] url persist failed",
         rec.id,
         updateError.message,
       );
+    }
 
     return json({ url });
   } catch (error) {

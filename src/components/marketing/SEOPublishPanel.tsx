@@ -85,7 +85,7 @@ export function SEOPublishPanel({
         .select("id, site_url, site_name, username, app_password")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      return (clientSites ?? []) as WPSite[];
+      return (clientSites ?? []) as Array<WPSite>;
     },
   });
 

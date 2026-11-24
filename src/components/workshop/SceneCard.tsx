@@ -76,11 +76,15 @@ export function SceneCard({
   const name = scene.title || `סצנה ${scene.number}`;
 
   const save = () => {
-    if (!draft) return;
+    if (!draft) {
+      return;
+    }
     const typed = draft;
     const patch = changedText(scene, typed);
     setDraft(null);
-    if (patch) void Promise.resolve(onSave(patch)).catch(() => setDraft(typed));
+    if (patch) {
+      void Promise.resolve(onSave(patch)).catch(() => setDraft(typed));
+    }
   };
 
   return (

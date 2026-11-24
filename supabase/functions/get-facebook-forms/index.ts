@@ -71,7 +71,9 @@ serve(async (req) => {
         // Check if there's a next page
         nextUrl = pagesData.paging?.next || "";
 
-        if (!nextUrl) break;
+        if (!nextUrl) {
+          break;
+        }
       }
 
       // Return pages with their access tokens

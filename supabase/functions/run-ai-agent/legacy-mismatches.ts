@@ -13,17 +13,17 @@ type LegacyMismatch = {
   meta: number;
   aios: number;
   date?: string;
-  dates?: string[];
+  dates?: Array<string>;
 };
 
 /** A per-campaign mismatch entry while its days are summed. */
-type GroupedMismatch = LegacyMismatch & { dates: string[] };
+type GroupedMismatch = LegacyMismatch & { dates: Array<string> };
 
 /** Findings → the verify tool's mismatch entries (one per campaign and metric). */
 export function legacyMismatches(
-  findings: ReconcileFinding[],
-): LegacyMismatch[] {
-  const out: LegacyMismatch[] = [];
+  findings: Array<ReconcileFinding>,
+): Array<LegacyMismatch> {
+  const out: Array<LegacyMismatch> = [];
   const grouped = new Map<string, GroupedMismatch>();
   for (const f of findings) {
     const name = f.details.campaign_name || null;

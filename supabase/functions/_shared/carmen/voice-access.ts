@@ -16,7 +16,8 @@ export function orgVoiceKeyAllowed(
   email: string | null | undefined,
   appEnv: string | undefined,
 ): boolean {
-  if (email && CARMEN_OWNER_ALLOWLIST.includes(email.toLowerCase()))
+  if (email && CARMEN_OWNER_ALLOWLIST.includes(email.toLowerCase())) {
     return true;
+  }
   return !!email && isNonProductionAppEnv(appEnv);
 }

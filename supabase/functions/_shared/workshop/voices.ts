@@ -12,7 +12,7 @@ export interface Voice {
   fits: string;
 }
 
-export const HEBREW_VOICES: Voice[] = [
+export const HEBREW_VOICES: Array<Voice> = [
   {
     id: "d4eLZ8u5dfBCsjp4YPyz",
     name: "יעל",
@@ -88,7 +88,9 @@ export const sampleText = (voice: Voice) =>
 /** A voice by id, Hebrew name, English name, or a tap like "יעל (רך, בטוח)". */
 export function findVoice(value: unknown): Voice | null {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
   return (
     HEBREW_VOICES.find((voice) => voice.id === text) ??
     HEBREW_VOICES.find(
@@ -109,9 +111,13 @@ const VOICE_ID = /^[A-Za-z0-9]{20}$/;
  */
 export function narrationVoiceId(passed: unknown, saved: unknown) {
   const known = findVoice(passed);
-  if (known) return known.id;
+  if (known) {
+    return known.id;
+  }
   const text = typeof passed === "string" ? passed.trim() : "";
-  if (VOICE_ID.test(text)) return text;
+  if (VOICE_ID.test(text)) {
+    return text;
+  }
   return typeof saved === "string" && saved.trim() ? saved.trim() : null;
 }
 
@@ -127,7 +133,7 @@ export function voiceMenu(
   const lines = voices.map(
     (voice) => `• ${voice.name}: ${voice.character}. מתאים ל${voice.fits}.`,
   );
-  const row = (label: string, list: Voice[]) =>
+  const row = (label: string, list: Array<Voice>) =>
     list.length > 0
       ? [`[[בחירה: ${label} | ${list.map((v) => v.name).join(" | ")}]]`]
       : [];

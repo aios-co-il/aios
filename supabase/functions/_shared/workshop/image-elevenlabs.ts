@@ -18,7 +18,7 @@ export async function viaElevenLabs(
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   const headers = { "xi-api-key": key, "Content-Type": "application/json" };
   const base = "https://api.elevenlabs.io/v1/flows/image";
@@ -42,8 +42,9 @@ export async function viaElevenLabs(
     }),
   });
   const started = await submit.json().catch(() => ({}));
-  if (!submit.ok || !started?.id)
+  if (!submit.ok || !started?.id) {
     throw new Error(elevenLabsReason(submit.status, JSON.stringify(started)));
+  }
   try {
     return await awaitElevenLabs(started.id, base, headers, deps, fetchImpl);
   } catch (error) {
@@ -56,14 +57,22 @@ export async function viaElevenLabs(
 /** What a failed ElevenLabs call means for the user, in plain Hebrew. */
 export function elevenLabsReason(status: number, body: string): string {
   const text = body.toLowerCase();
-  if (status === 402 || text.includes("paid_plan_required"))
+  if (status === 402 || text.includes("paid_plan_required")) {
     return "ממשק התמונות של ElevenLabs דורש תוכנית Pro ומעלה בחשבון ElevenLabs (המפתח מחובר, אבל התוכנית לא מספיקה)";
-  if (text.includes("invalid_api_key"))
+  }
+  if (text.includes("invalid_api_key")) {
     return "מפתח ה-ElevenLabs לא תקין. צריך להדביק אותו מחדש בהגדרות מודלי AI";
-  if (status === 401 || status === 403 || text.includes("missing_permissions"))
+  }
+  if (
+    status === 401 ||
+    status === 403 ||
+    text.includes("missing_permissions")
+  ) {
     return "מפתח ה-ElevenLabs מחובר, אבל חסרה לו הרשאה Image & Video (או Flows). אפשר להוסיף אותה ב-elevenlabs.io/app/api/api-keys";
-  if (status === 429)
+  }
+  if (status === 429) {
     return "ElevenLabs מגביל קצב כרגע או שהקרדיטים נגמרו. אפשר לנסות שוב עוד רגע";
+  }
   return `${status} ${clip(body)}`;
 }
 
@@ -98,17 +107,23 @@ async function awaitElevenLabs(
       headers,
     });
     const state = await poll.json().catch(() => ({}));
-    if (!poll.ok)
+    if (!poll.ok) {
       throw new Error(elevenLabsReason(poll.status, JSON.stringify(state)));
-    if (state.status === "failed")
+    }
+    if (state.status === "failed") {
       throw endedJob(
         ELEVENLABS_FAILURES[String(state.failure_reason)] ??
           clip(String(state.error_message ?? state.failure_reason ?? "נכשל")),
       );
+    }
     if (state.status === "completed") {
-      if (!state.content_url) throw new Error("לא הוחזר קישור לתמונה");
+      if (!state.content_url) {
+        throw new Error("לא הוחזר קישור לתמונה");
+      }
       const file = await fetchImpl(state.content_url);
-      if (!file.ok) throw new Error(`הורדה ${file.status}`);
+      if (!file.ok) {
+        throw new Error(`הורדה ${file.status}`);
+      }
       return {
         bytes: new Uint8Array(await file.arrayBuffer()),
         mime: file.headers.get("content-type")?.split(";")[0] || "image/png",

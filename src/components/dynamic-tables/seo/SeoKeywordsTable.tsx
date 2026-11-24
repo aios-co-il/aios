@@ -45,10 +45,15 @@ const ENGLISH_REGEX = /[A-Za-z]/;
 type LangFilter = "all" | "he" | "en";
 
 function matchesLang(keyword: string, lang: LangFilter): boolean {
-  if (lang === "all") return true;
-  if (lang === "he") return HEBREW_REGEX.test(keyword);
-  if (lang === "en")
+  if (lang === "all") {
+    return true;
+  }
+  if (lang === "he") {
+    return HEBREW_REGEX.test(keyword);
+  }
+  if (lang === "en") {
     return ENGLISH_REGEX.test(keyword) && !HEBREW_REGEX.test(keyword);
+  }
   return true;
 }
 
@@ -57,9 +62,9 @@ function normalizeKw(raw: string): string {
 }
 
 interface SeoKeywordsTableProps {
-  keywords: any[];
-  trackedKeywords?: any[];
-  gscOnlyKeywords?: any[];
+  keywords: Array<any>;
+  trackedKeywords?: Array<any>;
+  gscOnlyKeywords?: Array<any>;
   hasGscData?: boolean;
   show3Month?: boolean;
   showYearly?: boolean;
@@ -69,8 +74,8 @@ interface SeoKeywordsTableProps {
   /** Persistence key for relevance overrides (usually clientId UUID). */
   relevancePersistKey?: string;
   /** Server-provided overrides (public share links). */
-  initialForceRelevant?: string[];
-  initialForceIrrelevant?: string[];
+  initialForceRelevant?: Array<string>;
+  initialForceIrrelevant?: Array<string>;
   /** Hide mark actions and skip writes (anonymous share viewers). */
   relevanceReadOnly?: boolean;
   initialLangFilter?: LangFilter;
@@ -80,7 +85,9 @@ interface SeoKeywordsTableProps {
 }
 
 function fmt(n: number, digits = 1): string {
-  if (Number.isInteger(n)) return String(n);
+  if (Number.isInteger(n)) {
+    return String(n);
+  }
   return Number(n.toFixed(digits)).toString();
 }
 
@@ -93,11 +100,13 @@ function safePathname(url: string): string {
 }
 
 function PositionChange({ value }: { value: number | null }) {
-  if (value === null || value === undefined)
+  if (value === null || value === undefined) {
     return <span className="text-xs text-muted-foreground">—</span>;
+  }
   const rounded = Math.round(value * 10) / 10;
-  if (rounded === 0)
+  if (rounded === 0) {
     return <span className="text-xs text-muted-foreground">ללא שינוי</span>;
+  }
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-medium ${rounded > 0 ? "text-green-600" : "text-red-500"}`}
@@ -336,7 +345,7 @@ function KeywordTable({
   showIrrelevantAction,
   hideSearch,
 }: {
-  keywords: any[];
+  keywords: Array<any>;
   title: string;
   icon: React.ReactNode;
   show3Month?: boolean;
@@ -352,7 +361,9 @@ function KeywordTable({
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return keywords;
+    if (!q) {
+      return keywords;
+    }
     return keywords.filter((kw) =>
       String(kw.keyword || "")
         .toLowerCase()
@@ -477,7 +488,7 @@ function KeywordClustersPanel({
   onMarkIrrelevant,
   showIrrelevantAction,
 }: {
-  clusters: KeywordCluster<any>[];
+  clusters: Array<KeywordCluster<any>>;
   show3Month?: boolean;
   showYearly?: boolean;
   showPrevMonth?: boolean;
@@ -491,13 +502,16 @@ function KeywordClustersPanel({
   const [openKey, setOpenKey] = useState<string | null>(null);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return clusters;
+    if (!q) {
+      return clusters;
+    }
     return clusters.filter((cluster) => {
       if (
         cluster.label.toLowerCase().includes(q) ||
         cluster.key.toLowerCase().includes(q)
-      )
+      ) {
         return true;
+      }
       return cluster.keywords.some((kw) =>
         String(kw.keyword || "")
           .toLowerCase()
@@ -507,7 +521,9 @@ function KeywordClustersPanel({
   }, [clusters, search]);
 
   useEffect(() => {
-    if (filtered.length === 1) setOpenKey(filtered[0].key);
+    if (filtered.length === 1) {
+      setOpenKey(filtered[0].key);
+    }
   }, [filtered]);
 
   return (
@@ -641,14 +657,18 @@ export function SeoKeywordsTable({
     onLangFilterChange?.(next);
   };
 
-  const dedupeByKeyword = (rows: any[]): any[] => {
-    const groups = new Map<string, any[]>();
+  const dedupeByKeyword = (rows: Array<any>): Array<any> => {
+    const groups = new Map<string, Array<any>>();
     for (const r of rows) {
       const key = String(r?.keyword || "")
         .trim()
         .toLowerCase();
-      if (!key) continue;
-      if (!groups.has(key)) groups.set(key, []);
+      if (!key) {
+        continue;
+      }
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
       groups.get(key)!.push(r);
     }
     const mergeFields = [
@@ -667,15 +687,19 @@ export function SeoKeywordsTable({
       "_position_source",
       "_source",
     ];
-    const out: any[] = [];
+    const out: Array<any> = [];
     for (const [, variants] of groups) {
       const sorted = [...variants].sort((a, b) => {
         const ap = a.position ?? Number.POSITIVE_INFINITY;
         const bp = b.position ?? Number.POSITIVE_INFINITY;
-        if (ap !== bp) return ap - bp;
+        if (ap !== bp) {
+          return ap - bp;
+        }
         const at = Number(a.traffic ?? 0),
           bt = Number(b.traffic ?? 0);
-        if (at !== bt) return bt - at;
+        if (at !== bt) {
+          return bt - at;
+        }
         return Number(b.volume ?? 0) - Number(a.volume ?? 0);
       });
       const best = { ...sorted[0] };
@@ -707,10 +731,12 @@ export function SeoKeywordsTable({
         normalizeKw(String(k.keyword || "")),
       ),
     );
-    const extras: any[] = [];
+    const extras: Array<any> = [];
     for (const phrase of forceRelevant) {
       const key = normalizeKw(phrase);
-      if (!key || trackedNames.has(key)) continue;
+      if (!key || trackedNames.has(key)) {
+        continue;
+      }
       const fromOrganic = [...keywords, ...gscOnlyKeywords].find(
         (k) => normalizeKw(String(k.keyword || "")) === key,
       );
@@ -754,8 +780,11 @@ export function SeoKeywordsTable({
       en = 0;
     for (const kw of mergedKeywords) {
       const k = String(kw.keyword || "");
-      if (HEBREW_REGEX.test(k)) he++;
-      else if (ENGLISH_REGEX.test(k)) en++;
+      if (HEBREW_REGEX.test(k)) {
+        he++;
+      } else if (ENGLISH_REGEX.test(k)) {
+        en++;
+      }
     }
     return { he, en, all: mergedKeywords.length };
   }, [mergedKeywords]);
@@ -791,7 +820,9 @@ export function SeoKeywordsTable({
 
   // The relevance switch applies to every keyword tab, not only the ranking shortcut.
   const allKeywords = useMemo(() => {
-    if (applyRelevanceFilter) return relevantKeywords;
+    if (applyRelevanceFilter) {
+      return relevantKeywords;
+    }
     // Toggle off in-app: show auto-filtered again, but keep manual לא רלוונטי hidden.
     return rawAllKeywords.filter(
       (k) => !forceIrrelevantSet.has(normalizeKw(String(k.keyword || ""))),
@@ -813,9 +844,13 @@ export function SeoKeywordsTable({
 
   const trackedFiltered = useMemo(() => {
     const filtered = effectiveTracked.filter((kw) => {
-      if (!matchesLang(String(kw.keyword || ""), langFilter)) return false;
+      if (!matchesLang(String(kw.keyword || ""), langFilter)) {
+        return false;
+      }
       const key = normalizeKw(String(kw.keyword || ""));
-      if (forceIrrelevantSet.has(key)) return false;
+      if (forceIrrelevantSet.has(key)) {
+        return false;
+      }
       return !applyRelevanceFilter || !irrelevantSet.has(key);
     });
     return [...filtered].sort((a, b) => {
@@ -836,7 +871,7 @@ export function SeoKeywordsTable({
   const keywordRank = (k: any): number | null =>
     keywordDisplayPosition(k)?.position ?? null;
 
-  const sortByPosition = (arr: any[]) =>
+  const sortByPosition = (arr: Array<any>) =>
     [...arr].sort((a, b) => {
       const aPos = keywordRank(a) ?? Number.POSITIVE_INFINITY;
       const bPos = keywordRank(b) ?? Number.POSITIVE_INFINITY;
@@ -846,13 +881,17 @@ export function SeoKeywordsTable({
   const top20Raw = useMemo(() => {
     const ranked = rawAllKeywords.flatMap((k) => {
       const rank = keywordTop20Rank(k);
-      if (!rank) return [];
+      if (!rank) {
+        return [];
+      }
       const already =
         k.position === rank.position &&
         (rank.source !== "gsc" ||
           k._position_source === "gsc" ||
           k._source === "gsc");
-      if (already) return [k];
+      if (already) {
+        return [k];
+      }
       return [
         {
           ...k,
@@ -869,7 +908,9 @@ export function SeoKeywordsTable({
     () =>
       top20Raw.filter((k) => {
         const key = normalizeKw(String(k.keyword || ""));
-        if (forceIrrelevantSet.has(key)) return false;
+        if (forceIrrelevantSet.has(key)) {
+          return false;
+        }
         return !applyRelevanceFilter || !irrelevantSet.has(key);
       }),
     [applyRelevanceFilter, top20Raw, irrelevantSet, forceIrrelevantSet],
@@ -878,9 +919,15 @@ export function SeoKeywordsTable({
   // Top 20 needs a ranking position; when Ahrefs organic is empty but tracked/GSC
   // lists exist, land on "כל הביטויים" — not the במעקב tab.
   const resolvedDefaultTab = useMemo(() => {
-    if (defaultTab !== "top10") return defaultTab;
-    if (top20.length > 0) return "top10";
-    if (allKeywords.length > 0) return "all";
+    if (defaultTab !== "top10") {
+      return defaultTab;
+    }
+    if (top20.length > 0) {
+      return "top10";
+    }
+    if (allKeywords.length > 0) {
+      return "all";
+    }
     return "top10";
   }, [defaultTab, top20.length, allKeywords.length]);
 
@@ -888,8 +935,12 @@ export function SeoKeywordsTable({
   const effectiveTab = activeTab ?? resolvedDefaultTab;
 
   useEffect(() => {
-    if (activeTab !== null) return;
-    if (resolvedDefaultTab !== "top10") setActiveTab(resolvedDefaultTab);
+    if (activeTab !== null) {
+      return;
+    }
+    if (resolvedDefaultTab !== "top10") {
+      setActiveTab(resolvedDefaultTab);
+    }
   }, [activeTab, resolvedDefaultTab]);
 
   const by3MonthChange = sortByPosition(
@@ -909,7 +960,7 @@ export function SeoKeywordsTable({
   );
 
   const keywordTabItems = useMemo(
-    (): ResponsiveTabItem[] => [
+    (): Array<ResponsiveTabItem> => [
       { value: "top10", label: `🏆 Top 20 מקודמים (${top20.length})` },
       {
         value: "tracked",
@@ -927,11 +978,15 @@ export function SeoKeywordsTable({
     [top20.length, trackedFiltered.length, allKeywords.length, keywordClusters],
   );
   const allDimmed = useMemo(() => {
-    if (applyRelevanceFilter) return new Set<string>();
+    if (applyRelevanceFilter) {
+      return new Set<string>();
+    }
     // Manual marks are already removed from lists; dim only auto-filtered leftovers.
     const dimmed = new Set<string>();
     for (const key of irrelevantSet) {
-      if (!forceIrrelevantSet.has(key)) dimmed.add(key);
+      if (!forceIrrelevantSet.has(key)) {
+        dimmed.add(key);
+      }
     }
     return dimmed;
   }, [applyRelevanceFilter, irrelevantSet, forceIrrelevantSet]);
@@ -940,18 +995,26 @@ export function SeoKeywordsTable({
     new Intl.NumberFormat("he-IL").format(num);
 
   const handleMarkRelevant = (keyword: string) => {
-    if (readOnly) return;
+    if (readOnly) {
+      return;
+    }
     const key = normalizeKw(keyword);
-    if (!key) return;
+    if (!key) {
+      return;
+    }
     markRelevant(keyword);
     onMarkRelevant?.(keyword.trim());
     toast.success(`"${keyword.trim()}" סומן כרלוונטי ונוסף למעקב`);
   };
 
   const handleMarkIrrelevant = (keyword: string) => {
-    if (readOnly) return;
+    if (readOnly) {
+      return;
+    }
     const key = normalizeKw(keyword);
-    if (!key) return;
+    if (!key) {
+      return;
+    }
     markIrrelevant(keyword);
     toast.success(`"${keyword.trim()}" סומן כלא רלוונטי`);
   };
@@ -1024,7 +1087,9 @@ export function SeoKeywordsTable({
                       : "אין ביטויים במעקב — אין על מה לבסס סינון"
                 }
                 onClick={() => {
-                  if (readOnly) return;
+                  if (readOnly) {
+                    return;
+                  }
                   setFilterIrrelevant((v) => !v);
                 }}
                 className={cn(
@@ -1049,11 +1114,15 @@ export function SeoKeywordsTable({
                     }
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (readOnly) return;
+                      if (readOnly) {
+                        return;
+                      }
                       setReviewOpen(true);
                     }}
                     onKeyDown={(e) => {
-                      if (readOnly) return;
+                      if (readOnly) {
+                        return;
+                      }
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         e.stopPropagation();

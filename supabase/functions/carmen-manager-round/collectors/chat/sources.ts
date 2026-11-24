@@ -26,14 +26,14 @@ import { loadStaffKeys } from "./roster.ts";
 export type ChatSources = {
   lines(): Promise<MonitoredLines>;
   activity(query: ActivityQuery): Promise<ActivityRead>;
-  unlinked(query: ActivityQuery): Promise<UnlinkedGroupRow[]>;
-  staffKeys(tenantIds: string[], since: Date): Promise<Set<string>>;
+  unlinked(query: ActivityQuery): Promise<Array<UnlinkedGroupRow>>;
+  staffKeys(tenantIds: Array<string>, since: Date): Promise<Set<string>>;
   calls(
-    tenantIds: string[],
-    clientIds: string[],
+    tenantIds: Array<string>,
+    clientIds: Array<string>,
     since: Date,
   ): Promise<CallsRead>;
-  live(): Promise<LiveChatFinding[]>;
+  live(): Promise<Array<LiveChatFinding>>;
   /** `kind|fingerprint` of closed findings about messages since `since`. */
   closed(since: Date): Promise<Set<string>>;
   /** `<app>/t/<slug>/chat/`, or null without APP_URL or a slug. */

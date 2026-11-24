@@ -30,7 +30,9 @@ export default function SendSignatureActionConfig({
         .eq("tenant_id", tenantId)
         .eq("is_template", true)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,

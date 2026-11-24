@@ -48,7 +48,9 @@ export function LinkCampaignerDialog({
   const { data: campaigners = [], isLoading } = useQuery({
     queryKey: ["campaigners-for-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("campaigners")
         .select("id, full_name, phone, email")
@@ -82,7 +84,9 @@ export function LinkCampaignerDialog({
         .eq("id", selectedCampaignerId)
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return selectedCampaignerId;
     },

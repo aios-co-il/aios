@@ -93,9 +93,12 @@ export const soundEffectsCostUsd = (names: Array<string>) =>
 
 /** Why the film has no effects, in words Carmen passes on. */
 export function soundEffectsError(error: unknown) {
-  if (isPaidPlanError(error))
+  if (isPaidPlanError(error)) {
     return "אפקטי הסאונד של ElevenLabs דורשים תוכנית בתשלום";
-  if (isRejectedKeyError(error)) return "מפתח ה-ElevenLabs לא תקין לאפקטים";
+  }
+  if (isRejectedKeyError(error)) {
+    return "מפתח ה-ElevenLabs לא תקין לאפקטים";
+  }
   const message = error instanceof Error ? error.message : String(error);
   return `יצירת אפקטי הסאונד נכשלה: ${message.slice(0, 120)}`;
 }

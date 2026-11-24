@@ -111,9 +111,15 @@ serve(async (req) => {
           prompt,
           agentProfile: agentProfile || "manus-1.6",
         };
-        if (taskMode) taskBody.taskMode = taskMode;
-        if (connectors) taskBody.connectors = connectors;
-        if (attachments) taskBody.attachments = attachments;
+        if (taskMode) {
+          taskBody.taskMode = taskMode;
+        }
+        if (connectors) {
+          taskBody.connectors = connectors;
+        }
+        if (attachments) {
+          taskBody.attachments = attachments;
+        }
 
         const res = await fetch(`${MANUS_API_URL}/tasks`, {
           method: "POST",
@@ -153,9 +159,15 @@ serve(async (req) => {
       case "list_tasks": {
         const { status: taskStatus, limit, after } = params;
         const queryParams = new URLSearchParams();
-        if (taskStatus) queryParams.set("status", taskStatus);
-        if (limit) queryParams.set("limit", String(limit));
-        if (after) queryParams.set("after", after);
+        if (taskStatus) {
+          queryParams.set("status", taskStatus);
+        }
+        if (limit) {
+          queryParams.set("limit", String(limit));
+        }
+        if (after) {
+          queryParams.set("after", after);
+        }
 
         const res = await fetch(`${MANUS_API_URL}/tasks?${queryParams}`, {
           method: "GET",
@@ -273,8 +285,12 @@ serve(async (req) => {
         const { taskId, message, agentProfile, connectors } = params;
         const targetTaskId = taskId || "agent-default-main_task";
         const msgBody: any = { message };
-        if (agentProfile) msgBody.agentProfile = agentProfile;
-        if (connectors) msgBody.connectors = connectors;
+        if (agentProfile) {
+          msgBody.agentProfile = agentProfile;
+        }
+        if (connectors) {
+          msgBody.connectors = connectors;
+        }
         const res = await fetch(
           `${MANUS_API_URL}/tasks/${encodeURIComponent(targetTaskId)}/messages`,
           {
@@ -298,7 +314,9 @@ serve(async (req) => {
         const { taskId: listTaskId, after: afterCursor } = params;
         const targetId = listTaskId || "agent-default-main_task";
         const qp = new URLSearchParams();
-        if (afterCursor) qp.set("after", afterCursor);
+        if (afterCursor) {
+          qp.set("after", afterCursor);
+        }
         const res = await fetch(
           `${MANUS_API_URL}/tasks/${encodeURIComponent(targetId)}/messages?${qp}`,
           {

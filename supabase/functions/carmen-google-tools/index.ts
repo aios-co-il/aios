@@ -37,7 +37,9 @@ async function getGadsAuth(
     .limit(1)
     .maybeSingle();
   const data = await withGoogleToken(serviceClient(), stored);
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   const cfg = data.additional_config || {};
   return {
     refresh_token: cfg.refresh_token || data.api_key,
@@ -50,8 +52,9 @@ async function getGadsAuth(
 }
 
 async function exchangeAccessToken(auth: any): Promise<string | null> {
-  if (!auth?.refresh_token || !auth?.client_id || !auth?.client_secret)
+  if (!auth?.refresh_token || !auth?.client_id || !auth?.client_secret) {
     return null;
+  }
   const body = new URLSearchParams({
     refresh_token: auth.refresh_token,
     client_id: auth.client_id,
@@ -97,8 +100,9 @@ async function gadsMutate(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(
@@ -120,27 +124,34 @@ Deno.serve(async (req) => {
     const caller = gate.caller;
     const tenant_id = caller.tenantId;
 
-    if (!tenant_id || !action || !customer_id)
+    if (!tenant_id || !action || !customer_id) {
       return err("tenant_id, action, customer_id required");
-    if (!confirmed)
+    }
+    if (!confirmed) {
       return err("not_confirmed", 403, {
         message: "דורש אישור מפורש (confirmed=true)",
       });
+    }
 
     const auth = await getGadsAuth(supabase, tenant_id);
-    if (!auth?.developer_token) return err("gads_not_connected");
+    if (!auth?.developer_token) {
+      return err("gads_not_connected");
+    }
     const accessToken = await exchangeAccessToken(auth);
-    if (!accessToken) return err("gads_token_exchange_failed");
+    if (!accessToken) {
+      return err("gads_token_exchange_failed");
+    }
 
     const headers: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       "developer-token": auth.developer_token,
     };
-    if (auth.login_customer_id)
+    if (auth.login_customer_id) {
       headers["login-customer-id"] = String(auth.login_customer_id).replace(
         /-/g,
         "",
       );
+    }
 
     const cleanCustomer = String(customer_id).trim().replace(/-/g, "");
     const cleanCampaign = String(campaign_id ?? "").trim();
@@ -149,7 +160,9 @@ Deno.serve(async (req) => {
     switch (action) {
       case "pause":
       case "resume": {
-        if (!campaign_id) return err("campaign_id required");
+        if (!campaign_id) {
+          return err("campaign_id required");
+        }
         const status = action === "pause" ? "PAUSED" : "ENABLED";
         const r = await gadsMutate(
           cleanCustomer,
@@ -168,13 +181,16 @@ Deno.serve(async (req) => {
           },
           headers,
         );
-        if (!r.ok) return err("gads_api_error", 400, { gads_error: r.json });
+        if (!r.ok) {
+          return err("gads_api_error", 400, { gads_error: r.json });
+        }
         result = { campaign_id, status };
         break;
       }
       case "update_budget": {
-        if (!campaign_id || daily_budget == null)
+        if (!campaign_id || daily_budget == null) {
           return err("campaign_id, daily_budget required");
+        }
         // Interpolated into GAQL below.
         if (!isNumericId(cleanCampaign)) {
           return err("invalid_campaign_id");
@@ -192,8 +208,9 @@ Deno.serve(async (req) => {
         );
         const sj = await sr.json();
         const budgetRes = sj?.results?.[0]?.campaign?.campaignBudget;
-        if (!budgetRes)
+        if (!budgetRes) {
           return err("gads_budget_not_found", 400, { search_result: sj });
+        }
         const microsAmount = Math.round(Number(daily_budget) * 1_000_000);
         const r = await gadsMutate(
           cleanCustomer,
@@ -212,7 +229,9 @@ Deno.serve(async (req) => {
           },
           headers,
         );
-        if (!r.ok) return err("gads_api_error", 400, { gads_error: r.json });
+        if (!r.ok) {
+          return err("gads_api_error", 400, { gads_error: r.json });
+        }
         result = { campaign_id, daily_budget };
         break;
       }

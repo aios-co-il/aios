@@ -39,7 +39,7 @@ interface OrgCreatedResult {
     tables: number;
     automations: number;
   };
-  warnings: string[];
+  warnings: Array<string>;
 }
 
 const SECTION_LABELS: Record<ShareableResourceKind, string> = {
@@ -50,7 +50,7 @@ const SECTION_LABELS: Record<ShareableResourceKind, string> = {
   automation: "אוטומציות",
 };
 
-const SECTION_ORDER: ShareableResourceKind[] = [
+const SECTION_ORDER: Array<ShareableResourceKind> = [
   "integration",
   "social_page",
   "wordpress_site",
@@ -104,7 +104,9 @@ export function CreateOrgForClientDialog({
     queryKey: ["create-org-resources", client?.id, client?.tenant_id],
     enabled: open && !!client?.id && !!client?.tenant_id,
     queryFn: async () => {
-      if (!client?.id || !client?.tenant_id) return [];
+      if (!client?.id || !client?.tenant_id) {
+        return [];
+      }
       return loadShareableResourcesForClient(client.id, client.tenant_id);
     },
   });
@@ -113,7 +115,9 @@ export function CreateOrgForClientDialog({
     queryKey: ["primary-contact", client?.id],
     enabled: open && !!client?.id,
     queryFn: async () => {
-      if (!client?.id) return null;
+      if (!client?.id) {
+        return null;
+      }
       const { data } = await supabase
         .from("client_contacts")
         .select("contact_name, email, phone")
@@ -141,8 +145,10 @@ export function CreateOrgForClientDialog({
   }, [open, resources]);
 
   const groupedResources = useMemo(() => {
-    const groups = new Map<ShareableResourceKind, ShareableResource[]>();
-    for (const kind of SECTION_ORDER) groups.set(kind, []);
+    const groups = new Map<ShareableResourceKind, Array<ShareableResource>>();
+    for (const kind of SECTION_ORDER) {
+      groups.set(kind, []);
+    }
     for (const resource of resources) {
       groups.get(resource.kind)?.push(resource);
     }
@@ -155,8 +161,11 @@ export function CreateOrgForClientDialog({
     const key = selectionKey(resource.kind);
     setSelection((prev) => {
       const current = new Set(prev[key]);
-      if (checked) current.add(resource.id);
-      else current.delete(resource.id);
+      if (checked) {
+        current.add(resource.id);
+      } else {
+        current.delete(resource.id);
+      }
       return { ...prev, [key]: Array.from(current) };
     });
   };
@@ -169,7 +178,9 @@ export function CreateOrgForClientDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!client) throw new Error("missing client");
+      if (!client) {
+        throw new Error("missing client");
+      }
       const { data, error } = await supabase.functions.invoke(
         "create-org-for-client",
         {
@@ -186,8 +197,12 @@ export function CreateOrgForClientDialog({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data as OrgCreatedResult;
     },
     onSuccess: (data) => {
@@ -279,7 +294,9 @@ export function CreateOrgForClientDialog({
               <div className="space-y-4">
                 {SECTION_ORDER.map((kind) => {
                   const items = groupedResources.get(kind) || [];
-                  if (!items.length) return null;
+                  if (!items.length) {
+                    return null;
+                  }
                   const key = selectionKey(kind);
                   const selectedInSection = items.filter((item) =>
                     selection[key].includes(item.id),

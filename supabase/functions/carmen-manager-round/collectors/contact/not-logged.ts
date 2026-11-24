@@ -28,10 +28,10 @@ const HOUR_MS = 3_600_000;
 
 /** Each client's unlogged call and meeting that are past the grace at `now`. */
 export function notLoggedFindings(
-  evidence: ContactEvidence[],
+  evidence: Array<ContactEvidence>,
   rules: ContactRules,
   now: Date,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   return evidence.flatMap((client) => [
     ...unloggedCall(client, rules, now),
     ...unloggedMeeting(client, rules, now),
@@ -43,7 +43,7 @@ function unloggedCall(
   client: ContactEvidence,
   rules: ContactRules,
   now: Date,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   const call = client.unloggedCall;
   if (!call || !isPastGrace(call.at, rules, now)) {
     return [];
@@ -68,7 +68,7 @@ function unloggedMeeting(
   client: ContactEvidence,
   rules: ContactRules,
   now: Date,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   const meeting = client.unloggedMeeting;
   if (!meeting || !isPastGrace(meeting.at, rules, now)) {
     return [];

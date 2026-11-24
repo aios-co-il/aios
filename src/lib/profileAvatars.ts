@@ -13,18 +13,26 @@ export type SkinAvatarMap = Record<string, { avatarPath?: string }>;
 export function readSkinAvatars(metadata: unknown): SkinAvatarMap {
   const vi = (metadata as Record<string, unknown> | null)?.visual_identity;
   const skins = (vi as Record<string, unknown> | null | undefined)?.skins;
-  if (!skins || typeof skins !== "object") return {};
+  if (!skins || typeof skins !== "object") {
+    return {};
+  }
   const out: SkinAvatarMap = {};
   for (const [slug, v] of Object.entries(skins as Record<string, unknown>)) {
     const p = (v as Record<string, unknown> | null)?.avatarPath;
-    if (typeof p === "string") out[slug] = { avatarPath: p };
+    if (typeof p === "string") {
+      out[slug] = { avatarPath: p };
+    }
   }
   return out;
 }
 
 export function validateAvatarFile(file: File): string | null {
-  if (!EXT[file.type]) return "יש לבחור PNG, JPG או WebP";
-  if (file.size > AVATAR_MAX_BYTES) return "גודל מקסימלי 5MB";
+  if (!EXT[file.type]) {
+    return "יש לבחור PNG, JPG או WebP";
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    return "גודל מקסימלי 5MB";
+  }
   return null;
 }
 
@@ -35,12 +43,16 @@ export async function uploadProfileImage(
   file: File,
 ): Promise<string> {
   const invalid = validateAvatarFile(file);
-  if (invalid) throw new Error(invalid);
+  if (invalid) {
+    throw new Error(invalid);
+  }
   const path = `${tenantId}/agent-avatars/${folder}/${crypto.randomUUID()}.${EXT[file.type]}`;
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return path;
 }
 
@@ -48,7 +60,9 @@ export async function signProfileImage(
   tenantId: string,
   path: string | undefined | null,
 ): Promise<string | undefined> {
-  if (!path || !path.startsWith(`${tenantId}/agent-avatars/`)) return undefined;
+  if (!path || !path.startsWith(`${tenantId}/agent-avatars/`)) {
+    return undefined;
+  }
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(path, 3600);

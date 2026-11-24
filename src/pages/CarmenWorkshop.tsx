@@ -97,7 +97,9 @@ export default function CarmenWorkshop() {
     (id: string) => {
       setBlank(false);
       // Carmen reports the open project again on later turns; that adds no history entry.
-      if (openProjectId.current === id) return;
+      if (openProjectId.current === id) {
+        return;
+      }
       updateParams((params) => params.set("project", id));
     },
     [updateParams],
@@ -116,11 +118,15 @@ export default function CarmenWorkshop() {
 
   // A project in the URL (a deep link, or back to it) is never the blank board.
   useEffect(() => {
-    if (projectId) setBlank(false);
+    if (projectId) {
+      setBlank(false);
+    }
   }, [projectId]);
 
   useEffect(() => {
-    if (access.allowed) setOpen(true);
+    if (access.allowed) {
+      setOpen(true);
+    }
   }, [access.allowed, setOpen]);
 
   useEffect(
@@ -129,7 +135,9 @@ export default function CarmenWorkshop() {
         void queryClient.invalidateQueries({
           queryKey: ["carmen-workshop-projects", tenantId],
         });
-        if (event.event === "project") openProject(event.item_id);
+        if (event.event === "project") {
+          openProject(event.item_id);
+        }
       }),
     [queryClient, tenantId, openProject],
   );
@@ -137,12 +145,14 @@ export default function CarmenWorkshop() {
   const projects = useQuery({
     queryKey: ["carmen-workshop-projects", tenantId, clientParam],
     queryFn: tenantId
-      ? async (): Promise<WorkshopListRow[]> => {
+      ? async (): Promise<Array<WorkshopListRow>> => {
           const { data, error } = await supabase.rpc("workshop_list_projects", {
             p_tenant_id: tenantId,
             p_client: clientParam,
           });
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data ?? [];
         }
       : skipToken,
@@ -167,11 +177,16 @@ export default function CarmenWorkshop() {
   const followedFetch = useRef<string | null>(null);
   const [following, setFollowing] = useState<string | null>(null);
   useEffect(() => {
-    if (!tenantId || !projectId || !projects.isSuccess || projects.isFetching)
+    if (!tenantId || !projectId || !projects.isSuccess || projects.isFetching) {
       return;
-    if (rows.some((row) => row.id === projectId)) return;
+    }
+    if (rows.some((row) => row.id === projectId)) {
+      return;
+    }
     const fetchKey = `${projectId}:${clientParam}:${projects.dataUpdatedAt}`;
-    if (followedFetch.current === fetchKey) return;
+    if (followedFetch.current === fetchKey) {
+      return;
+    }
     followedFetch.current = fetchKey;
     setFollowing(projectId);
     void (async () => {
@@ -183,9 +198,13 @@ export default function CarmenWorkshop() {
         .neq("status", "archived")
         .maybeSingle();
       setFollowing((current) => (current === projectId ? null : current));
-      if (!data || openProjectId.current !== projectId) return;
+      if (!data || openProjectId.current !== projectId) {
+        return;
+      }
       const target = clientFilterToParam(data.client_id ?? null) ?? "all";
-      if (target === clientParam) return;
+      if (target === clientParam) {
+        return;
+      }
       updateParams(
         (params) => {
           params.set("client", target);
@@ -219,7 +238,9 @@ export default function CarmenWorkshop() {
         p_item_id: itemId,
         p_client_id: clientId ?? undefined,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       // Every project opens on the board, so its assets tab gets the client's material.
       const synced = await syncClientAssets(
         supabase,
@@ -232,17 +253,19 @@ export default function CarmenWorkshop() {
     onError: (error: { message?: string }) =>
       toast.error(assignClientErrorMessage(error)),
     onSuccess: ({ itemId, clientId, synced }) => {
-      if (synced.error)
+      if (synced.error) {
         toast.error("הפרויקט שויך, אך הנכסים של הלקוח לא נטענו");
-      else if (clientId)
+      } else if (clientId) {
         toast.success(
           synced.added > 0
             ? `הפרויקט שויך ללקוח, ו-${synced.added} נכסים שלו נוספו ללשונית הנכסים`
             : "הפרויקט שויך ללקוח",
         );
-      else toast.success("השיוך ללקוח הוסר");
+      } else {
+        toast.success("השיוך ללקוח הוסר");
+      }
       // The project now belongs elsewhere: follow it rather than lose the open board.
-      if (!byClient && clientId !== viewClientId)
+      if (!byClient && clientId !== viewClientId) {
         updateParams(
           (params) => {
             params.set("client", clientFilterToParam(clientId) ?? "all");
@@ -250,6 +273,7 @@ export default function CarmenWorkshop() {
           },
           { replace: true },
         );
+      }
       void queryClient.invalidateQueries({
         queryKey: ["workshop-assets", tenantId, itemId],
       });
@@ -259,11 +283,12 @@ export default function CarmenWorkshop() {
     },
   });
   const assignClient = (clientId: string | null) => {
-    if (selected && tenantId)
+    if (selected && tenantId) {
       assign.mutate({
         itemId: selected.id,
         clientId,
       });
+    }
   };
 
   // Only a client the client picker lists (the tenant's active clients) is named, as the list
@@ -463,7 +488,9 @@ export default function CarmenWorkshop() {
                 selectedId={artifactId}
                 onSelect={(id) => {
                   setArtifactId(id);
-                  if (id) sceneBoard.clearScene();
+                  if (id) {
+                    sceneBoard.clearScene();
+                  }
                 }}
                 tenantId={tenantId}
                 projectId={boardId}

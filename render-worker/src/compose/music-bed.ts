@@ -125,7 +125,9 @@ export function musicLoops(
     outro = MUSIC_OUTRO_S * FILM_FPS,
   } = {},
 ) {
-  if (!(musicFrames > 0) || !(totalFrames > 0)) return [];
+  if (!(musicFrames > 0) || !(totalFrames > 0)) {
+    return [];
+  }
   const body = Math.max(
     1,
     Math.min(musicFrames, Math.round(bodyFrames) || musicFrames),
@@ -149,7 +151,9 @@ export function musicLoops(
       fadeInFrames: loops.length ? fade : 0,
       fadeOutFrames: last ? 0 : fade,
     });
-    if (last) return loops;
+    if (last) {
+      return loops;
+    }
     start += body - fade;
   }
 }

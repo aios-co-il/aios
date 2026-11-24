@@ -18,14 +18,18 @@ export async function ensureLeadOriginTags(params: {
     source: params.source,
   };
   const names = leadOriginTagNames(lead);
-  if (!names.length || !tenantId || !userId || !leadId) return;
+  if (!names.length || !tenantId || !userId || !leadId) {
+    return;
+  }
 
   try {
     const { data: existingTags, error: existingError } = await supabase
       .from("chat_tags")
       .select("id, name")
       .eq("tenant_id", tenantId);
-    if (existingError) throw existingError;
+    if (existingError) {
+      throw existingError;
+    }
 
     const byLower = new Map(
       (existingTags || []).map((tag) => [tag.name.toLowerCase().trim(), tag]),
@@ -44,7 +48,7 @@ export async function ensureLeadOriginTags(params: {
         : 0) + 1;
 
     const sourceLabel = leadSourceTagName(lead.source) ?? "";
-    const tagIds: string[] = [];
+    const tagIds: Array<string> = [];
 
     for (const name of names) {
       const found = byLower.get(name.toLowerCase());
@@ -95,7 +99,9 @@ export async function ensureLeadOriginTags(params: {
       }
     }
 
-    if (tagIds.length === 0) return;
+    if (tagIds.length === 0) {
+      return;
+    }
 
     const { error: assignError } = await supabase
       .from("chat_contact_tags")

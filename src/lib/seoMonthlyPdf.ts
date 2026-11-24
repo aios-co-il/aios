@@ -11,10 +11,17 @@ async function readBlobAsDataUrl(blob: Blob): Promise<string> {
 }
 
 function normalizeHref(href: string | null | undefined): string | null {
-  if (!href) return null;
-  const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("javascript:"))
+  if (!href) {
     return null;
+  }
+  const trimmed = href.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("javascript:")
+  ) {
+    return null;
+  }
   try {
     return new URL(trimmed, window.location.origin).toString();
   } catch {
@@ -29,7 +36,9 @@ export async function createSeoMonthlyReportPdf(
   const sections = Array.from(
     reportEl.querySelectorAll<HTMLElement>(".seo-report-section"),
   );
-  if (sections.length === 0) throw new Error("No report sections to export");
+  if (sections.length === 0) {
+    throw new Error("No report sections to export");
+  }
 
   const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -58,7 +67,9 @@ export async function createSeoMonthlyReportPdf(
     const blob = await res.blob();
     const pngDataUrl = await readBlobAsDataUrl(blob);
 
-    if (i > 0) pdf.addPage();
+    if (i > 0) {
+      pdf.addPage();
+    }
     const margin = 8;
     const maxW = pageWidth - margin * 2;
     const maxH = pageHeight - margin * 2;
@@ -81,9 +92,13 @@ export async function createSeoMonthlyReportPdf(
       );
       for (const anchor of anchors) {
         const href = normalizeHref(anchor.getAttribute("href") || anchor.href);
-        if (!href) continue;
+        if (!href) {
+          continue;
+        }
         const rect = anchor.getBoundingClientRect();
-        if (rect.width < 2 || rect.height < 2) continue;
+        if (rect.width < 2 || rect.height < 2) {
+          continue;
+        }
         const linkX =
           x + ((rect.left - sectionRect.left) / sectionRect.width) * w;
         const linkY =

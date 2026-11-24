@@ -25,10 +25,10 @@ import { KIND_POLICY } from "./policy.ts";
 
 export type OwnerInput = {
   tenantId: string;
-  findings: FindingRow[];
+  findings: Array<FindingRow>;
   /** Each client's people, as resolved for this run. */
   people: Map<string, ClientRecipients>;
-  staff: StaffMember[];
+  staff: Array<StaffMember>;
 };
 
 /** The reachable owner of each owner-first finding, by finding id. */
@@ -37,7 +37,7 @@ export async function resolveOwners(
   input: OwnerInput,
 ): Promise<Map<string, Recipient>> {
   const owners = new Map<string, Recipient>();
-  const unknown: { findingId: string; key: string; userId: string }[] = [];
+  const unknown: Array<{ findingId: string; key: string; userId: string }> = [];
   for (const finding of input.findings) {
     const userId = ownerFirstUser(finding);
     if (!userId) {

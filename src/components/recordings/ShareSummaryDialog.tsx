@@ -99,7 +99,9 @@ export function ShareSummaryDialog({
   const { data: client } = useQuery({
     queryKey: ["client-for-summary-share", recording.client_id],
     queryFn: async () => {
-      if (!recording.client_id) return null;
+      if (!recording.client_id) {
+        return null;
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name, phone, email, whatsapp_group_id")
@@ -132,16 +134,24 @@ export function ShareSummaryDialog({
 
   useEffect(() => {
     if (client) {
-      if (client.phone) setDirectPhone(client.phone);
-      if (client.email) setEmailAddress(client.email);
-      if (client.whatsapp_group_id)
+      if (client.phone) {
+        setDirectPhone(client.phone);
+      }
+      if (client.email) {
+        setEmailAddress(client.email);
+      }
+      if (client.whatsapp_group_id) {
         setSelectedGroupId(client.whatsapp_group_id);
+      }
     }
   }, [client]);
 
   useEffect(() => {
-    if (gmailToken?.google_email) setEmailSender("gmail");
-    else setEmailSender("aios");
+    if (gmailToken?.google_email) {
+      setEmailSender("gmail");
+    } else {
+      setEmailSender("aios");
+    }
   }, [gmailToken]);
 
   const handleSend = async () => {
@@ -155,12 +165,14 @@ export function ShareSummaryDialog({
     }
 
     setIsSending(true);
-    const sentChannels: ReportDeliveryChannel[] = [];
+    const sentChannels: Array<ReportDeliveryChannel> = [];
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const header = `*סיכום פגישה: ${meetingName}*${meetingDate ? `\n📅 ${meetingDate}` : ""}`;
 
@@ -256,7 +268,7 @@ export function ShareSummaryDialog({
 </body>
 </html>`;
 
-        let attachments: { filename: string; base64: string }[] = [];
+        let attachments: Array<{ filename: string; base64: string }> = [];
         if (attachDocx && recording.summary_file_url) {
           try {
             const docxBlob = await (
@@ -300,8 +312,9 @@ export function ShareSummaryDialog({
             },
           );
           const result = await response.json();
-          if (!response.ok)
+          if (!response.ok) {
             throw new Error(result.error || "שגיאה בשליחה ב-Gmail");
+          }
           toast.success(`הסיכום נשלח מ-${gmailToken.google_email}`);
         } else {
           const response = await fetch(
@@ -325,8 +338,9 @@ export function ShareSummaryDialog({
             },
           );
           const result = await response.json();
-          if (!response.ok)
+          if (!response.ok) {
             throw new Error(result.error || "שגיאה בשליחת אימייל");
+          }
           toast.success("הסיכום נשלח באימייל בהצלחה");
         }
         sentChannels.push("email");
@@ -543,7 +557,7 @@ function GroupCombobox({
   value,
   onChange,
 }: {
-  groups: GroupOption[];
+  groups: Array<GroupOption>;
   value: string;
   onChange: (val: string) => void;
 }) {

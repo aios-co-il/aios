@@ -29,7 +29,7 @@ export type BriefContent = Omit<
   BriefInput,
   "recipientName" | "now" | "decisions"
 > & {
-  decisions: FindingRow[];
+  decisions: Array<FindingRow>;
 };
 
 export type GatherInput = {
@@ -116,7 +116,7 @@ function needsDecision(finding: FindingRow, run: GatherInput): boolean {
 /** Open items per responsible person, for kinds that run in team mode. */
 async function teamLoad(
   directory: PeopleDirectory,
-  live: FindingRow[],
+  live: Array<FindingRow>,
   settings: ManagerSettings,
 ): Promise<BriefInput["team"]> {
   const counts = new Map<string, number>();

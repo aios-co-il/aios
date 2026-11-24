@@ -34,17 +34,25 @@ function supabaseStore(supabase: DbClient): DeletionRequestStore {
         .select("confirmation_code, status, created_at")
         .eq("confirmation_code", code)
         .maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        return null;
+      }
       const row = readDeletionRequestStatus(data);
-      if (!row) throw new Error(`Unexpected deletion status: ${data.status}`);
+      if (!row) {
+        throw new Error(`Unexpected deletion status: ${data.status}`);
+      }
       return row;
     },
     async insert(row) {
       const { error } = await supabase
         .from("meta_data_deletion_requests")
         .insert(row);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
   };
 }

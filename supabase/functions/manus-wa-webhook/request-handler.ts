@@ -16,16 +16,19 @@ export function createWebhookHandler(
   processPayload: (request: Request, payload: Payload) => Promise<Response>,
 ) {
   return async (request: Request): Promise<Response> => {
-    if (request.method === "OPTIONS")
+    if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
+    }
     try {
       const payload: unknown = await request.json();
       if (!isPayload(payload))
-        // ACK so Manus doesn't disable the webhook on a stray non-object body.
+      // ACK so Manus doesn't disable the webhook on a stray non-object body.
+      {
         return Response.json(
           { received: true, ignored: "invalid_payload" },
           { headers: corsHeaders },
         );
+      }
       return await processPayload(request, payload);
     } catch (error) {
       console.error("Manus webhook request failed:", error);

@@ -28,8 +28,8 @@ export async function sign(payload: Record<string, unknown>, secret = SECRET) {
 
 export function fakeStore(
   overrides: Partial<DeletionRequestStore> = {},
-): DeletionRequestStore & { inserted: NewDeletionRequest[] } {
-  const inserted: NewDeletionRequest[] = [];
+): DeletionRequestStore & { inserted: Array<NewDeletionRequest> } {
+  const inserted: Array<NewDeletionRequest> = [];
   return {
     inserted,
     async findByCode(code) {

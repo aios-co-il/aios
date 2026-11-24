@@ -36,9 +36,15 @@ async function outboundGuardDecision(
   messageText: string,
   existingCarmenSession: MockSession,
 ): Promise<"skip" | "continue"> {
-  if (!isOutgoingFromPhone || pairedFromGreenApi || isGroup) return "continue";
-  if (hasTriggerKeyword(messageText)) return "continue";
-  if (existingCarmenSession) return "continue";
+  if (!isOutgoingFromPhone || pairedFromGreenApi || isGroup) {
+    return "continue";
+  }
+  if (hasTriggerKeyword(messageText)) {
+    return "continue";
+  }
+  if (existingCarmenSession) {
+    return "continue";
+  }
   return "skip";
 }
 

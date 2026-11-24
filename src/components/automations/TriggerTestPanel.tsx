@@ -65,7 +65,7 @@ interface StepResult {
 interface TestResult {
   success?: boolean;
   error?: string;
-  steps?: StepResult[];
+  steps?: Array<StepResult>;
   agent_output?: string;
   flow?: any;
 }
@@ -217,10 +217,10 @@ interface FieldDef {
   label: string;
   type: "text" | "textarea" | "select" | "json";
   placeholder?: string;
-  options?: { value: string; label: string }[];
+  options?: Array<{ value: string; label: string }>;
 }
 
-function getFieldDefs(triggerType: string): FieldDef[] {
+function getFieldDefs(triggerType: string): Array<FieldDef> {
   switch (triggerType) {
     case "lead_created":
     case "lead_updated":
@@ -562,7 +562,9 @@ export function TriggerTestPanel({
   const { data: leads } = useQuery({
     queryKey: ["leads-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isLeadTrigger) return [];
+      if (!tenantId || !isLeadTrigger) {
+        return [];
+      }
       let q = supabase
         .from("leads")
         .select("id, contact_name, phone, email, source, status, notes")
@@ -582,7 +584,9 @@ export function TriggerTestPanel({
   const { data: clients } = useQuery({
     queryKey: ["clients-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isClientTrigger) return [];
+      if (!tenantId || !isClientTrigger) {
+        return [];
+      }
       let q = supabase
         .from("clients")
         .select("id, contact_name, phone, email, status")
@@ -602,7 +606,9 @@ export function TriggerTestPanel({
   const { data: tasks } = useQuery({
     queryKey: ["tasks-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isTaskTrigger) return [];
+      if (!tenantId || !isTaskTrigger) {
+        return [];
+      }
       let q = supabase
         .from("tasks")
         .select("id, title, description, status")
@@ -665,7 +671,9 @@ export function TriggerTestPanel({
   };
 
   const handleRun = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsRunning(true);
     setTestResult(null);
 
@@ -689,7 +697,9 @@ export function TriggerTestPanel({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setTestResult(data);
 
@@ -804,7 +814,7 @@ export function TriggerTestPanel({
               </div>
               <ScrollArea className="h-[160px] rounded-lg border">
                 <div className="p-1 space-y-0.5">
-                  {((entityList as any[]) || []).map((entity: any) => (
+                  {((entityList as Array<any>) || []).map((entity: any) => (
                     <button
                       key={entity.id}
                       className={cn(
@@ -824,7 +834,7 @@ export function TriggerTestPanel({
                       )}
                     </button>
                   ))}
-                  {((entityList as any[]) || []).length === 0 && (
+                  {((entityList as Array<any>) || []).length === 0 && (
                     <p className="text-center text-xs text-muted-foreground py-4">
                       לא נמצאו תוצאות
                     </p>

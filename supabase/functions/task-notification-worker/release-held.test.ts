@@ -34,7 +34,7 @@ Deno.test("releaseHeldTaskNotifications", async (t) => {
         update_content: "הלקוח אישר את הקריאייטיב",
       });
 
-      const delivered: DeliveredBody[] = [];
+      const delivered: Array<DeliveredBody> = [];
       const deliver = async (body: DeliveredBody) => (
         delivered.push(body),
         { sent: true }
@@ -71,7 +71,7 @@ Deno.test("releaseHeldTaskNotifications", async (t) => {
     async () => {
       const supabase = fakeHolds();
       await hold(supabase);
-      const delivered: DeliveredBody[] = [];
+      const delivered: Array<DeliveredBody> = [];
       const released = await releaseHeldTaskNotifications(
         supabase,
         async (body) => delivered.push(body),
@@ -87,7 +87,7 @@ Deno.test("releaseHeldTaskNotifications", async (t) => {
     async () => {
       const supabase = fakeHolds(undefined, { claim: "connection reset" });
       await hold(supabase);
-      const delivered: DeliveredBody[] = [];
+      const delivered: Array<DeliveredBody> = [];
       const released = await releaseHeldTaskNotifications(
         supabase,
         async (body) => delivered.push(body),
@@ -105,7 +105,7 @@ Deno.test("releaseHeldTaskNotifications", async (t) => {
       const supabase = fakeHolds();
       await hold(supabase);
       supabase.rows[0].request_body = { trigger_type: "task_update_added" };
-      const delivered: DeliveredBody[] = [];
+      const delivered: Array<DeliveredBody> = [];
       const released = await releaseHeldTaskNotifications(
         supabase,
         async (body) => delivered.push(body),

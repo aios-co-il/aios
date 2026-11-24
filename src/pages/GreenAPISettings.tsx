@@ -74,7 +74,9 @@ export default function GreenAPISettings({
   const { data: integration, isLoading } = useQuery({
     queryKey: ["green-api-integration", tenantId, userId],
     queryFn: async () => {
-      if (!tenantId || !userId) return null;
+      if (!tenantId || !userId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -84,7 +86,9 @@ export default function GreenAPISettings({
         .eq("integration_type", "green_api")
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data?.settings) {
         const settings = data.settings as any;
@@ -100,14 +104,18 @@ export default function GreenAPISettings({
   const { data: permittedIntegrations = [] } = useQuery({
     queryKey: ["permitted-green-api-for-user", tenantId, userId],
     queryFn: async () => {
-      if (!tenantId || !userId) return [];
+      if (!tenantId || !userId) {
+        return [];
+      }
 
       const { data: permissions } = await supabase
         .from("integration_user_permissions")
         .select("integration_id")
         .eq("user_id", userId);
 
-      if (!permissions?.length) return [];
+      if (!permissions?.length) {
+        return [];
+      }
 
       const integrationIds = permissions.map((p) => p.integration_id);
 
@@ -117,7 +125,9 @@ export default function GreenAPISettings({
         .in("id", integrationIds)
         .eq("integration_type", "green_api");
 
-      if (!integrations?.length) return [];
+      if (!integrations?.length) {
+        return [];
+      }
 
       // Get owner profiles
       const ownerIds = [
@@ -127,8 +137,9 @@ export default function GreenAPISettings({
             .filter((id): id is string => Boolean(id)),
         ),
       ];
-      if (ownerIds.length === 0)
+      if (ownerIds.length === 0) {
         return integrations.map((i) => ({ ...i, owner_name: "משתמש לא ידוע" }));
+      }
 
       const { data: profiles } = await supabase
         .from("profiles")
@@ -153,7 +164,9 @@ export default function GreenAPISettings({
   const { data: tenantUsers = [] } = useQuery({
     queryKey: ["tenant-users-for-assignment", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // First get tenant_users, then fetch profiles separately to avoid RLS issues
       const { data: tuData, error: tuError } = await supabase
@@ -161,20 +174,28 @@ export default function GreenAPISettings({
         .select("user_id")
         .eq("tenant_id", tenantId);
 
-      if (tuError) throw tuError;
-      if (!tuData || tuData.length === 0) return [];
+      if (tuError) {
+        throw tuError;
+      }
+      if (!tuData || tuData.length === 0) {
+        return [];
+      }
 
       const userIds = tuData
         .map((tu) => tu.user_id)
         .filter((id) => id !== userId);
-      if (userIds.length === 0) return [];
+      if (userIds.length === 0) {
+        return [];
+      }
 
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
         .select("id, full_name, email")
         .in("id", userIds);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        throw profilesError;
+      }
 
       return (profilesData || []).map((p: any) => ({
         id: p.id,
@@ -236,13 +257,17 @@ export default function GreenAPISettings({
           .update(integrationData)
           .eq("id", integration.id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("tenant_integrations")
           .insert([integrationData]);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       // Configure webhooks automatically after saving
@@ -307,7 +332,9 @@ export default function GreenAPISettings({
         .update({ user_id: selectedUserId })
         .eq("id", integration.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       // Update all chat messages to new owner
       const { error: messagesError } = await supabase
@@ -316,7 +343,9 @@ export default function GreenAPISettings({
         .eq("connection_user_id", userId)
         .eq("tenant_id", tenantId);
 
-      if (messagesError) throw messagesError;
+      if (messagesError) {
+        throw messagesError;
+      }
     },
     onSuccess: () => {
       toast({

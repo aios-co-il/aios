@@ -30,7 +30,7 @@ interface LinkFileToEntityDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tenantId: string;
-  files: UploadedFile[];
+  files: Array<UploadedFile>;
   onLinked: () => void;
 }
 
@@ -85,8 +85,12 @@ export function LinkFileToEntityDialog({
     setSaving(true);
     try {
       const updates: any = {};
-      if (clientId && clientId !== "none") updates.client_id = clientId;
-      if (leadId && leadId !== "none") updates.lead_id = leadId;
+      if (clientId && clientId !== "none") {
+        updates.client_id = clientId;
+      }
+      if (leadId && leadId !== "none") {
+        updates.lead_id = leadId;
+      }
 
       for (const file of files) {
         await supabase
@@ -125,7 +129,9 @@ export function LinkFileToEntityDialog({
               value={clientId}
               onValueChange={(v) => {
                 setClientId(v);
-                if (v !== "none") setLeadId("");
+                if (v !== "none") {
+                  setLeadId("");
+                }
               }}
             >
               <SelectTrigger className="mt-1">
@@ -150,7 +156,9 @@ export function LinkFileToEntityDialog({
               value={leadId}
               onValueChange={(v) => {
                 setLeadId(v);
-                if (v !== "none") setClientId("");
+                if (v !== "none") {
+                  setClientId("");
+                }
               }}
             >
               <SelectTrigger className="mt-1">

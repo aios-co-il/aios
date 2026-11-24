@@ -30,7 +30,7 @@ interface GenerateCreativeImageArgs {
   itemId: string;
   stageId: string;
   prompt: string;
-  referenceImageUrls?: string[];
+  referenceImageUrls?: Array<string>;
   referenceRole?: CreativeReferenceRole;
   size?: ImageSize;
   quality?: ImageQuality;
@@ -50,7 +50,7 @@ async function invokeSocialImage(
   tenantId: string,
   itemId: string,
   prompt: string,
-  referenceImageUrls?: string[],
+  referenceImageUrls?: Array<string>,
   size?: GenerateCreativeImageArgs["size"],
   quality?: GenerateCreativeImageArgs["quality"],
   referenceRole?: CreativeReferenceRole,
@@ -130,7 +130,9 @@ const logCreativeRun = async (
         total_tokens: args.cost.totalTokens,
       },
     });
-    if (error) return;
+    if (error) {
+      return;
+    }
   } catch {
     /* cost is still stored on the variation */
   }
@@ -180,7 +182,9 @@ export async function generateCreativeImage({
   usedFallback: boolean;
   cost: ImageGenerationCost;
 }> {
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
   const estimate = estimateCreativeImageCall({
     prompt,
     quality,
@@ -233,7 +237,9 @@ export async function generateCreativeImage({
     }
   }
 
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
 
   const socialError = socialResult.error
     ? await invokeErrorMessage(
@@ -244,7 +250,9 @@ export async function generateCreativeImage({
       )
     : (socialResult.data?.error ?? "לא התקבלה תמונה");
   // The stage pipeline renders with gpt-image-1, so it is no fallback for Nano Banana Pro.
-  if (nanoBanana) throw new Error(socialError);
+  if (nanoBanana) {
+    throw new Error(socialError);
+  }
 
   const stageResult = await invokeMarketingStage(supabase, itemId, stageId);
   if (!stageResult.error && !stageResult.data?.error) {

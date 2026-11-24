@@ -24,7 +24,7 @@ export interface TextSlot {
   source: "pixels" | "composition";
 }
 
-const MOVABLE_ROLES: CreativeLayerRole[] = [
+const MOVABLE_ROLES: Array<CreativeLayerRole> = [
   "headline",
   "sub",
   "cta",
@@ -34,7 +34,9 @@ const MOVABLE_ROLES: CreativeLayerRole[] = [
 
 export const lumaFromHex = (hex: string): number => {
   const value = hex.replace("#", "");
-  if (value.length < 6) return 0.5;
+  if (value.length < 6) {
+    return 0.5;
+  }
   const r = Number.parseInt(value.slice(0, 2), 16) / 255;
   const g = Number.parseInt(value.slice(2, 4), 16) / 255;
   const b = Number.parseInt(value.slice(4, 6), 16) / 255;
@@ -71,7 +73,9 @@ const sampleCell = (
       count += 1;
     }
   }
-  if (!count) return { luma: 0.5, energy: 1 };
+  if (!count) {
+    return { luma: 0.5, energy: 1 };
+  }
   const luma = lumaSum / count;
   return { luma, energy: Math.max(0, lumaSq / count - luma * luma) };
 };
@@ -80,8 +84,12 @@ const toPct = (value: number, total: number) =>
   Number(((value / total) * 100).toFixed(2));
 
 /** Lowest-variance rectangles — the quiet atmospheric pockets, not painted chrome. */
-export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
-  if (buffer.width < 8 || buffer.height < 8) return [];
+export const proposeTextSlotsFromPixels = (
+  buffer: PixelBuffer,
+): Array<TextSlot> => {
+  if (buffer.width < 8 || buffer.height < 8) {
+    return [];
+  }
   const cols = 6;
   const rows = 6;
   const cellW = buffer.width / cols;
@@ -108,7 +116,9 @@ export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
     headlineCell &&
     headlineCell.energy <= 0.02 &&
     headlineCell.energy <= medianEnergy * 0.35;
-  if (!clearlyQuiet) return [];
+  if (!clearlyQuiet) {
+    return [];
+  }
 
   const headline: TextSlot = {
     role: "headline",
@@ -128,7 +138,7 @@ export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
       return !used.has(key) && cell.row >= 3 && cell.energy <= 0.05;
     }) ?? ranked[1];
 
-  const slots: TextSlot[] = [headline];
+  const slots: Array<TextSlot> = [headline];
   if (ctaCell) {
     slots.push({
       role: "cta",
@@ -155,7 +165,7 @@ export const proposeTextSlotsFromPixels = (buffer: PixelBuffer): TextSlot[] => {
 
 export const slotsFromComposition = (
   compositionId?: CompositionId | null,
-): TextSlot[] => {
+): Array<TextSlot> => {
   const composition = compositionById(compositionId);
   return [
     { role: "headline", ...composition.type, source: "composition" },
@@ -165,9 +175,9 @@ export const slotsFromComposition = (
 };
 
 export const applySlotsToLayers = (
-  layers: CreativeLayer[],
-  slots: TextSlot[],
-): CreativeLayer[] => {
+  layers: Array<CreativeLayer>,
+  slots: Array<TextSlot>,
+): Array<CreativeLayer> => {
   const byRole = new Map(slots.map((slot) => [slot.role, slot]));
   let usedHeadline = false;
   return layers.map((layer) => {
@@ -184,11 +194,15 @@ export const applySlotsToLayers = (
           : !role && layer.type === "text" && !usedHeadline
             ? "headline"
             : undefined;
-    if (slotRole === "headline" && !role) usedHeadline = true;
+    if (slotRole === "headline" && !role) {
+      usedHeadline = true;
+    }
     const slot = slotRole
       ? byRole.get(slotRole === "sub" ? "headline" : slotRole)
       : undefined;
-    if (!slot) return layer;
+    if (!slot) {
+      return layer;
+    }
     if (slotRole === "sub") {
       return {
         ...layer,
@@ -217,7 +231,7 @@ export const applySlotsToLayers = (
 export const proposeAndApplySlots = (
   variation: CreativeVariation,
   buffer?: PixelBuffer | null,
-): { variation: CreativeVariation; slots: TextSlot[] } => {
+): { variation: CreativeVariation; slots: Array<TextSlot> } => {
   const slots = buffer ? proposeTextSlotsFromPixels(buffer) : [];
   const nextSlots =
     slots.length > 0 ? slots : slotsFromComposition(variation.compositionId);

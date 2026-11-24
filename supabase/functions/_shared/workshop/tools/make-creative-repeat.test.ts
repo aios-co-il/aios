@@ -20,7 +20,7 @@ Deno.test(
         },
       },
     });
-    const prompts: string[] = [];
+    const prompts: Array<string> = [];
     const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -58,7 +58,7 @@ Deno.test(
         },
       },
     });
-    const prompts: string[] = [];
+    const prompts: Array<string> = [];
     await executeApprovedWorkshopTool(
       db,
       "tenant-1",

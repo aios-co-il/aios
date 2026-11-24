@@ -96,7 +96,9 @@ async function callMcpWithResync(
       bearer,
     };
   } catch (e) {
-    if (!isMcpAuthError(e)) throw e;
+    if (!isMcpAuthError(e)) {
+      throw e;
+    }
     console.warn(
       `[mcp-tools] ${method} auth failed for ${conn.name}, resyncing bearer from edge secret`,
     );
@@ -106,7 +108,9 @@ async function callMcpWithResync(
       url: conn.url,
       tenant_id: tenantId,
     });
-    if (!resynced?.bearer) throw e;
+    if (!resynced?.bearer) {
+      throw e;
+    }
     bearer = resynced.bearer;
     conn.oauth_tokens = { bearer };
     conn.available_tools = resynced.tools;
@@ -127,7 +131,7 @@ async function toolsForConnection(
   supabase: any,
   tenantId: string,
   conn: McpConnRow,
-): Promise<{ tools: any[]; live: boolean }> {
+): Promise<{ tools: Array<any>; live: boolean }> {
   const cached = Array.isArray(conn.available_tools)
     ? conn.available_tools
     : [];
@@ -158,14 +162,16 @@ export async function loadMcpTools(
   supabase: any,
   tenantId: string,
   agentId?: string | null,
-  disabledIntegrations: string[] = [],
+  disabledIntegrations: Array<string> = [],
 ): Promise<McpLoaded> {
   const empty: McpLoaded = {
     toolDefs: [],
     executors: new Map(),
     connectionsCount: 0,
   };
-  if (!tenantId) return empty;
+  if (!tenantId) {
+    return empty;
+  }
   const disabledSet = new Set(
     (disabledIntegrations || []).map((s) => String(s)),
   );
@@ -182,13 +188,15 @@ export async function loadMcpTools(
     q = q.is("agent_id", null);
   }
   const { data, error } = await q;
-  if (error || !data?.length) return empty;
+  if (error || !data?.length) {
+    return empty;
+  }
 
   const toolDefs: McpLoaded["toolDefs"] = [];
   const executors = new Map<string, (args: any) => Promise<any>>();
 
   // Access control: skip integrations turned OFF for this agent.
-  const connections = (data as McpConnRow[]).filter(
+  const connections = (data as Array<McpConnRow>).filter(
     (conn) => !disabledSet.has(conn.name),
   );
   // Every connection's tool list at once, not one round trip after another.
@@ -222,9 +230,13 @@ export async function loadMcpTools(
     }
 
     for (const t of tools) {
-      if (!t?.name) continue;
+      if (!t?.name) {
+        continue;
+      }
       const prefixed = sanitizeToolName(`mcp_${connSlug}__${t.name}`);
-      if (executors.has(prefixed)) continue;
+      if (executors.has(prefixed)) {
+        continue;
+      }
       toolDefs.push({
         name: prefixed,
         description: `[MCP:${conn.name}] ${t.description || t.name}`.slice(

@@ -38,7 +38,7 @@ export async function sampleSpeech(
   },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ bytes?: Uint8Array; error?: string }> {
-  const failures: string[] = [];
+  const failures: Array<string> = [];
   /** One speech request's mp3, or null with why it failed (a timeout included). */
   const speak = async (label: string, url: string, init: RequestInit) => {
     try {
@@ -47,7 +47,9 @@ export async function sampleSpeech(
         method: "POST",
         signal: AbortSignal.timeout(30_000),
       });
-      if (response.ok) return new Uint8Array(await response.arrayBuffer());
+      if (response.ok) {
+        return new Uint8Array(await response.arrayBuffer());
+      }
       failures.push(
         `${label} ${response.status}: ${(await response.text()).slice(0, 200)}`,
       );
@@ -74,9 +76,13 @@ export async function sampleSpeech(
         },
       )
     : (failures.push("אין מפתח ElevenLabs"), null);
-  if (direct) return { bytes: direct };
+  if (direct) {
+    return { bytes: direct };
+  }
   const openRouter = await keys.openRouter().catch(() => null);
-  if (!openRouter) return { error: failures.join(" | ") };
+  if (!openRouter) {
+    return { error: failures.join(" | ") };
+  }
   const routed = await speak(
     "OpenRouter",
     "https://openrouter.ai/api/v1/audio/speech",
@@ -102,21 +108,29 @@ export async function workshopVoiceSample(
   voiceId: string,
 ): Promise<{ path?: string; error?: string }> {
   const voice = findVoice(voiceId);
-  if (!voice) return { error: "קול לא מוכר" };
+  if (!voice) {
+    return { error: "קול לא מוכר" };
+  }
   const folder = `${tenantId}/voices`;
   const path = `${folder}/${voice.id}.mp3`;
   const listed = await supabase.storage
     .from(BUCKET)
     .list(folder, { search: `${voice.id}.mp3` });
-  if (Array.isArray(listed.data) && listed.data.length > 0) return { path };
+  if (Array.isArray(listed.data) && listed.data.length > 0) {
+    return { path };
+  }
   const spoken = await sampleSpeech(voice, {
     elevenLabs: await elevenLabsKey(supabase, tenantId),
     openRouter: () => tenantOpenRouterKey(supabase, tenantId),
   });
-  if (!spoken.bytes) return { error: spoken.error };
+  if (!spoken.bytes) {
+    return { error: spoken.error };
+  }
   const uploaded = await supabase.storage
     .from(BUCKET)
     .upload(path, spoken.bytes, { contentType: "audio/mpeg", upsert: true });
-  if (uploaded.error) return { error: uploaded.error.message };
+  if (uploaded.error) {
+    return { error: uploaded.error.message };
+  }
   return { path };
 }

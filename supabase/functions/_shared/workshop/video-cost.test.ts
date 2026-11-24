@@ -200,13 +200,19 @@ Deno.test(
     };
     const engineVoice = { ...own, chosen_voice: false };
     // 5 s of lip sync at $0.10; a four-letter line costs less than a cent.
-    for (const engine of ["elevenlabs", "higgsfield", "kling", "mock"] as const)
+    for (const engine of [
+      "elevenlabs",
+      "higgsfield",
+      "kling",
+      "mock",
+    ] as const) {
       assertEquals(lipsyncEstimate(engine, [own]), {
         usd: 0.5,
         credits: 0,
         scenes: 1,
         native: false,
       });
+    }
     assertStrictEquals(lipsyncEstimate("elevenlabs", [engineVoice]).usd, 0);
     // On OpenRouter the engine-spoken scene adds the Veo difference, the chosen voice its pass.
     const mixed = lipsyncEstimate("openrouter", [own, engineVoice]);

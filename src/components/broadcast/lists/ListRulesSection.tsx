@@ -17,16 +17,19 @@ const LEAD_SOURCES = [
   { key: "other", label: "אחר" },
 ];
 
-const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
-  set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+const toggle = (
+  arr: Array<string>,
+  v: string,
+  set: (x: Array<string>) => void,
+) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
 /** Rules that add every new lead matching status/source to the list. */
 export function ListRulesSection({ listId }: { listId: string }) {
   const { useRules, addRule, deleteRule } = useBroadcastLists();
   const { statuses: leadStatuses } = useLeadStatuses();
   const rules = useRules(listId);
-  const [ruleStatuses, setRuleStatuses] = useState<string[]>([]);
-  const [ruleSources, setRuleSources] = useState<string[]>([]);
+  const [ruleStatuses, setRuleStatuses] = useState<Array<string>>([]);
+  const [ruleSources, setRuleSources] = useState<Array<string>>([]);
 
   const statusLabel = (key: string) =>
     leadStatuses.find((s) => s.status_key === key)?.label || key;

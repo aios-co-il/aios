@@ -31,9 +31,9 @@ function withIndex(base: string, index: number, total: number): string {
 }
 
 export function buildLeadRecordingItems(
-  calls: StoredCallRecording[],
-  files: StoredFileRecording[],
-): LeadRecordingItem[] {
+  calls: Array<StoredCallRecording>,
+  files: Array<StoredFileRecording>,
+): Array<LeadRecordingItem> {
   const automatic = calls.filter(
     (call) => call.recording_url || call.recording_path,
   );
@@ -69,25 +69,29 @@ export function buildLeadRecordingItems(
 }
 
 export function groupLeadRecordings(
-  calls: StoredCallRecording[],
-  files: StoredFileRecording[],
-): Record<string, LeadRecordingItem[]> {
-  const callBuckets = new Map<string, StoredCallRecording[]>();
-  const fileBuckets = new Map<string, StoredFileRecording[]>();
+  calls: Array<StoredCallRecording>,
+  files: Array<StoredFileRecording>,
+): Record<string, Array<LeadRecordingItem>> {
+  const callBuckets = new Map<string, Array<StoredCallRecording>>();
+  const fileBuckets = new Map<string, Array<StoredFileRecording>>();
   for (const call of calls) {
-    if (!call.lead_id) continue;
+    if (!call.lead_id) {
+      continue;
+    }
     const bucket = callBuckets.get(call.lead_id) ?? [];
     bucket.push(call);
     callBuckets.set(call.lead_id, bucket);
   }
   for (const file of files) {
-    if (!file.lead_id) continue;
+    if (!file.lead_id) {
+      continue;
+    }
     const bucket = fileBuckets.get(file.lead_id) ?? [];
     bucket.push(file);
     fileBuckets.set(file.lead_id, bucket);
   }
   const leadIds = new Set([...callBuckets.keys(), ...fileBuckets.keys()]);
-  const grouped: Record<string, LeadRecordingItem[]> = {};
+  const grouped: Record<string, Array<LeadRecordingItem>> = {};
   for (const leadId of leadIds) {
     grouped[leadId] = buildLeadRecordingItems(
       callBuckets.get(leadId) ?? [],

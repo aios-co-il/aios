@@ -24,13 +24,14 @@ export function selfQuestionsStanding(opts: {
   const ask = opts.appChat
     ? "ושאלי אם לשלוח: [[בחירה: לשלוח את משימת הפיתוח? | כן | לא]]. רק אחרי 'כן' של המשתמש בהודעה הבאה: approve_dev_task ואז dispatch_dev_task. השרת מסרב לאשר באותה הודעה שבה נפתחה המשימה."
     : "ואמרי שהיא מחכה לאישור של המשתמש במרכז משימות הפיתוח באפליקציה (כפתור 'שלח'); מכאן לא שולחים.";
-  if (opts.tier === "full")
+  if (opts.tier === "full") {
     lines.push(
       `- אם חסרה יכולת, הציעי לפתוח משימת פיתוח ל-Cursor או ל-Claude: create_dev_task עם תיאור ברור של מה חסר ומה צריך לקרות, ${ask}`,
     );
-  else if (opts.tier === "bugfix")
+  } else if (opts.tier === "bugfix") {
     lines.push(
       `- אם משהו שבור (באג עם צעדי שחזור), הציעי תיקון באג ל-Cursor בלבד, עם צעדי שחזור והתנהגות צפויה מול בפועל, ${ask} יכולת חדשה, הרשאות או משימה ל-Claude: אמרי שרק דיוויד יכול לבקש.`,
     );
+  }
   return lines.join("\n");
 }

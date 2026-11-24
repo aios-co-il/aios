@@ -16,7 +16,7 @@ describe("raw creative storage provenance", () => {
     >();
   });
 
-  const storedValues: DatabasePayload[] = [
+  const storedValues: Array<DatabasePayload> = [
     "stored text",
     { legacy: true },
     ["legacy", { unvalidated: true }],

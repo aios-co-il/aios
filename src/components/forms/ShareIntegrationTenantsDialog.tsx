@@ -49,7 +49,9 @@ export function ShareIntegrationTenantsDialog({
         .neq("id", tenantId)
         .order("name");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId,
@@ -64,7 +66,9 @@ export function ShareIntegrationTenantsDialog({
         .select("accessing_tenant_id")
         .eq("integration_id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((a) => a.accessing_tenant_id) || [];
     },
     enabled: open && !!integrationId,
@@ -86,14 +90,18 @@ export function ShareIntegrationTenantsDialog({
             integration_id: integrationId,
             accessing_tenant_id: tenantIdToToggle,
           });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("integration_tenant_access")
           .delete()
           .eq("integration_id", integrationId)
           .eq("accessing_tenant_id", tenantIdToToggle);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: (_, { tenantIdToToggle, grant }) => {

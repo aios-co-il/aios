@@ -47,7 +47,9 @@ export function SyncManyChatDialog() {
         .eq("tenant_id", tenantId)
         .not("raw_provider_data", "is", null);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return count || 0;
     },
     enabled: !!tenantId,
@@ -62,7 +64,9 @@ export function SyncManyChatDialog() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as SyncResult;
     },
     onSuccess: (data) => {

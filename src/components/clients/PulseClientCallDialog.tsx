@@ -60,13 +60,17 @@ export function PulseClientCallDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) setContent("");
+    if (!open) {
+      setContent("");
+    }
   }, [open, target?.clientId]);
 
   const { data: callUpdates = [], isLoading: updatesLoading } = useQuery({
     queryKey: ["pulse-client-call-updates", target?.clientId],
     queryFn: async () => {
-      if (!target?.clientId) return [];
+      if (!target?.clientId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_updates")
         .select(
@@ -87,7 +91,9 @@ export function PulseClientCallDialog({
         .or("update_type.eq.call,counts_as_contact.is.true")
         .order("created_at", { ascending: false })
         .limit(30);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       // Same rule as the pulse (get_latest_client_call_updates).
       return (data ?? []).filter((row: any) =>
         isClientCallUpdate(row.update_type, row.source, row.counts_as_contact),
@@ -97,7 +103,9 @@ export function PulseClientCallDialog({
     staleTime: 10_000,
   });
 
-  if (!target) return null;
+  if (!target) {
+    return null;
+  }
 
   const handleSave = async () => {
     if (!tenantId || !user?.id) {
@@ -123,7 +131,9 @@ export function PulseClientCallDialog({
         } as any)
         .select("id, created_at")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const recordedBy = resolveUpdateAuthorName(
         memberNames,

@@ -19,7 +19,9 @@ const lidAliasesSchema = z
     const aliases: { [lid: string]: string } = {};
     for (const [lid, value] of Object.entries(entries)) {
       const phone = aliasPhoneSchema.safeParse(value);
-      if (phone.success) aliases[lid] = phone.data;
+      if (phone.success) {
+        aliases[lid] = phone.data;
+      }
     }
     return aliases;
   });

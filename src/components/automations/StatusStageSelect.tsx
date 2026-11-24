@@ -65,7 +65,9 @@ export function StatusStageSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -80,13 +82,18 @@ export function StatusStageSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
   });
 
-  const groups = useMemo((): { label: string; options: CatalogOption[] }[] => {
+  const groups = useMemo((): Array<{
+    label: string;
+    options: Array<CatalogOption>;
+  }> => {
     if (scope === "task") {
       return [
         {
@@ -193,9 +200,9 @@ export function StatusStageMultiSelect({
   onChange,
 }: {
   tenantId?: string | null;
-  scopes: StatusStageScope[];
-  value: string[];
-  onChange: (value: string[]) => void;
+  scopes: Array<StatusStageScope>;
+  value: Array<string>;
+  onChange: (value: Array<string>) => void;
 }) {
   const loadLeadCatalog = scopes.includes("lead") && !!tenantId;
   const { data: leadStatuses = [], isLoading: loadingStatuses } = useQuery({
@@ -207,7 +214,9 @@ export function StatusStageMultiSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -221,14 +230,20 @@ export function StatusStageMultiSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
   });
 
-  const groups = useMemo((): { label: string; options: CatalogOption[] }[] => {
-    const collected: { label: string; options: CatalogOption[] }[] = [];
+  const groups = useMemo((): Array<{
+    label: string;
+    options: Array<CatalogOption>;
+  }> => {
+    const collected: Array<{ label: string; options: Array<CatalogOption> }> =
+      [];
     const seen = new Set<string>();
     for (const scope of scopes) {
       const scopeGroups =
@@ -284,7 +299,9 @@ export function StatusStageMultiSelect({
                   },
                 ];
       for (const group of scopeGroups) {
-        if (seen.has(group.label)) continue;
+        if (seen.has(group.label)) {
+          continue;
+        }
         seen.add(group.label);
         collected.push(group);
       }
@@ -378,12 +395,14 @@ export function StatusStageMultiSelect({
 }
 
 function isOptionSelected(
-  selected: string[],
+  selected: Array<string>,
   option: CatalogOption,
-  options: CatalogOption[],
+  options: Array<CatalogOption>,
 ): boolean {
   const encoded = encodeStatusSelection(option.kind, option.value);
-  if (selected.includes(encoded)) return true;
+  if (selected.includes(encoded)) {
+    return true;
+  }
   return selected.some(
     (item) => resolveStoredStatusSelection(item, options) === encoded,
   );

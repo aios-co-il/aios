@@ -46,14 +46,18 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
   const { data: existingFields = [] } = useQuery({
     queryKey: ["custom-fields", tenantId, "lead"],
     queryFn: async () => {
-      if (!tenantId) return [] as StoredField[];
+      if (!tenantId) {
+        return [] as Array<StoredField>;
+      }
       const { data, error } = await supabase
         .from("custom_fields")
         .select("id, field_key")
         .eq("tenant_id", tenantId)
         .eq("entity_type", "lead");
-      if (error) throw error;
-      return (data || []) as StoredField[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<StoredField>;
     },
     enabled: !!tenantId && open,
   });
@@ -70,11 +74,15 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
       label: string;
       type: string;
     }) => {
-      if (!tenantId) throw new Error("חסר ארגון");
+      if (!tenantId) {
+        throw new Error("חסר ארגון");
+      }
       const catalog = LEAD_TABLE_COLUMN_FIELDS.find(
         (field) => leadTableColumnVisibilityKey(field) === key,
       );
-      if (catalog?.required) return;
+      if (catalog?.required) {
+        return;
+      }
 
       const existing = existingFields.find((field) => field.field_key === key);
       if (existing) {
@@ -82,7 +90,9 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
           .from("custom_fields")
           .update({ is_visible: visible })
           .eq("id", existing.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
 
@@ -95,7 +105,9 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
         is_visible: visible,
         is_required: false,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["custom-fields", tenantId] });

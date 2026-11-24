@@ -8,8 +8,8 @@ import {
 } from "@/components/ui/table";
 
 interface DataTableProps {
-  columns: string[];
-  data: Record<string, any>[];
+  columns: Array<string>;
+  data: Array<Record<string, any>>;
 }
 
 export function DataTable({ columns, data }: DataTableProps) {

@@ -74,7 +74,7 @@ export function TaskRecurrenceFields({
               {(
                 Object.keys(
                   RECURRENCE_FREQUENCY_LABELS,
-                ) as RecurrenceFrequency[]
+                ) as Array<RecurrenceFrequency>
               ).map((key) => (
                 <SelectItem key={key} value={key}>
                   {RECURRENCE_FREQUENCY_LABELS[key]}

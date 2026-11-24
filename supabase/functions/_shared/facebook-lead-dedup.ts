@@ -15,7 +15,9 @@ export const facebookIntakeEventSource = () => "fb-intake";
 /** Stable per-destination lock key so 0546… / 972546… / …@c.us share one receipt. */
 export function facebookWhatsAppSendSource(chatId: string): string {
   const raw = asId(chatId);
-  if (raw.includes("@g.us")) return `fb-wa:${raw}`;
+  if (raw.includes("@g.us")) {
+    return `fb-wa:${raw}`;
+  }
   const digits = raw.replace(/\D/g, "");
   const last9 = digits.slice(-9);
   return `fb-wa:${last9 ? `972${last9}@c.us` : raw}`;
@@ -30,13 +32,17 @@ export function shouldLockWhatsAppBody(
   message: unknown,
   leadgenId?: unknown,
 ): boolean {
-  if (asId(leadgenId)) return true;
+  if (asId(leadgenId)) {
+    return true;
+  }
   return /^\s*ליד חדש/.test(String(message ?? ""));
 }
 
 export async function hashWhatsAppBody(message: unknown): Promise<string> {
   const text = asId(message);
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
   const digest = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(text),
@@ -50,7 +56,9 @@ function isUniqueViolation(
   error:
     { code?: unknown; message?: unknown; details?: unknown } | null | undefined,
 ): boolean {
-  if (!error) return false;
+  if (!error) {
+    return false;
+  }
   const code = String(error.code ?? "");
   const text = `${error.message ?? ""} ${error.details ?? ""}`;
   return (
@@ -65,8 +73,9 @@ export async function claimFacebookLeadIntake(
   params: { tenantId: string; leadgenId: unknown; formId?: unknown },
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
-  if (!leadgenId || !params.tenantId)
+  if (!leadgenId || !params.tenantId) {
     return { duplicate: false, inserted: false };
+  }
 
   const { error } = await supabase.from("lead_notification_events").insert({
     tenant_id: params.tenantId,
@@ -75,7 +84,9 @@ export async function claimFacebookLeadIntake(
     form_id: asId(params.formId) || null,
   });
 
-  if (isUniqueViolation(error)) return { duplicate: true, inserted: false };
+  if (isUniqueViolation(error)) {
+    return { duplicate: true, inserted: false };
+  }
   if (error) {
     console.error("[facebook-lead-dedup] intake claim failed:", error.message);
     const { data } = await supabase
@@ -85,7 +96,9 @@ export async function claimFacebookLeadIntake(
       .eq("source", facebookIntakeEventSource())
       .eq("external_id", leadgenId)
       .maybeSingle();
-    if (data?.id) return { duplicate: true, inserted: false };
+    if (data?.id) {
+      return { duplicate: true, inserted: false };
+    }
     return { duplicate: false, inserted: false };
   }
   return { duplicate: false, inserted: true };
@@ -96,7 +109,9 @@ export async function wasFacebookLeadIntakeClaimed(
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
-  if (!leadgenId || !params.tenantId) return false;
+  if (!leadgenId || !params.tenantId) {
+    return false;
+  }
 
   const { data } = await supabase
     .from("lead_notification_events")
@@ -132,11 +147,15 @@ export async function claimFacebookLeadAutomationRun(
     client_id: asUuid(params.clientId),
   });
 
-  if (isUniqueViolation(error)) return { duplicate: true, inserted: false };
+  if (isUniqueViolation(error)) {
+    return { duplicate: true, inserted: false };
+  }
   if (error) {
     console.error("[facebook-lead-dedup] claim insert failed:", error.message);
     const already = await wasFacebookLeadAutomationClaimed(supabase, params);
-    if (already) return { duplicate: true, inserted: false };
+    if (already) {
+      return { duplicate: true, inserted: false };
+    }
     return { duplicate: false, inserted: false };
   }
   return { duplicate: false, inserted: true };
@@ -148,8 +167,9 @@ export async function claimFacebookLeadWhatsAppSend(
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const leadgenId = asId(params.leadgenId);
   const chatId = asId(params.chatId);
-  if (!leadgenId || !chatId || !params.tenantId)
+  if (!leadgenId || !chatId || !params.tenantId) {
     return { duplicate: false, inserted: false };
+  }
 
   const { error } = await supabase.from("lead_notification_events").insert({
     tenant_id: params.tenantId,
@@ -157,7 +177,9 @@ export async function claimFacebookLeadWhatsAppSend(
     external_id: leadgenId,
   });
 
-  if (isUniqueViolation(error)) return { duplicate: true, inserted: false };
+  if (isUniqueViolation(error)) {
+    return { duplicate: true, inserted: false };
+  }
   if (error) {
     console.error(
       "[facebook-lead-dedup] whatsapp send claim failed:",
@@ -170,7 +192,9 @@ export async function claimFacebookLeadWhatsAppSend(
       .eq("source", facebookWhatsAppSendSource(chatId))
       .eq("external_id", leadgenId)
       .maybeSingle();
-    if (data?.id) return { duplicate: true, inserted: false };
+    if (data?.id) {
+      return { duplicate: true, inserted: false };
+    }
     return { duplicate: false, inserted: false };
   }
   return { duplicate: false, inserted: true };
@@ -187,8 +211,9 @@ export async function claimIdenticalWhatsAppSend(
 ): Promise<{ duplicate: boolean; inserted: boolean }> {
   const chatId = asId(params.chatId);
   const bodyHash = await hashWhatsAppBody(params.message);
-  if (!bodyHash || !chatId || !params.tenantId)
+  if (!bodyHash || !chatId || !params.tenantId) {
     return { duplicate: false, inserted: false };
+  }
   if (!shouldLockWhatsAppBody(params.message, params.leadgenId)) {
     return { duplicate: false, inserted: false };
   }
@@ -199,7 +224,9 @@ export async function claimIdenticalWhatsAppSend(
     external_id: bodyHash,
   });
 
-  if (isUniqueViolation(error)) return { duplicate: true, inserted: false };
+  if (isUniqueViolation(error)) {
+    return { duplicate: true, inserted: false };
+  }
   if (error) {
     console.error(
       "[facebook-lead-dedup] identical whatsapp send claim failed:",
@@ -212,7 +239,9 @@ export async function claimIdenticalWhatsAppSend(
       .eq("source", whatsAppBodyEventSource(chatId))
       .eq("external_id", bodyHash)
       .maybeSingle();
-    if (data?.id) return { duplicate: true, inserted: false };
+    if (data?.id) {
+      return { duplicate: true, inserted: false };
+    }
     return { duplicate: false, inserted: false };
   }
   return { duplicate: false, inserted: true };
@@ -224,7 +253,9 @@ export async function releaseFacebookLeadWhatsAppSend(
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
   const chatId = asId(params.chatId);
-  if (!leadgenId || !chatId || !params.tenantId) return;
+  if (!leadgenId || !chatId || !params.tenantId) {
+    return;
+  }
 
   const { error } = await supabase
     .from("lead_notification_events")
@@ -246,7 +277,9 @@ export async function releaseFacebookLeadAutomationRun(
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<void> {
   const leadgenId = asId(params.leadgenId);
-  if (!leadgenId || !params.tenantId || !params.automationId) return;
+  if (!leadgenId || !params.tenantId || !params.automationId) {
+    return;
+  }
 
   const { error } = await supabase
     .from("lead_notification_events")
@@ -265,7 +298,9 @@ export async function wasFacebookLeadAutomationClaimed(
   params: { tenantId: string; automationId: string; leadgenId: unknown },
 ): Promise<boolean> {
   const leadgenId = asId(params.leadgenId);
-  if (!leadgenId || !params.tenantId || !params.automationId) return false;
+  if (!leadgenId || !params.tenantId || !params.automationId) {
+    return false;
+  }
 
   const { data } = await supabase
     .from("lead_notification_events")
@@ -279,9 +314,13 @@ export async function wasFacebookLeadAutomationClaimed(
 }
 
 export function facebookTriggerAutomationSucceeded(body: unknown): boolean {
-  if (!body || typeof body !== "object") return false;
+  if (!body || typeof body !== "object") {
+    return false;
+  }
   const results = (body as { results?: unknown }).results;
-  if (!Array.isArray(results)) return false;
+  if (!Array.isArray(results)) {
+    return false;
+  }
   return results.some((row) =>
     Boolean(
       row &&
@@ -296,7 +335,9 @@ export async function findExistingFacebookLead(
   params: { tenantId: string; leadgenId: unknown },
 ): Promise<{ id: string } | null> {
   const leadgenId = asId(params.leadgenId);
-  if (!leadgenId || !params.tenantId) return null;
+  if (!leadgenId || !params.tenantId) {
+    return null;
+  }
 
   const { data: byColumn } = await supabase
     .from("leads")
@@ -305,7 +346,9 @@ export async function findExistingFacebookLead(
     .eq("facebook_leadgen_id", leadgenId)
     .limit(1)
     .maybeSingle();
-  if (byColumn?.id) return byColumn;
+  if (byColumn?.id) {
+    return byColumn;
+  }
 
   const { data: byNotes } = await supabase
     .from("leads")
@@ -332,9 +375,15 @@ export function shouldCreateCrmLeadForFacebookFlowConfig(
   hasCreateLeadActionStep: boolean,
 ): boolean {
   const config = asConfigRecord(triggerConfig);
-  if (triggerActionType === "inbound_webhook_lead") return false;
-  if (config.create_crm_lead === true) return true;
-  if (config.create_crm_lead === false) return false;
+  if (triggerActionType === "inbound_webhook_lead") {
+    return false;
+  }
+  if (config.create_crm_lead === true) {
+    return true;
+  }
+  if (config.create_crm_lead === false) {
+    return false;
+  }
   return hasCreateLeadActionStep;
 }
 

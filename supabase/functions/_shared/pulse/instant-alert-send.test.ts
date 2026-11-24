@@ -187,7 +187,7 @@ Deno.test("sendRunMessages", async (t) => {
       const supabase = fakeSupabase([], {
         failingInserts: ["pulse_instant_alert_log"],
       });
-      let sends: unknown[] = [];
+      let sends: Array<unknown> = [];
       let sent = -1;
       const errors = await withConsoleErrors(async () => {
         const outcome = await run(supabase, WEDNESDAY, [STALE_SYNC]);

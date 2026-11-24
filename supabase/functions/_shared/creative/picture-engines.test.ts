@@ -14,8 +14,8 @@ const stillFailed = () =>
     ),
   );
 
-function recorder(openRouterFails: number[] = []) {
-  const openRouterCalls: { refs: number; prompt: string }[] = [];
+function recorder(openRouterFails: Array<number> = []) {
+  const openRouterCalls: Array<{ refs: number; prompt: string }> = [];
   let stillCalls = 0;
   const deps: PictureDeps = {
     openRouter: (args) => {
@@ -24,8 +24,9 @@ function recorder(openRouterFails: number[] = []) {
         prompt: args.prompt,
       });
       const status = openRouterFails[openRouterCalls.length - 1];
-      if (status)
+      if (status) {
         return Promise.reject(new Error(`OpenRouter image ${status}: no`));
+      }
       return Promise.resolve({
         b64: "aGk=",
         mediaType: "image/png",

@@ -67,7 +67,9 @@ export default function SiteAnalytics() {
         .select("id, name, website")
         .filter("tenant_id", "eq", currentTenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -87,7 +89,9 @@ export default function SiteAnalytics() {
         )
         .filter("tenant_id", "eq", currentTenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -162,7 +166,9 @@ export default function SiteAnalytics() {
         ])
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

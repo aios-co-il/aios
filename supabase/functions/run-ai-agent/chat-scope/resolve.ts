@@ -115,7 +115,7 @@ export async function allowedConnectionUserIds(
   supabase: Pick<DbClient, "rpc">,
   tenantId: string,
   userId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   try {
     const { data, error } = await supabase.rpc(
       "chat_allowed_connection_user_ids",

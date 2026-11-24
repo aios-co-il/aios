@@ -17,7 +17,7 @@ export const META_CONNECTION_TYPES = ["facebook", "facebook_lead_ads"];
 export async function resolveMetaToken(
   db: Pick<DbClient, "from">,
   table: ReconcileTable,
-  fallbackTenantIds: string[] = [],
+  fallbackTenantIds: Array<string> = [],
 ): Promise<string | null> {
   const settings = table.integration_settings || {};
   const pinned = settings.integration_id || settings.integrationId;
@@ -67,7 +67,7 @@ async function pinnedMetaToken(
 async function newestMetaToken(
   db: Pick<DbClient, "from">,
   tenantId: string,
-  visibility?: string[],
+  visibility?: Array<string>,
 ): Promise<string | null> {
   let q = db
     .from("tenant_integrations")

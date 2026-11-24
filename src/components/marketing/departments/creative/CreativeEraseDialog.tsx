@@ -87,7 +87,7 @@ export function CreativeEraseDialog({
   const [hint, setHint] = useState("");
   const [tool, setTool] = useState<"brush" | "rect">("brush");
   const [radius, setRadius] = useState(0.045);
-  const [marks, setMarks] = useState<EraseMark[]>([]);
+  const [marks, setMarks] = useState<Array<EraseMark>>([]);
   const [draft, setDraft] = useState<EraseMark | null>(null);
   const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
   const [loading, setLoading] = useState(false);
@@ -113,16 +113,21 @@ export function CreativeEraseDialog({
     void resolveCreativeImageUrl(variation.imageUrl)
       .then((url) => loadImage(url ?? variation.imageUrl!))
       .then((image) => {
-        if (!cancelled) setPhoto(image);
+        if (!cancelled) {
+          setPhoto(image);
+        }
       })
       .catch((cause: unknown) => {
-        if (!cancelled)
+        if (!cancelled) {
           setError(
             cause instanceof Error ? cause.message : "טעינת התמונה נכשלה",
           );
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -136,13 +141,19 @@ export function CreativeEraseDialog({
 
   useEffect(() => {
     const canvas = overlayRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      return;
+    }
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
     ctx.clearRect(0, 0, width, height);
-    if (photo) ctx.drawImage(photo, 0, 0, width, height);
+    if (photo) {
+      ctx.drawImage(photo, 0, 0, width, height);
+    }
     ctx.fillStyle = "rgba(225, 29, 72, 0.55)";
     ctx.strokeStyle = "rgba(225, 29, 72, 0.8)";
     ctx.lineCap = "round";
@@ -157,14 +168,19 @@ export function CreativeEraseDialog({
         );
         continue;
       }
-      if (mark.points.length === 0) continue;
+      if (mark.points.length === 0) {
+        continue;
+      }
       ctx.lineWidth = Math.max(2, mark.radius * 2 * Math.min(width, height));
       ctx.beginPath();
       mark.points.forEach((point, index) => {
         const x = point.x * width;
         const y = point.y * height;
-        if (index === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        if (index === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
       });
       ctx.stroke();
     }
@@ -172,9 +188,13 @@ export function CreativeEraseDialog({
 
   const pointFromEvent = (event: React.PointerEvent): ErasePoint | null => {
     const frame = frameRef.current;
-    if (!frame) return null;
+    if (!frame) {
+      return null;
+    }
     const box = frame.getBoundingClientRect();
-    if (box.width <= 0 || box.height <= 0) return null;
+    if (box.width <= 0 || box.height <= 0) {
+      return null;
+    }
     return {
       x: Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)),
       y: Math.min(1, Math.max(0, (event.clientY - box.top) / box.height)),
@@ -182,9 +202,13 @@ export function CreativeEraseDialog({
   };
 
   const onPointerDown = (event: React.PointerEvent) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0) {
+      return;
+    }
     const point = pointFromEvent(event);
-    if (!point) return;
+    if (!point) {
+      return;
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
     painting.current = true;
     if (tool === "rect") {
@@ -197,9 +221,13 @@ export function CreativeEraseDialog({
   };
 
   const onPointerMove = (event: React.PointerEvent) => {
-    if (!painting.current || !draft) return;
+    if (!painting.current || !draft) {
+      return;
+    }
     const point = pointFromEvent(event);
-    if (!point) return;
+    if (!point) {
+      return;
+    }
     if (draft.type === "rect") {
       const origin = rectOrigin.current ?? { x: draft.x, y: draft.y };
       setDraft({
@@ -217,29 +245,39 @@ export function CreativeEraseDialog({
   const onPointerUp = () => {
     painting.current = false;
     rectOrigin.current = null;
-    if (!draft) return;
+    if (!draft) {
+      return;
+    }
     const keep =
       draft.type === "rect"
         ? draft.width > 0.004 && draft.height > 0.004
         : draft.points.length > 0;
-    if (keep) setMarks((current) => [...current, draft]);
+    if (keep) {
+      setMarks((current) => [...current, draft]);
+    }
     setDraft(null);
   };
 
   const exportJob = async (): Promise<EraseJob> => {
-    if (!photo) throw new Error("אין תמונה");
+    if (!photo) {
+      throw new Error("אין תמונה");
+    }
     const imageCanvas = document.createElement("canvas");
     imageCanvas.width = width;
     imageCanvas.height = height;
     const imageCtx = imageCanvas.getContext("2d");
-    if (!imageCtx) throw new Error("canvas");
+    if (!imageCtx) {
+      throw new Error("canvas");
+    }
     imageCtx.drawImage(photo, 0, 0, width, height);
 
     const maskCanvas = document.createElement("canvas");
     maskCanvas.width = width;
     maskCanvas.height = height;
     const maskCtx = maskCanvas.getContext("2d");
-    if (!maskCtx) throw new Error("canvas");
+    if (!maskCtx) {
+      throw new Error("canvas");
+    }
     const mask = applyEraseMarks(
       createKeepMask(width, height),
       width,
@@ -252,7 +290,9 @@ export function CreativeEraseDialog({
     markedCanvas.width = width;
     markedCanvas.height = height;
     const markedCtx = markedCanvas.getContext("2d");
-    if (!markedCtx) throw new Error("canvas");
+    if (!markedCtx) {
+      throw new Error("canvas");
+    }
     markedCtx.drawImage(imageCanvas, 0, 0);
     markedCtx.fillStyle = "rgba(225, 29, 72, 0.7)";
     markedCtx.strokeStyle = "rgba(225, 29, 72, 0.95)";
@@ -268,7 +308,9 @@ export function CreativeEraseDialog({
         );
         continue;
       }
-      if (mark.points.length === 0) continue;
+      if (mark.points.length === 0) {
+        continue;
+      }
       markedCtx.lineWidth = Math.max(
         2,
         mark.radius * 2 * Math.min(width, height),
@@ -277,8 +319,11 @@ export function CreativeEraseDialog({
       mark.points.forEach((point, index) => {
         const x = point.x * width;
         const y = point.y * height;
-        if (index === 0) markedCtx.moveTo(x, y);
-        else markedCtx.lineTo(x, y);
+        if (index === 0) {
+          markedCtx.moveTo(x, y);
+        } else {
+          markedCtx.lineTo(x, y);
+        }
       });
       markedCtx.stroke();
     }
@@ -306,7 +351,9 @@ export function CreativeEraseDialog({
     <Dialog
       open={!!variation}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) {
+          onClose();
+        }
       }}
     >
       <DialogContent

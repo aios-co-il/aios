@@ -30,7 +30,7 @@ import { Loader2, TrendingUp, ExternalLink, Link, Globe } from "lucide-react";
 interface AhrefsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 export function AhrefsTableDialog({
@@ -102,15 +102,20 @@ export function AhrefsTableDialog({
 
       let detectedType = "site_explorer";
 
-      if (path.includes("organic-keywords")) detectedType = "organic_traffic";
-      else if (path.includes("backlinks")) detectedType = "backlinks";
-      else if (
+      if (path.includes("organic-keywords")) {
+        detectedType = "organic_traffic";
+      } else if (path.includes("backlinks")) {
+        detectedType = "backlinks";
+      } else if (
         path.includes("referring-domains") ||
         path.includes("refdomains")
-      )
+      ) {
         detectedType = "referring_domains";
-      else if (path.includes("domain-rating")) detectedType = "site_explorer";
-      else if (path.includes("site-explorer")) detectedType = "site_explorer";
+      } else if (path.includes("domain-rating")) {
+        detectedType = "site_explorer";
+      } else if (path.includes("site-explorer")) {
+        detectedType = "site_explorer";
+      }
 
       return { target, reportType: detectedType };
     } catch {
@@ -156,8 +161,12 @@ export function AhrefsTableDialog({
       }
 
       const normalizeReportType = (t: string) => {
-        if (t === "organic_keywords") return "organic_traffic";
-        if (t === "domain_rating") return "site_explorer";
+        if (t === "organic_keywords") {
+          return "organic_traffic";
+        }
+        if (t === "domain_rating") {
+          return "site_explorer";
+        }
         return t;
       };
 
@@ -198,7 +207,9 @@ export function AhrefsTableDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({ title: "טבלת Ahrefs נוצרה בהצלחה!" });
       queryClient.invalidateQueries({

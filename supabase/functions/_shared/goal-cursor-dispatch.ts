@@ -69,7 +69,9 @@ export async function getPlanStepCursorAgent(
     .eq("id", planStepId)
     .maybeSingle();
   const id = String(data?.cursor_agent_id || "").trim();
-  if (!id.startsWith("bc-")) return null;
+  if (!id.startsWith("bc-")) {
+    return null;
+  }
   return {
     cursorAgentId: id,
     sessionUrl: String(
@@ -84,7 +86,9 @@ export async function savePlanStepCursorAgent(
   cursorAgentId: string,
   sessionUrl: string,
 ): Promise<void> {
-  if (!cursorAgentId.startsWith("bc-")) return;
+  if (!cursorAgentId.startsWith("bc-")) {
+    return;
+  }
   await supabase
     .from("goal_plan_steps")
     .update({
@@ -106,7 +110,9 @@ export async function getGoalCursorAgent(
     .eq("id", goalId)
     .maybeSingle();
   const id = String(data?.cursor_agent_id || "").trim();
-  if (!id.startsWith("bc-")) return null;
+  if (!id.startsWith("bc-")) {
+    return null;
+  }
   return {
     cursorAgentId: id,
     sessionUrl: String(
@@ -121,7 +127,9 @@ export async function saveGoalCursorAgent(
   cursorAgentId: string,
   sessionUrl: string,
 ): Promise<void> {
-  if (!cursorAgentId.startsWith("bc-")) return;
+  if (!cursorAgentId.startsWith("bc-")) {
+    return;
+  }
   await supabase
     .from("goals")
     .update({
@@ -156,11 +164,14 @@ async function followUpCursorAgent(
       };
     }
     if (resp.status === 409) {
-      if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+      if (attempt === 1) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       continue;
     }
-    if (resp.status === 404 || resp.status === 410 || resp.status === 400)
+    if (resp.status === 404 || resp.status === 410 || resp.status === 400) {
       return null;
+    }
     throw new Error(`Cursor follow-up ${resp.status}: ${raw.slice(0, 400)}`);
   }
   return { cursorAgentId: agentId, sessionUrl, reused: true, delivered: false };
@@ -197,13 +208,16 @@ async function createGoalCursorAgent(
     body: JSON.stringify(body),
   });
   const raw = await resp.text();
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`Cursor create ${resp.status}: ${raw.slice(0, 400)}`);
+  }
   const parsed = parseAgentResponse(raw);
   const id = parsed.id.startsWith("bc-")
     ? parsed.id
     : parsed.url.match(/bc-[a-z0-9-]+/i)?.[0] || "";
-  if (!id.startsWith("bc-")) throw new Error("Cursor create: missing agent id");
+  if (!id.startsWith("bc-")) {
+    throw new Error("Cursor create: missing agent id");
+  }
   return {
     cursorAgentId: id,
     sessionUrl: parsed.url.includes("/agents/")
@@ -272,7 +286,9 @@ export async function dispatchToGoalCursor(
   },
 ): Promise<GoalCursorFireResult> {
   const apiKey = Deno.env.get("CURSOR_API_KEY") || "";
-  if (!apiKey) throw new Error("CURSOR_API_KEY not configured");
+  if (!apiKey) {
+    throw new Error("CURSOR_API_KEY not configured");
+  }
 
   const useStepSticky =
     args.useStepSticky ?? !!(args.planStepId && args.subProjectKey);

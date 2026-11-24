@@ -9,11 +9,11 @@ type Row = Record<string, unknown>;
 // An in-memory PostgREST: filters by eq / is / in, and returns only the columns a query selects,
 // so a screen that leaves a column out of its select does not get it.
 const db = vi.hoisted(() => {
-  const tables: Record<string, Record<string, unknown>[]> = {};
+  const tables: Record<string, Array<Record<string, unknown>>> = {};
   const errors: Partial<Record<string, Error>> = {};
   const from = (table: string) => {
     const filters: Array<(row: Record<string, unknown>) => boolean> = [];
-    let columns: string[] | null = null;
+    let columns: Array<string> | null = null;
     let head = false;
     let insert: Record<string, unknown> | null = null;
     let patch: Record<string, unknown> | null = null;
@@ -22,11 +22,17 @@ const db = vi.hoisted(() => {
         return { data: null, count: null, error: errors[table] };
       }
       const rows = (tables[table] ??= []);
-      if (insert) rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
+      if (insert) {
+        rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
+      }
       const hits = insert
         ? rows.slice(-1)
         : rows.filter((row) => filters.every((keep) => keep(row)));
-      if (patch) for (const row of hits) Object.assign(row, patch);
+      if (patch) {
+        for (const row of hits) {
+          Object.assign(row, patch);
+        }
+      }
       const data = hits.map((row) =>
         columns
           ? Object.fromEntries(columns.map((column) => [column, row[column]]))
@@ -59,7 +65,7 @@ const db = vi.hoisted(() => {
         filters.push((row) => (row[column] ?? null) === value);
         return query;
       },
-      in: (column: string, values: unknown[]) => {
+      in: (column: string, values: Array<unknown>) => {
         filters.push((row) => values.includes(row[column]));
         return query;
       },
@@ -88,7 +94,9 @@ vi.mock("@/components/marketing/lib/ensurePipeline", () => ({
 beforeEach(() => {
   HTMLElement.prototype.hasPointerCapture = () => false;
   HTMLElement.prototype.scrollIntoView = () => {};
-  for (const table of Object.keys(db.tables)) delete db.tables[table];
+  for (const table of Object.keys(db.tables)) {
+    delete db.tables[table];
+  }
   for (const table of Object.keys(db.errors)) {
     delete db.errors[table];
   }

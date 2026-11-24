@@ -21,7 +21,7 @@ export type TitleEmphasis = (typeof TITLE_EMPHASES)[number];
 
 export const isTitleEmphasis = (value: unknown): value is TitleEmphasis =>
   typeof value === "string" &&
-  (TITLE_EMPHASES as readonly string[]).includes(value);
+  (TITLE_EMPHASES as ReadonlyArray<string>).includes(value);
 
 /** Frames after a word starts entering before its emphasis starts, and the longest emphasis. */
 export const EMPHASIS_LAG = 8;

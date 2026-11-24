@@ -56,7 +56,9 @@ export function SaveAsTemplateDialog({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return result;
     },
     onSuccess: () => {

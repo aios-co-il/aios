@@ -97,4 +97,4 @@ const HUMAN_REQUEST_SURFACES = new Set<string>([
   "whatsapp",
   "aios",
   "internal_chat",
-] satisfies Surface[]);
+] satisfies Array<Surface>);

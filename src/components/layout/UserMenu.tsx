@@ -28,7 +28,9 @@ export function UserMenu() {
   const logout = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onError: async () => {
       try {
@@ -38,7 +40,9 @@ export function UserMenu() {
       }
       try {
         Object.keys(localStorage).forEach((k) => {
-          if (/^sb-.*-auth-token$/.test(k)) localStorage.removeItem(k);
+          if (/^sb-.*-auth-token$/.test(k)) {
+            localStorage.removeItem(k);
+          }
         });
       } catch (_) {
         // Storage may be unavailable; onSettled still completes logout.

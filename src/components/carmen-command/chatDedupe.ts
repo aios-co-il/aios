@@ -9,8 +9,12 @@ export function replyShownThisTurn(
 ): boolean {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.role === "user") return false;
-    if (m.role === "assistant" && m.content === content) return true;
+    if (m.role === "user") {
+      return false;
+    }
+    if (m.role === "assistant" && m.content === content) {
+      return true;
+    }
   }
   return false;
 }

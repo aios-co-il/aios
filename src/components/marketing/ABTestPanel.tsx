@@ -40,7 +40,7 @@ export function ABTestPanel({
         .select("*")
         .eq("work_item_id", workItemId)
         .order("created_at", { ascending: true });
-      return (data as any[]) || [];
+      return (data as Array<any>) || [];
     },
     enabled: !!workItemId,
   });
@@ -51,7 +51,9 @@ export function ABTestPanel({
         .from("marketing_ab_variants" as any)
         .update({ selected: true })
         .eq("id", variant.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_, variant) => {
       toast.success("גרסה נבחרה!");
@@ -75,7 +77,9 @@ export function ABTestPanel({
           channel,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("גרסאות נוצרו!");
       await refetch();
     } catch (e: any) {

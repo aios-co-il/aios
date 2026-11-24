@@ -53,11 +53,15 @@ export function effectCues(
   const add = (file: string | null, start: number, length: number) => {
     const startFrame = Math.max(0, Math.round(start));
     const frameCount = Math.min(Math.max(1, length), totalFrames - startFrame);
-    if (file && frameCount > 0) cues.push({ file, startFrame, frameCount });
+    if (file && frameCount > 0) {
+      cues.push({ file, startFrame, frameCount });
+    }
   };
   const whooshLength = whooshFrames || Math.round(fps * 1.2);
   const impactLength = impactFrames || Math.round(fps * 2.5);
-  if (impact) add(impact, 0, impactLength);
+  if (impact) {
+    add(impact, 0, impactLength);
+  }
   for (const [cut, scene] of scenes.slice(1).entries()) {
     const sound = cutSounds?.[cut] ?? { file: whoosh, frames: whooshLength };
     const length = sound.frames || whooshLength;
@@ -73,14 +77,17 @@ export function effectCues(
     impact &&
     typeof endCardStart === "number" &&
     Number.isInteger(endCardStart)
-  )
+  ) {
     add(impact, endCardStart - Math.round(fps * 0.2), impactLength);
+  }
   return cues.sort((a, b) => a.startFrame - b.startFrame);
 }
 
 /** The transition into scene `index`; the first scene opens from black. */
 export function sceneTransition(index: number, requested?: unknown) {
-  if (index === 0) return "cut";
+  if (index === 0) {
+    return "cut";
+  }
   if (typeof requested === "string" && ALL_TRANSITIONS.has(requested)) {
     return requested;
   }
@@ -93,7 +100,9 @@ export function transitionFrames(
   current: number,
   type: string,
 ) {
-  if (type === "cut" || !previous) return 0;
+  if (type === "cut" || !previous) {
+    return 0;
+  }
   return Math.max(
     0,
     Math.min(
@@ -110,7 +119,9 @@ export function transitionFrames(
  */
 export function fitScenes(frameCounts: Array<number>, minTotal: number) {
   const total = frameCounts.reduce((sum, n) => sum + n, 0);
-  if (!frameCounts.length || !(minTotal > total)) return [...frameCounts];
+  if (!frameCounts.length || !(minTotal > total)) {
+    return [...frameCounts];
+  }
   const scaled = frameCounts.map((n) => Math.floor((n * minTotal) / total));
   const used = scaled.reduce((sum, n) => sum + n, 0);
   scaled[scaled.length - 1] += Math.ceil(minTotal) - used;
@@ -125,8 +136,11 @@ export function speechSpans(spans: Array<Span>, gap = 18) {
   const merged: Array<Span> = [];
   for (const [start, end] of sorted) {
     const last = merged[merged.length - 1];
-    if (last && start - last[1] <= gap) last[1] = Math.max(last[1], end);
-    else merged.push([start, end]);
+    if (last && start - last[1] <= gap) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
   }
   return merged;
 }
@@ -151,7 +165,9 @@ export function musicEnvelope(
   for (const [start, end] of speechSpans(spans, attack + release + hold)) {
     const s = Math.max(0, start);
     const e = Math.min(totalFrames, end);
-    if (e <= s) continue;
+    if (e <= s) {
+      continue;
+    }
     // Speech from the first frames: the film opens already under the voice.
     points.push(
       s - attack > 0 ? [s - attack, base] : [0, ducked],
@@ -164,7 +180,9 @@ export function musicEnvelope(
   const frames: Array<number> = [];
   const volumes: Array<number> = [];
   for (const [frame, volume] of points) {
-    if (frame > totalFrames) continue;
+    if (frame > totalFrames) {
+      continue;
+    }
     const at = frames.length - 1;
     if (at >= 0 && frame <= frames[at]) {
       // Same frame: the later (ducked) value wins, so speech is never under a loud bed.

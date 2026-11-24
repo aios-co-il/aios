@@ -18,8 +18,9 @@ const jsonResponse = (body: unknown, status = 200) =>
   });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -27,7 +28,9 @@ serve(async (req) => {
   );
   try {
     const auth = await requireAuth(req);
-    if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
 
     const {
       item_id,
@@ -35,15 +38,18 @@ serve(async (req) => {
       mode = "autopilot",
       frame_count = 4,
     } = await req.json();
-    if (!item_id) return jsonResponse({ error: "item_id required" }, 400);
+    if (!item_id) {
+      return jsonResponse({ error: "item_id required" }, 400);
+    }
 
     const { data: item, error: itemError } = await admin
       .from("marketing_work_items")
       .select("*")
       .eq("id", item_id)
       .single();
-    if (itemError || !item)
+    if (itemError || !item) {
       return jsonResponse({ error: "Work item not found" }, 404);
+    }
 
     if (auth.kind === "user") {
       const { data: membership } = await admin
@@ -52,7 +58,9 @@ serve(async (req) => {
         .eq("tenant_id", item.tenant_id)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return jsonResponse({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
     }
 
     const [{ data: client }, { data: integration }, skinBlock] =
@@ -83,8 +91,9 @@ serve(async (req) => {
         .maybeSingle();
       settings = (source?.settings ?? settings) as Record<string, string>;
     }
-    if (!settings.openai_api_key)
+    if (!settings.openai_api_key) {
       throw new Error("OpenAI API key חסר בהגדרות האינטגרציות");
+    }
 
     const payload = (item.payload ?? {}) as Record<string, unknown>;
     // Scenes live in marketing_video_scenes; payload.storyboard is a frozen pre-migration backup.
@@ -93,7 +102,9 @@ serve(async (req) => {
       .select("title,shot,visual_prompt,overlay_text,voiceover_text,duration_s")
       .eq("item_id", item.id)
       .order("position");
-    if (scenesError) throw scenesError;
+    if (scenesError) {
+      throw scenesError;
+    }
     const existingStoryboard = (existingScenes ?? []).map((scene) => ({
       title: scene.title,
       shot: scene.shot,
@@ -155,10 +166,11 @@ serve(async (req) => {
         }),
       },
     );
-    if (!aiResponse.ok)
+    if (!aiResponse.ok) {
       throw new Error(
         `AI planning failed: ${aiResponse.status} ${await aiResponse.text()}`,
       );
+    }
     const aiData = await aiResponse.json();
     const plan = JSON.parse(aiData.choices?.[0]?.message?.content ?? "{}");
     const frames = (Array.isArray(plan.frames) ? plan.frames : [])
@@ -175,7 +187,9 @@ serve(async (req) => {
         x: index * 300,
         y: 100,
       }));
-    if (frames.length === 0) throw new Error("כרמן לא החזירה סצנות תקינות");
+    if (frames.length === 0) {
+      throw new Error("כרמן לא החזירה סצנות תקינות");
+    }
 
     // The plan replaces the storyboard: upsert the new scenes, then drop the previous ones.
     const { error: saveError } = await admin.rpc("save_video_storyboard", {
@@ -192,7 +206,9 @@ serve(async (req) => {
         canvas: { x: frame.x, y: frame.y },
       })),
     });
-    if (saveError) throw saveError;
+    if (saveError) {
+      throw saveError;
+    }
     const { error: replaceError } = await admin
       .from("marketing_video_scenes")
       .delete()
@@ -202,7 +218,9 @@ serve(async (req) => {
         "in",
         `(${frames.map((frame: Record<string, unknown>) => frame.id).join(",")})`,
       );
-    if (replaceError) throw replaceError;
+    if (replaceError) {
+      throw replaceError;
+    }
 
     const nextPayload = {
       ...payload,
@@ -216,7 +234,9 @@ serve(async (req) => {
       .from("marketing_work_items")
       .update({ payload: nextPayload, status: "draft" })
       .eq("id", item.id);
-    if (updateError) throw updateError;
+    if (updateError) {
+      throw updateError;
+    }
 
     await admin.from("marketing_assets").insert({
       tenant_id: item.tenant_id,

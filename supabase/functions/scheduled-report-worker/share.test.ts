@@ -25,7 +25,7 @@ type ShareRow = {
  * newest share first: eq filters apply to reads and updates, inserts are
  * added on top.
  */
-function sharesClient(rows: ShareRow[]): DbClient {
+function sharesClient(rows: Array<ShareRow>): DbClient {
   const fakeFetch: typeof fetch = async (input, init) => {
     const filters = eqFilters(new URL(String(input)));
     const matches = rows.filter((row) => matchesAll(row, filters));

@@ -18,7 +18,7 @@ type AlertRow = {
 };
 
 /** campaign_alerts in memory: update(...).eq().is().select().maybeSingle(). */
-function fakeAlerts(rows: AlertRow[], claimError: string | null = null) {
+function fakeAlerts(rows: Array<AlertRow>, claimError: string | null = null) {
   const from = () => {
     const filters: Array<(row: AlertRow) => boolean> = [];
     let patch: Partial<AlertRow> = {};
@@ -120,7 +120,7 @@ Deno.test("releaseHeldAlert", async (t) => {
     async () => {
       const rows = [heldRow()];
       const db = fakeAlerts(rows);
-      const sent: string[] = [];
+      const sent: Array<string> = [];
       const notify = async (id: string) => {
         sent.push(id);
       };
@@ -139,7 +139,7 @@ Deno.test("releaseHeldAlert", async (t) => {
       const rows = [heldRow()];
       const stale = { ...rows[0] };
       const db = fakeAlerts(rows);
-      const sent: string[] = [];
+      const sent: Array<string> = [];
       const notify = async (id: string) => {
         sent.push(id);
       };
@@ -152,7 +152,7 @@ Deno.test("releaseHeldAlert", async (t) => {
   await t.step(
     "on Saturday or after a failed claim nothing is sent",
     async () => {
-      const sent: string[] = [];
+      const sent: Array<string> = [];
       const notify = async (id: string) => {
         sent.push(id);
       };

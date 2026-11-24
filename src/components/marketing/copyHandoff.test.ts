@@ -135,7 +135,7 @@ test("overlayCopyHandoffPayload keeps existing variations and writes visual_prom
   );
   expect(String(payload.visual_prompt)).toMatch(/ארנק פעור/);
   expect(String(payload.visual_prompt)).toMatch(/PHOTOGRAPH THIS SCENE/);
-  expect((payload.approved_concepts as CopyConcept[])[0]?.name).toBe(
+  expect((payload.approved_concepts as Array<CopyConcept>)[0]?.name).toBe(
     "הכיס הריק",
   );
 });
@@ -205,8 +205,8 @@ test("overlayCopyHandoffPayload keeps existing concepts when the copy has none",
     approved: [],
     at: "2026-08-25T09:00:00.000Z",
   });
-  expect((payload.copy_concepts as CopyConcept[])[0]?.id).toBe("keep");
-  expect((payload.approved_concepts as CopyConcept[])[0]?.id).toBe("keep");
+  expect((payload.copy_concepts as Array<CopyConcept>)[0]?.id).toBe("keep");
+  expect((payload.approved_concepts as Array<CopyConcept>)[0]?.id).toBe("keep");
   expect(payload.copy_text).toBe("כותרת חדשה");
 });
 
@@ -226,7 +226,9 @@ test("overlayCopyHandoffPayload keeps an existing visual_prompt when nothing is 
   expect(payload.visual_prompt).toBe("KEEP THIS");
   expect(payload.copy_text).toBe("כותרת");
   expect(payload.linked_copy_item_id).toBe("copy-1");
-  expect((payload.copy_concepts as CopyConcept[])[0]?.approved).toBe(false);
+  expect((payload.copy_concepts as Array<CopyConcept>)[0]?.approved).toBe(
+    false,
+  );
 });
 
 test("copyPullSummary marks items with copy or concepts as pullable", () => {
@@ -293,8 +295,12 @@ test("overlayCopyHandoffPayload writes approved copies only and pairs concept co
   }>;
   expect(variations.length).toBe(2);
   expect(variations.filter((row) => row.approved).length).toBe(1);
-  expect((payload.approved_concepts as CopyConcept[])[0]?.copyKey).toBe("2");
-  expect((payload.approved_concepts as CopyConcept[])[0]?.copyId).toBe("b");
+  expect((payload.approved_concepts as Array<CopyConcept>)[0]?.copyKey).toBe(
+    "2",
+  );
+  expect((payload.approved_concepts as Array<CopyConcept>)[0]?.copyId).toBe(
+    "b",
+  );
 });
 
 describe("validated copy handoff integration", () => {

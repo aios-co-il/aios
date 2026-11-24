@@ -10,7 +10,7 @@ import { isShabbatCriticalAlert } from "../shabbat/critical-alerts.ts";
  * account-level stop/disable among the client's critical campaign issues.
  */
 export function isRealConnectionLoss(
-  flags: string[],
+  flags: Array<string>,
   statusNoData: boolean,
   criticalIssues: Array<{ alertType?: string | null }>,
 ): boolean {
@@ -29,7 +29,7 @@ export function isLostConnectionFlag(flag: string): boolean {
 /** A no_data status with no connected campaign table behind it. */
 export function isNoDataWithoutTable(
   statusNoData: boolean,
-  flags: string[],
+  flags: Array<string>,
 ): boolean {
   return statusNoData && flags.some((flag) => flag.includes("אין טבלת"));
 }

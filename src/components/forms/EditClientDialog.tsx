@@ -135,10 +135,12 @@ export function EditClientDialog({
   } = useFolderLinksAndAttachments(client);
 
   const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
-  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
+  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<
+    Array<string>
+  >([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
     [],
   );
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
 
   // Team members for meeting invitations - filtered by tenant
   const {
@@ -148,19 +150,25 @@ export function EditClientDialog({
   } = useQuery({
     queryKey: ["team-members-for-meeting", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data: tenantUsersData, error: tenantUsersError } = await supabase
         .from("tenant_users")
         .select("user_id")
         .eq("tenant_id", tenantId);
 
-      if (tenantUsersError) throw tenantUsersError;
+      if (tenantUsersError) {
+        throw tenantUsersError;
+      }
 
       const userIds = (tenantUsersData || [])
         .map((tu) => tu.user_id)
         .filter(Boolean);
-      if (userIds.length === 0) return [];
+      if (userIds.length === 0) {
+        return [];
+      }
 
       const { data: profilesData, error: profilesError } = await supabase
         .from("profiles")
@@ -169,7 +177,9 @@ export function EditClientDialog({
         .not("email", "is", null)
         .order("full_name");
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        throw profilesError;
+      }
 
       return (profilesData || []).filter(
         (p: any) => p.email && p.email.trim() !== "",
@@ -195,7 +205,9 @@ export function EditClientDialog({
         .select("*")
         .eq("client_id", client.id)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!client.id && open,
@@ -212,7 +224,9 @@ export function EditClientDialog({
         email: contact.email || null,
         role: contact.role || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("איש קשר נוסף בהצלחה");
@@ -232,7 +246,9 @@ export function EditClientDialog({
         .from("client_contacts")
         .delete()
         .eq("id", contactId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("איש קשר הוסר");
@@ -261,8 +277,11 @@ export function EditClientDialog({
 
   // Get all contacts for meeting invitations (with or without email)
   const allContactEmails = useMemo(() => {
-    const contacts: { email: string | null; name: string; source: string }[] =
-      [];
+    const contacts: Array<{
+      email: string | null;
+      name: string;
+      source: string;
+    }> = [];
     // Always add the primary contact
     contacts.push({
       email: client.email || null,
@@ -296,7 +315,9 @@ export function EditClientDialog({
         `,
         )
         .eq("client_id", client.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
   });
@@ -320,7 +341,9 @@ export function EditClientDialog({
         campaigner_id: campaignerId,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success(`ה${t("role_campaigner")} שויך בהצלחה`);
@@ -344,7 +367,9 @@ export function EditClientDialog({
         .delete()
         .eq("id", assignmentId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הקמפיינר הוסר בהצלחה");
@@ -373,7 +398,9 @@ export function EditClientDialog({
         .from("client_team")
         .update({ campaigner_payment: payment })
         .eq("id", assignmentId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("עלות הקמפיינר עודכנה");
@@ -441,14 +468,18 @@ export function EditClientDialog({
   const { data: financialData } = useQuery({
     queryKey: ["client-financial-data", client?.id, tenantId],
     queryFn: async () => {
-      if (!client?.id || !tenantId) return null;
+      if (!client?.id || !tenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("client_tenant_financial_data")
         .select("*")
         .eq("client_id", client.id)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
       return data;
     },
     enabled: !!client?.id && !!tenantId && open,
@@ -462,7 +493,9 @@ export function EditClientDialog({
       financeExpenseMonth,
     ],
     queryFn: async () => {
-      if (!client?.id || !tenantId) return [];
+      if (!client?.id || !tenantId) {
+        return [];
+      }
       const monthStart = financeExpenseMonth
         ? `${financeExpenseMonth}-01`
         : format(startOfMonth(new Date()), "yyyy-MM-dd");
@@ -481,7 +514,9 @@ export function EditClientDialog({
         .lt("date", nextMonthStart)
         .order("date", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!client?.id && !!tenantId && open && showFinanceFields,
@@ -499,7 +534,9 @@ export function EditClientDialog({
     const hasSeoRow = (clientFinanceExpenses || []).some(
       (e: any) => (e.category || "").toUpperCase() === "SEO",
     );
-    if (!isSeo || hasSeoRow) return clientFinanceExpenses;
+    if (!isSeo || hasSeoRow) {
+      return clientFinanceExpenses;
+    }
     return [
       ...clientFinanceExpenses,
       {
@@ -539,7 +576,9 @@ export function EditClientDialog({
 
   const mutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      if (!tenantId) throw new Error("Tenant ID not found");
+      if (!tenantId) {
+        throw new Error("Tenant ID not found");
+      }
 
       // Update client data (without financial fields).
       // Require a returned row — RLS denials often come back as success + 0 rows.
@@ -576,7 +615,9 @@ export function EditClientDialog({
         .eq("id", client.id)
         .select("id");
 
-      if (clientError) throw clientError;
+      if (clientError) {
+        throw clientError;
+      }
       if (!updatedRows?.length) {
         throw new Error("אין הרשאה לעדכן את הלקוח (או שהלקוח לא נמצא)");
       }
@@ -599,7 +640,9 @@ export function EditClientDialog({
             onConflict: "client_id,tenant_id",
           });
 
-        if (financialError) throw financialError;
+        if (financialError) {
+          throw financialError;
+        }
       }
     },
     onSuccess: () => {
@@ -1208,7 +1251,7 @@ export function EditClientDialog({
                               { key: "full_social", label: "Full Social" },
                               { key: "social_meta", label: "Social Meta" },
                               { key: "automation", label: "Automation" },
-                            ] as { key: string; label: string }[]
+                            ] as Array<{ key: string; label: string }>
                           ).map((svc) => (
                             <label
                               key={svc.key}
@@ -1579,7 +1622,9 @@ export function EditClientDialog({
                               }
                               disabled={!contact.email}
                               onCheckedChange={(checked) => {
-                                if (!contact.email) return;
+                                if (!contact.email) {
+                                  return;
+                                }
                                 setSelectedMeetingEmails((prev) =>
                                   checked
                                     ? [...prev, contact.email!]

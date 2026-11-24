@@ -48,7 +48,9 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session || !tenantId) return [];
+      if (!session || !tenantId) {
+        return [];
+      }
       return listExecutionGoals(session.access_token, tenantId);
     },
     enabled: Boolean(tenantId),
@@ -61,7 +63,9 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session || !tenantId || !selectedId) return null;
+      if (!session || !tenantId || !selectedId) {
+        return null;
+      }
       return getExecutionGoal(session.access_token, tenantId, selectedId);
     },
     enabled: Boolean(tenantId && selectedId),
@@ -69,13 +73,17 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
   });
 
   const createGoal = useCallback(async () => {
-    if (!tenantId || !newTitle.trim()) return;
+    if (!tenantId || !newTitle.trim()) {
+      return;
+    }
     setBusy(true);
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחובר");
+      if (!session) {
+        throw new Error("לא מחובר");
+      }
       const schemaHint = (msg: string) =>
         /does not exist|unknown column|autonomous_mode|goal_success_criteria|schema cache|לא החזיר יעד/i.test(
           msg,
@@ -92,7 +100,9 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
       } catch (firstErr: unknown) {
         const msg =
           firstErr instanceof Error ? firstErr.message : String(firstErr);
-        if (!autonomous || !schemaHint(msg)) throw firstErr;
+        if (!autonomous || !schemaHint(msg)) {
+          throw firstErr;
+        }
         result = await createExecutionGoal(session.access_token, tenantId, {
           title: newTitle.trim(),
           description: newBrief.trim() || undefined,
@@ -148,13 +158,17 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
 
   const triggerIteration = useCallback(
     async (goalId: string) => {
-      if (!tenantId) return;
+      if (!tenantId) {
+        return;
+      }
       setBusy(true);
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) throw new Error("לא מחובר");
+        if (!session) {
+          throw new Error("לא מחובר");
+        }
         await runGoalIteration(session.access_token, tenantId, goalId);
         await qc.invalidateQueries({
           queryKey: ["execution-goal-detail", tenantId, goalId],
@@ -303,13 +317,17 @@ export function GoalsPanel({ tenantId }: { tenantId: string | null }) {
               tenantId={tenantId}
               onRunIteration={() => void triggerIteration(selectedId)}
               onManualGuidance={async (guidance) => {
-                if (!tenantId || !selectedId) return;
+                if (!tenantId || !selectedId) {
+                  return;
+                }
                 setBusy(true);
                 try {
                   const {
                     data: { session },
                   } = await supabase.auth.getSession();
-                  if (!session) throw new Error("לא מחובר");
+                  if (!session) {
+                    throw new Error("לא מחובר");
+                  }
                   const result = await sendGoalManualGuidance(
                     session.access_token,
                     tenantId,
@@ -381,7 +399,7 @@ function GoalDetailView({
   const milestones =
     (detail.milestones as Array<{ title: string; status: string }>) || [];
   const blockers = (detail.open_blockers as Array<{ title: string }>) || [];
-  const next = (detail.next_three_actions as string[]) || [];
+  const next = (detail.next_three_actions as Array<string>) || [];
   const tasks =
     (detail.linked_tasks as Array<{
       id: string;
@@ -520,7 +538,9 @@ function GoalDetailView({
                 disabled={busy || !guidance.trim()}
                 onClick={() => {
                   const text = guidance.trim();
-                  if (!text) return;
+                  if (!text) {
+                    return;
+                  }
                   void onManualGuidance(text).then(() => setGuidance(""));
                 }}
                 className="mt-2 rounded border border-[var(--cc-accent)] px-2 py-1 text-[10px] text-[var(--cc-accent)] disabled:opacity-40"

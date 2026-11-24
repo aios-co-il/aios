@@ -46,9 +46,13 @@ export function CarmenFace({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      return;
+    }
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!ctx) {
+      return;
+    }
 
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
@@ -84,7 +88,9 @@ export function CarmenFace({
     ro.observe(canvas);
 
     const draw = (now: number) => {
-      if (!running) return;
+      if (!running) {
+        return;
+      }
       const st = stateRef.current;
       const level = Math.min(1, Math.max(0, audioLevelRef?.current ?? 0));
       const w = canvas.width,
@@ -133,7 +139,9 @@ export function CarmenFace({
         for (let i = 0; i < 6; i++) {
           const phase = (reduced ? 0 : t * 0.22) + (i * Math.PI) / 6;
           const rx = Math.abs(Math.cos(phase)) * sphereR;
-          if (rx < sphereR * 0.04) continue;
+          if (rx < sphereR * 0.04) {
+            continue;
+          }
           ctx.beginPath();
           ctx.ellipse(cx, sphereY, rx, sphereR, 0, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(${c.line}, ${0.12 * alertPulse})`;
@@ -253,7 +261,9 @@ export function CarmenFace({
 
       if (reduced) {
         setTimeout(() => {
-          if (running) raf = requestAnimationFrame(draw);
+          if (running) {
+            raf = requestAnimationFrame(draw);
+          }
         }, 200);
       } else {
         raf = requestAnimationFrame(draw);

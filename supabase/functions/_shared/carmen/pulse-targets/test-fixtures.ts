@@ -31,7 +31,7 @@ export function ctx(
 }
 
 /** client-1 with a Meta and a Google table and one lead campaign in its pulse. */
-export function seed(settings: Row = {}): Record<string, Row[]> {
+export function seed(settings: Row = {}): Record<string, Array<Row>> {
   return {
     crm_tables: [
       {
@@ -75,7 +75,7 @@ export function seed(settings: Row = {}): Record<string, Row[]> {
 }
 
 /** The campaign_breakdown rows of the seeded snapshot (mutable). */
-export function pulseRows(db: FakeDb): Row[] {
+export function pulseRows(db: FakeDb): Array<Row> {
   const breakdown = db.tables.campaign_pulse_snapshots[0]?.campaign_breakdown;
   if (!Array.isArray(breakdown)) {
     throw new Error("the seed has no pulse rows");

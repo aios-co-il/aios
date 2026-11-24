@@ -47,11 +47,12 @@ Deno.test(
       { needs_budget: true },
       { needs_input: true },
       { error: "boom" },
-    ])
+    ]) {
       assertStrictEquals(
         shouldNudgeSilentTurn([{ tool: "workshop_make_creative", result }]),
         false,
       );
+    }
   },
 );
 

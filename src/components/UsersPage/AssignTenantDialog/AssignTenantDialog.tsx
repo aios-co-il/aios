@@ -81,9 +81,8 @@ export function AssignTenantDialog({
         <DialogHeader>
           <DialogTitle>שיוך לארגון נוסף</DialogTitle>
           <DialogDescription>
-            {user?.full_name || user?.email} יקבל גישה לארגון שתבחר. התפקידים
-            וההרשאות שלו בארגונים האחרים לא ישתנו, והמודולים שתבחר יתווספו
-            להרשאות שכבר יש לו.
+            {user?.full_name || user?.email} יקבל גישה לארגון שתבחר, עם התפקיד
+            והמודולים שתבחר כאן. התפקידים וההרשאות שלו בארגונים האחרים לא ישתנו.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto">

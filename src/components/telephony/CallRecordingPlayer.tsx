@@ -18,7 +18,9 @@ export function CallRecordingPlayer({ url, path }: Props) {
       const { data, error } = await supabase.storage
         .from(CALL_RECORDINGS_BUCKET)
         .createSignedUrl(path!, SIGNED_URL_TTL_SECONDS);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.signedUrl;
     },
     enabled: !url && !!path,

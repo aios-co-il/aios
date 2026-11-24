@@ -6,7 +6,7 @@ import { table, tokenDb } from "./verify-fixtures.ts";
 describe("verifyReportVsMeta", () => {
   it("lists a client whose yesterday is not synced yet as not compared, never as matching", async () => {
     // "תבדקי את הדוח של אתמול מול מטא" at 01:30 UTC, before the morning sync.
-    const requests: string[] = [];
+    const requests: Array<string> = [];
     const out = await verifyReportVsMeta({
       db: tokenDb(),
       tables: [{ ...table, last_sync_at: "2026-10-26T11:45:00Z" }],

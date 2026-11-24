@@ -34,15 +34,15 @@ export interface ClientChannel {
   id: string;
   label: string;
   /** clients.services codes that activate this channel; empty array = always shown */
-  services: string[];
-  fields: ChannelField[];
+  services: Array<string>;
+  fields: Array<ChannelField>;
   /** show the linked-Facebook-pages UI block under this channel */
   showFacebookPages?: boolean;
   /** dynamic tables to provision for this channel */
-  tables: ChannelTable[];
+  tables: Array<ChannelTable>;
 }
 
-export const CLIENT_CHANNELS: ClientChannel[] = [
+export const CLIENT_CHANNELS: Array<ClientChannel> = [
   {
     id: "core",
     label: "אתר ואנליטיקס",
@@ -146,14 +146,16 @@ export const CLIENT_CHANNELS: ClientChannel[] = [
 /** Is the channel active for a client with the given `services`? Empty services list => always-on channel. */
 export function isChannelActive(
   channel: ClientChannel,
-  services: string[] | null | undefined,
+  services: Array<string> | null | undefined,
 ): boolean {
-  if (channel.services.length === 0) return true;
+  if (channel.services.length === 0) {
+    return true;
+  }
   const s = Array.isArray(services) ? services : [];
   return channel.services.some((svc) => s.includes(svc));
 }
 
 /** All connection field keys across all channels (for building the save payload). */
-export const ALL_CHANNEL_FIELD_KEYS: ChannelFieldKey[] = Array.from(
+export const ALL_CHANNEL_FIELD_KEYS: Array<ChannelFieldKey> = Array.from(
   new Set(CLIENT_CHANNELS.flatMap((c) => c.fields.map((f) => f.key))),
 );

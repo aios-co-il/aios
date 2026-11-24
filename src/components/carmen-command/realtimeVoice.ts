@@ -62,7 +62,9 @@ export async function startRealtimeVoice(
     const buf = new Uint8Array(analyser.frequencyBinCount);
     let speaking = false;
     const tick = () => {
-      if (stopped) return;
+      if (stopped) {
+        return;
+      }
       analyser.getByteTimeDomainData(buf);
       let sum = 0;
       for (let i = 0; i < buf.length; i++) {
@@ -90,9 +92,13 @@ export async function startRealtimeVoice(
   let pendingResponseCreate = false;
   let pendingSpeak: string | null = null;
   const speakNow = (text: string) => {
-    if (stopped || dc.readyState !== "open") return;
+    if (stopped || dc.readyState !== "open") {
+      return;
+    }
     const clean = text.trim().slice(0, 4000);
-    if (!clean) return;
+    if (!clean) {
+      return;
+    }
     dc.send(
       JSON.stringify({
         type: "response.create",
@@ -125,7 +131,9 @@ export async function startRealtimeVoice(
         break;
       case "response.done":
         responseActive = false;
-        if (assistantBuf.trim()) cb.onAssistantDone(assistantBuf.trim());
+        if (assistantBuf.trim()) {
+          cb.onAssistantDone(assistantBuf.trim());
+        }
         assistantBuf = "";
         if (pendingSpeak && !stopped) {
           const next = pendingSpeak;
@@ -137,8 +145,9 @@ export async function startRealtimeVoice(
         }
         break;
       case "conversation.item.input_audio_transcription.completed":
-        if (typeof ev.transcript === "string" && ev.transcript.trim())
+        if (typeof ev.transcript === "string" && ev.transcript.trim()) {
           cb.onUserTranscript(ev.transcript.trim());
+        }
         break;
       case "response.output_item.done": {
         const item = ev.item;
@@ -157,8 +166,11 @@ export async function startRealtimeVoice(
               },
             }),
           );
-          if (responseActive) pendingResponseCreate = true;
-          else dc.send(JSON.stringify({ type: "response.create" }));
+          if (responseActive) {
+            pendingResponseCreate = true;
+          } else {
+            dc.send(JSON.stringify({ type: "response.create" }));
+          }
         }
         break;
       }
@@ -171,7 +183,9 @@ export async function startRealtimeVoice(
   // Surface transport failures (network blocks WebRTC/UDP, ICE failure) —
   // otherwise the session looks alive while no audio ever flows
   pc.onconnectionstatechange = () => {
-    if (stopped) return;
+    if (stopped) {
+      return;
+    }
     if (
       pc.connectionState === "failed" ||
       pc.connectionState === "disconnected"
@@ -213,9 +227,14 @@ export async function startRealtimeVoice(
       audioEl.muted = muted;
     },
     speakText: (text: string) => {
-      if (stopped) return;
-      if (responseActive) pendingSpeak = text;
-      else speakNow(text);
+      if (stopped) {
+        return;
+      }
+      if (responseActive) {
+        pendingSpeak = text;
+      } else {
+        speakNow(text);
+      }
     },
     stop: () => {
       stopped = true;

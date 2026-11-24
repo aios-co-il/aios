@@ -52,9 +52,9 @@ function defaultForType(type: Recipient["type"]): Recipient {
 
 interface Props {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
-  value: Recipient[];
-  onChange: (next: Recipient[]) => void;
+  availableFields: Array<{ key: string; label: string }>;
+  value: Array<Recipient>;
+  onChange: (next: Array<Recipient>) => void;
 }
 
 export function RecipientsListEditor({
@@ -120,7 +120,7 @@ function RecipientRow({
   canRemove,
 }: {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   value: Recipient;
   onChange: (next: Recipient) => void;
   onRemove: () => void;
@@ -139,7 +139,7 @@ function RecipientRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(TYPE_LABELS) as Recipient["type"][]).map((t) => (
+            {(Object.keys(TYPE_LABELS) as Array<Recipient["type"]>).map((t) => (
               <SelectItem key={t} value={t}>
                 {TYPE_LABELS[t]}
               </SelectItem>
@@ -175,7 +175,7 @@ function RecipientValueEditor({
   onChange,
 }: {
   tenantId: string | undefined;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   value: Recipient;
   onChange: (next: Recipient) => void;
 }) {
@@ -320,7 +320,9 @@ function ContactLookupEditor({
   const { data: contacts } = useQuery({
     queryKey: ["recipient-contacts", tenantId, value.entity],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const table = value.entity === "lead" ? "leads" : "clients";
       const nameField = value.entity === "lead" ? "contact_name" : "name";
       const { data, error } = await supabase
@@ -330,7 +332,9 @@ function ContactLookupEditor({
         .not("phone", "is", null)
         .order(nameField)
         .limit(500);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((r: any) => ({
         id: r.id,
         name: r[nameField] || "ללא שם",
@@ -342,7 +346,9 @@ function ContactLookupEditor({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return contacts || [];
+    if (!q) {
+      return contacts || [];
+    }
     return (contacts || []).filter(
       (c) => c.name?.toLowerCase().includes(q) || c.phone?.includes(q),
     );
@@ -421,14 +427,18 @@ function GroupLookupEditor({
   const { data: groups } = useQuery({
     queryKey: ["recipient-wa-groups", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("whatsapp_groups")
         .select("id, group_name, group_chat_id, is_blocked")
         .eq("tenant_id", tenantId)
         .eq("is_blocked", false)
         .order("group_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -436,7 +446,9 @@ function GroupLookupEditor({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groups || [];
+    if (!q) {
+      return groups || [];
+    }
     return (groups || []).filter((g) =>
       g.group_name?.toLowerCase().includes(q),
     );
@@ -484,9 +496,11 @@ function GroupLookupEditor({
 }
 
 // Legacy → recipients[] migration helper
-export function migrateLegacyRecipients(cfg: Record<string, any>): Recipient[] {
+export function migrateLegacyRecipients(
+  cfg: Record<string, any>,
+): Array<Recipient> {
   if (Array.isArray(cfg?.recipients) && cfg.recipients.length > 0) {
-    return cfg.recipients as Recipient[];
+    return cfg.recipients as Array<Recipient>;
   }
   const mode = cfg?.phone_mode;
   if (mode === "manual" && cfg?.manual_phone) {

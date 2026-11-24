@@ -41,7 +41,7 @@ export function row(
 export type Recorded = { match: RegExp; status?: number; body: unknown };
 
 /** Replays recorded responses in order per URL pattern and logs every request. */
-export function replay(recorded: Recorded[]) {
+export function replay(recorded: Array<Recorded>) {
   const queue = [...recorded];
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   const fetchFn = (url: string, init?: RequestInit) => {
@@ -60,7 +60,7 @@ export function replay(recorded: Recorded[]) {
 
 /** A sleep that returns at once and records each wait. */
 export function sleepRecorder() {
-  const sleeps: number[] = [];
+  const sleeps: Array<number> = [];
   const sleep = (ms: number) => {
     sleeps.push(ms);
     return Promise.resolve();

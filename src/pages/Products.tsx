@@ -53,7 +53,9 @@ export default function Products() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Get tenant's own products
       const { data: ownProducts, error: ownError } = await supabase
@@ -62,7 +64,9 @@ export default function Products() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownError) throw ownError;
+      if (ownError) {
+        throw ownError;
+      }
 
       // Get products from shared agencies
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -70,7 +74,9 @@ export default function Products() {
         .select("agency_id")
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       const sharedAgencyIds = sharedAccess?.map((a) => a.agency_id) || [];
 
@@ -82,7 +88,9 @@ export default function Products() {
           .in("agency_id", sharedAgencyIds)
           .order("name");
 
-        if (sharedProdError) throw sharedProdError;
+        if (sharedProdError) {
+          throw sharedProdError;
+        }
         sharedProducts = shared || [];
       }
 
@@ -92,7 +100,7 @@ export default function Products() {
         ...sharedProducts.map((p) => ({ ...p, is_owned: false })),
       ];
 
-      return marked as Product[];
+      return marked as Array<Product>;
     },
     enabled: !!tenantId,
   });
@@ -112,7 +120,9 @@ export default function Products() {
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("products").delete().eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products", tenantId] });

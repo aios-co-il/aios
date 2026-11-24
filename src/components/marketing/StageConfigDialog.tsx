@@ -44,7 +44,7 @@ interface Props {
   onSaved: () => void;
 }
 
-const TOOLS_BY_STAGE: Record<string, { id: string; label: string }[]> = {
+const TOOLS_BY_STAGE: Record<string, Array<{ id: string; label: string }>> = {
   strategy: [
     { id: "knowledge_base", label: "מאגר ידע" },
     { id: "web_search", label: "חיפוש אינטרנט" },
@@ -118,7 +118,7 @@ export function StageConfigDialog({
     "manual" | "auto" | "hybrid"
   >("manual");
   const [instructions, setInstructions] = useState("");
-  const [tools, setTools] = useState<string[]>([]);
+  const [tools, setTools] = useState<Array<string>>([]);
   const [target, setTarget] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
@@ -140,7 +140,9 @@ export function StageConfigDialog({
   const { data: template } = useQuery({
     queryKey: ["marketing-template", tenantId, track, stage?.stage_type],
     queryFn: async () => {
-      if (!track || !stage?.stage_type) return null;
+      if (!track || !stage?.stage_type) {
+        return null;
+      }
       const { data } = await supabase
         .from("marketing_stage_templates")
         .select("*")
@@ -154,7 +156,9 @@ export function StageConfigDialog({
   });
 
   useEffect(() => {
-    if (!stage) return;
+    if (!stage) {
+      return;
+    }
     setName(stage.name ?? "");
     setAgentId(stage.agent_id ?? null);
     setApprovalMode(stage.approval_mode ?? "manual");
@@ -164,7 +168,9 @@ export function StageConfigDialog({
     setTarget(cfg.target ?? {});
   }, [stage?.id]);
 
-  if (!stage) return null;
+  if (!stage) {
+    return null;
+  }
 
   const stageTools = TOOLS_BY_STAGE[stage.stage_type] ?? [];
 
@@ -185,7 +191,9 @@ export function StageConfigDialog({
           configuration: { instructions, tools, target },
         })
         .eq("id", stage.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("✓ השלב נשמר בהצלחה");
       queryClient.invalidateQueries({
         queryKey: ["marketing-stages", stage.pipeline_id, tenantId],
@@ -215,7 +223,7 @@ export function StageConfigDialog({
     setAgentId(template.default_agent_id ?? null);
     setApprovalMode((template.default_approval_mode as any) ?? "manual");
     setInstructions(template.default_instructions ?? "");
-    setTools((template.default_tools as string[]) ?? []);
+    setTools((template.default_tools as Array<string>) ?? []);
     setTarget(template.default_target ?? {});
     toast.success("נטען מתבנית כללית");
   };
@@ -248,13 +256,16 @@ export function StageConfigDialog({
   };
 
   const applyToAllClients = async () => {
-    if (!track) return;
+    if (!track) {
+      return;
+    }
     if (
       !confirm(
         "להחיל את ההגדרות האלה על כל הלקוחות בטראק זה? (לא ידרוס שינויים שכבר נעשו ידנית)",
       )
-    )
+    ) {
       return;
+    }
     // Find all pipelines for this tenant + track
     const { data: pipelines } = await supabase
       .from("marketing_pipelines")
@@ -275,7 +286,9 @@ export function StageConfigDialog({
     for (const s of stages ?? []) {
       const existingCfg = (s.configuration as any) ?? {};
       const hasManualOverride = existingCfg.instructions || s.agent_id;
-      if (hasManualOverride && s.id !== stage.id) continue;
+      if (hasManualOverride && s.id !== stage.id) {
+        continue;
+      }
       await supabase
         .from("marketing_pipeline_stages")
         .update({
@@ -463,11 +476,13 @@ function TargetSection({
   tenantId: string;
   onConnectionsChanged: () => void;
 }) {
-  if (!connections) return null;
+  if (!connections) {
+    return null;
+  }
 
   if (stageType === "target_organic") {
     const pages = connections.socialPages || [];
-    const selected: string[] = target.page_ids ?? [];
+    const selected: Array<string> = target.page_ids ?? [];
     const togglePage = (id: string) =>
       setTarget({
         ...target,
@@ -532,7 +547,9 @@ function TargetSection({
           variant="outline"
           onClick={async () => {
             const url = target.website || website;
-            if (!url) return;
+            if (!url) {
+              return;
+            }
             await supabase
               .from("clients")
               .update({ website: url })
@@ -606,7 +623,9 @@ function AddSocialPageInline({
   }
 
   const save = async () => {
-    if (!pageId) return;
+    if (!pageId) {
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase.from("social_pages").insert({
@@ -617,7 +636,9 @@ function AddSocialPageInline({
         page_name: pageName || null,
         is_active: true,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("העמוד נוסף");
       setPageId("");
       setPageName("");

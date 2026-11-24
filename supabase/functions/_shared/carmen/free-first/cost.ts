@@ -42,19 +42,23 @@ export function checkPremiumBudget(snapshot: BudgetSnapshot): {
   remainingUsd: number;
 } {
   const n = [snapshot.hardLimitUsd, snapshot.committedUsd, snapshot.spentUsd];
-  if (n.some((v) => !Number.isFinite(v) || v < 0))
+  if (n.some((v) => !Number.isFinite(v) || v < 0)) {
     return { allowed: false, reason: "invalid_budget", remainingUsd: 0 };
+  }
   const remainingUsd = Math.max(
     0,
     snapshot.hardLimitUsd - snapshot.spentUsd - snapshot.committedUsd,
   );
-  if (!snapshot.approved)
+  if (!snapshot.approved) {
     return { allowed: false, reason: "not_approved", remainingUsd };
+  }
   const estimate = snapshot.estimatedNextCallUsd;
-  if (estimate === null || !Number.isFinite(estimate) || estimate < 0)
+  if (estimate === null || !Number.isFinite(estimate) || estimate < 0) {
     return { allowed: false, reason: "unknown_cost", remainingUsd };
-  if (estimate > remainingUsd)
+  }
+  if (estimate > remainingUsd) {
     return { allowed: false, reason: "budget_exceeded", remainingUsd };
+  }
   return { allowed: true, reason: "allowed", remainingUsd };
 }
 

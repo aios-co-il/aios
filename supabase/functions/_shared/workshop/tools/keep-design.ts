@@ -45,7 +45,7 @@ export async function redrawnClipIds(
   supabase: ToolContext["supabase"],
   tenantId: string,
   itemId: string,
-  ids: string[],
+  ids: Array<string>,
 ): Promise<Set<string>> {
   if (ids.length === 0) {
     return new Set();
@@ -59,7 +59,7 @@ export async function redrawnClipIds(
   if (error) {
     throw new Error(`could not read the film's clips: ${error.message}`);
   }
-  const rows: { id: string; meta: Record<string, unknown> | null }[] =
+  const rows: Array<{ id: string; meta: Record<string, unknown> | null }> =
     Array.isArray(data) ? data : [];
   return new Set(
     rows
@@ -80,7 +80,7 @@ export async function remakeRedrawnClips(
   supabase: ToolContext["supabase"],
   tenantId: string,
   itemId: string,
-  sceneIds: string[],
+  sceneIds: Array<string>,
 ): Promise<void> {
   if (sceneIds.length === 0) {
     return;

@@ -25,13 +25,15 @@ function fakeDb(run: VideoRun) {
   return {
     calls,
     async select(table: string) {
-      if (table === "marketing_work_items")
+      if (table === "marketing_work_items") {
         return [{ id: ITEM, tenant_id: TENANT, client_id: "c1" }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return [
           { id: "s1", voiceover_text: "שלום לכולם", meta: {} },
           { id: "s2", voiceover_text: "תודה שבאתם", meta: {} },
         ];
+      }
       return [];
     },
     async upload(

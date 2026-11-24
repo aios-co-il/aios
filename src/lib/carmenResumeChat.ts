@@ -16,8 +16,12 @@ export type ResumeChat = {
 export function readResumeChat(tenantId?: string | null): ResumeChat | null {
   try {
     const raw = JSON.parse(sessionStorage.getItem(KEY) || "null");
-    if (!raw?.conversationId || !raw?.tenantId) return null;
-    if (tenantId && raw.tenantId !== tenantId) return null;
+    if (!raw?.conversationId || !raw?.tenantId) {
+      return null;
+    }
+    if (tenantId && raw.tenantId !== tenantId) {
+      return null;
+    }
     return raw as ResumeChat;
   } catch {
     return null;
@@ -30,9 +34,11 @@ export function writeResumeChat(
   conversationId: string | null,
 ): void {
   try {
-    if (!conversationId) sessionStorage.removeItem(KEY);
-    else
+    if (!conversationId) {
+      sessionStorage.removeItem(KEY);
+    } else {
       sessionStorage.setItem(KEY, JSON.stringify({ tenantId, conversationId }));
+    }
   } catch {
     /* storage blocked: the panel just opens fresh */
   }
@@ -41,7 +47,9 @@ export function writeResumeChat(
 /** Marks the remembered chat as closed now. */
 export function markResumeChatClosed(): void {
   const chat = readResumeChat();
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
   try {
     sessionStorage.setItem(
       KEY,
@@ -61,7 +69,9 @@ export function isStaleTurn(
   updatedAt: string | null | undefined,
   now = Date.now(),
 ): boolean {
-  if (status !== "streaming" || !updatedAt) return false;
+  if (status !== "streaming" || !updatedAt) {
+    return false;
+  }
   return now - Date.parse(updatedAt) > STALE_TURN_MS;
 }
 

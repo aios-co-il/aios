@@ -30,7 +30,7 @@ const systemSend = (
 async function decide(
   request: ClientSendRequest,
   recipient: ResolverRow,
-  options: { failing?: string[] } = {},
+  options: { failing?: Array<string> } = {},
 ) {
   const { db, writes, rpcCalls } = guardDb({ recipient, ...options });
   const decision = await authorizeClientSend(db, request);

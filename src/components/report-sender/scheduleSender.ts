@@ -46,7 +46,7 @@ export type ScheduleSenderState =
   ScheduleSender | { status: "pending"; error: "loading" | "load_failed" };
 
 export type ScheduleSenderInput = {
-  senders: readonly ReportSender[];
+  senders: ReadonlyArray<ReportSender>;
   tenantDefaultId: string | null;
   /**
    * The schedule's creator, whom the report worker sends as: the person
@@ -131,7 +131,7 @@ export function forScheduleCreator(
 
 /** A stored line, checked by the same rule as the worker. */
 function storedLine(
-  senders: readonly ReportSender[],
+  senders: ReadonlyArray<ReportSender>,
   id: string,
 ): ScheduleSender {
   const sender = usableReportSender(senders, id);

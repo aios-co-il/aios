@@ -67,8 +67,12 @@ const APPROVAL = new Set(DIRECT_APPROVAL_TOOLS);
 /** @returns {'blocked'|'approval'|'direct'} */
 export function classifyDirectTool(name) {
   const n = String(name || "");
-  if (!n || BLOCKED.has(n) || isDevEscalationTool(n)) return "blocked";
-  if (APPROVAL.has(n)) return "approval";
+  if (!n || BLOCKED.has(n) || isDevEscalationTool(n)) {
+    return "blocked";
+  }
+  if (APPROVAL.has(n)) {
+    return "approval";
+  }
   return "direct";
 }
 

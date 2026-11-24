@@ -35,7 +35,7 @@ test("creative list filter never treats a missing client as unassigned-only", ()
 });
 
 test("applyClientFilter does not constrain the query for all clients", () => {
-  const calls: string[] = [];
+  const calls: Array<string> = [];
   const query = {
     eq(col: string, val: string) {
       calls.push(`eq:${col}:${val}`);

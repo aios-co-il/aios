@@ -60,7 +60,7 @@ export function fieldValueStartsWith(
 export function sourceBranch(
   field: string,
   actual: string,
-  branches: readonly string[],
+  branches: ReadonlyArray<string>,
 ): string | undefined {
   if (!SOURCE_FIELDS.has(field)) {
     return undefined;
@@ -73,7 +73,7 @@ export function sourceBranch(
  * card label when it names one. Unknown text reads only as sent; "other" is
  * added only for an empty or named-other source (it has no origin tag).
  */
-function conditionTexts(field: string, actual: string): string[] {
+function conditionTexts(field: string, actual: string): Array<string> {
   if (!SOURCE_FIELDS.has(field)) {
     return [actual];
   }

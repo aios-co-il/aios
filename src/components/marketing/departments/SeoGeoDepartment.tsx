@@ -87,18 +87,24 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
   const { data: context, isLoading: loadingContext } = useQuery({
     queryKey: ["seo-department-context", clientFilter, tenantId],
     queryFn: async () => {
-      if (!clientFilter || clientFilter === ALL_CLIENTS_FILTER) return null;
+      if (!clientFilter || clientFilter === ALL_CLIENTS_FILTER) {
+        return null;
+      }
       const pipeline = await ensurePipelineForClient({
         clientId: clientFilter,
         tenantId,
         track: "seo_geo",
       });
-      if (!pipeline) throw new Error("לא ניתן לפתוח סביבת SEO/GEO");
+      if (!pipeline) {
+        throw new Error("לא ניתן לפתוח סביבת SEO/GEO");
+      }
       const { data, error } = await supabase
         .from("marketing_pipeline_stages")
         .select("id,stage_type")
         .eq("pipeline_id", pipeline.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         pipeline,
         seoStage:
@@ -121,7 +127,9 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
         .order("updated_at", { ascending: false });
       query = applyClientFilter(query, clientFilter);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       // public.workshop_assign_client repeats this rule to land an assigned project where this
       // screen lists it (20261026103411): change both together.
       const invalidItems: Array<string> = [];
@@ -153,8 +161,9 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
   const { data: signals } = useQuery({
     queryKey: ["seo-department-signals", clientFilter, tenantId],
     queryFn: async () => {
-      if (!clientFilter || clientFilter === ALL_CLIENTS_FILTER)
+      if (!clientFilter || clientFilter === ALL_CLIENTS_FILTER) {
         return { reports: 0, keywords: 0, projects: 0 };
+      }
       const [{ count: reports }, { data: projects }] = await Promise.all([
         supabase
           .from("ahrefs_reports")
@@ -185,9 +194,12 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
     enabled: !!clientFilter && clientFilter !== ALL_CLIENTS_FILTER,
   });
   useEffect(() => {
-    if (!selectedId && items[0]?.id) setSelectedId(items[0].id);
-    if (selectedId && !items.some((item) => item.id === selectedId))
+    if (!selectedId && items[0]?.id) {
+      setSelectedId(items[0].id);
+    }
+    if (selectedId && !items.some((item) => item.id === selectedId)) {
       setSelectedId(items[0]?.id ?? null);
+    }
   }, [items, selectedId]);
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const plan = useMemo(() => selected?.payload?.seo_plan, [selected?.payload]);
@@ -205,12 +217,13 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       queryKey: ["seo-department-items", clientFilter, tenantId],
     });
 
-  if (loadingContext && clientFilter && clientFilter !== ALL_CLIENTS_FILTER)
+  if (loadingContext && clientFilter && clientFilter !== ALL_CLIENTS_FILTER) {
     return (
       <div className="flex flex-1 items-center justify-center">
         <Loader2 className="h-7 w-7 animate-spin text-emerald-500" />
       </div>
     );
+  }
   const publishingClientId =
     clientFilter !== ALL_CLIENTS_FILTER
       ? (clientFilter ?? undefined)
@@ -230,7 +243,7 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
       </TabsList>
     </Tabs>
   );
-  if (workspace === "publishing")
+  if (workspace === "publishing") {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="border-b bg-background px-3 py-2 sm:px-4">
@@ -239,6 +252,7 @@ export function SeoGeoDepartment({ clientFilter, tenantId }: Props) {
         <PublishingStudio tenantId={tenantId} clientId={publishingClientId} />
       </div>
     );
+  }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b bg-background px-3 py-2 sm:px-4">
@@ -660,7 +674,7 @@ function ListCard({
   values = [],
 }: {
   title: string;
-  values?: string[];
+  values?: Array<string>;
 }) {
   return (
     <Card className="p-4">
@@ -711,8 +725,12 @@ function SeoAIDialog({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       await supabase
         .from("marketing_work_items")
         .update({

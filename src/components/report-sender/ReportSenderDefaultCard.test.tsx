@@ -9,7 +9,7 @@ import { ReportSenderDefaultCard } from "./ReportSenderDefaultCard";
 import { REPORT_SENDER_MESSAGES } from "./reportSenderMessages";
 
 type Backend = {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   tenantDefault: string | null;
   setDefault: ReturnType<typeof vi.fn>;
   setError: { message: string } | null;

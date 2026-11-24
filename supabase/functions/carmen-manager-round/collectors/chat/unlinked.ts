@@ -11,8 +11,8 @@ import { SUMMARY_MAX } from "./summary.ts";
 
 /** One owner-level suggestion per unlinked group. */
 export function unlinkedGroupCandidates(
-  rows: UnlinkedGroupRow[],
-): FindingCandidate[] {
+  rows: Array<UnlinkedGroupRow>,
+): Array<FindingCandidate> {
   return rows.map((row) => ({
     kind: "unlinked_group",
     fingerprint: `group:${row.group_chat_id}`,

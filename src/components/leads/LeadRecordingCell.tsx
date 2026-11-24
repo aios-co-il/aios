@@ -14,22 +14,26 @@ export function LeadRecordingCell({
   leadId: string;
   tenantId: string | null;
   agencyId?: string | null;
-  recordings: LeadRecordingItem[];
+  recordings: Array<LeadRecordingItem>;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const upload = useMutation({
-    mutationFn: async (files: File[]) => {
-      if (!tenantId) throw new Error("חסר ארגון");
+    mutationFn: async (files: Array<File>) => {
+      if (!tenantId) {
+        throw new Error("חסר ארגון");
+      }
       for (const [index, file] of files.entries()) {
         const ext = file.name.split(".").pop() || "bin";
         const filePath = `${tenantId}/${leadId}/${Date.now()}-${index}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from("recordings")
           .upload(filePath, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
         const topic =
           file.name.replace(/\.[^.]+$/, "") || MANUAL_RECORDING_TOPIC;
         const { error } = await supabase.from("zoom_recordings").insert({
@@ -45,7 +49,9 @@ export function LeadRecordingCell({
             ? "audio_only"
             : "manual",
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -68,7 +74,9 @@ export function LeadRecordingCell({
       window.open(item.url, "_blank", "noopener,noreferrer");
       return;
     }
-    if (!item.filePath) return;
+    if (!item.filePath) {
+      return;
+    }
     const { data, error } = await supabase.storage
       .from(item.bucket ?? "recordings")
       .createSignedUrl(item.filePath, 3600);
@@ -107,7 +115,9 @@ export function LeadRecordingCell({
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          if (files.length > 0) upload.mutate(files);
+          if (files.length > 0) {
+            upload.mutate(files);
+          }
         }}
       />
       <button

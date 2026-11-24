@@ -122,8 +122,12 @@ export function CombinedDataView({
   }, [records]);
 
   const formatNumber = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + "M";
+    }
+    if (num >= 1000) {
+      return (num / 1000).toFixed(1) + "K";
+    }
     return num.toFixed(num % 1 === 0 ? 0 : 2);
   };
 
@@ -153,7 +157,9 @@ export function CombinedDataView({
       <div className="flex flex-wrap gap-2">
         {integrations.map((integration, idx) => {
           const config = PLATFORM_CONFIG[integration.type];
-          if (!config) return null;
+          if (!config) {
+            return null;
+          }
           return (
             <Badge
               key={idx}

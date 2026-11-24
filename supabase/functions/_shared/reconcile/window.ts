@@ -10,7 +10,7 @@ export const RECONCILE_WINDOW_DAYS = 7;
 export type ReconcileWindow = {
   start: string;
   end: string;
-  dates: string[];
+  dates: Array<string>;
   today: string;
   timezone: string;
   timezone_fallback: boolean;
@@ -27,7 +27,7 @@ export function completeDaysWindow(
   const today = ymdInTimeZone(now, zone);
   const end = shiftDateString(today, -1);
   const start = shiftDateString(end, -(days - 1));
-  const dates: string[] = [];
+  const dates: Array<string> = [];
   for (let i = 0; i < days; i++) {
     dates.push(shiftDateString(start, i));
   }
@@ -58,7 +58,7 @@ export function completeDaysWindow(
 export function pendingDates(
   window: ReconcileWindow,
   lastSyncAt: string | null,
-): string[] {
+): Array<string> {
   if (!lastSyncAt) {
     return [];
   }

@@ -45,14 +45,18 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
         .eq("agent_id", agent.id)
         .order("last_interaction_at", { ascending: false, nullsFirst: false })
         .limit(200);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
 
   const save = useMutation({
     mutationFn: async (p: ProfileDraft) => {
-      if (!currentTenantId) throw new Error("חסר ארגון");
+      if (!currentTenantId) {
+        throw new Error("חסר ארגון");
+      }
       const payload = {
         tenant_id: currentTenantId,
         agent_id: agent.id,
@@ -68,12 +72,16 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
           .from("agent_user_profiles")
           .update(payload)
           .eq("id", p.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("agent_user_profiles")
           .insert(payload);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -91,7 +99,9 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
         .from("agent_user_profiles")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-user-profiles", agent.id] });
@@ -164,7 +174,9 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
                   variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm("למחוק?")) del.mutate(p.id);
+                    if (confirm("למחוק?")) {
+                      del.mutate(p.id);
+                    }
                   }}
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -241,7 +253,9 @@ export function UserProfilesTab({ agent }: { agent: Tables<"ai_agents"> }) {
             </Button>
             <Button
               onClick={() => {
-                if (!editing) return;
+                if (!editing) {
+                  return;
+                }
                 try {
                   JSON.parse(editing.profile || "{}");
                 } catch {

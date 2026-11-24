@@ -36,7 +36,7 @@ export type DashboardGoalRow = {
 
 export type DashboardGoalSummary = {
   /** A row per platform and goal that has campaigns: sales, then leads, then traffic. */
-  rows: DashboardGoalRow[];
+  rows: Array<DashboardGoalRow>;
   /** Each goal's totals across platforms. */
   goals: Record<ReportCampaignGoal, DashboardGoalMetrics>;
   /** Delivery and spend of every goal. */
@@ -62,8 +62,8 @@ export function hasSeveralGoals(summary: DashboardGoalSummary): boolean {
  * spend only.
  */
 export function summarizeDashboardGoals(platforms: {
-  facebook: Record<ReportCampaignGoal, FacebookCampaignRow[]>;
-  google: GoogleAdsCampaignSummaryRow[];
+  facebook: Record<ReportCampaignGoal, Array<FacebookCampaignRow>>;
+  google: Array<GoogleAdsCampaignSummaryRow>;
 }): DashboardGoalSummary {
   const rows = REPORT_CAMPAIGN_GOALS.flatMap((goal) => [
     ...goalRows("facebook_insights", goal, platforms.facebook[goal]),
@@ -93,8 +93,8 @@ export function summarizeDashboardGoals(platforms: {
 function goalRows(
   platform: DashboardAdsPlatform,
   goal: ReportCampaignGoal,
-  campaigns: RawAdsMetricData[],
-): DashboardGoalRow[] {
+  campaigns: Array<RawAdsMetricData>,
+): Array<DashboardGoalRow> {
   if (campaigns.length === 0) {
     return [];
   }

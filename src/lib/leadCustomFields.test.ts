@@ -7,7 +7,7 @@ import {
 } from "./leadCustomFields.ts";
 import type { LeadCustomFieldDefinition } from "./leadCustomFields.ts";
 
-const fields: LeadCustomFieldDefinition[] = [
+const fields: Array<LeadCustomFieldDefinition> = [
   {
     id: "system",
     field_key: "phone",

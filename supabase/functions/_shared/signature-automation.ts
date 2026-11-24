@@ -24,7 +24,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
 export function safeOrigin(baseUrl?: string): string {
   const fallback = DEFAULT_BASE_URL;
-  if (!baseUrl) return fallback;
+  if (!baseUrl) {
+    return fallback;
+  }
   try {
     return new URL(baseUrl).origin;
   } catch {
@@ -42,11 +44,14 @@ function escapeHtml(value: string): string {
 
 /** Only http(s) image URLs are embedded in the signing email. */
 export function safeLogoUrl(url?: string | null): string | null {
-  if (!url?.trim()) return null;
+  if (!url?.trim()) {
+    return null;
+  }
   try {
     const parsed = new URL(url.trim());
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       return null;
+    }
     return parsed.toString();
   } catch {
     return null;
@@ -130,7 +135,9 @@ export async function loadSignatureEmailSettings(
     .eq("setting_key", "signature_email")
     .maybeSingle();
   const value = data?.setting_value;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
   return value as SignatureEmailSettings;
 }
 
@@ -170,10 +177,16 @@ async function resolveSignatureEmailLogo(
   tenantId: string,
   logoUrl?: string | null,
 ): Promise<string | null> {
-  if (logoUrl === null || logoUrl === "") return null;
-  if (logoUrl) return safeLogoUrl(logoUrl);
+  if (logoUrl === null || logoUrl === "") {
+    return null;
+  }
+  if (logoUrl) {
+    return safeLogoUrl(logoUrl);
+  }
   const saved = await loadSignatureEmailSettings(supabase, tenantId);
-  if (saved.logoUrl) return safeLogoUrl(saved.logoUrl);
+  if (saved.logoUrl) {
+    return safeLogoUrl(saved.logoUrl);
+  }
   const { data } = await supabase
     .from("tenant_settings")
     .select("setting_value")
@@ -195,7 +208,9 @@ export async function resolveTenantOwnerId(
     .in("role", ["owner", "super_admin", "agency_owner"])
     .limit(1)
     .maybeSingle();
-  if (role?.user_id) return role.user_id;
+  if (role?.user_id) {
+    return role.user_id;
+  }
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -203,7 +218,9 @@ export async function resolveTenantOwnerId(
     .eq("tenant_id", tenantId)
     .limit(1)
     .maybeSingle();
-  if (!profile?.id) throw new Error("לא נמצא משתמש ליצירת מסמך חתימה");
+  if (!profile?.id) {
+    throw new Error("לא נמצא משתמש ליצירת מסמך חתימה");
+  }
   return profile.id;
 }
 
@@ -255,17 +272,24 @@ export async function sendSignatureDocumentEmails(
     .eq("id", documentId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (docError || !doc) throw new Error("מסמך חתימה לא נמצא");
-  if (!["draft", "pending", "partially_signed"].includes(doc.status))
+  if (docError || !doc) {
+    throw new Error("מסמך חתימה לא נמצא");
+  }
+  if (!["draft", "pending", "partially_signed"].includes(doc.status)) {
     throw new Error("document_not_signable");
+  }
 
   const { data: recipients, error: recError } = await supabase
     .from("signature_recipients")
     .select("id, name, email, sign_token")
     .eq("document_id", documentId)
     .order("sign_order");
-  if (recError) throw recError;
-  if (!recipients?.length) throw new Error("אין חותמים במסמך");
+  if (recError) {
+    throw recError;
+  }
+  if (!recipients?.length) {
+    throw new Error("אין חותמים במסמך");
+  }
 
   if (doc.status === "draft") {
     const { error: statusError } = await supabase
@@ -273,7 +297,9 @@ export async function sendSignatureDocumentEmails(
       .update({ status: "pending", updated_at: new Date().toISOString() })
       .eq("id", documentId)
       .eq("status", "draft");
-    if (statusError) throw statusError;
+    if (statusError) {
+      throw statusError;
+    }
   }
 
   const origin = safeOrigin(baseUrl);
@@ -443,7 +469,9 @@ export async function emailSignedDocumentCopies(
     body: string,
   ) => {
     const key = to.toLowerCase();
-    if (sentTo.has(key) || !isDeliverableEmail(to)) return;
+    if (sentTo.has(key) || !isDeliverableEmail(to)) {
+      return;
+    }
     sentTo.add(key);
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -524,7 +552,7 @@ export async function prepareSignatureDocumentForSigning(
     fieldMap?: Record<string, string> | null;
     fieldRequired?: Record<string, boolean> | null;
   },
-): Promise<{ documentId: string; signingLinks: SignatureSigningLink[] }> {
+): Promise<{ documentId: string; signingLinks: Array<SignatureSigningLink> }> {
   const {
     documentId,
     tenantId,
@@ -544,9 +572,12 @@ export async function prepareSignatureDocumentForSigning(
     .eq("id", documentId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (docError || !doc) throw new Error("מסמך לא נמצא");
-  if (!["draft", "pending", "partially_signed"].includes(doc.status))
+  if (docError || !doc) {
+    throw new Error("מסמך לא נמצא");
+  }
+  if (!["draft", "pending", "partially_signed"].includes(doc.status)) {
     throw new Error("document_not_signable");
+  }
   const effectiveTenantId = doc.tenant_id as string;
 
   let targetDocId = documentId;
@@ -572,7 +603,9 @@ export async function prepareSignatureDocumentForSigning(
       .from("signature_recipients")
       .select("id")
       .eq("document_id", targetDocId);
-    if (recError) throw recError;
+    if (recError) {
+      throw recError;
+    }
 
     if (fieldRequired) {
       await supabase
@@ -638,7 +671,9 @@ export async function prepareSignatureDocumentForSigning(
           await supabase.from("signature_recipients").insert(minimal)
         ).error;
       }
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
     }
   }
 
@@ -655,8 +690,12 @@ export async function prepareSignatureDocumentForSigning(
     .select("name, email, sign_token")
     .eq("document_id", targetDocId)
     .order("sign_order");
-  if (fetchError) throw fetchError;
-  if (!recipients?.length) throw new Error("אין חותמים במסמך");
+  if (fetchError) {
+    throw fetchError;
+  }
+  if (!recipients?.length) {
+    throw new Error("אין חותמים במסמך");
+  }
 
   const origin = safeOrigin(baseUrl);
   const phone = recipient?.phone ?? contactDetails?.phone;
@@ -711,13 +750,19 @@ function contactValue(
 function applyFieldRequiredFlags(
   fields: unknown,
   fieldRequired?: Record<string, boolean> | null,
-): unknown[] {
+): Array<unknown> {
   const list = Array.isArray(fields) ? fields : [];
-  if (!fieldRequired) return list;
+  if (!fieldRequired) {
+    return list;
+  }
   return list.map((field) => {
-    if (!field || typeof field !== "object") return field;
+    if (!field || typeof field !== "object") {
+      return field;
+    }
     const id = (field as { id?: unknown }).id;
-    if (typeof id !== "string" || !(id in fieldRequired)) return field;
+    if (typeof id !== "string" || !(id in fieldRequired)) {
+      return field;
+    }
     return {
       ...(field as Record<string, unknown>),
       required: fieldRequired[id] === true,
@@ -740,19 +785,26 @@ function buildFieldPrefillFromContact(
   recipientIndex = 0,
   fieldMap?: Record<string, string> | null,
 ): Record<string, string> {
-  if (!Array.isArray(documentFields)) return {};
+  if (!Array.isArray(documentFields)) {
+    return {};
+  }
   const prefill: Record<string, string> = {};
   for (const field of documentFields) {
-    if (!field || typeof field !== "object") continue;
+    if (!field || typeof field !== "object") {
+      continue;
+    }
     const f = field as { id?: string; type?: string; recipient_index?: number };
-    if ((f.recipient_index ?? 0) !== recipientIndex) continue;
+    if ((f.recipient_index ?? 0) !== recipientIndex) {
+      continue;
+    }
     if (
       !f.id ||
       !f.type ||
       f.type === "signature" ||
       f.type === "signature_stamp"
-    )
+    ) {
       continue;
+    }
     const mapped = fieldMap?.[f.id];
     const stored = (field as { autofill?: string }).autofill;
     const source =
@@ -761,9 +813,13 @@ function buildFieldPrefillFromContact(
         : mapped ||
           (stored === "none" ? "" : stored) ||
           (f.type === "date" || f.type === "text" ? "" : f.type);
-    if (!source) continue;
+    if (!source) {
+      continue;
+    }
     const val = contactValue(contact, source);
-    if (val?.trim()) prefill[f.id] = val.trim();
+    if (val?.trim()) {
+      prefill[f.id] = val.trim();
+    }
   }
   return prefill;
 }
@@ -813,7 +869,9 @@ export async function cloneSignatureFromTemplate(
     .eq("id", templateDocumentId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (sourceError || !source) throw new Error("מסמך לא נמצא");
+  if (sourceError || !source) {
+    throw new Error("מסמך לא נמצא");
+  }
   const effectiveTenantId = (source.tenant_id as string) || tenantId;
 
   const isReusable = source.is_template === true || source.status === "draft";
@@ -870,10 +928,12 @@ export async function cloneSignatureFromTemplate(
       .maybeSingle();
     businessStampName = lead?.company_name || lead?.contact_name || null;
   }
-  if (contactDetails?.companyName)
+  if (contactDetails?.companyName) {
     businessStampName = contactDetails.companyName;
-  if (contactDetails?.idNumber)
+  }
+  if (contactDetails?.idNumber) {
     businessStampCompanyId = contactDetails.idNumber;
+  }
 
   const insertPayload = {
     tenant_id: effectiveTenantId,
@@ -925,7 +985,9 @@ export async function cloneSignatureFromTemplate(
   }
   const doc = docResult.data;
   const docError = docResult.error;
-  if (docError || !doc) throw docError || new Error("יצירת מסמך נכשלה");
+  if (docError || !doc) {
+    throw docError || new Error("יצירת מסמך נכשלה");
+  }
 
   const fieldPrefill = buildFieldPrefillFromContact(
     documentFields,
@@ -967,7 +1029,9 @@ export async function cloneSignatureFromTemplate(
     recError = (await supabase.from("signature_recipients").insert(minimal))
       .error;
   }
-  if (recError) throw recError;
+  if (recError) {
+    throw recError;
+  }
 
   return doc.id;
 }
@@ -994,13 +1058,16 @@ export async function saveSignedPdfToEntity(
 ): Promise<boolean> {
   const { documentId, tenantId, signedStoragePath, title, leadId, clientId } =
     opts;
-  if (!leadId && !clientId) return false;
+  if (!leadId && !clientId) {
+    return false;
+  }
 
   const { data: fileData, error: downloadError } = await supabase.storage
     .from("signature-documents")
     .download(signedStoragePath);
-  if (downloadError || !fileData)
+  if (downloadError || !fileData) {
     throw downloadError || new Error("failed_to_download_signed_pdf");
+  }
 
   const entityType = leadId ? "lead" : "client";
   const entityId = leadId || clientId!;
@@ -1012,7 +1079,9 @@ export async function saveSignedPdfToEntity(
       contentType: "application/pdf",
       upsert: false,
     });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    throw uploadError;
+  }
 
   const newAttachment = {
     name: `${title} (חתום).pdf`,
@@ -1028,8 +1097,9 @@ export async function saveSignedPdfToEntity(
     .select("attachments")
     .eq("id", entityId)
     .maybeSingle();
-  if (entityError || !entity)
+  if (entityError || !entity) {
     throw entityError || new Error("entity_not_found");
+  }
 
   const existing = Array.isArray(entity.attachments) ? entity.attachments : [];
   const { error: updateError } = await supabase
@@ -1039,7 +1109,9 @@ export async function saveSignedPdfToEntity(
       updated_at: new Date().toISOString(),
     })
     .eq("id", entityId);
-  if (updateError) throw updateError;
+  if (updateError) {
+    throw updateError;
+  }
 
   await supabase
     .from("signature_documents")

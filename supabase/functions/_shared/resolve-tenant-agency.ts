@@ -15,7 +15,9 @@ export async function resolveTenantHomeAgencyId(
   supabase: AgencyLookupClient,
   tenantId: string | null | undefined,
 ): Promise<string | null> {
-  if (!tenantId) return null;
+  if (!tenantId) {
+    return null;
+  }
 
   const { data: defaultOwned, error: defaultError } = await supabase
     .from("agencies")
@@ -28,7 +30,9 @@ export async function resolveTenantHomeAgencyId(
   if (defaultError) {
     console.error("resolveTenantHomeAgencyId default owned:", defaultError);
   }
-  if (defaultOwned?.id) return defaultOwned.id;
+  if (defaultOwned?.id) {
+    return defaultOwned.id;
+  }
 
   const { data: firstOwned, error: firstError } = await supabase
     .from("agencies")
@@ -41,7 +45,9 @@ export async function resolveTenantHomeAgencyId(
   if (firstError) {
     console.error("resolveTenantHomeAgencyId first owned:", firstError);
   }
-  if (firstOwned?.id) return firstOwned.id;
+  if (firstOwned?.id) {
+    return firstOwned.id;
+  }
 
   const { data: shared, error: sharedError } = await supabase
     .from("agency_tenant_access")

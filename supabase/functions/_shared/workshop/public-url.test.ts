@@ -25,8 +25,9 @@ Deno.test("only public http(s) hosts on default ports are allowed", () => {
     "https://example.com:8443/",
     "http://intranet.local/",
     "javascript:alert(1)",
-  ])
+  ]) {
     assertStrictEquals(parsePublicHttpUrl(bad), null, bad);
+  }
 });
 
 Deno.test(
@@ -44,10 +45,12 @@ Deno.test(
       "fd00::1",
       "::ffff:10.0.0.1",
       "not-an-ip",
-    ])
+    ]) {
       assertStrictEquals(isBlockedAddress(ip), true, ip);
-    for (const ip of ["8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"])
+    }
+    for (const ip of ["8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"]) {
       assertStrictEquals(isBlockedAddress(ip), false, ip);
+    }
   },
 );
 

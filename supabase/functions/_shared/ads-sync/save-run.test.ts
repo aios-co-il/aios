@@ -158,9 +158,9 @@ Deno.test(
         throw new Error("network down");
       },
     };
-    const logged: unknown[][] = [];
+    const logged: Array<Array<unknown>> = [];
     const realError = console.error;
-    console.error = (...args: unknown[]) => {
+    console.error = (...args: Array<unknown>) => {
       logged.push(args);
     };
     try {

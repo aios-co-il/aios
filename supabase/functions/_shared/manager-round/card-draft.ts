@@ -31,7 +31,7 @@ const APPROVE_REPLY = new RegExp(
 /** The card sources a finding may draft; each is a client card source. */
 export const CARD_DRAFT_SOURCES = [
   "group_digest",
-] as const satisfies readonly ClientCardSource[];
+] as const satisfies ReadonlyArray<ClientCardSource>;
 
 /** The card update types a finding may draft, with the card's label for each. */
 export const CARD_DRAFT_TYPES = [

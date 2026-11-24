@@ -7,14 +7,18 @@ import { type ToolContext } from "../tool-context.ts";
 export async function workshopAssignClient(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const wanted = String(args.client_id ?? "").trim() || null;
   if (wanted) {
     try {
@@ -30,10 +34,11 @@ export async function workshopAssignClient(ctx: ToolContext) {
     p_client_id: wanted,
   });
   // The RPC explains its refusals in Hebrew (an SEO project locked to its client, say).
-  if (assigned.error)
+  if (assigned.error) {
     return { error: assignClientErrorMessage(assigned.error, true) };
+  }
   // Only a workshop board has an assets tab to fill with the client's material.
-  if (!("workshop" in loaded.project.payload))
+  if (!("workshop" in loaded.project.payload)) {
     return {
       success: true,
       item_id: itemId,
@@ -43,6 +48,7 @@ export async function workshopAssignClient(ctx: ToolContext) {
         : "השיוך ללקוח הוסר. הפרויקט נשאר בלי לקוח.",
       workshop: { event: "artifacts", item_id: itemId },
     };
+  }
   const synced = await syncClientAssets(
     supabase,
     { tenantId, itemId, clientId: wanted },

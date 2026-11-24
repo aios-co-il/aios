@@ -23,7 +23,10 @@ const SPEAKER_LABEL_HE: Record<Speaker, string> = {
 };
 
 /** The prompt asking for {material, update_text, items[]}. */
-export function digestPrompt(window: GroupWindow, today: CardEntry[]): string {
+export function digestPrompt(
+  window: GroupWindow,
+  today: Array<CardEntry>,
+): string {
   const card = today
     .slice(-MAX_CARD_LINES)
     .map((entry) => `- ${clamp(maskPhones(entry.content), 200)}`);
@@ -64,11 +67,11 @@ export function maskPhones(text: string): string {
  * transcript is too long; `from` is the index of the oldest message shown,
  * so a model claim can only name a line the prompt showed (contact.ts).
  */
-export function transcriptLines(messages: WindowMessage[]): {
-  lines: string[];
+export function transcriptLines(messages: Array<WindowMessage>): {
+  lines: Array<string>;
   from: number;
 } {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
   let size = 0;
   let from = messages.length;
   for (let i = messages.length - 1; i >= 0; i--) {

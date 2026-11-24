@@ -31,10 +31,10 @@ export type DashboardGoalTotalsInput = {
   /** Whether the "All" tab shows; Google Ads campaigns count only there. */
   showAll: boolean;
   /** The campaign tables the Facebook tab shows. */
-  facebook: Record<ReportCampaignGoal, FacebookCampaignRow[]>;
+  facebook: Record<ReportCampaignGoal, Array<FacebookCampaignRow>>;
   /** The tab's records, ads at campaign level only. */
-  records: DashboardTotalsRecord[];
-  tables: GoogleReportTable[];
+  records: Array<DashboardTotalsRecord>;
+  tables: Array<GoogleReportTable>;
   woo: { revenue: number; orders: number };
 };
 

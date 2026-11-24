@@ -10,8 +10,14 @@ export function higgsfieldCredential(
 ): string {
   const id = String(keyId ?? "").trim();
   const secret = String(keySecret ?? "").trim();
-  if (secret.includes(":")) return secret;
-  if (id.includes(":")) return id;
-  if (id && secret) return `${id}:${secret}`;
+  if (secret.includes(":")) {
+    return secret;
+  }
+  if (id.includes(":")) {
+    return id;
+  }
+  if (id && secret) {
+    return `${id}:${secret}`;
+  }
   return "";
 }

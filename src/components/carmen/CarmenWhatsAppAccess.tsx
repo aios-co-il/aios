@@ -34,14 +34,18 @@ export function CarmenWhatsAppAccess(props: Props) {
         .eq("entity_type", props.entityType)
         .eq("entity_id", props.entityId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
   });
   const approved = identity?.status === "approved";
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("חסר ארגון");
+      if (!tenantId) {
+        throw new Error("חסר ארגון");
+      }
       const phone = String(props.phone || "").replace(/\D/g, "");
       if (!approved && (phone.length < 9 || phone.length > 15)) {
         throw new Error("יש להזין מספר טלפון תקין לפני האישור");
@@ -51,7 +55,9 @@ export function CarmenWhatsAppAccess(props: Props) {
           .from("carmen_whatsapp_identities")
           .update({ status: "revoked", verified_at: null })
           .eq("id", identity.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
       const { error } = await supabase
@@ -69,7 +75,9 @@ export function CarmenWhatsAppAccess(props: Props) {
           },
           { onConflict: "tenant_id,phone" },
         );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });

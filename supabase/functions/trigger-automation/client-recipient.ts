@@ -22,7 +22,7 @@ export async function findAutomationClientRecipient(
   input: {
     tenantId: string;
     destination: string;
-    candidateClientIds: unknown[];
+    candidateClientIds: Array<unknown>;
   },
 ): Promise<string | null> {
   const ids = automationCandidateClientIds(input.candidateClientIds);
@@ -84,7 +84,7 @@ export function findMetaStepClientRecipient(
 }
 
 /** Client ids a multi-recipient step names (a contact_lookup of a client). */
-export function recipientClientIds(recipients: unknown): string[] {
+export function recipientClientIds(recipients: unknown): Array<string> {
   if (!Array.isArray(recipients)) {
     return [];
   }
@@ -100,8 +100,10 @@ export function recipientClientIds(recipients: unknown): string[] {
 }
 
 /** Distinct non-empty string ids, in the order given. */
-export function automationCandidateClientIds(values: unknown[]): string[] {
-  const ids: string[] = [];
+export function automationCandidateClientIds(
+  values: Array<unknown>,
+): Array<string> {
+  const ids: Array<string> = [];
   for (const value of values) {
     if (typeof value !== "string") {
       continue;

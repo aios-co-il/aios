@@ -25,10 +25,10 @@ export async function withoutPhonesAlertedElsewhere<
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   candidate: PulseInstantAlertCandidate,
   agencyId: string | null | undefined,
-  recipients: Recipient[],
+  recipients: Array<Recipient>,
   throttleHours: number,
   now: Date,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   if (!recipients.length) {
     return recipients;
   }
@@ -72,7 +72,7 @@ export async function withoutPhonesAlertedElsewhere<
 async function tenantsSharingAgency(
   input: { supabase: Pick<DbClient, "from">; tenantId: string },
   agencyId: string | null | undefined,
-): Promise<string[]> {
+): Promise<Array<string>> {
   if (!agencyId) {
     return [];
   }

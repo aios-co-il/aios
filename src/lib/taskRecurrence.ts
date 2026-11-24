@@ -23,13 +23,17 @@ export function describeRecurrence(options: {
   monthday?: number | null;
   time?: string | null;
 }): string | null {
-  if (!options.frequency) return null;
+  if (!options.frequency) {
+    return null;
+  }
   const parts = [RECURRENCE_FREQUENCY_LABELS[options.frequency]];
   if (options.frequency === "weekly" && options.weekday != null) {
     const weekday = WEEKDAY_OPTIONS.find(
       (item) => item.value === options.weekday,
     );
-    if (weekday) parts.push(weekday.label);
+    if (weekday) {
+      parts.push(weekday.label);
+    }
   }
   if (options.frequency === "monthly" && options.monthday != null) {
     parts.push(`ביום ${options.monthday}`);
@@ -131,7 +135,9 @@ export function computeFirstOccurrenceDate(options: {
     0,
     monthday,
   );
-  if (thisMonth >= from) return thisMonth;
+  if (thisMonth >= from) {
+    return thisMonth;
+  }
   return addMonthsClamped(thisMonth, 1, monthday);
 }
 

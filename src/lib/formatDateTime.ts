@@ -4,8 +4,12 @@ import { format } from "date-fns";
 export function formatDateTime(
   value: string | number | Date | null | undefined,
 ): string {
-  if (value === null || value === undefined || value === "") return "";
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
   const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
   return format(date, "dd/MM/yyyy HH:mm");
 }

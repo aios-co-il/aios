@@ -1,4 +1,4 @@
--- Google tokens moved to integration_secrets (20261123130000_move_google_tokens.sql).
+-- Google tokens moved to integration_secrets (20261124120000_move_google_tokens.sql).
 -- Synthetic tenant, users and rows; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --

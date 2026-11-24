@@ -24,7 +24,9 @@ export function LeadNotesCell({
         .from("leads")
         .update({ notes: next })
         .eq("id", leadId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return next;
     },
     onSuccess: (next) => {

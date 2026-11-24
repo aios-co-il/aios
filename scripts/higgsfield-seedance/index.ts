@@ -14,7 +14,9 @@ const MODEL = "bytedance/seedance-2.5/text-to-video";
 
 for (const dir of [import.meta.dirname, join(import.meta.dirname, "../..")]) {
   const file = join(dir, ".env.local");
-  if (existsSync(file)) process.loadEnvFile(file);
+  if (existsSync(file)) {
+    process.loadEnvFile(file);
+  }
 }
 const credentials = process.env.HF_CREDENTIALS?.trim();
 if (!credentials || !/^[^:\s]+:[^:\s]+$/.test(credentials)) {
@@ -55,7 +57,9 @@ async function waitForResult(requestId: string): Promise<Status> {
     );
     if (res.ok) {
       const body = (await res.json()) as Status;
-      if (TERMINAL.has(String(body.status))) return body;
+      if (TERMINAL.has(String(body.status))) {
+        return body;
+      }
     } else if (res.status < 500) {
       throw new Error(`status check returned HTTP ${res.status}`);
     }

@@ -26,7 +26,7 @@ export interface SocialMediaPost {
   created_by: string | null;
   title: string | null;
   content: string;
-  media_urls: string[];
+  media_urls: Array<string>;
   post_type: "text" | "image" | "video" | "carousel" | "story" | "reel";
   status:
     "draft" | "scheduled" | "publishing" | "published" | "failed" | "cancelled";
@@ -71,14 +71,18 @@ export function useSocialMediaChannels() {
   return useQuery({
     queryKey: ["social-media-channels", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("social_media_channels" as any)
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as unknown as SocialMediaChannel[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<SocialMediaChannel>;
     },
     enabled: !!tenantId,
   });
@@ -97,13 +101,17 @@ export function useCreateChannel() {
       refresh_token?: string;
       avatar_url?: string;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data, error } = await supabase
         .from("social_media_channels" as any)
         .insert({ ...channel, tenant_id: tenantId })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as SocialMediaChannel;
     },
     onSuccess: () => {
@@ -128,7 +136,9 @@ export function useDeleteChannel() {
         .from("social_media_channels" as any)
         .delete()
         .eq("id", channelId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -149,7 +159,9 @@ export function useSocialMediaPosts(statusFilter?: string) {
   return useQuery({
     queryKey: ["social-media-posts", tenantId, statusFilter],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("social_media_posts" as any)
         .select("*")
@@ -159,8 +171,10 @@ export function useSocialMediaPosts(statusFilter?: string) {
         query = query.eq("status", statusFilter);
       }
       const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as SocialMediaPost[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<SocialMediaPost>;
     },
     enabled: !!tenantId,
   });
@@ -174,8 +188,10 @@ export function usePostChannels(postId: string) {
         .from("social_media_post_channels" as any)
         .select("*")
         .eq("post_id", postId);
-      if (error) throw error;
-      return (data || []) as unknown as SocialMediaPostChannel[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<SocialMediaPostChannel>;
     },
     enabled: !!postId,
   });
@@ -190,15 +206,17 @@ export function useCreatePost() {
     mutationFn: async (params: {
       title?: string;
       content: string;
-      media_urls?: string[];
+      media_urls?: Array<string>;
       post_type?: SocialMediaPost["post_type"];
       status: SocialMediaPost["status"];
       scheduled_at?: string;
       publish_to_wordpress?: boolean;
       wordpress_site_url?: string;
-      channel_ids: string[];
+      channel_ids: Array<string>;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { channel_ids, ...postData } = params;
 
       const { data: post, error: postError } = await supabase
@@ -210,7 +228,9 @@ export function useCreatePost() {
         })
         .select()
         .single();
-      if (postError) throw postError;
+      if (postError) {
+        throw postError;
+      }
 
       const typedPost = post as unknown as SocialMediaPost;
 
@@ -222,7 +242,9 @@ export function useCreatePost() {
         const { error: channelError } = await supabase
           .from("social_media_post_channels" as any)
           .insert(channelRecords);
-        if (channelError) throw channelError;
+        if (channelError) {
+          throw channelError;
+        }
       }
 
       return typedPost;
@@ -255,7 +277,9 @@ export function useUpdatePostStatus() {
         .from("social_media_posts" as any)
         .update({ status, updated_at: new Date().toISOString() })
         .eq("id", postId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -275,7 +299,9 @@ export function useDeletePost() {
         .from("social_media_posts" as any)
         .delete()
         .eq("id", postId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -296,14 +322,18 @@ export function useWordPressSites() {
   return useQuery({
     queryKey: ["wordpress-sites", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as unknown as WordPressSite[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<WordPressSite>;
     },
     enabled: !!tenantId,
   });
@@ -320,13 +350,17 @@ export function useCreateWordPressSite() {
       app_password: string;
       site_name?: string;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data, error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .insert({ ...site, tenant_id: tenantId })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as WordPressSite;
     },
     onSuccess: () => {
@@ -351,7 +385,9 @@ export function useDeleteWordPressSite() {
         .from("social_media_wordpress_sites" as any)
         .delete()
         .eq("id", siteId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -378,7 +414,9 @@ export function usePublishPost() {
           body: { post_id: postId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

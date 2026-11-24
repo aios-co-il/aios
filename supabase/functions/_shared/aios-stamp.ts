@@ -21,7 +21,9 @@ async function ensureGraphicsRuntime() {
       const wasmRes = await fetch(
         "https://unpkg.com/@resvg/resvg-wasm@2.6.2/index_bg.wasm",
       );
-      if (!wasmRes.ok) throw new Error(`resvg_wasm_fetch_${wasmRes.status}`);
+      if (!wasmRes.ok) {
+        throw new Error(`resvg_wasm_fetch_${wasmRes.status}`);
+      }
       await initWasm(wasmRes);
     })();
   }
@@ -30,11 +32,15 @@ async function ensureGraphicsRuntime() {
   if (!fontRegular || !fontBold) {
     const [reg, bold] = await Promise.all([
       fetch(UI_FONT_URL).then(async (r) => {
-        if (!r.ok) throw new Error(`font_fetch_${r.status}`);
+        if (!r.ok) {
+          throw new Error(`font_fetch_${r.status}`);
+        }
         return new Uint8Array(await r.arrayBuffer());
       }),
       fetch(UI_FONT_BOLD_URL).then(async (r) => {
-        if (!r.ok) throw new Error(`font_bold_fetch_${r.status}`);
+        if (!r.ok) {
+          throw new Error(`font_bold_fetch_${r.status}`);
+        }
         return new Uint8Array(await r.arrayBuffer());
       }),
     ]);
@@ -113,7 +119,9 @@ export function buildCertificateId(
 }
 
 function renderSvgToPng(svg: string, width: number): Uint8Array {
-  if (!fontRegular || !fontBold) throw new Error("fonts_not_loaded");
+  if (!fontRegular || !fontBold) {
+    throw new Error("fonts_not_loaded");
+  }
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: width },
     font: {
@@ -268,7 +276,9 @@ export async function renderBusinessStampPng(
   input: BusinessStampInput,
 ): Promise<Uint8Array | null> {
   const businessName = (input.businessName || "").trim();
-  if (!businessName) return null;
+  if (!businessName) {
+    return null;
+  }
   await ensureGraphicsRuntime();
 
   const companyId = (input.companyId || "").trim();

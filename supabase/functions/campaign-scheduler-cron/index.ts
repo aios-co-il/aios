@@ -13,8 +13,12 @@ const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 function pickFn(entity_type: string): { fn: string; level?: string } | null {
-  if (entity_type.startsWith("fb_")) return { fn: "carmen-fb-tools" };
-  if (entity_type.startsWith("google_")) return { fn: "carmen-google-tools" };
+  if (entity_type.startsWith("fb_")) {
+    return { fn: "carmen-fb-tools" };
+  }
+  if (entity_type.startsWith("google_")) {
+    return { fn: "carmen-google-tools" };
+  }
   return null;
 }
 
@@ -27,11 +31,15 @@ function naiveNextRun(
 ): Date | null {
   // Format: "min hour * * *" or "min hour * * dow"
   const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return null;
+  if (parts.length !== 5) {
+    return null;
+  }
   const [minStr, hourStr, , , dowStr] = parts;
   const minute = parseInt(minStr, 10);
   const hour = parseInt(hourStr, 10);
-  if (Number.isNaN(minute) || Number.isNaN(hour)) return null;
+  if (Number.isNaN(minute) || Number.isNaN(hour)) {
+    return null;
+  }
   const allowedDows =
     dowStr === "*"
       ? null
@@ -49,8 +57,12 @@ function naiveNextRun(
       const candidate = new Date(tzDate);
       candidate.setDate(candidate.getDate() + day);
       candidate.setHours(hour, minute, 0, 0);
-      if (candidate.getTime() <= tzDate.getTime()) continue;
-      if (allowedDows && !allowedDows.includes(candidate.getDay())) continue;
+      if (candidate.getTime() <= tzDate.getTime()) {
+        continue;
+      }
+      if (allowedDows && !allowedDows.includes(candidate.getDay())) {
+        continue;
+      }
       // Convert candidate (in tz) back to UTC
       const utcGuess = new Date(
         candidate.toLocaleString("en-US", { timeZone: "UTC" }),
@@ -78,8 +90,9 @@ async function invokeEdgeFn(name: string, payload: any) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const supabase = createClient(SB_URL, SB_SERVICE);
     const now = new Date();
@@ -93,7 +106,7 @@ Deno.serve(async (req) => {
       .lte("next_run_at", nowIso)
       .limit(50);
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const row of due || []) {
       const route = pickFn(row.entity_type);
       if (!route) {
@@ -113,7 +126,9 @@ Deno.serve(async (req) => {
         action: row.action,
         confirmed: true,
       };
-      if (route.fn === "carmen-fb-tools") payload.entity_id = row.entity_id;
+      if (route.fn === "carmen-fb-tools") {
+        payload.entity_id = row.entity_id;
+      }
       if (route.fn === "carmen-google-tools") {
         payload.campaign_id = row.entity_id;
         // customer_id stored in notes? In a richer impl we'd add a column. For now expect entity_id format "customer/campaign"
