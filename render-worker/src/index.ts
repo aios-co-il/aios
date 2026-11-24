@@ -38,8 +38,9 @@ const HANDLERS: Record<string, Handler> = {
         PREVIEW_PROVIDER;
       // Read from Vault only for the engine that needs it: the chosen engine, a saved
       // OpenRouter fallback job being resumed, or the fallback itself (resolved on demand).
-      if (usesVaultKey(name) || usesVaultKey(ctx.run.provider))
+      if (usesVaultKey(name) || usesVaultKey(ctx.run.provider)) {
         keys.openRouterKey = await openRouterKey(ctx.db, ctx.run.tenant_id);
+      }
       return runClipWithFallback({
         name,
         keys,
@@ -147,10 +148,11 @@ async function resolveKeys(db: SupabaseRest, tenantId: string) {
     );
     openaiKey = rows[0]?.settings?.openai_api_key || null;
   }
-  if (!openaiKey)
+  if (!openaiKey) {
     throw new Error(
       "No OpenAI key: set OPENAI_API_KEY or the tenant LLM integration",
     );
+  }
   const media = await resolveMediaKeys(db, tenantId);
   return { openaiKey, elevenLabsKey: media.elevenLabsKey };
 }
@@ -207,7 +209,9 @@ async function openRouterKey(
     ),
   );
   const id = rows[0]?.id;
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   const secret = await db.rpc("carmen_brain_secret_get", {
     p_connection_id: id,
   });
@@ -227,13 +231,16 @@ const PRODUCTION_KINDS = new Set([
  * production moves on (queues the assembly once nothing is in flight, then finishes).
  */
 async function advanceProduction(db: SupabaseRest, run: VideoRun) {
-  if (!PRODUCTION_KINDS.has(run.kind) || !run.item_id) return;
+  if (!PRODUCTION_KINDS.has(run.kind) || !run.item_id) {
+    return;
+  }
   try {
     const state = await db.rpc("advance_video_production", {
       p_item_id: run.item_id,
     });
-    if (state && state !== "idle")
+    if (state && state !== "idle") {
       console.log(`[worker] production ${run.item_id}: ${state}`);
+    }
   } catch (error) {
     console.error(
       `[worker] production ${run.item_id} advance failed`,
@@ -263,7 +270,9 @@ async function processOne(db: SupabaseRest, workerId: string) {
     }),
   );
   const run = rowsOf<VideoRun>(claimed)[0] ?? null;
-  if (!run) return false;
+  if (!run) {
+    return false;
+  }
   inFlight.hold(db, run);
   console.log(
     `[worker] ${workerId} claimed ${run.kind} ${run.id} (attempt ${run.attempts})`,
@@ -299,14 +308,17 @@ async function processOne(db: SupabaseRest, workerId: string) {
       status: retry ? "queued" : "failed",
       error: message.slice(0, 2000),
     });
-    if (!retry)
+    if (!retry) {
       await HANDLERS[run.kind]
         .onFailed?.({ db, run })
         .catch((hookError) =>
           console.error(`[worker] ${run.id} failure hook`, hookError),
         );
+    }
     // After the scene is marked failed, so the film is assembled without it.
-    if (!retry) await advanceProduction(db, run);
+    if (!retry) {
+      await advanceProduction(db, run);
+    }
   } finally {
     inFlight.release(run);
   }
@@ -317,7 +329,7 @@ async function processOne(db: SupabaseRest, workerId: string) {
 // worker's runs back to queued and exits, so the next worker resumes them at once.
 let stopping = false;
 let exiting: Promise<void> | null = null;
-for (const signal of ["SIGINT", "SIGTERM"])
+for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
     stopping = true;
     exiting ??= inFlight
@@ -332,6 +344,7 @@ for (const signal of ["SIGINT", "SIGTERM"])
       )
       .finally(() => process.exit(0));
   });
+}
 
 console.log(
   `[worker] ${WORKER_ID} ${DRAIN ? "draining" : "polling"} ${targets.map((target) => target.name).join(", ")} every ${POLL_MS}ms with ${CONCURRENCY} slots each`,

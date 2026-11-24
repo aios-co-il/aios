@@ -1,3 +1,8 @@
+import {
+  sendApprovedBroadcast,
+  invokeBroadcastEnqueue,
+  BroadcastEnqueueError,
+} from "./send-broadcast.ts";
 // Carmen Approval Execute — runs a pending row from agent_approval_queue.
 // Routes to carmen-fb-tools / carmen-google-tools / carmen-save-media based on tool_name.
 // Used by run-ai-agent (when Carmen calls execute_pending_approval) and by the
@@ -68,8 +73,9 @@ async function invokeEdgeFn(name: string, payload: any) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   const supabase = createClient(SB_URL, SB_SERVICE);
   // Set once this call has claimed a row ('executing'); the catch below closes it.
   let claimed: { id: string; tenant_id: string } | null = null;
@@ -89,11 +95,12 @@ Deno.serve(async (req) => {
       auth.kind === "user"
         ? auth.userId
         : asUuidOrNull(body.approved_by ?? body._approved_by);
-    if (!approval_id)
+    if (!approval_id) {
       return new Response(JSON.stringify({ error: "approval_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const { data: loaded, error } = await supabase
       .from("agent_approval_queue")
@@ -128,7 +135,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (row.status === "executed")
+    if (row.status === "executed") {
       return new Response(
         JSON.stringify({
           success: true,
@@ -137,11 +144,13 @@ Deno.serve(async (req) => {
         }),
         { headers: corsHeaders },
       );
-    if (row.status === "rejected")
+    }
+    if (row.status === "rejected") {
       return new Response(JSON.stringify({ error: "rejected" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
     const run = await claimForRun(supabase, row, approved_by);
     if ("reply" in run) {
       return reply(run.reply);
@@ -266,7 +275,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const stepRows: any[] = [];
+      const stepRows: Array<any> = [];
       const trigId = crypto.randomUUID();
       stepRows.push({
         id: trigId,
@@ -348,56 +357,34 @@ Deno.serve(async (req) => {
 
     // ── Broadcast actions ──────────────────────────────────────────────────────
     if (row.tool_name === "send_broadcast_now") {
-      const inp = (row.tool_input as any) || {};
-      if (!inp.broadcast_id) {
-        await supabase
-          .from("agent_approval_queue")
-          .update({
-            status: "failed",
-            executed_at: new Date().toISOString(),
-            execution_result: { error: "missing_broadcast_id" },
-          })
-          .eq("id", approval_id);
-        return new Response(JSON.stringify({ error: "missing_broadcast_id" }), {
+      const inp = row.tool_input;
+      if (
+        !inp ||
+        typeof inp !== "object" ||
+        Array.isArray(inp) ||
+        typeof inp.broadcast_id !== "string"
+      ) {
+        throw new Error("missing_broadcast_id");
+      }
+      let result;
+      try {
+        result = await sendApprovedBroadcast(
+          supabase,
+          row.tenant_id,
+          inp.broadcast_id,
+          (revision) =>
+            invokeBroadcastEnqueue(supabase, inp.broadcast_id, revision),
+        );
+      } catch (error) {
+        if (!(error instanceof BroadcastEnqueueError)) {
+          throw error;
+        }
+        await markApprovalFailed(supabase, row, error.detail);
+        return reply({
           status: 400,
-          headers: corsHeaders,
+          body: { error: "enqueue_failed", detail: error.detail },
         });
       }
-      // 1. Enqueue recipients via broadcast-enqueue
-      const enqRes = await fetch(`${SB_URL}/functions/v1/broadcast-enqueue`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SB_SERVICE}`,
-          "Content-Type": "application/json",
-          apikey: SB_SERVICE,
-        },
-        body: JSON.stringify({ broadcastId: inp.broadcast_id, dryRun: false }),
-      });
-      const enqJson = await enqRes.json().catch(() => ({}));
-      if (!enqRes.ok) {
-        await supabase
-          .from("agent_approval_queue")
-          .update({
-            status: "failed",
-            executed_at: new Date().toISOString(),
-            execution_result: enqJson,
-          })
-          .eq("id", approval_id);
-        return new Response(
-          JSON.stringify({ error: "enqueue_failed", detail: enqJson }),
-          { status: 400, headers: corsHeaders },
-        );
-      }
-      // 2. Set status=sending + started_at
-      await supabase
-        .from("broadcasts")
-        .update({ status: "sending", started_at: new Date().toISOString() })
-        .eq("id", inp.broadcast_id);
-      const result = {
-        success: true,
-        broadcast_id: inp.broadcast_id,
-        recipients: enqJson.total ?? enqJson.count ?? "?",
-      };
       await supabase
         .from("agent_approval_queue")
         .update({
@@ -589,14 +576,18 @@ Deno.serve(async (req) => {
       let result: any = null;
       let failed = false;
       try {
-        if (!inp.automation_id) throw new Error("automation_id required");
+        if (!inp.automation_id) {
+          throw new Error("automation_id required");
+        }
         const { data: auto } = await supabase
           .from("automations")
           .select("id, name, tenant_id, is_flow, trigger_type")
           .eq("id", inp.automation_id)
           .eq("tenant_id", row.tenant_id)
           .maybeSingle();
-        if (!auto) throw new Error("automation_not_found");
+        if (!auto) {
+          throw new Error("automation_not_found");
+        }
 
         if (row.tool_name === "toggle_automation") {
           const { data, error } = await supabase
@@ -606,7 +597,9 @@ Deno.serve(async (req) => {
             .eq("tenant_id", row.tenant_id)
             .select("id, name, active")
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = data;
         } else if (row.tool_name === "delete_automation") {
           const { error } = await supabase
@@ -614,24 +607,34 @@ Deno.serve(async (req) => {
             .delete()
             .eq("id", inp.automation_id)
             .eq("tenant_id", row.tenant_id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { deleted: inp.automation_id, name: auto.name };
         } else {
           // edit_automation
           const patch: Record<string, unknown> = {};
-          if (inp.name != null) patch.name = String(inp.name);
-          if (inp.description != null) patch.description = inp.description;
-          if (inp.trigger_type != null)
+          if (inp.name != null) {
+            patch.name = String(inp.name);
+          }
+          if (inp.description != null) {
+            patch.description = inp.description;
+          }
+          if (inp.trigger_type != null) {
             patch.trigger_type = String(inp.trigger_type);
-          if (inp.trigger_config && typeof inp.trigger_config === "object")
+          }
+          if (inp.trigger_config && typeof inp.trigger_config === "object") {
             patch.configuration = inp.trigger_config;
+          }
           if (Object.keys(patch).length) {
             const { error } = await supabase
               .from("automations")
               .update(patch)
               .eq("id", inp.automation_id)
               .eq("tenant_id", row.tenant_id);
-            if (error) throw error;
+            if (error) {
+              throw error;
+            }
           }
           let stepsReplaced = 0;
           if (Array.isArray(inp.steps) && inp.steps.length > 0) {
@@ -645,7 +648,7 @@ Deno.serve(async (req) => {
               .eq("tenant_id", row.tenant_id)
               .eq("active", true);
             const carmen = pickCarmenAgent(agents) ?? agents?.[0];
-            const stepRows: any[] = [];
+            const stepRows: Array<any> = [];
             const trigId = crypto.randomUUID();
             const triggerType =
               inp.trigger_type || auto.trigger_type || "manual_command";
@@ -706,7 +709,9 @@ Deno.serve(async (req) => {
             const { error: sErr } = await supabase
               .from("automation_flow_steps")
               .insert(stepRows);
-            if (sErr) throw sErr;
+            if (sErr) {
+              throw sErr;
+            }
             stepsReplaced = stepRows.length;
             await supabase
               .from("automations")
@@ -768,7 +773,9 @@ Deno.serve(async (req) => {
             })
             .select("id, product_name, amount, payment_month")
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { income_id: data.id, ...data };
         } else if (row.tool_name === "delete_one_time_income") {
           const { error } = await supabase
@@ -776,7 +783,9 @@ Deno.serve(async (req) => {
             .delete()
             .eq("id", inp.income_id)
             .eq("tenant_id", row.tenant_id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { deleted: inp.income_id };
         } else if (row.tool_name === "record_income_payment") {
           const { data: client } = await supabase
@@ -798,7 +807,9 @@ Deno.serve(async (req) => {
             })
             .select("id, amount, payment_month, client_name")
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { payment_id: data.id, ...data };
         } else if (row.tool_name === "delete_income_payment") {
           const { error } = await supabase
@@ -806,7 +817,9 @@ Deno.serve(async (req) => {
             .delete()
             .eq("id", inp.payment_id)
             .eq("tenant_id", row.tenant_id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { deleted: inp.payment_id };
         } else if (row.tool_name === "record_expense_payment") {
           const { data, error } = await supabase
@@ -824,7 +837,9 @@ Deno.serve(async (req) => {
             })
             .select("id, expense_type, expense_name, amount, payment_month")
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { payment_id: data.id, ...data };
         } else if (row.tool_name === "delete_expense_payment") {
           const { error } = await supabase
@@ -832,26 +847,40 @@ Deno.serve(async (req) => {
             .delete()
             .eq("id", inp.payment_id)
             .eq("tenant_id", row.tenant_id);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { deleted: inp.payment_id };
         } else if (row.tool_name === "update_client_retainer") {
-          if (inp.retainer == null && inp.monthly_budget == null && !inp.notes)
+          if (
+            inp.retainer == null &&
+            inp.monthly_budget == null &&
+            !inp.notes
+          ) {
             throw new Error("retainer / monthly_budget / notes required");
+          }
           const payload: Record<string, unknown> = {
             client_id: inp.client_id,
             tenant_id: row.tenant_id,
             updated_at: new Date().toISOString(),
           };
-          if (inp.retainer != null) payload.retainer = Number(inp.retainer);
-          if (inp.monthly_budget != null)
+          if (inp.retainer != null) {
+            payload.retainer = Number(inp.retainer);
+          }
+          if (inp.monthly_budget != null) {
             payload.monthly_budget = Number(inp.monthly_budget);
-          if (inp.notes != null) payload.notes = inp.notes;
+          }
+          if (inp.notes != null) {
+            payload.notes = inp.notes;
+          }
           const { data, error } = await supabase
             .from("client_tenant_financial_data")
             .upsert(payload, { onConflict: "client_id,tenant_id" })
             .select("client_id, retainer, monthly_budget, notes")
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           result = { updated: true, ...data };
         }
       } catch (e: any) {

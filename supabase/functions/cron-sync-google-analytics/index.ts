@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   const startedAt = new Date().toISOString();
-  const results: any[] = [];
+  const results: Array<any> = [];
 
   // Process tables in batches and self-invoke the next batch, so a large number
   // of GA tables completes across chained invocations instead of timing out in
@@ -46,7 +46,9 @@ Deno.serve(async (req) => {
       .not("campaign_active", "is", false)
       .order("id");
 
-    if (tablesError) throw tablesError;
+    if (tablesError) {
+      throw tablesError;
+    }
 
     const tables = (allTables || []).slice(
       batchOffset,

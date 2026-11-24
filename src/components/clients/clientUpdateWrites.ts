@@ -34,7 +34,7 @@ export async function deleteClientUpdate(id: string): Promise<void> {
 
 /** Throws when a write matched no row: RLS refused it or the row is gone. */
 function requireChangedRow(
-  rows: { id: string }[] | null,
+  rows: Array<{ id: string }> | null,
   action: "edit" | "delete",
   id: string,
 ): void {

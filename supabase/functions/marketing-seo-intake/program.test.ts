@@ -35,7 +35,9 @@ function fakeDb({
       }),
       insert: async (value: unknown) => {
         writes.push({ method: "insert", row: value });
-        if (onInsert) row = onInsert;
+        if (onInsert) {
+          row = onInsert;
+        }
         return { data: null, error: insertError };
       },
       update: (value: unknown) => {

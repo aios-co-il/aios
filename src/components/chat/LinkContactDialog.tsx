@@ -68,7 +68,9 @@ export function LinkContactDialog({
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["clients-for-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("id, name, phone, agency_id, agencies(name)")
@@ -91,7 +93,9 @@ export function LinkContactDialog({
   const { data: leads = [], isLoading: leadsLoading } = useQuery({
     queryKey: ["leads-for-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("leads")
         .select(
@@ -116,7 +120,9 @@ export function LinkContactDialog({
   const { data: groups = [], isLoading: groupsLoading } = useQuery({
     queryKey: ["groups-for-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("whatsapp_groups")
         .select("id, group_name, group_id")
@@ -139,7 +145,9 @@ export function LinkContactDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "convert-unknown-contact",
@@ -153,7 +161,9 @@ export function LinkContactDialog({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { data, type: values.type };
     },
     onSuccess: (result) => {

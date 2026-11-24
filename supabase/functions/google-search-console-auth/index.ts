@@ -212,8 +212,9 @@ Deno.serve(async (req) => {
         ok: boolean;
         reason?: string;
       }> => {
-        if (!settings?.refresh_token)
+        if (!settings?.refresh_token) {
           return { ok: false, reason: "missing_refresh_token" };
+        }
         const refreshResponse = await fetch(
           "https://oauth2.googleapis.com/token",
           {

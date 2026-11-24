@@ -48,13 +48,13 @@ export type FacebookReportEntry = [string, FacebookReportCampaign];
  * Off campaigns that spent nothing in the period are left out.
  */
 export function groupFacebookReportCampaigns(
-  records: CampaignOffRecord[],
+  records: Array<CampaignOffRecord>,
   level: AdsEntityLevel,
   options: {
     leadsOnly: boolean;
     isReportOff?: (record: CampaignOffRecord) => boolean;
   },
-): Record<ReportCampaignGoal, FacebookReportEntry[]> {
+): Record<ReportCampaignGoal, Array<FacebookReportEntry>> {
   const offKeys = campaignOffKeys(
     records,
     (data) => getEntityGroupKey(data, level),
@@ -84,7 +84,7 @@ export function groupFacebookReportCampaigns(
 
 /** Sums each entity's delivery, results, Meta result and followers over its records. */
 function aggregateFacebookReportCampaigns(
-  records: CampaignOffRecord[],
+  records: Array<CampaignOffRecord>,
   level: AdsEntityLevel,
 ): Record<string, FacebookReportCampaign> {
   const groups: Record<string, FacebookReportCampaign> = {};

@@ -29,7 +29,9 @@ export function pickScenes(
       provider === PREVIEW_PROVIDER && scene.stillPath && !scene.lipsync,
     );
     const source = useStill ? scene.stillPath : scene.clipPath;
-    if (!source) continue;
+    if (!source) {
+      continue;
+    }
     const name = `${useStill ? "still" : "clip"}-${index}.${extension(source)}`;
     files.push({ from: source, to: name });
     let voice: string | null = null;
@@ -82,7 +84,9 @@ export function pickScenes(
       frames,
     });
   }
-  if (!picked.length) throw new Error("render: no pictures for remotion");
+  if (!picked.length) {
+    throw new Error("render: no pictures for remotion");
+  }
   return picked;
 }
 
@@ -99,7 +103,9 @@ export function moveBeatFrames(
   clipFrames: number | null,
   moveClipFrames: number,
 ) {
-  if (!clipFrames || !moveClipFrames) return 0;
+  if (!clipFrames || !moveClipFrames) {
+    return 0;
+  }
   return Math.min(
     moveClipFrames,
     Math.max(MOVE_MIN_FRAMES, baseFrames - clipFrames),

@@ -84,7 +84,7 @@ type ShareTable = {
 };
 
 /** Tables as the share links load them: display choices next to credentials. */
-const storedTables: ShareTable[] = [
+const storedTables: Array<ShareTable> = [
   {
     id: "fb",
     integration_type: "facebook_insights",
@@ -123,7 +123,7 @@ const storedTables: ShareTable[] = [
   { id: "empty", integration_type: "facebook_ecommerce" },
 ];
 
-const publicTables: ShareTable[] = storedTables.map((table) => ({
+const publicTables: Array<ShareTable> = storedTables.map((table) => ({
   ...table,
   integration_settings: toPublicTableSettings(table.integration_settings),
 }));

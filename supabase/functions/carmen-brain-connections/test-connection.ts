@@ -41,7 +41,9 @@ export async function testModel(ctx: ActionContext) {
 async function savedTarget(ctx: ActionContext) {
   const conn = await loadConnection(ctx, "chat_model");
   const apiKey = await connectionSecret(ctx.sb, conn.id);
-  if (!apiKey) throw new HttpError(400, "No API key saved");
+  if (!apiKey) {
+    throw new HttpError(400, "No API key saved");
+  }
   return {
     baseUrl: has(ctx.body, "base_url")
       ? requireBaseUrl(text(ctx.body, "base_url"))

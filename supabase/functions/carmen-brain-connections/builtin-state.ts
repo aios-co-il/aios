@@ -23,9 +23,12 @@ type OwnRow = {
 /** Each built-in brain's state, and the tenants the caller can share with. */
 export async function builtinState(
   ctx: ActionContext,
-  rows: OwnRow[],
+  rows: Array<OwnRow>,
   project: Env = projectEnv(),
-): Promise<{ builtins: BuiltinBrainState[]; share_targets: TenantRef[] }> {
+): Promise<{
+  builtins: Array<BuiltinBrainState>;
+  share_targets: Array<TenantRef>;
+}> {
   const [keys, sharesOut, targetIds] = await Promise.all([
     resolveBuiltinKeys(ctx.sb, ctx.tenantId, project),
     ctx.sb
@@ -71,10 +74,12 @@ export async function builtinState(
 /** Names of the given tenants, by id. */
 async function tenantNames(
   ctx: ActionContext,
-  ids: string[],
+  ids: Array<string>,
 ): Promise<Map<string, string>> {
   const unique = [...new Set(ids)];
-  if (!unique.length) return new Map();
+  if (!unique.length) {
+    return new Map();
+  }
   const { data, error } = await ctx.sb
     .from("tenants")
     .select("id, name")

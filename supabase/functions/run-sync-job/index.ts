@@ -14,10 +14,16 @@ const RUNNING_STALE_AFTER_MS = 60_000; // if no heartbeat/progress update for 60
 
 // Check if phone is international (non-Israeli)
 function isInternationalPhone(phone: string): boolean {
-  if (!phone) return false;
+  if (!phone) {
+    return false;
+  }
   const trimmed = phone.trim();
-  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) return true;
-  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) return true;
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) {
+    return true;
+  }
+  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) {
+    return true;
+  }
   const digits = trimmed.replace(/\D/g, "");
   if (
     digits.length >= 10 &&
@@ -41,8 +47,9 @@ function isInternationalPhone(phone: string): boolean {
       "91",
     ];
     for (const prefix of intlPrefixes) {
-      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8)
+      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8) {
         return true;
+      }
     }
   }
   return false;
@@ -50,14 +57,19 @@ function isInternationalPhone(phone: string): boolean {
 
 function formatInternationalPhone(phone: string): string {
   const trimmed = phone.trim();
-  if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
-  if (trimmed.startsWith("00"))
+  if (trimmed.startsWith("+")) {
+    return trimmed.replace(/[^\d+]/g, "");
+  }
+  if (trimmed.startsWith("00")) {
     return "+" + trimmed.slice(2).replace(/\D/g, "");
+  }
   return "+" + trimmed.replace(/\D/g, "");
 }
 
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   let cleaned = phone.replace(/\D/g, "");
   if (cleaned.startsWith("972")) {
     cleaned = cleaned.slice(3);
@@ -77,7 +89,7 @@ function formatPhoneForManyChat(phone: string): string {
   return `972${cleaned}`;
 }
 
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   if (isInternationalPhone(phone)) {
     const formatted = formatInternationalPhone(phone);
     const withoutPlus = formatted.startsWith("+")
@@ -86,7 +98,9 @@ function getPhoneLookupCandidates(phone: string): string[] {
     return [formatted, withoutPlus].filter(Boolean);
   }
   const cleaned = normalizePhone(phone);
-  if (!cleaned) return [];
+  if (!cleaned) {
+    return [];
+  }
   const withCountry = `972${cleaned}`;
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
     Boolean,
@@ -169,7 +183,7 @@ async function getPhoneNumberFieldId(
 
 async function findSubscriberByPhone(
   apiKey: string,
-  candidates: string[],
+  candidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of candidates) {
     const url = `https://api.manychat.com/fb/subscriber/findBySystemField?phone=${encodeURIComponent(candidate)}`;
@@ -195,7 +209,9 @@ async function findSubscriberByEmail(
   apiKey: string,
   email?: string | null,
 ): Promise<string | null> {
-  if (!email) return null;
+  if (!email) {
+    return null;
+  }
   const url = `https://api.manychat.com/fb/subscriber/findBySystemField?email=${encodeURIComponent(email)}`;
   const res = await fetch(url, {
     headers: {
@@ -217,7 +233,7 @@ async function findSubscriberByEmail(
 async function findSubscriberByCustomField(
   apiKey: string,
   fieldId: number,
-  candidates: string[],
+  candidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of candidates) {
     const url = `https://api.manychat.com/fb/subscriber/findByCustomField?field_id=${fieldId}&field_value=${encodeURIComponent(candidate)}`;
@@ -405,7 +421,7 @@ Deno.serve(async (req) => {
     let failedTotal = (job.progress as any)?.failed || 0;
     let conflictsTotal = (job.progress as any)?.conflicts || 0;
     const totalLeads = (job.progress as any)?.total || 0;
-    const allResults: SyncResult[] = (
+    const allResults: Array<SyncResult> = (
       (job.progress as any)?.results || []
     ).slice(-50); // Keep last 50 results
 
@@ -457,8 +473,9 @@ Deno.serve(async (req) => {
       try {
         // Find existing subscriber
         subscriberId = await findSubscriberByPhone(apiKey, phoneCandidates);
-        if (!subscriberId)
+        if (!subscriberId) {
           subscriberId = await findSubscriberByEmail(apiKey, lead.email);
+        }
         if (!subscriberId && phoneFieldId) {
           subscriberId = await findSubscriberByCustomField(
             apiKey,
@@ -501,8 +518,9 @@ Deno.serve(async (req) => {
             JSON.stringify(createData).toLowerCase().includes("already exists")
           ) {
             subscriberId = await findSubscriberByPhone(apiKey, phoneCandidates);
-            if (!subscriberId)
+            if (!subscriberId) {
               subscriberId = await findSubscriberByEmail(apiKey, lead.email);
+            }
             if (!subscriberId && phoneFieldId) {
               subscriberId = await findSubscriberByCustomField(
                 apiKey,

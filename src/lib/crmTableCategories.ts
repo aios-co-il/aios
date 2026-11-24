@@ -16,7 +16,9 @@ type TableLike = {
 
 export function isEcommerceCrmTable(table: TableLike): boolean {
   const type = String(table.integration_type || "");
-  if (type === "facebook_ecommerce") return true;
+  if (type === "facebook_ecommerce") {
+    return true;
+  }
   if (type === "google_ads") {
     return (
       String(table.integration_settings?.campaign_type || "").toLowerCase() ===
@@ -28,17 +30,27 @@ export function isEcommerceCrmTable(table: TableLike): boolean {
 
 /** Category key used for grouping cards in DynamicTables. */
 export function resolveListCategory(table: TableLike): string {
-  if (isEcommerceCrmTable(table)) return ECOMMERCE_CATEGORY;
+  if (isEcommerceCrmTable(table)) {
+    return ECOMMERCE_CATEGORY;
+  }
 
   const type = String(table.integration_type || "");
-  if (type === "facebook_insights") return "Facebook Insights";
-  if (type === "google_ads") return "Google Ads";
+  if (type === "facebook_insights") {
+    return "Facebook Insights";
+  }
+  if (type === "google_ads") {
+    return "Google Ads";
+  }
 
   const raw = (table.category || "").trim();
   // Collapse legacy "Facebook Ecommerce" free-text into the canonical bucket
   // even if integration_type was somehow missing (shouldn't happen).
-  if (/facebook/i.test(raw) && /ecom/i.test(raw)) return ECOMMERCE_CATEGORY;
-  if (/^ecommerce$/i.test(raw) || raw === "איקומרס") return ECOMMERCE_CATEGORY;
+  if (/facebook/i.test(raw) && /ecom/i.test(raw)) {
+    return ECOMMERCE_CATEGORY;
+  }
+  if (/^ecommerce$/i.test(raw) || raw === "איקומרס") {
+    return ECOMMERCE_CATEGORY;
+  }
 
   return raw || "ללא קבוצה";
 }
@@ -48,14 +60,20 @@ export function defaultCategoryForCreate(
   integrationType: string,
   opts?: { campaignType?: string | null },
 ): string {
-  if (integrationType === "facebook_ecommerce") return ECOMMERCE_CATEGORY;
+  if (integrationType === "facebook_ecommerce") {
+    return ECOMMERCE_CATEGORY;
+  }
   if (
     integrationType === "google_ads" &&
     String(opts?.campaignType || "").toLowerCase() === "ecommerce"
   ) {
     return ECOMMERCE_CATEGORY;
   }
-  if (integrationType === "facebook_insights") return "Facebook Insights";
-  if (integrationType === "google_ads") return "Google Ads";
+  if (integrationType === "facebook_insights") {
+    return "Facebook Insights";
+  }
+  if (integrationType === "google_ads") {
+    return "Google Ads";
+  }
   return integrationType || "ללא קבוצה";
 }

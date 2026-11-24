@@ -12,7 +12,7 @@ type StatusRun = Awaited<ReturnType<typeof scopedRuns>>[number];
  * The newest run per key and, when a rate limit stopped that one, the newest
  * run before it that compared something.
  */
-export function latestPerKey(runs: StatusRun[]) {
+export function latestPerKey(runs: Array<StatusRun>) {
   const latest = new Map<string, StatusRun>();
   const previous = new Map<string, StatusRun>();
   for (const run of runs) {

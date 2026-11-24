@@ -11,9 +11,9 @@ export function TriggerTypeMultiSelect({
   value,
   onChange,
 }: {
-  options: { value: string; label: string }[];
-  value: string[];
-  onChange: (value: string[]) => void;
+  options: Array<{ value: string; label: string }>;
+  value: Array<string>;
+  onChange: (value: Array<string>) => void;
 }) {
   const labels = options
     .filter((option) => value.includes(option.value))
@@ -27,7 +27,9 @@ export function TriggerTypeMultiSelect({
 
   const toggle = (optionValue: string) => {
     if (value.includes(optionValue)) {
-      if (value.length === 1) return;
+      if (value.length === 1) {
+        return;
+      }
       onChange(value.filter((item) => item !== optionValue));
       return;
     }

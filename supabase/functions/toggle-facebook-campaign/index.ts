@@ -8,8 +8,9 @@ const corsHeaders = {
 
 // Deployed with carmen FB campaign tooling (analyze + selective ad enable).
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(
@@ -64,7 +65,9 @@ Deno.serve(async (req) => {
         .eq("id", integration.shared_from_integration_id)
         .eq("is_active", true)
         .maybeSingle();
-      if (src?.api_key) integration = { ...integration, api_key: src.api_key };
+      if (src?.api_key) {
+        integration = { ...integration, api_key: src.api_key };
+      }
     }
 
     const accessToken = integration?.api_key;

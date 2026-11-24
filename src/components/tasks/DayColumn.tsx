@@ -26,7 +26,7 @@ interface CalendarEvent {
 
 interface DayColumnProps {
   date: Date;
-  tasks: Task[];
+  tasks: Array<Task>;
   onAddTask: (title: string, date: Date, time?: string) => void;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onTaskClick: (task: Task) => void;
@@ -35,7 +35,7 @@ interface DayColumnProps {
   onSlotDoubleClick?: (date: Date, time: string) => void;
   isLoading?: boolean;
   isCurrentDay?: boolean;
-  calendarEvents?: CalendarEvent[];
+  calendarEvents?: Array<CalendarEvent>;
 }
 
 const TIME_SLOTS = generateWorkdayTimeSlots();
@@ -118,19 +118,21 @@ function TimeSlotDroppable({
 }: {
   date: Date;
   time: string;
-  tasks: Task[];
+  tasks: Array<Task>;
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onTaskClick: (task: Task) => void;
   onDurationChange?: (taskId: string, newDuration: number) => void;
   onCalendarEventClick?: (event: CalendarEvent) => void;
   onSlotDoubleClick?: (date: Date, time: string) => void;
-  calendarEvents?: CalendarEvent[];
+  calendarEvents?: Array<CalendarEvent>;
 }) {
   const droppableId = `${date.toISOString()}_${time}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
 
   const slotTasks = tasks.filter((t) => {
-    if (!t.due_time) return false;
+    if (!t.due_time) {
+      return false;
+    }
     return t.due_time.startsWith(time);
   });
 

@@ -13,7 +13,7 @@ import { asUuidOrNull } from "../_shared/uuid.ts";
 export type RoundRequest = {
   tenantId: string | null;
   clientId: string | null;
-  collectorIds: string[] | null;
+  collectorIds: Array<string> | null;
   dryRun: boolean;
   fixtures: Json | null;
   now: Date | null;
@@ -78,7 +78,7 @@ export function parseRoundRequest(
 }
 
 /** True for an array of strings. */
-function isStringList(value: unknown): value is string[] {
+function isStringList(value: unknown): value is Array<string> {
   return (
     Array.isArray(value) && value.every((item) => typeof item === "string")
   );

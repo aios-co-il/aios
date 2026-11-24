@@ -6,8 +6,8 @@ type Row = Record<string, unknown>;
 
 /** A PostgREST stand-in: filters rows by eq/in and records inserts and RPCs. */
 export function fakeSystemSendDb(seed: {
-  clients?: Row[];
-  whatsapp_groups?: Row[];
+  clients?: Array<Row>;
+  whatsapp_groups?: Array<Row>;
   loggingOn?: unknown;
   flagError?: unknown;
   groupClient?: Record<string, string | null>;
@@ -16,8 +16,8 @@ export function fakeSystemSendDb(seed: {
 }) {
   const inserts: Array<{ table: string; row: Row }> = [];
   const rpcs: Array<{ fn: string; args: Record<string, unknown> }> = [];
-  const queries: string[] = [];
-  const tables: Record<string, Row[]> = {
+  const queries: Array<string> = [];
+  const tables: Record<string, Array<Row>> = {
     clients: seed.clients ?? [],
     whatsapp_groups: seed.whatsapp_groups ?? [],
   };
@@ -34,7 +34,7 @@ export function fakeSystemSendDb(seed: {
         rows = rows.filter((row) => row[column] === value);
         return b;
       },
-      in: (column: string, values: unknown[]) => {
+      in: (column: string, values: Array<unknown>) => {
         rows = rows.filter((row) => values.includes(row[column]));
         return b;
       },

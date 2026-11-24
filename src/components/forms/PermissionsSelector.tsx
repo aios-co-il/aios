@@ -69,7 +69,9 @@ export function PermissionsSelector({
 
   const toggleCategory = (categoryId: string, next: boolean) => {
     const cat = PERMISSION_CATEGORIES.find((c) => c.id === categoryId);
-    if (!cat) return;
+    if (!cat) {
+      return;
+    }
     const merged = { ...value };
     cat.modules.forEach((m) => {
       merged[m.id] = next;
@@ -79,13 +81,17 @@ export function PermissionsSelector({
 
   const isCategoryFullyChecked = (categoryId: string): boolean => {
     const cat = PERMISSION_CATEGORIES.find((c) => c.id === categoryId);
-    if (!cat) return false;
+    if (!cat) {
+      return false;
+    }
     return cat.modules.every((m) => value[m.id] === true);
   };
 
   const isCategoryPartiallyChecked = (categoryId: string): boolean => {
     const cat = PERMISSION_CATEGORIES.find((c) => c.id === categoryId);
-    if (!cat) return false;
+    if (!cat) {
+      return false;
+    }
     const checked = cat.modules.filter((m) => value[m.id] === true).length;
     return checked > 0 && checked < cat.modules.length;
   };

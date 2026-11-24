@@ -33,13 +33,13 @@ const LIST_LEAD_MS = 30 * 60_000;
 
 /** Splits one recipient's due rows into cancelled, held and ready. */
 export function triage(
-  group: DeliveryRow[],
+  group: Array<DeliveryRow>,
   findings: Map<string, FindingRow>,
   input: TriageInput,
 ) {
-  const cancelled: DeliveryRow[] = [];
-  const held: DeliveryRow[] = [];
-  const ready: DeliveryRow[] = [];
+  const cancelled: Array<DeliveryRow> = [];
+  const held: Array<DeliveryRow> = [];
+  const ready: Array<DeliveryRow> = [];
   for (const row of group) {
     const finding = findings.get(row.finding_id);
     if (!finding || !mayStillSend(row, finding, input)) {
@@ -55,9 +55,9 @@ export function triage(
 
 /** The rows of the first MAX_ITEMS_PER_MESSAGE findings: critical, then urgent, then highest level. */
 export function pickItems(
-  ready: DeliveryRow[],
+  ready: Array<DeliveryRow>,
   findings: Map<string, FindingRow>,
-): DeliveryRow[] {
+): Array<DeliveryRow> {
   const rank = (row: DeliveryRow) =>
     (findings.get(row.finding_id)?.severity === "critical" ? 100 : 0) +
     (row.slot === "now" ? 10 : 0) +
@@ -71,8 +71,10 @@ export function pickItems(
 }
 
 /** Due rows per recipient, in claim order. */
-export function groupByRecipient(rows: DeliveryRow[]): DeliveryRow[][] {
-  const groups = new Map<string, DeliveryRow[]>();
+export function groupByRecipient(
+  rows: Array<DeliveryRow>,
+): Array<Array<DeliveryRow>> {
+  const groups = new Map<string, Array<DeliveryRow>>();
   for (const row of rows) {
     groups.set(row.recipient_key, [
       ...(groups.get(row.recipient_key) ?? []),

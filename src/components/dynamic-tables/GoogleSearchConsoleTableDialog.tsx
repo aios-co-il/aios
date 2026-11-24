@@ -34,7 +34,7 @@ import {
 interface GoogleSearchConsoleTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 interface GSCSite {
@@ -91,12 +91,16 @@ export function GoogleSearchConsoleTableDialog({
   const { data: sites = [], isLoading: sitesLoading } = useQuery({
     queryKey: ["gsc-sites", integration?.id],
     queryFn: async () => {
-      if (!integration?.id) return [] as GSCSite[];
+      if (!integration?.id) {
+        return [] as Array<GSCSite>;
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "google-search-console-auth?action=get_sites",
@@ -108,8 +112,10 @@ export function GoogleSearchConsoleTableDialog({
         },
       );
 
-      if (error) throw error;
-      return Array.isArray(data?.sites) ? (data.sites as GSCSite[]) : [];
+      if (error) {
+        throw error;
+      }
+      return Array.isArray(data?.sites) ? (data.sites as Array<GSCSite>) : [];
     },
     enabled: !!integration?.id,
     staleTime: 5 * 60 * 1000,
@@ -173,7 +179,9 @@ export function GoogleSearchConsoleTableDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({ title: "טבלת Search Console נוצרה בהצלחה!" });
       queryClient.invalidateQueries({

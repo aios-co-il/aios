@@ -62,7 +62,9 @@ export async function uploadMetaTemplateMediaHandle(
   }
 
   const sessionId = String(sessionPayload.id ?? "").replace(/^upload:/, "");
-  if (!sessionId) throw new Error("Meta upload session id missing");
+  if (!sessionId) {
+    throw new Error("Meta upload session id missing");
+  }
 
   const uploadUrl = new URL(
     `https://graph.facebook.com/${graphVersion}/upload:${sessionId}`,
@@ -86,13 +88,15 @@ export async function uploadMetaTemplateMediaHandle(
   }
 
   const handle = String(uploadPayload.h ?? "").trim();
-  if (!handle) throw new Error("Meta media handle missing");
+  if (!handle) {
+    throw new Error("Meta media handle missing");
+  }
   return handle;
 }
 
 export type MetaWhatsAppSessionInfo = {
   waba_id?: string;
-  waba_ids?: string[];
+  waba_ids?: Array<string>;
   phone_number_id?: string;
   business_id?: string;
 };
@@ -109,13 +113,21 @@ export function digitsOnly(value: unknown): string {
   return String(value ?? "").replace(/\D/g, "");
 }
 
-export function normalizedPhoneCandidates(value: unknown): string[] {
+export function normalizedPhoneCandidates(value: unknown): Array<string> {
   const digits = digitsOnly(value).replace(/^00/, "");
-  if (!digits) return [];
+  if (!digits) {
+    return [];
+  }
   const candidates = new Set([digits]);
-  if (digits.startsWith("972")) candidates.add(`0${digits.slice(3)}`);
-  if (digits.startsWith("0")) candidates.add(`972${digits.slice(1)}`);
-  if (digits.length >= 9) candidates.add(digits.slice(-9));
+  if (digits.startsWith("972")) {
+    candidates.add(`0${digits.slice(3)}`);
+  }
+  if (digits.startsWith("0")) {
+    candidates.add(`972${digits.slice(1)}`);
+  }
+  if (digits.length >= 9) {
+    candidates.add(digits.slice(-9));
+  }
   return [...candidates].filter(Boolean);
 }
 
@@ -126,13 +138,17 @@ export function inboundButtonPayload(
   const type = String(message.type ?? "");
   if (type === "button") {
     const payload = String(message.button?.payload ?? "").trim();
-    if (payload) return payload;
+    if (payload) {
+      return payload;
+    }
     const text = String(message.button?.text ?? "").trim();
     return text || null;
   }
   if (type === "interactive") {
     const id = String(message.interactive?.button_reply?.id ?? "").trim();
-    if (id) return id;
+    if (id) {
+      return id;
+    }
     const title = String(message.interactive?.button_reply?.title ?? "").trim();
     return title || null;
   }
@@ -149,8 +165,12 @@ export const DEFAULT_LEAD_THANKS_TEXT =
 
 export function messageText(message: MetaWhatsAppMessage): string {
   const type = String(message.type ?? "unknown");
-  if (type === "text") return String(message.text?.body ?? "");
-  if (type === "button") return String(message.button?.text ?? "");
+  if (type === "text") {
+    return String(message.text?.body ?? "");
+  }
+  if (type === "button") {
+    return String(message.button?.text ?? "");
+  }
   if (type === "interactive") {
     return String(
       message.interactive?.button_reply?.title ??
@@ -159,7 +179,9 @@ export function messageText(message: MetaWhatsAppMessage): string {
     );
   }
   const caption = message[type]?.caption;
-  if (caption) return String(caption);
+  if (caption) {
+    return String(caption);
+  }
   const labels: Record<string, string> = {
     audio: "[הודעת קול]",
     image: "[תמונה]",
@@ -274,8 +296,12 @@ export function sanitizeTemplateParameter(value: unknown): string {
     .replace(/^\s*•\s*/, "")
     .replace(/\s*•\s*$/, "")
     .trim();
-  if (!cleaned) return EMPTY_TEMPLATE_PARAMETER_PLACEHOLDER;
-  if (cleaned.length <= TEMPLATE_PARAMETER_MAX_LENGTH) return cleaned;
+  if (!cleaned) {
+    return EMPTY_TEMPLATE_PARAMETER_PLACEHOLDER;
+  }
+  if (cleaned.length <= TEMPLATE_PARAMETER_MAX_LENGTH) {
+    return cleaned;
+  }
   return `${cleaned.slice(0, TEMPLATE_PARAMETER_MAX_LENGTH - 1)}…`;
 }
 
@@ -287,11 +313,13 @@ export async function renderTemplateText(
   wabaId: string,
   templateName: string,
   language: string,
-  parameters: string[],
+  parameters: Array<string>,
   accessToken: string,
   graphVersion: string,
 ): Promise<string | null> {
-  if (!wabaId || !templateName) return null;
+  if (!wabaId || !templateName) {
+    return null;
+  }
   try {
     const url = new URL(
       `https://graph.facebook.com/${graphVersion}/${wabaId}/message_templates`,
@@ -302,16 +330,18 @@ export async function renderTemplateText(
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return null;
+    }
     const payload = await response.json();
-    const templates: MetaWhatsAppMessage[] = Array.isArray(payload?.data)
+    const templates: Array<MetaWhatsAppMessage> = Array.isArray(payload?.data)
       ? payload.data
       : [];
     const template =
       templates.find(
         (item) => item.name === templateName && item.language === language,
       ) ?? templates.find((item) => item.name === templateName);
-    const components: MetaWhatsAppMessage[] = Array.isArray(
+    const components: Array<MetaWhatsAppMessage> = Array.isArray(
       template?.components,
     )
       ? template.components
@@ -354,7 +384,9 @@ export function shouldApplyDeliveryStatus(
   next: unknown,
 ): boolean {
   const nextRank = DELIVERY_STATUS_RANK[String(next ?? "")] ?? 0;
-  if (!nextRank) return false;
+  if (!nextRank) {
+    return false;
+  }
   return nextRank > (DELIVERY_STATUS_RANK[String(previous ?? "")] ?? 0);
 }
 

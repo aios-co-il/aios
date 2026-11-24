@@ -75,7 +75,9 @@ export async function readFilm(
       const seconds = words.length
         ? lastEnd(words)
         : await probeNarration(take.url).catch(() => 0);
-      if (seconds > 0) narration = { words, seconds };
+      if (seconds > 0) {
+        narration = { words, seconds };
+      }
     }
   }
   // Scene voices only time a talking film, which is narrated scene by scene; any other film
@@ -106,10 +108,13 @@ export async function readFilm(
         voice?.type !== "voiceover" ||
         !line ||
         String(metaOf(voice).text ?? "") !== line
-      )
+      ) {
         continue;
+      }
       const seconds = lastEnd(wordsFromAlignment(metaOf(voice).alignment));
-      if (seconds > 0) voices.set(scene.id, seconds);
+      if (seconds > 0) {
+        voices.set(scene.id, seconds);
+      }
     }
   }
   const pending = rowsOf<{ id: string }>(

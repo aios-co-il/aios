@@ -42,7 +42,7 @@ export function sceneBlock(scene: SceneText, edit: boolean) {
   ].join("");
 }
 
-export const storyboardText = (scenes: SceneText[], edit: boolean) =>
+export const storyboardText = (scenes: Array<SceneText>, edit: boolean) =>
   scenes.map((scene) => sceneBlock(scene, edit)).join("\n\n");
 
 const record = (value: unknown): Record<string, unknown> =>
@@ -74,7 +74,9 @@ export function storyboardPageWith(
 ): Record<string, unknown> | null {
   const meta = record(pageMeta);
   const rows = (Array.isArray(meta.scenes) ? meta.scenes : []).map(record);
-  if (!rows.some((row) => row.id === scene.id)) return null;
+  if (!rows.some((row) => row.id === scene.id)) {
+    return null;
+  }
   const talk = record(scene.meta);
   const has = (key: keyof PageScene) =>
     scene[key] !== undefined && scene[key] !== null;
@@ -102,6 +104,6 @@ export function storyboardPageWith(
     ...meta,
     scenes: next,
     total_s: next.reduce((sum, row) => sum + (Number(row.duration_s) || 0), 0),
-    text: storyboardText(next as unknown as SceneText[], edit),
+    text: storyboardText(next as unknown as Array<SceneText>, edit),
   };
 }

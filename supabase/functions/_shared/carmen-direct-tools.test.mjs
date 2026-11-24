@@ -36,8 +36,9 @@ Deno.test(
       "workshop_make_creative",
       "workshop_make_stills",
       "workshop_produce_video",
-    ])
+    ]) {
       assertStrictEquals(classifyDirectTool(name), "approval", name);
+    }
     assertStrictEquals(classifyDirectTool("workshop_get_state"), "direct");
   },
 );

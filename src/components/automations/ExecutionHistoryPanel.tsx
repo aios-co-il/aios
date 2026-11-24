@@ -105,7 +105,9 @@ export function ExecutionHistoryPanel({
         .eq("automation_id", automationId)
         .order("triggered_at", { ascending: false })
         .limit(50);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!automationId,
@@ -133,7 +135,9 @@ export function ExecutionHistoryPanel({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({
         title: "הריצה הופעלה מחדש",
         description: "בדוק את ההיסטוריה לתוצאה",
@@ -156,7 +160,9 @@ export function ExecutionHistoryPanel({
   const failedLogs = logs.filter((log) => log.success === false && log.payload);
 
   const handleRetryAllFailed = async () => {
-    if (!failedLogs.length) return;
+    if (!failedLogs.length) {
+      return;
+    }
     setRetryingFailed(true);
     setRetryProgress({ done: 0, total: failedLogs.length });
     let succeeded = 0;
@@ -170,7 +176,9 @@ export function ExecutionHistoryPanel({
             body: { automationId, payload: log.payload, _rerun: true },
           },
         );
-        if (!error) succeeded += 1;
+        if (!error) {
+          succeeded += 1;
+        }
         setRetryProgress({ done: index + 1, total: failedLogs.length });
       }
       toast({

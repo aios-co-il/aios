@@ -19,22 +19,22 @@ export type SendOutcome = {
 
 export type DeliveriesStore = {
   /** Claims due 'now'/'list' rows (expiring stale ones first). */
-  claim(tenantId: string, limit: number): Promise<DeliveryRow[]>;
+  claim(tenantId: string, limit: number): Promise<Array<DeliveryRow>>;
   /** Alert messages (not briefs) each recipient got since `since`. */
   messagesSince(tenantId: string, since: Date): Promise<Map<string, number>>;
   /**
    * Marks claimed rows as being sent now. A claim cut off later keeps only
    * these as possibly sent; the rest of the claim goes back to planned.
    */
-  markSending(tenantId: string, ids: string[]): Promise<void>;
+  markSending(tenantId: string, ids: Array<string>): Promise<void>;
   recordSend(
     tenantId: string,
-    ids: string[],
+    ids: Array<string>,
     outcome: SendOutcome,
   ): Promise<void>;
   recordBrief(
     tenantId: string,
-    findingIds: string[],
+    findingIds: Array<string>,
     recipient: Recipient,
     outcome: SendOutcome,
   ): Promise<void>;

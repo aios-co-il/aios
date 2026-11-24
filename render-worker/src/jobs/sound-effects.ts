@@ -85,8 +85,11 @@ function withLegacy(
   const out = { ...paths };
   const has = (kind: string) =>
     NAMES.some((name) => out[name] && SOUND_EFFECTS[name].kind === kind);
-  for (const [name, kind] of Object.entries(LEGACY_EFFECTS))
-    if (legacy[name] && !has(kind)) out[name] = legacy[name];
+  for (const [name, kind] of Object.entries(LEGACY_EFFECTS)) {
+    if (legacy[name] && !has(kind)) {
+      out[name] = legacy[name];
+    }
+  }
   return out;
 }
 
@@ -150,13 +153,20 @@ export async function filmSoundEffects({
     }
   }
   let missing = NAMES.filter((name) => !paths[name]);
-  if (missing.length === 0) return done(null);
+  if (missing.length === 0) {
+    return done(null);
+  }
   // A failure after the provider charged (or a refusal) is final for the run.
-  if (run.output?.sound_effects_error)
+  if (run.output?.sound_effects_error) {
     return done(run.output.sound_effects_error);
-  if (!(Number(quotedUsd) > 0)) return done(NOT_IN_PRODUCTION);
+  }
+  if (!(Number(quotedUsd) > 0)) {
+    return done(NOT_IN_PRODUCTION);
+  }
   const apiKey = await resolveKey().catch(() => null);
-  if (!apiKey) return done("אין מפתח ElevenLabs לאפקטי סאונד");
+  if (!apiKey) {
+    return done("אין מפתח ElevenLabs לאפקטי סאונד");
+  }
   const made: Array<string> = [];
   let error: string | null = null;
   let overQuote = false;
@@ -249,11 +259,14 @@ export async function filmSoundEffects({
       .catch(() => {});
   }
   missing = NAMES.filter((name) => !paths[name]);
-  if (made.length) log(`[render] ${run.id} sound effects: ${made.join(", ")}`);
-  if (overQuote && !error)
+  if (made.length) {
+    log(`[render] ${run.id} sound effects: ${made.join(", ")}`);
+  }
+  if (overQuote && !error) {
     log(
       `[render] ${run.id} sound effects past the quote: ${missing.join(", ")}`,
     );
+  }
   return done(missing.length ? error || (overQuote ? OVER_QUOTE : null) : null);
 }
 

@@ -103,12 +103,12 @@ Deno.test("Instagram follows per ad set and per campaign", async () => {
     adset_id: adsetId,
     adset_name: name,
   });
-  const mainRows: Record<string, unknown[]> = {
+  const mainRows: Record<string, Array<unknown>> = {
     campaign: [insightRow],
     adset: [adsetRow("a1", "Inheritance"), adsetRow("a2", "Bank account")],
     ad: [],
   };
-  const followRows: Record<string, unknown[]> = {
+  const followRows: Record<string, Array<unknown>> = {
     campaign: [
       {
         campaign_id: CAMPAIGN,

@@ -11,7 +11,9 @@ vi.mock("@/integrations/supabase/client", () => {
   const chain: Record<string, unknown> = {
     then: (resolve: (value: typeof result) => unknown) => resolve(result),
   };
-  for (const method of ["select", "eq", "order"]) chain[method] = () => chain;
+  for (const method of ["select", "eq", "order"]) {
+    chain[method] = () => chain;
+  }
   return { supabase: { from: () => chain } };
 });
 

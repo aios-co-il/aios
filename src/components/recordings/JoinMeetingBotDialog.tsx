@@ -45,9 +45,9 @@ interface JoinMeetingBotDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tenantId?: string | null;
-  clients: ClientOption[];
-  campaigners: CampaignerOption[];
-  agencies: AgencyOption[];
+  clients: Array<ClientOption>;
+  campaigners: Array<CampaignerOption>;
+  agencies: Array<AgencyOption>;
   defaultClientId?: string;
 }
 
@@ -81,7 +81,9 @@ export function JoinMeetingBotDialog({
 
   const dispatchMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("לא נבחר ארגון");
+      if (!tenantId) {
+        throw new Error("לא נבחר ארגון");
+      }
       const { data, error } = await supabase.functions.invoke(
         "dispatch-meeting-bot",
         {

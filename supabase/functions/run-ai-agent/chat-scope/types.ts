@@ -4,7 +4,7 @@ export type ChatScopeMode = "full" | "group" | "staff" | "none";
 
 export interface ChatScopeInput {
   tenantId: string;
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   /**
    * The verified caller's user id (JWT user or the sender's profile). Their
    * role and managed agencies are looked up for this tenant only.
@@ -27,7 +27,7 @@ export interface ChatScopeInput {
 
 export interface LeadScope {
   all: boolean;
-  agencyIds: string[];
+  agencyIds: Array<string>;
   salesPersonId: string | null;
 }
 
@@ -38,12 +38,12 @@ export interface ChatScope {
   /** Mode "group": the current group's whatsapp_groups.id. */
   groupId: string | null;
   /** green_api rows only from these connection owners (all modes but full). */
-  connectionUserIds: string[];
+  connectionUserIds: Array<string>;
   /** Mode "staff": "all" = every client of the tenant, else these ids. */
-  clientIds: "all" | string[];
+  clientIds: "all" | Array<string>;
   leads: LeadScope;
   /** Mode "staff": WhatsApp groups linked to the in-scope clients. */
-  linkedGroupIds: string[];
+  linkedGroupIds: Array<string>;
   /** Mode "staff" on a private WhatsApp turn: the caller's own chat with Carmen. */
   ownThread: { phoneTail: string; connectionUserId: string | null } | null;
 }

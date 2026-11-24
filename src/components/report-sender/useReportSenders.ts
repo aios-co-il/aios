@@ -4,7 +4,7 @@ import type { ReportSender } from "../../../supabase/functions/_shared/report-se
 
 export type ReportSenderOptions = {
   /** Own and shared Green API and Manus lines, without secrets. */
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   /** tenant_report_settings.whatsapp_integration_id. */
   tenantDefaultId: string | null;
   /** Whether the viewer may change the tenant default. */
@@ -42,7 +42,7 @@ async function fetchReportSenders(
   if (settings.error) {
     throw settings.error;
   }
-  const senders: ReportSender[] = list.data ?? [];
+  const senders: Array<ReportSender> = list.data ?? [];
   return {
     senders,
     tenantDefaultId: settings.data?.whatsapp_integration_id ?? null,

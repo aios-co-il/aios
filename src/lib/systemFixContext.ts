@@ -27,10 +27,9 @@ export function buildSystemFixContext(args: {
   pageTitle?: string;
 }): SystemFixContextMetadata {
   const routeParams = Object.fromEntries(
-    Object.entries(args.params).filter(([, v]) => v != null && v !== "") as [
-      string,
-      string,
-    ][],
+    Object.entries(args.params).filter(
+      ([, v]) => v != null && v !== "",
+    ) as Array<[string, string]>,
   );
   const client_id = routeParams.clientId || routeParams.client_id || undefined;
   const task_id = routeParams.taskId || routeParams.task_id || undefined;
@@ -63,13 +62,24 @@ export function systemFixPromptAddon(meta: SystemFixContextMetadata): string {
     `context: ${meta.context_type}`,
     `path: ${meta.path}${meta.search ?? ""}${meta.hash ?? ""}`,
   ];
-  if (meta.tenant_slug) lines.push(`tenant: ${meta.tenant_slug}`);
-  if (meta.agency_id) lines.push(`agency_id: ${meta.agency_id}`);
-  if (meta.client_id) lines.push(`client_id: ${meta.client_id}`);
-  if (meta.task_id) lines.push(`task_id: ${meta.task_id}`);
-  if (meta.page_title) lines.push(`page_title: ${meta.page_title}`);
-  if (meta.viewport)
+  if (meta.tenant_slug) {
+    lines.push(`tenant: ${meta.tenant_slug}`);
+  }
+  if (meta.agency_id) {
+    lines.push(`agency_id: ${meta.agency_id}`);
+  }
+  if (meta.client_id) {
+    lines.push(`client_id: ${meta.client_id}`);
+  }
+  if (meta.task_id) {
+    lines.push(`task_id: ${meta.task_id}`);
+  }
+  if (meta.page_title) {
+    lines.push(`page_title: ${meta.page_title}`);
+  }
+  if (meta.viewport) {
     lines.push(`viewport: ${meta.viewport.width}×${meta.viewport.height}`);
+  }
   if (meta.route_params && Object.keys(meta.route_params).length) {
     lines.push(`route_params: ${JSON.stringify(meta.route_params)}`);
   }

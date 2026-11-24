@@ -33,8 +33,8 @@ modeSelect.addEventListener("change", () => {
   cameraRow.classList.toggle("hidden", modeSelect.value !== "screen");
 });
 
-let tenants: TenantOption[] = [];
-let clients: ClientOption[] = [];
+let tenants: Array<TenantOption> = [];
+let clients: Array<ClientOption> = [];
 let selectedTenantId: string | null = null;
 
 function show(state: "loading" | "login" | "main") {
@@ -48,7 +48,7 @@ function showError(target: HTMLElement, message: string | null) {
   target.textContent = message ?? "";
 }
 
-function fillDatalist(list: HTMLDataListElement, names: string[]) {
+function fillDatalist(list: HTMLDataListElement, names: Array<string>) {
   list.innerHTML = "";
   for (const name of names) {
     const opt = document.createElement("option");
@@ -58,11 +58,13 @@ function fillDatalist(list: HTMLDataListElement, names: string[]) {
 }
 
 const findByName = <T extends { name: string }>(
-  items: T[],
+  items: Array<T>,
   typed: string,
 ): T | null => {
   const q = typed.trim();
-  if (!q) return null;
+  if (!q) {
+    return null;
+  }
   return (
     items.find((i) => i.name === q) ??
     items.find((i) => i.name.toLowerCase() === q.toLowerCase()) ??
@@ -70,13 +72,15 @@ const findByName = <T extends { name: string }>(
   );
 };
 
-async function loadTenants(): Promise<TenantOption[]> {
+async function loadTenants(): Promise<Array<TenantOption>> {
   const { data, error } = await supabase
     .from("tenant_users")
     .select("tenant_id, tenants(id, name, slug)");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const seen = new Set<string>();
-  const result: TenantOption[] = [];
+  const result: Array<TenantOption> = [];
   for (const row of data ?? []) {
     const t = row.tenants as unknown as TenantOption | null;
     if (t && !seen.has(t.id)) {
@@ -121,7 +125,9 @@ async function persistActiveTenant(tenantId: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) {
+    return;
+  }
   const { error } = await supabase.from("user_active_tenant").upsert(
     {
       user_id: user.id,
@@ -130,7 +136,9 @@ async function persistActiveTenant(tenantId: string) {
     },
     { onConflict: "user_id" },
   );
-  if (error) console.error("persistActiveTenant:", error);
+  if (error) {
+    console.error("persistActiveTenant:", error);
+  }
 }
 
 async function selectTenant(tenant: TenantOption) {
@@ -200,7 +208,9 @@ async function initMain() {
     (tenants.length === 1 ? tenants[0] : null);
 
   show("main");
-  if (preferred) await selectTenant(preferred);
+  if (preferred) {
+    await selectTenant(preferred);
+  }
 }
 
 loginEl.addEventListener("submit", async (e) => {
@@ -235,7 +245,9 @@ el<HTMLButtonElement>("start-btn").addEventListener("click", async () => {
     showError(mainError, "נא לבחור ארגון מהרשימה (הקלד ובחר מההשלמות)");
     return;
   }
-  if (tenant.id !== selectedTenantId) await selectTenant(tenant);
+  if (tenant.id !== selectedTenantId) {
+    await selectTenant(tenant);
+  }
 
   const typedClient = clientInput.value.trim();
   const client = findByName(clients, typedClient);

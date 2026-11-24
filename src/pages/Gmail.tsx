@@ -60,7 +60,7 @@ interface EmailMessage {
   id: string;
   threadId: string;
   snippet: string;
-  labelIds: string[];
+  labelIds: Array<string>;
   from: string;
   to: string;
   subject: string;
@@ -97,14 +97,16 @@ export default function Gmail() {
   >(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageTokenHistory, setPageTokenHistory] = useState<string[]>([]);
+  const [pageTokenHistory, setPageTokenHistory] = useState<Array<string>>([]);
   const [currentPageToken, setCurrentPageToken] = useState<
     string | undefined
   >();
 
   // Build date query
   const buildDateQuery = () => {
-    if (!selectedDateRange?.from || !selectedDateRange?.to) return "";
+    if (!selectedDateRange?.from || !selectedDateRange?.to) {
+      return "";
+    }
 
     const from = selectedDateRange.from;
     const to = selectedDateRange.to;
@@ -123,7 +125,9 @@ export default function Gmail() {
 
   const fullQueryBase = useMemo(() => {
     const dateQ = buildDateQuery();
-    if (dateQ && activeSearch) return `${dateQ} ${activeSearch}`;
+    if (dateQ && activeSearch) {
+      return `${dateQ} ${activeSearch}`;
+    }
     return dateQ || activeSearch;
   }, [selectedDateRange, activeSearch]);
 
@@ -134,7 +138,9 @@ export default function Gmail() {
       const { data, error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "status" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as { connected: boolean; google_email: string | null };
     },
     enabled: !!userId,
@@ -149,7 +155,9 @@ export default function Gmail() {
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -163,7 +171,9 @@ export default function Gmail() {
         .from("gmail_blocked_senders")
         .select("email_address")
         .eq("user_id", userId!);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.map((b: any) => b.email_address.toLowerCase());
     },
     enabled: !!userId,
@@ -178,7 +188,9 @@ export default function Gmail() {
           .from("gmail_allowed_labels")
           .select("label_id")
           .eq("user_id", userId!);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data.map((l: any) => String(l.label_id)).filter(Boolean);
       },
       enabled: !!userId,
@@ -193,15 +205,19 @@ export default function Gmail() {
         .from("gmail_category_rules")
         .select("subject_pattern, category_id")
         .eq("user_id", userId!);
-      if (error) throw error;
-      return data as { subject_pattern: string; category_id: string }[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<{ subject_pattern: string; category_id: string }>;
     },
     enabled: !!userId,
   });
 
   // Get the selected category's gmail_label_id (if any)
   const selectedCategoryLabelId = useMemo(() => {
-    if (!selectedCategory) return null;
+    if (!selectedCategory) {
+      return null;
+    }
     const cat = categories.find((c: any) => c.id === selectedCategory);
     return cat?.gmail_label_id || null;
   }, [selectedCategory, categories]);
@@ -209,12 +225,18 @@ export default function Gmail() {
   // Build subject query from category rules when a category is selected
   const categorySubjectQuery = useMemo(() => {
     // If category has a gmail_label_id, we filter via labelIds instead of subject query
-    if (selectedCategoryLabelId) return null;
-    if (!selectedCategory || categoryRules.length === 0) return null;
+    if (selectedCategoryLabelId) {
+      return null;
+    }
+    if (!selectedCategory || categoryRules.length === 0) {
+      return null;
+    }
     const rulesForCategory = categoryRules.filter(
       (r) => r.category_id === selectedCategory,
     );
-    if (rulesForCategory.length === 0) return null;
+    if (rulesForCategory.length === 0) {
+      return null;
+    }
     return rulesForCategory
       .map((r) => `subject:"${r.subject_pattern}"`)
       .join(" OR ");
@@ -237,10 +259,14 @@ export default function Gmail() {
         .from("gmail_message_categories")
         .select("message_id, category_id")
         .eq("user_id", userId!);
-      if (error) throw error;
-      const map: Record<string, string[]> = {};
+      if (error) {
+        throw error;
+      }
+      const map: Record<string, Array<string>> = {};
       data.forEach((d: any) => {
-        if (!map[d.message_id]) map[d.message_id] = [];
+        if (!map[d.message_id]) {
+          map[d.message_id] = [];
+        }
         map[d.message_id].push(d.category_id);
       });
       return map;
@@ -250,14 +276,18 @@ export default function Gmail() {
 
   // Determine effective labelIds for the API call
   const effectiveLabelIds = useMemo(() => {
-    if (selectedCategoryLabelId) return [selectedCategoryLabelId];
+    if (selectedCategoryLabelId) {
+      return [selectedCategoryLabelId];
+    }
     // Ensure all entries are strictly strings (defensive against cache pollution)
     const normalized = allowedLabels
       .map((item: any) =>
         typeof item === "string" ? item : item?.label_id || item?.id || "",
       )
       .filter((id: string) => typeof id === "string" && id.trim() !== "");
-    if (normalized.length > 0) return normalized;
+    if (normalized.length > 0) {
+      return normalized;
+    }
     return undefined;
   }, [selectedCategoryLabelId, allowedLabels]);
 
@@ -283,9 +313,11 @@ export default function Gmail() {
           labelIds: effectiveLabelIds,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
-        messages: EmailMessage[];
+        messages: Array<EmailMessage>;
         nextPageToken?: string;
         resultSizeEstimate?: number;
       };
@@ -295,8 +327,8 @@ export default function Gmail() {
 
   // Build effective category map: DB entries + rule-based auto-matching
   const effectiveCategoryMap = useMemo(() => {
-    const map: Record<string, string[]> = {
-      ...(messageCategoryMap as Record<string, string[]>),
+    const map: Record<string, Array<string>> = {
+      ...(messageCategoryMap as Record<string, Array<string>>),
     };
     if (messagesData?.messages && categoryRules.length > 0) {
       for (const msg of messagesData.messages) {
@@ -316,11 +348,15 @@ export default function Gmail() {
 
   // Filter blocked senders and by category
   const filteredMessages = useMemo(() => {
-    if (!messagesData?.messages) return [];
+    if (!messagesData?.messages) {
+      return [];
+    }
     const msgs = messagesData.messages.filter((m) => {
       const fromEmail =
         m.from.match(/<(.+?)>/)?.[1]?.toLowerCase() || m.from.toLowerCase();
-      if ((blockedSenders as string[]).includes(fromEmail)) return false;
+      if ((blockedSenders as Array<string>).includes(fromEmail)) {
+        return false;
+      }
       return true;
     });
 
@@ -335,7 +371,9 @@ export default function Gmail() {
       const { data, error } = await supabase.functions.invoke("gmail-api", {
         body: { action: "get", messageId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as EmailMessage;
     },
     onSuccess: (msg) => setSelectedMessage(msg),
@@ -357,7 +395,9 @@ export default function Gmail() {
       const { data, error } = await supabase.functions.invoke("gmail-api", {
         body,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -440,7 +480,9 @@ export default function Gmail() {
       const { data, error } = await supabase.functions.invoke("gmail-api", {
         body: { action: "trash", messageId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -452,12 +494,14 @@ export default function Gmail() {
 
   // Bulk trash
   const bulkTrashMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async (ids: Array<string>) => {
       for (const id of ids) {
         const { error } = await supabase.functions.invoke("gmail-api", {
           body: { action: "trash", messageId: id },
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -470,7 +514,7 @@ export default function Gmail() {
 
   // Bulk block
   const bulkBlockMutation = useMutation({
-    mutationFn: async (emails: string[]) => {
+    mutationFn: async (emails: Array<string>) => {
       const unique = [...new Set(emails)];
       for (const email of unique) {
         await supabase.from("gmail_blocked_senders").insert({
@@ -495,7 +539,7 @@ export default function Gmail() {
       ids,
       categoryId,
     }: {
-      ids: string[];
+      ids: Array<string>;
       categoryId: string;
     }) => {
       for (const messageId of ids) {
@@ -630,8 +674,11 @@ export default function Gmail() {
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -809,7 +856,9 @@ export default function Gmail() {
                 onSelect={(range) => {
                   setSelectedDateRange(range);
                   resetPagination();
-                  if (range?.from && range?.to) setDatePickerOpen(false);
+                  if (range?.from && range?.to) {
+                    setDatePickerOpen(false);
+                  }
                 }}
                 className={cn("p-3 pointer-events-auto")}
               />

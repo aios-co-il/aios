@@ -48,7 +48,7 @@ export interface QuickTaskPayload {
   title: string;
   clientId?: string | null;
   campaignerId?: string | null;
-  collaboratorIds?: string[];
+  collaboratorIds?: Array<string>;
   selfReminderAt?: string | null;
   /** When to perform / show on calendar (תאריך ביצוע) */
   executionDate?: string | null;
@@ -63,8 +63,8 @@ export interface QuickTaskPayload {
 interface QuickTaskInputProps {
   onAddTask: (payload: QuickTaskPayload) => void;
   disabled?: boolean;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   defaultCampaignerId?: string | null;
 }
 
@@ -110,7 +110,7 @@ export function QuickTaskInput({
     monthday: null,
     time: null,
   });
-  const [collaboratorIds, setCollaboratorIds] = useState<string[]>([]);
+  const [collaboratorIds, setCollaboratorIds] = useState<Array<string>>([]);
   const [teamSearch, setTeamSearch] = useState("");
   const [executionOpen, setExecutionOpen] = useState(false);
   const [targetOpen, setTargetOpen] = useState(false);
@@ -119,7 +119,9 @@ export function QuickTaskInput({
 
   useEffect(() => {
     const el = formRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const update = () => setCompact(el.clientWidth < COMPACT_WIDTH);
     update();
     const observer = new ResizeObserver(update);
@@ -134,15 +136,23 @@ export function QuickTaskInput({
   );
 
   const filteredClients = useMemo(() => {
-    if (!clientsList) return [];
-    if (!clientSearch.trim()) return clientsList;
+    if (!clientsList) {
+      return [];
+    }
+    if (!clientSearch.trim()) {
+      return clientsList;
+    }
     const q = clientSearch.toLowerCase();
     return clientsList.filter((c) => c.name.toLowerCase().includes(q));
   }, [clientsList, clientSearch]);
 
   const filteredCampaigners = useMemo(() => {
-    if (!campaignersList) return [];
-    if (!campaignerSearch.trim()) return campaignersList;
+    if (!campaignersList) {
+      return [];
+    }
+    if (!campaignerSearch.trim()) {
+      return campaignersList;
+    }
     const q = campaignerSearch.toLowerCase();
     return campaignersList.filter((c) => c.full_name.toLowerCase().includes(q));
   }, [campaignersList, campaignerSearch]);
@@ -204,9 +214,13 @@ export function QuickTaskInput({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      return;
+    }
 
-    if (reminderEnabled && !reminderAt) return;
+    if (reminderEnabled && !reminderAt) {
+      return;
+    }
 
     let nextExecutionDate = executionDate
       ? format(executionDate, "yyyy-MM-dd")
@@ -367,7 +381,9 @@ export function QuickTaskInput({
           checked={reminderEnabled}
           onChange={(e) => {
             setReminderEnabled(e.target.checked);
-            if (!e.target.checked) setReminderAt("");
+            if (!e.target.checked) {
+              setReminderAt("");
+            }
           }}
           className="h-3.5 w-3.5 rounded border-input"
         />
@@ -516,7 +532,9 @@ export function QuickTaskInput({
           open={linksOpen}
           onOpenChange={(open) => {
             setLinksOpen(open);
-            if (!open) setLinksPanel("menu");
+            if (!open) {
+              setLinksPanel("menu");
+            }
           }}
         >
           <PopoverTrigger asChild>
@@ -781,7 +799,7 @@ function ClientCommand({
   search: string;
   onSearch: (value: string) => void;
   selectedId: string | null;
-  items: { id: string; name: string }[];
+  items: Array<{ id: string; name: string }>;
   onSelect: (id: string | null) => void;
 }) {
   return (
@@ -831,7 +849,7 @@ function CampaignerCommand({
   search: string;
   onSearch: (value: string) => void;
   selectedId: string | null;
-  items: { id: string; full_name: string }[];
+  items: Array<{ id: string; full_name: string }>;
   onSelect: (id: string | null) => void;
 }) {
   return (

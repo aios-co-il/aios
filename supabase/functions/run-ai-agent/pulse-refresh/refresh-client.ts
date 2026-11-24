@@ -6,7 +6,7 @@ type ClaimRefreshRpc =
 /** A filtered read that resolves to at most one row. */
 type RefreshRead<Row> = {
   eq(column: string, value: string): RefreshRead<Row>;
-  in(column: string, values: string[]): RefreshRead<Row>;
+  in(column: string, values: Array<string>): RefreshRead<Row>;
   order(column: string, options: { ascending: boolean }): RefreshRead<Row>;
   limit(count: number): RefreshRead<Row>;
   maybeSingle(): PromiseLike<{ data: Row | null; error: unknown }>;

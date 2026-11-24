@@ -49,24 +49,35 @@ import type { SupabaseRest } from "../supabaseRest.ts";
 const BUCKET = "creative-video";
 
 const sniffExt = (bytes: Uint8Array) => {
-  if (bytes[0] === 0x89 && bytes[1] === 0x50) return "png";
-  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "jpg";
-  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46)
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) {
+    return "png";
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    return "jpg";
+  }
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46) {
     return bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42
       ? "webp"
       : "wav";
-  if (/^\s*<(\?xml|svg)/i.test(new TextDecoder().decode(bytes.slice(0, 64))))
+  }
+  if (/^\s*<(\?xml|svg)/i.test(new TextDecoder().decode(bytes.slice(0, 64)))) {
     return "svg";
-  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return "mp3";
-  if (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return "mp3";
+  }
+  if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+    return "mp3";
+  }
+  if (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) {
+    return "mp3";
+  }
   if (
     bytes.length > 11 &&
     bytes[4] === 0x66 &&
     bytes[5] === 0x74 &&
     bytes[6] === 0x79 &&
     bytes[7] === 0x70
-  )
+  ) {
     return "mp4";
+  }
   return "bin";
 };
 
@@ -128,8 +139,9 @@ export async function loadFilmSources(
     .filter((meta) => meta.lipsync === true)
     .flatMap((meta) => [meta.motion_clip_asset_id, meta.voice_asset_id])
     .filter((id): id is string => Boolean(id) && !assets.has(String(id)));
-  for (const asset of await assetsByIds([...new Set(lipsyncedFrom)]))
+  for (const asset of await assetsByIds([...new Set(lipsyncedFrom)])) {
     assets.set(asset.id, asset);
+  }
   const [music] = rowsOf<Pick<AssetRow, "url">>(
     await db.select(
       "marketing_assets",
@@ -180,12 +192,20 @@ export async function loadFilmSources(
   const voicePathOf = (scene: SceneRow, clipTalks: boolean) => {
     // A talking clip carries the line. One that does not (its lip sync failed) still plays
     // the line as a voiceover.
-    if (clipTalks) return null;
-    if (isTalkingScene(scene)) return ownVoice(scene, talkingLine(scene));
+    if (clipTalks) {
+      return null;
+    }
+    if (isTalkingScene(scene)) {
+      return ownVoice(scene, talkingLine(scene));
+    }
     // Narration removed from the storyboard leaves its old voice asset linked; drop it.
     const line = narrationLine(scene);
-    if (!line || narrationPath) return null;
-    if (hasTalking) return ownVoice(scene, line);
+    if (!line || narrationPath) {
+      return null;
+    }
+    if (hasTalking) {
+      return ownVoice(scene, line);
+    }
     // Only a scene's own voiceover. A continuous narration linked here is the whole script.
     const voice = assetOf(scene.voice_asset_id);
     return voice?.type === "voiceover" ? voice.url || null : null;
@@ -271,7 +291,9 @@ export async function loadFilmSources(
     (scene) =>
       spokenLine(scene.voiceoverText) && !narrationPath && !scene.voicePath,
   );
-  if (missingNarration) throw finalError("render: narration missing");
+  if (missingNarration) {
+    throw finalError("render: narration missing");
+  }
   return {
     scenes: mapped,
     musicPath: music?.url || null,
@@ -360,7 +382,9 @@ export async function renderFilm({
 }) {
   const item = await loadRunItem(db, run);
   const sources = await loadFilmSources(db, run);
-  if (!sources.scenes.length) throw finalError("render: no approved clips");
+  if (!sources.scenes.length) {
+    throw finalError("render: no approved clips");
+  }
   const dir = await mkdtemp(join(tmpdir(), "promo-"));
   try {
     const local: Array<SourceScene> = [];
@@ -464,10 +488,13 @@ export async function renderFilm({
     };
     for (const { name, path } of stored.transitions) {
       const file = await fetchEffect(name, path);
-      if (file) effectFiles.transitionPaths.push(file);
+      if (file) {
+        effectFiles.transitionPaths.push(file);
+      }
     }
-    if (stored.impact)
+    if (stored.impact) {
       effectFiles.impactPath = await fetchEffect("impact", stored.impact);
+    }
     let logoPath: string | null = null;
     if (brand?.logoUrl) {
       try {
@@ -478,8 +505,9 @@ export async function renderFilm({
           join(dir, "logo"),
         );
         // Anything but a picture would break the end card, so the film closes without it.
-        if (!/\.(png|jpg|webp|svg)$/.test(file))
+        if (!/\.(png|jpg|webp|svg)$/.test(file)) {
           throw new Error("the logo file is not a picture");
+        }
         logoPath = file;
       } catch (error) {
         // A logo outside the tenant folder or the media hosts is left off the end card.
@@ -514,12 +542,14 @@ export async function renderFilm({
     if (!remotion) {
       await assembleFilm(timeline, output);
       // The ffmpeg edit closes on the end card after the scenes.
-      if (hasEndCard(timeline.brand))
+      if (hasEndCard(timeline.brand)) {
         durationS += endCardSeconds(ctaLines(timeline.brand.ctaText));
-    } else
+      }
+    } else {
       durationS =
         (await assembleWithRemotion(timeline, output, dir)).durationS ||
         durationS;
+    }
     const bytes = await readFile(output);
     // One file per run: concurrent renders of the same item can never overwrite each other.
     const path = assertTenantPath(
@@ -533,7 +563,7 @@ export async function renderFilm({
         `run_id=eq.${run.id}&type=eq.render&select=id`,
       ),
     );
-    if (!existing.length)
+    if (!existing.length) {
       await db.insert("marketing_assets", {
         tenant_id: run.tenant_id,
         item_id: run.item_id,
@@ -551,6 +581,7 @@ export async function renderFilm({
           aspect: timeline.aspect,
         },
       });
+    }
     log(`[render] ${run.id} stored ${path}`);
     return {
       output: {

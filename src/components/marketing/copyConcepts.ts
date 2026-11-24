@@ -20,7 +20,7 @@ const FIELD_ALIASES: Record<
     CopyConcept,
     "id" | "approved" | "approvedAt" | "copyId" | "copyKey"
   >,
-  string[]
+  Array<string>
 > = {
   name: ["שם", "name", "title"],
   bigIdea: ["רעיון", "רעיון גדול", "big idea", "idea"],
@@ -62,15 +62,21 @@ const text = (value: unknown) =>
 
 export function parseCopyConceptsFromPayload(
   payload: Record<string, unknown> | null | undefined,
-): CopyConcept[] {
+): Array<CopyConcept> {
   const raw = payload?.copy_concepts;
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw.flatMap((value) => {
     const rec = asRecord(value);
-    if (!rec) return [];
+    if (!rec) {
+      return [];
+    }
     const name = text(rec.name);
     const bigIdea = text(rec.bigIdea);
-    if (!name && !bigIdea) return [];
+    if (!name && !bigIdea) {
+      return [];
+    }
     return [
       {
         ...rec,
@@ -93,7 +99,9 @@ export function parseCopyConceptsFromPayload(
   });
 }
 
-export function approvedCopyConcepts(concepts: CopyConcept[]): CopyConcept[] {
+export function approvedCopyConcepts(
+  concepts: Array<CopyConcept>,
+): Array<CopyConcept> {
   return concepts.filter((concept) => concept.approved);
 }
 
@@ -110,14 +118,16 @@ export function copyConceptsGenerateGate(input: {
     [input.title, input.brief, input.copyText].some(
       (value) => (value ?? "").trim().length > 0,
     ) || (input.variationCount ?? 0) > 0;
-  if (!hasContext) return { canGenerate: false, block: "need_context" };
+  if (!hasContext) {
+    return { canGenerate: false, block: "need_context" };
+  }
   return { canGenerate: true };
 }
 
 export function appendCopyConcepts(
-  existing: CopyConcept[],
-  incoming: CopyConcept[],
-): CopyConcept[] {
+  existing: Array<CopyConcept>,
+  incoming: Array<CopyConcept>,
+): Array<CopyConcept> {
   const names = new Set(
     existing
       .map((concept) => concept.name.trim().toLowerCase())
@@ -125,14 +135,18 @@ export function appendCopyConcepts(
   );
   const fresh = incoming.filter((concept) => {
     const name = concept.name.trim().toLowerCase();
-    if (!name || names.has(name)) return false;
+    if (!name || names.has(name)) {
+      return false;
+    }
     names.add(name);
     return true;
   });
   return [...existing, ...fresh];
 }
 
-export function formatApprovedConceptsForCopy(concepts: CopyConcept[]): string {
+export function formatApprovedConceptsForCopy(
+  concepts: Array<CopyConcept>,
+): string {
   return concepts
     .map((concept, index) =>
       [
@@ -150,7 +164,9 @@ export function formatApprovedConceptsForCopy(concepts: CopyConcept[]): string {
     .join("\n\n");
 }
 
-export function formatCopyConceptsForCreative(concepts: CopyConcept[]): string {
+export function formatCopyConceptsForCreative(
+  concepts: Array<CopyConcept>,
+): string {
   return concepts
     .map((concept, index) =>
       [
@@ -177,20 +193,24 @@ const CONCEPT_PHOTOGRAPH_CLOSER = [
 ].join("\n");
 
 export function findCopyConcept(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   id?: string | null,
 ): CopyConcept | undefined {
-  if (!id) return undefined;
+  if (!id) {
+    return undefined;
+  }
   return concepts.find((concept) => concept.id === id);
 }
 
 /** Prefer unused approved concepts, then rotate through the full list. */
 export function pickConceptForBatchIndex(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   index: number,
   usedConceptIds: Iterable<string> = [],
 ): CopyConcept | undefined {
-  if (concepts.length === 0) return undefined;
+  if (concepts.length === 0) {
+    return undefined;
+  }
   const used = new Set([...usedConceptIds].filter(Boolean));
   const unused = concepts.filter((concept) => !used.has(concept.id));
   const pool = unused.length > 0 ? unused : concepts;
@@ -204,10 +224,12 @@ export type ConceptPromptOptions = {
 
 /** English image-model prompt. Must stay first in the generation request. */
 export function formatCopyConceptsForImagePrompt(
-  concepts: CopyConcept[],
+  concepts: Array<CopyConcept>,
   options?: ConceptPromptOptions,
 ): string {
-  if (concepts.length === 0) return "";
+  if (concepts.length === 0) {
+    return "";
+  }
   const primary = findCopyConcept(concepts, options?.primaryId) ?? concepts[0];
   const lockToOne = Boolean(options?.primaryId);
   const extras = lockToOne
@@ -261,7 +283,7 @@ export function isApprovedConceptPrompt(visualPrompt?: string | null): boolean {
 
 export function resolveVisualPrompt(
   payload: Record<string, unknown> | null | undefined,
-  concepts?: CopyConcept[],
+  concepts?: Array<CopyConcept>,
   options?: ConceptPromptOptions,
 ): string {
   const fromCaller = concepts?.length
@@ -282,7 +304,9 @@ export function resolveVisualPrompt(
         ? storedApproved.map((concept) => ({ ...concept, approved: true }))
         : fromPayload;
   const live = formatCopyConceptsForImagePrompt(approved, options);
-  if (live) return live;
+  if (live) {
+    return live;
+  }
   return typeof payload?.visual_prompt === "string"
     ? payload.visual_prompt.trim()
     : "";
@@ -301,10 +325,9 @@ export function extractConceptsDocument(output: string): string {
 
 const matchField = (label: string): keyof CopyConcept | null => {
   const normalized = label.trim().toLowerCase();
-  for (const [field, aliases] of Object.entries(FIELD_ALIASES) as [
-    keyof typeof FIELD_ALIASES,
-    string[],
-  ][]) {
+  for (const [field, aliases] of Object.entries(FIELD_ALIASES) as Array<
+    [keyof typeof FIELD_ALIASES, Array<string>]
+  >) {
     if (
       aliases.some(
         (alias) =>
@@ -323,11 +346,13 @@ const applyField = (
   field: keyof CopyConcept,
   value: string,
 ) => {
-  if (field === "id" || field === "approved" || field === "approvedAt") return;
+  if (field === "id" || field === "approved" || field === "approvedAt") {
+    return;
+  }
   concept[field] = value;
 };
 
-export function parseConceptsFromCarmen(output: string): CopyConcept[] {
+export function parseConceptsFromCarmen(output: string): Array<CopyConcept> {
   const document = extractConceptsDocument(output);
   const jsonBlock = document.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
   if (jsonBlock) {
@@ -338,7 +363,9 @@ export function parseConceptsFromCarmen(output: string): CopyConcept[] {
         : (asRecord(parsed)?.concepts ?? asRecord(parsed)?.copy_concepts);
       if (Array.isArray(rows)) {
         const fromJson = parseCopyConceptsFromPayload({ copy_concepts: rows });
-        if (fromJson.length > 0) return fromJson.slice(0, 5);
+        if (fromJson.length > 0) {
+          return fromJson.slice(0, 5);
+        }
       }
     } catch {
       // Fall through to markdown parser.
@@ -354,7 +381,7 @@ export function parseConceptsFromCarmen(output: string): CopyConcept[] {
     .map((chunk) => chunk.trim())
     .filter(Boolean);
   const source = headingChunks.length > 1 ? headingChunks : numberedChunks;
-  const concepts: CopyConcept[] = [];
+  const concepts: Array<CopyConcept> = [];
 
   for (const chunk of source) {
     const concept = emptyConcept();
@@ -362,24 +389,33 @@ export function parseConceptsFromCarmen(output: string): CopyConcept[] {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
-    if (lines.length === 0) continue;
+    if (lines.length === 0) {
+      continue;
+    }
     const heading = lines[0]
       .replace(/^\d+\s*[.|)\-–]\s*/, "")
       .replace(/^\|\s*/, "")
       .trim();
-    if (heading && !heading.includes(":"))
+    if (heading && !heading.includes(":")) {
       concept.name = heading.replace(/^שם[:\s]*/, "");
+    }
 
     for (const line of lines.slice(concept.name === heading ? 1 : 0)) {
       const split = line.match(/^([^:]{2,24})\s*[:：]\s*(.+)$/);
-      if (!split) continue;
+      if (!split) {
+        continue;
+      }
       const field = matchField(split[1]);
-      if (field) applyField(concept, field, split[2].trim());
+      if (field) {
+        applyField(concept, field, split[2].trim());
+      }
     }
 
     if (concept.name || concept.bigIdea) {
       concept.name = concept.name || `קונספט ${concepts.length + 1}`;
-      if (!concept.copyKey) concept.copyKey = extractCopyKey(concept.copyAngle);
+      if (!concept.copyKey) {
+        concept.copyKey = extractCopyKey(concept.copyAngle);
+      }
       concepts.push(concept);
     }
   }

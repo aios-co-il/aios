@@ -15,21 +15,25 @@ const json = (body: unknown, status = 200) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  if (req.method !== "POST") {
+    return json({ error: "POST only" }, 405);
+  }
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const token = (req.headers.get("Authorization") ?? "").replace(
     /^Bearer\s+/i,
     "",
   );
-  if (!serviceKey || !timingSafeEqualStr(token, serviceKey))
+  if (!serviceKey || !timingSafeEqualStr(token, serviceKey)) {
     return json({ error: "Unauthorized" }, 401);
+  }
   const body = await req.json().catch(() => null);
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
-  if (!tenantId || typeof body?.prompt !== "string" || !body.prompt.trim())
+  if (!tenantId || typeof body?.prompt !== "string" || !body.prompt.trim()) {
     return json(
       { success: false, error: "tenant_id and prompt are required" },
       400,
     );
+  }
   const supabase = serviceClient();
   try {
     return json(

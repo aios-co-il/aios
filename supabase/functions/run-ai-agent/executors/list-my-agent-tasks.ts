@@ -11,7 +11,7 @@ export async function executeListMyAgentTasks(
   let q = supabase
     .from("agent_tasks")
     .select(
-      "id, title, description, status, schedule_type, scheduled_at, last_run, run_count, result, created_at",
+      "id, title, description, status, schedule_type, scheduled_at, next_run, last_run, run_count, result, created_at",
     )
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
@@ -52,6 +52,7 @@ export async function executeListMyAgentTasks(
         status: t.status,
         schedule_type: t.schedule_type,
         scheduled_at_israel: fmtIl(t.scheduled_at),
+        next_run_israel: fmtIl(t.next_run),
         last_run_israel: fmtIl(t.last_run),
         run_count: t.run_count || 0,
         last_output: result?.last_output

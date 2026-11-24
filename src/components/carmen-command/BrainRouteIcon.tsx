@@ -9,21 +9,24 @@ export function RouteIcon({
   /** Model brains carry their profile color (route.config.color). */
   color?: string | null;
 }) {
-  if (type === "parliament")
+  if (type === "parliament") {
     return (
       <Landmark className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
     );
-  if (type === "direct_channel")
+  }
+  if (type === "direct_channel") {
     return (
       <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />
     );
-  if (type === "model")
+  }
+  if (type === "model") {
     return (
       <Cpu
         className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]"
         style={color ? { color } : undefined}
       />
     );
+  }
   return <Brain className="h-3.5 w-3.5 shrink-0 text-[var(--cc-accent)]" />;
 }
 

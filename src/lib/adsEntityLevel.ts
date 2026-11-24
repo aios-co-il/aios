@@ -16,7 +16,11 @@ import {
 
 export type AdsEntityLevel = "campaign" | "adset" | "ad";
 
-export const ADS_ENTITY_LEVELS: AdsEntityLevel[] = ["campaign", "adset", "ad"];
+export const ADS_ENTITY_LEVELS: Array<AdsEntityLevel> = [
+  "campaign",
+  "adset",
+  "ad",
+];
 
 export const ADS_ENTITY_LEVEL_LABELS: Record<AdsEntityLevel, string> = {
   campaign: "קמפיינים",
@@ -34,7 +38,9 @@ export function resolveRecordEntityLevel(
   data: Record<string, unknown> | undefined | null,
 ): AdsEntityLevel {
   const level = String(data?.entity_level || "campaign").toLowerCase();
-  if (level === "adset" || level === "ad") return level;
+  if (level === "adset" || level === "ad") {
+    return level;
+  }
   return "campaign";
 }
 
@@ -55,14 +61,18 @@ export function shouldIncludeInAdsDashboardAggregate(
   data: Record<string, unknown> | undefined | null,
   integrationType?: string | null,
 ): boolean {
-  if (integrationType && !isAdsIntegrationType(integrationType)) return true;
+  if (integrationType && !isAdsIntegrationType(integrationType)) {
+    return true;
+  }
   return resolveRecordEntityLevel(data) === "campaign";
 }
 
 export function filterCampaignLevelAdsRecords<
   T extends { data?: Record<string, any> },
->(records: T[], integrationType?: string | null): T[] {
-  if (!isAdsIntegrationType(integrationType)) return records;
+>(records: Array<T>, integrationType?: string | null): Array<T> {
+  if (!isAdsIntegrationType(integrationType)) {
+    return records;
+  }
   return records.filter((record) =>
     shouldIncludeInAdsDashboardAggregate(record.data, integrationType),
   );
@@ -70,7 +80,7 @@ export function filterCampaignLevelAdsRecords<
 
 export function filterRecordsByEntityLevel<
   T extends { data?: Record<string, any> },
->(records: T[], level: AdsEntityLevel): T[] {
+>(records: Array<T>, level: AdsEntityLevel): Array<T> {
   return records.filter(
     (record) => resolveRecordEntityLevel(record.data) === level,
   );
@@ -87,9 +97,12 @@ export function getEntityDisplayName(
     const campaign = String(d.campaign_name || d.campaign || "").trim();
     // Same creative is often duplicated across ad sets/campaigns — show parents.
     const parts = [name];
-    if (adset && adset !== name) parts.push(adset);
-    if (campaign && campaign !== name && campaign !== adset)
+    if (adset && adset !== name) {
+      parts.push(adset);
+    }
+    if (campaign && campaign !== name && campaign !== adset) {
       parts.push(campaign);
+    }
     return parts.join(" · ");
   }
   if (level === "adset") {
@@ -137,17 +150,25 @@ export function recordMatchesEntitySearch(
   searchTerm: string,
 ): boolean {
   const term = searchTerm.trim().toLowerCase();
-  if (!term) return true;
+  if (!term) {
+    return true;
+  }
   const name = getEntityDisplayName(data, level).toLowerCase();
-  if (name.includes(term)) return true;
+  if (name.includes(term)) {
+    return true;
+  }
   const campaignName = String(
     data?.campaign_name || data?.campaign || "",
   ).toLowerCase();
-  if (level !== "campaign" && campaignName.includes(term)) return true;
+  if (level !== "campaign" && campaignName.includes(term)) {
+    return true;
+  }
   const adsetName = String(
     data?.adset_name || data?.ad_group_name || "",
   ).toLowerCase();
-  if (level === "ad" && adsetName.includes(term)) return true;
+  if (level === "ad" && adsetName.includes(term)) {
+    return true;
+  }
   return false;
 }
 
@@ -178,7 +199,7 @@ export type AdsEntityRow = {
 export function aggregateFacebookRecordsAtLevel(
   records: Array<{ data?: any }>,
   level: AdsEntityLevel,
-): FacebookCampaignRow[] {
+): Array<FacebookCampaignRow> {
   if (level === "campaign") {
     return aggregateFacebookCampaignsFromRecords(records);
   }
@@ -227,7 +248,9 @@ export function aggregateFacebookRecordsAtLevel(
 
   for (const [key, type] of Object.entries(types)) {
     const campaignType = type.configured ?? type.stored;
-    if (campaignType !== "other") map[key].campaign_type = campaignType;
+    if (campaignType !== "other") {
+      map[key].campaign_type = campaignType;
+    }
   }
 
   return Object.values(map).sort((a, b) => b.spend - a.spend);
@@ -237,7 +260,7 @@ export function aggregateFacebookRecordsAtLevel(
 export function aggregateGoogleRecordsAtLevel(
   records: Array<{ data?: any }>,
   level: AdsEntityLevel,
-): AdsEntityRow[] {
+): Array<AdsEntityRow> {
   const map: Record<string, AdsEntityRow> = {};
 
   records.forEach((record) => {
@@ -299,7 +322,9 @@ export function hasEntityLevelData(
   records: Array<{ data?: any }>,
   level: AdsEntityLevel,
 ): boolean {
-  if (level === "campaign") return records.length > 0;
+  if (level === "campaign") {
+    return records.length > 0;
+  }
   return records.some(
     (record) => resolveRecordEntityLevel(record.data) === level,
   );

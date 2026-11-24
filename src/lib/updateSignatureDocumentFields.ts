@@ -9,7 +9,7 @@ export type UpdateFieldsResult = {
 /** Update signature_documents.document_fields with graceful fallback for older schemas. */
 export async function updateSignatureDocumentFields(
   docId: string,
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   meta?: { title?: string; isTemplate?: boolean },
 ): Promise<UpdateFieldsResult> {
   const title = meta?.title?.trim();
@@ -38,7 +38,9 @@ export async function updateSignatureDocumentFields(
       .from("signature_documents")
       .update(withoutName)
       .eq("id", docId);
-    if (retry.error) throw retry.error;
+    if (retry.error) {
+      throw retry.error;
+    }
     const savedRecipientPosition = await syncSignatureRecipientPosition(
       docId,
       fields,
@@ -58,7 +60,9 @@ export async function updateSignatureDocumentFields(
     return { savedDocumentFields: false, savedRecipientPosition: true };
   }
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const savedRecipientPosition = await syncSignatureRecipientPosition(
     docId,
@@ -70,13 +74,15 @@ export async function updateSignatureDocumentFields(
 /** Best-effort sync of signature field position onto existing recipients. */
 export async function syncSignatureRecipientPosition(
   docId: string,
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
 ): Promise<boolean> {
   const { data: recipients, error: readError } = await supabase
     .from("signature_recipients")
     .select("id, sign_order")
     .eq("document_id", docId);
-  if (readError) throw readError;
+  if (readError) {
+    throw readError;
+  }
   let saved = false;
   for (const recipient of recipients ?? []) {
     const sigField = fields.find(
@@ -94,8 +100,12 @@ export async function syncSignatureRecipientPosition(
       })
       .eq("id", recipient.id)
       .eq("document_id", docId);
-    if (error?.message?.includes("signature_position")) return false;
-    if (error) throw error;
+    if (error?.message?.includes("signature_position")) {
+      return false;
+    }
+    if (error) {
+      throw error;
+    }
     saved = true;
   }
   return saved;

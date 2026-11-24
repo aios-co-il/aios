@@ -73,13 +73,14 @@ async function signingError(
   let message = data?.error;
   // Function errors carry the validation response in their Response context.
   const context = (error as { context?: Response } | null)?.context;
-  if (!message && context)
+  if (!message && context) {
     message = (
       await context
         .clone()
         .json()
         .catch(() => ({}))
     ).error;
+  }
   const labels: Record<string, string> = {
     document_not_signable:
       "המסמך בוטל או שאינו זמין עוד לחתימה. רענן את העמוד.",
@@ -91,10 +92,11 @@ async function signingError(
     not_found_or_already_processed:
       "הקישור כבר טופל או שאינו תקין. רענן את העמוד.",
   };
-  if (message || error)
+  if (message || error) {
     throw new Error(
       labels[message ?? ""] || message || error?.message || "הפעולה נכשלה",
     );
+  }
 }
 
 export default function SignDocument() {
@@ -120,7 +122,9 @@ export default function SignDocument() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["sign-recipient", token],
     queryFn: async () => {
-      if (!token || !UUID.test(token)) return null;
+      if (!token || !UUID.test(token)) {
+        return null;
+      }
       const response = await supabase.functions.invoke(
         "get-signature-document",
         { body: { token } },
@@ -195,7 +199,9 @@ export default function SignDocument() {
         focusable?.focus({ preventScroll: true });
         return;
       }
-      if (attempts++ < 24) window.setTimeout(tick, 50);
+      if (attempts++ < 24) {
+        window.setTimeout(tick, 50);
+      }
     };
     tick();
   }, []);
@@ -230,11 +236,15 @@ export default function SignDocument() {
 
   const goToNextFill = () => {
     const next = nextFieldToFill(myFields, fieldValues, guideFieldId);
-    if (next) goToField(next);
+    if (next) {
+      goToField(next);
+    }
   };
 
   useEffect(() => {
-    if (!recipient || initializedToken.current === token) return;
+    if (!recipient || initializedToken.current === token) {
+      return;
+    }
     initializedToken.current = token ?? null;
     guidedToken.current = null;
     setFieldValues(recipient.field_values ?? {});
@@ -246,19 +256,26 @@ export default function SignDocument() {
   }, [recipient, token]);
 
   useEffect(() => {
-    if (!recipient || !myFields.length || guidedToken.current === token) return;
+    if (!recipient || !myFields.length || guidedToken.current === token) {
+      return;
+    }
     const first = nextFieldToFill(myFields, fieldValues);
     guidedToken.current = token ?? null;
-    if (!first) return;
+    if (!first) {
+      return;
+    }
     setGuideFieldId(first.id);
     setCurrentPage(first.position.page ?? 1);
     window.setTimeout(() => scrollToField(first.id), 120);
   }, [recipient, token, myFields, fieldValues, scrollToField]);
 
   const saveSignature = () => {
-    if (!activeSignatureId || !draftSignature) return;
-    if (editingStamp && (!draftCompanyName.trim() || !draftCompanyId.trim()))
+    if (!activeSignatureId || !draftSignature) {
       return;
+    }
+    if (editingStamp && (!draftCompanyName.trim() || !draftCompanyId.trim())) {
+      return;
+    }
     const savedId = activeSignatureId;
     const nextValues = editingStamp
       ? applySignatureStamp(
@@ -272,8 +289,11 @@ export default function SignDocument() {
     setFieldValues(nextValues);
     setActiveSignatureId(null);
     const next = nextFieldToFill(myFields, nextValues, savedId);
-    if (next) goToField(next);
-    else setGuideFieldId(null);
+    if (next) {
+      goToField(next);
+    } else {
+      setGuideFieldId(null);
+    }
   };
 
   const primarySignature =
@@ -284,8 +304,9 @@ export default function SignDocument() {
 
   const signMutation = useMutation({
     mutationFn: async () => {
-      if (missingRequired.length || !primarySignature)
+      if (missingRequired.length || !primarySignature) {
         throw new Error("יש למלא את כל שדות החובה ולחתום");
+      }
       const submittedValues = { ...fieldValues };
       for (const field of myFields) {
         if (field.type === "date" && submittedValues[field.id]) {
@@ -303,7 +324,9 @@ export default function SignDocument() {
         },
       });
       await signingError(response.data, response.error);
-      if (!response.data?.ok) throw new Error("החתימה לא נשמרה. נסה שוב.");
+      if (!response.data?.ok) {
+        throw new Error("החתימה לא נשמרה. נסה שוב.");
+      }
     },
     onSuccess: () => {
       setOutcome("signed");
@@ -317,7 +340,9 @@ export default function SignDocument() {
         body: { token, action: "decline" },
       });
       await signingError(response.data, response.error);
-      if (!response.data?.ok) throw new Error("הסירוב לא נשמר. נסה שוב.");
+      if (!response.data?.ok) {
+        throw new Error("הסירוב לא נשמר. נסה שוב.");
+      }
     },
     onSuccess: () => {
       setOutcome("declined");
@@ -327,7 +352,9 @@ export default function SignDocument() {
   });
   const busy = signMutation.isPending || declineMutation.isPending;
   const trySign = () => {
-    if (fileBlocked) return;
+    if (fileBlocked) {
+      return;
+    }
     if (missingRequired.length) {
       setShowMissing(true);
       goToField(missingRequired[0]);
@@ -346,12 +373,13 @@ export default function SignDocument() {
         : null);
   const unavailable =
     doc && !["pending", "partially_signed"].includes(doc.status);
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="min-h-screen grid place-items-center" dir="rtl">
         טוען מסמך...
       </div>
     );
+  }
   if (isError || !recipient || terminal || unavailable) {
     const title = isError
       ? "שגיאה בטעינת המסמך"
@@ -459,13 +487,14 @@ export default function SignDocument() {
   );
 
   const renderField = (field: DocumentField) => {
-    if (isSignatureFieldType(field.type))
+    if (isSignatureFieldType(field.type)) {
       return renderSignature(
         field.id,
         field.position,
         isStampSignatureType(field.type),
         getFieldLabel(field.type),
       );
+    }
     const style = {
       left: `${field.position.x}%`,
       top: `${field.position.y}%`,
@@ -475,7 +504,9 @@ export default function SignDocument() {
     const fontSize = getFieldFontSizePx(field.position, docContainerHeight);
     const advance = () => {
       const next = nextFieldToFill(myFields, fieldValues, field.id);
-      if (next) goToField(next);
+      if (next) {
+        goToField(next);
+      }
     };
     const props = {
       value: fieldValues[field.id] ?? "",
@@ -494,9 +525,12 @@ export default function SignDocument() {
       onKeyDown: (
         event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
       ) => {
-        if (event.key !== "Enter") return;
-        if (field.type === "address" && !event.metaKey && !event.ctrlKey)
+        if (event.key !== "Enter") {
           return;
+        }
+        if (field.type === "address" && !event.metaKey && !event.ctrlKey) {
+          return;
+        }
         event.preventDefault();
         advance();
       },
@@ -535,7 +569,9 @@ export default function SignDocument() {
                 { ...fieldValues, [field.id]: "filled" },
                 field.id,
               );
-              if (next) goToField(next);
+              if (next) {
+                goToField(next);
+              }
             }}
           />
         ) : field.type === "address" ? (
@@ -644,14 +680,18 @@ export default function SignDocument() {
                               }))
                             }
                             onKeyDown={(event) => {
-                              if (event.key !== "Enter") return;
+                              if (event.key !== "Enter") {
+                                return;
+                              }
                               event.preventDefault();
                               const next = nextFieldToFill(
                                 myFields,
                                 fieldValues,
                                 field.id,
                               );
-                              if (next) goToField(next);
+                              if (next) {
+                                goToField(next);
+                              }
                             }}
                           />
                         )}
@@ -739,7 +779,9 @@ export default function SignDocument() {
         <Dialog
           open={activeSignatureId !== null}
           onOpenChange={(open) => {
-            if (!open) setActiveSignatureId(null);
+            if (!open) {
+              setActiveSignatureId(null);
+            }
           }}
         >
           <DialogContent

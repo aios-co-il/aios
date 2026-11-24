@@ -40,7 +40,9 @@ export default function SerpApiSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-auth?action=status`,
@@ -53,7 +55,9 @@ export default function SerpApiSettings() {
         },
       );
 
-      if (!response.ok) return { connected: false };
+      if (!response.ok) {
+        return { connected: false };
+      }
       return response.json();
     },
   });
@@ -65,7 +69,9 @@ export default function SerpApiSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const accountResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-auth?action=account`,
@@ -78,7 +84,9 @@ export default function SerpApiSettings() {
         },
       );
 
-      if (!accountResponse.ok) return null;
+      if (!accountResponse.ok) {
+        return null;
+      }
       return accountResponse.json();
     },
     enabled: status?.connected,
@@ -96,7 +104,9 @@ export default function SerpApiSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-auth?action=connect`,
@@ -111,7 +121,9 @@ export default function SerpApiSettings() {
       );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Connection failed");
+      if (!response.ok) {
+        throw new Error(data.error || "Connection failed");
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -137,7 +149,9 @@ export default function SerpApiSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serpapi-auth?action=disconnect`,
@@ -151,7 +165,9 @@ export default function SerpApiSettings() {
       );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Disconnection failed");
+      if (!response.ok) {
+        throw new Error(data.error || "Disconnection failed");
+      }
       return data;
     },
     onSuccess: () => {

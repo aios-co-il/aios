@@ -37,11 +37,13 @@ test("every cut gets a different sound: all of the set before any repeat, never 
           order.every((s) => Number.isInteger(s) && s >= 0 && s < sounds),
         ).toBe(true);
         // No two cuts in a row play the same sound.
-        for (let i = 1; i < order.length; i++)
+        for (let i = 1; i < order.length; i++) {
           expect(order[i]).not.toBe(order[i - 1]);
+        }
         // Each round of `sounds` cuts plays every sound once.
-        for (let from = 0; from + sounds <= cuts; from += sounds)
+        for (let from = 0; from + sounds <= cuts; from += sounds) {
           expect(new Set(order.slice(from, from + sounds)).size).toBe(sounds);
+        }
         // As many cuts as sounds or fewer: no sound plays twice.
         const head = order.slice(0, sounds);
         expect(new Set(head).size).toBe(head.length);
@@ -69,20 +71,22 @@ test("a film with more cuts than sounds hears each later round shifted: no cut r
       expect(plan.map((cut) => cut.sound)).toStrictEqual(
         cutSoundOrder(sounds, cuts, seed),
       );
-      for (const [cut, { pitch }] of plan.entries())
+      for (const [cut, { pitch }] of plan.entries()) {
         expect(pitch).toBe(
           ROUND_PITCH[Math.floor(cut / sounds) % ROUND_PITCH.length],
         );
+      }
       expect(plan.slice(0, sounds).every((cut) => cut.pitch === 0)).toBe(true);
       // No sound is heard twice until every pitch of every sound has played.
       const distinct = sounds * ROUND_PITCH.length;
       const heard = plan.slice(0, distinct).map((c) => `${c.sound}${c.pitch}`);
       expect(new Set(heard).size).toBe(Math.min(distinct, cuts));
       // Never the same sound twice in a row.
-      for (let i = 1; i < plan.length; i++)
+      for (let i = 1; i < plan.length; i++) {
         expect(`${plan[i].sound}${plan[i].pitch}`).not.toBe(
           `${plan[i - 1].sound}${plan[i - 1].pitch}`,
         );
+      }
     }
   }
   // The showcase's 11 cuts of six sounds: eleven different sounds, the last five shifted down.
@@ -170,8 +174,11 @@ const toneOf = (file: string) => {
   ).stdout;
   const samples = new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length >> 1);
   let crossings = 0;
-  for (let i = 1; i < samples.length; i++)
-    if (samples[i - 1] < 0 !== samples[i] < 0) crossings += 1;
+  for (let i = 1; i < samples.length; i++) {
+    if (samples[i - 1] < 0 !== samples[i] < 0) {
+      crossings += 1;
+    }
+  }
   const seconds = samples.length / 48000;
   return { hz: crossings / 2 / seconds, seconds };
 };

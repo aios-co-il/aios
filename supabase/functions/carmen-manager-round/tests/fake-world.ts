@@ -25,24 +25,24 @@ export type StoredFinding = FindingRow & {
 
 export type World = {
   now: Date;
-  findings: StoredFinding[];
-  deliveries: DeliveryRow[];
-  state: RoundStateRow[];
-  tenants: TenantRow[];
-  clients: ClientInfo[];
+  findings: Array<StoredFinding>;
+  deliveries: Array<DeliveryRow>;
+  state: Array<RoundStateRow>;
+  tenants: Array<TenantRow>;
+  clients: Array<ClientInfo>;
   /** Assignments by client id. */
-  assignments: Record<string, CampaignerAssignment[]>;
-  staff: StaffMember[];
+  assignments: Record<string, Array<CampaignerAssignment>>;
+  staff: Array<StaffMember>;
   /** Campaigner contacts by recipient key (PeopleDirectory.contacts). */
   contacts: Record<string, Contact>;
-  heartbeats: TablesInsert<"heartbeat_logs">[];
-  cardEntries: ClientCardEntryInput[];
-  sent: { phone: string; message: string }[];
-  decisions: RouteDecision[];
-  marks: MissingScope[];
+  heartbeats: Array<TablesInsert<"heartbeat_logs">>;
+  cardEntries: Array<ClientCardEntryInput>;
+  sent: Array<{ phone: string; message: string }>;
+  decisions: Array<RouteDecision>;
+  marks: Array<MissingScope>;
   /** Fingerprints the fake upsert refuses, with the outcome it reports. */
   refused: Record<string, UpsertDrop>;
-  slots: string[];
+  slots: Array<string>;
   leased: Set<string>;
   sendStatus: StaffAlertStatus;
   failOn: string | null;

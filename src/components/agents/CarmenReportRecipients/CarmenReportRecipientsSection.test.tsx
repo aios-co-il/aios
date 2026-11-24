@@ -20,9 +20,9 @@ type StaffRow = {
 
 const state = vi.hoisted(() => ({
   role: { isOwner: true, isAgencyOwner: false },
-  rows: [] as Row[],
-  staff: [] as StaffRow[],
-  clientPhones: [] as string[],
+  rows: [] as Array<Row>,
+  staff: [] as Array<StaffRow>,
+  clientPhones: [] as Array<string>,
   writeError: null as { message: string } | null,
   upserts: [] as Array<{ row: unknown; options: unknown }>,
   deletes: [] as Array<Array<[string, string]>>,

@@ -60,7 +60,9 @@ export default function Setup() {
         .select()
         .single();
 
-      if (tenantError) throw tenantError;
+      if (tenantError) {
+        throw tenantError;
+      }
 
       // Sign up the super admin user
       const { data: authData, error: signUpError } = await supabase.auth.signUp(
@@ -76,8 +78,12 @@ export default function Setup() {
         },
       );
 
-      if (signUpError) throw signUpError;
-      if (!authData.user) throw new Error("לא נוצר משתמש");
+      if (signUpError) {
+        throw signUpError;
+      }
+      if (!authData.user) {
+        throw new Error("לא נוצר משתמש");
+      }
 
       // Link user to tenant
       const { error: tenantUserError } = await supabase
@@ -88,7 +94,9 @@ export default function Setup() {
           role: "owner",
         });
 
-      if (tenantUserError) throw tenantUserError;
+      if (tenantUserError) {
+        throw tenantUserError;
+      }
 
       // Assign super_admin role
       const { error: roleError } = await supabase.from("user_roles").insert({
@@ -96,7 +104,9 @@ export default function Setup() {
         role: "super_admin",
       });
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        throw roleError;
+      }
 
       toast.success("הארגון והמשתמש נוצרו בהצלחה!");
 

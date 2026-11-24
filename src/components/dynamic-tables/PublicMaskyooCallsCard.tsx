@@ -9,7 +9,7 @@ interface Snapshot {
 }
 
 interface Props {
-  snapshots: Snapshot[];
+  snapshots: Array<Snapshot>;
   periodLabel?: string;
 }
 
@@ -24,7 +24,9 @@ const CATEGORIES: Array<{ key: "organic" | "paid"; label: string }> = [
  */
 export function PublicMaskyooCallsCard({ snapshots, periodLabel }: Props) {
   const byCat: Record<string, Snapshot> = {};
-  for (const s of snapshots || []) byCat[s.category] = s;
+  for (const s of snapshots || []) {
+    byCat[s.category] = s;
+  }
 
   return (
     <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-blue-50/40 dark:from-emerald-950/20 dark:to-blue-950/20">

@@ -5,10 +5,10 @@
 
 export interface Choice {
   label: string;
-  options: string[];
+  options: Array<string>;
 }
 
-export const STYLE_CHOICES: Record<"video" | "static", Choice[]> = {
+export const STYLE_CHOICES: Record<"video" | "static", Array<Choice>> = {
   video: [
     {
       label: "דמות",
@@ -55,7 +55,7 @@ export const STYLE_CHOICES: Record<"video" | "static", Choice[]> = {
 };
 
 /** How the film should feel, asked before it is written. */
-export const FILM_CHOICES: Choice[] = [
+export const FILM_CHOICES: Array<Choice> = [
   {
     label: "קצב",
     options: ["אנרגטי ומהיר", "רגוע ורגשי", "מצחיק וקליל"],

@@ -10,7 +10,9 @@ export function brandOf(
   brand: Partial<FilmBrand> | null | undefined,
   files: Array<StagedFile>,
 ): ManifestBrand | null {
-  if (!brand) return null;
+  if (!brand) {
+    return null;
+  }
   let logo: string | null = null;
   if (brand.logoPath) {
     logo = `logo.${extension(brand.logoPath)}`;
@@ -30,7 +32,9 @@ export function brandOf(
         .trim()
         .slice(0, 120) || null,
   };
-  if (!Object.values(out).some(Boolean)) return null;
+  if (!Object.values(out).some(Boolean)) {
+    return null;
+  }
   // A whole-sentence call to action is shown in up to three balanced lines (end-card.ts).
   return out.ctaText ? { ...out, ctaLines: ctaLines(out.ctaText) } : out;
 }

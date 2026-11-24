@@ -12,7 +12,7 @@ import {
  */
 export async function withTaskCreatorNames<
   T extends { created_by?: string | null },
->(rows: T[]): Promise<(T & { creator_name: string | null })[]> {
+>(rows: Array<T>): Promise<Array<T & { creator_name: string | null }>> {
   const creatorIds = Array.from(
     new Set(
       rows

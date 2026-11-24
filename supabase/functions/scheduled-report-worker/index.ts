@@ -77,7 +77,9 @@ Deno.serve(async (req) => {
       .is("locked_at", null)
       .select("id")
       .maybeSingle();
-    if (!claimed) continue;
+    if (!claimed) {
+      continue;
+    }
 
     const channelResults: Record<string, { ok: boolean; error?: string }> = {};
 
@@ -85,7 +87,7 @@ Deno.serve(async (req) => {
       const shareUrl = await ensureReportShare(admin, schedule, targetId);
       const clientName = schedule.clients?.name || "לקוח";
       const message = `${schedule.message?.trim() || `הדוח החדש של ${clientName} מוכן לצפייה`}\n\n📊 ${shareUrl}`;
-      const channels: string[] = schedule.channels || [];
+      const channels: Array<string> = schedule.channels || [];
 
       let whatsappSender: WhatsAppSenderDetail | undefined;
       if (channels.includes("whatsapp")) {
@@ -107,15 +109,19 @@ Deno.serve(async (req) => {
 
       if (channels.includes("email")) {
         try {
-          const recipients: string[] =
+          const recipients: Array<string> =
             schedule.email_recipients?.length > 0
               ? schedule.email_recipients
               : schedule.clients?.email
                 ? [schedule.clients.email]
                 : [];
-          if (recipients.length === 0) throw new Error("No email recipients");
+          if (recipients.length === 0) {
+            throw new Error("No email recipients");
+          }
           const resendKey = Deno.env.get("RESEND_API_KEY") || "";
-          if (!resendKey) throw new Error("RESEND_API_KEY is missing");
+          if (!resendKey) {
+            throw new Error("RESEND_API_KEY is missing");
+          }
           const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -129,7 +135,9 @@ Deno.serve(async (req) => {
               html: `<div dir="rtl" style="font-family:Arial,sans-serif"><p>${htmlEscape(schedule.message || `הדוח החדש של ${clientName} מוכן לצפייה`)}</p><p><a href="${shareUrl}">לצפייה בדוח המלא</a></p></div>`,
             }),
           });
-          if (!response.ok) throw new Error(await response.text());
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
           channelResults.email = { ok: true };
         } catch (channelError) {
           channelResults.email = {

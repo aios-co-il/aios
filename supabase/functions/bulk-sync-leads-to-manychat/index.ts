@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   // Remove all non-digit characters
   let cleaned = phone.replace(/\D/g, "");
 
@@ -28,9 +30,11 @@ function formatPhoneForManyChat(phone: string): string {
   return `972${cleaned}`;
 }
 
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   const cleaned = normalizePhone(phone);
-  if (!cleaned) return [];
+  if (!cleaned) {
+    return [];
+  }
 
   const withCountry = `972${cleaned}`;
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
@@ -53,7 +57,7 @@ async function safeJson(res: Response): Promise<any> {
 
 async function findSubscriberIdByPhone(
   apiKey: string,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     const url = `https://api.manychat.com/fb/subscriber/findBySystemField?phone=${encodeURIComponent(candidate)}`;
@@ -79,7 +83,9 @@ async function findSubscriberIdByEmail(
   apiKey: string,
   email?: string | null,
 ): Promise<string | null> {
-  if (!email) return null;
+  if (!email) {
+    return null;
+  }
   const url = `https://api.manychat.com/fb/subscriber/findBySystemField?email=${encodeURIComponent(email)}`;
   const res = await fetch(url, {
     method: "GET",
@@ -287,8 +293,9 @@ Deno.serve(async (req) => {
 
         if (waAlreadyExists) {
           subscriberId = await findSubscriberIdByPhone(apiKey, phoneCandidates);
-          if (!subscriberId)
+          if (!subscriberId) {
             subscriberId = await findSubscriberIdByEmail(apiKey, lead.email);
+          }
           if (subscriberId) {
             wasExisting = true;
           }

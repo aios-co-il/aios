@@ -5,15 +5,15 @@ import { queryRows } from "./query-rows.ts";
 /** WhatsApp groups linked to these clients (client row, team channel, Carmen). */
 export async function linkedGroupIdsFor(
   supabase: Pick<DbClient, "from">,
-  clientIds: "all" | string[],
-  tenantIds: string[],
-): Promise<string[]> {
+  clientIds: "all" | Array<string>,
+  tenantIds: Array<string>,
+): Promise<Array<string>> {
   if (clientIds !== "all" && clientIds.length === 0) {
     return [];
   }
 
   /** Narrows a query to the clients unless the scope covers all of them. */
-  const byClient = <Q extends { in(column: string, values: string[]): Q }>(
+  const byClient = <Q extends { in(column: string, values: Array<string>): Q }>(
     q: Q,
     column: string,
   ): Q => (clientIds === "all" ? q : q.in(column, clientIds));

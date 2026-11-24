@@ -61,9 +61,9 @@ export type WeeklyCampaignSection = {
   endDate: string;
   isCurrentWeek: boolean;
   /** Every campaign of the week, highest spend first. */
-  rows: WeeklyCampaignRow[];
+  rows: Array<WeeklyCampaignRow>;
   /** Campaigns by goal (sales, leads, traffic); empty goals are left out. */
-  groups: WeeklyGoalGroup[];
+  groups: Array<WeeklyGoalGroup>;
   /** Delivery and spend across goals. Results are only totalled per goal. */
   totals: { impressions: number; clicks: number; spend: number };
 };
@@ -84,11 +84,13 @@ const DAY_MS = 86_400_000;
 
 const numberFrom = (
   data: Record<string, unknown>,
-  ...keys: string[]
+  ...keys: Array<string>
 ): number => {
   for (const key of keys) {
     const value = Number(data[key]);
-    if (value) return value;
+    if (value) {
+      return value;
+    }
   }
   return 0;
 };
@@ -123,7 +125,9 @@ function utcDateString(date: Date): string {
 
 function parseDate(value: unknown): Date | null {
   const raw = typeof value === "string" ? value.slice(0, 10) : "";
-  if (!ISO_DATE.test(raw)) return null;
+  if (!ISO_DATE.test(raw)) {
+    return null;
+  }
   const date = new Date(`${raw}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -179,7 +183,7 @@ function campaignKind(
  * Sunday–Saturday; the first section may be the current partial week.
  */
 export function buildWeeklyCampaignSections(
-  records: WeeklyAdsRecord[],
+  records: Array<WeeklyAdsRecord>,
   options: {
     now?: Date;
     maxWeeks?: number;
@@ -190,7 +194,7 @@ export function buildWeeklyCampaignSections(
     /** Whether a record's report is switched off (`reportOffLookup`). */
     isReportOff?: (record: WeeklyAdsRecord) => boolean;
   } = {},
-): WeeklyCampaignSection[] {
+): Array<WeeklyCampaignSection> {
   const now = options.now ?? new Date();
   const maxWeeks = options.maxWeeks ?? 53;
   // Match crm-records' APP_TIME_ZONE so Saturday night in Israel does not remain
@@ -203,9 +207,13 @@ export function buildWeeklyCampaignSections(
   for (const record of records) {
     const source = (record._source ?? options.defaultSource) as
       WeeklyAdsSource | undefined;
-    if (!source || !ADS_SOURCES.has(source)) continue;
+    if (!source || !ADS_SOURCES.has(source)) {
+      continue;
+    }
     const data = record.data ?? {};
-    if (!shouldIncludeCampaignRow(data)) continue;
+    if (!shouldIncludeCampaignRow(data)) {
+      continue;
+    }
 
     const { campaign, campaignId } = weeklyCampaignIdentity(data);
     const rowKey = `${source}:${campaignId}`;
@@ -222,12 +230,16 @@ export function buildWeeklyCampaignSections(
     }
 
     const date = parseDate(data.date);
-    if (!date) continue;
+    if (!date) {
+      continue;
+    }
     const recordSunday = getSundayStart(date);
     const weekIndex = Math.round(
       (currentSunday.getTime() - recordSunday.getTime()) / (7 * DAY_MS),
     );
-    if (weekIndex < 0 || weekIndex >= maxWeeks) continue;
+    if (weekIndex < 0 || weekIndex >= maxWeeks) {
+      continue;
+    }
 
     const week = weeks.get(weekIndex) ?? new Map<string, WeekCampaign>();
     const row: WeekCampaign = week.get(rowKey) ?? {
@@ -338,7 +350,7 @@ export function buildWeeklyCampaignSections(
           costPerFollower: costPerFollower([campaign]),
         };
       });
-      const rows: WeeklyCampaignRow[] = applyCampaignOffRule(weekRows, {
+      const rows: Array<WeeklyCampaignRow> = applyCampaignOffRule(weekRows, {
         keyOf: (row) => row.key,
         spendOf: (row) => row.spend,
         offKeys,

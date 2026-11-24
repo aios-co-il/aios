@@ -29,7 +29,9 @@ export async function withManyChatDestinationLock<T>(
   },
 ): Promise<T> {
   const key = manyChatDestinationLockKey(destinationPhone);
-  if (!key) return fn();
+  if (!key) {
+    return fn();
+  }
 
   const ttlSeconds = opts?.ttlSeconds ?? DEFAULT_LOCK_TTL_SECONDS;
   const maxAttempts = opts?.maxAttempts ?? DEFAULT_ACQUIRE_ATTEMPTS;

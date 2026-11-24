@@ -222,13 +222,17 @@ const Sidebar = React.forwardRef<
     React.useEffect(() => clearCollapseTimer, [clearCollapseTimer]);
 
     const handlePointerEnter = React.useCallback(() => {
-      if (!hoverEnabled) return;
+      if (!hoverEnabled) {
+        return;
+      }
       clearCollapseTimer();
       setHoverOpen(true);
     }, [clearCollapseTimer, hoverEnabled, setHoverOpen]);
 
     const handlePointerLeave = React.useCallback(() => {
-      if (!hoverEnabled) return;
+      if (!hoverEnabled) {
+        return;
+      }
       clearCollapseTimer();
       // A popup opened from inside the sidebar (tenant select, dropdown menu) is
       // rendered in a portal, so the pointer leaves the sidebar while the user is

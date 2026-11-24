@@ -4,7 +4,7 @@ import {
   type ClientAssignmentStore,
   supabaseClientAssignmentStore,
 } from "./assign-clients.ts";
-import { recordingDb } from "./recording-db.test-fixture.ts";
+import { recordingDb } from "../_shared/user-admin/recording-db.test-fixture.ts";
 
 /** In-memory store: clients by tenant and the existing client_team rows. */
 function fakeStore(
@@ -121,9 +121,7 @@ Deno.test(
 
 Deno.test("the store counts only assignments active today", async () => {
   const { db, calls } = recordingDb([{ client_id: "c1" }]);
-  const store = supabaseClientAssignmentStore(
-    db as unknown as Parameters<typeof supabaseClientAssignmentStore>[0],
-  );
+  const store = supabaseClientAssignmentStore(db);
 
   await store.assignedClientIds("card", ["c1"]);
 
@@ -141,9 +139,7 @@ Deno.test(
   "the store writes a start date and lets the unique key drop duplicates",
   async () => {
     const { db, calls } = recordingDb([]);
-    const store = supabaseClientAssignmentStore(
-      db as unknown as Parameters<typeof supabaseClientAssignmentStore>[0],
-    );
+    const store = supabaseClientAssignmentStore(db);
 
     await store.insertAssignments([{ client_id: "c1", campaigner_id: "card" }]);
 

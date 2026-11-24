@@ -7,10 +7,14 @@ export async function fireGrokBotWebhook(args: {
 }): Promise<{ id: string; url: string }> {
   const url = args.url.trim();
   const key = args.key.trim();
-  if (!url || !key) throw new Error("Grok Bot webhook is not configured.");
+  if (!url || !key) {
+    throw new Error("Grok Bot webhook is not configured.");
+  }
 
   const task = args.task.trim();
-  if (!task) throw new Error("Grok Bot webhook requires a non-empty task.");
+  if (!task) {
+    throw new Error("Grok Bot webhook requires a non-empty task.");
+  }
 
   const resp = await fetch(url, {
     method: "POST",

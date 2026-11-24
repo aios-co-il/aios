@@ -22,16 +22,19 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     : {};
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST")
+  }
+  if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    if (!supabaseUrl || !serviceKey)
+    if (!supabaseUrl || !serviceKey) {
       return reply({ error: "server_not_configured" }, 503);
+    }
 
     const url = new URL(request.url);
     const automationId = url.searchParams.get("automation_id")?.trim() ?? "";
@@ -51,7 +54,9 @@ Deno.serve(async (request) => {
       .eq("active", true)
       .eq("is_flow", true)
       .maybeSingle();
-    if (!automation) return reply({ error: "automation_not_found" }, 404);
+    if (!automation) {
+      return reply({ error: "automation_not_found" }, 404);
+    }
 
     const { data: triggerStep } = await admin
       .from("automation_flow_steps")

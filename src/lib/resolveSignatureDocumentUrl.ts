@@ -13,9 +13,13 @@ const STORAGE_PATTERNS = [
 export function extractSignatureDocumentPath(
   fileUrlOrPath: string | null | undefined,
 ): string | null {
-  if (!fileUrlOrPath?.trim()) return null;
+  if (!fileUrlOrPath?.trim()) {
+    return null;
+  }
   const value = fileUrlOrPath.trim();
-  if (!value.startsWith("http")) return value;
+  if (!value.startsWith("http")) {
+    return value;
+  }
 
   for (const pattern of STORAGE_PATTERNS) {
     const match = value.match(pattern);
@@ -34,10 +38,14 @@ export function extractSignatureDocumentPath(
 export async function resolveSignatureDocumentUrl(
   fileUrlOrPath: string | null | undefined,
 ): Promise<string | null> {
-  if (!fileUrlOrPath?.trim()) return null;
+  if (!fileUrlOrPath?.trim()) {
+    return null;
+  }
   const value = fileUrlOrPath.trim();
 
-  if (value.startsWith("blob:") || value.startsWith("data:")) return value;
+  if (value.startsWith("blob:") || value.startsWith("data:")) {
+    return value;
+  }
 
   const path = extractSignatureDocumentPath(value);
   if (!path) {

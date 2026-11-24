@@ -117,9 +117,9 @@ const MIN_RATIONALE_CHARS = 30;
  * table.
  */
 function tablesToWrite(
-  tables: PlatformTable[],
+  tables: Array<PlatformTable>,
   campaign: PulseCampaignMatch | null,
-): PlatformTable[] {
+): Array<PlatformTable> {
   const sampled = campaign?.tableId;
   return sampled && tables.some((t) => t.id === sampled)
     ? tables.filter((t) => t.id === sampled)
@@ -133,8 +133,8 @@ function tablesToWrite(
  * written unless every one allows it.
  */
 function findApprovedTargetBlock(
-  tables: PlatformTable[],
-  targetTables: PlatformTable[],
+  tables: Array<PlatformTable>,
+  targetTables: Array<PlatformTable>,
   campaign: PulseCampaignMatch | null,
   input: TargetInput,
 ) {

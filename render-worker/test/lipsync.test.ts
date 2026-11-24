@@ -220,10 +220,13 @@ function fakeDb({
       return path.includes("voice") ? MP3 : PNG;
     },
     select: async (table: string, query: string) => {
-      if (!query.includes("tenant_id=eq.t1")) return [];
-      if (table === "marketing_work_items")
+      if (!query.includes("tenant_id=eq.t1")) {
+        return [];
+      }
+      if (table === "marketing_work_items") {
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return [
           {
             id: "s1",
@@ -236,23 +239,27 @@ function fakeDb({
             ...scene,
           },
         ];
+      }
       if (table === "marketing_assets") {
         if (
           query.includes("id=eq.voice-1") &&
           query.includes("type=eq.voiceover")
-        )
+        ) {
           return [{ id: "voice-1", url: voiceUrl, meta: { text: voiceText } }];
+        }
         // The clip job reads the still by id alone; the lip-sync job also checks its type.
         if (
           query.includes("id=eq.still-1") &&
           !/type=eq\.(?!video_still)/.test(query)
-        )
+        ) {
           return [{ id: "still-1", url: stillUrl, meta: {} }];
+        }
         if (
           query.includes("id=eq.clip-1") &&
           query.includes("type=eq.video_clip")
-        )
+        ) {
           return [{ id: "clip-1", url: clipUrl, meta: { aspect: "9:16" } }];
+        }
         return [];
       }
       return [];
@@ -450,8 +457,11 @@ test("the user's own picture is read from its private bucket with the worker's k
     expect([...(seen.submits[0].imageBytes ?? [])]).toStrictEqual([...PNG]);
   } finally {
     globalThis.fetch = realFetch;
-    if (project === undefined) delete process.env.SUPABASE_URL;
-    else process.env.SUPABASE_URL = project;
+    if (project === undefined) {
+      delete process.env.SUPABASE_URL;
+    } else {
+      process.env.SUPABASE_URL = project;
+    }
   }
 });
 
@@ -503,8 +513,11 @@ test("Kling lip-syncs the user's own video through a signed link of its private 
     ).rejects.toThrow(/outside the tenant folder/);
     expect(refused.seen.submits.length).toBe(0);
   } finally {
-    if (project === undefined) delete process.env.SUPABASE_URL;
-    else process.env.SUPABASE_URL = project;
+    if (project === undefined) {
+      delete process.env.SUPABASE_URL;
+    } else {
+      process.env.SUPABASE_URL = project;
+    }
   }
 });
 
@@ -689,11 +702,15 @@ test("a film with a talking scene plays its clip audio and narrates the other sc
   ];
   const db = {
     select: async (table: string, query: string) => {
-      if (table === "marketing_video_scenes") return scenes;
-      if (table === "marketing_assets" && query.startsWith("id=in."))
+      if (table === "marketing_video_scenes") {
+        return scenes;
+      }
+      if (table === "marketing_assets" && query.startsWith("id=in.")) {
         return assets;
-      if (query.includes("type=eq.narration"))
+      }
+      if (query.includes("type=eq.narration")) {
         return [{ url: "t1/c1/i1/narration.audio", meta: { text: "קריינות" } }];
+      }
       return [];
     },
   };
@@ -768,7 +785,7 @@ function relippedDb() {
   const select = db.select;
   db.select = async (table: string, query: string) => {
     if (table === "marketing_assets" && query.includes("type=eq.video_clip")) {
-      if (query.includes("id=eq.clip-1"))
+      if (query.includes("id=eq.clip-1")) {
         return [
           {
             id: "clip-1",
@@ -781,7 +798,8 @@ function relippedDb() {
             },
           },
         ];
-      if (query.includes("id=eq.motion-1"))
+      }
+      if (query.includes("id=eq.motion-1")) {
         return [
           {
             id: "motion-1",
@@ -789,6 +807,7 @@ function relippedDb() {
             meta: { aspect: "9:16" },
           },
         ];
+      }
     }
     return select(table, query);
   };

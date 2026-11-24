@@ -12,7 +12,9 @@ export function useAgencyOwnership(agencyId: string | undefined) {
   return useQuery({
     queryKey: ["agency-ownership", agencyId, user?.id],
     queryFn: async () => {
-      if (!agencyId || !user?.id) return false;
+      if (!agencyId || !user?.id) {
+        return false;
+      }
 
       const { data, error } = await supabase.rpc("user_owns_agency", {
         _user_id: user.id,

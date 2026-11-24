@@ -48,7 +48,7 @@ export type DashboardCombinedSales = DashboardStoreSales & {
  * here, so they show the same ROAS.
  */
 export function dashboardStore(
-  records: DashboardSourceRecord[],
+  records: Array<DashboardSourceRecord>,
   woo: { revenue: number; orders: number },
 ): DashboardStore | null {
   const analytics = analyticsSales(records);
@@ -190,7 +190,9 @@ function salesOverSpend(
 }
 
 /** Purchases, revenue and add-to-cart of Analytics' daily rows. */
-function analyticsSales(records: DashboardSourceRecord[]): DashboardStoreSales {
+function analyticsSales(
+  records: Array<DashboardSourceRecord>,
+): DashboardStoreSales {
   const sales = { purchases: 0, revenue: 0, addToCart: 0 };
   for (const record of records) {
     const data = record.data;

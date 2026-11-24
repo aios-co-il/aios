@@ -31,8 +31,8 @@ function fakeDb(rows: Record<string, unknown>, error: unknown = null) {
 }
 
 /** Tenant-a members, of whom only "with-access" can access client-1. */
-function fakeLookups(): PublishAccessLookups & { clientChecks: string[] } {
-  const clientChecks: string[] = [];
+function fakeLookups(): PublishAccessLookups & { clientChecks: Array<string> } {
+  const clientChecks: Array<string> = [];
   return {
     clientChecks,
     isTenantMember: (userId, tenantId) =>

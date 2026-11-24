@@ -8,8 +8,8 @@ import {
 } from "@/lib/seoKeywordRelevance";
 
 export type SeoKeywordRelevanceLists = {
-  forceRelevant: string[];
-  forceIrrelevant: string[];
+  forceRelevant: Array<string>;
+  forceIrrelevant: Array<string>;
 };
 
 const UUID_RE =
@@ -28,15 +28,21 @@ export function parseSeoKeywordRelevance(
     forceRelevant: [],
     forceIrrelevant: [],
   };
-  if (!raw || typeof raw !== "object") return empty;
+  if (!raw || typeof raw !== "object") {
+    return empty;
+  }
   const obj = raw as Record<string, unknown>;
-  const normalizeList = (v: unknown): string[] => {
-    if (!Array.isArray(v)) return [];
-    const out: string[] = [];
+  const normalizeList = (v: unknown): Array<string> => {
+    if (!Array.isArray(v)) {
+      return [];
+    }
+    const out: Array<string> = [];
     const seen = new Set<string>();
     for (const item of v) {
       const phrase = normalizeKeywordPhrase(String(item || ""));
-      if (!phrase || seen.has(phrase)) continue;
+      if (!phrase || seen.has(phrase)) {
+        continue;
+      }
       seen.add(phrase);
       out.push(String(item).trim() || phrase);
     }
@@ -64,7 +70,9 @@ export async function fetchClientSeoKeywordRelevance(
     .select("seo_keyword_relevance")
     .eq("id", clientId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return parseSeoKeywordRelevance((data as any)?.seo_keyword_relevance);
 }
 
@@ -78,7 +86,9 @@ export async function saveClientSeoKeywordRelevance(
     .from("clients")
     .update({ seo_keyword_relevance: payload } as any)
     .eq("id", clientId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   saveSeoForceRelevant(clientId, lists.forceRelevant);
   saveSeoForceIrrelevant(clientId, lists.forceIrrelevant);
 }

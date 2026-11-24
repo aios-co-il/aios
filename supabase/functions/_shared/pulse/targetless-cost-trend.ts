@@ -6,7 +6,7 @@ export type TargetlessVerdict = {
   level: "exception" | "watch" | null;
   reason: string | null;
   alertEligible: boolean;
-  blockedBy: string[];
+  blockedBy: Array<string>;
 };
 
 /**
@@ -84,9 +84,9 @@ function blockers(input: {
   baselineDays: number;
   rules: PulseCostRules;
   threshold: number;
-}): string[] {
+}): Array<string> {
   const { rules, threshold } = input;
-  const blockedBy: string[] = [];
+  const blockedBy: Array<string> = [];
   // Engagement campaigns have no CPL/CPA/ROAS, so they never become exceptions here.
   if (
     input.metric !== "cpl" &&
@@ -111,8 +111,8 @@ function blockers(input: {
 }
 
 /** " (why it does not alert)" for a watch reason, or "" when only the trend is short. */
-function watchNote(blockedBy: string[], rules: PulseCostRules): string {
-  const notes: string[] = [];
+function watchNote(blockedBy: Array<string>, rules: PulseCostRules): string {
+  const notes: Array<string> = [];
   if (blockedBy.includes("min_spend")) {
     notes.push(`הוצאה מתחת ל־${formatAmount(rules.min_spend_7d)} ב־7 ימים`);
   }

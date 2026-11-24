@@ -27,8 +27,12 @@ async function invoke(functionName: string, body: Record<string, unknown>) {
     method: "POST",
     body,
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(String(data.error));
+  if (error) {
+    throw error;
+  }
+  if (data?.error) {
+    throw new Error(String(data.error));
+  }
 }
 
 /**
@@ -61,7 +65,9 @@ export async function syncReportTable(
         if (isSeoReportSource(settings.data_source)) {
           const clientId =
             settings.clientId || settings.client_id || table.client_id;
-          if (!clientId) throw new Error("Missing client ID for SEO report");
+          if (!clientId) {
+            throw new Error("Missing client ID for SEO report");
+          }
           await invoke("fetch-ahrefs-snapshot", {
             clientId,
             domain: settings.targetDomain || settings.target || settings.domain,
@@ -101,10 +107,10 @@ export async function syncReportTable(
 }
 
 export async function syncReportTables(
-  tables: SyncableReportTable[],
+  tables: Array<SyncableReportTable>,
   concurrency = 2,
-): Promise<ReportSyncResult[]> {
-  const results: ReportSyncResult[] = new Array(tables.length);
+): Promise<Array<ReportSyncResult>> {
+  const results: Array<ReportSyncResult> = new Array(tables.length);
   let cursor = 0;
   const workers = Array.from(
     { length: Math.min(Math.max(concurrency, 1), Math.max(tables.length, 1)) },

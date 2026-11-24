@@ -35,15 +35,19 @@ function cleanForSpeech(raw: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const { tenant_id, to, text, voice } = await req.json();
-    if (!tenant_id || !to || !text)
+    if (!tenant_id || !to || !text) {
       return json({ error: "tenant_id, to and text are required" }, 400);
+    }
     const clean = cleanForSpeech(String(text));
-    if (!clean) return json({ error: "empty text" }, 400);
+    if (!clean) {
+      return json({ error: "empty text" }, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -63,18 +67,21 @@ Deno.serve(async (req) => {
     const apiKey = integ?.api_key;
     const settings = (integ?.settings as Record<string, unknown>) || {};
     const instanceId = settings.instance_id;
-    if (!apiKey || !instanceId)
+    if (!apiKey || !instanceId) {
       return json(
         { error: "Manus WhatsApp not configured for this tenant" },
         400,
       );
+    }
 
     // TTS → ogg/opus (WhatsApp voice format)
     const audio = await aiSpeak(clean, {
       voice: (voice as string) || "shimmer",
       format: "opus",
     });
-    if (!audio) return json({ error: "TTS failed" }, 502);
+    if (!audio) {
+      return json({ error: "TTS failed" }, 502);
+    }
 
     await supabase.storage
       .createBucket("wa-voice", { public: true })
@@ -84,8 +91,9 @@ Deno.serve(async (req) => {
       contentType: "audio/ogg",
       upsert: true,
     });
-    if (up.error)
+    if (up.error) {
       return json({ error: `upload failed: ${up.error.message}` }, 500);
+    }
     const fileUrl = supabase.storage.from("wa-voice").getPublicUrl(path)
       .data.publicUrl;
 

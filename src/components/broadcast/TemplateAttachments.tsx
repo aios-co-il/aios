@@ -14,8 +14,8 @@ export function TemplateAttachments({
   setAttachments,
 }: {
   tenantId: string | null | undefined;
-  attachments: EmailAttachment[];
-  setAttachments: Dispatch<SetStateAction<EmailAttachment[]>>;
+  attachments: Array<EmailAttachment>;
+  setAttachments: Dispatch<SetStateAction<Array<EmailAttachment>>>;
 }) {
   const upload = useUploadAttachments(tenantId, (added) =>
     setAttachments((prev) => [...prev, ...added]),
@@ -33,7 +33,9 @@ export function TemplateAttachments({
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
-            if (!files.length) return;
+            if (!files.length) {
+              return;
+            }
             upload.mutate({
               files,
               currentTotal: attachments.reduce(

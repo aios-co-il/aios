@@ -22,20 +22,23 @@ import { getProduction, type VideoProduction } from "./videoProduction";
 
 const ID_CHUNK = 100;
 
-function chunks<T>(values: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let index = 0; index < values.length; index += size)
+function chunks<T>(values: Array<T>, size: number): Array<Array<T>> {
+  const out: Array<Array<T>> = [];
+  for (let index = 0; index < values.length; index += size) {
     out.push(values.slice(index, index + size));
+  }
   return out;
 }
 
 /** Storyboards of the given video projects, keyed by work item id, read from marketing_video_scenes. */
 export async function fetchVideoStoryboards(
   tenantId: string,
-  itemIds: string[],
-): Promise<Record<string, StoryboardFrame[]>> {
-  if (itemIds.length === 0) return {};
-  const rows: VideoSceneRecord[] = [];
+  itemIds: Array<string>,
+): Promise<Record<string, Array<StoryboardFrame>>> {
+  if (itemIds.length === 0) {
+    return {};
+  }
+  const rows: Array<VideoSceneRecord> = [];
   for (const ids of chunks(itemIds, ID_CHUNK)) {
     const { data, error } = await supabase
       .from("marketing_video_scenes")
@@ -43,8 +46,10 @@ export async function fetchVideoStoryboards(
       .eq("tenant_id", tenantId)
       .in("item_id", ids)
       .order("position");
-    if (error) throw error;
-    rows.push(...((data ?? []) as VideoSceneRecord[]));
+    if (error) {
+      throw error;
+    }
+    rows.push(...((data ?? []) as Array<VideoSceneRecord>));
   }
 
   const stillIds = [
@@ -65,14 +70,19 @@ export async function fetchVideoStoryboards(
       .select("id,url,meta")
       .eq("tenant_id", tenantId)
       .in("id", ids);
-    if (error) throw error;
-    for (const still of (data ?? []) as SceneStillRecord[])
+    if (error) {
+      throw error;
+    }
+    for (const still of (data ?? []) as Array<SceneStillRecord>) {
       stills.set(still.id, still);
+    }
   }
 
-  const byItem: Record<string, VideoSceneRecord[]> = {};
-  for (const row of rows) (byItem[row.item_id] ??= []).push(row);
-  const storyboards: Record<string, StoryboardFrame[]> = {};
+  const byItem: Record<string, Array<VideoSceneRecord>> = {};
+  for (const row of rows) {
+    (byItem[row.item_id] ??= []).push(row);
+  }
+  const storyboards: Record<string, Array<StoryboardFrame>> = {};
   for (const itemId of itemIds) {
     storyboards[itemId] = layoutStoryboardRtl(
       scenesToFrames(byItem[itemId] ?? [], stills, storyboardFrameX),
@@ -95,7 +105,7 @@ export async function saveVideoStoryboard({
 }: {
   tenantId: string;
   itemId: string;
-  frames: StoryboardFrame[];
+  frames: Array<StoryboardFrame>;
   persistedStills: Map<string, string | undefined>;
 }) {
   const { error } = await supabase.rpc("save_video_storyboard", {
@@ -103,27 +113,33 @@ export async function saveVideoStoryboard({
     p_scenes: framesToScenes(frames) as unknown as Json,
   });
   // The scenes of a film being produced stay as they are; the toast says why.
-  if (error)
+  if (error) {
     throw isFilmInProduction(error)
       ? new Error(filmInProductionMessage("את הסטוריבורד"))
       : error;
+  }
 
-  for (const still of stillsToAttach(persistedStills, frames))
+  for (const still of stillsToAttach(persistedStills, frames)) {
     await attachSceneStill(still);
+  }
 
   const removed = removedSceneIds(persistedStills.keys(), frames);
-  if (removed.length === 0) return;
+  if (removed.length === 0) {
+    return;
+  }
   const { error: deleteError } = await supabase
     .from("marketing_video_scenes")
     .delete()
     .eq("tenant_id", tenantId)
     .eq("item_id", itemId)
     .in("id", removed);
-  if (deleteError) throw deleteError;
+  if (deleteError) {
+    throw deleteError;
+  }
 }
 
 /** What the scene table holds after a save of these frames. */
-export const persistedStillsOf = (frames: StoryboardFrame[]) =>
+export const persistedStillsOf = (frames: Array<StoryboardFrame>) =>
   new Map(frames.map((frame) => [frame.id, frame.imageUrl] as const));
 
 /** Records a new still version for a scene and makes it the scene's current still. */
@@ -145,21 +161,25 @@ export async function attachSceneStill({
       ...(cost ? { generation_cost: cost } : {}),
     } as unknown as Json,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
 /** All still versions of a scene, newest first. */
 export async function fetchSceneStillVersions(
   tenantId: string,
   sceneId: string,
-): Promise<{ id: string; url: string; version: number }[]> {
+): Promise<Array<{ id: string; url: string; version: number }>> {
   const { data, error } = await supabase
     .from("marketing_assets")
     .select("id,url,meta")
     .eq("tenant_id", tenantId)
     .eq("type", "video_still")
     .eq("meta->>scene_id", sceneId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data ?? [])
     .filter((row): row is typeof row & { url: string } => !!row.url)
     .map((row) => {
@@ -180,7 +200,9 @@ export async function selectSceneStill(
     .update({ still_asset_id: assetId, status: "still_ready" })
     .eq("tenant_id", tenantId)
     .eq("id", sceneId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
 /** Approves (or un-approves) the scene's current still. */
@@ -194,7 +216,9 @@ export async function approveSceneStill(
     .update({ status: approved ? "still_approved" : "still_ready" })
     .eq("tenant_id", tenantId)
     .eq("id", sceneId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
 /** Uploads a reference video, records it as an asset and queues its analysis for the worker. */
@@ -220,7 +244,9 @@ export async function queueReferenceAnalysis({
   const { error: uploadError } = await supabase.storage
     .from(CREATIVE_VIDEO_BUCKET)
     .upload(path, file, { contentType: file.type || "video/mp4" });
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    throw uploadError;
+  }
   const { data: asset, error: assetError } = await supabase
     .from("marketing_assets")
     .insert({
@@ -239,7 +265,9 @@ export async function queueReferenceAnalysis({
     })
     .select("id")
     .single();
-  if (assetError) throw assetError;
+  if (assetError) {
+    throw assetError;
+  }
   const { error: runError } = await supabase.from("marketing_runs").insert({
     tenant_id: tenantId,
     item_id: itemId,
@@ -248,7 +276,9 @@ export async function queueReferenceAnalysis({
     status: "queued",
     input: { bucket: CREATIVE_VIDEO_BUCKET, path, asset_id: asset.id },
   });
-  if (runError) throw runError;
+  if (runError) {
+    throw runError;
+  }
 }
 
 /** Latest reference analysis run of a project. */
@@ -265,19 +295,25 @@ export async function fetchLatestReferenceRun(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data as ReferenceRun | null) ?? null;
 }
 
 /** Short-lived URLs for files in the private creative-video bucket. */
 export async function signCreativeVideoPaths(
-  paths: string[],
+  paths: Array<string>,
 ): Promise<Record<string, string>> {
-  if (paths.length === 0) return {};
+  if (paths.length === 0) {
+    return {};
+  }
   const { data, error } = await supabase.storage
     .from(CREATIVE_VIDEO_BUCKET)
     .createSignedUrls(paths, 3600);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return Object.fromEntries(
     (data ?? [])
       .filter((row) => row.path && row.signedUrl)
@@ -297,7 +333,7 @@ export async function queueSceneClips({
 }: {
   itemId: string;
   stageId: string;
-  sceneIds: string[];
+  sceneIds: Array<string>;
   aspect: string;
   estimate: { usd: number; credits: number };
   provider: string;
@@ -312,7 +348,9 @@ export async function queueSceneClips({
     p_provider: provider,
     p_generate_audio: generateAudio,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data ?? []).length;
 }
 
@@ -329,7 +367,7 @@ export async function queueSceneSound({
   itemId: string;
   stageId: string;
   kind: "voice" | "music";
-  sceneIds: string[];
+  sceneIds: Array<string>;
   estimate: { usd: number; credits: number };
   prompt?: string;
   voiceId?: string | null;
@@ -344,7 +382,9 @@ export async function queueSceneSound({
     p_prompt: prompt,
     p_voice_id: voiceId ?? undefined,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data ?? []).length;
 }
 
@@ -370,7 +410,9 @@ export async function fetchLatestRenderRun(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data as RenderRun | null) ?? null;
 }
 
@@ -389,7 +431,9 @@ export async function queueVideoRender({
     p_aspect: aspect,
     p_stage_id: stageId,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data ?? []).length;
 }
 
@@ -404,7 +448,9 @@ export async function approveSceneClip(
     .update({ status: approved ? "clip_approved" : "clip_ready" })
     .eq("tenant_id", tenantId)
     .eq("id", sceneId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
 /** One click: queues every clip, voice and music the film still needs, then assembles it. */
@@ -444,7 +490,9 @@ export async function produceVideo({
       generate_audio: generateAudio,
     },
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data as {
     status: string;
     clips: number;
@@ -472,8 +520,12 @@ export async function fetchVideoProduction(
       .eq("item_id", itemId)
       .eq("type", "music"),
   ]);
-  if (item.error) throw item.error;
-  if (music.error) throw music.error;
+  if (item.error) {
+    throw item.error;
+  }
+  if (music.error) {
+    throw music.error;
+  }
   return {
     production: getProduction(
       (item.data?.payload ?? null) as Record<string, unknown> | null,

@@ -11,7 +11,7 @@ export interface LeadJsonIntakeField {
  */
 export function getLeadJsonIntakeFields(
   tenantSlug: string,
-): LeadJsonIntakeField[] {
+): Array<LeadJsonIntakeField> {
   return [
     {
       key: "tenant_slug",

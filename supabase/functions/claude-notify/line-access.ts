@@ -14,9 +14,9 @@ export type LineAccessInput = {
   /** automation_id → who its send goes out as: its latest session's connection user, else the bridge session's. */
   senderUserIds?: Record<string, string | null | undefined>;
   /** Lines of other tenants that are shared with this tenant. */
-  sharedLineIds?: string[];
+  sharedLineIds?: Array<string>;
   /** The possible senders who are super admins. */
-  superAdminUserIds?: string[];
+  superAdminUserIds?: Array<string>;
 };
 
 /**

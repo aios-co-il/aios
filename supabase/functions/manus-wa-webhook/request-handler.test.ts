@@ -2,7 +2,9 @@ import { assertSpyCalls, spy } from "jsr:@std/testing@1/mock";
 import { createWebhookHandler } from "./request-handler.ts";
 
 function assert(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+  if (!condition) {
+    throw new Error(message);
+  }
 }
 
 for (const variant of ["body", "header", "query"]) {

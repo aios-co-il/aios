@@ -47,9 +47,9 @@ function ctx(
  * answers nothing (markers decide) and each history read is recorded.
  */
 function sources(
-  histories: GroupHistory[],
-  entries: CardEntry[] = [],
-  drafts: LiveDraft[] = [],
+  histories: Array<GroupHistory>,
+  entries: Array<CardEntry> = [],
+  drafts: Array<LiveDraft> = [],
 ) {
   const asked: Array<{ since: Date; lines: GroupLines }> = [];
   const fake: GroupUpdateSources = {
@@ -196,8 +196,8 @@ const migration = new URL(
 );
 
 /** This folder's source files, tests excluded. */
-async function sourceFiles(): Promise<[string, string][]> {
-  const files: [string, string][] = [];
+async function sourceFiles(): Promise<Array<[string, string]>> {
+  const files: Array<[string, string]> = [];
   for await (const file of Deno.readDir(folder)) {
     if (file.name.endsWith(".ts") && !file.name.endsWith(".test.ts")) {
       files.push([

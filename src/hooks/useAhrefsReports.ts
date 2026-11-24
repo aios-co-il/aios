@@ -28,7 +28,7 @@ interface UseAhrefsReportsOptions {
    * pass the full set of accessible tenant IDs (from useSeoScope) so reports
    * created in a different tenant aren't filtered out. RLS still applies.
    */
-  tenantIds?: string[];
+  tenantIds?: Array<string>;
 }
 
 export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
@@ -62,7 +62,9 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
           .select("*")
           .order("received_at", { ascending: false })
           .limit(limit);
-        if (reportType) q = q.eq("report_type", reportType);
+        if (reportType) {
+          q = q.eq("report_type", reportType);
+        }
         return q;
       };
 
@@ -80,10 +82,12 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
       if (clientId) {
         const { data, error } = await baseQuery().eq("client_id", clientId);
         if (error) {
-          if (error.code === "42P01") return [];
+          if (error.code === "42P01") {
+            return [];
+          }
           throw error;
         }
-        const rows = (data || []) as unknown as AhrefsReport[];
+        const rows = (data || []) as unknown as Array<AhrefsReport>;
         if (rows.length > 0) {
           return domain ? filterSeoReportsByDomain(rows, domain) : rows;
         }
@@ -96,11 +100,13 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
             baseQuery(),
           ).ilike("domain", `%${normalized}%`);
           if (domainError) {
-            if (domainError.code === "42P01") return [];
+            if (domainError.code === "42P01") {
+              return [];
+            }
             throw domainError;
           }
           return filterSeoReportsByDomain(
-            (domainRows || []) as unknown as AhrefsReport[],
+            (domainRows || []) as unknown as Array<AhrefsReport>,
             normalized,
           );
         }
@@ -108,16 +114,20 @@ export function useAhrefsReports(options: UseAhrefsReportsOptions = {}) {
       }
 
       let query = scopeByTenants(baseQuery());
-      if (domain) query = query.eq("domain", domain);
+      if (domain) {
+        query = query.eq("domain", domain);
+      }
 
       const { data, error } = await query;
       if (error) {
-        if (error.code === "42P01") return [];
+        if (error.code === "42P01") {
+          return [];
+        }
         throw error;
       }
-      return (data || []) as unknown as AhrefsReport[];
+      return (data || []) as unknown as Array<AhrefsReport>;
     },
     enabled,
-    ...reportQueryOptions<AhrefsReport[]>(),
+    ...reportQueryOptions<Array<AhrefsReport>>(),
   });
 }

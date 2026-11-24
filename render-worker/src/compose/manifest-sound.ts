@@ -50,19 +50,25 @@ export function setClipVolumes(
   framed: Array<FramedWord>,
   spans: Array<Span>,
 ) {
-  for (const word of framed) spans.push([word.startFrame, word.endFrame]);
+  for (const word of framed) {
+    spans.push([word.startFrame, word.endFrame]);
+  }
   const speech = speechSpans(spans);
   const clipAudio = timeline.clipAudio !== false;
   for (const [order, scene] of scenes.entries()) {
     const end = scene.startFrame + scene.frameCount;
     // A lip-synced clip carries the speech itself; any other clip sits under the narration.
-    if (!scene.clip || !scene.hasAudio || picked[order].scene.muteClip)
+    if (!scene.clip || !scene.hasAudio || picked[order].scene.muteClip) {
       scene.clipVolume = 0;
-    else if (scene.lipsync) scene.clipVolume = 1;
-    else if (!clipAudio) scene.clipVolume = 0;
-    else if (speaks(speech, scene.startFrame, end))
+    } else if (scene.lipsync) {
+      scene.clipVolume = 1;
+    } else if (!clipAudio) {
+      scene.clipVolume = 0;
+    } else if (speaks(speech, scene.startFrame, end)) {
       scene.clipVolume = MIX.clipUnderSpeech;
-    else scene.clipVolume = MIX.clipSolo;
+    } else {
+      scene.clipVolume = MIX.clipSolo;
+    }
   }
   return { speech, clipAudio };
 }
@@ -82,10 +88,11 @@ export function stageMusic(
     // A track shorter than the film is looped, so the film never ends in silence.
     const musicFrames = Math.floor(seconds(timeline.musicDurationS) * fps);
     const bodyFrames = Math.floor(seconds(timeline.musicBodyS) * fps);
-    if (musicFrames)
+    if (musicFrames) {
       loops = musicLoops(musicFrames, totalFrames, {
         bodyFrames: bodyFrames || musicFrames,
       });
+    }
   }
   return { music, loops };
 }
@@ -110,18 +117,21 @@ export function stageEffects(
 ) {
   const fx = timeline.effects;
   const stage = (path: string | null, name: string) => {
-    if (!path) return null;
+    if (!path) {
+      return null;
+    }
     const to = `${name}.${extension(path)}`;
     files.push({ from: path, to });
     return to;
   };
   const staged = new Map<string, CutCue>();
   const cutSounds = (fx?.cuts ?? []).slice(0, scenes.length - 1).map((cut) => {
-    if (!staged.has(cut.path))
+    if (!staged.has(cut.path)) {
       staged.set(cut.path, {
         file: stage(cut.path, `sfx-cut-${staged.size}`),
         frames: Math.ceil(seconds(cut.durationS) * fps),
       });
+    }
     return staged.get(cut.path);
   });
   const impact = fx ? stage(fx.impactPath, "sfx-impact") : null;

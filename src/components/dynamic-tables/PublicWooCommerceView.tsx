@@ -10,8 +10,8 @@ import {
 import { filterWooOrdersForRevenue } from "@/lib/wooOrderRevenue";
 
 interface PublicWooCommerceViewProps {
-  sites: any[];
-  orders: any[];
+  sites: Array<any>;
+  orders: Array<any>;
 }
 
 const formatCurrency = (n: number) =>

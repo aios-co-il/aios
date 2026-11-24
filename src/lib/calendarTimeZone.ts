@@ -157,8 +157,9 @@ export function getJerusalemDashboardDateRange(
       };
     }
     case "custom":
-      if (customStart && customEnd)
+      if (customStart && customEnd) {
         return { startDate: customStart, endDate: customEnd };
+      }
       return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };
     default:
       return { startDate: shiftYmd(today, -30), endDate: shiftYmd(today, -1) };

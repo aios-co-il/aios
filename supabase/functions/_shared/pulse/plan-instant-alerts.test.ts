@@ -34,7 +34,7 @@ function exception(
  * client c1 is of agency a1.
  */
 function plan(
-  candidates: PulseInstantAlertCandidate[],
+  candidates: Array<PulseInstantAlertCandidate>,
   supabase = fakeSupabase(),
 ) {
   return planInstantAlerts(

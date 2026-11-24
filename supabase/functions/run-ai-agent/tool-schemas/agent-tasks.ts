@@ -15,16 +15,18 @@ export const agentTasksTools = [
         schedule_type: {
           type: "string",
           enum: ["once", "daily", "weekly"],
-          description: "סוג תזמון",
+          description:
+            "סוג תזמון. daily ו-weekly רצות בכל יום או שבוע באותה שעה בשעון ישראל, לפי scheduled_at",
         },
         scheduled_at: {
           type: "string",
           description:
-            "תאריך ושעה לביצוע ב-ISO UTC (לדוגמה 2026-06-20T18:30:00Z עבור 21:30 שעון ישראל)",
+            "תאריך ושעה לביצוע ב-ISO UTC (לדוגמה 2026-06-20T18:30:00Z עבור 21:30 שעון ישראל). במשימה חוזרת זו הריצה הראשונה: השעה, וב-weekly גם היום בשבוע, נלקחים ממנה",
         },
         cron_expression: {
           type: "string",
-          description: "ביטוי CRON למשימות חוזרות",
+          description:
+            "ביטוי CRON בשעון ישראל למשימה חוזרת בלי scheduled_at (לדוגמה 0 16 * * 5 עבור יום שישי ב-16:00)",
         },
         task_skills: {
           type: "array",

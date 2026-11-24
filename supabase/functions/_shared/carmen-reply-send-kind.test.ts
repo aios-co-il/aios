@@ -5,7 +5,7 @@ import { sendCarmenReplyViaActionStep } from "./carmen.ts";
 type SentCall = { url: string; body: Record<string, unknown> };
 
 /** A PostgREST stand-in: the automation's send steps, and the group row. */
-function stubSupabase(stepRows: unknown[], group: unknown = null) {
+function stubSupabase(stepRows: Array<unknown>, group: unknown = null) {
   const builder = {
     select: () => builder,
     eq: () => builder,
@@ -28,10 +28,10 @@ function defineGlobal(name: string, value: unknown) {
 }
 
 /** Runs `run` with Deno.env and fetch stubbed, recording each send. */
-function withStubbedRuntime(run: (calls: SentCall[]) => Promise<void>) {
+function withStubbedRuntime(run: (calls: Array<SentCall>) => Promise<void>) {
   const originalDeno = globalThis.Deno;
   const originalFetch = globalThis.fetch;
-  const calls: SentCall[] = [];
+  const calls: Array<SentCall> = [];
   defineGlobal("Deno", {
     env: {
       get: (key: string) =>

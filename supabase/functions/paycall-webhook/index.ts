@@ -57,11 +57,18 @@ Deno.serve(async (req) => {
     if (existingLog) {
       // Update existing call log
       const updateData: Record<string, unknown> = {};
-      if (status) updateData.status = status;
-      if (duration !== undefined) updateData.duration = duration;
-      if (recording_url) updateData.recording_url = recording_url;
-      if (recording_duration !== undefined)
+      if (status) {
+        updateData.status = status;
+      }
+      if (duration !== undefined) {
+        updateData.duration = duration;
+      }
+      if (recording_url) {
+        updateData.recording_url = recording_url;
+      }
+      if (recording_duration !== undefined) {
         updateData.recording_duration = recording_duration;
+      }
 
       await supabase
         .from("call_logs")

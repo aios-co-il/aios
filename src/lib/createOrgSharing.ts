@@ -13,11 +13,11 @@ export interface ShareableResource {
 }
 
 export interface CreateOrgShareSelection {
-  integration_ids: string[];
-  social_page_ids: string[];
-  wordpress_site_ids: string[];
-  crm_table_ids: string[];
-  automation_ids: string[];
+  integration_ids: Array<string>;
+  social_page_ids: Array<string>;
+  wordpress_site_ids: Array<string>;
+  crm_table_ids: Array<string>;
+  automation_ids: Array<string>;
 }
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -46,13 +46,21 @@ function automationReferencesClient(
   configuration: unknown,
   clientId: string,
 ): boolean {
-  if (!configuration || typeof configuration !== "object") return false;
+  if (!configuration || typeof configuration !== "object") {
+    return false;
+  }
   const cfg = configuration as Record<string, unknown>;
-  if (cfg.client_id === clientId) return true;
+  if (cfg.client_id === clientId) {
+    return true;
+  }
   const steps = cfg.steps ?? cfg.nodes;
-  if (!Array.isArray(steps)) return false;
+  if (!Array.isArray(steps)) {
+    return false;
+  }
   return steps.some((step) => {
-    if (!step || typeof step !== "object") return false;
+    if (!step || typeof step !== "object") {
+      return false;
+    }
     const conf = (step as { configuration?: Record<string, unknown> })
       .configuration;
     return conf?.client_id === clientId;
@@ -66,25 +74,37 @@ function integrationTypesForClient(
   for (const channel of CLIENT_CHANNELS) {
     for (const table of channel.tables) {
       const fieldValue = client[table.requiresField];
-      if (fieldValue) types.add(table.integrationType);
+      if (fieldValue) {
+        types.add(table.integrationType);
+      }
     }
-    if (channel.showFacebookPages) types.add("facebook_lead_ads");
+    if (channel.showFacebookPages) {
+      types.add("facebook_lead_ads");
+    }
   }
   if (client.meta_ads_account_id) {
     types.add("facebook_lead_ads");
     types.add("facebook_insights");
   }
-  if (client.google_ads_account_id) types.add("google_ads");
-  if (client.ga_property_id) types.add("google_analytics");
-  if (client.gsc_site_url) types.add("google_search_console");
-  if (client.ahrefs_domain) types.add("ahrefs");
+  if (client.google_ads_account_id) {
+    types.add("google_ads");
+  }
+  if (client.ga_property_id) {
+    types.add("google_analytics");
+  }
+  if (client.gsc_site_url) {
+    types.add("google_search_console");
+  }
+  if (client.ahrefs_domain) {
+    types.add("ahrefs");
+  }
   return types;
 }
 
 export async function loadShareableResourcesForClient(
   clientId: string,
   tenantId: string,
-): Promise<ShareableResource[]> {
+): Promise<Array<ShareableResource>> {
   const { data: client, error: clientErr } = await supabase
     .from("clients")
     .select(
@@ -93,7 +113,9 @@ export async function loadShareableResourcesForClient(
     .eq("id", clientId)
     .maybeSingle();
 
-  if (clientErr || !client) throw clientErr || new Error("Client not found");
+  if (clientErr || !client) {
+    throw clientErr || new Error("Client not found");
+  }
 
   const clientTypes = integrationTypesForClient(
     client as Record<string, unknown>,
@@ -156,17 +178,23 @@ export async function loadShareableResourcesForClient(
     const related =
       automationReferencesClient(aut.configuration, clientId) ||
       flowSteps.some((step) => step.client_id === clientId);
-    if (related) clientAutomationIds.add(aut.id);
+    if (related) {
+      clientAutomationIds.add(aut.id);
+    }
   }
 
   for (const aut of automationsRes.data || []) {
-    if (!clientAutomationIds.has(aut.id)) continue;
+    if (!clientAutomationIds.has(aut.id)) {
+      continue;
+    }
     const cfg = (aut.configuration || {}) as Record<string, unknown>;
-    if (typeof cfg.integration_id === "string")
+    if (typeof cfg.integration_id === "string") {
       clientIntegrationIds.add(cfg.integration_id);
+    }
     for (const step of flowStepsByAutomation.get(aut.id) || []) {
-      if (typeof step.integration_id === "string")
+      if (typeof step.integration_id === "string") {
         clientIntegrationIds.add(step.integration_id);
+      }
     }
   }
 
@@ -176,10 +204,12 @@ export async function loadShareableResourcesForClient(
       .map((t) => t.integration_type as string),
   );
 
-  const resources: ShareableResource[] = [];
+  const resources: Array<ShareableResource> = [];
 
   for (const integ of integrationsRes.data || []) {
-    if (integ.integration_type === "llm") continue;
+    if (integ.integration_type === "llm") {
+      continue;
+    }
     const clientRelated =
       clientTypes.has(integ.integration_type) ||
       clientTableTypes.has(integ.integration_type) ||
@@ -237,7 +267,7 @@ export async function loadShareableResourcesForClient(
 }
 
 export function defaultSelectionFromResources(
-  resources: ShareableResource[],
+  resources: Array<ShareableResource>,
 ): CreateOrgShareSelection {
   const pick = (kind: ShareableResourceKind) =>
     resources

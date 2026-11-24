@@ -17,8 +17,8 @@ export type Call = {
 export function recordingClient(
   respond: (call: Call) => unknown = () => [],
   options: { count?: number; status?: number } = {},
-): { db: DbClient; calls: Call[] } {
-  const calls: Call[] = [];
+): { db: DbClient; calls: Array<Call> } {
+  const calls: Array<Call> = [];
   const fetchImpl: typeof fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     const call: Call = {

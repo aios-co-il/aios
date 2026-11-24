@@ -28,7 +28,9 @@ export function normalizeCarmenChatId(
   raw: string | null | undefined,
 ): string | null {
   const v = String(raw || "").trim();
-  if (!v) return null;
+  if (!v) {
+    return null;
+  }
   const lower = v.toLowerCase();
   if (
     lower.includes("@g.us") ||
@@ -38,7 +40,9 @@ export function normalizeCarmenChatId(
     return v;
   }
   const digits = v.replace(/\D/g, "");
-  if (digits.length >= 8) return `${digits}@c.us`;
+  if (digits.length >= 8) {
+    return `${digits}@c.us`;
+  }
   return null;
 }
 
@@ -57,7 +61,9 @@ export function replyDestinationIsConsistent(args: {
   isGroup: boolean;
 }): boolean {
   const chatId = normalizeCarmenChatId(args.chatId);
-  if (!chatId) return false;
+  if (!chatId) {
+    return false;
+  }
   return isGroupChatId(chatId) === args.isGroup;
 }
 
@@ -96,7 +102,9 @@ export function buildWaNotifyFromOrigin(args: {
   speakerPhone?: string | null;
 }): (CarmenWaNotify & { connection_user_id: string }) | null {
   const origin = requireOriginChatId(args.chatId);
-  if (!origin.ok) return null;
+  if (!origin.ok) {
+    return null;
+  }
   return {
     surface: "whatsapp",
     tenant_id: args.tenantId,

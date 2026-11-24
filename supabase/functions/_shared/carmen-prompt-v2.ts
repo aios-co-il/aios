@@ -31,9 +31,9 @@ interface AgentConfig {
   talent?: string | null;
   system_prompt?: string | null;
   engine?: string | null;
-  allowed_tools?: string[];
-  active_modes?: string[];
-  active_skills?: string[];
+  allowed_tools?: Array<string>;
+  active_modes?: Array<string>;
+  active_skills?: Array<string>;
   writing_style?: string | null;
   response_length?: string | null;
   max_tool_rounds?: number | null;
@@ -58,7 +58,7 @@ interface CallerContext {
   callerRole?: string;
   isManagerRole?: boolean;
   isTeamManager?: boolean;
-  managedAgencyIds?: string[];
+  managedAgencyIds?: Array<string>;
 }
 
 interface MemoryContext {
@@ -73,7 +73,7 @@ interface PromptBuildContext {
   memory: MemoryContext;
   leadData?: Record<string, string>;
   taskMode?: string;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
   isWhatsApp: boolean;
   currentDate: string;
   currentTime: string;
@@ -501,7 +501,9 @@ function buildKnowledgeBaseRules(): string {
 // ─── Role-Based Access ───────────────────────────────────────────────────────
 
 function buildCallerIdentity(caller: CallerContext): string {
-  if (!caller.callerCampaignerId || !caller.callerName) return "";
+  if (!caller.callerCampaignerId || !caller.callerName) {
+    return "";
+  }
 
   const roleLabel: Record<string, string> = {
     super_admin: "סופר־אדמין",
@@ -607,7 +609,9 @@ function buildMemoryContext(memory: MemoryContext): string {
 }
 
 function buildLeadContext(leadData?: Record<string, string>): string {
-  if (!leadData) return "";
+  if (!leadData) {
+    return "";
+  }
   const parts = Object.entries(leadData)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}: ${v}`);
@@ -724,9 +728,9 @@ const SKILLS_PROMPTS: Record<string, string> = {
 
 function buildModesAndSkills(
   taskMode?: string,
-  taskSkills?: string[],
-  activeModes?: string[],
-  activeSkills?: string[],
+  taskSkills?: Array<string>,
+  activeModes?: Array<string>,
+  activeSkills?: Array<string>,
 ): string {
   let section = "";
 
@@ -780,7 +784,9 @@ export function buildWritingStyle(
       casual: "כתוב בסגנון קזואלי ונגיש.",
       empathetic: "כתוב בסגנון אמפתי ומבין.",
     };
-    if (styleMap[style]) section += `\n${styleMap[style]}`;
+    if (styleMap[style]) {
+      section += `\n${styleMap[style]}`;
+    }
   }
 
   if (length) {
@@ -788,7 +794,9 @@ export function buildWritingStyle(
       short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
       detailed: "תן תשובות מפורטות ומקיפות.",
     };
-    if (lengthMap[length]) section += `\n${lengthMap[length]}`;
+    if (lengthMap[length]) {
+      section += `\n${lengthMap[length]}`;
+    }
   }
 
   return section;
@@ -806,7 +814,7 @@ export function buildWritingStyle(
  * 4. Same behavior as V1 for all existing features — modes, skills, memory, roles
  */
 export function buildCarmenV2SystemPrompt(ctx: PromptBuildContext): string {
-  const sections: string[] = [];
+  const sections: Array<string> = [];
   const assistantName = orgAssistantName(ctx.agent);
 
   // 1. Identity

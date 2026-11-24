@@ -6,7 +6,7 @@ import type { ReportSender } from "../../../supabase/functions/_shared/report-se
 import { useReportSenderChoice } from "./useReportSenderChoice";
 
 type Backend = {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   tenantDefault: string | null;
   rpc: ReturnType<typeof vi.fn>;
 };

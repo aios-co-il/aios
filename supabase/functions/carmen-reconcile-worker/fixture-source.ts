@@ -16,7 +16,7 @@ import type {
 
 export type FixtureTable = {
   account: AccountInfo;
-  rows: CampaignDayRow[];
+  rows: Array<CampaignDayRow>;
   error?: { kind: SourceErrorKind; message: string };
 };
 

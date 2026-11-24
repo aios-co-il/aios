@@ -16,8 +16,10 @@ async function findExistingStaff(
     .from(table)
     .select("id, email, full_name, active, created_at")
     .eq("tenant_id", tenantId);
-  if (error || !data) return null;
-  return pickExistingTeamMember(data as TeamMemberCandidate[], {
+  if (error || !data) {
+    return null;
+  }
+  return pickExistingTeamMember(data as Array<TeamMemberCandidate>, {
     email,
     fullName,
   });
@@ -183,8 +185,9 @@ serve(async (req: Request) => {
               reusedExisting = true;
 
               const spPatch: Record<string, any> = {};
-              if (!existingSalesPerson.email && profile.email)
+              if (!existingSalesPerson.email && profile.email) {
                 spPatch.email = profile.email;
+              }
               if (
                 (!existingSalesPerson.full_name ||
                   existingSalesPerson.full_name === "" ||
@@ -193,7 +196,9 @@ serve(async (req: Request) => {
               ) {
                 spPatch.full_name = profile.full_name;
               }
-              if (existingSalesPerson.active === false) spPatch.active = true;
+              if (existingSalesPerson.active === false) {
+                spPatch.active = true;
+              }
               if (Object.keys(spPatch).length > 0) {
                 await supabaseAdmin
                   .from("sales_people")
@@ -304,8 +309,9 @@ serve(async (req: Request) => {
               reusedExisting = true;
 
               const cPatch: Record<string, any> = {};
-              if (!existingCampaigner.email && profile.email)
+              if (!existingCampaigner.email && profile.email) {
                 cPatch.email = profile.email;
+              }
               if (
                 (!existingCampaigner.full_name ||
                   existingCampaigner.full_name === "" ||
@@ -314,7 +320,9 @@ serve(async (req: Request) => {
               ) {
                 cPatch.full_name = profile.full_name;
               }
-              if (existingCampaigner.active === false) cPatch.active = true;
+              if (existingCampaigner.active === false) {
+                cPatch.active = true;
+              }
               if (Object.keys(cPatch).length > 0) {
                 await supabaseAdmin
                   .from("campaigners")

@@ -70,10 +70,10 @@ export function toPbxRow(form: PbxSettingsData) {
 }
 
 export function upsertExtension(
-  extensions: PbxExtension[],
+  extensions: Array<PbxExtension>,
   userId: string,
   patch: Partial<Omit<PbxExtension, "user_id">>,
-): PbxExtension[] {
+): Array<PbxExtension> {
   const current = extensions.find((e) => e.user_id === userId) || {
     user_id: userId,
     extension: "",

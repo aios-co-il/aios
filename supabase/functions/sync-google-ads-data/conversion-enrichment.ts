@@ -45,7 +45,7 @@ export type ConversionEnrichmentContext = {
  * conversions add the calls Google left out of them.
  */
 export async function enrichConversionCategories(
-  records: ConversionEnrichedRecord[],
+  records: Array<ConversionEnrichedRecord>,
   context: ConversionEnrichmentContext,
 ): Promise<void> {
   try {
@@ -83,9 +83,9 @@ export async function enrichConversionCategories(
 
 /** Set `conversion_goal` on every record whose campaign's goal is known; returns how many campaigns have one. */
 function stampConversionGoals(
-  records: ConversionEnrichedRecord[],
+  records: Array<ConversionEnrichedRecord>,
   conversionsByCampaign: Map<string, CampaignConversions>,
-  biddableByCampaign: Map<string, string[]>,
+  biddableByCampaign: Map<string, Array<string>>,
 ): number {
   const goalByCampaign = new Map<string, GoogleCampaignGoal>();
   const campaignIds = new Set([
@@ -112,7 +112,7 @@ function stampConversionGoals(
 
 /** Set `add_to_cart` on campaign-level records. */
 function stampAddToCart(
-  records: ConversionEnrichedRecord[],
+  records: Array<ConversionEnrichedRecord>,
   addToCartByCampaignDay: Map<string, number>,
 ) {
   // Only annotate when the account actually tracks add-to-cart; leaving the

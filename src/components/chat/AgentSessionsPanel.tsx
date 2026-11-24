@@ -19,7 +19,7 @@ interface CarmenSession {
   phone: string | null;
   sender_name: string | null;
   agent_id: string;
-  conversation_history: any[];
+  conversation_history: Array<any>;
   status: string;
   last_message_at: string | null;
   created_at: string;
@@ -35,7 +35,7 @@ interface UnifiedSession {
   status: string;
   lastActivity: string;
   agentName: string;
-  messages: { role: string; content: string; timestamp?: string }[];
+  messages: Array<{ role: string; content: string; timestamp?: string }>;
   raw: any;
 }
 
@@ -67,8 +67,10 @@ export default function AgentSessionsPanel() {
         .eq("tenant_id", tenantId!)
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .limit(100);
-      if (error) throw error;
-      return (data ?? []) as unknown as CarmenSession[];
+      if (error) {
+        throw error;
+      }
+      return (data ?? []) as unknown as Array<CarmenSession>;
     },
     enabled: !!tenantId,
   });
@@ -93,7 +95,9 @@ export default function AgentSessionsPanel() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!tenantId,
@@ -101,7 +105,9 @@ export default function AgentSessionsPanel() {
 
   // Realtime updates
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     const channel = supabase
       .channel(`agent-sessions-${tenantId}`)
       .on(
@@ -136,8 +142,8 @@ export default function AgentSessionsPanel() {
     };
   }, [tenantId, queryClient]);
 
-  const sessions: UnifiedSession[] = useMemo(() => {
-    const carmen: UnifiedSession[] = carmenSessions.map((s) => ({
+  const sessions: Array<UnifiedSession> = useMemo(() => {
+    const carmen: Array<UnifiedSession> = carmenSessions.map((s) => ({
       id: `carmen-${s.id}`,
       source: "whatsapp",
       title: s.sender_name || s.phone || "ללא שם",
@@ -150,7 +156,7 @@ export default function AgentSessionsPanel() {
         : [],
       raw: s,
     }));
-    const internal: UnifiedSession[] = aiConversations.map((c: any) => ({
+    const internal: Array<UnifiedSession> = aiConversations.map((c: any) => ({
       id: `internal-${c.id}`,
       source: "internal",
       title: c.title || "שיחה פנימית",
@@ -175,7 +181,9 @@ export default function AgentSessionsPanel() {
     newStatus: "active" | "paused" | "ended",
   ) => {
     const updates: any = { status: newStatus };
-    if (newStatus === "ended") updates.ended_at = new Date().toISOString();
+    if (newStatus === "ended") {
+      updates.ended_at = new Date().toISOString();
+    }
     const { error } = await supabase
       .from("carmen_whatsapp_sessions")
       .update(updates)

@@ -12,9 +12,12 @@ const json = (body: unknown, status = 200) =>
 
 // Public signer access is limited to the document bound to this unguessable token.
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers });
-  if (request.method !== "POST")
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers });
+  }
+  if (request.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
+  }
   try {
     const { token } = await request.json();
     if (
@@ -33,7 +36,9 @@ Deno.serve(async (request) => {
       "get_signature_by_token",
       { _token: token },
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const document = recipient?.signature_documents;
     if (
       !document ||
@@ -48,9 +53,13 @@ Deno.serve(async (request) => {
       .select("tenant_id")
       .eq("id", document.id)
       .single();
-    if (result.error) throw result.error;
+    if (result.error) {
+      throw result.error;
+    }
     const path = signatureStoragePath(document.file_url, result.data.tenant_id);
-    if (!path) return json({ recipient, fileUrl: document.file_url });
+    if (!path) {
+      return json({ recipient, fileUrl: document.file_url });
+    }
     const signed = await client.storage
       .from("signature-documents")
       .createSignedUrl(path, 4 * 60 * 60);

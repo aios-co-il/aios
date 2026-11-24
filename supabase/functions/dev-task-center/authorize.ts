@@ -39,21 +39,25 @@ export function devTaskSendAuthorization(
     requested_by_user_id?: string | null;
   } | null,
 ): DevTaskSendAuthorization {
-  if (caller.kind === "user" && (!caller.tenantAccess || !caller.tier))
+  if (caller.kind === "user" && (!caller.tenantAccess || !caller.tier)) {
     return {
       ok: false,
       status: 403,
       code: "dev_task_send_forbidden",
       error: FORBIDDEN,
     };
-  if (!task)
+  }
+  if (!task) {
     return {
       ok: false,
       status: 404,
       code: "not_found",
       error: "dev_task not found",
     };
-  if (caller.kind === "service") return { ok: true };
+  }
+  if (caller.kind === "service") {
+    return { ok: true };
+  }
   const bugfix = bugfixApprovalRefusal(task, {
     id: caller.userId,
     tier: caller.tier,

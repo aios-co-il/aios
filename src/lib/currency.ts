@@ -3,11 +3,11 @@
 
 export type CurrencyCode = "ILS" | "USD" | "EUR";
 
-export const CURRENCY_OPTIONS: {
+export const CURRENCY_OPTIONS: Array<{
   value: CurrencyCode;
   label: string;
   symbol: string;
-}[] = [
+}> = [
   { value: "ILS", label: "שקל (₪)", symbol: "₪" },
   { value: "USD", label: "דולר ($)", symbol: "$" },
   { value: "EUR", label: "אירו (€)", symbol: "€" },
@@ -96,7 +96,9 @@ export function resolveDashboardCurrency(
 
   for (const table of tables) {
     const code = table.integration_settings?.currency;
-    if (code) return normalizeCurrencyCode(code);
+    if (code) {
+      return normalizeCurrencyCode(code);
+    }
   }
 
   return "ILS";

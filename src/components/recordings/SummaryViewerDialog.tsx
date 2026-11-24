@@ -35,7 +35,7 @@ interface SummaryViewerDialogProps {
   recording: ShareableRecording;
   tenantId: string;
   /** All recording rows in the same meeting — keeps grouped Zoom files in sync. */
-  recordingIds?: string[];
+  recordingIds?: Array<string>;
   onSaved?: (summaryMd: string) => void;
 }
 
@@ -73,7 +73,9 @@ export function SummaryViewerDialog({
   const [draft, setDraft] = useState(recording.summary_md || "");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const next = recording.summary_md || "";
     setSummaryMd(next);
     setDraft(next);
@@ -88,7 +90,9 @@ export function SummaryViewerDialog({
         .from("zoom_recordings")
         .update({ summary_md: nextSummary })
         .in("id", ids);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return nextSummary;
     },
     onSuccess: (nextSummary) => {

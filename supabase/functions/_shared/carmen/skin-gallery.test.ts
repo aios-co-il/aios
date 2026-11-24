@@ -33,8 +33,9 @@ Deno.test("every persona comes back with its built-in portrait", () => {
     portrait_url: "/brand/carmen/skins/designer.webp",
     source: "builtin",
   });
-  for (const entry of entries.filter((e) => e.source === "builtin"))
+  for (const entry of entries.filter((e) => e.source === "builtin")) {
     assertMatch(entry.portrait_url, /^\/brand\/carmen\/skins\/[a-z-]+\.webp$/);
+  }
 });
 
 Deno.test(
@@ -142,11 +143,12 @@ Deno.test(
       analyst?.portrait_url,
       "https://staging.aios.co.il/brand/carmen/skins/analyst.webp",
     );
-    for (const skin of carmenSkinsResult(carmenSkinEntries()).skins)
+    for (const skin of carmenSkinsResult(carmenSkinEntries()).skins) {
       assertMatch(
         skin.portrait_url,
         /^https:\/\/aios\.co\.il\/brand\/carmen\//,
       );
+    }
     assertMatch(result.how_to_show, /בוואטסאפ/);
   },
 );
@@ -157,8 +159,9 @@ Deno.test("the app origin is the chat's own AIOS app, else APP_URL", () => {
     "https://staging.aios.co.il",
     "https://aios-git-feature-x-aios.vercel.app",
     "http://localhost:8080",
-  ])
+  ]) {
     assertStrictEquals(appOrigin(origin, "https://env.test"), origin);
+  }
   for (const origin of [
     null,
     "",
@@ -166,12 +169,13 @@ Deno.test("the app origin is the chat's own AIOS app, else APP_URL", () => {
     "https://aios.co.il.evil.test",
     "http://aios.co.il",
     "not a url",
-  ])
+  ]) {
     assertStrictEquals(
       appOrigin(origin, "https://env.test/"),
       "https://env.test",
       String(origin),
     );
+  }
   assertStrictEquals(appOrigin(null, undefined), DEFAULT_APP_ORIGIN);
   assertStrictEquals(appOrigin(null, "nonsense"), DEFAULT_APP_ORIGIN);
 });

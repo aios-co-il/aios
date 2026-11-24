@@ -106,7 +106,9 @@ export default function Recordings() {
   } = useQuery({
     queryKey: ["recordings", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { list } = await fetchRecordingsFeed(currentTenantId);
       return list;
     },
@@ -123,8 +125,12 @@ export default function Recordings() {
   const { data: folders = [] } = useQuery({
     queryKey: ["recording-folders", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
-      return (await fetchRecordingFolders(currentTenantId)) as FolderOption[];
+      if (!currentTenantId) {
+        return [];
+      }
+      return (await fetchRecordingFolders(
+        currentTenantId,
+      )) as Array<FolderOption>;
     },
     enabled: !!currentTenantId,
   });
@@ -143,7 +149,7 @@ export default function Recordings() {
       recordingIds,
       selection,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       selection: EntityAssignmentSelection;
     }) => {
       const update: Record<string, unknown> = {
@@ -169,7 +175,9 @@ export default function Recordings() {
         .from("zoom_recordings")
         .update(update)
         .in("id", recordingIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -188,14 +196,16 @@ export default function Recordings() {
       recordingIds,
       folderId,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       folderId: string | null;
     }) => {
       const { error } = await (supabase as any)
         .from("zoom_recordings")
         .update({ folder_id: folderId })
         .in("id", recordingIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -214,7 +224,7 @@ export default function Recordings() {
       recordingIds,
       name,
     }: {
-      recordingIds: string[];
+      recordingIds: Array<string>;
       name: string;
     }) => {
       const { error } = await supabase
@@ -222,7 +232,9 @@ export default function Recordings() {
         // A typed name is kept: the summary never renames it (AIO-563).
         .update({ meeting_topic: name.trim(), topic_set_manually: true })
         .in("id", recordingIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -242,8 +254,8 @@ export default function Recordings() {
       recordingIds,
       filePaths,
     }: {
-      recordingIds: string[];
-      filePaths: string[];
+      recordingIds: Array<string>;
+      filePaths: Array<string>;
     }) => {
       if (filePaths.length > 0) {
         await supabase.storage.from("recordings").remove(filePaths);
@@ -252,7 +264,9 @@ export default function Recordings() {
         const framePrefixes = new Set<string>();
         for (const p of filePaths) {
           const m = p.match(/^(.+)\/(\d+)(?:_[a-z_0-9]+)?\.webm$/);
-          if (m) framePrefixes.add(`${m[1]}|${m[2]}`);
+          if (m) {
+            framePrefixes.add(`${m[1]}|${m[2]}`);
+          }
         }
         for (const key of framePrefixes) {
           const [folder, ts] = key.split("|");
@@ -270,7 +284,9 @@ export default function Recordings() {
         .from("zoom_recordings")
         .delete()
         .in("id", recordingIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -286,7 +302,9 @@ export default function Recordings() {
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId) throw new Error("No tenant");
+      if (!currentTenantId) {
+        throw new Error("No tenant");
+      }
       let filePath: string | null = null;
       if (uploadFile) {
         const ext = uploadFile.name.split(".").pop();
@@ -294,7 +312,9 @@ export default function Recordings() {
         const { error: uploadError } = await supabase.storage
           .from("recordings")
           .upload(fileName, uploadFile);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
         filePath = fileName;
       }
       const { error } = await supabase.from("zoom_recordings").insert({
@@ -313,7 +333,9 @@ export default function Recordings() {
         meeting_id: `manual_${Date.now()}`,
         recording_type: "manual",
       } as any);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       invalidate();
@@ -336,7 +358,9 @@ export default function Recordings() {
       const { error } = await (supabase as any)
         .from("recording_folders")
         .insert({ tenant_id: currentTenantId, name });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -359,7 +383,9 @@ export default function Recordings() {
         .from("recording_folders")
         .update({ name })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -376,7 +402,9 @@ export default function Recordings() {
         .from("recording_folders")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -390,11 +418,13 @@ export default function Recordings() {
 
   // ── Grouping (one card per meeting_id) ───────────────────────
 
-  const groupedRecordings: FeedRecording[] = useMemo(() => {
-    const groups = new Map<string, any[]>();
+  const groupedRecordings: Array<FeedRecording> = useMemo(() => {
+    const groups = new Map<string, Array<any>>();
     recordings.forEach((rec: any) => {
       const key = rec.meeting_id || rec.id;
-      if (!groups.has(key)) groups.set(key, []);
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
       groups.get(key)!.push(rec);
     });
 
@@ -448,7 +478,9 @@ export default function Recordings() {
   const clientFolders = useMemo(() => {
     const counts = new Map<string, { name: string; count: number }>();
     for (const rec of groupedRecordings) {
-      if (!rec.client_id) continue;
+      if (!rec.client_id) {
+        continue;
+      }
       const name = rec.clients?.name || "לקוח";
       const entry = counts.get(rec.client_id) || { name, count: 0 };
       entry.count += 1;
@@ -462,8 +494,9 @@ export default function Recordings() {
   const folderCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const rec of groupedRecordings) {
-      if (rec.folder_id)
+      if (rec.folder_id) {
         counts.set(rec.folder_id, (counts.get(rec.folder_id) || 0) + 1);
+      }
     }
     return counts;
   }, [groupedRecordings]);
@@ -475,12 +508,15 @@ export default function Recordings() {
         rec.agency_id ||
         (rec.campaigner_ids || []).length > 0 ||
         rec.folder_id)
-    )
+    ) {
       return false;
-    if (selection.kind === "client" && rec.client_id !== selection.clientId)
+    }
+    if (selection.kind === "client" && rec.client_id !== selection.clientId) {
       return false;
-    if (selection.kind === "folder" && rec.folder_id !== selection.folderId)
+    }
+    if (selection.kind === "folder" && rec.folder_id !== selection.folderId) {
       return false;
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
@@ -498,13 +534,17 @@ export default function Recordings() {
 
   const campaignerNamesFor = (rec: FeedRecording) =>
     (rec.campaigner_ids || [])
-      .map((id) => (campaigners as any[]).find((c) => c.id === id)?.full_name)
-      .filter(Boolean) as string[];
+      .map(
+        (id) => (campaigners as Array<any>).find((c) => c.id === id)?.full_name,
+      )
+      .filter(Boolean) as Array<string>;
 
   // Accepting a suggestion assigns the client and re-runs the pipeline —
   // transcription already exists, so it continues straight to summary + brief.
   const acceptSuggestion = async (rec: FeedRecording) => {
-    if (!rec.suggested_client_id) return;
+    if (!rec.suggested_client_id) {
+      return;
+    }
     const suggestedClient = clients.find(
       (client) => client.id === rec.suggested_client_id,
     );
@@ -711,7 +751,9 @@ export default function Recordings() {
                               name: renameValue.trim(),
                             });
                           }
-                          if (e.key === "Escape") setRenamingFolderId(null);
+                          if (e.key === "Escape") {
+                            setRenamingFolderId(null);
+                          }
                         }}
                         onBlur={() => setRenamingFolderId(null)}
                       />
@@ -773,15 +815,18 @@ export default function Recordings() {
                     className="h-7 text-sm"
                     autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && newFolderName.trim())
+                      if (e.key === "Enter" && newFolderName.trim()) {
                         createFolderMutation.mutate(newFolderName.trim());
+                      }
                       if (e.key === "Escape") {
                         setCreatingFolder(false);
                         setNewFolderName("");
                       }
                     }}
                     onBlur={() => {
-                      if (!newFolderName.trim()) setCreatingFolder(false);
+                      if (!newFolderName.trim()) {
+                        setCreatingFolder(false);
+                      }
                     }}
                   />
                 </div>

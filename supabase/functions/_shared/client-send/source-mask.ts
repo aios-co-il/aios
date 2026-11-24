@@ -28,7 +28,7 @@ export function maskSource(text: string): MaskedSource {
       }
     }
   };
-  const frames: Frame[] = [{ template: false, braces: 0 }];
+  const frames: Array<Frame> = [{ template: false, braces: 0 }];
   let last = "";
   let i = 0;
   while (i < text.length) {

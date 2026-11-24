@@ -14,8 +14,12 @@ export async function handleMetaDataDeletion(
     return new Response(null, { headers: corsHeaders });
   }
   try {
-    if (req.method === "GET") return await handleStatusLookup(req, deps.store);
-    if (req.method === "POST") return await handleMetaDeleteRequest(req, deps);
+    if (req.method === "GET") {
+      return await handleStatusLookup(req, deps.store);
+    }
+    if (req.method === "POST") {
+      return await handleMetaDeleteRequest(req, deps);
+    }
     return json({ error: "Method not allowed" }, 405);
   } catch (err) {
     console.error("meta-data-deletion error:", err);
@@ -91,13 +95,17 @@ export async function handleStatusLookup(
   store: DeletionRequestStore,
 ): Promise<Response> {
   const code = new URL(req.url).searchParams.get("code")?.trim();
-  if (!code) return json({ error: "code is required" }, 400);
+  if (!code) {
+    return json({ error: "code is required" }, 400);
+  }
   if (!CONFIRMATION_CODE_PATTERN.test(code)) {
     return json({ error: "Unknown confirmation code" }, 404);
   }
 
   const row = await store.findByCode(code);
-  if (!row) return json({ error: "Unknown confirmation code" }, 404);
+  if (!row) {
+    return json({ error: "Unknown confirmation code" }, 404);
+  }
   return json(row);
 }
 
@@ -124,21 +132,31 @@ export async function parseRequest(
     const value = form?.get("signed_request");
     signedRequest = typeof value === "string" ? value : null;
   }
-  if (!signedRequest) return null;
+  if (!signedRequest) {
+    return null;
+  }
   return parseSignedRequest(signedRequest, appSecret);
 }
 
 /** Converts Meta's `issued_at` (unix seconds) to ISO; null when absent or out of range. */
 export function issuedAtToIso(value: unknown): string | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  if (value < MIN_ISSUED_AT || value > MAX_ISSUED_AT) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  if (value < MIN_ISSUED_AT || value > MAX_ISSUED_AT) {
+    return null;
+  }
   return new Date(value * 1000).toISOString();
 }
 
 /** Meta sends `user_id` as a string or number; anything else is not an id. */
 export function fbUserIdFrom(value: unknown): string | null {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
   return null;
 }
 

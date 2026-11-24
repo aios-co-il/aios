@@ -77,7 +77,7 @@ Deno.test(
 );
 
 Deno.test("narration waits for a voice the user heard and chose", async () => {
-  const samples: string[] = [];
+  const samples: Array<string> = [];
   const db = fakeDb({
     "marketing_work_items:select": {
       ...(videoProject()["marketing_work_items:select"] as any),

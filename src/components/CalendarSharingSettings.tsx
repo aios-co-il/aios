@@ -74,7 +74,9 @@ export function CalendarSharingSettings() {
   const { data: myShares, isLoading: sharesLoading } = useQuery({
     queryKey: ["calendar-shares-owner", userId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!userId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("calendar_shares")
@@ -89,7 +91,9 @@ export function CalendarSharingSettings() {
         )
         .eq("owner_user_id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Fetch profiles for shared users
       const sharedUserIds = data.map((s) => s.shared_with_user_id);
@@ -115,7 +119,9 @@ export function CalendarSharingSettings() {
   const { data: sharedWithMe, isLoading: sharedWithMeLoading } = useQuery({
     queryKey: ["calendar-shares-with-me", userId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!userId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("calendar_shares")
@@ -130,7 +136,9 @@ export function CalendarSharingSettings() {
         )
         .eq("shared_with_user_id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Fetch profiles for owner users
       const ownerUserIds = data.map((s) => s.owner_user_id);
@@ -156,7 +164,9 @@ export function CalendarSharingSettings() {
   const { data: tenantUsers } = useQuery({
     queryKey: ["tenant-users-for-calendar", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // First get tenant user IDs
       const { data: tuData, error: tuError } = await supabase
@@ -164,10 +174,14 @@ export function CalendarSharingSettings() {
         .select("user_id")
         .eq("tenant_id", tenantId);
 
-      if (tuError) throw tuError;
+      if (tuError) {
+        throw tuError;
+      }
 
       const userIds = tuData?.map((tu) => tu.user_id) || [];
-      if (userIds.length === 0) return [];
+      if (userIds.length === 0) {
+        return [];
+      }
 
       // Then fetch profiles for those users
       const { data: profiles, error: profilesError } = await supabase
@@ -175,12 +189,14 @@ export function CalendarSharingSettings() {
         .select("id, email, full_name")
         .in("id", userIds);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        throw profilesError;
+      }
 
       return (profiles || []).map((p) => ({
         user_id: p.id,
         profiles: p,
-      })) as TenantUser[];
+      })) as Array<TenantUser>;
     },
     enabled: !!tenantId,
   });
@@ -188,9 +204,12 @@ export function CalendarSharingSettings() {
   // Filter out current user and already shared users
   const availableUsers =
     tenantUsers?.filter((tu) => {
-      if (tu.user_id === userId) return false;
-      if (myShares?.some((s) => s.shared_with_user_id === tu.user_id))
+      if (tu.user_id === userId) {
         return false;
+      }
+      if (myShares?.some((s) => s.shared_with_user_id === tu.user_id)) {
+        return false;
+      }
       return true;
     }) || [];
 
@@ -214,7 +233,9 @@ export function CalendarSharingSettings() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -240,7 +261,9 @@ export function CalendarSharingSettings() {
         .delete()
         .eq("id", shareId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -268,7 +291,9 @@ export function CalendarSharingSettings() {
         .update({ permission_level: permission })
         .eq("id", shareId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

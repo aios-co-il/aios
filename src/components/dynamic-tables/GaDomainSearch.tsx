@@ -27,7 +27,7 @@ export function GaDomainSearch({
   preferredIntegrationId,
   onFound,
 }: {
-  connections: GaConnection[];
+  connections: Array<GaConnection>;
   preferredIntegrationId?: string;
   onFound: (found: FoundProperty) => void;
 }) {
@@ -37,7 +37,9 @@ export function GaDomainSearch({
 
   const search = async () => {
     const query = domain.trim();
-    if (!query || pending || connections.length === 0) return;
+    if (!query || pending || connections.length === 0) {
+      return;
+    }
     setPending(true);
     setStatus("");
     try {
@@ -55,8 +57,10 @@ export function GaDomainSearch({
               },
             },
           );
-          if (error || data?.needs_reconnect) return null;
-          return (data?.properties || []) as GaPropertyRef[];
+          if (error || data?.needs_reconnect) {
+            return null;
+          }
+          return (data?.properties || []) as Array<GaPropertyRef>;
         },
         preferredIntegrationId,
       );

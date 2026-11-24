@@ -13,11 +13,11 @@ function fakeLeadSupabase(lead: {
   found: boolean;
   error?: { message: string };
 }) {
-  const log: Array<{ table: string; op: string; args: unknown[] }> = [];
+  const log: Array<{ table: string; op: string; args: Array<unknown> }> = [];
   const builder = (table: string) => {
     const chain: Record<string, unknown> = {};
     for (const op of ["select", "eq", "in", "order", "limit"]) {
-      chain[op] = (...args: unknown[]) => {
+      chain[op] = (...args: Array<unknown>) => {
         log.push({ table, op, args });
         return chain;
       };

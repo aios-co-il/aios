@@ -1,4 +1,5 @@
 import type { TablesInsert } from "../../_shared/database.types.ts";
+import { recurringScheduleFor } from "./recurring-schedule.ts";
 import type { CreateAgentTaskArgs } from "./task-creation.ts";
 import type { ToolExecutionContext } from "../tool-context.ts";
 
@@ -31,6 +32,7 @@ export async function executeCreateAgentTask(
     const instruction = `\n\n[הוראת ביצוע אוטומטית לזמן ההפעלה]\nכשמשימה זו רצה, חובה לשלוח עכשיו הודעת WhatsApp תזכורת לטלפון ${callerPhone} עם הטקסט בעברית, בקצרה ובחום:\n"${reminderText}"\nהשתמשי בכלי send_whatsapp_via_gateway (אם יש integrationId זמין) או send_message (אם phone=${callerPhone} שייך ל-lead/client). אם אף כלי לא זמין — השתמשי בכל כלי WhatsApp אחר שיש לך. אסור לסיים את המשימה בלי לשלוח בפועל. אל תיצרי משימת agent חדשה.`;
     finalDescription = (descStr ? descStr : titleStr) + instruction;
   }
+  const recurring = recurringScheduleFor(args, new Date());
   const taskData: TablesInsert<"agent_tasks"> = {
     // Preserve database rejection when neither caller nor args supplies an agent.
     agent_id: (agentId || args.agent_id) as string,
@@ -39,9 +41,16 @@ export async function executeCreateAgentTask(
     description: finalDescription,
     priority: args.priority || 5,
     status: "pending",
-    schedule_type: args.schedule_type || "once",
+    // A daily or weekly task is stored as a cron schedule in Israel time, so
+    // the dispatcher runs it at its own hour.
+    schedule_type: recurring ? "recurring" : args.schedule_type || "once",
     scheduled_at: args.scheduled_at || null,
-    cron_expression: args.cron_expression || null,
+    cron_expression:
+      recurring?.cron_expression ?? (args.cron_expression || null),
+    ...(recurring && {
+      timezone: recurring.timezone,
+      next_run: recurring.next_run,
+    }),
     task_skills: args.task_skills ? JSON.stringify(args.task_skills) : null,
     task_mode: "agent",
     enabled: true,
@@ -72,13 +81,14 @@ export async function executeCreateAgentTask(
   const { data, error } = await supabase
     .from("agent_tasks")
     .insert(taskData)
-    .select("id, title, status, schedule_type, scheduled_at")
+    .select("id, title, status, schedule_type, scheduled_at, next_run")
     .single();
   if (error) {
     throw error;
   }
-  const scheduledIl = data.scheduled_at
-    ? new Date(data.scheduled_at).toLocaleString("he-IL", {
+  const firstRun = data.next_run ?? data.scheduled_at;
+  const scheduledIl = firstRun
+    ? new Date(firstRun).toLocaleString("he-IL", {
         weekday: "long",
         day: "2-digit",
         month: "2-digit",
@@ -93,7 +103,7 @@ export async function executeCreateAgentTask(
     title: data.title,
     status: data.status,
     schedule_type: data.schedule_type,
-    scheduled_at_utc: data.scheduled_at,
+    scheduled_at_utc: firstRun,
     scheduled_at_israel: scheduledIl,
     reminder_phone: looksLikeReminder ? callerPhone : null,
     note: scheduledIl

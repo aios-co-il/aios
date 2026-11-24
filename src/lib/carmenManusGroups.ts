@@ -12,7 +12,7 @@ import {
 
 type ManusGroupsSyncMeta = {
   synced_at?: string;
-  group_chat_ids?: string[];
+  group_chat_ids?: Array<string>;
   groups?: Array<{ groupChatId: string; groupId: string; name: string }>;
   count?: number;
 };
@@ -28,26 +28,37 @@ async function fetchWhatsappGroupPages(
   buildQuery: (
     from: number,
     to: number,
-  ) => PromiseLike<{ data: WhatsappGroupRow[] | null; error: Error | null }>,
-): Promise<WhatsappGroupRow[]> {
+  ) => PromiseLike<{
+    data: Array<WhatsappGroupRow> | null;
+    error: Error | null;
+  }>,
+): Promise<Array<WhatsappGroupRow>> {
   const pageSize = 1000;
-  const rows: WhatsappGroupRow[] = [];
+  const rows: Array<WhatsappGroupRow> = [];
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await buildQuery(from, from + pageSize - 1);
-    if (error) throw error;
-    if (!data?.length) break;
+    if (error) {
+      throw error;
+    }
+    if (!data?.length) {
+      break;
+    }
     rows.push(...data);
-    if (data.length < pageSize) break;
+    if (data.length < pageSize) {
+      break;
+    }
   }
   return rows;
 }
 
 async function fetchGroupsByChatIds(
   tenantId: string,
-  chatIds: string[],
+  chatIds: Array<string>,
 ): Promise<Map<string, WhatsappGroupRow>> {
   const byChatId = new Map<string, WhatsappGroupRow>();
-  if (chatIds.length === 0) return byChatId;
+  if (chatIds.length === 0) {
+    return byChatId;
+  }
 
   const chunkSize = 200;
   for (let i = 0; i < chatIds.length; i += chunkSize) {
@@ -61,7 +72,9 @@ async function fetchGroupsByChatIds(
         .order("group_name")
         .range(from, to),
     );
-    for (const row of rows) byChatId.set(row.group_chat_id, row);
+    for (const row of rows) {
+      byChatId.set(row.group_chat_id, row);
+    }
   }
   return byChatId;
 }
@@ -74,9 +87,13 @@ async function fetchManusTrafficGroupIds(tenantId: string, into: Set<string>) {
     .eq("tenant_id", tenantId)
     .eq("provider", "manus_wa")
     .not("group_id", "is", null);
-  if (msgErr) throw msgErr;
+  if (msgErr) {
+    throw msgErr;
+  }
   for (const row of manusMsgs || []) {
-    if (row.group_id) into.add(String(row.group_id));
+    if (row.group_id) {
+      into.add(String(row.group_id));
+    }
   }
 }
 
@@ -138,8 +155,12 @@ export async function fetchCarmenManusGroups(tenantId: string) {
     .eq("integration_type", "manus_wa")
     .eq("is_active", true);
 
-  if (manusIntErr) throw manusIntErr;
-  if (!manusIntegrations?.length) return [];
+  if (manusIntErr) {
+    throw manusIntErr;
+  }
+  if (!manusIntegrations?.length) {
+    return [];
+  }
 
   const { entries, chatIds, hasSync } = collectSyncedCatalog(manusIntegrations);
   const notBlocked = "is_blocked.is.null,is_blocked.eq.false";
@@ -158,14 +179,18 @@ export async function fetchCarmenManusGroups(tenantId: string) {
         .order("group_name")
         .range(from, to),
     );
-    for (const row of taggedRows) dbByChatId.set(row.group_chat_id, row);
+    for (const row of taggedRows) {
+      dbByChatId.set(row.group_chat_id, row);
+    }
 
     return mergeSyncCatalogWithDb(entries, dbByChatId);
   }
 
   const ids = new Set<string>();
   await fetchManusTrafficGroupIds(tenantId, ids);
-  if (ids.size === 0) return [];
+  if (ids.size === 0) {
+    return [];
+  }
 
   const { data, error } = await supabase
     .from("whatsapp_groups")
@@ -174,7 +199,9 @@ export async function fetchCarmenManusGroups(tenantId: string) {
     .in("id", [...ids])
     .or(notBlocked)
     .order("group_name");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data || [];
 }
 
@@ -194,8 +221,12 @@ async function extractInvokeError(
     error?: string;
     message?: string;
   };
-  if (payload.error) return payload.error;
-  if (payload.message) return payload.message;
+  if (payload.error) {
+    return payload.error;
+  }
+  if (payload.message) {
+    return payload.message;
+  }
 
   const ctx =
     error && typeof error === "object"
@@ -207,13 +238,19 @@ async function extractInvokeError(
         error?: string;
         message?: string;
       };
-      if (body?.error) return body.error;
-      if (body?.message) return body.message;
+      if (body?.error) {
+        return body.error;
+      }
+      if (body?.message) {
+        return body.message;
+      }
     } catch {
       /* ignore */
     }
   }
-  if (ctx?.message) return ctx.message;
+  if (ctx?.message) {
+    return ctx.message;
+  }
   return "סנכרון קבוצות נכשל";
 }
 
@@ -233,12 +270,16 @@ export async function syncCarmenManusGroups(
       const { data, error } = await supabase.functions.invoke(attempt.fn, {
         body: attempt.body,
       });
-      if (data?.success) return data as SyncManusGroupsResult;
+      if (data?.success) {
+        return data as SyncManusGroupsResult;
+      }
       lastError = await extractInvokeError(error, data);
       const missingFn =
         /not found|404|Function.*not|Failed to send a request/i.test(lastError);
       // Keep trying fallbacks when the function is missing / unreachable.
-      if (!missingFn && data && data.success === false) break;
+      if (!missingFn && data && data.success === false) {
+        break;
+      }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err);
     }
@@ -254,6 +295,8 @@ export async function tenantHasManusWa(tenantId: string): Promise<boolean> {
     .eq("integration_type", "manus_wa")
     .eq("is_active", true)
     .limit(1);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).length > 0;
 }

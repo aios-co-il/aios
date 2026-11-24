@@ -50,9 +50,13 @@ export const DEV_ESCALATION_BUGFIX_ONLY_REFUSAL_HE =
   "שינויי קונפיג, הרשאות, סכמת DB או פיצ'רים חדשים — רק דיוויד.";
 
 export function normalizePhoneSuffix(phone) {
-  if (phone == null) return null;
+  if (phone == null) {
+    return null;
+  }
   const digits = String(phone).replace(/[^0-9]/g, "");
-  if (digits.length < 9) return null;
+  if (digits.length < 9) {
+    return null;
+  }
   return digits.slice(-9);
 }
 
@@ -62,11 +66,15 @@ function matchesAllowlist(identity, allowlist) {
     : null;
   const userId = identity.userId ? String(identity.userId) : null;
   const phoneSuffix = normalizePhoneSuffix(identity.phone);
-  if (campaignerId && allowlist.campaigner_ids.includes(campaignerId))
+  if (campaignerId && allowlist.campaigner_ids.includes(campaignerId)) {
     return true;
-  if (userId && allowlist.user_ids.includes(userId)) return true;
-  if (phoneSuffix && allowlist.phone_suffixes.includes(phoneSuffix))
+  }
+  if (userId && allowlist.user_ids.includes(userId)) {
     return true;
+  }
+  if (phoneSuffix && allowlist.phone_suffixes.includes(phoneSuffix)) {
+    return true;
+  }
   return false;
 }
 
@@ -75,8 +83,12 @@ function matchesAllowlist(identity, allowlist) {
  * @returns {'full'|'bugfix'|null}
  */
 export function getDevEscalationTier(identity = {}) {
-  if (matchesAllowlist(identity, FULL_DEV_REQUESTERS)) return "full";
-  if (matchesAllowlist(identity, BUGFIX_DEV_REQUESTERS)) return "bugfix";
+  if (matchesAllowlist(identity, FULL_DEV_REQUESTERS)) {
+    return "full";
+  }
+  if (matchesAllowlist(identity, BUGFIX_DEV_REQUESTERS)) {
+    return "bugfix";
+  }
   return null;
 }
 
@@ -92,17 +104,25 @@ export function isAuthorizedDevRequester(identity = {}) {
  * @param {'full'|'bugfix'|null} tier
  */
 export function isDevEscalationToolAllowed(toolName, tier) {
-  if (!tier || !toolName) return false;
+  if (!tier || !toolName) {
+    return false;
+  }
   const n = String(toolName);
-  if (tier === "full") return isDevEscalationTool(n);
+  if (tier === "full") {
+    return isDevEscalationTool(n);
+  }
   // bugfix: Cursor DEV task workflow + legacy request_dev_task only.
-  if (NATIVE_DEV_TASK_TOOL_SET.has(n)) return true;
+  if (NATIVE_DEV_TASK_TOOL_SET.has(n)) {
+    return true;
+  }
   return n === "mcp_Cursor__request_dev_task" || n === "request_dev_task";
 }
 
 /** MCP / native tools that create or send system/dev/config/code fixes. */
 export function isDevEscalationTool(toolName) {
-  if (!toolName) return false;
+  if (!toolName) {
+    return false;
+  }
   const n = String(toolName);
   if (
     n.startsWith("mcp_Cursor__") ||
@@ -112,17 +132,26 @@ export function isDevEscalationTool(toolName) {
   ) {
     return true;
   }
-  if (n === "delegate_to_github_agent") return true;
-  if (NATIVE_DEV_TASK_TOOL_SET.has(n)) return true;
-  // Defensive: unprefixed remote names if ever executed without mcp_ prefix.
-  if (/^(request_dev_task|ask_cursor|ask_claude|ask_manus|ask_grok)$/i.test(n))
+  if (n === "delegate_to_github_agent") {
     return true;
+  }
+  if (NATIVE_DEV_TASK_TOOL_SET.has(n)) {
+    return true;
+  }
+  // Defensive: unprefixed remote names if ever executed without mcp_ prefix.
+  if (
+    /^(request_dev_task|ask_cursor|ask_claude|ask_manus|ask_grok)$/i.test(n)
+  ) {
+    return true;
+  }
   return false;
 }
 
 /** Skins that instruct Carmen to escalate to coding agents — suppress when unauthorized. */
 export function isDevEscalationSkill(slug) {
-  if (!slug) return false;
+  if (!slug) {
+    return false;
+  }
   const s = String(slug).toLowerCase();
   return (
     s === "cursor_escalation" ||
@@ -139,7 +168,9 @@ export function isDevEscalationSkill(slug) {
 
 /** Bug-fix-only escalation skin — allowed for bugfix tier even when generic escalation skins are hidden. */
 export function isBugfixEscalationSkill(slug) {
-  if (!slug) return false;
+  if (!slug) {
+    return false;
+  }
   const s = String(slug).toLowerCase();
   return (
     s === "bugfix_escalation_to_cursor" ||
@@ -162,7 +193,9 @@ export async function resolveDevTaskActorUserId(
 ) {
   const uuidRe =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (userId && uuidRe.test(String(userId))) return String(userId);
+  if (userId && uuidRe.test(String(userId))) {
+    return String(userId);
+  }
 
   if (campaignerId) {
     const { data: prof } = await supabase
@@ -170,12 +203,16 @@ export async function resolveDevTaskActorUserId(
       .select("id")
       .eq("campaigner_id", campaignerId)
       .maybeSingle();
-    if (prof?.id) return prof.id;
+    if (prof?.id) {
+      return prof.id;
+    }
   }
 
   const tier =
     devEscalationTier ?? getDevEscalationTier({ userId, campaignerId, phone });
-  if (!tier) return null;
+  if (!tier) {
+    return null;
+  }
 
   const digits = normalizePhoneSuffix(phone);
   if (tenantId && digits) {
@@ -194,7 +231,9 @@ export async function resolveDevTaskActorUserId(
         .select("id")
         .eq("campaigner_id", camp.id)
         .maybeSingle();
-      if (prof?.id) return prof.id;
+      if (prof?.id) {
+        return prof.id;
+      }
     }
   }
 

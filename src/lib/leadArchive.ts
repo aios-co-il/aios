@@ -7,35 +7,49 @@ export function excludeArchivedLeads<
   return query.is("archived_at", null);
 }
 
-export async function archiveLeads(leadIds: string[]): Promise<number> {
-  if (leadIds.length === 0) return 0;
+export async function archiveLeads(leadIds: Array<string>): Promise<number> {
+  if (leadIds.length === 0) {
+    return 0;
+  }
   const { data, error } = await supabase.rpc("archive_leads", {
     p_lead_ids: leadIds,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return typeof data === "number" ? data : leadIds.length;
 }
 
-export async function restoreArchivedLeads(leadIds: string[]): Promise<number> {
-  if (leadIds.length === 0) return 0;
+export async function restoreArchivedLeads(
+  leadIds: Array<string>,
+): Promise<number> {
+  if (leadIds.length === 0) {
+    return 0;
+  }
   const { data, error } = await supabase.rpc("restore_archived_leads", {
     p_lead_ids: leadIds,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return typeof data === "number" ? data : leadIds.length;
 }
 
 export async function permanentlyDeleteArchivedLeads(
-  leadIds: string[],
+  leadIds: Array<string>,
 ): Promise<number> {
-  if (leadIds.length === 0) return 0;
+  if (leadIds.length === 0) {
+    return 0;
+  }
   const { data, error } = await supabase.rpc(
     "permanently_delete_archived_leads",
     {
       p_lead_ids: leadIds,
     },
   );
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return typeof data === "number" ? data : leadIds.length;
 }
 

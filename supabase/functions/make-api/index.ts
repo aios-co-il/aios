@@ -131,7 +131,9 @@ function isGoogleAdsConnection(connection: any): boolean {
 
 // Helper to identify Google Ads modules in blueprints
 function isGoogleAdsModule(moduleName: string): boolean {
-  if (!moduleName) return false;
+  if (!moduleName) {
+    return false;
+  }
   const lowerName = moduleName.toLowerCase();
   return (
     lowerName.includes("google-ads") ||
@@ -143,7 +145,9 @@ function isGoogleAdsModule(moduleName: string): boolean {
 
 // Helper to identify HTTP modules in blueprints
 function isHttpModule(moduleName: string): boolean {
-  if (!moduleName) return false;
+  if (!moduleName) {
+    return false;
+  }
   const lowerName = moduleName.toLowerCase();
   return (
     lowerName.includes("http:") ||
@@ -860,8 +864,12 @@ serve(async (req) => {
                 if (connection_id) {
                   const parsedConnectionId = parseInt(connection_id, 10);
                   if (!Number.isNaN(parsedConnectionId)) {
-                    if (!module.metadata) module.metadata = {};
-                    if (!module.parameters) module.parameters = {};
+                    if (!module.metadata) {
+                      module.metadata = {};
+                    }
+                    if (!module.parameters) {
+                      module.parameters = {};
+                    }
                     module.metadata.connection = { id: parsedConnectionId };
                     module.parameters.__IMTCONN__ = parsedConnectionId;
                   } else {
@@ -1150,8 +1158,12 @@ serve(async (req) => {
                 if (connection_id) {
                   const parsedConnectionId = parseInt(connection_id, 10);
                   if (!Number.isNaN(parsedConnectionId)) {
-                    if (!module.metadata) module.metadata = {};
-                    if (!module.parameters) module.parameters = {};
+                    if (!module.metadata) {
+                      module.metadata = {};
+                    }
+                    if (!module.parameters) {
+                      module.parameters = {};
+                    }
                     module.metadata.connection = { id: parsedConnectionId };
                     module.parameters.__IMTCONN__ = parsedConnectionId;
                   } else {

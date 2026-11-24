@@ -181,14 +181,18 @@ function looksAudio(
 async function fetchMedia(url: string, auth?: MediaAuth): Promise<Blob | null> {
   try {
     const r = await fetch(url);
-    if (r.ok) return await r.blob();
+    if (r.ok) {
+      return await r.blob();
+    }
   } catch (_) {
     /* try authed */
   }
   if (auth?.apiKey) {
     try {
       const r = await fetch(url, { headers: { "X-Api-Key": auth.apiKey } });
-      if (r.ok) return await r.blob();
+      if (r.ok) {
+        return await r.blob();
+      }
     } catch (_) {
       /* give up */
     }
@@ -204,12 +208,18 @@ async function findPairedGreenTranscript(
   payload: ManusPayload,
   auth?: MediaAuth,
 ): Promise<string | null> {
-  if (!auth?.supabase || !auth.tenantId) return null;
+  if (!auth?.supabase || !auth.tenantId) {
+    return null;
+  }
   const messageId = String(payload?.messageId || payload?.id || "").trim();
-  if (!messageId) return null;
+  if (!messageId) {
+    return null;
+  }
 
   for (let attempt = 0; attempt < 21; attempt++) {
-    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
     const { data } = await auth.supabase
       .from("chat_messages")
       .select("message_text")
@@ -222,8 +232,9 @@ async function findPairedGreenTranscript(
     const raw = String(data?.message_text || "").trim();
     const text = stripVoiceMarker(raw);
     if (text && !isVoicePlaceholder(raw) && !isVoicePlaceholder(text)) {
-      if (payload && typeof payload === "object")
+      if (payload && typeof payload === "object") {
         pairedVoicePayloads.add(payload);
+      }
       // Always re-apply 🎤 — Green rows already have it; keep Carmen context consistent.
       return formatVoiceMessageText({
         transcript: text,
@@ -233,8 +244,9 @@ async function findPairedGreenTranscript(
     }
     // Green already wrote an explicit failure — surface it (don't keep waiting forever).
     if (raw && isVoicePlaceholder(raw) && /·/.test(raw) && attempt >= 3) {
-      if (payload && typeof payload === "object")
+      if (payload && typeof payload === "object") {
         pairedVoicePayloads.add(payload);
+      }
       return raw;
     }
   }
@@ -250,7 +262,9 @@ function logMediaDebug(
   isAudio: boolean,
   status: string,
 ) {
-  if (!auth?.supabase) return;
+  if (!auth?.supabase) {
+    return;
+  }
   try {
     auth.supabase
       .from("error_logs")
@@ -320,8 +334,9 @@ async function resolveMessageText(
       status: VOICE_STATUSES.OK,
       isVoice: true,
     });
-    if (payload && typeof payload === "object")
+    if (payload && typeof payload === "object") {
       pairedVoicePayloads.add(payload);
+    }
     const meta = buildVoiceMeta({
       status: VOICE_STATUSES.OK,
       transcript: stripVoiceMarker(formatted),
@@ -443,14 +458,19 @@ function messageIsVoice(
   msgContainer: ManusMessageContainer,
   resolved?: VoiceResolveResult,
 ): boolean {
-  if (resolved?.isVoice) return true;
+  if (resolved?.isVoice) {
+    return true;
+  }
   if (
     payload &&
     typeof payload === "object" &&
     pairedVoicePayloads.has(payload)
-  )
+  ) {
     return true;
-  if (!payload?.hasMedia) return false;
+  }
+  if (!payload?.hasMedia) {
+    return false;
+  }
   const url = pickAudioUrl(payload, msgContainer);
   return looksAudio(payload, msgContainer, url);
 }
@@ -719,7 +739,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
     if (event === "message_ack") {
       const messageId = payload.messageId;
       const ack = Number(payload.ack);
-      if (!messageId) return ok({ received: true });
+      if (!messageId) {
+        return ok({ received: true });
+      }
 
       const { data: msg } = await supabase
         .from("chat_messages")
@@ -732,7 +754,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       if (msg) {
         const update: Database["public"]["Tables"]["chat_messages"]["Update"] =
           {};
-        if (ack >= 3 && !msg.read_at) update.read_at = new Date().toISOString();
+        if (ack >= 3 && !msg.read_at) {
+          update.read_at = new Date().toISOString();
+        }
         if (Object.keys(update).length > 0) {
           await supabase.from("chat_messages").update(update).eq("id", msg.id);
         }
@@ -758,7 +782,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       "bodyPreview=",
       String(payload.body || "").slice(0, 80),
     );
-    if (event !== "message") return ok({ received: true, ignored: event });
+    if (event !== "message") {
+      return ok({ received: true, ignored: event });
+    }
 
     const fromRaw = String(payload.from || "");
     const toRaw = String(payload.to || "");
@@ -1205,8 +1231,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             .select("phone")
             .eq("lid", lidKey)
             .maybeSingle();
-          if (knownLid?.phone)
+          if (knownLid?.phone) {
             waLidMapPhone = String(knownLid.phone).replace(/\D/g, "");
+          }
         }
 
         const resolved = resolveInboundLidToPhone({
@@ -1337,8 +1364,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             .select("phone")
             .eq("lid", lidKey)
             .maybeSingle();
-          if (knownLid?.phone)
+          if (knownLid?.phone) {
             waLidMapPhone = String(knownLid.phone).replace(/\D/g, "");
+          }
         }
         const resolved = resolveInboundLidToPhone({
           lidDigits: lidKey,
@@ -1429,7 +1457,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             (s: { configuration: unknown }) =>
               pickObj(s.configuration)?.carmen_open_member_groups === true,
           );
-          if (!ownHasOpenMode) groupTenantId = rows[0].tenant_id as string;
+          if (!ownHasOpenMode) {
+            groupTenantId = rows[0].tenant_id as string;
+          }
         }
       } catch (_e) {
         /* fall back to bot tenant */
@@ -1564,7 +1594,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
               .gte("created_at", since)
               .order("created_at", { ascending: false })
               .limit(10);
-            if (groupDbId) q = q.eq("group_id", groupDbId);
+            if (groupDbId) {
+              q = q.eq("group_id", groupDbId);
+            }
             return q;
           };
 
@@ -1936,7 +1968,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           ),
           sendVoice: makeVoiceSender(groupTenantId),
         });
-        if (result.handled) carmenOutcome = result.outcome;
+        if (result.handled) {
+          carmenOutcome = result.outcome;
+        }
         console.log("[carmen-group]", {
           groupChatId,
           authorPhone,
@@ -1962,7 +1996,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         .eq("provider", "manus_wa")
         .eq("raw_provider_data->>id", messageId)
         .maybeSingle();
-      if (existing) return ok({ received: true, duplicate: true });
+      if (existing) {
+        return ok({ received: true, duplicate: true });
+      }
     }
 
     // Look up client/lead by phone (last 9 digits)
@@ -1975,7 +2011,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
       .eq("tenant_id", tenantId)
       .or(`phone.ilike.%${normalized}%,phone.ilike.%${counterpartPhone}%`)
       .maybeSingle();
-    if (client) clientId = client.id;
+    if (client) {
+      clientId = client.id;
+    }
 
     if (!clientId) {
       const { data: lead } = await supabase
@@ -1984,7 +2022,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         .eq("tenant_id", tenantId)
         .or(`phone.ilike.%${normalized}%,phone.ilike.%${counterpartPhone}%`)
         .maybeSingle();
-      if (lead) leadId = lead.id;
+      if (lead) {
+        leadId = lead.id;
+      }
     }
 
     const { error: insertError } = await supabase.from("chat_messages").insert({
@@ -2032,7 +2072,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
           messageText,
         });
         if (direct.handled) {
-          if (direct.ack)
+          if (direct.ack) {
             await fetch(
               `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`,
               {
@@ -2052,6 +2092,7 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
             ).catch((err) =>
               console.error("[manus-wa] direct ack error:", err),
             );
+          }
           return ok({ received: true, direct: direct.provider });
         }
       } catch (err) {
@@ -2115,7 +2156,9 @@ const handleManusPayload: Parameters<typeof createWebhookHandler>[0] = async (
         isVoiceMessage: messageIsVoice(payload, msgContainer, resolvedMsg),
         sendVoice: makeVoiceSender(tenantId),
       });
-      if (result.handled) carmenOutcome = result.outcome;
+      if (result.handled) {
+        carmenOutcome = result.outcome;
+      }
       console.log("[carmen-private]", {
         chatId: chatIdForCarmen,
         carmenTargetPhone,

@@ -97,8 +97,11 @@ Deno.test(
           err.name = "AbortError";
           reject(err);
         };
-        if (init?.signal?.aborted) onAbort();
-        else init?.signal?.addEventListener("abort", onAbort);
+        if (init?.signal?.aborted) {
+          onAbort();
+        } else {
+          init?.signal?.addEventListener("abort", onAbort);
+        }
       });
 
     isSending = true;

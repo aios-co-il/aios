@@ -30,7 +30,7 @@ export function AssetCard({
   const colors = Array.isArray(
     (asset.meta.report as { colors?: unknown } | undefined)?.colors,
   )
-    ? ((asset.meta.report as { colors: string[] }).colors ?? [])
+    ? ((asset.meta.report as { colors: Array<string> }).colors ?? [])
     : [];
   const inspected = !!asset.meta.inspected_at;
   const isPicture = asset.asset_type === "image" && !!asset.url;

@@ -26,13 +26,17 @@ export function useLeadsViewMode(userId: string | undefined) {
   const { data: profileDefault } = useQuery({
     queryKey: ["leads-default-view", userId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!userId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("leads_default_view")
         .eq("id", userId)
         .maybeSingle();
-      if (error) return readStoredLeadDefaultView();
+      if (error) {
+        return readStoredLeadDefaultView();
+      }
       return parseLeadViewMode(data?.leads_default_view);
     },
     enabled: !!userId,
@@ -44,8 +48,9 @@ export function useLeadsViewMode(userId: string | undefined) {
       profileDefault == null ||
       appliedProfileDefault.current ||
       userTouchedView.current
-    )
+    ) {
       return;
+    }
     appliedProfileDefault.current = true;
     setDefaultViewState(profileDefault);
     setViewModeState(profileDefault);
@@ -60,12 +65,16 @@ export function useLeadsViewMode(userId: string | undefined) {
 
   const saveDefault = useMutation({
     mutationFn: async (mode: LeadViewMode) => {
-      if (!userId) return mode;
+      if (!userId) {
+        return mode;
+      }
       const { error } = await supabase
         .from("profiles")
         .update({ leads_default_view: mode })
         .eq("id", userId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return mode;
     },
     onSuccess: (mode) => {

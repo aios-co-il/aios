@@ -34,8 +34,12 @@ async function openRouterReady(
   resolveOpenRouterKey: ClipFallbackOptions<unknown>["resolveOpenRouterKey"],
   log: (line: string) => void,
 ) {
-  if (keys?.openRouterKey) return true;
-  if (!resolveOpenRouterKey) return false;
+  if (keys?.openRouterKey) {
+    return true;
+  }
+  if (!resolveOpenRouterKey) {
+    return false;
+  }
   try {
     return Boolean(await resolveOpenRouterKey());
   } catch (error) {
@@ -95,8 +99,9 @@ export async function runClipWithFallback<T>({
     if (
       name !== FALLBACK_VIDEO_PROVIDER &&
       (await openRouterReady(keys, resolveOpenRouterKey, log))
-    )
+    ) {
       chain.push(FALLBACK_VIDEO_PROVIDER);
+    }
     for (const next of chain) {
       if (!(await affordable(next))) {
         log(`${next} costs more than the approved ${name} price, skipped`);
@@ -106,7 +111,9 @@ export async function runClipWithFallback<T>({
         log(`using ${next}`);
         return await run(next, name);
       } catch (nextError) {
-        if (!refusedBeforeSubmit(nextError)) throw nextError;
+        if (!refusedBeforeSubmit(nextError)) {
+          throw nextError;
+        }
         log(`${next} refused the job before it started`);
       }
     }

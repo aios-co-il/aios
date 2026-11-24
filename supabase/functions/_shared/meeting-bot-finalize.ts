@@ -50,7 +50,7 @@ export interface MeetingBotSession {
   client_id: string | null;
   lead_id: string | null;
   agency_id: string | null;
-  campaigner_ids: string[] | null;
+  campaigner_ids: Array<string> | null;
   // Text in the schema; the values are auto, client, lead, campaigner, agency.
   summary_scope: string;
   platform: string;
@@ -86,7 +86,9 @@ async function fetchMediaIfSmallEnough(
   }
 
   const blob = await res.blob();
-  if (blob.size > maxBytes) return { blob: null, tooLarge: true };
+  if (blob.size > maxBytes) {
+    return { blob: null, tooLarge: true };
+  }
   return { blob, tooLarge: false };
 }
 
@@ -219,7 +221,9 @@ export async function finalizeMeetingBotSession(
     }
     recording = data;
   } else {
-    if (!transcription) row.transcription_status = "pending";
+    if (!transcription) {
+      row.transcription_status = "pending";
+    }
     const { data, error } = await admin
       .from("zoom_recordings")
       .insert(row)

@@ -31,8 +31,8 @@ const goalRow = (campaignId: string, category: string, biddable = true) => ({
 
 /** A GAQL client that answers the category query and the goal query with fixed rows. */
 function fakeGaql(
-  categoryRows: GaqlRow[],
-  goalRows: GaqlRow[] | Error,
+  categoryRows: Array<GaqlRow>,
+  goalRows: Array<GaqlRow> | Error,
 ): RunGaqlSearch {
   return (query) => {
     if (!query.includes("campaign_conversion_goal")) {
@@ -46,7 +46,7 @@ function fakeGaql(
 }
 
 Deno.test("a campaign bidding on PURCHASE is stamped ecommerce", async () => {
-  const records: ConversionEnrichedRecord[] = [record("pmax")];
+  const records: Array<ConversionEnrichedRecord> = [record("pmax")];
   await enrichConversionCategories(records, {
     ...WINDOW,
     runGaqlSearch: fakeGaql(
@@ -60,7 +60,7 @@ Deno.test("a campaign bidding on PURCHASE is stamped ecommerce", async () => {
 Deno.test(
   "a failed goal query still stamps the goal from the conversions",
   async () => {
-    const records: ConversionEnrichedRecord[] = [record("search")];
+    const records: Array<ConversionEnrichedRecord> = [record("search")];
     await enrichConversionCategories(records, {
       ...WINDOW,
       runGaqlSearch: fakeGaql(
@@ -80,7 +80,7 @@ Deno.test("add_to_cart is written only for ecommerce tables", async () => {
     categoryRow("pmax", "PURCHASE", "2"),
     categoryRow("pmax", "ADD_TO_CART", "0", "7"),
   ];
-  const leadsTable: ConversionEnrichedRecord[] = [record("pmax")];
+  const leadsTable: Array<ConversionEnrichedRecord> = [record("pmax")];
   await enrichConversionCategories(leadsTable, {
     ...WINDOW,
     campaignType: "leads",
@@ -88,7 +88,7 @@ Deno.test("add_to_cart is written only for ecommerce tables", async () => {
   });
   assertStrictEquals(leadsTable[0].add_to_cart, undefined);
 
-  const ecommerceTable: ConversionEnrichedRecord[] = [
+  const ecommerceTable: Array<ConversionEnrichedRecord> = [
     record("pmax"),
     record("pmax", "2026-10-21"),
   ];
@@ -106,7 +106,7 @@ Deno.test("add_to_cart is written only for ecommerce tables", async () => {
 Deno.test(
   "a campaign with no goal and no conversions stays unstamped",
   async () => {
-    const records: ConversionEnrichedRecord[] = [record("display")];
+    const records: Array<ConversionEnrichedRecord> = [record("display")];
     await enrichConversionCategories(records, {
       ...WINDOW,
       runGaqlSearch: fakeGaql([categoryRow("display", "PAGE_VIEW", "9")], []),

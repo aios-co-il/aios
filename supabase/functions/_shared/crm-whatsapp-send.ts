@@ -7,7 +7,7 @@ type AdminClient = {
 export type CrmWaProvider =
   "green_api" | "manus_wa" | "meta_whatsapp" | "manychat";
 
-const WA_ORDER: CrmWaProvider[] = [
+const WA_ORDER: Array<CrmWaProvider> = [
   "green_api",
   "manus_wa",
   "meta_whatsapp",
@@ -22,7 +22,9 @@ export function pickCrmWhatsappIntegration(
     user_id?: string | null;
   }>,
 ): { id: string; type: CrmWaProvider; user_id: string | null } | null {
-  if (!integrations.length) return null;
+  if (!integrations.length) {
+    return null;
+  }
   if (preferred) {
     const match = integrations.find(
       (row) => row.integration_type === preferred,
@@ -45,9 +47,15 @@ export function pickCrmWhatsappIntegration(
 }
 
 function functionName(type: CrmWaProvider): string {
-  if (type === "manus_wa") return "send-manus-wa-message";
-  if (type === "meta_whatsapp") return "send-meta-whatsapp-message";
-  if (type === "manychat") return "send-chat-message";
+  if (type === "manus_wa") {
+    return "send-manus-wa-message";
+  }
+  if (type === "meta_whatsapp") {
+    return "send-meta-whatsapp-message";
+  }
+  if (type === "manychat") {
+    return "send-chat-message";
+  }
   return "send-green-api-message";
 }
 
@@ -89,7 +97,9 @@ async function loadTenantWhatsappIntegrations(
     { id: string; integration_type: string; user_id?: string | null }
   >();
   for (const row of [...(owned || []), ...shared]) {
-    if (row?.id) unique.set(row.id, row);
+    if (row?.id) {
+      unique.set(row.id, row);
+    }
   }
   return Array.from(unique.values());
 }
@@ -106,9 +116,15 @@ export async function sendCrmWhatsappToLeadAdmin(input: {
     .select("id, phone, tenant_id, active_chat_provider")
     .eq("id", input.leadId)
     .maybeSingle();
-  if (leadError) return { ok: false, error: leadError.message };
-  if (!lead?.phone) return { ok: false, skipped: "no_phone" };
-  if (!lead.tenant_id) return { ok: false, skipped: "no_tenant" };
+  if (leadError) {
+    return { ok: false, error: leadError.message };
+  }
+  if (!lead?.phone) {
+    return { ok: false, skipped: "no_phone" };
+  }
+  if (!lead.tenant_id) {
+    return { ok: false, skipped: "no_tenant" };
+  }
 
   const integrations = await loadTenantWhatsappIntegrations(
     input.admin,
@@ -129,7 +145,9 @@ export async function sendCrmWhatsappToLeadAdmin(input: {
     tenantId: lead.tenant_id,
     integrationId: picked.id,
   };
-  if (picked.user_id) body.senderUserId = picked.user_id;
+  if (picked.user_id) {
+    body.senderUserId = picked.user_id;
+  }
 
   const response = await fetch(
     `${input.supabaseUrl}/functions/v1/${functionName(picked.type)}`,

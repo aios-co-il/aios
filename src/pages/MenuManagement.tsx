@@ -223,8 +223,8 @@ function SortableMenuItem({
 
 interface MenuGroupProps {
   category: string;
-  items: MenuItem[];
-  children: MenuItem[];
+  items: Array<MenuItem>;
+  children: Array<MenuItem>;
   editingItems: Record<string, string>;
   updateMutation: any;
   onLabelChange: (id: string, value: string) => void;
@@ -232,7 +232,7 @@ interface MenuGroupProps {
   onResetLabel: (item: MenuItem) => void;
   onToggleVisibility: (item: MenuItem) => void;
   onBadgeChange: (item: MenuItem, badge: string | null) => void;
-  onDragEnd: (items: MenuItem[], event: DragEndEvent) => void;
+  onDragEnd: (items: Array<MenuItem>, event: DragEndEvent) => void;
   isRootOrg?: boolean;
 }
 
@@ -369,7 +369,7 @@ export default function MenuManagement() {
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const [editingItems, setEditingItems] = useState<Record<string, string>>({});
-  const [groupOrder, setGroupOrder] = useState<string[]>([
+  const [groupOrder, setGroupOrder] = useState<Array<string>>([
     "main",
     "management",
     "sales",
@@ -389,7 +389,9 @@ export default function MenuManagement() {
   const { data: tenantData } = useQuery({
     queryKey: ["tenant-org-type", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenants")
         .select("org_type, is_premium")
@@ -423,7 +425,9 @@ export default function MenuManagement() {
   const { data: groupOrderSetting } = useQuery({
     queryKey: ["menu-group-order", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data, error } = await supabase.rpc("get_effective_setting", {
         _tenant_id: tenantId,
         _setting_key: "menu_group_order",
@@ -439,7 +443,7 @@ export default function MenuManagement() {
 
   useEffect(() => {
     if (Array.isArray(groupOrderSetting)) {
-      setGroupOrder(groupOrderSetting as string[]);
+      setGroupOrder(groupOrderSetting as Array<string>);
     }
   }, [groupOrderSetting]);
 
@@ -452,17 +456,21 @@ export default function MenuManagement() {
         .filter("tenant_id", "eq", tenantId)
         .order("sort_order");
 
-      if (error) throw error;
-      return data as MenuItem[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<MenuItem>;
     },
     enabled: !!tenantId,
   });
 
   // Initially expand all parents when menu items load
   useEffect(() => {
-    if (!menuItems) return;
+    if (!menuItems) {
+      return;
+    }
 
-    const childrenMap = new Map<string, MenuItem[]>();
+    const childrenMap = new Map<string, Array<MenuItem>>();
     menuItems.forEach((item) => {
       if (item.parent_menu_key) {
         const children = childrenMap.get(item.parent_menu_key) || [];
@@ -484,7 +492,9 @@ export default function MenuManagement() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -544,7 +554,9 @@ export default function MenuManagement() {
         is_visible: true,
         sort_order: maxOrder,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["menu-items", tenantId] });
@@ -569,15 +581,22 @@ export default function MenuManagement() {
     });
   };
 
-  const handleGroupDragEnd = (groupItems: MenuItem[], event: DragEndEvent) => {
+  const handleGroupDragEnd = (
+    groupItems: Array<MenuItem>,
+    event: DragEndEvent,
+  ) => {
     const { active, over } = event;
 
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
     const oldIndex = groupItems.findIndex((item) => item.id === active.id);
     const newIndex = groupItems.findIndex((item) => item.id === over.id);
 
-    if (oldIndex === -1 || newIndex === -1) return;
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
 
     const reordered = arrayMove(groupItems, oldIndex, newIndex);
 
@@ -610,7 +629,9 @@ export default function MenuManagement() {
     // Disabled for now
   };
 
-  if (!menuItems) return null;
+  if (!menuItems) {
+    return null;
+  }
 
   // Sort items by sort_order and create hierarchical display
   const sortedItems = [...menuItems].sort(
@@ -619,7 +640,7 @@ export default function MenuManagement() {
 
   // Build parent-child relationships
   const parentItems = sortedItems.filter((item) => !item.parent_menu_key);
-  const childrenMap = new Map<string, MenuItem[]>();
+  const childrenMap = new Map<string, Array<MenuItem>>();
 
   sortedItems.forEach((item) => {
     if (item.parent_menu_key) {
@@ -643,8 +664,9 @@ export default function MenuManagement() {
 
   // Create a flat list with visual hierarchy indicators
   // Parents followed immediately by their children (if expanded)
-  const displayItems: (MenuItem & { isChild?: boolean; parentKey?: string })[] =
-    [];
+  const displayItems: Array<
+    MenuItem & { isChild?: boolean; parentKey?: string }
+  > = [];
 
   parentItems.forEach((parent) => {
     const hasChildren = childrenMap.has(parent.menu_key);
@@ -665,12 +687,16 @@ export default function MenuManagement() {
   const handleAllItemsDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
     const oldIndex = displayItems.findIndex((item) => item.id === active.id);
     const newIndex = displayItems.findIndex((item) => item.id === over.id);
 
-    if (oldIndex === -1 || newIndex === -1) return;
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
+    }
 
     const draggedItem = displayItems[oldIndex];
     const targetItem = displayItems[newIndex];

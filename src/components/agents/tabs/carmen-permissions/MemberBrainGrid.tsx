@@ -18,7 +18,7 @@ export function MemberBrainGrid({
   onPatch,
 }: {
   row: AccessRow;
-  routes: Route[];
+  routes: Array<Route>;
   disabled: boolean;
   onPatch: (patch: AccessPatch) => void;
 }) {

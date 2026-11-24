@@ -63,14 +63,23 @@ export type LeadClientContext = {
 
 export function isScreeningQuestionKey(key: string): boolean {
   const normalized = key.trim().toLowerCase();
-  if (!normalized) return false;
-  if (CONTACT_FIELD_NAMES.has(normalized)) return false;
-  if (ROUTING_FIELD_NAMES.has(normalized)) return false;
-  if (normalized.startsWith("fb_")) return false;
+  if (!normalized) {
+    return false;
+  }
+  if (CONTACT_FIELD_NAMES.has(normalized)) {
+    return false;
+  }
+  if (ROUTING_FIELD_NAMES.has(normalized)) {
+    return false;
+  }
+  if (normalized.startsWith("fb_")) {
+    return false;
+  }
   // Catch Hebrew/English contact + campaign envelope labels Make sometimes
   // puts inside questions_and_answers (must not appear under "שאלות סינון").
-  if (/(טלפון|אימייל|מייל|email|phone|mobile|whatsapp)/i.test(normalized))
+  if (/(טלפון|אימייל|מייל|email|phone|mobile|whatsapp)/i.test(normalized)) {
     return false;
+  }
   if (
     /^(שם|name|full.?name)(\b|_)/i.test(normalized) ||
     normalized === "שם" ||
@@ -78,8 +87,9 @@ export function isScreeningQuestionKey(key: string): boolean {
   ) {
     return false;
   }
-  if (/ליד חדש|מקמפיין פייסבוק|facebook campaign/i.test(normalized))
+  if (/ליד חדש|מקמפיין פייסבוק|facebook campaign/i.test(normalized)) {
     return false;
+  }
   return true;
 }
 
@@ -89,7 +99,9 @@ export function isScreeningQuestionKey(key: string): boolean {
  */
 export function parseQaText(value: string): Record<string, string> {
   const text = String(value ?? "").trim();
-  if (!text) return {};
+  if (!text) {
+    return {};
+  }
 
   const chunks = text
     .split(/\s*[•\n\r|;]+\s*/)
@@ -99,11 +111,17 @@ export function parseQaText(value: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const chunk of chunks) {
     const match = chunk.match(/^([^:：]+)\s*[:：]\s*(.+)$/);
-    if (!match) continue;
+    if (!match) {
+      continue;
+    }
     const question = match[1].trim();
     const answer = match[2].trim();
-    if (!question || !answer) continue;
-    if (!isScreeningQuestionKey(question)) continue;
+    if (!question || !answer) {
+      continue;
+    }
+    if (!isScreeningQuestionKey(question)) {
+      continue;
+    }
     out[question] = answer;
   }
   return out;
@@ -146,7 +164,9 @@ export async function resolveLeadClient(
   tenantId: string,
   clientId: unknown,
 ): Promise<LeadClientContext | null> {
-  if (typeof clientId !== "string" || !clientId) return null;
+  if (typeof clientId !== "string" || !clientId) {
+    return null;
+  }
 
   const { data: client, error } = await supabase
     .from("clients")
@@ -154,8 +174,12 @@ export async function resolveLeadClient(
     .eq("id", clientId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error) throw error;
-  if (!client) return null;
+  if (error) {
+    throw error;
+  }
+  if (!client) {
+    return null;
+  }
 
   let phone = String(client.phone ?? "");
   let email = String(client.email ?? "");
@@ -200,11 +224,13 @@ export function buildLeadRoutingPayload(
 
 export function firstLeadPayloadString(
   payload: Record<string, unknown>,
-  keys: string[],
+  keys: Array<string>,
 ): string {
   for (const key of keys) {
     const value = payload[key];
-    if (value != null && String(value).trim()) return String(value).trim();
+    if (value != null && String(value).trim()) {
+      return String(value).trim();
+    }
   }
   return "";
 }
@@ -217,13 +243,16 @@ export function firstLeadPayloadString(
 export function isClientLeadAlertPayload(
   payload: Record<string, unknown>,
 ): boolean {
-  if (payload.crm_intake === true || payload.create_crm_lead === true)
+  if (payload.crm_intake === true || payload.create_crm_lead === true) {
     return false;
+  }
 
   const explicitAutomationId = firstLeadPayloadString(payload, [
     "automation_id",
   ]);
-  if (explicitAutomationId) return true;
+  if (explicitAutomationId) {
+    return true;
+  }
 
   const clientPhone = firstLeadPayloadString(payload, [
     "client_phone",

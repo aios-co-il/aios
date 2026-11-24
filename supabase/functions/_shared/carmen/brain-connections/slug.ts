@@ -31,12 +31,18 @@ export function slugFromName(
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-  if (base.length < 2) base = "brain";
-  if (RESERVED_BRAIN_SLUGS.has(base)) base = `${base}-brain`;
+  if (base.length < 2) {
+    base = "brain";
+  }
+  if (RESERVED_BRAIN_SLUGS.has(base)) {
+    base = `${base}-brain`;
+  }
   let slug = base;
   for (let n = 2; used.has(slug) || !isValidBrainSlug(slug); n++) {
     slug = `${base}-${n}`;
-    if (n > 999) break;
+    if (n > 999) {
+      break;
+    }
   }
   return slug;
 }

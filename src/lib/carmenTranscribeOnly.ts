@@ -55,7 +55,9 @@ export async function transcribeAudioBlob(
 ): Promise<string> {
   const formData = new FormData();
   formData.append("audio", audioBlob, opts?.filename ?? "voice.webm");
-  if (opts?.inputMode) formData.append("input_mode", opts.inputMode);
+  if (opts?.inputMode) {
+    formData.append("input_mode", opts.inputMode);
+  }
 
   const res = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-voice`,

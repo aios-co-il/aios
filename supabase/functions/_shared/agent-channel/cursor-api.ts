@@ -78,7 +78,9 @@ export async function followUpCloudAgent(
       };
     }
     if (resp.status === 409) {
-      if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+      if (attempt === 1) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       continue;
     }
     if (resp.status === 404 || resp.status === 410 || resp.status === 400) {
@@ -126,8 +128,11 @@ export async function createCloudAgent(args: {
       resolveCodingCursorModel(args.modelId || Deno.env.get("CURSOR_MODEL_ID")),
     ),
   };
-  if (envName) body.env = { type: "cloud", name: envName };
-  else body.repos = [{ url: repoUrl, startingRef }];
+  if (envName) {
+    body.env = { type: "cloud", name: envName };
+  } else {
+    body.repos = [{ url: repoUrl, startingRef }];
+  }
 
   const resp = await cursorFetch(
     args.apiKey,
@@ -154,7 +159,9 @@ export async function createCloudAgent(args: {
 
 /** Pass a send's env (see brain-env.ts) to honour a tenant's UI key. */
 export function cursorApiKey(env?: Record<string, string | undefined>): string {
-  if (env) return env.CURSOR_API_KEY || env.GROK_BOT_API_KEY || "";
+  if (env) {
+    return env.CURSOR_API_KEY || env.GROK_BOT_API_KEY || "";
+  }
   return (
     Deno.env.get("CURSOR_API_KEY") || Deno.env.get("GROK_BOT_API_KEY") || ""
   );
@@ -163,7 +170,9 @@ export function cursorApiKey(env?: Record<string, string | undefined>): string {
 export async function probeCursorApiKey(
   apiKey: string,
 ): Promise<{ ok: boolean; status: number }> {
-  if (!apiKey) return { ok: false, status: 0 };
+  if (!apiKey) {
+    return { ok: false, status: 0 };
+  }
   const resp = await cursorFetch(apiKey, "https://api.cursor.com/v1/models", {
     method: "GET",
   });
