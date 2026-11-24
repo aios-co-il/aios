@@ -1,8 +1,17 @@
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { facebookCostPerResult } from "@/lib/facebookResultMetric";
-import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
+import { formatReportNumber, resultCellClass } from "@/lib/reportNumber";
+import {
+  costPerLead,
+  leadsOf,
+  spendOf,
+  sumOf,
+  summed,
+} from "../facebookMetrics";
 import type { FacebookReportCampaign } from "../facebookReportCampaigns";
 import type { SalesColumns } from "./salesColumns";
+import { costPerPurchase, roas } from "./salesMetrics";
 
 type Rows = Array<FacebookReportCampaign>;
 
@@ -17,7 +26,13 @@ type Props = {
   isTotal: boolean;
 };
 
-/** Metric cells of one campaign or, given every campaign, of the total row. */
+const purchasesOf = summed("purchases");
+const purchaseValueOf = summed("purchase_value");
+
+/**
+ * Metric cells of one campaign or, given every campaign, of the total row.
+ * A compared metric carries its change arrow and colour on the current value.
+ */
 export function SalesCells({
   campaigns,
   previous,
@@ -26,11 +41,19 @@ export function SalesCells({
   currency,
   isTotal,
 }: Props) {
-  const prev = previousCellsFor(campaigns, previous);
-  const spend = sumOf(campaigns, "spend");
+  const compared = compareCellsFor(campaigns, previous);
+  const spend = compared(spendOf, money, "neutral");
+  const purchases = compared(purchasesOf, formatReportNumber, "higher");
+  const value = compared(purchaseValueOf, money, "higher");
+  const roasMetric = compared(roas, times, "higher");
+  const cpp = compared(costPerPurchase, (cost) => money(cost, 1), "lower");
+  const leads = compared(leadsOf, formatReportNumber, "higher");
+  const cpl = compared(costPerLead, (cost) => money(cost, 1), "lower");
+  const green = resultCellClass("text-green-600", isTotal);
+  const blue = resultCellClass("text-blue-600", isTotal);
   /** An amount in the report's currency. */
-  function money(value: number, digits = 0) {
-    return `${currency}${formatReportNumber(value, digits)}`;
+  function money(amount: number, digits = 0) {
+    return `${currency}${formatReportNumber(amount, digits)}`;
   }
   return (
     <>
@@ -40,11 +63,13 @@ export function SalesCells({
       <td className="p-2 text-center">
         {formatReportNumber(sumOf(campaigns, "clicks"))}
       </td>
-      <td className="p-2 text-center">{money(spend)}</td>
-      {prev((rows) => sumOf(rows, "spend"), money, "neutral")}
+      <MarkedCell className="p-2 text-center" mark={spend.mark}>
+        {money(spendOf(campaigns))}
+      </MarkedCell>
+      {spend.previousCell}
       {columns.results && (
         <>
-          <td className={resultCellClass("text-green-600", isTotal)}>
+          <td className={green}>
             {result.count === null ? (
               "—"
             ) : (
@@ -58,9 +83,12 @@ export function SalesCells({
               </>
             )}
           </td>
-          <td className={resultCellClass("text-blue-600", isTotal)}>
+          <td className={blue}>
             {result.count
-              ? money(facebookCostPerResult(spend, result.count), 1)
+              ? money(
+                  facebookCostPerResult(spendOf(campaigns), result.count),
+                  1,
+                )
               : "—"}
           </td>
         </>
@@ -70,39 +98,42 @@ export function SalesCells({
           {formatReportNumber(sumOf(campaigns, "add_to_cart"))}
         </td>
       )}
-      <td className={resultCellClass("text-green-600", isTotal)}>
-        {formatReportNumber(sumOf(campaigns, "purchases"))}
-      </td>
-      {prev((rows) => sumOf(rows, "purchases"), formatReportNumber, "higher")}
+      <MarkedCell className={green} mark={purchases.mark}>
+        {formatReportNumber(purchasesOf(campaigns))}
+      </MarkedCell>
+      {purchases.previousCell}
       {columns.value ? (
         <>
-          <td className="p-2 text-center text-green-600">
-            {money(sumOf(campaigns, "purchase_value"))}
-          </td>
-          {prev((rows) => sumOf(rows, "purchase_value"), money, "higher")}
-          <td className={resultCellClass("text-blue-600", isTotal)}>
-            {formatReportNumber(roas(campaigns), 1)}x
-          </td>
-          {prev(roas, (value) => `${formatReportNumber(value, 1)}x`, "higher")}
+          <MarkedCell
+            className="p-2 text-center text-green-600"
+            mark={value.mark}
+          >
+            {money(purchaseValueOf(campaigns))}
+          </MarkedCell>
+          {value.previousCell}
+          <MarkedCell className={blue} mark={roasMetric.mark}>
+            {times(roas(campaigns) ?? 0)}
+          </MarkedCell>
+          {roasMetric.previousCell}
         </>
       ) : (
         <>
-          <td className={resultCellClass("text-blue-600", isTotal)}>
-            {money(costPerPurchase(campaigns), 1)}
-          </td>
-          {prev(costPerPurchase, (value) => money(value, 1), "lower")}
+          <MarkedCell className={blue} mark={cpp.mark}>
+            {money(costPerPurchase(campaigns) ?? 0, 1)}
+          </MarkedCell>
+          {cpp.previousCell}
         </>
       )}
       {columns.leads && (
         <>
-          <td className={resultCellClass("text-green-600", isTotal)}>
-            {formatReportNumber(sumOf(campaigns, "leads"))}
-          </td>
-          {prev((rows) => sumOf(rows, "leads"), formatReportNumber, "higher")}
-          <td className={resultCellClass("text-blue-600", isTotal)}>
-            {money(costPerLead(campaigns), 1)}
-          </td>
-          {prev(costPerLead, (value) => money(value, 1), "lower")}
+          <MarkedCell className={green} mark={leads.mark}>
+            {formatReportNumber(leadsOf(campaigns))}
+          </MarkedCell>
+          {leads.previousCell}
+          <MarkedCell className={blue} mark={cpl.mark}>
+            {money(costPerLead(campaigns) ?? 0, 1)}
+          </MarkedCell>
+          {cpl.previousCell}
         </>
       )}
       {columns.conversations && (
@@ -114,33 +145,7 @@ export function SalesCells({
   );
 }
 
-/** Purchase value per unit of spend. */
-function roas(rows: Rows): number {
-  return ratio(sumOf(rows, "purchase_value"), sumOf(rows, "spend"));
-}
-
-/** Spend per purchase. */
-function costPerPurchase(rows: Rows): number {
-  return ratio(sumOf(rows, "spend"), sumOf(rows, "purchases"));
-}
-
-/** Spend per lead. */
-function costPerLead(rows: Rows): number {
-  return ratio(sumOf(rows, "spend"), sumOf(rows, "leads"));
-}
-
-/** One number summed over the rows. */
-function sumOf(
-  rows: Rows,
-  key:
-    | "impressions"
-    | "clicks"
-    | "spend"
-    | "purchases"
-    | "purchase_value"
-    | "add_to_cart"
-    | "leads"
-    | "conversations",
-): number {
-  return rows.reduce((total, row) => total + row[key], 0);
+/** A return on ad spend, as a multiple. */
+function times(value: number): string {
+  return `${formatReportNumber(value, 1)}x`;
 }
