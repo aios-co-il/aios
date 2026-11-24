@@ -22,7 +22,7 @@ Deno.test(
           {},
         ],
         200,
-        { actorUserId: "actor" },
+        { actorUserId: "actor", approval: { outOfBand: true } },
       );
       await executeSendMessage(
         { contact_type, contact_id: contactId, message_text: "hello" },
@@ -55,10 +55,14 @@ Deno.test("missing scoped contact performs no send", async () => {
 });
 
 Deno.test("send_message retains the raw HTTP error", async () => {
-  const f = executorClient([
-    { phone: "0501234567", tenant_id: "t1" },
-    new Response("denied", { status: 403 }),
-  ]);
+  const f = executorClient(
+    [
+      { phone: "0501234567", tenant_id: "t1" },
+      new Response("denied", { status: 403 }),
+    ],
+    200,
+    { approval: { outOfBand: true } },
+  );
   await assertRejects(
     () =>
       executeSendMessage(
@@ -129,6 +133,72 @@ Deno.test(
   },
 );
 
+Deno.test(
+  "in a chat send_message queues the message for approval and sends nothing",
+  async () => {
+    const f = executorClient(
+      [
+        { phone: "0501234567", contact_name: "דני", tenant_id: "t1" },
+        { id: "approval-1" },
+      ],
+      200,
+      { actorUserId: "actor", agentId: "agent-1" },
+    );
+    const result = await executeSendMessage(
+      { contact_type: "lead", contact_id: contactId, message_text: "hello" },
+      f.context,
+    );
+    assertEquals(
+      f.calls.some((call) => call.url.includes("/functions/v1/")),
+      false,
+    );
+    assertEquals(
+      new URL(f.calls[1].url).pathname,
+      "/rest/v1/agent_approval_queue",
+    );
+    const row = f.calls[1].body as Record<string, unknown>;
+    assertEquals(
+      {
+        tenant_id: row.tenant_id,
+        agent_id: row.agent_id,
+        requested_by: row.requested_by,
+        action_type: row.action_type,
+        tool_name: row.tool_name,
+        tool_input: row.tool_input,
+        status: row.status,
+      },
+      {
+        tenant_id: "t1",
+        agent_id: "agent-1",
+        requested_by: "actor",
+        action_type: "agent_direct_tool",
+        tool_name: "send_message",
+        tool_input: {
+          contact_type: "lead",
+          contact_id: contactId,
+          message_text: "hello",
+        },
+        status: "pending",
+      },
+    );
+    assertEquals("pending_approval" in result && result.pending_approval, true);
+    assertEquals("approval_id" in result && result.approval_id, "approval-1");
+  },
+);
+
+Deno.test("a chat send without a requester queues nothing", async () => {
+  const f = executorClient([{ phone: "0501234567", tenant_id: "t1" }]);
+  const result = await executeSendMessage(
+    { contact_type: "client", contact_id: contactId, message_text: "hello" },
+    f.context,
+  );
+  assertEquals(result, {
+    success: false,
+    error: "send_message_requires_requester",
+  });
+  assertEquals(f.calls.length, 1);
+});
+
 /** Route parallel access lookups by endpoint, independent of SDK scheduling. */
 function sharedContactFixture(member: boolean) {
   const tenant = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -136,7 +206,11 @@ function sharedContactFixture(member: boolean) {
   const f = executorClient(
     [],
     200,
-    { actorUserId: actor, accessibleTenantIds: ["t1", tenant] },
+    {
+      actorUserId: actor,
+      accessibleTenantIds: ["t1", tenant],
+      approval: { outOfBand: true },
+    },
     undefined,
     (url) => {
       if (url.pathname === "/rest/v1/clients") {

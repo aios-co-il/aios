@@ -144,6 +144,7 @@ We use the org's own connected models. Standardized helper: `supabase/functions/
 
 ## Approvals (`agent_approval_queue`)
 
+- **WhatsApp to a client or lead (`send_message`) always waits for approval.** In a chat the tool queues an `agent_direct_tool` row with the recipient and text and sends nothing; the send runs when the approved row comes back through `execute_approved` (`run-ai-agent/executors/send-message.ts`).
 - A chat "כן" runs only a pending row the same user requested in the same conversation (`context.conversation_key`) within 30 minutes. Otherwise Carmen lists the candidates with 4-digit codes (6 digits when two listed rows share 4), and "כן <קוד>" picks one; "לא <קוד>" lets the requester or an approver reject. Picker and tests: `run-ai-agent/approvals/`; role gate and claim: `_shared/carmen/approvals/`.
 - The approver is the caller Carmen resolved. For a user JWT that is always the JWT user: `run-ai-agent` strips `lead_data` (caller phone), `wa_notify` and the `whatsapp` surface from non-service requests (`run-ai-agent/caller-trust.ts`), so only WhatsApp webhooks and automations, which call with the service key, can act for a phone.
 - Money, external_send, config and destructive rows need `owner`, `agency_owner` or `super_admin`. `carmen-approval-execute` checks the approver's tenant and role, refuses expired rows and claims a row once (`executing`, then `executed` or `failed`).
