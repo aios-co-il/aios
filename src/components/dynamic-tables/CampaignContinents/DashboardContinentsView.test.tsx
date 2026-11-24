@@ -63,7 +63,7 @@ describe("DashboardContinentsView", () => {
     expect(screen.getAllByText("₪22142").length).toBeGreaterThan(0);
     expect(screen.getAllByText("$300").length).toBeGreaterThan(0);
     expect(screen.getByText("אסיה - Facebook לידים")).toBeTruthy();
-    expect(screen.getByText("דרום אמריקה - Google Ads")).toBeTruthy();
+    expect(screen.getByText("אמריקה - Google Ads")).toBeTruthy();
   });
 
   it("switches to Meta's continents alone", async () => {
