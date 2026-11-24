@@ -380,7 +380,7 @@ export default function GoogleAdsSettings() {
     makeSettings?.webhook_secret ||
     `make_${currentTenant?.id?.substring(0, 8)}_${Date.now().toString(36)}`;
 
-  const webhookUrl = `https://zvoijyneresvkadpprel.supabase.co/functions/v1/webhook-google-ads-sync`;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-google-ads-sync`;
 
   // Save Make webhook settings (legacy)
   const saveMakeSettingsMutation = useMutation({

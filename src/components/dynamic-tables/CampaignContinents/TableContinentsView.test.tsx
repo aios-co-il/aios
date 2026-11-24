@@ -32,7 +32,7 @@ describe("TableContinentsView", () => {
       />,
     );
     expect(screen.getByText("סיכום לפי יבשת")).toBeTruthy();
-    expect(screen.getAllByText("דרום אמריקה")).toHaveLength(2);
+    expect(screen.getAllByText("אמריקה")).toHaveLength(2);
     expect(screen.getAllByText("אסיה")).toHaveLength(2);
     expect(screen.getAllByText("כללי")).toHaveLength(2);
     expect(screen.getAllByText("$560").length).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ describe("TableContinentsView", () => {
     );
 
     expect(screen.getByText("סיכום לפי יבשת")).toBeTruthy();
-    expect(screen.getByText("דרום אמריקה - Facebook לידים")).toBeTruthy();
+    expect(screen.getByText("אמריקה - Facebook לידים")).toBeTruthy();
     expect(screen.getAllByText(/₪/).length).toBeGreaterThan(0);
   });
 });

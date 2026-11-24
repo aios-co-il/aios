@@ -21,6 +21,41 @@ Deno.test("isInternalMcpUrl accepts supabase edge functions", () => {
   assertEquals(isInternalMcpUrl("https://example.com/mcp"), false);
 });
 
+Deno.test("isInternalMcpUrl accepts the AIOS API custom domains", () => {
+  assertEquals(
+    isInternalMcpUrl("https://api.aios.co.il/functions/v1/cursor-mcp"),
+    true,
+  );
+  assertEquals(
+    isInternalMcpUrl(
+      "https://api-staging.aios.co.il/functions/v1/grok-mcp/mcp",
+    ),
+    true,
+  );
+  assertEquals(isInternalMcpUrl("https://api.aios.co.il/rest/v1/x"), false);
+  assertEquals(
+    isInternalMcpUrl("https://evil.aios.co.il/functions/v1/cursor-mcp"),
+    false,
+  );
+});
+
+Deno.test("isInternalMcpUrl accepts this project's PUBLIC_API_URL host", () => {
+  Deno.env.set("PUBLIC_API_URL", "https://edge.example.test");
+
+  try {
+    assertEquals(
+      isInternalMcpUrl("https://edge.example.test/functions/v1/cursor-mcp"),
+      true,
+    );
+    assertEquals(
+      isInternalMcpUrl("https://other.example.test/functions/v1/cursor-mcp"),
+      false,
+    );
+  } finally {
+    Deno.env.delete("PUBLIC_API_URL");
+  }
+});
+
 Deno.test("secretForConnectionName maps presets", () => {
   Deno.env.set("CURSOR_MCP_BEARER", "test-bearer");
   assertEquals(secretForConnectionName("Cursor"), "test-bearer");
@@ -65,6 +100,14 @@ Deno.test(
       repointInternalMcpUrlIfNeeded(
         "Cursor",
         `${staging}/functions/v1/cursor-mcp`,
+        staging,
+      ),
+      `${staging}/functions/v1/cursor-mcp`,
+    );
+    assertEquals(
+      repointInternalMcpUrlIfNeeded(
+        "Cursor",
+        "https://api.aios.co.il/functions/v1/cursor-mcp",
         staging,
       ),
       `${staging}/functions/v1/cursor-mcp`,

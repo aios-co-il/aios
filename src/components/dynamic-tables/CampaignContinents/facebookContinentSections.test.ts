@@ -38,7 +38,7 @@ describe("facebookContinentSections", () => {
     });
 
     expect(sections.map((section) => section.title)).toStrictEqual([
-      "דרום אמריקה",
+      "אמריקה",
       "אסיה",
       "כללי",
     ]);
