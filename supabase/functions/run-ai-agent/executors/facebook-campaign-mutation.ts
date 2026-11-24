@@ -132,7 +132,8 @@ async function campaignBelongsToClient(
   }
 
   const res = await fetch(
-    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(campaignId)}?fields=account_id&access_token=${token}`,
+    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${encodeURIComponent(campaignId)}?fields=account_id`,
+    { headers: { Authorization: `Bearer ${token}` } },
   );
   const campaign = await readMetaResponse(res);
   if (!campaign.ok || campaign.value?.error) {

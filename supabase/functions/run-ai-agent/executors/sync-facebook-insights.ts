@@ -47,10 +47,7 @@ export async function executeSyncFacebookInsights(
   // A table_id names its client only through the table, so check it here too.
   if (table.client_id) {
     await assertCallerCanAccessClient(supabase, table.client_id, callerScope);
-  } else if (
-    !callerScope.isManagerRole &&
-    (callerScope.isTeamManager || callerScope.callerCampaignerId)
-  ) {
+  } else if (!callerScope.isManagerRole) {
     return { error: "לטבלה זו אין לקוח משויך — רק מנהל יכול לסנכרן אותה" };
   }
   if (table.integration_type !== integType) {

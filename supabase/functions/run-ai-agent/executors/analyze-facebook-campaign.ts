@@ -29,8 +29,13 @@ export async function executeAnalyzeFacebookCampaign(
     args.client_id,
     args.campaign_id,
   );
-  // An ownership refusal is final: the fallback below does not check it.
-  if (!inline.error || inline.error === CAMPAIGN_NOT_OF_CLIENT) {
+  // The fallback below cannot check that the campaign is the client's, so it
+  // serves managers only; an ownership refusal is final for everyone.
+  if (
+    !inline.error ||
+    inline.error === CAMPAIGN_NOT_OF_CLIENT ||
+    !callerScope.isManagerRole
+  ) {
     return inline;
   }
   const targetTenantId = await resolveClientTenantId(
