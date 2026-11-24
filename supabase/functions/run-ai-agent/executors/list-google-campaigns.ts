@@ -18,7 +18,7 @@ export async function executeListGoogleCampaigns(
   args: ListGoogleCampaignsArgs,
   context: ToolExecutionContext,
 ) {
-  const { supabase, accessibleTenantIds, callerScope } = context;
+  const { supabase, accessibleTenantIds, callerScope, callerRole } = context;
 
   let customerId = args.customer_id
     ? String(args.customer_id).replace(/-/g, "")
@@ -42,6 +42,7 @@ export async function executeListGoogleCampaigns(
       supabase,
       customerId,
       callerScope,
+      callerRole,
     );
   }
 

@@ -30,17 +30,30 @@ export async function metaAccountLinksToClient(
   return clientIds.some((id) => id.toLowerCase() === clientId.toLowerCase());
 }
 
+/** Shown to a campaigner whose phone is not on a campaigner record yet. */
+export const UNLINKED_CAMPAIGNER_MESSAGE =
+  "לא זיהיתי אותך כקמפיינר לפי מספר הטלפון. הוסף את מספר הטלפון שלך באזור האישי (הפרופיל שלי), ואז תקבל גישה לחשבונות של הלקוחות שלך.";
+
 /**
  * Throws AccessDeniedError unless the caller may read the Google Ads customer:
- * through a linked client that assertCallerCanAccessClient allows. Callers that
- * helper lets through without a client check (managers, and in-app callers
- * with no campaigner identity) keep reading any customer of their tenant.
+ * through a linked client that assertCallerCanAccessClient allows. Managers and
+ * in-app callers with no campaigner role keep reading any customer of their
+ * tenant. A campaigner whose phone matches no campaigner record is refused and
+ * asked to add the phone in the personal area, which links them.
  */
 export async function assertCallerCanAccessGoogleCustomer(
   supabase: AgentDatabaseClient,
   customerId: string,
   scope: CallerScope,
+  callerRole?: string | null,
 ): Promise<void> {
+  if (
+    !scope.isManagerRole &&
+    callerRole === "campaigner" &&
+    !scope.callerCampaignerId
+  ) {
+    throw new AccessDeniedError(UNLINKED_CAMPAIGNER_MESSAGE);
+  }
   if (
     scope.isManagerRole ||
     (!scope.isTeamManager && !scope.callerCampaignerId)

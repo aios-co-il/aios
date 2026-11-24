@@ -50,7 +50,7 @@ describe("executeListGoogleCampaigns", () => {
       AccessDeniedError,
     );
 
-    assertEquals(error.message.includes("האזור האישי"), true);
+    assertEquals(error.message.includes("אזור האישי"), true);
     assertEquals(fixture.calls, []);
   });
 
