@@ -145,3 +145,39 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "relay failures retain status and raw body for Manus and GitHub",
+  async () => {
+    /** A fresh relay response body is required for each invocation. */
+    function response() {
+      return new Response("relay timed out", {
+        status: 504,
+        headers: { "x-relay-error": "true" },
+      });
+    }
+    const manus = executorClient([response()]);
+    await assertRejects(
+      () => executeSendMessageToManus({ message: "test" }, manus.context),
+      Error,
+      "Manus send_message error [504]: relay timed out",
+    );
+    const github = executorClient([response()]);
+    assertEquals(
+      await executeDelegateToGithubAgent({ message: "test" }, github.context),
+      { error: "github-agent failed [504]: relay timed out" },
+    );
+  },
+);
+
+Deno.test(
+  "SDK transport failures without an HTTP response still reject",
+  async () => {
+    const fixture = executorClient([], 200, {}, () => {
+      throw new Error("offline");
+    });
+    await assertRejects(() =>
+      executeSendMessageToManus({ message: "test" }, fixture.context),
+    );
+  },
+);

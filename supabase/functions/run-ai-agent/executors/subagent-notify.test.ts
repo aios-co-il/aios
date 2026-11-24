@@ -28,3 +28,23 @@ Deno.test(
     assertEquals(subagentNotify(null), null);
   },
 );
+
+Deno.test("omitted optional WhatsApp target fields normalize to null", () => {
+  assertEquals(
+    subagentNotify({
+      surface: "whatsapp",
+      tenant_id: "tenant",
+      chat_id: "chat",
+      is_group: false,
+    }),
+    {
+      surface: "whatsapp",
+      tenant_id: "tenant",
+      chat_id: "chat",
+      is_group: false,
+      automation_id: null,
+      connection_user_id: null,
+      phone_number: null,
+    },
+  );
+});

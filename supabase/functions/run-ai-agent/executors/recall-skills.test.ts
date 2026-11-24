@@ -41,3 +41,16 @@ Deno.test(
     }
   },
 );
+
+Deno.test(
+  "fallback search quotes commas, quotes and backslashes without changing tenant scope",
+  async () => {
+    const fixture = executorClient([[], []]);
+    await executeRecallSkills({ query: 'ACME, "Inc"\\HQ' }, fixture.context);
+    const filters = new URL(fixture.calls[1].url).searchParams.getAll("or");
+    assertEquals(filters, [
+      "(tenant_id.eq.t1,scope.eq.global)",
+      '(name.ilike."%ACME, \\"Inc\\"\\\\HQ%",description.ilike."%ACME, \\"Inc\\"\\\\HQ%")',
+    ]);
+  },
+);

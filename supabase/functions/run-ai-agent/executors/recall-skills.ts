@@ -12,6 +12,7 @@ export async function executeRecallSkills(
   const limit = Math.min(args.limit || 5, 20);
   const q = String(args.query || "").trim();
   // The tenant's own skills and the global skins every tenant has (scope = 'global').
+  const pattern = JSON.stringify(`%${q}%`);
   const skillScope = `tenant_id.eq.${tenantId},scope.eq.global`;
   // Try FTS first; fall back to ILIKE
   const { data: matchedSkills, error } = await supabase
@@ -38,7 +39,7 @@ export async function executeRecallSkills(
       )
       .or(skillScope)
       .eq("is_active", true)
-      .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
+      .or(`name.ilike.${pattern},description.ilike.${pattern}`)
       .limit(limit);
     if (fallbackError) {
       throw fallbackError;

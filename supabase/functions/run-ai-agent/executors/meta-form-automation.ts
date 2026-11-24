@@ -1,3 +1,4 @@
+import type { Tables } from "../../_shared/database.types.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { metaNameMatches } from "./meta-lead-name-match.ts";
 
@@ -8,21 +9,35 @@ export async function findAutomationForMetaForm(
   automationId?: unknown,
   automationName?: unknown,
 ) {
-  let query = supabase
-    .from("automations")
-    .select("id, name, active, tenant_id")
-    .in("tenant_id", tenantIds)
-    .eq("is_flow", true);
-  if (automationId) {
-    query = query.eq("id", String(automationId));
-  }
-  const { data, error } = await query.order("name").limit(100);
-  if (error) {
-    throw error;
-  }
-  let matches = data || [];
-  if (automationName) {
-    matches = matches.filter((a) => metaNameMatches(a.name, automationName));
+  const matches: Array<
+    Pick<Tables<"automations">, "id" | "name" | "active" | "tenant_id">
+  > = [];
+  const pageSize = 100;
+  for (let offset = 0; ; offset += pageSize) {
+    let query = supabase
+      .from("automations")
+      .select("id, name, active, tenant_id")
+      .in("tenant_id", tenantIds)
+      .eq("is_flow", true);
+    if (automationId) {
+      query = query.eq("id", String(automationId));
+    }
+    const { data, error } = await query
+      .order("name")
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+    if (error) {
+      throw error;
+    }
+    const page = data || [];
+    matches.push(
+      ...page.filter(
+        (a) => !automationName || metaNameMatches(a.name, automationName),
+      ),
+    );
+    if (automationId || page.length < pageSize) {
+      break;
+    }
   }
   if (matches.length === 0) {
     throw new Error("לא נמצאה אוטומציה תואמת בארגון");

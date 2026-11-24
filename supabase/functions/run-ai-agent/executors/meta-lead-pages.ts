@@ -1,3 +1,4 @@
+import { fetchMetaDiscovery } from "./meta-discovery-request.ts";
 import type { MetaLeadPage } from "./meta-lead-types.ts";
 import type { DbClient } from "../../_shared/supabase-clients.ts";
 import { metaLeadIntegrations } from "../meta-lead-integrations.ts";
@@ -17,9 +18,9 @@ export async function metaLeadPages(
     let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
     if (sourcePages.length === 0) {
       let next: string | null =
-        `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100&access_token=${encodeURIComponent(integration.api_key)}`;
+        `https://graph.facebook.com/${FB_GRAPH_VERSION}/me/accounts?fields=id,name,access_token&limit=100`;
       while (next) {
-        const response = await fetch(next);
+        const response = await fetchMetaDiscovery(next, integration.api_key);
         const result = await readMetaResponse(response);
         if (!result.ok) {
           throw new Error(

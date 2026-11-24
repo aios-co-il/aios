@@ -22,9 +22,9 @@ export function subagentNotify(
     typeof chat_id !== "string" ||
     !chat_id ||
     typeof is_group !== "boolean" ||
-    !(typeof automation_id === "string" || automation_id === null) ||
-    !(typeof connection_user_id === "string" || connection_user_id === null) ||
-    !(typeof phone_number === "string" || phone_number === null)
+    (automation_id != null && typeof automation_id !== "string") ||
+    (connection_user_id != null && typeof connection_user_id !== "string") ||
+    (phone_number != null && typeof phone_number !== "string")
   ) {
     console.warn("[subagent] incomplete WhatsApp delivery target");
     return null;
@@ -32,10 +32,10 @@ export function subagentNotify(
   return {
     surface: "whatsapp",
     tenant_id,
-    automation_id,
-    connection_user_id,
+    automation_id: automation_id ?? null,
+    connection_user_id: connection_user_id ?? null,
     chat_id,
-    phone_number,
+    phone_number: phone_number ?? null,
     is_group,
   };
 }

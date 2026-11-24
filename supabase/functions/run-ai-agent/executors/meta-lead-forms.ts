@@ -1,3 +1,4 @@
+import { fetchMetaDiscovery } from "./meta-discovery-request.ts";
 import type { MetaLeadForm } from "./meta-lead-types.ts";
 import type { MetaLeadPage } from "./meta-lead-types.ts";
 import { FB_GRAPH_VERSION } from "../executors/meta-api-version.ts";
@@ -9,9 +10,9 @@ export async function metaLeadFormsForPage(
 ): Promise<Array<MetaLeadForm>> {
   const forms: Array<MetaLeadForm> = [];
   let next: string | null =
-    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
+    `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100`;
   while (next) {
-    const response = await fetch(next);
+    const response = await fetchMetaDiscovery(next, page.access_token);
     const result = await readMetaResponse(response);
     if (!result.ok) {
       throw new Error(
