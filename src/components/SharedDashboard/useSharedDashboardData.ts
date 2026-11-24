@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
+import { RangeRefusedError, shareResponseError } from "@/lib/rangeRefusedError";
 import { attachTableSettings } from "./attachTableSettings";
 import {
   customDaysOf,
@@ -7,12 +9,39 @@ import {
   windowQuery,
 } from "./sharedDashboardWindow";
 
+type SharedDashboardAnswer = Awaited<ReturnType<typeof fetchSharedDashboard>>;
+
 /**
  * The share link's dashboard for the picked window, read from
  * public-dashboard. A custom range is read once both of its days are picked;
  * until then the last window's answer stays on screen, marked as placeholder.
+ * When the endpoint refuses the window, `rangeRefused` is set and `data` is
+ * the last window it served, so the page keeps its header and date controls.
  */
 export function useSharedDashboardData(
+  shareToken: string | undefined,
+  dates: SharedDashboardWindow,
+) {
+  const query = useDashboardQuery(shareToken, dates);
+  const [lastAnswer, setLastAnswer] = useState<SharedDashboardAnswer>();
+  useEffect(() => {
+    if (query.data && !query.isPlaceholderData) {
+      setLastAnswer(query.data);
+    }
+  }, [query.data, query.isPlaceholderData]);
+  const rangeRefused = query.error instanceof RangeRefusedError;
+  return {
+    data: rangeRefused ? lastAnswer : query.data,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isPlaceholderData: query.isPlaceholderData,
+    error: query.error,
+    rangeRefused,
+  };
+}
+
+/** The public-dashboard read for one window. */
+function useDashboardQuery(
   shareToken: string | undefined,
   dates: SharedDashboardWindow,
 ) {
@@ -62,8 +91,7 @@ async function fetchSharedDashboard(
     },
   );
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(body || `public-dashboard failed (${res.status})`);
+    throw await shareResponseError(res, "public-dashboard");
   }
   return attachTableSettings(await res.json());
 }

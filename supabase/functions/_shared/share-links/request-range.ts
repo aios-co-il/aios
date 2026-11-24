@@ -81,7 +81,7 @@ export function resolveRequestRange(
 }
 
 /** Why a custom window is refused, or null when it is valid. */
-export function customWindowError(
+function customWindowError(
   start: string | null,
   end: string | null,
 ): string | null {

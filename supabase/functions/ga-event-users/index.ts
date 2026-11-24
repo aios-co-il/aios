@@ -53,7 +53,12 @@ Deno.serve(async (req) => {
     }
     const period = requestDates(body);
     if (!period.ok) {
-      console.warn("[ga-event-users] rejected date range:", period.error);
+      console.warn(
+        "[ga-event-users] rejected date range:",
+        period.error,
+        body.custom_start,
+        body.custom_end,
+      );
       return json({ error: "Invalid date range" }, 400);
     }
     if (!period.dates) {

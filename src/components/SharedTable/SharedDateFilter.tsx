@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import { he } from "date-fns/locale";
 import { CalendarIcon, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { SHARED_TABLE_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import { cn } from "@/lib/utils";
+import { MAX_CUSTOM_RANGE_DAYS } from "../../../supabase/functions/_shared/share-links/request-range.ts";
 import type { SharedDateSelection } from "./useSharedTableData";
 
 type Props = {
@@ -79,7 +80,8 @@ export function SharedDateFilter({ value, onChange }: Props) {
                       selected={start}
                       onSelect={setStart}
                       disabled={(date) =>
-                        date > new Date() || (!!end && date > end)
+                        date > new Date() ||
+                        (!!end && (date > end || date < earliestStart(end)))
                       }
                       initialFocus
                       className="p-3 pointer-events-auto"
@@ -92,7 +94,8 @@ export function SharedDateFilter({ value, onChange }: Props) {
                       selected={end}
                       onSelect={setEnd}
                       disabled={(date) =>
-                        date > new Date() || (!!start && date < start)
+                        date > new Date() ||
+                        (!!start && (date < start || date > latestEnd(start)))
                       }
                       className="p-3 pointer-events-auto"
                     />
@@ -128,6 +131,19 @@ export function SharedDateFilter({ value, onChange }: Props) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/**
+ * The first start day a picked end allows: public-table refuses a window
+ * longer than MAX_CUSTOM_RANGE_DAYS, both ends counted.
+ */
+function earliestStart(end: Date): Date {
+  return addDays(end, -(MAX_CUSTOM_RANGE_DAYS - 1));
+}
+
+/** The last end day a picked start allows (see earliestStart). */
+function latestEnd(start: Date): Date {
+  return addDays(start, MAX_CUSTOM_RANGE_DAYS - 1);
 }
 
 /** The trigger's text: the custom days or the preset's name. */

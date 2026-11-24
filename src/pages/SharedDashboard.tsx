@@ -3,7 +3,7 @@ import { continentPlatforms } from "@/components/dynamic-tables/CampaignContinen
 import { continentsFallbackFilter } from "@/components/dynamic-tables/CampaignContinents/continentsFallback";
 import type { DashboardPlatformFilter } from "@/lib/dashboardPlatformFilter";
 import { GoogleAdsCampaignSection } from "@/components/dynamic-tables/GoogleAdsCampaignSection/GoogleAdsCampaignSection";
-import { DashboardTrackedEvents } from "@/components/dynamic-tables/TrackedEvents/DashboardTrackedEvents";
+import { DashboardAnalyticsTab } from "@/components/report-ui/dashboard/DashboardAnalyticsTab";
 import { summarizeGoogleAdsCampaigns } from "@/components/dynamic-tables/GoogleAdsCampaignSection/summarizeGoogleAdsCampaigns";
 import { CombinedRoasCard } from "@/components/dynamic-tables/CombinedRoasCard";
 import { DashboardPlatformBreakdown } from "@/components/dynamic-tables/DashboardPlatformBreakdown/DashboardPlatformBreakdown";
@@ -17,7 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { DashboardDateRange } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { attachTableSettings } from "@/components/SharedDashboard/attachTableSettings";
 import { SharedDashboardHeader } from "@/components/SharedDashboard/SharedDashboardHeader";
-import { customDaysOf } from "@/components/SharedDashboard/sharedDashboardWindow";
+import { RangeRefusedNotice } from "@/components/reports/ReportHeader/RangeRefusedNotice";
 import { useSharedDashboardData } from "@/components/SharedDashboard/useSharedDashboardData";
 import { useSharedPreviousPeriod } from "@/components/SharedDashboard/useSharedPreviousPeriod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -237,15 +237,20 @@ export default function SharedDashboard({
   const customDateRange = hostCustomDateRange ?? ownCustomDateRange;
   const setCustomDateRange = onCustomDateRangeChange ?? setOwnCustomDateRange;
   const dates = { dateFilter, customDateRange };
-  const { customFrom, customTo } = customDaysOf(dates);
   const [platformFilter, setPlatformFilter] =
     useState<DashboardPlatformFilter>("all");
   const [seoActiveTab, setSeoActiveTab] = useState("seo");
   // Off by default, like the signed-in dashboard's "השוואה לתקופה קודמת".
   const [comparePrevious, setComparePrevious] = useState(false);
 
-  const { data, isLoading, isFetching, isPlaceholderData, error } =
-    useSharedDashboardData(shareToken, dates);
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    rangeRefused,
+  } = useSharedDashboardData(shareToken, dates);
 
   const tables = data?.tables || [];
   const rawRecords = data?.records || [];
@@ -1103,7 +1108,8 @@ export default function SharedDashboard({
     );
   }
 
-  if (error || !data?.dashboard) {
+  // A refused window keeps the last served dashboard's header and dates.
+  if ((error && !rangeRefused) || !data?.dashboard) {
     const detail = error instanceof Error ? error.message : "";
     return (
       <div
@@ -1145,6 +1151,7 @@ export default function SharedDashboard({
   const isSnapshotReady =
     !isFetching &&
     !isPlaceholderData &&
+    !rangeRefused &&
     !!data?.dashboard &&
     Array.isArray(tables);
 
@@ -1171,7 +1178,9 @@ export default function SharedDashboard({
         snapshotMode={snapshotMode}
       />
 
-      {platformFilter === "continents" ? (
+      {rangeRefused ? (
+        <RangeRefusedNotice />
+      ) : platformFilter === "continents" ? (
         <DashboardContinentsView
           platforms={continentsBy}
           facebook={{
@@ -1199,31 +1208,20 @@ export default function SharedDashboard({
           sourceModes={weeklySourceModesForTables(tables)}
         />
       ) : platformFilter === "google_analytics" ? (
-        <div className="space-y-4">
-          <DashboardTrackedEvents
-            records={records}
-            settings={data?.dashboard?.settings}
-            // Spend in several currencies has no single cost per event.
-            adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
-            formatCurrency={formatCurrency}
-            formatNumber={formatNumber}
-            source={shareToken ? { shareToken } : null}
-            dateFilter={dateFilter}
-            customFrom={customFrom}
-            customTo={customTo}
-          />
-          <GoogleAnalyticsDashboard
-            records={allAnalyticsRecords}
-            externalDateFilter={dateFilter}
-            externalCustomDateRange={{
-              from: customDateRange.from,
-              to: customDateRange.to,
-            }}
-            tableId={analyticsTableIds[0]}
-            relatedTableIds={analyticsTableIds.slice(1)}
-            defaultReportMode={analyticsReportMode}
-          />
-        </div>
+        <DashboardAnalyticsTab
+          records={records}
+          analyticsRecords={allAnalyticsRecords}
+          settings={data?.dashboard?.settings}
+          // Spend in several currencies has no single cost per event.
+          adsSpend={currencies.mixed ? 0 : globalAdsMetrics.spend}
+          formatCurrency={formatCurrency}
+          formatNumber={formatNumber}
+          source={shareToken ? { shareToken } : null}
+          dateFilter={dateFilter}
+          customDateRange={customDateRange}
+          analyticsTableIds={analyticsTableIds}
+          reportMode={analyticsReportMode}
+        />
       ) : platformFilter === "woocommerce" ? (
         <PublicWooCommerceView sites={wooSites} orders={wooOrders} />
       ) : platformFilter === "seo" ? (

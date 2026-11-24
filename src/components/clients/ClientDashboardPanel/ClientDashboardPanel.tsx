@@ -87,6 +87,11 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
         sendLabel="שלח סיכום"
         phase={card.sender.phase}
         onSend={card.sender.send}
+        sendBlockedHint={
+          customRangeIncomplete(dateFilter, customDateRange)
+            ? "בחרו את שני התאריכים"
+            : null
+        }
       />
 
       {card.summary.active && token && (
@@ -101,6 +106,17 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
       )}
     </div>
   );
+}
+
+/**
+ * True while "custom" waits for one of its days: the dashboard reads nothing
+ * for it yet, so a send would photograph a load failure.
+ */
+function customRangeIncomplete(
+  dateFilter: string,
+  range: DashboardDateRange,
+): boolean {
+  return dateFilter === "custom" && !(range.from && range.to);
 }
 
 /** A picked day as yyyy-MM-dd, as the ads sync reads it; null when unpicked. */

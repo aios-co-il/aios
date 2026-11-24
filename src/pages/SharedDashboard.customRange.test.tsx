@@ -38,16 +38,22 @@ const body = {
   has_email_restriction: false,
 };
 
-/** The page at its share route, with public-dashboard answered by `fetch`. */
-function renderPage() {
-  const fetchMock = vi.fn(
-    async () =>
-      new Response(JSON.stringify(body), {
-        headers: { "Content-Type": "application/json" },
-      }),
+/**
+ * The page at its share route, with public-dashboard answered by `fetch`;
+ * `refuseCustom` answers a custom window with the endpoint's 400.
+ */
+function renderPage({ refuseCustom = false } = {}) {
+  const fetchMock = vi.fn(async (url: string) =>
+    refuseCustom && new URL(url).searchParams.has("custom_start")
+      ? new Response(JSON.stringify({ error: "Invalid date range" }), {
+          status: 400,
+        })
+      : new Response(JSON.stringify(body), {
+          headers: { "Content-Type": "application/json" },
+        }),
   );
   vi.stubGlobal("fetch", fetchMock);
-  render(
+  const view = render(
     withTestQuery(
       <MemoryRouter initialEntries={["/shared/dashboard/share-token"]}>
         <Routes>
@@ -59,11 +65,13 @@ function renderPage() {
       </MemoryRouter>,
     ),
   );
-  return fetchMock;
+  return { fetchMock, container: view.container };
 }
 
 /** The query strings public-dashboard was asked with, in order. */
-function requestedQueries(fetchMock: ReturnType<typeof renderPage>) {
+function requestedQueries(
+  fetchMock: ReturnType<typeof renderPage>["fetchMock"],
+) {
   return fetchMock.mock.calls.map(
     (call: Array<unknown>) => new URL(String(call[0])).searchParams,
   );
@@ -105,13 +113,52 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+/** Picks the custom preset, then `fromDay` and `toDay` of this month. */
+async function pickCustomRange(
+  user: ReturnType<typeof userEvent.setup>,
+  fromDay: number,
+  toDay: number,
+) {
+  await user.click(screen.getByRole("combobox"));
+  await user.click(
+    await screen.findByRole("option", { name: "טווח מותאם אישית" }),
+  );
+  if (!document.querySelector('button[name="day"]')) {
+    await user.click(screen.getByRole("button", { name: /בחר תאריכים/ }));
+  }
+  await user.click(dayButton(fromDay));
+  await user.click(dayButton(toDay));
+}
+
 describe("SharedDashboard custom range", () => {
+  it("keeps the header and dates with a notice when public-dashboard refuses the window", async () => {
+    vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "publishable-key");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const { container } = renderPage({ refuseCustom: true });
+    await screen.findByRole("heading", { name: "דשבורד לקוח" });
+
+    await pickCustomRange(user, 10, 12);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "לא ניתן להציג את הטווח שנבחר",
+    );
+    expect(screen.getByRole("heading", { name: "דשבורד לקוח" })).toBeTruthy();
+    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(screen.queryByText("לא ניתן לטעון את הדוח")).toBeNull();
+    expect(
+      container.querySelector('[data-snapshot-error="range_refused"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('[data-snapshot-ready="true"]')).toBeNull();
+  });
+
   it("reads the picked days from public-dashboard once both are picked", async () => {
     vi.stubEnv("VITE_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", "publishable-key");
     vi.spyOn(console, "log").mockImplementation(() => {});
     const user = userEvent.setup();
-    const fetchMock = renderPage();
+    const { fetchMock } = renderPage();
     await screen.findByRole("heading", { name: "דשבורד לקוח" });
 
     await user.click(screen.getByRole("combobox"));

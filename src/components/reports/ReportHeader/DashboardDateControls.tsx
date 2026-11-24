@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { COMBINED_DASHBOARD_DATE_FILTERS } from "@/lib/dashboardDateFilters";
+import { MAX_CUSTOM_RANGE_DAYS } from "../../../../supabase/functions/_shared/share-links/request-range.ts";
 
 /** A custom range as the calendar picks it: one end, both or neither. */
 export type DashboardDateRange = { from?: Date; to?: Date };
@@ -90,6 +91,8 @@ export function DashboardDateControls({
               mode="range"
               defaultMonth={customDateRange.from}
               selected={{ from: customDateRange.from, to: customDateRange.to }}
+              // The share links refuse a longer window, so it cannot be picked.
+              max={MAX_CUSTOM_RANGE_DAYS}
               onSelect={(range: DashboardDateRange | undefined) => {
                 onCustomDateRangeChange({ from: range?.from, to: range?.to });
                 if (range?.from && range?.to) {
