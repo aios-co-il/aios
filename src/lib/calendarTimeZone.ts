@@ -131,6 +131,8 @@ export function getJerusalemDashboardDateRange(
     }
     case "last_7_days":
       return { startDate: shiftYmd(today, -7), endDate: shiftYmd(today, -1) };
+    case "last_9_days":
+      return { startDate: shiftYmd(today, -9), endDate: shiftYmd(today, -1) };
     case "last_14_days":
       return { startDate: shiftYmd(today, -14), endDate: shiftYmd(today, -1) };
     case "last_30_days":
