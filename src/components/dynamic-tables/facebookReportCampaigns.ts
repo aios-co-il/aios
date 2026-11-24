@@ -37,6 +37,8 @@ export type FacebookReportCampaign = {
   followers: FacebookFollowerTotals;
   /** Paused, removed or its report switched off; shown only when it spent. */
   off: boolean;
+  /** The Meta ad id of an ad-level row, for its preview; other rows have none. */
+  adId?: string | null;
 };
 
 /** A row with its entity key, in the order the entity first appears. */
@@ -104,6 +106,7 @@ function aggregateFacebookReportCampaigns(
       result: emptyFacebookResultTotals(),
       followers: emptyFacebookFollowers(),
       off: false,
+      adId: level === "ad" ? metaAdIdOf(data) : null,
     });
     group.impressions += Number(data.impressions) || 0;
     group.clicks += Number(data.clicks) || 0;
@@ -117,4 +120,13 @@ function aggregateFacebookReportCampaigns(
     group.followers = addFacebookFollowers(group.followers, data);
   }
   return groups;
+}
+
+/** The row's Meta ad id (stored as a string or a number), or null without one. */
+function metaAdIdOf(data: Record<string, unknown>): string | null {
+  const adId = data.ad_id;
+  if (typeof adId === "number") {
+    return String(adId);
+  }
+  return typeof adId === "string" && adId ? adId : null;
 }

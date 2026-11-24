@@ -5,7 +5,10 @@ import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import { showsPreviousToggle } from "@/components/report-ui/dashboard/previousPlatformTabs";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";
-import { DashboardDateControls } from "@/components/reports/ReportHeader/DashboardDateControls";
+import {
+  type DashboardDateRange,
+  DashboardDateControls,
+} from "@/components/reports/ReportHeader/DashboardDateControls";
 import { ReportHeader } from "@/components/reports/ReportHeader/ReportHeader";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +16,6 @@ import {
   type ResponsiveTabItem,
 } from "@/components/ui/responsive-tabs-list";
 import { Tabs } from "@/components/ui/tabs";
-import { SHARED_COMBINED_DASHBOARD_DATE_FILTERS } from "@/lib/dashboardDateFilters";
 import type { SharedPrevious } from "./useSharedPreviousPeriod";
 
 type SharedDashboardHeaderProps = {
@@ -26,6 +28,8 @@ type SharedDashboardHeaderProps = {
   onTabChange: (tab: string) => void;
   dateFilter: string;
   onDateFilterChange: (filter: string) => void;
+  customDateRange: DashboardDateRange;
+  onCustomDateRangeChange: (range: DashboardDateRange) => void;
   comparePrevious: boolean;
   onComparePreviousChange: (on: boolean) => void;
   previous: Pick<SharedPrevious, "range" | "loading">;
@@ -36,9 +40,9 @@ type SharedDashboardHeaderProps = {
 /**
  * The shared dashboard's two thin rows, as on the signed-in dashboard: the
  * title with the client and agency, the ad account buttons and a refresh
- * button, then the platform
- * tabs with the dates and the previous-period button. No sync status: the
- * client does not see sync failures (David).
+ * button, then the platform tabs with the same dates, custom range included,
+ * and the previous-period button. No sync status: the client does not see
+ * sync failures (David).
  */
 export function SharedDashboardHeader({
   shareToken,
@@ -49,6 +53,8 @@ export function SharedDashboardHeader({
   onTabChange,
   dateFilter,
   onDateFilterChange,
+  customDateRange,
+  onCustomDateRangeChange,
   comparePrevious,
   onComparePreviousChange,
   previous,
@@ -87,7 +93,8 @@ export function SharedDashboardHeader({
           <DashboardDateControls
             dateFilter={dateFilter}
             onDateFilterChange={onDateFilterChange}
-            filters={SHARED_COMBINED_DASHBOARD_DATE_FILTERS}
+            customDateRange={customDateRange}
+            onCustomDateRangeChange={onCustomDateRangeChange}
           >
             {showsPreviousToggle(tab) && (
               <PreviousPeriodToggle

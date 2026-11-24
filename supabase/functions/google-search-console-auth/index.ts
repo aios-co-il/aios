@@ -1,5 +1,20 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redirectToIntegrations } from "../_shared/google-oauth/app-origin.ts";
+import {
+  isCompleteRefusal,
+  readTenantCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
+import {
+  isConnectRefusal,
+  readConnectRequest,
+} from "../_shared/google-oauth/connect-request.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { storeSearchConsoleConnection } from "./store-connection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +22,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,29 +49,16 @@ serve(async (req) => {
 
   // Handle OAuth initiation
   if (action === "authorize") {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
     try {
-      const { tenantId, userId, addNew, origin } = await req.json();
-
-      if (!tenantId || !userId) {
-        return new Response(
-          JSON.stringify({ error: "Missing tenantId or userId" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+      const connect = await readConnectRequest(req);
+      if (isConnectRefusal(connect)) {
+        return new Response(JSON.stringify({ error: connect.error }), {
+          status: connect.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+
+      const { addNew } = connect.state;
 
       // Google Search Console scopes (+ userinfo.email so we can identify the Google account)
       const scopes = [
@@ -64,14 +66,7 @@ serve(async (req) => {
         "https://www.googleapis.com/auth/userinfo.email",
       ].join(" ");
 
-      const state = btoa(
-        JSON.stringify({
-          tenantId,
-          userId,
-          addNew: !!addNew,
-          origin: origin || null,
-        }),
-      );
+      const state = await signOAuthState(connect.state, oauthStateSecret());
 
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", clientId);
@@ -103,7 +98,6 @@ serve(async (req) => {
   // Handle OAuth callback
   if (action === "oauth_callback") {
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
 
     const supabase = createClient(
@@ -120,159 +114,62 @@ serve(async (req) => {
       return tenant?.slug || "app";
     }
 
-    let stateOrigin: string | null = null;
-    let stateTenantId: string | null = null;
-    if (state) {
-      try {
-        const parsed = JSON.parse(atob(state));
-        stateOrigin = parsed.origin || null;
-        stateTenantId = parsed.tenantId || null;
-      } catch {
-        /* noop */
-      }
+    const state = await verifyOAuthState(
+      url.searchParams.get("state"),
+      oauthStateSecret(),
+    );
+    if (!state?.tenantId) {
+      return redirectToIntegrations(null, "app", { error: "invalid_state" });
     }
-    // Strip any trailing slash so `${APP_BASE}/t/...` never produces a double slash
-    // (e.g. https://www.aios.co.il//t/... → ERR_FAILED).
-    const APP_BASE = (
-      stateOrigin ||
-      Deno.env.get("APP_URL") ||
-      "https://aios.co.il"
-    ).replace(/\/+$/, "");
+
+    const tenantSlug = await getTenantSlug(state.tenantId);
 
     if (error) {
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${error}`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
-      });
+      return redirectToIntegrations(state.origin, tenantSlug, { error });
     }
 
-    if (!code || !state) {
-      return new Response("Missing code or state", { status: 400 });
+    if (!code) {
+      return new Response("Missing code", { status: 400 });
     }
 
+    return redirectHandoff(
+      "google-search-console-auth",
+      state,
+      tenantSlug,
+      code,
+      url.searchParams.get("state") ?? "",
+    );
+  }
+
+  // Finish a connect from the signed-in app (see connect-handoff.ts)
+  if (action === "complete") {
     try {
-      const { tenantId, userId } = JSON.parse(atob(state));
-      const tenantSlug = await getTenantSlug(tenantId);
-
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-
-      if (tokens.error) {
-        console.error("Token exchange error:", tokens);
-        throw new Error(tokens.error_description || tokens.error);
-      }
-
-      const expiresAt = new Date(
-        Date.now() + tokens.expires_in * 1000,
-      ).toISOString();
-
-      // Fetch the Google email to identify which Google account was authorized
-      let googleEmail = "";
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        const userInfo = await userInfoResponse.json();
-        googleEmail = userInfo.email || "";
-      } catch (e) {
-        console.error("Failed to fetch Google user info:", e);
-      }
-
-      // Find an existing GSC integration in this tenant: prefer same google_email,
-      // then same user_id; otherwise insert a new row (multi-account, multi-user).
-      const { data: allGsc, error: allGscError } = await supabase
-        .from("tenant_integrations")
-        .select("id, user_id, settings")
-        .eq("tenant_id", tenantId)
-        .eq("integration_type", "google_search_console");
-
-      if (allGscError) {
-        throw allGscError;
-      }
-
-      const existingForEmail = googleEmail
-        ? allGsc?.find(
-            (row: any) => (row.settings as any)?.google_email === googleEmail,
-          ) || null
-        : null;
-      const existingForUser =
-        allGsc?.find((row: any) => row.user_id === userId) || null;
-      const existingIntegration = existingForEmail || existingForUser;
-      const existingSettings =
-        (existingIntegration?.settings as Record<string, unknown> | null) ||
-        null;
-
-      const integrationData = {
-        is_active: true,
-        api_key: tokens.access_token,
-        settings: {
-          ...(existingSettings || {}),
-          refresh_token:
-            tokens.refresh_token || (existingSettings as any)?.refresh_token,
-          expires_at: expiresAt,
-          connected_at: new Date().toISOString(),
-          google_email:
-            googleEmail || (existingSettings as any)?.google_email || "",
-          // Clear any stale reconnect flags on successful re-authorization
-          needs_reauth: false,
-          reauth_reason: null,
-          reauth_marked_at: null,
-        },
-        updated_at: new Date().toISOString(),
-      };
-
-      let saveError;
-      if (existingIntegration) {
-        const { error } = await supabase
-          .from("tenant_integrations")
-          .update(integrationData)
-          .eq("id", existingIntegration.id);
-        saveError = error;
-      } else {
-        const { error } = await supabase.from("tenant_integrations").insert({
-          tenant_id: tenantId,
-          user_id: userId,
-          integration_type: "google_search_console",
-          ...integrationData,
+      const request = await readTenantCompleteRequest(req);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        saveError = error;
       }
 
-      if (saveError) {
-        console.error("Error saving tokens:", saveError);
-        throw saveError;
-      }
+      await storeSearchConsoleConnection(
+        request.code,
+        request.tenantId,
+        request.state.userId,
+      );
 
-      const redirectUrl = `${APP_BASE}/t/${tenantSlug}/integrations?google_search_console=connected`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (error) {
-      console.error("OAuth callback error:", error);
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=auth_failed`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
-      });
+      console.error("Search Console complete failed:", error);
+      return new Response(
+        JSON.stringify({ error: "Could not connect Google Search Console" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
   }
 

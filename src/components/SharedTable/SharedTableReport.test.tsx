@@ -4,7 +4,7 @@ import { format, subDays } from "date-fns";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { previousPeriodRange } from "@/components/reports/PreviousPeriod/previousPeriod";
 import { stubResizeObserver } from "@/test/stubResizeObserver";
-import { withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
 import { SharedTableReport } from "./SharedTableReport";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
@@ -176,5 +176,63 @@ describe("SharedTableReport", () => {
       expected?.startDate,
     );
     expect(previousUrl?.searchParams.get("custom_end")).toBe(expected?.endDate);
+  });
+
+  it("keeps the header and dates with a notice when public-table refuses the window", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        new URL(url).searchParams.has("custom_start")
+          ? new Response(JSON.stringify({ error: "Invalid date range" }), {
+              status: 400,
+            })
+          : new Response(
+              JSON.stringify({
+                table,
+                fields: [],
+                records: [salesDay(2, 1, 1)],
+              }),
+              { headers: { "Content-Type": "application/json" } },
+            ),
+      ),
+    );
+    const { wrapper: Provider } = createTestQueryHarness();
+    const view = render(
+      <Provider>
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{ filter: "last_30_days" }}
+          onDatesChange={() => undefined}
+        />
+      </Provider>,
+    );
+    await screen.findByText("עלות לרכישה");
+
+    view.rerender(
+      <Provider>
+        <SharedTableReport
+          shareToken="share-token"
+          dates={{
+            filter: "custom",
+            customStart: new Date(2024, 0, 1),
+            customEnd: new Date(2026, 0, 1),
+          }}
+          onDatesChange={() => undefined}
+        />
+      </Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "לא ניתן להציג את הטווח שנבחר",
+    );
+    expect(
+      screen.getByRole("heading", { name: "דוח פייסבוק" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /01\/01\/24/ })).toBeTruthy();
+    expect(screen.queryByText("הקישור אינו תקין")).toBeNull();
+    expect(
+      view.container.querySelector('[data-snapshot-error="range_refused"]'),
+    ).not.toBeNull();
   });
 });

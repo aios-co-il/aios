@@ -30,6 +30,8 @@ function header(snapshotMode: boolean) {
       onTabChange={() => undefined}
       dateFilter="last_7_days"
       onDateFilterChange={() => undefined}
+      customDateRange={{ from: undefined, to: undefined }}
+      onCustomDateRangeChange={() => undefined}
       comparePrevious={false}
       onComparePreviousChange={() => undefined}
       previous={{ range: null, loading: false }}

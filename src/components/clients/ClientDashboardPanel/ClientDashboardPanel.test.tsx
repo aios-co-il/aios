@@ -70,6 +70,7 @@ function FakeSharedDashboard(props: {
   shareTokenOverride?: string;
   dateFilter?: string;
   onDateFilterChange?: (filter: string) => void;
+  onCustomDateRangeChange?: (range: { from?: Date; to?: Date }) => void;
   snapshotMode?: boolean;
 }) {
   return (
@@ -85,6 +86,30 @@ function FakeSharedDashboard(props: {
         >
           7 ימים
         </button>
+      )}
+      {!props.snapshotMode && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              props.onDateFilterChange?.("custom");
+              props.onCustomDateRangeChange?.({ from: new Date(2026, 9, 1) });
+            }}
+          >
+            יום אחד
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              props.onCustomDateRangeChange?.({
+                from: new Date(2026, 9, 1),
+                to: new Date(2026, 9, 5),
+              })
+            }
+          >
+            שני ימים
+          </button>
+        </>
       )}
     </div>
   );
@@ -157,5 +182,23 @@ describe("ClientDashboardPanel", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("report-capture-frame")).toBeNull(),
     );
+  });
+
+  it("holds the send until both custom days are picked", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole("button", { name: "יום אחד" }));
+
+    const send = screen.getByRole("button", { name: /שלח סיכום/ });
+    expect(send).toBeDisabled();
+    expect(screen.getByText("בחרו את שני התאריכים")).toBeInTheDocument();
+    await user.click(send);
+    expect(mocks.toJpeg).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "שני ימים" }));
+
+    expect(screen.getByRole("button", { name: /שלח סיכום/ })).toBeEnabled();
+    expect(screen.queryByText("בחרו את שני התאריכים")).toBeNull();
   });
 });

@@ -111,10 +111,19 @@ The following setup is documented for these environments; Vercel variables, Supa
 - An invalid row no longer rolls back every valid row in its batch. The bulk transaction falls back to row-level subtransactions only for data constraint errors. Rejected source projections are retained privately in `environment_sync.rejected_rows`, with schema-only error metadata; their checkpoints are not advanced. They retry automatically, and a run with any rejection remains red. Gate, permission, timeout and bookkeeping errors still abort the transaction.
 - `environment_sync.table_state` contains the last successful sync per table. A red workflow is an incomplete sync and must not be described as up to date. Previously cloned rows that were already deleted from Production before the first managed sync need explicit baseline reconciliation; they are not silently deleted as presumed test data.
 
+## Public API address
+
+Each Supabase project's API can be reached on its `https://<ref>.supabase.co` address and, where configured, a custom domain: `https://api.aios.co.il` for Production, `https://api-staging.aios.co.il` for Staging. Code takes the address from configuration, so a region move changes only DNS and these values:
+
+- **Frontend:** `VITE_SUPABASE_URL` (Vercel). Production uses the custom domain.
+- **Edge functions:** `PUBLIC_API_URL` (Supabase edge secret) is the address handed to anyone outside the project: webhook and MCP URLs, magazine feeds, agent callbacks (`_shared/public-api/url.ts`). Unset, it falls back to `SUPABASE_URL`, which Supabase sets to the supabase.co address. A function calling its own project keeps using `SUPABASE_URL`, the only origin the Staging outbound guard allows.
+- **Database:** cron jobs and SQL functions read the Vault secret `project_url`; a database without it, such as a fresh Preview branch, makes no call.
+- **Render worker:** `PUBLIC_API_URL` in the Droplet env adds the custom domain to the project's media hosts (`render-worker/README.md`).
+
 ## Staging outbound containment
 
 - The Staging deployer installs a guard **before** each function entrypoint loads. Copied `APP_ENV` values cannot turn it off. Production code executes without this wrapper.
-- The guard blocks external messages, publishing, arbitrary webhooks and calls into another Supabase project. Explicit read-only analytics endpoints and the approved AI/agent endpoints stay available.
+- The guard blocks external messages, publishing, arbitrary webhooks and calls into another Supabase project, by supabase.co address or `api*.aios.co.il` custom domain (`_shared/public-api/hosts.ts`). Explicit read-only analytics endpoints and the approved AI/agent endpoints stay available.
 - **WhatsApp test exception:** direct sends (Green API `sendMessage`/`sendFileByUrl`/`sendFileByUpload`, including the per-instance `{id4}.media.greenapi.com` upload host, Manus `send/text|image|file`, Meta Cloud `/messages`) pass only when the single recipient exactly matches a number in the Staging Supabase secret `STAGING_ALLOWED_PHONE_NUMBERS` (David: `972507677613`). Unset means every send stays blocked; groups, other numbers and unparseable bodies are always blocked. The logic lives in `staging-whatsapp-test.ts`, and the same secret drives `checkWhatsAppSend` in `integration-guard.ts`. Never add it to the credential sync allowlist.
 - Database HTTP requests are blocked at `net.http_request_queue`. Once all live Edge bundles are downloaded and verified, requests to this Staging project's guarded functions are permitted so internal processing can work.
 - `verify-staging-containment.py` checks every live entrypoint and its reviewed source before setting `environment_sync.safety.outbound_blocked=true`. Each sync compares the current function versions with the verified versions; a changed deployment closes the gate. Deployments also close the gate before changing code, and import transactions recheck it before writing.

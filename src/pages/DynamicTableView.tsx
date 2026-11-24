@@ -3237,6 +3237,7 @@ export default function DynamicTableView({
               woo={useGoogleWooOverlay ? (wooReportAttribution ?? null) : null}
               manualRoi={{ readOnly: isEmbed }}
               showTrackingWarnings
+              adPreview={table ? { tableId: table.id } : null}
             />
           )}
 

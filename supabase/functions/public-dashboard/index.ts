@@ -10,7 +10,8 @@ import {
   fetchEventTotals,
   withFullEventTotals,
 } from "./event-totals.ts";
-import { parseRequestRange, wooWindowIso } from "./request-range.ts";
+import { parseRequestRange } from "../_shared/share-links/request-range.ts";
+import { wooWindowIso } from "./request-range.ts";
 import { readsCampaignRowsOnly, tagTableRecords } from "./table-records.ts";
 import { fetchWindowRecords } from "./window-records.ts";
 
