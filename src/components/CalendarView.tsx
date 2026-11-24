@@ -7,7 +7,7 @@ import {
   openUnifiedCalendarConnection,
 } from "@/lib/unifiedCalendarConnection";
 import { initDirectGoogleAuth } from "@/lib/calendarApi";
-import { isOAuthPopupMessage } from "@/lib/oauthPopupMessage";
+import { connectGoogleInPopup } from "@/lib/googleConnect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, AlertCircle } from "lucide-react";
@@ -59,18 +59,8 @@ export function CalendarView() {
         await openUnifiedCalendarConnection({ tenantId: currentTenantId });
       } else {
         const { authUrl } = await initDirectGoogleAuth();
-        const popup = window.open(
-          authUrl,
-          "google-calendar-auth",
-          "width=600,height=700",
-        );
-        const handler = (event: MessageEvent) => {
-          if (isOAuthPopupMessage(event, "calendar_connected")) {
-            window.removeEventListener("message", handler);
-            window.location.reload();
-          }
-        };
-        window.addEventListener("message", handler);
+        await connectGoogleInPopup(authUrl, "google-calendar-auth");
+        window.location.reload();
       }
     } catch (error) {
       listenerCleanupRef.current?.();

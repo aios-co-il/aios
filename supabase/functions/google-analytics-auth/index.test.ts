@@ -1,4 +1,5 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import { stub } from "jsr:@std/testing@1/mock";
 import {
   oauthStateKey,
   signOAuthState,
@@ -32,18 +33,28 @@ const env = {
 
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-analytics-auth`;
 
-/** Supabase with one tenant, its member and an outsider; Google is never called. */
-function fakeHttp() {
+/** Supabase with one tenant, its member and an outsider, and Google's token and userinfo endpoints. */
+function fakeHttp(integrations: Array<Record<string, unknown>>) {
   return fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { member: MEMBER, outsider: OUTSIDER },
     tables: {
       tenant_users: [{ tenant_id: TENANT, user_id: MEMBER }],
       tenants: [{ id: TENANT, slug: "acme" }],
-      tenant_integrations: [],
+      tenant_integrations: integrations,
     },
     rpc: { is_super_admin: () => false },
     other: (url) => {
+      if (url.href === "https://oauth2.googleapis.com/token") {
+        return Response.json({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+          expires_in: 3600,
+        });
+      }
+      if (url.href === "https://www.googleapis.com/oauth2/v2/userinfo") {
+        return Response.json({ email: "owner@example.com" });
+      }
       throw new Error(`Unexpected provider request: ${url.href}`);
     },
   });
@@ -61,8 +72,11 @@ function authorize(token: string | null, body: Record<string, unknown>) {
 }
 
 /** Runs the real handler against the fake Supabase. */
-async function run(request: Request) {
-  const http = fakeHttp();
+async function run(
+  request: Request,
+  integrations: Array<Record<string, unknown>> = [],
+) {
+  const http = fakeHttp(integrations);
 
   return await withRuntime({ env, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
@@ -170,5 +184,138 @@ Deno.test({
         );
       },
     );
+
+    await t.step(
+      "the callback hands the code to the app in the URL fragment",
+      async () => {
+        const state = await memberState();
+        const { response, http } = await run(
+          new Request(
+            `${FUNCTION_URL}?action=oauth_callback&code=the-code&state=${encodeURIComponent(state)}`,
+          ),
+        );
+        const location = new URL(response.headers.get("Location") ?? "");
+        assertEquals(
+          location.origin + location.pathname,
+          "https://staging.aios.co.il/t/acme/integrations",
+        );
+        assertEquals(location.search, "");
+        const fragment = new URLSearchParams(location.hash.slice(1));
+        assertEquals(fragment.get("google_connect"), "google-analytics-auth");
+        assertEquals(fragment.get("code"), "the-code");
+        assertEquals(fragment.get("state"), state);
+        assertEquals(
+          http.calls.some((call) =>
+            call.url.hostname.endsWith("googleapis.com"),
+          ),
+          false,
+        );
+      },
+    );
+
+    await t.step("complete by another user is 403", async () => {
+      const { response, http } = await run(
+        completeRequest("outsider", await memberState()),
+      );
+      assertEquals(response.status, 403);
+      assertEquals(
+        http.calls.some((call) => call.url.pathname.startsWith("/rest/")),
+        false,
+      );
+    });
+
+    await t.step(
+      "complete by the member saves the org connection",
+      async () => {
+        const { response, http } = await run(
+          completeRequest("member", await memberState()),
+        );
+        assertEquals(response.status, 200);
+        const inserts = http.calls.filter(
+          (call) =>
+            call.method === "POST" &&
+            call.url.pathname === "/rest/v1/tenant_integrations",
+        );
+        assertEquals(inserts.length, 1);
+        const row = inserts[0].body;
+        assertEquals(row && Reflect.get(row, "tenant_id"), TENANT);
+        assertEquals(row && Reflect.get(row, "user_id"), MEMBER);
+        assertEquals(row && Reflect.get(row, "connection_visibility"), "org");
+        const settings = row && Reflect.get(row, "settings");
+        assertEquals(
+          settings && Reflect.get(settings, "refresh_token"),
+          "new-refresh",
+        );
+        assertEquals(
+          settings && Reflect.get(settings, "google_email"),
+          "owner@example.com",
+        );
+      },
+    );
+
+    await t.step(
+      "a reconnect updates only the row version it read, and fails rather than overwrite a change",
+      async () => {
+        const readAt = "2026-11-19T10:00:00.000Z";
+        const logged = stub(console, "error");
+        const { response, http } = await run(
+          completeRequest("member", await memberState()),
+          [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              tenant_id: TENANT,
+              integration_type: "google_analytics",
+              user_id: MEMBER,
+              settings: {
+                google_email: "owner@example.com",
+                property_id: "p1",
+              },
+              updated_at: readAt,
+            },
+          ],
+        ).finally(() => logged.restore());
+        const update = http.calls.find((call) => call.method === "PATCH");
+        assertEquals(
+          update?.url.searchParams.get("updated_at"),
+          `eq.${readAt}`,
+        );
+        assertEquals(
+          update?.body &&
+            Reflect.get(Reflect.get(update.body, "settings"), "property_id"),
+          "p1",
+        );
+        // The fake answers every update with no rows, as a concurrent change would.
+        assertEquals(response.status, 500);
+        assertStringIncludes(
+          String(logged.calls.at(-1)?.args[1]),
+          "changed while connecting",
+        );
+      },
+    );
   },
 });
+
+/** A state the member signed for the tenant, started on Staging. */
+async function memberState() {
+  return await signOAuthState(
+    {
+      userId: MEMBER,
+      tenantId: TENANT,
+      origin: "https://staging.aios.co.il",
+      addNew: false,
+    },
+    STATE_SECRET,
+  );
+}
+
+/** The app's `complete` call, signed in with the given session. */
+function completeRequest(token: string, state: string) {
+  return new Request(`${FUNCTION_URL}?action=complete`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action: "complete", code: "the-code", state }),
+  });
+}
