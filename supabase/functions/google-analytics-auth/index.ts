@@ -11,6 +11,7 @@ import {
 import {
   redirectHandoff,
   redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
 } from "../_shared/google-oauth/handoff-response.ts";
 import {
   INVALID_STATE_ERROR,
@@ -133,7 +134,7 @@ Deno.serve(async (req) => {
         .select("slug")
         .eq("id", tenantId)
         .single();
-      return tenant?.slug || "app";
+      return tenant?.slug || UNKNOWN_TENANT_SLUG;
     }
 
     const state = await verifyOAuthState(

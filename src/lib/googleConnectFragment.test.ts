@@ -67,6 +67,20 @@ describe("stashFragmentConnect", () => {
     });
   });
 
+  it("keeps an old error as it was: only a code expires", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/t/acme/integrations#google_connect=google-ads-auth&error=access_denied",
+    );
+    stashFragmentConnect(0);
+
+    expect(takeStashedConnect(60 * 60 * 1000)).toEqual({
+      provider: "google-ads-auth",
+      error: "access_denied",
+    });
+  });
+
   it("ignores a stored value that is not a connect", () => {
     sessionStorage.setItem("aios-google-connect", "{not json");
 

@@ -4,6 +4,7 @@ import {
   CONSENT_REFUSED_ERROR,
   type GoogleConnectFunction,
   INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
 } from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
 import type { GoogleConnectCode } from "./googleConnectCode";
 import { popupAttempt, popupConnectResult } from "./googleConnectPopup";
@@ -27,6 +28,7 @@ const TRY_AGAIN = "נסו להתחבר שוב.";
 const CONNECT_ERROR_TEXT = new Map<string, string>([
   [CONSENT_REFUSED_ERROR, "החיבור ל-Google בוטל."],
   [INVALID_STATE_ERROR, "קישור החיבור פג תוקף. נסו להתחבר שוב."],
+  [MISSING_CODE_ERROR, "Google לא החזיר אישור לחיבור. נסו להתחבר שוב."],
 ]);
 
 /** Google's error codes are snake_case words; any other value came from a crafted link and is not shown. */

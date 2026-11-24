@@ -11,7 +11,7 @@ import {
 import type { OAuthState } from "./oauth-state.ts";
 
 /** The slug for a callback whose tenant is unknown; the app sends the user to their own tenant. */
-const UNKNOWN_TENANT_SLUG = "app";
+export const UNKNOWN_TENANT_SLUG = "app";
 
 /** A 302 to the tenant's integrations page with the code and state in the fragment. */
 export function redirectHandoff(

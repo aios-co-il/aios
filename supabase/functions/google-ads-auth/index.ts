@@ -8,6 +8,7 @@ import {
 import {
   redirectHandoff,
   redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
 } from "../_shared/google-oauth/handoff-response.ts";
 import {
   INVALID_STATE_ERROR,
@@ -176,7 +177,7 @@ async function handleOAuthCallback(url: URL) {
       .select("slug")
       .eq("id", tenantId)
       .single();
-    return tenant?.slug || "app";
+    return tenant?.slug || UNKNOWN_TENANT_SLUG;
   }
 
   const state = await verifyOAuthState(

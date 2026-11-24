@@ -7,6 +7,9 @@ describe("connectErrorMessage", () => {
     expect(connectErrorMessage("invalid_state")).toBe(
       "קישור החיבור פג תוקף. נסו להתחבר שוב.",
     );
+    expect(connectErrorMessage("missing_code")).toBe(
+      "Google לא החזיר אישור לחיבור. נסו להתחבר שוב.",
+    );
     expect(connectErrorMessage("server_error")).toContain("(server_error)");
   });
 

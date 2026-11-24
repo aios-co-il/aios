@@ -105,9 +105,9 @@ export function takeStashedConnect(
       return null;
     }
     const { connect, at } = pending.data;
-    if (now - at > CONNECT_CODE_TTL_MS) {
+    if ("code" in connect && now - at > CONNECT_CODE_TTL_MS) {
       console.warn("A pending Google connect is older than its code");
-      return { provider: connectProvider(connect), error: INVALID_STATE_ERROR };
+      return { provider: connect.code.provider, error: INVALID_STATE_ERROR };
     }
 
     return connect;
@@ -123,9 +123,4 @@ function takeStoredConnect(): string | null {
   sessionStorage.removeItem(PENDING_CONNECT_KEY);
 
   return raw;
-}
-
-/** The function the connect belongs to. */
-function connectProvider(connect: FragmentConnect): GoogleConnectFunction {
-  return "code" in connect ? connect.code.provider : connect.provider;
 }

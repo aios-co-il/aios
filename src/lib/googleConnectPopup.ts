@@ -5,6 +5,7 @@ import {
   GOOGLE_CONNECT_FUNCTIONS,
   type GoogleConnectFunction,
   LOCAL_HOSTS,
+  type PopupMessage,
 } from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
 import { connectCodeSchema, type GoogleConnectCode } from "./googleConnectCode";
 
@@ -25,15 +26,18 @@ export type PopupAttempt = {
 export type PopupConnectResult =
   { code: GoogleConnectCode } | { error: string };
 
-const popupMessageSchema = z.discriminatedUnion("type", [
-  connectCodeSchema.extend({ type: z.literal(CONNECT_CODE_MESSAGE) }),
-  z.object({
-    type: z.literal(CONNECT_ERROR_MESSAGE),
-    provider: z.enum(GOOGLE_CONNECT_FUNCTIONS),
-    state: z.string(),
-    error: z.string().min(1),
-  }),
-]);
+const popupMessageSchema: z.ZodType<PopupMessage> = z.discriminatedUnion(
+  "type",
+  [
+    connectCodeSchema.extend({ type: z.literal(CONNECT_CODE_MESSAGE) }),
+    z.object({
+      type: z.literal(CONNECT_ERROR_MESSAGE),
+      provider: z.enum(GOOGLE_CONNECT_FUNCTIONS),
+      state: z.string(),
+      error: z.string().min(1),
+    }),
+  ],
+);
 
 /**
  * The attempt for an authorize URL from our edge function. The callback page
