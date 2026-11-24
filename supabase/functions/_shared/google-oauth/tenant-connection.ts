@@ -72,8 +72,9 @@ export async function tenantConnections(
  * UNREADABLE_SETTINGS_KEY, so a reconnect writes a valid object and loses nothing.
  */
 function storedSettings(rowId: string, value: Json): StoredSettings {
+  const decoded = encodedJsonSchema.safeParse(value);
   const settings = storedSettingsSchema.safeParse(
-    encodedJsonSchema.safeParse(value).data ?? value,
+    decoded.success ? decoded.data : value,
   );
   if (!settings.success) {
     console.error(`tenant_integrations ${rowId}: settings is not an object`);

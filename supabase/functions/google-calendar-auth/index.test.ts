@@ -120,6 +120,14 @@ Deno.test({
       [{ refresh_token: "stored", google_email: "me@example.com" }, null],
       [{ refresh_token: "stored", google_email: null }, "consent"],
       [{ refresh_token: null, google_email: "me@example.com" }, "consent"],
+      [
+        {
+          refresh_token: "stored",
+          google_email: "me@example.com",
+          needs_reconnect: true,
+        },
+        "consent",
+      ],
     ] as const) {
       await t.step(
         `init asks for consent unless the stored token can be reused: ${stored.refresh_token}/${stored.google_email}`,

@@ -30,6 +30,7 @@ Deno.test(
           row("array", [1, 2]),
           row("text", "not json"),
           row("null", null),
+          row("encoded-null", "null"),
         ],
       },
     });
@@ -50,6 +51,7 @@ Deno.test(
         ["array", { unreadable_settings: [1, 2] }],
         ["text", { unreadable_settings: "not json" }],
         ["null", {}],
+        ["encoded-null", {}],
       ],
     );
   },

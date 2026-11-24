@@ -105,9 +105,12 @@ export function takeStashedConnect(
       return null;
     }
     const { connect, at } = pending.data;
-    if ("code" in connect && now - at > CONNECT_CODE_TTL_MS) {
+    if (now - at > CONNECT_CODE_TTL_MS) {
       console.warn("A pending Google connect is older than its code");
-      return { provider: connect.code.provider, error: INVALID_STATE_ERROR };
+      // An old code can no longer complete, so say so; an old error needs nothing from the user.
+      return "code" in connect
+        ? { provider: connect.code.provider, error: INVALID_STATE_ERROR }
+        : null;
     }
 
     return connect;

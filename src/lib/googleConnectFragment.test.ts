@@ -67,7 +67,7 @@ describe("stashFragmentConnect", () => {
     });
   });
 
-  it("keeps an old error as it was: only a code expires", () => {
+  it("drops an old error: there is nothing left to act on", () => {
     window.history.replaceState(
       null,
       "",
@@ -75,10 +75,7 @@ describe("stashFragmentConnect", () => {
     );
     stashFragmentConnect(0);
 
-    expect(takeStashedConnect(60 * 60 * 1000)).toEqual({
-      provider: "google-ads-auth",
-      error: "access_denied",
-    });
+    expect(takeStashedConnect(60 * 60 * 1000)).toBeNull();
   });
 
   it("ignores a stored value that is not a connect", () => {

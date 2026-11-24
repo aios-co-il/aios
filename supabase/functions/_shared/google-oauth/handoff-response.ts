@@ -10,7 +10,7 @@ import {
 } from "./handoff-contract.ts";
 import type { OAuthState } from "./oauth-state.ts";
 
-/** The slug for a callback whose tenant is unknown; the app sends the user to their own tenant. */
+/** The slug for a callback whose tenant is unknown: a placeholder, since the page only shows the error. */
 export const UNKNOWN_TENANT_SLUG = "app";
 
 /** A 302 to the tenant's integrations page with the code and state in the fragment. */

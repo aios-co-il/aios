@@ -145,10 +145,11 @@ Deno.serve(async (req) => {
       // Consent (and so a new refresh_token) is skipped only when the stored one
       // can be reused: a reconnect without consent gets no refresh_token, and
       // complete reuses the stored one only for the same, known Google account.
+      // A token marked needs_reconnect stopped working, so it is never reused.
       const { data: existingToken, error: existingTokenError } =
         await supabaseClient
           .from("calendar_tokens")
-          .select("refresh_token, google_email")
+          .select("refresh_token, google_email, needs_reconnect")
           .eq("user_id", user.id)
           .maybeSingle();
       if (existingTokenError) {
@@ -157,7 +158,9 @@ Deno.serve(async (req) => {
         );
       }
       const canReuseRefresh =
-        !!existingToken?.refresh_token && !!existingToken.google_email;
+        !!existingToken?.refresh_token &&
+        !!existingToken.google_email &&
+        !existingToken.needs_reconnect;
 
       const authUrl = buildCalendarAuthorizeUrl({
         clientId,
