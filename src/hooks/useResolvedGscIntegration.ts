@@ -35,7 +35,7 @@ const siteMatches = seoDomainsMatch;
  */
 export function useResolvedGscIntegration(params: {
   clientId: string | undefined;
-  tenantIds: string[] | undefined;
+  tenantIds: Array<string> | undefined;
   savedSiteUrl?: string;
   /** Report domain — used as a secondary match target when no savedSiteUrl is set. */
   expectedDomain?: string;
@@ -58,11 +58,15 @@ export function useResolvedGscIntegration(params: {
 
   // Determine whether the user's personal/shared integration is "usable" for THIS client/site.
   const personalIsUsable = (() => {
-    if (!personalIntegrations.length || !clientId) return false;
+    if (!personalIntegrations.length || !clientId) {
+      return false;
+    }
     return personalIntegrations.some((i: any) => {
       const settings = i?.settings || {};
       const mapped: string | null = settings?.client_sites?.[clientId] || null;
-      const availableSites: any[] = Array.isArray(settings?.available_sites)
+      const availableSites: Array<any> = Array.isArray(
+        settings?.available_sites,
+      )
         ? settings.available_sites
         : [];
 
@@ -72,9 +76,13 @@ export function useResolvedGscIntegration(params: {
       const mappedIsUsable =
         !!mapped && (!meta || meta.permissionLevel !== "siteUnverifiedUser");
 
-      if (!mappedIsUsable) return false;
+      if (!mappedIsUsable) {
+        return false;
+      }
       // If we have an expected site, require the mapped site to match it.
-      if (expectedSiteUrl) return siteMatches(mapped, expectedSiteUrl);
+      if (expectedSiteUrl) {
+        return siteMatches(mapped, expectedSiteUrl);
+      }
       return true;
     });
   })();
@@ -101,8 +109,9 @@ export function useResolvedGscIntegration(params: {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session)
+      if (!session) {
         return { integrationId: null, siteUrl: null, ownerEmail: null };
+      }
 
       const response = await supabase.functions.invoke(
         "resolve-seo-gsc-integration",

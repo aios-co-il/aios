@@ -99,7 +99,7 @@ Deno.test(
         stage_id: "st-1",
       },
     });
-    const checked: string[] = [];
+    const checked: Array<string> = [];
     const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -153,7 +153,7 @@ Deno.test(
 Deno.test(
   "a client Carmen names is checked instead of the one in view",
   async () => {
-    const checked: string[] = [];
+    const checked: Array<string> = [];
     const result = (await executeApprovedWorkshopTool(
       fakeDb(),
       "tenant-1",

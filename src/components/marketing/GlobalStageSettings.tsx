@@ -119,7 +119,7 @@ function StageTemplateForm({
   stageType: string;
   track: string;
   tenantId: string;
-  agents: any[];
+  agents: Array<any>;
 }) {
   const queryClient = useQueryClient();
   const stageCfg = STAGE_TYPES.find((s) => s.type === stageType)!;
@@ -182,12 +182,16 @@ function StageTemplateForm({
           .from("marketing_stage_templates")
           .update(payload)
           .eq("id", template.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("marketing_stage_templates")
           .insert(payload);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       toast({ title: "ההגדרות נשמרו" });

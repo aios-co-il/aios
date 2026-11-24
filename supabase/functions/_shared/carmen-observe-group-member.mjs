@@ -11,12 +11,18 @@ import { phoneTail, phonesMatch } from "./carmen-group-sender.mjs";
 
 export function normalizeObservedPhone(phone, groupChatId) {
   const digits = String(phone || "").replace(/\D/g, "");
-  if (!digits) return null;
+  if (!digits) {
+    return null;
+  }
   const groupDigits = String(groupChatId || "")
     .split("@")[0]
     .replace(/\D/g, "");
-  if (groupDigits && digits === groupDigits) return null;
-  if (phoneTail(digits).length < 9) return null;
+  if (groupDigits && digits === groupDigits) {
+    return null;
+  }
+  if (phoneTail(digits).length < 9) {
+    return null;
+  }
   return digits;
 }
 
@@ -25,8 +31,12 @@ export function pickCandidateStatus({
   matchedIdentity,
   matchedCampaigner,
 }) {
-  if (!phone) return "awaiting_identity";
-  if (matchedIdentity || matchedCampaigner) return "approved";
+  if (!phone) {
+    return "awaiting_identity";
+  }
+  if (matchedIdentity || matchedCampaigner) {
+    return "approved";
+  }
   return "awaiting_approval";
 }
 
@@ -168,12 +178,16 @@ export async function observeManusGroupMember(supabase, args) {
         whatsapp_lid: lid || undefined,
       })
       .eq("id", existing.id);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   } else {
     const { error } = await supabase
       .from("carmen_whatsapp_identity_candidates")
       .insert(row);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 
   return {
@@ -203,10 +217,16 @@ export async function isCarmenManusGroup(
       .eq("tenant_id", tenantId)
       .eq("id", groupId)
       .maybeSingle();
-    if (data?.description === "manus_wa_sync") return true;
-    if (data?.group_chat_id) groupChatId = data.group_chat_id;
+    if (data?.description === "manus_wa_sync") {
+      return true;
+    }
+    if (data?.group_chat_id) {
+      groupChatId = data.group_chat_id;
+    }
   }
-  if (!groupChatId) return false;
+  if (!groupChatId) {
+    return false;
+  }
 
   const { data: integ } = await supabase
     .from("tenant_integrations")
@@ -220,7 +240,9 @@ export async function isCarmenManusGroup(
   const ids = Array.isArray(sync.group_chat_ids)
     ? sync.group_chat_ids.map(String)
     : [];
-  if (ids.includes(String(groupChatId))) return true;
+  if (ids.includes(String(groupChatId))) {
+    return true;
+  }
   const groups = Array.isArray(sync.groups) ? sync.groups : [];
   return groups.some(
     (g) => String(g?.groupChatId || g?.id || "") === String(groupChatId),
@@ -243,7 +265,9 @@ export async function buildObservedGroupMembersNote(
     .order("updated_at", { ascending: false })
     .limit(limit);
   const rows = data || [];
-  if (!rows.length) return "";
+  if (!rows.length) {
+    return "";
+  }
   const lines = rows.map((r) => {
     const name = r.whatsapp_name || "ללא שם";
     const link = r.status === "approved" ? "מזוהה" : "נצפה";

@@ -78,8 +78,9 @@ export function speechFile(
     isWav(bytes) ||
     mime.startsWith("audio/wav") ||
     mime.startsWith("audio/x-wav")
-  )
+  ) {
     return { bytes, contentType: "audio/wav", seconds: null };
+  }
   if (!mime || /audio\/l16|codec=pcm|audio\/pcm/.test(mime)) {
     const rate = Number(/rate=(\d+)/.exec(mime)?.[1]) || 24000;
     const channels = Number(/channels=(\d+)/.exec(mime)?.[1]) || 1;
@@ -116,7 +117,9 @@ export async function synthesizeGeminiSpeech({
   text: string;
   fetchImpl?: FetchImpl;
 }) {
-  if (!apiKey) throw new Error("Google API key is required for Gemini TTS");
+  if (!apiKey) {
+    throw new Error("Google API key is required for Gemini TTS");
+  }
   const model = GEMINI_TTS_MODEL();
   const voice = GEMINI_TTS_VOICE();
   const response = await fetchImpl(
@@ -141,7 +144,9 @@ export async function synthesizeGeminiSpeech({
     (part) => part.inlineData?.data || part.inline_data?.data,
   );
   const inline = audio?.inlineData ?? audio?.inline_data;
-  if (!inline?.data) throw new Error("gemini tts returned no audio");
+  if (!inline?.data) {
+    throw new Error("gemini tts returned no audio");
+  }
   const file = speechFile(
     Buffer.from(inline.data, "base64"),
     inline.mimeType ?? inline.mime_type,

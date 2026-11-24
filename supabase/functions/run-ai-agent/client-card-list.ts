@@ -27,7 +27,7 @@ export type ClientCardListResult =
   | { error: "not_found"; message: string }
   | {
       count: number;
-      updates: ClientCardListRow[];
+      updates: Array<ClientCardListRow>;
       instructions_to_agent: string;
     };
 
@@ -41,7 +41,7 @@ export async function listClientCardEntries(
   input: {
     clientId: string;
     tenantId: string;
-    accessibleTenantIds: string[];
+    accessibleTenantIds: Array<string>;
     limit?: unknown;
   },
 ): Promise<ClientCardListResult> {
@@ -91,7 +91,7 @@ interface ClientCardRow {
   update_type?: string | null;
   source?: string | null;
   counts_as_contact?: boolean | null;
-  profiles?: AuthorProfile | AuthorProfile[] | null;
+  profiles?: AuthorProfile | Array<AuthorProfile> | null;
 }
 
 /** Shape one client_updates row, with its author's profile, for Carmen. */

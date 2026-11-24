@@ -223,7 +223,9 @@ export function CashFlowTab() {
   );
 
   const agencyRows = useMemo(() => {
-    if (isLoading) return [];
+    if (isLoading) {
+      return [];
+    }
     const map: Record<
       string,
       {
@@ -276,7 +278,9 @@ export function CashFlowTab() {
     (suppliers || []).forEach((s: any) => {
       [1, 2, 3].forEach((i) => {
         const amt = Number(s[`payment_${i}`] || 0);
-        if (amt > 0) ensure(s[`agency_id_${i}`] || null).expectedExpense += amt;
+        if (amt > 0) {
+          ensure(s[`agency_id_${i}`] || null).expectedExpense += amt;
+        }
       });
     });
 
@@ -343,7 +347,9 @@ export function CashFlowTab() {
 
   // --- Forecast (next 3 months) ---
   const forecast = useMemo(() => {
-    if (isLoading) return [];
+    if (isLoading) {
+      return [];
+    }
     return forecastMonths.map((mk) => {
       const perAgency: Record<
         string,
@@ -351,12 +357,13 @@ export function CashFlowTab() {
       > = {};
       const ensure = (id: string | null) => {
         const key = id || UNASSIGNED;
-        if (!perAgency[key])
+        if (!perAgency[key]) {
           perAgency[key] = {
             income: 0,
             expense: 0,
             name: id ? agencyById[id]?.name || "—" : "ללא סוכנות",
           };
+        }
         return perAgency[key];
       };
       (clients || [])
@@ -369,7 +376,9 @@ export function CashFlowTab() {
       (suppliers || []).forEach((s: any) => {
         [1, 2, 3].forEach((i) => {
           const amt = Number(s[`payment_${i}`] || 0);
-          if (amt > 0) ensure(s[`agency_id_${i}`] || null).expense += amt;
+          if (amt > 0) {
+            ensure(s[`agency_id_${i}`] || null).expense += amt;
+          }
         });
       });
       (oneTimeIncomes || [])
@@ -392,17 +401,21 @@ export function CashFlowTab() {
 
   // --- Running balance chart ---
   const chartData = useMemo(() => {
-    if (isLoading) return [];
+    if (isLoading) {
+      return [];
+    }
     const base = parse(selectedMonth, "yyyy-MM", new Date());
     const days = getDaysInMonth(base);
     const matchAgency = (id: string | null) =>
       chartAgency === "all" || (id || UNASSIGNED) === chartAgency;
 
     // Actual events keyed by day
-    const actualDelta: number[] = Array(days + 1).fill(0);
+    const actualDelta: Array<number> = Array(days + 1).fill(0);
     (incomePayments || []).forEach((p) => {
       const c = clientById[p.client_id];
-      if (!matchAgency(c?.agency_id || null)) return;
+      if (!matchAgency(c?.agency_id || null)) {
+        return;
+      }
       const d = p.received_at ? new Date(p.received_at).getDate() : 1;
       actualDelta[Math.min(d, days)] += Number(p.amount || 0);
     });
@@ -423,7 +436,9 @@ export function CashFlowTab() {
         const c = clientById[p.expense_id];
         agencyId = c?.agency_id || null;
       }
-      if (!matchAgency(agencyId)) return;
+      if (!matchAgency(agencyId)) {
+        return;
+      }
       const d = p.paid_at ? new Date(p.paid_at).getDate() : 1;
       actualDelta[Math.min(d, days)] -= Number(p.amount || 0);
     });
@@ -440,8 +455,9 @@ export function CashFlowTab() {
     (suppliers || []).forEach((s: any) => {
       [1, 2, 3].forEach((i) => {
         const amt = Number(s[`payment_${i}`] || 0);
-        if (amt > 0 && matchAgency(s[`agency_id_${i}`] || null))
+        if (amt > 0 && matchAgency(s[`agency_id_${i}`] || null)) {
           expectedExpense += amt;
+        }
       });
     });
     let expectedOneTime = 0;
@@ -449,17 +465,18 @@ export function CashFlowTab() {
       .filter((o) => o.payment_month === selectedMonth)
       .forEach((o) => {
         const c = clientById[o.client_id];
-        if (matchAgency(c?.agency_id || null))
+        if (matchAgency(c?.agency_id || null)) {
           expectedOneTime += Number(o.amount || 0);
+        }
       });
 
-    const expectedDelta: number[] = Array(days + 1).fill(0);
+    const expectedDelta: Array<number> = Array(days + 1).fill(0);
     expectedDelta[1] += expectedIncome - expectedExpense;
     expectedDelta[Math.min(15, days)] += expectedOneTime;
 
     let actualBal = 0;
     let expectedBal = 0;
-    const rows: any[] = [];
+    const rows: Array<any> = [];
     for (let d = 1; d <= days; d++) {
       actualBal += actualDelta[d];
       expectedBal += expectedDelta[d];
@@ -497,7 +514,9 @@ export function CashFlowTab() {
         payment_month: selectedMonth,
         received_at: new Date().toISOString(),
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cf-income-payments", tenantId] });
@@ -512,7 +531,9 @@ export function CashFlowTab() {
         .from("income_payments")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["cf-income-payments", tenantId] }),
@@ -539,7 +560,9 @@ export function CashFlowTab() {
         payment_month: selectedMonth,
         paid_at: new Date().toISOString(),
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cf-expense-payments", tenantId] });
@@ -554,7 +577,9 @@ export function CashFlowTab() {
         .from("expense_payments")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["cf-expense-payments", tenantId] }),
@@ -1038,8 +1063,11 @@ function DrillContent({
     const c = clients.find((cl: any) => cl.id === o.client_id);
     return o.payment_month === selectedMonth && c?.agency_id === agencyId;
   });
-  const monthExpenseSlots: { supplier: any; slot: number; amount: number }[] =
-    [];
+  const monthExpenseSlots: Array<{
+    supplier: any;
+    slot: number;
+    amount: number;
+  }> = [];
   suppliers.forEach((s: any) => {
     [1, 2, 3].forEach((i) => {
       if (

@@ -163,14 +163,18 @@ export function MakeScenarioSettings({
   const { data: makeSettings } = useQuery({
     queryKey: ["make-settings", table?.tenant_id],
     queryFn: async () => {
-      if (!table?.tenant_id) return null;
+      if (!table?.tenant_id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("tenant_id", table.tenant_id)
         .eq("integration_type", "make_api")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!table?.tenant_id,
@@ -186,7 +190,9 @@ export function MakeScenarioSettings({
   const { data: scenarios = [], isLoading: loadingScenarios } = useQuery({
     queryKey: ["make-scenarios", table?.tenant_id],
     queryFn: async () => {
-      if (!makeApiSettings?.api_token || !makeApiSettings?.team_id) return [];
+      if (!makeApiSettings?.api_token || !makeApiSettings?.team_id) {
+        return [];
+      }
 
       const { data, error } = await supabase.functions.invoke("make-api", {
         body: {
@@ -210,7 +216,9 @@ export function MakeScenarioSettings({
   // Save settings mutation
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
 
       const { error } = await supabase
         .from("crm_tables")
@@ -225,7 +233,9 @@ export function MakeScenarioSettings({
         })
         .eq("id", table.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -311,7 +321,9 @@ export function MakeScenarioSettings({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

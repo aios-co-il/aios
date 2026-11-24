@@ -16,7 +16,7 @@ export async function viaOpenAi(
   prompt: string,
   aspect: GeminiAspectRatio,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   let response: Response;
   if (references.length > 0) {
@@ -52,11 +52,14 @@ export async function viaOpenAi(
       }),
     });
   }
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(`${response.status} ${clip(await response.text())}`);
+  }
   const data = await response.json();
   const b64 = data?.data?.[0]?.b64_json;
-  if (!b64) throw new Error("לא הוחזרה תמונה");
+  if (!b64) {
+    throw new Error("לא הוחזרה תמונה");
+  }
   return { bytes: fromBase64(b64), mime: "image/png", provider: "openai" };
 }
 

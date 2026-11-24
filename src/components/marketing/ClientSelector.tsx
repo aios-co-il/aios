@@ -56,13 +56,15 @@ export function ClientSelector({
   disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [agencies, setAgencies] = useState<Agency[]>([]);
+  const [clients, setClients] = useState<Array<Client>>([]);
+  const [agencies, setAgencies] = useState<Array<Agency>>([]);
   const [selectedAgency, setSelectedAgency] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     let cancel = false;
     Promise.all([
       supabase
@@ -77,9 +79,11 @@ export function ClientSelector({
         .eq("tenant_id", tenantId)
         .order("name"),
     ]).then(([clientsRes, agenciesRes]) => {
-      if (cancel) return;
-      setClients((clientsRes.data ?? []) as Client[]);
-      setAgencies((agenciesRes.data ?? []) as Agency[]);
+      if (cancel) {
+        return;
+      }
+      setClients((clientsRes.data ?? []) as Array<Client>);
+      setAgencies((agenciesRes.data ?? []) as Array<Agency>);
     });
     return () => {
       cancel = true;
@@ -108,9 +112,11 @@ export function ClientSelector({
 
   const visibleClients = useMemo(() => {
     let list = clients;
-    if (selectedAgency === NO_AGENCY) list = list.filter((c) => !c.agency_id);
-    else if (selectedAgency && selectedAgency !== ALL_AGENCY)
+    if (selectedAgency === NO_AGENCY) {
+      list = list.filter((c) => !c.agency_id);
+    } else if (selectedAgency && selectedAgency !== ALL_AGENCY) {
       list = list.filter((c) => c.agency_id === selectedAgency);
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((c) => c.name.toLowerCase().includes(q));
@@ -119,13 +125,17 @@ export function ClientSelector({
   }, [clients, selectedAgency, search]);
 
   const handleOpenChange = (o: boolean) => {
-    if (disabled) return;
+    if (disabled) {
+      return;
+    }
     setOpen(o);
     if (o) {
       setSearch("");
       // Default to current client's agency view, or pick first
       if (selectedAgency === null) {
-        if (current?.agency_id) setSelectedAgency(current.agency_id);
+        if (current?.agency_id) {
+          setSelectedAgency(current.agency_id);
+        }
       }
     }
   };
@@ -199,7 +209,9 @@ export function ClientSelector({
               </button>
               {agencies.map((a) => {
                 const count = clientCountByAgency.get(a.id) ?? 0;
-                if (count === 0) return null;
+                if (count === 0) {
+                  return null;
+                }
                 return (
                   <button
                     key={a.id}

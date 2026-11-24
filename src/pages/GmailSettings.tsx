@@ -44,7 +44,9 @@ export default function GmailSettings() {
       const { data, error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "status" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as { connected: boolean; google_email: string | null };
     },
     enabled: !!userId,
@@ -59,7 +61,9 @@ export default function GmailSettings() {
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -74,7 +78,9 @@ export default function GmailSettings() {
         .select("*")
         .eq("user_id", userId!)
         .order("blocked_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!userId,
@@ -86,7 +92,9 @@ export default function GmailSettings() {
       const { data, error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "init", tenantId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data?.authUrl) {
         window.open(data.authUrl, "gmail-auth", "width=600,height=700");
       }
@@ -113,7 +121,9 @@ export default function GmailSettings() {
       const { error } = await supabase.functions.invoke("gmail-auth", {
         body: { action: "disconnect" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gmail-status", userId] });
@@ -126,18 +136,22 @@ export default function GmailSettings() {
   const [newCategoryColor, setNewCategoryColor] = useState("#3B82F6");
   const [newCategoryLabelId, setNewCategoryLabelId] = useState("");
   const [availableLabelsList, setAvailableLabelsList] = useState<
-    { id: string; name: string; type: string }[]
+    Array<{ id: string; name: string; type: string }>
   >([]);
   const [loadingLabelsList, setLoadingLabelsList] = useState(false);
 
   const fetchLabelsList = async () => {
-    if (availableLabelsList.length > 0) return;
+    if (availableLabelsList.length > 0) {
+      return;
+    }
     setLoadingLabelsList(true);
     try {
       const { data, error } = await supabase.functions.invoke("gmail-api", {
         body: { action: "listLabels" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setAvailableLabelsList(data.labels || []);
     } catch {
       toast.error("שגיאה בטעינת תגיות");
@@ -148,12 +162,16 @@ export default function GmailSettings() {
 
   // Load labels when connected
   useEffect(() => {
-    if (connectionStatus?.connected) fetchLabelsList();
+    if (connectionStatus?.connected) {
+      fetchLabelsList();
+    }
   }, [connectionStatus?.connected]);
 
   const addCategory = useMutation({
     mutationFn: async () => {
-      if (!newCategoryName.trim()) throw new Error("שם קטגוריה נדרש");
+      if (!newCategoryName.trim()) {
+        throw new Error("שם קטגוריה נדרש");
+      }
       const { error } = await supabase.from("gmail_categories").insert({
         tenant_id: tenantId!,
         name: newCategoryName.trim(),
@@ -161,7 +179,9 @@ export default function GmailSettings() {
         sort_order: categories.length,
         gmail_label_id: newCategoryLabelId || null,
       } as any);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setNewCategoryName("");
@@ -180,7 +200,9 @@ export default function GmailSettings() {
         .from("gmail_categories")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -194,13 +216,17 @@ export default function GmailSettings() {
   const [newBlockedEmail, setNewBlockedEmail] = useState("");
   const addBlockedSender = useMutation({
     mutationFn: async () => {
-      if (!newBlockedEmail.trim()) throw new Error("כתובת מייל נדרשת");
+      if (!newBlockedEmail.trim()) {
+        throw new Error("כתובת מייל נדרשת");
+      }
       const { error } = await supabase.from("gmail_blocked_senders").insert({
         tenant_id: tenantId!,
         user_id: userId!,
         email_address: newBlockedEmail.trim().toLowerCase(),
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setNewBlockedEmail("");
@@ -210,8 +236,11 @@ export default function GmailSettings() {
       toast.success("כתובת נחסמה");
     },
     onError: (e: any) => {
-      if (e?.message?.includes("duplicate")) toast.error("הכתובת כבר חסומה");
-      else toast.error("שגיאה בחסימת כתובת");
+      if (e?.message?.includes("duplicate")) {
+        toast.error("הכתובת כבר חסומה");
+      } else {
+        toast.error("שגיאה בחסימת כתובת");
+      }
     },
   });
 
@@ -221,7 +250,9 @@ export default function GmailSettings() {
         .from("gmail_blocked_senders")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -469,7 +500,7 @@ function AllowedLabelsSection({
 }) {
   const queryClient = useQueryClient();
   const [availableLabels, setAvailableLabels] = useState<
-    { id: string; name: string; type: string }[]
+    Array<{ id: string; name: string; type: string }>
   >([]);
   const [loadingLabels, setLoadingLabels] = useState(false);
 
@@ -481,8 +512,14 @@ function AllowedLabelsSection({
         .from("gmail_allowed_labels")
         .select("*")
         .eq("user_id", userId!);
-      if (error) throw error;
-      return data as { id: string; label_id: string; label_name: string }[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<{
+        id: string;
+        label_id: string;
+        label_name: string;
+      }>;
     },
     enabled: !!userId,
   });
@@ -493,7 +530,9 @@ function AllowedLabelsSection({
       const { data, error } = await supabase.functions.invoke("gmail-api", {
         body: { action: "listLabels" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setAvailableLabels(data.labels || []);
     } catch (e) {
       toast.error("שגיאה בטעינת תגיות");

@@ -23,13 +23,13 @@ import type { ChatSources } from "./sources.ts";
 import { buildThreads, type Thread } from "./threads.ts";
 
 export type ThreadFindings = {
-  candidates: FindingCandidate[];
-  resolved: FindingResolution[];
+  candidates: Array<FindingCandidate>;
+  resolved: Array<FindingResolution>;
   llm: { calls: number; costUsd: number };
   /** False when a read stopped at its page cap. */
   complete: boolean;
   /** Why the run found less than it could: read_capped, model_unavailable, verdict_rejected:N. */
-  notes: string[];
+  notes: Array<string>;
 };
 
 /** Reads and reviews the threads for the enabled thread kinds. */
@@ -37,7 +37,7 @@ export async function threadFindings(
   ctx: CollectorContext,
   src: ChatSources,
   query: ActivityQuery,
-  kinds: readonly FindingKind[],
+  kinds: ReadonlyArray<FindingKind>,
 ): Promise<ThreadFindings> {
   const requests = kinds.includes("unanswered_request");
   const complaints = kinds.includes("client_complaint");
@@ -98,7 +98,7 @@ export async function threadFindings(
 async function readThreads(
   src: ChatSources,
   query: ActivityQuery,
-): Promise<{ threads: Thread[]; complete: boolean }> {
+): Promise<{ threads: Array<Thread>; complete: boolean }> {
   const activity = await src.activity(query);
   const { rows } = activity;
   const clientIds = [...new Set(rows.map((row) => row.client_id))];

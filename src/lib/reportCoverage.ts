@@ -30,20 +30,30 @@ export function getReportCoverageGap(
   minUncoveredDays: number = DEFAULT_MIN_UNCOVERED_DAYS,
 ): ReportCoverageGap | null {
   const start = normalizeDate(windowStart);
-  if (!start) return null;
+  if (!start) {
+    return null;
+  }
 
   let earliest: string | null = null;
   for (const raw of recordDates) {
     const date = normalizeDate(raw);
-    if (!date) continue;
-    if (!earliest || date < earliest) earliest = date;
+    if (!date) {
+      continue;
+    }
+    if (!earliest || date < earliest) {
+      earliest = date;
+    }
   }
-  if (!earliest || earliest <= start) return null;
+  if (!earliest || earliest <= start) {
+    return null;
+  }
 
   const uncoveredDays = Math.round(
     (Date.parse(earliest) - Date.parse(start)) / 86_400_000,
   );
-  if (uncoveredDays < minUncoveredDays) return null;
+  if (uncoveredDays < minUncoveredDays) {
+    return null;
+  }
 
   return { earliestAvailable: earliest, uncoveredDays };
 }

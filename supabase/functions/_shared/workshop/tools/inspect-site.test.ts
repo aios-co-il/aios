@@ -18,7 +18,7 @@ const SITE_HTML = `<html lang="he"><head><title>קפה הגינה</title>
 Deno.test(
   "looking at the client's site saves a report asset and can set the brand",
   async () => {
-    const fetched: string[] = [];
+    const fetched: Array<string> = [];
     const db = fakeDb({
       "marketing_work_items:select": {
         id: "item-1",
@@ -95,7 +95,7 @@ async function brandFromSite(copy: { url?: string; error?: string }) {
       payload: { workshop: {} },
     },
   });
-  const imported: string[] = [];
+  const imported: Array<string> = [];
   const result = (await executeApprovedWorkshopTool(
     db,
     "tenant-1",

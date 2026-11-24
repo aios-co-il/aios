@@ -51,7 +51,7 @@ interface SearchConsoleDashboardProps {
   initialLangFilter?: LangFilter;
   onLangFilterChange?: (lang: LangFilter) => void;
   /** Ahrefs (or other) tracked phrases — seed the GSC "במעקב" list. */
-  seedTrackedKeywords?: string[];
+  seedTrackedKeywords?: Array<string>;
   /** Ahrefs ranks stored on the SEO reports, including an earlier snapshot. */
   trackedAhrefsPositions?: Record<string, number>;
   /** Client id, so manual "לא רלוונטי" marks hide the same phrases as Top 20. */
@@ -113,7 +113,7 @@ export function SearchConsoleDashboard({
   const [sortBy, setSortBy] = useState<string>("position");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [searchFilter, setSearchFilter] = useState("");
-  const [trackedKeywords, setTrackedKeywords] = useState<string[]>([]);
+  const [trackedKeywords, setTrackedKeywords] = useState<Array<string>>([]);
   const [newKeyword, setNewKeyword] = useState("");
   const [dateFilter, setDateFilter] = useState<GscDateFilter>("last_7_days");
   const [langFilter, setLangFilterState] = useState<LangFilter>(
@@ -145,7 +145,9 @@ export function SearchConsoleDashboard({
 
   // Seed / refresh from Ahrefs tracked list whenever the parent sends a new set.
   useEffect(() => {
-    if (!seedTrackedKeywords || seedTrackedKeywords.length === 0) return;
+    if (!seedTrackedKeywords || seedTrackedKeywords.length === 0) {
+      return;
+    }
     setTrackedKeywords((prev) => {
       const merged = [
         ...new Set([
@@ -173,7 +175,9 @@ export function SearchConsoleDashboard({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const params = new URLSearchParams({
         table_id: tableId,
@@ -188,7 +192,9 @@ export function SearchConsoleDashboard({
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data as AggregatedData;
     },
     enabled: !!tableId,
@@ -212,10 +218,14 @@ export function SearchConsoleDashboard({
   const allQueries = aggregatedData?.queries || [];
 
   useEffect(() => {
-    if (!onTop20Queries) return;
+    if (!onTop20Queries) {
+      return;
+    }
     const rows = allQueries.flatMap((q) => {
       const position = top20DisplayPosition(q.position);
-      if (position == null || !q.query) return [];
+      if (position == null || !q.query) {
+        return [];
+      }
       return [
         {
           keyword: q.query,
@@ -233,8 +243,11 @@ export function SearchConsoleDashboard({
       en = 0;
     for (const r of allQueries) {
       const k = r.query || "";
-      if (HEBREW_REGEX.test(k)) he++;
-      else if (ENGLISH_REGEX.test(k)) en++;
+      if (HEBREW_REGEX.test(k)) {
+        he++;
+      } else if (ENGLISH_REGEX.test(k)) {
+        en++;
+      }
     }
     return { he, en, all: allQueries.length };
   })();
@@ -245,9 +258,12 @@ export function SearchConsoleDashboard({
     if (langFilter !== "all") {
       rows = rows.filter((r) => {
         const k = r.query || "";
-        if (langFilter === "he") return HEBREW_REGEX.test(k);
-        if (langFilter === "en")
+        if (langFilter === "he") {
+          return HEBREW_REGEX.test(k);
+        }
+        if (langFilter === "en") {
           return ENGLISH_REGEX.test(k) && !HEBREW_REGEX.test(k);
+        }
         return true;
       });
     }
@@ -266,9 +282,15 @@ export function SearchConsoleDashboard({
           trackedPhraseRank(a.query, a.position, rankOpts)?.position ?? null;
         const bShown =
           trackedPhraseRank(b.query, b.position, rankOpts)?.position ?? null;
-        if (aShown == null && bShown == null) return 0;
-        if (aShown == null) return 1;
-        if (bShown == null) return -1;
+        if (aShown == null && bShown == null) {
+          return 0;
+        }
+        if (aShown == null) {
+          return 1;
+        }
+        if (bShown == null) {
+          return -1;
+        }
         return sortOrder === "desc" ? bShown - aShown : aShown - bShown;
       }
       const aVal = a[sortBy as keyof typeof a] as number;
@@ -279,8 +301,9 @@ export function SearchConsoleDashboard({
   })();
 
   const SortIcon = ({ col }: { col: string }) => {
-    if (sortBy !== col)
+    if (sortBy !== col) {
       return <ArrowUpDown className="h-3 w-3 opacity-30 inline ml-1" />;
+    }
     return sortOrder === "asc" ? (
       <ArrowUp className="h-3 w-3 text-primary inline ml-1" />
     ) : (
@@ -303,11 +326,13 @@ export function SearchConsoleDashboard({
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     Papa.parse(file, {
       complete: (results) => {
-        const keywords: string[] = [];
+        const keywords: Array<string> = [];
         results.data.forEach((row: any) => {
           const keyword =
             row["keyword"] ||
@@ -457,11 +482,13 @@ export function SearchConsoleDashboard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map((k) => (
-              <SelectItem key={k} value={k} className="text-xs">
-                {DATE_FILTER_LABELS[k]}
-              </SelectItem>
-            ))}
+            {(Object.keys(DATE_FILTER_LABELS) as Array<GscDateFilter>).map(
+              (k) => (
+                <SelectItem key={k} value={k} className="text-xs">
+                  {DATE_FILTER_LABELS[k]}
+                </SelectItem>
+              ),
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -828,7 +855,7 @@ function GscRankBadge({
   query: string;
   position: number;
   tracked?: Array<{ keyword?: string } | string>;
-  forceIrrelevant?: string[];
+  forceIrrelevant?: Array<string>;
   ahrefsPositions?: Record<string, number>;
 }) {
   const shown =

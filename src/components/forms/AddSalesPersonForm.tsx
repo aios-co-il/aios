@@ -86,7 +86,9 @@ export function AddSalesPersonForm() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -95,7 +97,9 @@ export function AddSalesPersonForm() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -119,7 +123,9 @@ export function AddSalesPersonForm() {
         )
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Extract shared agencies
       const shared = (sharedAccess || [])
@@ -144,7 +150,9 @@ export function AddSalesPersonForm() {
 
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       const submitData: any = {
         full_name: values.full_name,
@@ -163,7 +171,9 @@ export function AddSalesPersonForm() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

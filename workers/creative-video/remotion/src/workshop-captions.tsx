@@ -7,7 +7,7 @@ export { SceneCaption } from "./workshop-caption-lines";
 
 /** Karaoke-style Hebrew captions: the spoken word lights up in the brand colour. */
 export const KaraokeCaptions: React.FC<{
-  captions: WorkshopCaption[];
+  captions: Array<WorkshopCaption>;
   accent: string;
   fontFamily: string;
 }> = ({ captions, accent, fontFamily }) => (

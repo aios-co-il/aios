@@ -2,7 +2,9 @@
 // edge-function secret.
 export function getRepoSlug(): string {
   const slug = Deno.env.get("GITHUB_REPO");
-  if (!slug) throw new Error("GITHUB_REPO is not set (expected owner/name)");
+  if (!slug) {
+    throw new Error("GITHUB_REPO is not set (expected owner/name)");
+  }
   return slug;
 }
 

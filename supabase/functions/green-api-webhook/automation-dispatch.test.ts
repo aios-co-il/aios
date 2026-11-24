@@ -229,7 +229,7 @@ Deno.test("rememberConnectionWid", async (t) => {
 
   await t.step("writes nothing when the wid is already recorded", async () => {
     const db = fakeClaimTables();
-    const writes: string[] = [];
+    const writes: Array<string> = [];
     const spy = {
       from: (table: string) => {
         writes.push(table);

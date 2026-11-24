@@ -24,12 +24,16 @@ const MODULE_LABELS: Record<string, string> = {
 
 function moduleFromPath(pathname: string): string | null {
   const m = pathname.match(/\/t\/[^/]+\/([^/?]+)/);
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return MODULE_LABELS[m[1]] ? m[1] : m[1];
 }
 
 export function moduleLabel(module: string | null): string {
-  if (!module) return "מערכת";
+  if (!module) {
+    return "מערכת";
+  }
   return MODULE_LABELS[module] ?? module;
 }
 
@@ -42,7 +46,9 @@ export function collectCarmenUiContext(args: {
   const params = args.params ?? {};
   const routeParams: Record<string, string> = {};
   for (const [k, v] of Object.entries(params)) {
-    if (v != null && v !== "") routeParams[k] = v;
+    if (v != null && v !== "") {
+      routeParams[k] = v;
+    }
   }
 
   return {
@@ -72,6 +78,8 @@ export function formatUiContextForPrompt(ctx: CarmenUiContext): string {
   if (ids.length) {
     lines.push(`מזהים מהנתיב: ${ids.map(([k, v]) => `${k}=${v}`).join(", ")}`);
   }
-  if (ctx.search) lines.push(`query: ${ctx.search}`);
+  if (ctx.search) {
+    lines.push(`query: ${ctx.search}`);
+  }
   return lines.filter(Boolean).join("\n");
 }

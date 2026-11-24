@@ -57,7 +57,9 @@ export function getFieldLabel(type: SignatureFieldType): string {
 
 /** Placement UI label — generic fields stay untitled on the signed PDF form. */
 export function getFieldPlacerLabel(type: SignatureFieldType): string {
-  if (type === "text") return "מילוי";
+  if (type === "text") {
+    return "מילוי";
+  }
   return getFieldLabel(type);
 }
 
@@ -99,9 +101,11 @@ export function createDocumentField(
   };
 }
 
-export function parseDocumentFields(raw: unknown): DocumentField[] {
-  if (!Array.isArray(raw)) return [];
+export function parseDocumentFields(raw: unknown): Array<DocumentField> {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw.filter(
     (f) => f && typeof f === "object" && f.type && f.position,
-  ) as DocumentField[];
+  ) as Array<DocumentField>;
 }

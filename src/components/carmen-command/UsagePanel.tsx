@@ -41,7 +41,9 @@ function StatTile({
 }
 
 function UsageTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+  if (!active || !payload?.length) {
+    return null;
+  }
   const d: UsageDay = payload[0].payload;
   return (
     <div dir="rtl" className="cc-panel p-2 text-xs">
@@ -68,7 +70,9 @@ function UsageTooltip({ active, payload }: any) {
 }
 
 function AdminCostTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
+  if (!active || !payload?.length) {
+    return null;
+  }
   const d: OpenAiBillingDay = payload[0].payload;
   return (
     <div dir="rtl" className="cc-panel p-2 text-xs">
@@ -101,7 +105,7 @@ function mergeAdminDaily(
     total_tokens: number;
     num_model_requests: number;
   }> = [],
-): OpenAiBillingDay[] {
+): Array<OpenAiBillingDay> {
   const byDate = new Map<string, OpenAiBillingDay>();
   for (const c of costs) {
     byDate.set(c.date, { date: c.date, cost: c.cost });

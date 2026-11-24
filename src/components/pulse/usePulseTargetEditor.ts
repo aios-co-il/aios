@@ -22,8 +22,8 @@ export function usePulseTargetEditor({
   campaignRows,
   clientMetaById,
 }: {
-  tables: PulseCampaignTable[];
-  campaignRows: PulseCampaignGoalRow[];
+  tables: Array<PulseCampaignTable>;
+  campaignRows: Array<PulseCampaignGoalRow>;
   clientMetaById: Map<string, { name: string }>;
 }) {
   const [context, setContext] = useState<PulseTargetEditorContext | null>(null);
@@ -85,10 +85,10 @@ export function usePulseTargetEditor({
 
 /** Every report table of the client × platform: a platform target goes to all. */
 export function platformTableIds(
-  tables: PulseCampaignTable[],
+  tables: Array<PulseCampaignTable>,
   clientId: string,
   platform: PulsePlatform,
-): string[] {
+): Array<string> {
   return tables
     .filter(
       (table) =>

@@ -5,20 +5,24 @@ const TURN = "2026-10-27T10:00:00.000Z";
 const CHAT = "conv-1";
 
 /** A fake supabase client that records each query and answers with `rows`. */
-function fakeDb(rows: Record<string, unknown>[]) {
-  const calls: Array<{ table: string; ops: Array<[string, unknown[]]> }> = [];
+function fakeDb(rows: Array<Record<string, unknown>>) {
+  const calls: Array<{ table: string; ops: Array<[string, Array<unknown>]> }> =
+    [];
   const db = {
     from(table: string) {
-      const call = { table, ops: [] as Array<[string, unknown[]]> };
+      const call = { table, ops: [] as Array<[string, Array<unknown>]> };
       calls.push(call);
       const chain: Record<string, unknown> = {};
       const proxy: unknown = new Proxy(chain, {
         get(_target, op: string) {
-          if (op === "then") return undefined;
-          if (op === "maybeSingle")
+          if (op === "then") {
+            return undefined;
+          }
+          if (op === "maybeSingle") {
             return () =>
               Promise.resolve({ data: rows[0] ?? null, error: null });
-          return (...args: unknown[]) => {
+          }
+          return (...args: Array<unknown>) => {
             call.ops.push([op, args]);
             return op === "insert"
               ? Promise.resolve({ data: null, error: null })

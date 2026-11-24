@@ -91,8 +91,12 @@ export function sanitizeIntegrationSettings(
   settings: Record<string, unknown> | null | undefined,
   integrationType: string,
 ): Record<string, unknown> | null {
-  if (!settings || typeof settings !== "object") return settings ?? null;
-  if (!GOOGLE_INTEGRATION_TYPES.has(integrationType)) return settings;
+  if (!settings || typeof settings !== "object") {
+    return settings ?? null;
+  }
+  if (!GOOGLE_INTEGRATION_TYPES.has(integrationType)) {
+    return settings;
+  }
 
   const sanitized = { ...settings };
   for (const key of SENSITIVE_SETTINGS_KEYS) {

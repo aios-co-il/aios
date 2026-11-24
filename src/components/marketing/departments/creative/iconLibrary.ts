@@ -42,11 +42,13 @@ export type CreativeIconId = (typeof CREATIVE_ICONS)[number]["id"];
 export const CREATIVE_ICON_IDS = CREATIVE_ICONS.map((item) => item.id);
 
 export const isCreativeIconId = (value?: string): value is CreativeIconId =>
-  !!value && (CREATIVE_ICON_IDS as readonly string[]).includes(value);
+  !!value && (CREATIVE_ICON_IDS as ReadonlyArray<string>).includes(value);
 
 export const searchCreativeIcons = (query: string) => {
   const needle = query.trim().toLowerCase();
-  if (!needle) return [...CREATIVE_ICONS];
+  if (!needle) {
+    return [...CREATIVE_ICONS];
+  }
   return CREATIVE_ICONS.filter(
     (item) =>
       item.label.includes(query.trim()) ||

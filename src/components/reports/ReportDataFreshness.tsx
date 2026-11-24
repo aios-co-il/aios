@@ -18,7 +18,9 @@ const SYNC_PROBLEM_LABEL: Record<SyncProblem, string> = {
 
 function formatHebrewDateTime(value: string | number): string {
   const date = typeof value === "number" ? new Date(value) : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
   return date.toLocaleString("he-IL", {
     dateStyle: "short",
     timeStyle: "short",

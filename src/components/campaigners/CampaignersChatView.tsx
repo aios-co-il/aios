@@ -108,7 +108,9 @@ export function CampaignersChatView({
       crossTenantAgencyIds.join(","),
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase.from("agencies").select("id, name").order("name");
       if (crossTenantAgencyIds.length > 0) {
         query = query.or(
@@ -118,7 +120,9 @@ export function CampaignersChatView({
         query = query.eq("tenant_id", tenantId);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -168,7 +172,7 @@ export function CampaignersChatView({
 
   const updateCampaignerAgencies = async (
     campaignerId: string,
-    agencyIds: string[],
+    agencyIds: Array<string>,
   ) => {
     const { error: delErr } = await supabase
       .from("campaigner_agencies")
@@ -199,10 +203,12 @@ export function CampaignersChatView({
   const { data: campaigners, isLoading } = useQuery({
     queryKey: ["campaigners", tenantId, crossTenantAgencyIds.join(",")],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Fetch campaigner IDs linked to cross-tenant shared agencies
-      let crossTenantCampaignerIds: string[] = [];
+      let crossTenantCampaignerIds: Array<string> = [];
       if (crossTenantAgencyIds.length > 0) {
         const { data: caRows } = await supabase
           .from("campaigner_agencies")
@@ -239,7 +245,9 @@ export function CampaignersChatView({
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return (data || []).map((c: any) => ({
         ...c,
@@ -250,7 +258,9 @@ export function CampaignersChatView({
   });
 
   const filteredCampaigners = useMemo(() => {
-    if (!campaigners) return [];
+    if (!campaigners) {
+      return [];
+    }
     let list = campaigners;
 
     if (selectedAgency && selectedAgency !== "all") {
@@ -261,9 +271,11 @@ export function CampaignersChatView({
       );
     }
 
-    if (activeFilter === "active") list = list.filter((c: any) => c.active);
-    else if (activeFilter === "inactive")
+    if (activeFilter === "active") {
+      list = list.filter((c: any) => c.active);
+    } else if (activeFilter === "inactive") {
       list = list.filter((c: any) => !c.active);
+    }
 
     const q = search.trim().toLowerCase();
     if (q) {
@@ -290,7 +302,9 @@ export function CampaignersChatView({
 
   const visibleClientTeam = useMemo(() => {
     const team = selected?.client_team || [];
-    if (clientStatusFilter === "all") return team;
+    if (clientStatusFilter === "all") {
+      return team;
+    }
     return team.filter((assignment: any) =>
       isActiveClientStatus(assignment.clients?.status),
     );
@@ -304,7 +318,9 @@ export function CampaignersChatView({
         .select("*")
         .eq("id", viewClientId!)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!viewClientId,
@@ -648,7 +664,9 @@ export function CampaignersChatView({
                           <TableBody>
                             {visibleClientTeam.map((assignment: any) => {
                               const client = assignment.clients;
-                              if (!client?.id) return null;
+                              if (!client?.id) {
+                                return null;
+                              }
                               return (
                                 <TableRow key={assignment.id}>
                                   <TableCell className="font-medium">
@@ -741,7 +759,9 @@ export function CampaignersChatView({
                   client={viewClient}
                   open={!!viewClientId}
                   onOpenChange={(open) => {
-                    if (!open) setViewClientId(null);
+                    if (!open) {
+                      setViewClientId(null);
+                    }
                   }}
                 />
               )}
@@ -802,7 +822,9 @@ function EditableRow({
   }, [value, editing]);
 
   const commit = async () => {
-    if ((draft || "") !== (value || "")) await onSave(draft);
+    if ((draft || "") !== (value || "")) {
+      await onSave(draft);
+    }
     setEditing(false);
   };
 
@@ -812,8 +834,12 @@ function EditableRow({
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && type !== "textarea") commit();
-    if (e.key === "Escape") cancel();
+    if (e.key === "Enter" && type !== "textarea") {
+      commit();
+    }
+    if (e.key === "Escape") {
+      cancel();
+    }
   };
 
   if (editing) {
@@ -907,13 +933,13 @@ function AgenciesRow({
   allAgencies,
   onSave,
 }: {
-  currentAgencyIds: string[];
+  currentAgencyIds: Array<string>;
   currentLabels: string;
-  allAgencies: { id: string; name: string }[];
-  onSave: (ids: string[]) => void | Promise<any>;
+  allAgencies: Array<{ id: string; name: string }>;
+  onSave: (ids: Array<string>) => void | Promise<any>;
 }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string[]>(currentAgencyIds);
+  const [selected, setSelected] = useState<Array<string>>(currentAgencyIds);
 
   useEffect(() => {
     setSelected(currentAgencyIds);
@@ -928,7 +954,9 @@ function AgenciesRow({
   const commit = async () => {
     const a = [...selected].sort().join(",");
     const b = [...currentAgencyIds].sort().join(",");
-    if (a !== b) await onSave(selected);
+    if (a !== b) {
+      await onSave(selected);
+    }
     setOpen(false);
   };
 
@@ -936,8 +964,11 @@ function AgenciesRow({
     <Popover
       open={open}
       onOpenChange={(o) => {
-        if (!o) commit();
-        else setOpen(true);
+        if (!o) {
+          commit();
+        } else {
+          setOpen(true);
+        }
       }}
     >
       <PopoverTrigger asChild>

@@ -19,7 +19,7 @@ import { toast } from "sonner";
 export type SitemapNode = {
   module: MenuModule;
   /** sub-modules that hang off this module (settings pages, sub-pages) */
-  children: MenuModule[];
+  children: Array<MenuModule>;
   hidden: boolean;
   customLabel: string | null;
 };
@@ -31,7 +31,7 @@ export type SitemapColumn = {
   sectionLabel: string;
   customSectionLabel: string | null;
   customTabLabel: string | null;
-  modules: SitemapNode[];
+  modules: Array<SitemapNode>;
   isSpecial?: "orphans" | "hidden";
 };
 
@@ -58,14 +58,18 @@ export function useSitemap() {
         >
       >;
     }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const existing = menuItems.find((m) => m.menu_key === input.menu_key);
       if (existing) {
         const { error } = await supabase
           .from("menu_items")
           .update({ ...input.patch, updated_at: new Date().toISOString() })
           .eq("id", existing.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("menu_items").insert({
           tenant_id: tenantId,
@@ -76,7 +80,9 @@ export function useSitemap() {
           sort_order: 0,
           ...input.patch,
         } as any);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -137,17 +143,19 @@ export function useSitemap() {
 }
 
 /** Pure reducer used by both hook and sidebar overlay. */
-export function buildSitemap(menuItems: MenuItem[]): {
-  columns: SitemapColumn[];
+export function buildSitemap(menuItems: Array<MenuItem>): {
+  columns: Array<SitemapColumn>;
   /** Overlay map for AppSidebar consumption. */
   overlay: SidebarOverlay;
 } {
   // 1. Index overrides by key
   const itemByKey = new Map<string, MenuItem>();
-  for (const m of menuItems) itemByKey.set(m.menu_key, m);
+  for (const m of menuItems) {
+    itemByKey.set(m.menu_key, m);
+  }
 
   // 2. Map sub-modules / integration settings by parent
-  const childrenByParent = new Map<string, MenuModule[]>();
+  const childrenByParent = new Map<string, Array<MenuModule>>();
   for (const sub of [...SUB_MODULES, ...INTEGRATION_SETTINGS]) {
     const arr = childrenByParent.get(sub.parentKey) || [];
     arr.push(sub);
@@ -162,7 +170,9 @@ export function buildSitemap(menuItems: MenuItem[]): {
   >();
   for (const m of menuItems) {
     const parsed = parseParentMenuKey(m.parent_menu_key);
-    if (parsed) moduleHomeOverrides.set(m.menu_key, parsed);
+    if (parsed) {
+      moduleHomeOverrides.set(m.menu_key, parsed);
+    }
   }
 
   const columnsMap = new Map<CK, SitemapColumn>();
@@ -194,7 +204,9 @@ export function buildSitemap(menuItems: MenuItem[]): {
       ensureColumn(tab, section.label);
       for (const mod of section.items) {
         const override = moduleHomeOverrides.get(mod.key);
-        if (override) continue; // moved elsewhere — handled below
+        if (override) {
+          continue;
+        } // moved elsewhere — handled below
         const col = ensureColumn(tab, section.label);
         col.modules.push(buildNode(mod, itemByKey, childrenByParent));
         seenModuleKeys.add(mod.key);
@@ -206,9 +218,13 @@ export function buildSitemap(menuItems: MenuItem[]): {
   for (const [moduleKey, target] of moduleHomeOverrides) {
     // find the original module def from MENU_TABS
     const mod = findModuleByKey(moduleKey);
-    if (!mod) continue;
+    if (!mod) {
+      continue;
+    }
     const targetTab = MENU_TABS.find((t) => t.id === target.tabId);
-    if (!targetTab) continue;
+    if (!targetTab) {
+      continue;
+    }
     const col = ensureColumn(targetTab, target.sectionLabel);
     col.modules.push(buildNode(mod, itemByKey, childrenByParent));
     seenModuleKeys.add(moduleKey);
@@ -258,7 +274,9 @@ export function buildSitemap(menuItems: MenuItem[]): {
 
   // Orphans: explicit list
   for (const o of ORPHAN_MODULES) {
-    if (seenModuleKeys.has(o.key)) continue;
+    if (seenModuleKeys.has(o.key)) {
+      continue;
+    }
     orphanCol.modules.push(buildNode(o, itemByKey, childrenByParent));
   }
 
@@ -273,7 +291,7 @@ export function buildSitemap(menuItems: MenuItem[]): {
 function buildNode(
   mod: MenuModule,
   itemByKey: Map<string, MenuItem>,
-  childrenByParent: Map<string, MenuModule[]>,
+  childrenByParent: Map<string, Array<MenuModule>>,
 ): SitemapNode {
   const item = itemByKey.get(mod.key);
   return {
@@ -288,7 +306,9 @@ function findModuleByKey(key: string): MenuModule | null {
   for (const tab of MENU_TABS) {
     for (const section of tab.sections) {
       const m = section.items.find((i) => i.key === key);
-      if (m) return m;
+      if (m) {
+        return m;
+      }
     }
   }
   return null;
@@ -302,7 +322,9 @@ export type SidebarOverlay = {
   moduleHome: Map<string, { tabId: MenuTabId; sectionLabel: string }>;
 };
 
-export function computeSidebarOverlay(menuItems: MenuItem[]): SidebarOverlay {
+export function computeSidebarOverlay(
+  menuItems: Array<MenuItem>,
+): SidebarOverlay {
   const tabLabels = new Map<MenuTabId, string>();
   const sectionLabels = new Map<string, string>();
   const moduleHome = new Map<
@@ -322,7 +344,9 @@ export function computeSidebarOverlay(menuItems: MenuItem[]): SidebarOverlay {
       sectionLabels.set(rest, m.custom_label);
     } else {
       const parsed = parseParentMenuKey(m.parent_menu_key);
-      if (parsed) moduleHome.set(m.menu_key, parsed);
+      if (parsed) {
+        moduleHome.set(m.menu_key, parsed);
+      }
     }
   }
   return { tabLabels, sectionLabels, moduleHome };

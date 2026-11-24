@@ -39,7 +39,7 @@ export function useAhrefsEnrichment() {
     accessToken: string,
     anonKey: string,
     supabaseUrl: string,
-  ): Promise<AhrefsKeyword[]> => {
+  ): Promise<Array<AhrefsKeyword>> => {
     const url = `${supabaseUrl}/functions/v1/ahrefs-auth?action=fetch-keywords`;
     const resp = await fetch(url, {
       method: "POST",
@@ -72,11 +72,15 @@ export function useAhrefsEnrichment() {
     return result.data?.keywords || [];
   };
 
-  const buildMap = (keywords: AhrefsKeyword[]): Map<string, AhrefsKeyword> => {
+  const buildMap = (
+    keywords: Array<AhrefsKeyword>,
+  ): Map<string, AhrefsKeyword> => {
     const map = new Map<string, AhrefsKeyword>();
     for (const kw of keywords) {
       // Ahrefs may return rows with keyword=null (e.g. anonymized/aggregated rows). Skip them.
-      if (!kw || typeof kw.keyword !== "string" || !kw.keyword.trim()) continue;
+      if (!kw || typeof kw.keyword !== "string" || !kw.keyword.trim()) {
+        continue;
+      }
       map.set(kw.keyword.toLowerCase().trim(), kw);
     }
     return map;

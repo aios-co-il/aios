@@ -24,7 +24,7 @@ const clientOutsidePicker: TaskClientRow = {
   agency_id: AGENCY_ID,
 };
 
-const fetchFrom = (rows: TaskClientRow[]) => async (clientId: string) =>
+const fetchFrom = (rows: Array<TaskClientRow>) => async (clientId: string) =>
   rows.find((row) => row.id === clientId) ?? null;
 
 test("a client missing from the cached picker list still resolves its agency", async () => {

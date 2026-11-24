@@ -10,13 +10,14 @@ export interface RecipientTimes {
 export type RecipientFilter =
   "all" | "opened" | "not_opened" | "clicked" | "failed";
 
-export const RECIPIENT_FILTERS: { key: RecipientFilter; label: string }[] = [
-  { key: "all", label: "כולם" },
-  { key: "opened", label: "פתחו" },
-  { key: "not_opened", label: "לא פתחו" },
-  { key: "clicked", label: "הקליקו" },
-  { key: "failed", label: "נכשלו" },
-];
+export const RECIPIENT_FILTERS: Array<{ key: RecipientFilter; label: string }> =
+  [
+    { key: "all", label: "כולם" },
+    { key: "opened", label: "פתחו" },
+    { key: "not_opened", label: "לא פתחו" },
+    { key: "clicked", label: "הקליקו" },
+    { key: "failed", label: "נכשלו" },
+  ];
 
 export const RECIPIENT_STATUS_LABEL: Record<string, string> = {
   pending: "ממתין",
@@ -29,7 +30,7 @@ export const RECIPIENT_STATUS_LABEL: Record<string, string> = {
 };
 
 /** Counts per stage. Open / click rates use delivered mail as the base, or sent mail before any delivery event arrives. */
-export function countRecipients(rows: RecipientTimes[]) {
+export function countRecipients(rows: Array<RecipientTimes>) {
   const total = rows.length;
   const sent = rows.filter((r) => r.sent_at).length;
   const delivered = rows.filter((r) => r.delivered_at).length;

@@ -134,7 +134,7 @@ describe("reconcileTable with the Meta source", () => {
 
   it("compares recorded rows with stored rows over the account-time-zone window", async () => {
     const rec = metaRecording();
-    const stored: CampaignDayRow[] = [
+    const stored: Array<CampaignDayRow> = [
       {
         campaign_id: "111",
         campaign_name: "לידים | אתר",

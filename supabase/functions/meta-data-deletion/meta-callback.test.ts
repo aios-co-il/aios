@@ -63,7 +63,9 @@ Deno.test(
       );
     }
     assertStrictEquals(store.inserted.length, 5);
-    for (const row of store.inserted) assertStrictEquals(row.issued_at, null);
+    for (const row of store.inserted) {
+      assertStrictEquals(row.issued_at, null);
+    }
   },
 );
 

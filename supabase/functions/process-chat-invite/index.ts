@@ -221,20 +221,39 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 4. Grant team_chat permission (chat-only access) if no permissions exist
-    const { data: existingPermissions } = await adminClient
-      .from("user_permissions")
-      .select("id")
-      .eq("user_id", userId)
-      .limit(1);
+    // 4. Grant team_chat permission (chat-only access) if the user has no
+    // permissions in this tenant
+    const { data: existingPermissions, error: permissionsReadError } =
+      await adminClient
+        .from("user_permissions")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenantId)
+        .limit(1);
+    if (permissionsReadError) {
+      console.error(
+        "process-chat-invite: loading permissions",
+        permissionsReadError,
+      );
+      throw new Error("Loading permissions failed");
+    }
 
+    // Select-then-insert on purpose: the chat-only grant applies only when the
+    // user has no modules in this tenant, which an upsert cannot express.
     if (!existingPermissions || existingPermissions.length === 0) {
       // Only grant team_chat - user will only see the chat module
-      await adminClient.from("user_permissions").insert({
-        user_id: userId,
-        module: "team_chat",
-        can_access: true,
-      });
+      const { error: grantError } = await adminClient
+        .from("user_permissions")
+        .insert({
+          user_id: userId,
+          tenant_id: tenantId,
+          module: "team_chat",
+          can_access: true,
+        });
+      if (grantError) {
+        console.error("process-chat-invite: granting team chat", grantError);
+        throw new Error("Granting team chat failed");
+      }
     }
 
     // 5. Increment uses count

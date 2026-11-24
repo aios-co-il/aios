@@ -27,7 +27,9 @@ export async function findOrCreateClientPipeline(
     };
   }
   const oldest = data?.[0];
-  if (oldest) return { id: oldest.id };
+  if (oldest) {
+    return { id: oldest.id };
+  }
   const { data: created, error: insertError } = await db
     .from("marketing_pipelines")
     .insert({
@@ -37,6 +39,8 @@ export async function findOrCreateClientPipeline(
     })
     .select("id")
     .single();
-  if (insertError) throw insertError;
+  if (insertError) {
+    throw insertError;
+  }
   return { id: created.id };
 }

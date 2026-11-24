@@ -26,12 +26,14 @@ interface Props {
 export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
   const { tenantId } = useCurrentTenant();
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [items, setItems] = useState<Array<any>>([]);
+  const [tasks, setTasks] = useState<Array<any>>([]);
+  const [agents, setAgents] = useState<Array<any>>([]);
 
   useEffect(() => {
-    if (!island || !tenantId) return;
+    if (!island || !tenantId) {
+      return;
+    }
     setLoading(true);
     const sb = supabase as any;
     (async () => {
@@ -134,7 +136,9 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
     })();
   }, [island, tenantId]);
 
-  if (!island) return null;
+  if (!island) {
+    return null;
+  }
   const tokens = ISLAND_TOKENS[island.id];
 
   return (
@@ -230,10 +234,11 @@ export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
                     <div
                       key={it.id}
                       onClick={() => {
-                        if (island.id === "customer_success")
+                        if (island.id === "customer_success") {
                           onOpenSheet("client", it.id);
-                        else if (island.id === "agents")
+                        } else if (island.id === "agents") {
                           onOpenSheet("agent", it.id);
+                        }
                       }}
                       className="px-4 py-2 rounded-xl bg-white/70 border border-white/80 text-sm hover:bg-white cursor-pointer transition flex items-center justify-between"
                     >

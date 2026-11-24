@@ -81,8 +81,9 @@ test("four cards a row on desktop, two on a tablet, one on a phone, scene 1 at t
     "grid-cols-1",
     "[@container(min-width:22rem)]:grid-cols-2",
     "[@container(min-width:46rem)]:grid-cols-4",
-  ])
+  ]) {
     expect(list.className.split(" ")).toContain(name);
+  }
   expect(list.className).toBe(GRID_CLASSES);
   expect(screen.getByRole("region", { name: "סטוריבורד" })).toHaveAttribute(
     "dir",
@@ -143,7 +144,7 @@ test("a click picks the scene, a second click or Escape lets it go", async () =>
   expect(props.onSelect).toHaveBeenLastCalledWith(null);
 
   // Escape is taken by the board, so the session column (window listener) stays open.
-  const chatSaw: boolean[] = [];
+  const chatSaw: Array<boolean> = [];
   const closeChat = (event: KeyboardEvent) =>
     chatSaw.push(event.defaultPrevented);
   window.addEventListener("keydown", closeChat);

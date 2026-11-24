@@ -13,7 +13,7 @@ export type Contact = { name: string; phone: string | null };
 export async function loadContacts(
   db: DbClient,
   tenantId: string,
-  keys: string[],
+  keys: Array<string>,
 ): Promise<Map<string, Contact>> {
   const [profiles, records] = await Promise.all([
     profilesBy(db, "id", idsOf(keys, "user:")),
@@ -42,7 +42,7 @@ export async function loadContacts(
 async function campaignerRecords(
   db: DbClient,
   tenantId: string,
-  ids: string[],
+  ids: Array<string>,
 ) {
   if (!ids.length) {
     return [];
@@ -58,7 +58,7 @@ async function campaignerRecords(
 }
 
 /** The ids of the keys with `prefix`. */
-function idsOf(keys: string[], prefix: string): string[] {
+function idsOf(keys: Array<string>, prefix: string): Array<string> {
   return keys
     .filter((key) => key.startsWith(prefix))
     .map((key) => key.slice(prefix.length));

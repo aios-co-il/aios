@@ -28,7 +28,7 @@ const sources =
     ? allSources.filter((f) => requested.includes(f))
     : allSources;
 
-const stale: string[] = [];
+const stale: Array<string> = [];
 
 for (const file of sources) {
   const name = file.replace(/\.md$/, "");

@@ -131,7 +131,9 @@ test("the Remotion edit plays a different transition sound at each cut and ducks
       "effects envelope",
     );
     let at = 0;
-    while (at < frames.length - 1 && frames[at + 1] <= frame) at += 1;
+    while (at < frames.length - 1 && frames[at + 1] <= frame) {
+      at += 1;
+    }
     return volumes[at];
   };
   // Under the opening line the effects dip; between lines they come back up, on the bed's
@@ -219,7 +221,7 @@ test("a transition rises only with the bed: in a short pause it stays far under 
   const db = (gain: number) => 20 * Math.log10(gain);
   const ramps = TRAILER.attack + TRAILER.release + TRAILER.hold;
   // The ffmpeg edit runs at 25 fps, the Remotion edit at 30; the ramps are in frames.
-  for (const fps of [25, 30])
+  for (const fps of [25, 30]) {
     for (const voice of [-17, -19, -21]) {
       const mix = mixProfile({ trailer: true, voiceLufs: voice });
       for (const pauseS of [0.5, 0.73, 0.77, 0.9, 1, 1.05, 1.25, 1.5, 3]) {
@@ -240,8 +242,9 @@ test("a transition rises only with the bed: in a short pause it stays far under 
             TRAILER.effectOverBedDb + 0.2,
           );
           // While the bed is down, 10 LU or more under her voice.
-          if (bed(t) <= mix.musicDucked + 1e-6)
+          if (bed(t) <= mix.musicDucked + 1e-6) {
             expect(voice - effect).toBeGreaterThanOrEqual(10);
+          }
         }
         // A pause longer than the ramps brings both up; a shorter one keeps both down.
         const mid = 2.5 + pauseS / 2;
@@ -250,4 +253,5 @@ test("a transition rises only with the bed: in a short pause it stays far under 
         expect(bed(mid) === mix.music).toBe(up);
       }
     }
+  }
 });

@@ -41,13 +41,13 @@ export interface SeoScope {
    * Includes the client's home tenant + every tenant that shares the agency
    * via agency_tenant_access (both directions).
    */
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   /** The SEO/Ahrefs crm_table for this client, looked up across all accessible tenants. */
   seoTable: any | null;
   /** GA crm_tables for this client, across all accessible tenants. */
-  gaTables: any[];
+  gaTables: Array<any>;
   /** GSC crm_tables for this client, across all accessible tenants. */
-  gscTables: any[];
+  gscTables: Array<any>;
 }
 
 export function useSeoScope(clientId: string | undefined) {
@@ -88,7 +88,9 @@ export function useSeoScope(clientId: string | undefined) {
 
       // 2. Build the set of accessible tenant_ids via agency_tenant_access
       const tenantSet = new Set<string>();
-      if (clientTenantId) tenantSet.add(clientTenantId);
+      if (clientTenantId) {
+        tenantSet.add(clientTenantId);
+      }
 
       if (agencyId) {
         const { data: accessRows } = await supabase
@@ -97,8 +99,12 @@ export function useSeoScope(clientId: string | undefined) {
           .eq("agency_id", agencyId);
 
         for (const row of accessRows || []) {
-          if (row.accessing_tenant_id) tenantSet.add(row.accessing_tenant_id);
-          if (row.source_tenant_id) tenantSet.add(row.source_tenant_id);
+          if (row.accessing_tenant_id) {
+            tenantSet.add(row.accessing_tenant_id);
+          }
+          if (row.source_tenant_id) {
+            tenantSet.add(row.source_tenant_id);
+          }
         }
       }
 
@@ -111,8 +117,8 @@ export function useSeoScope(clientId: string | undefined) {
       //    own domain wins — a stray table for another site must never become
       //    the source of truth for this client's SEO report.
       let seoTable: any = null;
-      let gaTables: any[] = [];
-      let gscTables: any[] = [];
+      let gaTables: Array<any> = [];
+      let gscTables: Array<any> = [];
 
       if (accessibleTenantIds.length > 0) {
         const { data: seoCandidates } = await supabase

@@ -16,8 +16,12 @@ export function CarmenRedirect({
 }) {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const access = useCommandCenterAccess();
-  if (access.loading) return null;
-  if (!access.allowed || !tenantSlug) return <>{fallback}</>;
+  if (access.loading) {
+    return null;
+  }
+  if (!access.allowed || !tenantSlug) {
+    return <>{fallback}</>;
+  }
   return (
     <Navigate
       to={`/t/${tenantSlug}/command-center?panel=${encodeURIComponent(panel)}`}

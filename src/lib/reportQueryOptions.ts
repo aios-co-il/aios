@@ -25,10 +25,16 @@ export function reportQueryOptions<TData>() {
 export function refetchOnMountIfEmpty(query: {
   state: { status: string; data: unknown };
 }): boolean | "always" {
-  if (query.state.status === "error") return true;
+  if (query.state.status === "error") {
+    return true;
+  }
   const data = query.state.data;
-  if (data === undefined || data === null) return true;
-  if (Array.isArray(data) && data.length === 0) return "always";
+  if (data === undefined || data === null) {
+    return true;
+  }
+  if (Array.isArray(data) && data.length === 0) {
+    return "always";
+  }
   // `true` refetches only when stale. Cached rows remain visible while the
   // background request runs; `false` kept persisted reports stale indefinitely.
   return true;
@@ -43,7 +49,9 @@ export function getReportLastSyncAt(
     | null
     | undefined,
 ): string | null {
-  if (!table) return null;
+  if (!table) {
+    return null;
+  }
   return table.integration_settings?.last_sync_at || table.last_sync_at || null;
 }
 
@@ -52,7 +60,7 @@ export function getReportLastSyncAt(
  * stored rows, so the "עדכון מקור" time is older than it looks.
  */
 export function getReportSyncProblem(
-  tables: readonly SyncTableLike[],
+  tables: ReadonlyArray<SyncTableLike>,
 ): SyncProblem | null {
   return worstSyncProblem(tables.map((table) => syncOutcomeProblem(table)));
 }

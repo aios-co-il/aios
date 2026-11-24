@@ -20,10 +20,13 @@ async function viewable(asset: WorkshopAsset): Promise<WorkshopAsset> {
     const { data } = await supabase.storage
       .from(ASSET_BUCKET)
       .createSignedUrl(asset.storage_path, SIGNED_TTL_SECONDS);
-    if (data?.signedUrl) return { ...asset, url: data.signedUrl };
+    if (data?.signedUrl) {
+      return { ...asset, url: data.signedUrl };
+    }
   }
-  if (asset.url)
+  if (asset.url) {
     return { ...asset, url: await resolveCreativeImageUrl(asset.url) };
+  }
   return asset;
 }
 
@@ -38,7 +41,9 @@ export function useWorkshopAssets(
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!tenantId || !projectId) return;
+    if (!tenantId || !projectId) {
+      return;
+    }
     const channel = supabase
       .channel(`workshop-assets-${projectId}`)
       .on(
@@ -64,15 +69,19 @@ export function useWorkshopAssets(
     queryKey: workshopAssetsKey(tenantId, projectId),
     queryFn:
       tenantId && projectId
-        ? async (): Promise<WorkshopAsset[]> => {
+        ? async (): Promise<Array<WorkshopAsset>> => {
             const { data, error } = await supabase
               .from("workshop_assets")
               .select(COLUMNS)
               .eq("tenant_id", tenantId)
               .eq("item_id", projectId)
               .order("created_at", { ascending: true });
-            if (error) throw error;
-            return Promise.all(((data ?? []) as WorkshopAsset[]).map(viewable));
+            if (error) {
+              throw error;
+            }
+            return Promise.all(
+              ((data ?? []) as Array<WorkshopAsset>).map(viewable),
+            );
           }
         : skipToken,
   });

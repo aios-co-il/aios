@@ -86,7 +86,7 @@ Deno.test("file and link types are told apart", () => {
 });
 
 function fakeDb(client: unknown) {
-  const calls: { table: string; op: string; value?: unknown }[] = [];
+  const calls: Array<{ table: string; op: string; value?: unknown }> = [];
   return {
     calls,
     from(table: string) {

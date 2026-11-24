@@ -10,7 +10,7 @@ export type OperationalCampaignState = {
   name: string;
   status: string;
   primary_status?: string | null;
-  primary_status_reasons?: string[];
+  primary_status_reasons?: Array<string>;
 };
 
 /** Primary statuses that serve, or are about to (PENDING: scheduled or in review). */
@@ -33,10 +33,10 @@ const LIVE_PRIMARY_STATUSES = new Set([
  */
 export function googleFindingsFor(
   customerId: string,
-  campaigns: OperationalCampaignState[],
-): Finding[] {
+  campaigns: Array<OperationalCampaignState>,
+): Array<Finding> {
   const enabled = campaigns.filter((c) => c.status === "ENABLED");
-  const findings: Finding[] = [];
+  const findings: Array<Finding> = [];
   for (const campaign of enabled) {
     const reasons = campaign.primary_status_reasons || [];
     if (campaign.primary_status === "NOT_ELIGIBLE") {

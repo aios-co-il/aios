@@ -51,7 +51,9 @@ Deno.serve(async (req) => {
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("tenant_id", tenantId)
       .eq("integration_type", "tiktok");
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

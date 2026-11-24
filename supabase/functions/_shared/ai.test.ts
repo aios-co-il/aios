@@ -12,7 +12,7 @@ Deno.test("aiChat", async (t) => {
     async () => {
       const restoreEnv = setEnv(ENV);
       const realFetch = globalThis.fetch;
-      const posts: { url: string; body: unknown }[] = [];
+      const posts: Array<{ url: string; body: unknown }> = [];
       globalThis.fetch = (input, init) => {
         posts.push({
           url: new URL(input instanceof Request ? input.url : input).href,
@@ -28,7 +28,7 @@ Deno.test("aiChat", async (t) => {
       try {
         // ai.ts reads its keys when loaded, so it is loaded after setEnv.
         const { aiChat } = await import("./ai.ts");
-        const costs: number[] = [];
+        const costs: Array<number> = [];
         const text = await aiChat("prompt", {
           jsonMode: true,
           tenantId: "tenant-1",
@@ -56,10 +56,9 @@ Deno.test("aiChat", async (t) => {
 
 /** Sets environment variables; the returned function restores the old values. */
 function setEnv(values: Record<string, string>): () => void {
-  const old: [string, string | undefined][] = Object.keys(values).map((key) => [
-    key,
-    Deno.env.get(key),
-  ]);
+  const old: Array<[string, string | undefined]> = Object.keys(values).map(
+    (key) => [key, Deno.env.get(key)],
+  );
   for (const [key, value] of Object.entries(values)) {
     Deno.env.set(key, value);
   }

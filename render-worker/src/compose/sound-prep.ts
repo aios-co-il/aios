@@ -46,7 +46,9 @@ export async function prepareSound(
 ): Promise<Timeline> {
   await mkdir(dir, { recursive: true });
   const read = async (file: string | null | undefined) => {
-    if (!file) return null;
+    if (!file) {
+      return null;
+    }
     try {
       return await measure(file);
     } catch (error) {
@@ -58,7 +60,9 @@ export async function prepareSound(
   };
   /** The levelled copy of `file`, or `file` itself when it cannot be levelled. */
   const levelled = async (file: string, name: string, gain: Gain | null) => {
-    if (!gain) return file;
+    if (!gain) {
+      return file;
+    }
     const out = join(dir, `${name}-levelled.wav`);
     try {
       await normalize(file, out, gain);
@@ -90,7 +94,9 @@ export async function prepareSound(
   /** A one-shot is levelled by its hit (the loudest 400 ms), not by its decaying tail. */
   const levelHit = async (path: string, name: string, target: number) => {
     const loudness = await read(path);
-    if (!loudness) return path;
+    if (!loudness) {
+      return path;
+    }
     return levelled(
       path,
       name,
@@ -103,7 +109,9 @@ export async function prepareSound(
   };
   /** `file` shifted by `pitch` semitones, or `file` itself when it cannot be. */
   const pitched = async (file: string, name: string, pitch: number) => {
-    if (!pitch) return file;
+    if (!pitch) {
+      return file;
+    }
     const out = join(dir, `${name}-pitched.wav`);
     try {
       await vary(file, out, pitch);

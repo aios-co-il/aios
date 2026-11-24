@@ -40,9 +40,13 @@ export async function shareBuiltin(
 /** Stops sharing one built-in brain with `target_tenant_id`. */
 export async function unshareBuiltin(ctx: ActionContext) {
   const spec = builtinKeyFor(text(ctx.body, "builtin_slug"));
-  if (!spec) throw new HttpError(400, "Unknown built-in brain");
+  if (!spec) {
+    throw new HttpError(400, "Unknown built-in brain");
+  }
   const target = text(ctx.body, "target_tenant_id");
-  if (!target) throw new HttpError(400, "target_tenant_id is required");
+  if (!target) {
+    throw new HttpError(400, "target_tenant_id is required");
+  }
   const { error } = await ctx.sb
     .from("carmen_brain_key_shares")
     .delete()
@@ -58,14 +62,17 @@ async function requireHeldBrain(
   project: Env,
 ): Promise<string> {
   const spec = builtinKeyFor(text(ctx.body, "builtin_slug"));
-  if (!spec) throw new HttpError(400, "Unknown built-in brain");
+  if (!spec) {
+    throw new HttpError(400, "Unknown built-in brain");
+  }
   const keys = await resolveBuiltinKeys(ctx.sb, ctx.tenantId, project);
   const kind = keys.find((k) => k.slug === spec.slug)?.source?.kind;
-  if (kind !== "own" && kind !== "project")
+  if (kind !== "own" && kind !== "project") {
     throw new HttpError(
       400,
       "This organization has no key of its own to share",
     );
+  }
   return spec.slug;
 }
 
@@ -82,9 +89,10 @@ async function requireSameSource(
     .eq("builtin_slug", slug)
     .maybeSingle();
   check(error, "Loading the share");
-  if (data?.source_tenant_id !== ctx.tenantId)
+  if (data?.source_tenant_id !== ctx.tenantId) {
     throw new HttpError(
       409,
       "This organization already gets this brain from another organization",
     );
+  }
 }

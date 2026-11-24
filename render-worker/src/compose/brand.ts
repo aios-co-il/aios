@@ -29,7 +29,9 @@ export const brandFont = (value: unknown) =>
 /** A display form of the website: no scheme, no trailing slash. */
 const displayUrl = (value: unknown) => {
   const raw = text(value, 120);
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   return raw.replace(/^https?:\/\//i, "").replace(/\/+$/, "") || null;
 };
 
@@ -64,7 +66,9 @@ export function brandFromPayload(payload: unknown): FilmBrand | null {
     ctaText: text(data.cta_text ?? data.cta ?? book.cta, 120),
     ctaUrl: displayUrl(data.client_website ?? book.website),
   };
-  if (!Object.values(brand).some(Boolean)) return null;
+  if (!Object.values(brand).some(Boolean)) {
+    return null;
+  }
   // The user chose an ending without a closing card (workshop brief "סיום: בלי סגיר").
   return data.end_card === false ? { ...brand, endCard: false } : brand;
 }

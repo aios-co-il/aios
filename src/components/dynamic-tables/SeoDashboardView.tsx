@@ -47,7 +47,7 @@ import {
   sortSeoReportsByRecency,
 } from "@/lib/seoDomain";
 
-const NO_EXTRA_GSC: GscKeywordData[] = [];
+const NO_EXTRA_GSC: Array<GscKeywordData> = [];
 
 interface SeoDashboardViewProps {
   tenantId: string;
@@ -57,9 +57,9 @@ interface SeoDashboardViewProps {
    * agencies. When provided, ahrefs_reports are fetched across the full set
    * (matching what SeoReportTabs already resolves for shared-agency clients).
    */
-  accessibleTenantIds?: string[];
+  accessibleTenantIds?: Array<string>;
   /** CRM records from the linked Google Analytics table */
-  gaRecords?: any[];
+  gaRecords?: Array<any>;
   /** GSC site URL persisted on the SEO crm_table — used as source of truth on first load. */
   initialGscSiteUrl?: string;
   /** GSC OAuth connection persisted on the SEO crm_table. */
@@ -83,7 +83,7 @@ interface SeoDashboardViewProps {
    * Top-20 queries from the Search Console tab (synced table). Merged so a
    * phrase that tab shows with a position also appears in Top 20.
    */
-  extraGscRows?: GscKeywordData[];
+  extraGscRows?: Array<GscKeywordData>;
 }
 
 export function SeoDashboardView({
@@ -122,8 +122,12 @@ export function SeoDashboardView({
           },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       const tracked = (data as any)?.tracked_count ?? 0;
       const organic = (data as any)?.keywords_count ?? 0;
       toast.success(
@@ -151,7 +155,7 @@ export function SeoDashboardView({
     ahrefsMode,
     ahrefsProtocol,
   ]);
-  const [gscData, setGscData] = useState<GscKeywordData[]>([]);
+  const [gscData, setGscData] = useState<Array<GscKeywordData>>([]);
   const [gscMultiPeriod, setGscMultiPeriod] =
     useState<GscMultiPeriodData | null>(null);
   const { comparisonData, resetComparisonData } = useAhrefsEnrichment();
@@ -172,7 +176,7 @@ export function SeoDashboardView({
     return comparisonData;
   }, [comparisonData, cachedComparison]);
 
-  const handleGscDataLoaded = useCallback((data: GscKeywordData[]) => {
+  const handleGscDataLoaded = useCallback((data: Array<GscKeywordData>) => {
     setGscData(data);
   }, []);
 
@@ -189,7 +193,9 @@ export function SeoDashboardView({
       const key = String(row?.keyword || "")
         .toLowerCase()
         .trim();
-      if (!key) return;
+      if (!key) {
+        return;
+      }
       const prev = byKey.get(key);
       if (!prev) {
         byKey.set(key, row);
@@ -214,8 +220,12 @@ export function SeoDashboardView({
         position,
       });
     };
-    for (const row of gscData) add(row);
-    for (const row of extraGscRows) add(row);
+    for (const row of gscData) {
+      add(row);
+    }
+    for (const row of extraGscRows) {
+      add(row);
+    }
     return Array.from(byKey.values());
   }, [gscData, extraGscRows]);
 
@@ -258,7 +268,9 @@ export function SeoDashboardView({
   // mapped/usable for this client/site. Mirrors public-link parity so internal
   // viewers see Search Console keywords automatically without a manual sync.
   const firstReportDomain = useMemo(() => {
-    if (expectedDomain) return expectedDomain;
+    if (expectedDomain) {
+      return expectedDomain;
+    }
     const r = (Array.isArray(ownDomainReports) ? ownDomainReports : []).find(
       (x: any) => x?.domain,
     );
@@ -274,7 +286,9 @@ export function SeoDashboardView({
 
   // Selected report (default to the most-recently-synced valid report)
   const latestReport = useMemo(() => {
-    if (validReports.length === 0) return null;
+    if (validReports.length === 0) {
+      return null;
+    }
     return sortSeoReportsByRecency(validReports)[0];
   }, [validReports]);
 
@@ -313,7 +327,9 @@ export function SeoDashboardView({
 
   // Snapshot organic sessions — from channel_group 'Organic Search' filtered to current month
   const gaOrganicCurrentMonth = useMemo(() => {
-    if (!gaRecords || gaRecords.length === 0) return null;
+    if (!gaRecords || gaRecords.length === 0) {
+      return null;
+    }
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const channelOrganic = gaRecords
@@ -325,7 +341,9 @@ export function SeoDashboardView({
       .filter((r) => {
         // If record has date, filter to current month; otherwise include (legacy)
         const d = r.data?.date;
-        if (!d) return true;
+        if (!d) {
+          return true;
+        }
         return String(d).startsWith(currentMonth);
       })
       .reduce(
@@ -333,16 +351,22 @@ export function SeoDashboardView({
           sum + (Number(r.data?.users) || Number(r.data?.sessions) || 0),
         0,
       );
-    if (channelOrganic > 0) return channelOrganic;
+    if (channelOrganic > 0) {
+      return channelOrganic;
+    }
     // Fallback: sum from monthly chart data
-    if (gaOrganicByMonth.length === 0) return null;
+    if (gaOrganicByMonth.length === 0) {
+      return null;
+    }
     return gaOrganicByMonth[gaOrganicByMonth.length - 1]?.sessions ?? null;
   }, [gaRecords, gaOrganicByMonth]);
 
   // Previous month organic from channel_group records with date filtering
   const gaOrganicPrevMonth = useMemo(() => {
     if (!gaRecords || gaRecords.length === 0) {
-      if (gaOrganicByMonth.length < 2) return null;
+      if (gaOrganicByMonth.length < 2) {
+        return null;
+      }
       return gaOrganicByMonth[gaOrganicByMonth.length - 2]?.sessions ?? null;
     }
     const now = new Date();
@@ -356,7 +380,9 @@ export function SeoDashboardView({
       })
       .filter((r) => {
         const d = r.data?.date;
-        if (!d) return false; // skip dateless for prev period
+        if (!d) {
+          return false;
+        } // skip dateless for prev period
         return String(d).startsWith(prevMonth);
       })
       .reduce(
@@ -364,8 +390,12 @@ export function SeoDashboardView({
           sum + (Number(r.data?.users) || Number(r.data?.sessions) || 0),
         0,
       );
-    if (prevOrganic > 0) return prevOrganic;
-    if (gaOrganicByMonth.length < 2) return null;
+    if (prevOrganic > 0) {
+      return prevOrganic;
+    }
+    if (gaOrganicByMonth.length < 2) {
+      return null;
+    }
     return gaOrganicByMonth[gaOrganicByMonth.length - 2]?.sessions ?? null;
   }, [gaRecords, gaOrganicByMonth]);
 
@@ -399,7 +429,9 @@ export function SeoDashboardView({
   // Build lookup map for prev month positions
   function buildPrevMonthMap(report: any): Map<string, number | null> {
     const rd = report?.report_data as any;
-    if (!rd) return new Map();
+    if (!rd) {
+      return new Map();
+    }
     const map = new Map<string, number | null>();
     const organic = Array.isArray(rd.organic_keywords)
       ? rd.organic_keywords
@@ -426,7 +458,9 @@ export function SeoDashboardView({
     const organic = Array.isArray(reportData?.organic_keywords)
       ? reportData.organic_keywords
       : [];
-    if (organic.length > 0) return organic;
+    if (organic.length > 0) {
+      return organic;
+    }
     // Rank-tracker-only reports (dentiq): mirror tracked phrases for the organic table.
     const tracked = Array.isArray(reportData?.tracked_keywords)
       ? reportData.tracked_keywords
@@ -441,17 +475,23 @@ export function SeoDashboardView({
   const gscMap = useMemo(() => {
     const map = new Map<string, GscKeywordData>();
     for (const row of keywordGscRows) {
-      if (!row.keyword) continue;
+      if (!row.keyword) {
+        continue;
+      }
       map.set(row.keyword.toLowerCase().trim(), row);
     }
     return map;
   }, [keywordGscRows]);
 
   // GSC historical period maps (for cross-period position comparisons)
-  function buildGscMap(rows: GscKeywordData[]): Map<string, GscKeywordData> {
+  function buildGscMap(
+    rows: Array<GscKeywordData>,
+  ): Map<string, GscKeywordData> {
     const map = new Map<string, GscKeywordData>();
     for (const row of rows || []) {
-      if (!row?.keyword) continue;
+      if (!row?.keyword) {
+        continue;
+      }
       map.set(row.keyword.toLowerCase().trim(), row);
     }
     return map;
@@ -570,27 +610,32 @@ export function SeoDashboardView({
     );
     // Add keywords from Ahrefs comparison API that don't exist in webhook data
     const existingNames = new Set<string>();
-    for (const kw of rawOrganic)
+    for (const kw of rawOrganic) {
       existingNames.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
-    for (const kw of rawTracked)
+    }
+    for (const kw of rawTracked) {
       existingNames.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
+    }
 
     // Merge from both 3-month and yearly comparison maps
     const comparisonOnly = new Map<string, AhrefsKeyword>();
     for (const [name, kw] of effectiveComparison.threeMonth) {
-      if (!existingNames.has(name)) comparisonOnly.set(name, kw);
+      if (!existingNames.has(name)) {
+        comparisonOnly.set(name, kw);
+      }
     }
     for (const [name, kw] of effectiveComparison.yearly) {
-      if (!existingNames.has(name) && !comparisonOnly.has(name))
+      if (!existingNames.has(name) && !comparisonOnly.has(name)) {
         comparisonOnly.set(name, kw);
+      }
     }
 
     for (const [, kw] of comparisonOnly) {
@@ -631,11 +676,15 @@ export function SeoDashboardView({
     () =>
       rawTracked.map((kw: Partial<AhrefsKeyword>) => {
         const enriched = enrichKeyword(kw, effectiveComparison);
-        if (displayRank(enriched.position) != null) return enriched;
+        if (displayRank(enriched.position) != null) {
+          return enriched;
+        }
         const stored = trackedAhrefsPositions.get(
           normalizeGscQuery(enriched.keyword),
         );
-        if (stored == null) return enriched;
+        if (stored == null) {
+          return enriched;
+        }
         return { ...enriched, position: stored, ahrefs_position: stored };
       }),
     [
@@ -652,7 +701,9 @@ export function SeoDashboardView({
 
   // Build GSC-only keywords: keywords in GSC that don't exist in Ahrefs data
   const gscOnlyKeywords = useMemo(() => {
-    if (keywordGscRows.length === 0) return [];
+    if (keywordGscRows.length === 0) {
+      return [];
+    }
     const ahrefsNames = new Set<string>();
     for (const kw of organicKeywords) {
       ahrefsNames.add(
@@ -722,7 +773,9 @@ export function SeoDashboardView({
     resetComparisonData?.();
     setCachedComparison(null);
 
-    if (!selectedReport) return;
+    if (!selectedReport) {
+      return;
+    }
     const cached = (selectedReport as any).comparison_data;
     if (cached && cached.threeMonth && cached.yearly) {
       const threeMonthMap = new Map<string, any>(
@@ -763,8 +816,12 @@ export function SeoDashboardView({
           },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       toast.success(
         `הדוח סונכרן (${(data as any)?.keywords_count ?? 0} אורגניים, ${(data as any)?.tracked_count ?? 0} במעקב)`,
       );

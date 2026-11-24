@@ -22,7 +22,9 @@ import {
  * HTML that reaches the API without passing through the editor.
  */
 export function sanitizeEmailHtml(html: string | null | undefined): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
   return html
     .replace(
       /<\s*(script|style|iframe|object|embed|form|meta|link)[\s\S]*?>[\s\S]*?<\s*\/\s*\1\s*>/gi,
@@ -45,7 +47,9 @@ export function sanitizeEmailHtml(html: string | null | undefined): string {
  * can run code.
  */
 export function sanitizeRawEmailHtml(html: string | null | undefined): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
   return html
     .replace(
       /<\s*(script|iframe|object|embed|form)[\s\S]*?>[\s\S]*?<\s*\/\s*\1\s*>/gi,
@@ -84,7 +88,9 @@ export function wrapEmailHtml(innerHtml: string): string {
 
 /** Strip tags for the plain-text alternative of an HTML email. */
 export function htmlToText(html: string | null | undefined): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
   return html
     .replace(/<\s*br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")

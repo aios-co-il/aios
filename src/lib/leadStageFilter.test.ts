@@ -113,9 +113,9 @@ test("hide stage ids become the complement, and an empty complement matches noth
 });
 
 test("stage and response queries encode show and hide", () => {
-  const calls: Array<[string, ...unknown[]]> = [];
+  const calls: Array<[string, ...Array<unknown>]> = [];
   const query = {
-    in(column: string, values: string[]) {
+    in(column: string, values: Array<string>) {
       calls.push(["in", column, values]);
       return query;
     },

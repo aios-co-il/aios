@@ -342,8 +342,9 @@ Deno.serve(async (req) => {
         ok: boolean;
         reason?: string;
       }> => {
-        if (!settings?.refresh_token)
+        if (!settings?.refresh_token) {
           return { ok: false, reason: "missing_refresh_token" };
+        }
         const refreshResponse = await fetch(
           "https://oauth2.googleapis.com/token",
           {
@@ -385,14 +386,16 @@ Deno.serve(async (req) => {
       // Ask for the API maximum (200) and follow nextPageToken so a login
       // with 100+ accounts is not cut off after the first page.
       const fetchAccounts = async () => {
-        const accountSummaries: any[] = [];
+        const accountSummaries: Array<any> = [];
         let pageToken = "";
         for (let page = 0; page < 20; page++) {
           const url = new URL(
             "https://analyticsadmin.googleapis.com/v1beta/accountSummaries",
           );
           url.searchParams.set("pageSize", "200");
-          if (pageToken) url.searchParams.set("pageToken", pageToken);
+          if (pageToken) {
+            url.searchParams.set("pageToken", pageToken);
+          }
           const response = await fetch(url.toString(), {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
@@ -400,10 +403,14 @@ Deno.serve(async (req) => {
             .clone()
             .json()
             .catch(() => ({}));
-          if (!response.ok || data?.error) return response;
+          if (!response.ok || data?.error) {
+            return response;
+          }
           accountSummaries.push(...(data.accountSummaries || []));
           pageToken = data.nextPageToken || "";
-          if (!pageToken) break;
+          if (!pageToken) {
+            break;
+          }
         }
         return new Response(JSON.stringify({ accountSummaries }), {
           status: 200,
@@ -425,7 +432,9 @@ Deno.serve(async (req) => {
       // Persist the broken state so the settings page shows the red
       // "reconnect needed" state — not only when a data sync fails.
       const markNeedsReauth = async (reason: string) => {
-        if (probe) return;
+        if (probe) {
+          return;
+        }
         try {
           await supabase
             .from("tenant_integrations")
@@ -507,7 +516,7 @@ Deno.serve(async (req) => {
       }
 
       // Extract properties from account summaries
-      const properties: any[] = [];
+      const properties: Array<any> = [];
       if (accountsData.accountSummaries) {
         for (const account of accountsData.accountSummaries) {
           if (account.propertySummaries) {
@@ -542,13 +551,19 @@ Deno.serve(async (req) => {
                   `https://analyticsadmin.googleapis.com/v1beta/${property.id}/dataStreams?pageSize=20`,
                   { headers: { Authorization: `Bearer ${accessToken}` } },
                 );
-                if (!response.ok) return;
+                if (!response.ok) {
+                  return;
+                }
                 const data = await response.json().catch(() => ({}));
                 for (const stream of data.dataStreams || []) {
                   const uri = stream?.webStreamData?.defaultUri;
-                  if (!uri || !gaHostsMatch(uri, domainQuery)) continue;
+                  if (!uri || !gaHostsMatch(uri, domainQuery)) {
+                    continue;
+                  }
                   property.websiteUrl = uri;
-                  if (normalizeGaHost(uri) === wantedHost) exact = true;
+                  if (normalizeGaHost(uri) === wantedHost) {
+                    exact = true;
+                  }
                 }
               } catch (_e) {
                 /* this property has no readable stream */

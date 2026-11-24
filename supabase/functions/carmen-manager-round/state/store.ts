@@ -26,10 +26,10 @@ export type RoundStateRow = Pick<
 export const ROUND_STATE_KEY = "_round";
 
 export type RoundStateStore = {
-  listTenants(): Promise<TenantRow[]>;
+  listTenants(): Promise<Array<TenantRow>>;
   /** The tenant's pulse_alert_rules as stored now, to re-check a setting mid-run. */
   loadRules(tenantId: string): Promise<Json | null>;
-  loadState(tenantId: string): Promise<RoundStateRow[]>;
+  loadState(tenantId: string): Promise<Array<RoundStateRow>>;
   /** Success stores the watermark and run time; failure only the error. */
   saveCollectorState(
     tenantId: string,

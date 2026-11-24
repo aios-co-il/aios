@@ -26,11 +26,13 @@ export function sceneClipSeconds(engine: SceneEngine, duration: number) {
     const seconds = Number(duration) || 5;
     return seconds <= 4 ? 4 : seconds <= 6 ? 6 : 8;
   }
-  if (engine === "higgsfield")
+  if (engine === "higgsfield") {
     return Math.min(15, Math.max(1, Math.ceil(Number(duration) || 5)));
+  }
   // OpenRouter's default video model, Kling v3, renders 3 to 15 s.
-  if (engine === "openrouter")
+  if (engine === "openrouter") {
     return Math.min(15, Math.max(3, Math.ceil(Number(duration) || 5)));
+  }
   return Number(duration) > 5 ? 10 : 5;
 }
 

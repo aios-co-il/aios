@@ -21,7 +21,7 @@ type Result = { data: unknown; error: null };
  */
 export const crmTables: {
   rows: Record<string, FakeCrmTable>;
-  log: string[];
+  log: Array<string>;
   afterWrite?: (id: string) => void;
 } = { rows: {}, log: [] };
 

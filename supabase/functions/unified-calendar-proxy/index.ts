@@ -108,7 +108,9 @@ Deno.serve(async (req) => {
       case "list_events": {
         const { timeMin, timeMax } = body;
         const url = new URL(`${baseUrl}/event`);
-        if (timeMin) url.searchParams.append("updated_gte", timeMin);
+        if (timeMin) {
+          url.searchParams.append("updated_gte", timeMin);
+        }
         // Unified.to uses query params for filtering
 
         const response = await fetch(url.toString(), {
@@ -209,10 +211,18 @@ Deno.serve(async (req) => {
         }
 
         const updateBody: Record<string, unknown> = {};
-        if (summary !== undefined) updateBody.title = summary;
-        if (description !== undefined) updateBody.description = description;
-        if (start) updateBody.start_at = start;
-        if (end) updateBody.end_at = end;
+        if (summary !== undefined) {
+          updateBody.title = summary;
+        }
+        if (description !== undefined) {
+          updateBody.description = description;
+        }
+        if (start) {
+          updateBody.start_at = start;
+        }
+        if (end) {
+          updateBody.end_at = end;
+        }
         updateBody.timezone = "Asia/Jerusalem";
 
         const response = await fetch(`${baseUrl}/event/${eventId}`, {

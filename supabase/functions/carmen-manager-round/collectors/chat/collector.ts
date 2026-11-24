@@ -59,7 +59,7 @@ async function collectChat(
     return idle(ctx, kinds, skipped[0] ?? "no_monitored_line");
   }
   // Each read starts where its own kinds need it (scope.ts).
-  const query = (forKinds: FindingKind[]) => ({
+  const query = (forKinds: Array<FindingKind>) => ({
     tenantId: ctx.tenantId,
     connectionIds: lines.ids,
     carmenConnectionIds: lines.carmenIds,
@@ -95,7 +95,7 @@ async function collectChat(
 /** A run that read nothing: it clears nothing and says why. */
 function idle(
   ctx: CollectorContext,
-  kinds: FindingKind[],
+  kinds: Array<FindingKind>,
   note: string,
 ): CollectorResult {
   return {

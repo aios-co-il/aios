@@ -10,8 +10,8 @@ import {
 } from "@/components/marketing/departments/creative/copyVariations";
 
 interface Props {
-  concepts: CopyConcept[];
-  copies: StoredCopyVariation[];
+  concepts: Array<CopyConcept>;
+  copies: Array<StoredCopyVariation>;
   generating: boolean;
   canGenerate: boolean;
   blockReason?: "need_context";

@@ -12,7 +12,7 @@ export function StaffMemberPicker({
   adding,
   onAdd,
 }: {
-  staff: ReportStaffMember[];
+  staff: Array<ReportStaffMember>;
   adding: boolean;
   onAdd: (userId: string) => void;
 }) {
@@ -76,7 +76,7 @@ export function StaffMemberPicker({
 }
 
 /** Members whose name contains the search text, or whose phone contains its digits. */
-function filterStaff(staff: ReportStaffMember[], search: string) {
+function filterStaff(staff: Array<ReportStaffMember>, search: string) {
   const text = search.trim().toLowerCase();
   const digits = text.replace(/\D/g, "");
   if (!text) {

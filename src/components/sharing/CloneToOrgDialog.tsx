@@ -41,7 +41,7 @@ interface CloneResult {
   error?: string;
   new_id?: string;
   already_exists?: boolean;
-  missing_integrations?: string[];
+  missing_integrations?: Array<string>;
 }
 
 const TITLES: Record<CloneEntityType, string> = {
@@ -73,7 +73,7 @@ export function CloneToOrgDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [results, setResults] = useState<CloneResult[] | null>(null);
+  const [results, setResults] = useState<Array<CloneResult> | null>(null);
 
   const tenantName = (id: string) =>
     (userTenants || []).find((t: any) => t.id === id)?.name || id;
@@ -82,7 +82,9 @@ export function CloneToOrgDialog({
     const list = (userTenants || []).filter(
       (t: any) => t.id !== sourceTenantId,
     );
-    if (!search.trim()) return list;
+    if (!search.trim()) {
+      return list;
+    }
     const q = search.trim().toLowerCase();
     return list.filter(
       (t: any) =>
@@ -104,7 +106,9 @@ export function CloneToOrgDialog({
   };
 
   const handleClone = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0) {
+      return;
+    }
     setSubmitting(true);
     setResults(null);
     try {
@@ -122,8 +126,10 @@ export function CloneToOrgDialog({
           },
         },
       );
-      if (error) throw error;
-      const res: CloneResult[] = (data as any)?.results || [];
+      if (error) {
+        throw error;
+      }
+      const res: Array<CloneResult> = (data as any)?.results || [];
       setResults(res);
       const ok = res.filter((r) => r.success).length;
       const failed = res.filter((r) => !r.success);
@@ -132,7 +138,9 @@ export function CloneToOrgDialog({
         description: failed.length > 0 ? `נכשל ב-${failed.length}` : undefined,
         variant: ok === 0 ? "destructive" : "default",
       });
-      if (ok > 0) setSelected(new Set());
+      if (ok > 0) {
+        setSelected(new Set());
+      }
     } catch (e: any) {
       toast({
         title: "שגיאה בשכפול",

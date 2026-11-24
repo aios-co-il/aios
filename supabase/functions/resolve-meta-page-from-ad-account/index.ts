@@ -56,7 +56,9 @@ async function getFbToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key ?? null;
 }
@@ -64,10 +66,11 @@ async function getFbToken(
 async function fbGet(url: string) {
   const r = await fetch(url);
   const j = await r.json();
-  if (j?.error)
+  if (j?.error) {
     throw new Error(
       `Meta API error: ${j.error.message} (code ${j.error.code})`,
     );
+  }
   return j;
 }
 
@@ -147,8 +150,9 @@ async function fetchPageDetails(pageId: string, token: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(

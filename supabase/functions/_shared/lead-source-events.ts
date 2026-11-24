@@ -27,7 +27,9 @@ export async function recordLeadSourceEvent(
   },
 ): Promise<void> {
   const source = givenLeadSource(args.source);
-  if (!source) return;
+  if (!source) {
+    return;
+  }
   if (!args.tenantId) {
     console.error(
       "⚠️ Lead source event skipped: lead has no tenant",

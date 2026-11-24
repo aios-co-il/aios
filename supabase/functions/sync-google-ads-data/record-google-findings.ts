@@ -19,7 +19,7 @@ export async function recordGoogleFindings(input: {
   tenantId: string;
   clientId: string;
   customerId: string;
-  campaigns: OperationalCampaignState[];
+  campaigns: Array<OperationalCampaignState>;
 }): Promise<{ created: number; resolved: number }> {
   const db = serviceClient();
   // The org switched the Google status check off; the sync itself still runs (AIO-314).

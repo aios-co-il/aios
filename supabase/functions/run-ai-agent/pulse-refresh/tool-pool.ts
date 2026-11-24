@@ -15,18 +15,18 @@ import {
  * and skins add no pulse tool for it either (skinToolDenylist).
  */
 export function keepCarmenPulseTools<T extends { name: string }>(
-  tools: T[],
-  allTools: readonly T[],
+  tools: Array<T>,
+  allTools: ReadonlyArray<T>,
   {
     isCarmen,
     disabledTools,
     caller = {},
   }: {
     isCarmen: boolean;
-    disabledTools: readonly string[];
+    disabledTools: ReadonlyArray<string>;
     caller?: PulseCallerIdentity;
   },
-): T[] {
+): Array<T> {
   if (!isCarmen || isUnidentifiedPulseCaller(caller)) {
     return tools;
   }
@@ -47,9 +47,9 @@ export function keepCarmenPulseTools<T extends { name: string }>(
  * allowed_tools withheld.
  */
 export function skinToolDenylist(
-  disabledTools: readonly string[],
+  disabledTools: ReadonlyArray<string>,
   caller: PulseCallerIdentity = {},
-): readonly string[] {
+): ReadonlyArray<string> {
   return isUnidentifiedPulseCaller(caller)
     ? [...disabledTools, ...CARMEN_PULSE_TOOL_NAMES]
     : disabledTools;

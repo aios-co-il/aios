@@ -17,14 +17,19 @@ async function readBody(req: Request): Promise<WebhookRequest> {
   } else if (ct.includes("form")) {
     const fd = await req.formData();
     for (const [k, v] of fd.entries()) {
-      if (typeof v === "string") params[k] = v;
-      else if (!recordingFile && FILE_FIELDS.includes(k)) recordingFile = v;
+      if (typeof v === "string") {
+        params[k] = v;
+      } else if (!recordingFile && FILE_FIELDS.includes(k)) {
+        recordingFile = v;
+      }
     }
   } else {
     const text = await req.text();
-    if (text.trim().startsWith("{")) Object.assign(params, JSON.parse(text));
-    else if (text.includes("="))
+    if (text.trim().startsWith("{")) {
+      Object.assign(params, JSON.parse(text));
+    } else if (text.includes("=")) {
       new URLSearchParams(text).forEach((v, k) => (params[k] = v));
+    }
   }
   return { params, recordingFile };
 }
@@ -47,8 +52,9 @@ export async function readWebhookRequest(
 
 export function readTenantId(params: Record<string, unknown>): string {
   const tenantId = String(params.tenant_id || "").trim();
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId))
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) {
     throw new WebhookError("tenant_id required", 400);
+  }
   return tenantId;
 }
 

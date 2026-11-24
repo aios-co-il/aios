@@ -99,7 +99,7 @@ Deno.test({
 });
 
 /** The action types a heartbeat_logs insert recorded. */
-function actionTypes(body: unknown): unknown[] {
+function actionTypes(body: unknown): Array<unknown> {
   const actions =
     isRecord(body) && Array.isArray(body.actions_taken)
       ? body.actions_taken

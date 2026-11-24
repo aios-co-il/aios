@@ -157,7 +157,9 @@ export function EditLeadDialog({
   );
 
   useEffect(() => {
-    if (open) setActiveTab(initialTab === "updates" ? "details" : initialTab);
+    if (open) {
+      setActiveTab(initialTab === "updates" ? "details" : initialTab);
+    }
   }, [open, initialTab]);
   const [responseSelectOpen, setResponseSelectOpen] = useState(false);
   const [stageSelectOpen, setStageSelectOpen] = useState(false);
@@ -173,7 +175,9 @@ export function EditLeadDialog({
         .select("*")
         .eq("id", initialLead.id)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!initialLead.id && open,
@@ -201,7 +205,9 @@ export function EditLeadDialog({
   const { tenantId } = useCurrentTenant();
 
   const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
+    [],
+  );
   const {
     data: teamMembers = [],
     isLoading: isLoadingTeamMembers,
@@ -209,7 +215,9 @@ export function EditLeadDialog({
   } = useTeamMembersForMeeting(tenantId);
 
   // State for multi-select sales people
-  const [selectedSalesPeople, setSelectedSalesPeople] = useState<string[]>([]);
+  const [selectedSalesPeople, setSelectedSalesPeople] = useState<Array<string>>(
+    [],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -233,7 +241,9 @@ export function EditLeadDialog({
       sale_date: lead.sale_date ? new Date(lead.sale_date) : undefined,
       industry: lead.industry || "",
       products: (() => {
-        if (!lead.products) return [];
+        if (!lead.products) {
+          return [];
+        }
         try {
           const parsed = JSON.parse(lead.products);
           return Array.isArray(parsed) ? parsed : [];
@@ -258,14 +268,18 @@ export function EditLeadDialog({
   const { data: products } = useQuery({
     queryKey: ["products", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("active", true)
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -279,7 +293,9 @@ export function EditLeadDialog({
         .from("lead_sales_people")
         .select("sales_person_id")
         .eq("lead_id", lead.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.map((sp) => sp.sales_person_id);
     },
     enabled: !!lead.id && open,
@@ -290,7 +306,9 @@ export function EditLeadDialog({
   // a different lead (e.g. Mordechai) would silently submit the *previous* lead's
   // contact_name / phone / email and overwrite the new lead's data.
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     form.reset({
       company_name: lead.company_name || "",
       contact_name: lead.contact_name || "",
@@ -311,7 +329,9 @@ export function EditLeadDialog({
       sale_date: lead.sale_date ? new Date(lead.sale_date) : undefined,
       industry: lead.industry || "",
       products: (() => {
-        if (!lead.products) return [];
+        if (!lead.products) {
+          return [];
+        }
         try {
           const parsed = JSON.parse(lead.products);
           return Array.isArray(parsed) ? parsed : [];
@@ -332,7 +352,9 @@ export function EditLeadDialog({
   }, [lead.id, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     setCustomFieldValues(
       getLeadCustomFieldInitialValues(customFields, lead.form_data),
     );
@@ -344,7 +366,9 @@ export function EditLeadDialog({
   // Using JSON.stringify to prevent infinite loop from array reference changes
   useEffect(() => {
     // Only sync when dialog is open
-    if (!open) return;
+    if (!open) {
+      return;
+    }
 
     if (leadSalesPeople.length > 0) {
       setSelectedSalesPeople(leadSalesPeople);
@@ -360,13 +384,17 @@ export function EditLeadDialog({
   const { data: leadTagIds = [] } = useQuery({
     queryKey: ["lead-tags", lead.id],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_contact_tags")
         .select("tag_id")
         .eq("lead_id", lead.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.map((ct) => ct.tag_id);
     },
     enabled: !!tenantId && !!lead.id && open,
@@ -376,13 +404,17 @@ export function EditLeadDialog({
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && open,
@@ -392,11 +424,14 @@ export function EditLeadDialog({
   const updateMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const safeCompanyName = (() => {
-        if (isFieldVisible("company_name"))
+        if (isFieldVisible("company_name")) {
           return (values.company_name || "").trim();
+        }
 
         const existing = (lead.company_name || "").trim();
-        if (existing) return existing;
+        if (existing) {
+          return existing;
+        }
 
         const fromContact = (values.contact_name || "").trim();
         return fromContact || "ליד";
@@ -477,7 +512,9 @@ export function EditLeadDialog({
         updateSalesPeopleAssignments(),
       ]);
 
-      if (leadResult.error) throw leadResult.error;
+      if (leadResult.error) {
+        throw leadResult.error;
+      }
       const data = leadResult.data?.[0] ?? {
         ...lead,
         ...submitData,
@@ -1872,8 +1909,8 @@ export function EditLeadDialog({
  */
 function sourceSelectOptions(
   current: string | null | undefined,
-): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = [
     ...LEAD_SOURCE_SELECT_OPTIONS,
   ];
   if (current && !options.some((opt) => opt.value === current)) {

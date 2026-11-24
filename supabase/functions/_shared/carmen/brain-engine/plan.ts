@@ -38,7 +38,7 @@ export type BrainEnginePlan =
   | {
       kind: "connections";
       slug: string;
-      connections: EngineConnection[];
+      connections: Array<EngineConnection>;
       fallbackInternal: boolean;
     }
   /** Nothing may run; the message says why and what to change. */
@@ -82,21 +82,24 @@ export function runsUnpicked(
  */
 export function planBrainEngine(
   route: EngineRoute | null,
-  conns: EngineConnection[],
-  modelRoutes: ModelRouteRow[],
+  conns: Array<EngineConnection>,
+  modelRoutes: Array<ModelRouteRow>,
   allowed: (slug: string) => boolean,
 ): BrainEnginePlan {
-  if (!route || route.route_type !== "model") return { kind: "internal" };
+  if (!route || route.route_type !== "model") {
+    return { kind: "internal" };
+  }
 
   if (route.config?.router === "free_first") {
     const free = pickableConnections(conns, modelRoutes, allowed).filter(
       runsUnpicked,
     );
     const fallbackInternal = allowed("internal");
-    if (free.length === 0)
+    if (free.length === 0) {
       return fallbackInternal
         ? { kind: "internal" }
         : { kind: "refused", message: NO_FREE_BRAIN };
+    }
     return {
       kind: "connections",
       slug: route.slug,
@@ -106,13 +109,15 @@ export function planBrainEngine(
   }
 
   const conn = conns.find((c) => c.id === route.connection_id);
-  if (!conn || !ready(conn))
+  if (!conn || !ready(conn)) {
     return { kind: "refused", message: NOT_READY(route.label) };
-  if (conn.profile.client_data_ok !== true)
+  }
+  if (conn.profile.client_data_ok !== true) {
     return {
       kind: "refused",
       message: NOT_APPROVED_FOR_CLIENT_DATA(conn.name),
     };
+  }
   return {
     kind: "connections",
     slug: route.slug,

@@ -56,10 +56,11 @@ export function getLipsyncProvider(
   keys: ProviderKeys = {},
 ): LipsyncProvider {
   const factory = LIPSYNC_PROVIDERS[name];
-  if (!factory)
+  if (!factory) {
     throw new Error(
       `Unknown lip-sync provider "${name}" (expected ${Object.keys(LIPSYNC_PROVIDERS).join(", ")})`,
     );
+  }
   return factory(keys);
 }
 
@@ -78,7 +79,9 @@ export function lipsyncProviderNames(
     run?.input?.provider,
     env.LIPSYNC_PROVIDER,
   ].filter((name): name is string => Boolean(name && LIPSYNC_PROVIDERS[name]));
-  if (run?.provider_job_id && wanted[0]) return [wanted[0]];
+  if (run?.provider_job_id && wanted[0]) {
+    return [wanted[0]];
+  }
   return [...new Set([...wanted, ...lipsyncCandidates(keys, env)])];
 }
 
@@ -141,7 +144,9 @@ export function planFallbacks(
   name: string,
   keys: ProviderKeys,
 ): Array<string> | null {
-  if (name !== "elevenlabs") return null;
+  if (name !== "elevenlabs") {
+    return null;
+  }
   return higgsfieldCredential(keys?.higgsfieldKeyId, keys?.higgsfieldKeySecret)
     ? ["higgsfield"]
     : [];
@@ -156,10 +161,11 @@ export function getVideoProvider(
   keys: ProviderKeys = {},
 ): VideoProvider {
   const factory = PROVIDERS[name];
-  if (!factory)
+  if (!factory) {
     throw new Error(
       `Unknown VIDEO_PROVIDER "${name}" (expected ${Object.keys(PROVIDERS).join(", ")})`,
     );
+  }
   return factory(keys);
 }
 

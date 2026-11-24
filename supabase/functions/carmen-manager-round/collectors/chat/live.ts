@@ -25,7 +25,7 @@ export async function loadLiveChatFindings(
   db: DbClient,
   tenantId: string,
   collectorId: string,
-): Promise<LiveChatFinding[]> {
+): Promise<Array<LiveChatFinding>> {
   const { data, error } = await db
     .from("carmen_findings")
     .select(
@@ -35,7 +35,7 @@ export async function loadLiveChatFindings(
     .eq("collector", collectorId)
     .in("status", [...FINDING_LIVE_STATUSES]);
   throwIf(error, "carmen_findings chat");
-  return (data ?? []).flatMap((row): LiveChatFinding[] => {
+  return (data ?? []).flatMap((row): Array<LiveChatFinding> => {
     const { kind, severity } = row;
     if (!isFindingKind(kind) || !isFindingSeverity(severity)) {
       return [];

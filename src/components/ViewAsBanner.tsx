@@ -5,7 +5,9 @@ import { Eye, X } from "lucide-react";
 export function ViewAsBanner() {
   const { isViewingAs, viewAsUserName, clearViewAs } = useViewAs();
 
-  if (!isViewingAs) return null;
+  if (!isViewingAs) {
+    return null;
+  }
 
   return (
     <div className="sticky top-0 z-[60] bg-warning text-warning-foreground px-4 py-2 flex items-center justify-between gap-4">

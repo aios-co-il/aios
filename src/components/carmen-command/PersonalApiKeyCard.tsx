@@ -47,20 +47,25 @@ export function PersonalApiKeyCard() {
       const test = await fetch("https://api.openai.com/v1/models?limit=1", {
         headers: { Authorization: `Bearer ${key}` },
       });
-      if (!test.ok)
+      if (!test.ok) {
         throw new Error("OpenAI דחה את המפתח — בדוק שהוא נכון ופעיל");
+      }
 
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("לא מחובר");
+      if (!user) {
+        throw new Error("לא מחובר");
+      }
       const { error } = await sb.from("user_api_keys").upsert({
         user_id: user.id,
         provider: "openai",
         api_key: key,
         updated_at: new Date().toISOString(),
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
       setInput("");
       qc.invalidateQueries({ queryKey: ["user-api-key"] });
       toast({
@@ -85,7 +90,9 @@ export function PersonalApiKeyCard() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        return;
+      }
       await sb.from("user_api_keys").delete().eq("user_id", user.id);
       qc.invalidateQueries({ queryKey: ["user-api-key"] });
       toast({

@@ -90,7 +90,9 @@ export default function TimeTracking() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -98,7 +100,9 @@ export default function TimeTracking() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -107,14 +111,18 @@ export default function TimeTracking() {
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("campaigners")
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -127,12 +135,16 @@ export default function TimeTracking() {
       selectedCampaigner === "me" ? profile?.campaigner_id : selectedCampaigner,
     ],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const campaignerId =
         selectedCampaigner === "me"
           ? profile?.campaigner_id
           : selectedCampaigner;
-      if (!campaignerId) return null;
+      if (!campaignerId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("time_entries")
@@ -149,7 +161,9 @@ export default function TimeTracking() {
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled:
@@ -162,7 +176,9 @@ export default function TimeTracking() {
   const { data: activeBreak } = useQuery({
     queryKey: ["active-break", tenantId, activeEntry?.id],
     queryFn: async () => {
-      if (!activeEntry?.id) return null;
+      if (!activeEntry?.id) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("time_entry_breaks")
@@ -173,7 +189,9 @@ export default function TimeTracking() {
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!activeEntry?.id,
@@ -184,7 +202,9 @@ export default function TimeTracking() {
   const { data: activeEntryBreaks } = useQuery({
     queryKey: ["active-entry-breaks", tenantId, activeEntry?.id],
     queryFn: async () => {
-      if (!activeEntry?.id) return [];
+      if (!activeEntry?.id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("time_entry_breaks")
@@ -192,7 +212,9 @@ export default function TimeTracking() {
         .eq("time_entry_id", activeEntry.id)
         .order("start_time", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!activeEntry?.id,
@@ -207,7 +229,9 @@ export default function TimeTracking() {
       filterEndDate?.toISOString(),
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("time_entries")
         .select(
@@ -238,7 +262,9 @@ export default function TimeTracking() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled:
@@ -255,7 +281,9 @@ export default function TimeTracking() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
 
       if (!campaignerId) {
         const { data, error } = await supabase
@@ -263,7 +291,9 @@ export default function TimeTracking() {
           .select("campaigner_id")
           .eq("id", user.id)
           .maybeSingle();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         campaignerId = data?.campaigner_id;
       }
 
@@ -278,9 +308,12 @@ export default function TimeTracking() {
         "get_user_tenant_id",
         { _user_id: user.id },
       );
-      if (tenantErr) throw tenantErr;
-      if (!tenantId)
+      if (tenantErr) {
+        throw tenantErr;
+      }
+      if (!tenantId) {
         throw new Error("לא נמצא טננט למשתמש. יש לשייך משתמש לטננט.");
+      }
 
       const { error } = await supabase.from("time_entries").insert({
         campaigner_id: campaignerId,
@@ -288,7 +321,9 @@ export default function TimeTracking() {
         tenant_id: tenantId as string,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -319,7 +354,9 @@ export default function TimeTracking() {
         .update({ end_time: new Date().toISOString() })
         .eq("id", entryId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -340,7 +377,9 @@ export default function TimeTracking() {
   // Start break mutation
   const startBreakMutation = useMutation({
     mutationFn: async (entryId: string) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const { error } = await supabase.from("time_entry_breaks").insert({
         time_entry_id: entryId,
@@ -348,7 +387,9 @@ export default function TimeTracking() {
         start_time: new Date().toISOString(),
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-break", tenantId] });
@@ -370,7 +411,9 @@ export default function TimeTracking() {
         .update({ end_time: new Date().toISOString() })
         .eq("id", breakId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["active-break", tenantId] });
@@ -391,7 +434,9 @@ export default function TimeTracking() {
         .delete()
         .eq("id", entryId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["time-entries", tenantId] });
@@ -420,7 +465,9 @@ export default function TimeTracking() {
         })
         .eq("id", entryId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["time-entries", tenantId] });
@@ -468,8 +515,10 @@ export default function TimeTracking() {
   };
 
   // Calculate total break time for a given list of breaks
-  const calculateBreakTime = (breaks: any[]) => {
-    if (!breaks || breaks.length === 0) return 0;
+  const calculateBreakTime = (breaks: Array<any>) => {
+    if (!breaks || breaks.length === 0) {
+      return 0;
+    }
     return breaks.reduce((acc, brk) => {
       if (!brk.end_time) {
         // Active break - count from start to now
@@ -493,7 +542,7 @@ export default function TimeTracking() {
   const calculateNetWorkTime = (
     start: string,
     end: string | null,
-    breaks: any[],
+    breaks: Array<any>,
   ) => {
     const startDate = new Date(start);
     const endDate = end ? new Date(end) : currentTime;
@@ -504,9 +553,13 @@ export default function TimeTracking() {
   };
 
   const calculateTotalHours = () => {
-    if (!timeEntries) return "0:00";
+    if (!timeEntries) {
+      return "0:00";
+    }
     const totalNetMinutes = timeEntries.reduce((acc, entry) => {
-      if (!entry.end_time) return acc;
+      if (!entry.end_time) {
+        return acc;
+      }
       const grossMinutes = differenceInMinutes(
         new Date(entry.end_time),
         new Date(entry.start_time),

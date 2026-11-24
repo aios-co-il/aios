@@ -40,14 +40,16 @@ export async function renderVideo(manifest, outputPath, options = {}) {
     manifest.fps !== 30 ||
     !Array.isArray(manifest.scenes) ||
     !manifest.scenes.length
-  )
+  ) {
     throw Error("Invalid manifest");
+  }
   const [width, height] = [
     options.width ?? FORMATS[manifest.format][0],
     options.height ?? FORMATS[manifest.format][1],
   ];
-  if (width % 2 || height % 2 || width < 64 || height < 64)
+  if (width % 2 || height % 2 || width < 64 || height < 64) {
     throw Error("Invalid dimensions");
+  }
   let cursor = 0;
   for (const scene of manifest.scenes) {
     if (
@@ -55,19 +57,22 @@ export async function renderVideo(manifest, outputPath, options = {}) {
       scene.frameCount < 1 ||
       scene.startFrame !== cursor ||
       !scene.imageUrl
-    )
+    ) {
       throw Error("Invalid timeline");
+    }
     cursor += scene.frameCount;
   }
-  if (cursor !== manifest.totalFrames || cursor > 18000)
+  if (cursor !== manifest.totalFrames || cursor > 18000) {
     throw Error("Invalid total frames");
+  }
   const temp = await mkdtemp(path.join(tmpdir(), "carmen-video-"));
   try {
     const clips = [];
     for (let index = 0; index < manifest.scenes.length; index++) {
       const scene = manifest.scenes[index];
-      if (!scene.imageUrl.startsWith("file://"))
+      if (!scene.imageUrl.startsWith("file://")) {
         throw Error("Media must be staged by an authorized asset service");
+      }
       const image = path.join(temp, `scene-${index}.png`);
       const clip = path.join(temp, `clip-${index}.mp4`);
       await copyFile(new URL(scene.imageUrl), image);

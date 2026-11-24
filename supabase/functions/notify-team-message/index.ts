@@ -146,7 +146,9 @@ Deno.serve(async (req) => {
         .in("id", campaignerIds);
       if (campaigners) {
         campaigners.forEach((c) => {
-          if (c.phone) campaignerPhoneMap[c.id] = c.phone;
+          if (c.phone) {
+            campaignerPhoneMap[c.id] = c.phone;
+          }
         });
       }
     }
@@ -158,11 +160,13 @@ Deno.serve(async (req) => {
     // 4. profile notification_group_link → send to profile group
     // 5. profile phone / campaigner phone → send to phone
     const groupsToNotify = new Set<string>();
-    const phonesToNotify: { phone: string; name: string }[] = [];
+    const phonesToNotify: Array<{ phone: string; name: string }> = [];
 
     for (const member of enabledMembers) {
       const profile = profiles.find((p) => p.id === member.user_id);
-      if (!profile) continue;
+      if (!profile) {
+        continue;
+      }
 
       // Priority 1: member-level group override
       if (member.notify_override_group) {
@@ -261,7 +265,7 @@ Deno.serve(async (req) => {
     const notificationMessage = `🔔 *התראה מצ'אט צוות*\n\n📢 *ערוץ:* ${channelName || "ערוץ"}\n👤 *מאת:* ${senderName || "חבר צוות"}\n\n💬 ${messageContent}\n\n🔗 ${chatLink}`;
 
     let sentCount = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     const sendGreenApi = async (chatId: string, label: string) => {
       try {
@@ -318,7 +322,9 @@ Deno.serve(async (req) => {
               groupChatId = match[1];
             } else {
               const digits = groupChatId.replace(/[^0-9-]/g, "");
-              if (digits) groupChatId = digits + "@g.us";
+              if (digits) {
+                groupChatId = digits + "@g.us";
+              }
             }
           }
           await sendGreenApi(groupChatId, `קבוצה: ${groupChatId}`);
@@ -336,9 +342,12 @@ Deno.serve(async (req) => {
         }
       } else if (targetOverride.type === "contact" && targetOverride.phone) {
         let digits = targetOverride.phone.replace(/[^0-9]/g, "");
-        if (digits.startsWith("00")) digits = digits.slice(2);
-        if (digits.startsWith("0") && digits.length <= 10)
+        if (digits.startsWith("00")) {
+          digits = digits.slice(2);
+        }
+        if (digits.startsWith("0") && digits.length <= 10) {
           digits = "972" + digits.slice(1);
+        }
         await sendGreenApi(digits + "@c.us", targetOverride.name || "איש קשר");
       }
 
@@ -364,7 +373,9 @@ Deno.serve(async (req) => {
           groupChatId = match[1];
         } else {
           const digits = groupChatId.replace(/[^0-9-]/g, "");
-          if (digits) groupChatId = digits + "@g.us";
+          if (digits) {
+            groupChatId = digits + "@g.us";
+          }
         }
       }
       await sendGreenApi(groupChatId, `קבוצה: ${groupChatId}`);
@@ -373,9 +384,12 @@ Deno.serve(async (req) => {
     // Send to individual phones
     for (const target of phonesToNotify) {
       let digits = target.phone.replace(/[^0-9]/g, "");
-      if (digits.startsWith("00")) digits = digits.slice(2);
-      if (digits.startsWith("0") && digits.length <= 10)
+      if (digits.startsWith("00")) {
+        digits = digits.slice(2);
+      }
+      if (digits.startsWith("0") && digits.length <= 10) {
         digits = "972" + digits.slice(1);
+      }
       await sendGreenApi(digits + "@c.us", target.name);
     }
 

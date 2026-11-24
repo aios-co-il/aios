@@ -100,7 +100,7 @@ export async function planTenantNotify(
 /** How many active Manus lines the tenant has, and how many of them are primary. */
 function manusLineCounts(
   tenantId: string,
-  integrations: NotifyIntegrationRow[],
+  integrations: Array<NotifyIntegrationRow>,
 ): Pick<
   TenantNotifyPlan,
   "activeManusIntegrations" | "primaryManusIntegrations"

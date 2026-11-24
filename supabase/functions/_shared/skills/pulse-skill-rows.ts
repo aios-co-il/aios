@@ -13,8 +13,8 @@ export type PulseSkillRow = {
   constraints: string;
   steps: string;
   output_template: string | null;
-  allowed_tools: readonly string[];
-  triggers: readonly string[];
+  allowed_tools: ReadonlyArray<string>;
+  triggers: ReadonlyArray<string>;
 };
 
 /** Global ai_skills row for slug pulse_check (also the registry fallback). */

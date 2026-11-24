@@ -23,7 +23,7 @@ export type Call = { table: string; op: string; value?: unknown };
 
 /** A chainable stand-in for the Supabase client that records writes and answers reads from a script. */
 export function fakeDb(script: Record<string, unknown> = {}) {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   const db = {
     calls,
     script,

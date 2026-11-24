@@ -16,8 +16,8 @@ export function TemplateEditorToolbar({
   onSampleListChange,
 }: {
   onPick: (token: string) => void;
-  customKeys: string[];
-  sampleLists: { id: string; name: string }[];
+  customKeys: Array<string>;
+  sampleLists: Array<{ id: string; name: string }>;
   sampleListId: string | undefined;
   onSampleListChange: (id: string | undefined) => void;
 }) {

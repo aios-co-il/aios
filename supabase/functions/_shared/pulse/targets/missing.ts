@@ -32,7 +32,7 @@ export type PlatformWithoutTarget<Row extends CampaignRowFields> = {
   client_id: Row["client_id"];
   platform: Row["platform"];
   spend_7d: number;
-  campaigns: CampaignWithoutTarget<Row>[];
+  campaigns: Array<CampaignWithoutTarget<Row>>;
 };
 
 /** A report table with its stored settings. */
@@ -47,9 +47,9 @@ export function listCampaignsWithoutTarget<Row extends CampaignRowFields>({
   campaignRows = [],
   tables = [],
 }: {
-  campaignRows?: Row[];
-  tables?: TableSettings[];
-}): PlatformWithoutTarget<Row>[] {
+  campaignRows?: Array<Row>;
+  tables?: Array<TableSettings>;
+}): Array<PlatformWithoutTarget<Row>> {
   const settingsById = new Map(
     tables.map((table) => [table.id, table.integration_settings || {}]),
   );

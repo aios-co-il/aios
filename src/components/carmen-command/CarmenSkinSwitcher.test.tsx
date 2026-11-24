@@ -39,7 +39,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({ mutateAsync: vi.fn() }),
-  useQuery: ({ queryKey }: { queryKey: readonly unknown[] }) => ({
+  useQuery: ({ queryKey }: { queryKey: ReadonlyArray<unknown> }) => ({
     isLoading: false,
     isSuccess: true,
     data:

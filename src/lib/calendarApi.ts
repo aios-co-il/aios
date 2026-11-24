@@ -37,7 +37,9 @@ async function invokeCalendarProxy(
       },
     },
   );
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   if (data?.needsSetup) {
     throw new Error(
       "היומן לא מחובר. יש לחבר את Google Calendar דרך הגדרות אינטגרציות.",
@@ -53,7 +55,9 @@ async function invokeDirectGoogle(
   body: Record<string, unknown>,
 ) {
   const { data, error } = await supabase.functions.invoke(fnName, { body });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 
@@ -88,7 +92,7 @@ export async function addCalendarEvent(
     description?: string;
     start: string;
     end?: string;
-    attendees?: string[];
+    attendees?: Array<string>;
   },
   options: CalendarProxyOptions,
   legacyOptions?: { target_user_id?: string },
@@ -176,7 +180,9 @@ export async function initDirectGoogleAuth() {
 }
 
 export function getStoredCalendarProvider(): CalendarProvider {
-  if (typeof localStorage === "undefined") return "direct";
+  if (typeof localStorage === "undefined") {
+    return "direct";
+  }
   return (
     (localStorage.getItem("calendar_provider_mode") as CalendarProvider) ||
     "direct"
@@ -220,7 +226,9 @@ export function startCalendarOAuth(
           resolve();
         };
         closedTimer = window.setInterval(() => {
-          if (!popup.closed) return;
+          if (!popup.closed) {
+            return;
+          }
           window.clearInterval(closedTimer);
           window.removeEventListener("message", handler);
           reject(new Error("חיבור היומן בוטל"));

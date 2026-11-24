@@ -28,7 +28,7 @@ import {
   type OverallStatus,
 } from "@/lib/healthScore";
 
-const ALL_FLAGS: FlagKey[] = [
+const ALL_FLAGS: Array<FlagKey> = [
   "sensitive",
   "complaint",
   "performance_medium_drop",
@@ -56,7 +56,7 @@ interface ManualHealthEditDialogProps {
   clientId: string;
   clientName: string;
   currentScore: number;
-  currentFlags: FlagKey[];
+  currentFlags: Array<FlagKey>;
   currentMood: string | null;
   onSaved: () => void;
 }
@@ -72,7 +72,7 @@ export function ManualHealthEditDialog({
   onSaved,
 }: ManualHealthEditDialogProps) {
   const [score, setScore] = useState(currentScore);
-  const [flags, setFlags] = useState<FlagKey[]>(currentFlags);
+  const [flags, setFlags] = useState<Array<FlagKey>>(currentFlags);
   const [mood, setMood] = useState(currentMood || "happy");
   const [saving, setSaving] = useState(false);
 
@@ -83,8 +83,12 @@ export function ManualHealthEditDialog({
   };
 
   const computeStatus = (s: number): OverallStatus => {
-    if (s >= 80) return "green";
-    if (s >= 60) return "yellow";
+    if (s >= 80) {
+      return "green";
+    }
+    if (s >= 60) {
+      return "yellow";
+    }
     return "red";
   };
 
@@ -101,7 +105,9 @@ export function ManualHealthEditDialog({
           mood_status: mood as any,
         })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("עודכן בהצלחה");
       onSaved();
       onOpenChange(false);

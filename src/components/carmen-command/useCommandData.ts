@@ -28,7 +28,7 @@ export interface ServiceHealth {
   detail: string;
   latencyMs?: number;
   /** Chronological probe history (oldest→newest) from service_health_checks */
-  history?: ("ok" | "warn" | "down")[];
+  history?: Array<"ok" | "warn" | "down">;
 }
 
 /* ---------------- Core overview ---------------- */
@@ -113,8 +113,8 @@ export function useIntelFeed(tenantId: string | null) {
     queryKey: ["cc-feed", tenantId],
     enabled: !!tenantId,
     refetchInterval: 45000,
-    queryFn: async (): Promise<FeedItem[]> => {
-      const safe = async (p: Promise<{ data: any[] | null }>) => {
+    queryFn: async (): Promise<Array<FeedItem>> => {
+      const safe = async (p: Promise<{ data: Array<any> | null }>) => {
         try {
           return (await p).data ?? [];
         } catch {
@@ -162,7 +162,7 @@ export function useIntelFeed(tenantId: string | null) {
         ),
       ]);
 
-      const items: FeedItem[] = [
+      const items: Array<FeedItem> = [
         ...campaign.map((a: any): FeedItem => ({
           id: `ca-${a.id}`,
           severity: a.severity === "critical" ? "critical" : "warning",
@@ -247,7 +247,7 @@ export function useHealth(tenantId: string | null) {
     enabled: !!tenantId,
     refetchInterval: 30000,
     queryFn: async (): Promise<{
-      services: ServiceHealth[];
+      services: Array<ServiceHealth>;
       lastHeartbeat: string | null;
     }> => {
       // DB probe — round-trip latency of a minimal query
@@ -286,20 +286,22 @@ export function useHealth(tenantId: string | null) {
       ]);
 
       // Group probe history per logical service (both mcp_* rows fold into "mcp")
-      const probeRows: any[] = probeRes.error ? [] : (probeRes.data ?? []);
+      const probeRows: Array<any> = probeRes.error ? [] : (probeRes.data ?? []);
       const logical = (svc: string) => (svc.startsWith("mcp_") ? "mcp" : svc);
       const histories = new Map<
         string,
-        {
+        Array<{
           status: "ok" | "warn" | "down";
           latency_ms: number | null;
           detail: string;
           checked_at: string;
-        }[]
+        }>
       >();
       for (const r of probeRows) {
         const key = logical(r.service);
-        if (!histories.has(key)) histories.set(key, []);
+        if (!histories.has(key)) {
+          histories.set(key, []);
+        }
         histories.get(key)!.push(r);
       }
       const latestOf = (key: string) => histories.get(key)?.[0];
@@ -337,7 +339,7 @@ export function useHealth(tenantId: string | null) {
       const recallProbe = latestOf("recall");
       const recallQuotaProbe = latestOf("recall_quota");
 
-      const services: ServiceHealth[] = [
+      const services: Array<ServiceHealth> = [
         {
           key: "db",
           label: "מסד נתונים",
@@ -512,7 +514,9 @@ export function useOpenAiBilling(tenantId: string | null) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחוברת");
+      if (!session) {
+        throw new Error("לא מחוברת");
+      }
       const res = await fetch(BILLING_FN, {
         method: "POST",
         headers: {
@@ -541,7 +545,7 @@ export function useUsage(tenantId: string | null) {
     refetchInterval: 120000,
     queryFn: async () => {
       const since = daysAgo(30);
-      const safe = async (p: Promise<{ data: any[] | null }>) => {
+      const safe = async (p: Promise<{ data: Array<any> | null }>) => {
         try {
           return (await p).data ?? [];
         } catch {
@@ -590,11 +594,13 @@ export function useUsage(tenantId: string | null) {
           .slice(0, 10);
         byDay.set(d, { date: d, tokens: 0, cost: 0, calls: 0 });
       }
-      const add = (rows: any[]) => {
+      const add = (rows: Array<any>) => {
         for (const r of rows) {
           const d = (r.created_at as string).slice(0, 10);
           const day = byDay.get(d);
-          if (!day) continue;
+          if (!day) {
+            continue;
+          }
           day.tokens += (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
           day.cost += Number(r.cost_usd ?? 0);
           day.calls += 1;
@@ -646,7 +652,7 @@ export function useCcTasks(tenantId: string | null) {
     queryKey: ["cc-tasks", tenantId],
     enabled: !!tenantId,
     refetchInterval: 60000,
-    queryFn: async (): Promise<CcTask[]> => {
+    queryFn: async (): Promise<Array<CcTask>> => {
       const { data, error } = await sb
         .from("tasks")
         .select("id, title, status, due_date, due_time, priority")
@@ -654,7 +660,9 @@ export function useCcTasks(tenantId: string | null) {
         .neq("status", "done")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(20);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -668,7 +676,9 @@ export function useMarkTaskDone(tenantId: string | null) {
         .from("tasks")
         .update({ status: "done" })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["cc-tasks", tenantId] });
@@ -692,7 +702,7 @@ export function useTimeline(tenantId: string | null) {
     queryKey: ["cc-timeline", tenantId],
     enabled: !!tenantId,
     refetchInterval: 60000,
-    queryFn: async (): Promise<TimelineEvent[]> => {
+    queryFn: async (): Promise<Array<TimelineEvent>> => {
       const today = todayStr();
       const [tasksRes, agentRes] = await Promise.all([
         sb
@@ -709,7 +719,7 @@ export function useTimeline(tenantId: string | null) {
           .lt("scheduled_at", `${today}T23:59:59Z`)
           .order("scheduled_at", { ascending: true }),
       ]);
-      const events: TimelineEvent[] = [
+      const events: Array<TimelineEvent> = [
         ...(tasksRes.data ?? []).map((t: any): TimelineEvent => ({
           id: `t-${t.id}`,
           time: t.due_time ? t.due_time.slice(0, 5) : null,
@@ -745,7 +755,9 @@ export function useCommandRealtime(
 ) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     const channel = supabase
       .channel("carmen-command-center")
       .on(
@@ -772,7 +784,9 @@ export function useCommandRealtime(
         },
         (payload: any) => {
           qc.invalidateQueries({ queryKey: ["cc-feed", tenantId] });
-          if (payload.new?.severity === "critical") onCritical();
+          if (payload.new?.severity === "critical") {
+            onCritical();
+          }
         },
       )
       .on(

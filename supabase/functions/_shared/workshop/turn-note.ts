@@ -55,12 +55,18 @@ export interface FilmState {
 
 /** The next film step for the project as it stands. */
 export function nextFilmStep(state: FilmState): string {
-  if (state.scenes === 0) return "כתיבת סטוריבורד (workshop_storyboard)";
-  if (state.withStill < state.scenes)
+  if (state.scenes === 0) {
+    return "כתיבת סטוריבורד (workshop_storyboard)";
+  }
+  if (state.withStill < state.scenes) {
     return "יצירת התמונות לסצנות (workshop_make_stills)";
-  if ((state.narrated || state.talking === true) && !state.voiceChosen)
+  }
+  if ((state.narrated || state.talking === true) && !state.voiceChosen) {
     return "בחירת קול (workshop_choose_voice)";
-  if (state.producing) return "ההפקה רצה; לעדכון workshop_get_state";
+  }
+  if (state.producing) {
+    return "ההפקה רצה; לעדכון workshop_get_state";
+  }
   return "הפקת הסרט (workshop_produce_video)";
 }
 
@@ -72,7 +78,7 @@ async function boardCounts(supabase: Db, tenantId: string, itemId: string) {
     .eq("tenant_id", tenantId)
     .eq("item_id", itemId)
     .in("kind", ["concept", "copy"]);
-  const rows = (Array.isArray(data) ? data : []) as { kind: string }[];
+  const rows = (Array.isArray(data) ? data : []) as Array<{ kind: string }>;
   return {
     concept: rows.filter((row) => row.kind === "concept").length,
     copy: rows.filter((row) => row.kind === "copy").length,
@@ -87,7 +93,9 @@ export async function workshopTurnNote(
   lastAssistant = "",
   turn: TurnRefs = {},
 ): Promise<string | null> {
-  if (!itemId || typeof tenantId !== "string" || !tenantId) return null;
+  if (!itemId || typeof tenantId !== "string" || !tenantId) {
+    return null;
+  }
   try {
     const { data } = await supabase
       .from("marketing_work_items")
@@ -95,7 +103,9 @@ export async function workshopTurnNote(
       .eq("id", itemId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    if (!data) return null;
+    if (!data) {
+      return null;
+    }
     await failStalePictures(supabase, tenantId, itemId).catch(() => {});
     const answered = await saveTurnAnswers(
       supabase,
@@ -119,15 +129,17 @@ export async function workshopTurnNote(
     );
     lines.push(...markedPageLines(selected, userText));
     const answers = Object.entries(briefAnswersOf(payload));
-    if (answers.length > 0)
+    if (answers.length > 0) {
       lines.push(
         `תשובות הבריף (עבדי לפיהן ואל תשאלי שוב): ${answers.map(([q, a]) => `${q}: ${a}`).join(" · ")}.`,
       );
+    }
     const onBoard = await boardCounts(supabase, tenantId, itemId);
-    if (onBoard.concept + onBoard.copy > 0)
+    if (onBoard.concept + onBoard.copy > 0) {
       lines.push(
         `בלוח כבר יש ${onBoard.concept} קונספטים ו-${onBoard.copy} טקסטים: אל תשמרי קונספטים או קופי שוב אלא אם המשתמש ביקש חדשים.`,
       );
+    }
     if (isLandingProject(payload)) {
       lines.push(
         ...(await landingTurn(supabase, tenantId, itemId, payload, {
@@ -146,10 +158,9 @@ export async function workshopTurnNote(
         )
         .eq("item_id", itemId)
         .eq("tenant_id", tenantId);
-      const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Record<
-        string,
-        unknown
-      >[];
+      const rows = (Array.isArray(scenes.data) ? scenes.data : []) as Array<
+        Record<string, unknown>
+      >;
       const production = asRecord(asRecord(payload.video).production);
       const state: FilmState = {
         scenes: rows.length,
@@ -168,17 +179,19 @@ export async function workshopTurnNote(
         `סטוריבורד: ${state.scenes} סצנות, ${state.withStill} עם תמונה. קול לקריינות: ${state.voiceChosen ? "נבחר" : "עוד לא"}.`,
       );
       lines.push(...scriptLines(payload, state.scenes));
-      if (state.scenes > 0)
+      if (state.scenes > 0) {
         lines.push(
           "יש כבר סטוריבורד: אל תכתבי אותו מחדש אלא אם המשתמש ביקש לשנות אותו. שינוי בסצנה אחת: workshop_update_scene.",
         );
+      }
       lines.push(`השלב הבא: ${nextFilmStep(state)}.`);
-      if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום")))
+      if (/קריאה לפעולה/.test(answerFor(briefAnswersOf(payload), "סיום"))) {
         lines.push(
           // The user's own closing line (an offer, a date) is passed whole (cta_text, up to
           // CTA_MAX_CHARS); Staging, 2 Nov: told "up to 6 words", Carmen cut a 20% offer short.
           `הסיום שנבחר כולל קריאה לפעולה: בהפקה העבירי cta_text. משפט סיום שהמשתמש נתן (מבצע, הנחה, תאריך) עובר בדיוק כמו שכתב, עד ${CTA_MAX_CHARS} תווים; בלי משפט כזה, קריאה קצרה.`,
         );
+      }
     }
     return lines.length > 1 ? lines.join("\n") : null;
   } catch {

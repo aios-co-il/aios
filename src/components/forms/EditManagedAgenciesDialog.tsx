@@ -30,7 +30,7 @@ export default function EditManagedAgenciesDialog({
   user,
 }: EditManagedAgenciesDialogProps) {
   const [agencySearchEM, setAgencySearchEM] = useState("");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>(
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>(
     user.managed_agencies.map((a) => a.id),
   );
   const queryClient = useQueryClient();
@@ -39,7 +39,7 @@ export default function EditManagedAgenciesDialog({
   const { data: agencies } = useAgencies();
 
   const updateMutation = useMutation({
-    mutationFn: async (agencyIds: string[]) => {
+    mutationFn: async (agencyIds: Array<string>) => {
       // Delete existing managed agencies
       await supabase
         .from("user_managed_agencies")
@@ -55,7 +55,9 @@ export default function EditManagedAgenciesDialog({
           })),
         );
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {

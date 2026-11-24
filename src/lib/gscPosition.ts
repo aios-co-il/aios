@@ -37,21 +37,28 @@ export function visibleGscPosition(
   position: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
   },
 ): number | null {
   const rank = top20DisplayPosition(position);
-  if (rank == null) return null;
+  if (rank == null) {
+    return null;
+  }
   const phrase = normalizeKeywordPhrase(query);
   const blocked = new Set(
     (opts?.forceIrrelevant || []).map((item) => normalizeKeywordPhrase(item)),
   );
-  if (phrase && blocked.has(phrase)) return null;
+  if (phrase && blocked.has(phrase)) {
+    return null;
+  }
   const tracked = opts?.tracked || [];
   if (tracked.length > 0) {
     const index = buildTrackedTokenIndex(tracked);
-    if (!isKeywordRelevantToTracked(query, index, { forceIrrelevant: blocked }))
+    if (
+      !isKeywordRelevantToTracked(query, index, { forceIrrelevant: blocked })
+    ) {
       return null;
+    }
   }
   return rank;
 }
@@ -66,19 +73,23 @@ export function trackedQueryPosition(
   position: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
   },
 ): number | null {
   const phrase = normalizeKeywordPhrase(query);
   const blocked = new Set(
     (opts?.forceIrrelevant || []).map((item) => normalizeKeywordPhrase(item)),
   );
-  if (phrase && blocked.has(phrase)) return null;
+  if (phrase && blocked.has(phrase)) {
+    return null;
+  }
   const tracked = opts?.tracked || [];
   const exact = tracked.some((item) =>
     gscQueriesMatch(query, typeof item === "string" ? item : item?.keyword),
   );
-  if (exact) return displayRank(position);
+  if (exact) {
+    return displayRank(position);
+  }
   return visibleGscPosition(query, position, opts);
 }
 
@@ -88,7 +99,7 @@ export function trackedPhraseRank(
   gscPosition: unknown,
   opts?: {
     tracked?: Array<{ keyword?: string } | string>;
-    forceIrrelevant?: string[];
+    forceIrrelevant?: Array<string>;
     ahrefsPositions?: Record<string, number>;
   },
 ): { position: number; source: "ahrefs" | "gsc" } | null {
@@ -96,7 +107,9 @@ export function trackedPhraseRank(
   const blocked = new Set(
     (opts?.forceIrrelevant || []).map((item) => normalizeKeywordPhrase(item)),
   );
-  if (phrase && blocked.has(phrase)) return null;
+  if (phrase && blocked.has(phrase)) {
+    return null;
+  }
   const tracked = opts?.tracked || [];
   const exact = tracked.some((item) =>
     gscQueriesMatch(query, typeof item === "string" ? item : item?.keyword),
@@ -126,7 +139,9 @@ export function keywordDisplayPosition(
     | null
     | undefined,
 ): { position: number; source: "ahrefs" | "gsc" } | null {
-  if (!kw) return null;
+  if (!kw) {
+    return null;
+  }
   const rankIsGsc = kw._source === "gsc" || kw._position_source === "gsc";
   const gscPosition = kw.gsc_position ?? (rankIsGsc ? kw.position : null);
   const ahrefsPosition = kw.ahrefs_position ?? (rankIsGsc ? null : kw.position);
@@ -154,9 +169,13 @@ export function ahrefsPositionsFromReports(
     const rows = report?.report_data?.tracked_keywords || [];
     for (const row of rows) {
       const key = normalizeGscQuery(row?.keyword);
-      if (!key || map.has(key)) continue;
+      if (!key || map.has(key)) {
+        continue;
+      }
       const rank = displayRank(row?.position ?? row?.best_position);
-      if (rank != null) map.set(key, rank);
+      if (rank != null) {
+        map.set(key, rank);
+      }
     }
   }
   return map;

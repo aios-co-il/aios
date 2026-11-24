@@ -85,7 +85,9 @@ export function ConvertContactDialog({
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agencies")
         .select("id, name")
@@ -100,7 +102,9 @@ export function ConvertContactDialog({
   const { data: activeChatProvider } = useQuery({
     queryKey: ["active-chat-provider-for-convert", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("integration_type")
@@ -142,7 +146,9 @@ export function ConvertContactDialog({
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return { data, type: "group" as const };
       } else if (type === "client") {
         const clientData = values as ClientFormValues;
@@ -160,18 +166,21 @@ export function ConvertContactDialog({
             p_notes: clientData.notes || undefined,
           },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         if (activeChatProvider && newClientId) {
           const { error: providerError } = await supabase
             .from("clients")
             .update({ active_chat_provider: activeChatProvider })
             .eq("id", newClientId);
-          if (providerError)
+          if (providerError) {
             console.error(
               "Failed to set chat provider on new client:",
               providerError,
             );
+          }
         }
 
         return { id: newClientId as string, type: "client" as const };
@@ -190,7 +199,9 @@ export function ConvertContactDialog({
           })
           .select()
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return { id: data.id, type: "lead" as const };
       }

@@ -16,24 +16,24 @@ import {
 import type { ClientRecipients } from "../recipients/resolve.ts";
 
 export type Gaps = {
-  candidates: FindingCandidate[];
-  checkedClients: string[];
-  checkedPeople: string[];
+  candidates: Array<FindingCandidate>;
+  checkedClients: Array<string>;
+  checkedPeople: Array<string>;
 };
 
 export type GapInput = {
   /** Each client resolved this run by id; a null client is no longer the tenant's. */
   clients: Map<string, ClientRecipients>;
   /** Brief recipients, owners of owner-first findings and the people of open missing_phone gaps. */
-  people: Recipient[];
+  people: Array<Recipient>;
   /** Keys of people of open missing_phone gaps the router can no longer reach. */
-  gone: string[];
+  gone: Array<string>;
 };
 
 /** Clients without a campaigner and people without a phone among those checked. */
 export function routingGaps(input: GapInput, now: Date): Gaps {
-  const candidates: FindingCandidate[] = [];
-  const checkedClients: string[] = [];
+  const candidates: Array<FindingCandidate> = [];
+  const checkedClients: Array<string> = [];
   const everyone = new Map<string, Recipient>(
     input.people.map((recipient) => [recipient.key, recipient]),
   );
@@ -78,7 +78,7 @@ export async function recordGaps(
     ROUTER_COLLECTOR,
     gaps.candidates,
   );
-  const scopes: [string, string[]][] = [
+  const scopes: Array<[string, Array<string>]> = [
     ["no_campaigner", gaps.checkedClients],
     ["missing_phone", gaps.checkedPeople],
   ];

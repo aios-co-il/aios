@@ -23,7 +23,9 @@ export function useLeadStatuses() {
   } = useQuery({
     queryKey: ["lead-statuses", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("lead_statuses")
@@ -31,8 +33,10 @@ export function useLeadStatuses() {
         .eq("tenant_id", tenantId)
         .order("sort_order");
 
-      if (error) throw error;
-      return data as LeadStatus[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<LeadStatus>;
     },
     enabled: !!tenantId,
   });
@@ -65,7 +69,9 @@ export function useLeadStatusMutations() {
         })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses", tenantId] });
@@ -77,7 +83,9 @@ export function useLeadStatusMutations() {
 
   const createStatus = useMutation({
     mutationFn: async ({ label, color }: { label: string; color: string }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       // Get max sort_order
       const { data: existing } = await supabase
@@ -98,7 +106,9 @@ export function useLeadStatusMutations() {
         sort_order: maxOrder + 1,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses", tenantId] });
@@ -116,7 +126,9 @@ export function useLeadStatusMutations() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses", tenantId] });
@@ -128,14 +140,16 @@ export function useLeadStatusMutations() {
   });
 
   const updateSortOrders = useMutation({
-    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+    mutationFn: async (updates: Array<{ id: string; sort_order: number }>) => {
       for (const update of updates) {
         const { error } = await supabase
           .from("lead_statuses")
           .update({ sort_order: update.sort_order })
           .eq("id", update.id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onMutate: async (updates) => {
@@ -145,7 +159,7 @@ export function useLeadStatusMutations() {
       });
 
       // Save previous state for rollback
-      const previousStatuses = queryClient.getQueryData<LeadStatus[]>([
+      const previousStatuses = queryClient.getQueryData<Array<LeadStatus>>([
         "lead-statuses",
         tenantId,
       ]);

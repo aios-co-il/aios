@@ -40,7 +40,7 @@ test("leadMatchesTagFilter selected tags keep matching leads", () => {
 });
 
 test("buildLeadExportRows maps fields, tags, statuses and numbered updates", () => {
-  const leads: LeadExportRecord[] = [
+  const leads: Array<LeadExportRecord> = [
     {
       id: "1",
       contact_name: "יוסי",
@@ -123,13 +123,13 @@ test("formatLeadExportUpdate joins date, author and content", () => {
 });
 
 test("owner export keeps all current-tenant leads when an agency is selected", () => {
-  const calls: Array<[string, ...unknown[]]> = [];
+  const calls: Array<[string, ...Array<unknown>]> = [];
   const query = {
-    eq: (...args: unknown[]) => {
+    eq: (...args: Array<unknown>) => {
       calls.push(["eq", ...args]);
       return query;
     },
-    or: (...args: unknown[]) => {
+    or: (...args: Array<unknown>) => {
       calls.push(["or", ...args]);
       return query;
     },
@@ -163,7 +163,7 @@ test("owner export keeps all current-tenant leads when an agency is selected", (
 });
 
 function makeClient(
-  tables: Record<string, any[]>,
+  tables: Record<string, Array<any>>,
   ordersByTable: Record<
     string,
     Array<{ column: string; ascending?: boolean }>

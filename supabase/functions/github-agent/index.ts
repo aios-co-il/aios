@@ -47,7 +47,9 @@ Deno.serve(async (req: Request) => {
 
     // Auth
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization header");
+    if (!authHeader) {
+      throw new Error("Missing authorization header");
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const token = authHeader.replace("Bearer ", "");
@@ -62,13 +64,17 @@ Deno.serve(async (req: Request) => {
         data: { user },
         error: authError,
       } = await supabase.auth.getUser(token);
-      if (authError || !user) throw new Error("Unauthorized");
+      if (authError || !user) {
+        throw new Error("Unauthorized");
+      }
     }
 
     const request = (await req.json()) as AgentRequest;
     const { action, tenant_id } = request;
 
-    if (!tenant_id) throw new Error("Missing tenant_id");
+    if (!tenant_id) {
+      throw new Error("Missing tenant_id");
+    }
 
     // Get GitHub token for this tenant
     const githubToken = await getGithubToken(supabase, tenant_id);
@@ -178,7 +184,9 @@ async function handleChatSupport(
   githubToken: string | null,
 ) {
   const { message, user_id: reportingUserId } = request;
-  if (!message) throw new Error("Missing message");
+  if (!message) {
+    throw new Error("Missing message");
+  }
 
   // Get user context
   const targetUserId = reportingUserId || userId;
@@ -226,7 +234,9 @@ ${JSON.stringify(userContext, null, 2)}
     }),
   });
 
-  if (!aiResponse.ok) throw new Error(`AI error: ${aiResponse.status}`);
+  if (!aiResponse.ok) {
+    throw new Error(`AI error: ${aiResponse.status}`);
+  }
 
   const aiData = await aiResponse.json();
   const content = aiData.choices?.[0]?.message?.content || "";
@@ -286,7 +296,9 @@ async function handleAnalyzeError(
   githubToken: string | null,
 ) {
   const { error: errorMsg, file_path, stack_trace } = request;
-  if (!errorMsg) throw new Error("Missing error");
+  if (!errorMsg) {
+    throw new Error("Missing error");
+  }
 
   // If we have GitHub token, try to read the file
   let fileContent = "";
@@ -330,7 +342,9 @@ Return JSON:
     }),
   });
 
-  if (!aiResponse.ok) throw new Error(`AI error: ${aiResponse.status}`);
+  if (!aiResponse.ok) {
+    throw new Error(`AI error: ${aiResponse.status}`);
+  }
 
   const aiData = await aiResponse.json();
   const content = aiData.choices?.[0]?.message?.content || "";
@@ -400,7 +414,9 @@ async function handleFixCode(
 
   // This is called after approval - get the approved action
   const { approval_id } = request;
-  if (!approval_id) throw new Error("Missing approval_id");
+  if (!approval_id) {
+    throw new Error("Missing approval_id");
+  }
 
   const { data: approval } = await supabase
     .from("agent_approval_queue")
@@ -409,10 +425,14 @@ async function handleFixCode(
     .eq("status", "approved")
     .single();
 
-  if (!approval) throw new Error("Approved action not found");
+  if (!approval) {
+    throw new Error("Approved action not found");
+  }
 
   const { file_path, new_code } = approval.proposed_changes;
-  if (!file_path || !new_code) throw new Error("Missing fix details");
+  if (!file_path || !new_code) {
+    throw new Error("Missing fix details");
+  }
 
   // Get repo info from credentials metadata
   const { data: cred } = await supabase
@@ -437,8 +457,9 @@ async function handleFixCode(
       },
     );
 
-    if (!fileResp.ok)
+    if (!fileResp.ok) {
       throw new Error(`Failed to read file: ${fileResp.status}`);
+    }
     const fileData = await fileResp.json();
 
     // 2. Create a new branch
@@ -574,7 +595,9 @@ async function handleApproval(
   status: "approved" | "rejected",
 ) {
   const { approval_id } = request;
-  if (!approval_id) throw new Error("Missing approval_id");
+  if (!approval_id) {
+    throw new Error("Missing approval_id");
+  }
 
   await supabase
     .from("agent_approval_queue")
@@ -625,7 +648,8 @@ async function getUserContext(supabase: any, userId: string, tenantId: string) {
     supabase
       .from("user_permissions")
       .select("module, can_access")
-      .eq("user_id", userId),
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId),
     supabase
       .from("profiles")
       .select("display_name, email")
@@ -663,7 +687,9 @@ async function readGithubFile(
         },
       },
     );
-    if (!resp.ok) return "";
+    if (!resp.ok) {
+      return "";
+    }
     const data = await resp.json();
     return atob(data.content);
   } catch {

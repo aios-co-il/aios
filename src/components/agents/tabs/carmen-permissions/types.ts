@@ -38,7 +38,9 @@ export const canBugfix = (r: Route) =>
 
 /** The level shown for one brain; a null brain_access means full everywhere. */
 export function levelFor(row: AccessRow, slug: string): BrainLevel | null {
-  if (row.brain_access == null) return "full";
+  if (row.brain_access == null) {
+    return "full";
+  }
   return parseLevel(row.brain_access[slug]);
 }
 
@@ -48,7 +50,7 @@ export function levelFor(row: AccessRow, slug: string): BrainLevel | null {
  */
 export function nextBrainAccess(
   row: AccessRow,
-  routes: Route[],
+  routes: Array<Route>,
   slug: string,
   value: string,
 ): Record<string, unknown> {
@@ -56,7 +58,10 @@ export function nextBrainAccess(
     row.brain_access == null
       ? Object.fromEntries(routes.map((r) => [r.slug, "full"]))
       : { ...row.brain_access };
-  if (value === NONE) delete next[slug];
-  else next[slug] = value as BrainLevel;
+  if (value === NONE) {
+    delete next[slug];
+  } else {
+    next[slug] = value as BrainLevel;
+  }
   return next;
 }

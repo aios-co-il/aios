@@ -68,7 +68,9 @@ async function invokeNotification(
       created_by: task.created_by,
     },
   });
-  if (body?.sent === true) return { delivered: true, body };
+  if (body?.sent === true) {
+    return { delivered: true, body };
+  }
   if (body?.handled === true && body?.sent === false) {
     return { delivered: false, body };
   }
@@ -107,13 +109,16 @@ async function claimAndSend(
     .select("id")
     .maybeSingle();
 
-  if (claimError) throw claimError;
-  if (!claimed)
+  if (claimError) {
+    throw claimError;
+  }
+  if (!claimed) {
     return {
       task_id: task.id,
       trigger_type: triggerType,
       skipped: "already claimed",
     };
+  }
 
   try {
     const result = await invokeNotification(task, triggerType);
@@ -152,7 +157,9 @@ async function fetchTask(
     .select(TASK_COLUMNS)
     .eq("id", taskId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data as TaskRow | null;
 }
 
@@ -183,8 +190,12 @@ async function notificationScope(
       .eq("user_id", task.created_by)
       .or(`tenant_id.eq.${task.tenant_id},tenant_id.is.null`),
   ]);
-  if (profileError) throw profileError;
-  if (rolesError) throw rolesError;
+  if (profileError) {
+    throw profileError;
+  }
+  if (rolesError) {
+    throw rolesError;
+  }
 
   return taskNotificationScope({
     taskCampaignerId: task.campaigner_id,
@@ -200,7 +211,7 @@ async function processTask(
   supabase: ReturnType<typeof createClient>,
   task: TaskRow,
 ) {
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const oneMinuteAgo = Date.now() - 60 * 1000;
   const reminderAt = taskReminderAt(task);
   const { isSelfAssigned, shouldNotifyAssignee, isManagedAssignment } =
@@ -215,7 +226,9 @@ async function processTask(
       .update({ assignment_notification_sent_at: handledAt })
       .eq("id", task.id)
       .is("assignment_notification_sent_at", null);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     task.assignment_notification_sent_at = handledAt;
   }
 
@@ -224,14 +237,18 @@ async function processTask(
   if (!isManagedAssignment) {
     const handledAt = new Date().toISOString();
     const silentMarkers: Record<string, string> = {};
-    if (!task.high_priority_reminder_sent_at)
+    if (!task.high_priority_reminder_sent_at) {
       silentMarkers.high_priority_reminder_sent_at = handledAt;
-    if (!task.high_priority_creator_notified_at)
+    }
+    if (!task.high_priority_creator_notified_at) {
       silentMarkers.high_priority_creator_notified_at = handledAt;
-    if (!task.overdue_notified_at)
+    }
+    if (!task.overdue_notified_at) {
       silentMarkers.overdue_notified_at = handledAt;
-    if (!task.overdue_creator_notified_at)
+    }
+    if (!task.overdue_creator_notified_at) {
       silentMarkers.overdue_creator_notified_at = handledAt;
+    }
     if (task.status === "done" && !task.completion_creator_notified_at) {
       silentMarkers.completion_creator_notified_at = handledAt;
     }
@@ -240,7 +257,9 @@ async function processTask(
         .from("tasks")
         .update(silentMarkers)
         .eq("id", task.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       Object.assign(task, silentMarkers);
     }
   }
@@ -278,8 +297,9 @@ async function processTask(
       "task_high_priority_reminder",
     );
     results.push(result);
-    if ("sent" in result && result.sent)
+    if ("sent" in result && result.sent) {
       task.high_priority_reminder_sent_at = new Date().toISOString();
+    }
   }
 
   if (
@@ -335,8 +355,9 @@ async function processTask(
         "task_overdue",
       );
       results.push(result);
-      if ("sent" in result && result.sent)
+      if ("sent" in result && result.sent) {
         task.overdue_notified_at = new Date().toISOString();
+      }
     }
   }
 
@@ -382,8 +403,9 @@ async function processTask(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -392,7 +414,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const errors: Array<{ task_id: string; error: string }> = [];
 
   try {
@@ -402,11 +424,13 @@ Deno.serve(async (req) => {
     if (shabbatHold) {
       return shabbatHold;
     }
-    let tasks: TaskRow[] = [];
+    let tasks: Array<TaskRow> = [];
 
     if (body?.task_id) {
       const task = await fetchTask(supabase, String(body.task_id));
-      if (task) tasks = [task];
+      if (task) {
+        tasks = [task];
+      }
     } else {
       const oneMinuteAgo = new Date(Date.now() - 60 * 1000).toISOString();
       const [
@@ -481,7 +505,9 @@ Deno.serve(async (req) => {
         selfReminders.error,
         overdueTasks.error,
       ].filter(Boolean);
-      if (queryErrors.length) throw queryErrors[0];
+      if (queryErrors.length) {
+        throw queryErrors[0];
+      }
 
       const unique = new Map<string, TaskRow>();
       for (const task of [
@@ -492,8 +518,9 @@ Deno.serve(async (req) => {
         ...(completions.data || []),
         ...(selfReminders.data || []),
         ...(overdueTasks.data || []),
-      ] as TaskRow[])
+      ] as Array<TaskRow>) {
         unique.set(task.id, task);
+      }
       tasks = [...unique.values()];
     }
 

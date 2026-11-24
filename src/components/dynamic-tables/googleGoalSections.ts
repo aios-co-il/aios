@@ -28,7 +28,7 @@ export type GoogleGoalSections<T extends GoogleGoalRow> = {
  * lead never includes sales spend.
  */
 export function googleGoalSections<T extends GoogleGoalRow>(
-  rows: T[],
+  rows: Array<T>,
   fallbackGoal: GoogleCampaignGoal,
 ): GoogleGoalSections<T> {
   const grouped = groupRowsByCampaignGoal(rows, (row) => row.goal);
@@ -48,6 +48,6 @@ export function googleGoalSections<T extends GoogleGoalRow>(
 }
 
 /** Sum of one number over the rows. */
-function sum<T>(rows: T[], value: (row: T) => number): number {
+function sum<T>(rows: Array<T>, value: (row: T) => number): number {
   return rows.reduce((total, row) => total + value(row), 0);
 }

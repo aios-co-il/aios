@@ -76,8 +76,12 @@ export function assetTypeFor(input: {
 }): AssetType {
   const name = input.name ?? input.url ?? "";
   const file = name.split("?")[0];
-  if (isImageFile(file, input.mime)) return "image";
-  if (isVideoFile(file, input.mime)) return "video";
+  if (isImageFile(file, input.mime)) {
+    return "image";
+  }
+  if (isVideoFile(file, input.mime)) {
+    return "video";
+  }
   return input.url && !input.mime ? "link" : "file";
 }
 
@@ -117,14 +121,14 @@ export function clientAssetRows(
   client: ClientForAssets,
   scope: { tenantId: string; itemId: string },
   publicUrl: (path: string) => string,
-): AssetRow[] {
+): Array<AssetRow> {
   const base = {
     tenant_id: scope.tenantId,
     item_id: scope.itemId,
     source: "client" as const,
     use_as_reference: false,
   };
-  const rows: AssetRow[] = [];
+  const rows: Array<AssetRow> = [];
   const brief = [
     client.name && `לקוח: ${str(client.name)}`,
     client.industry && `תחום: ${str(client.industry)}`,
@@ -134,7 +138,7 @@ export function clientAssetRows(
   ]
     .filter(Boolean)
     .join("\n");
-  if (brief.replace(/^לקוח: .*\n?/, "").trim())
+  if (brief.replace(/^לקוח: .*\n?/, "").trim()) {
     rows.push({
       ...base,
       asset_type: "text",
@@ -144,10 +148,11 @@ export function clientAssetRows(
       text: brief,
       meta: { from: "client_brief", client_id: client.id },
     });
+  }
   if (isHttpUrl(client.website) || str(client.website)) {
     const raw = str(client.website, 500);
     const url = isHttpUrl(raw) ? raw : `https://${raw}`;
-    if (isHttpUrl(url))
+    if (isHttpUrl(url)) {
       rows.push({
         ...base,
         asset_type: "site",
@@ -157,13 +162,16 @@ export function clientAssetRows(
         text: null,
         meta: { from: "client_website", client_id: client.id },
       });
+    }
   }
   for (const link of Array.isArray(client.folder_links)
     ? client.folder_links
     : []) {
     const entry = asRecord(link);
     const url = str(entry.url, 500);
-    if (!isHttpUrl(url)) continue;
+    if (!isHttpUrl(url)) {
+      continue;
+    }
     rows.push({
       ...base,
       asset_type: "link",
@@ -181,7 +189,9 @@ export function clientAssetRows(
     const path = str(entry.path, 500);
     const name = str(entry.name, 200) || path.split("/").pop() || "קובץ";
     const type = assetTypeFor({ name, mime: str(entry.type, 80) || undefined });
-    if (!path && !isHttpUrl(entry.url)) continue;
+    if (!path && !isHttpUrl(entry.url)) {
+      continue;
+    }
     rows.push({
       ...base,
       asset_type: type,
@@ -214,8 +224,12 @@ export async function syncClientAssets(
     .eq("item_id", scope.itemId)
     .eq("tenant_id", scope.tenantId)
     .eq("source", "client");
-  if (removed.error) return { added: 0, error: removed.error.message };
-  if (!scope.clientId) return { added: 0 };
+  if (removed.error) {
+    return { added: 0, error: removed.error.message };
+  }
+  if (!scope.clientId) {
+    return { added: 0 };
+  }
   const loaded = await db
     .from("clients")
     .select(
@@ -223,16 +237,24 @@ export async function syncClientAssets(
     )
     .eq("id", scope.clientId)
     .maybeSingle();
-  if (loaded.error) return { added: 0, error: loaded.error.message };
-  if (!loaded.data) return { added: 0 };
+  if (loaded.error) {
+    return { added: 0, error: loaded.error.message };
+  }
+  if (!loaded.data) {
+    return { added: 0 };
+  }
   const rows = clientAssetRows(
     loaded.data as ClientForAssets,
     { tenantId: scope.tenantId, itemId: scope.itemId },
     publicUrl,
   );
-  if (rows.length === 0) return { added: 0 };
+  if (rows.length === 0) {
+    return { added: 0 };
+  }
   const inserted = await db.from("workshop_assets").insert(rows);
-  if (inserted.error) return { added: 0, error: inserted.error.message };
+  if (inserted.error) {
+    return { added: 0, error: inserted.error.message };
+  }
   return { added: rows.length };
 }
 

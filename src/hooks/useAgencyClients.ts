@@ -22,14 +22,18 @@ export function useAgencyClients(
 ) {
   return useQuery({
     queryKey: ["clients", "by-agency", agencyId],
-    queryFn: async (): Promise<ClientOption[]> => {
-      if (!agencyId) return [];
+    queryFn: async (): Promise<Array<ClientOption>> => {
+      if (!agencyId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("id, name")
         .eq("agency_id", agencyId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!agencyId && (options?.enabled ?? true),
@@ -52,24 +56,32 @@ export function useTableDialogAgencies(options?: {
 
   return useQuery({
     queryKey: ["agencies", tenantId, { shared: includeShared }],
-    queryFn: async (): Promise<AgencyOption[]> => {
-      if (!tenantId) return [];
+    queryFn: async (): Promise<Array<AgencyOption>> => {
+      if (!tenantId) {
+        return [];
+      }
 
       const { data: ownedAgencies, error: ownedError } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
-      if (!includeShared) return ownedAgencies || [];
+      if (!includeShared) {
+        return ownedAgencies || [];
+      }
 
       // 1) Which agencies are shared INTO this tenant?
       const { data: sharedAccess, error: sharedError } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
         .eq("accessing_tenant_id", tenantId);
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       const sharedIds = Array.from(
         new Set(
@@ -89,7 +101,9 @@ export function useTableDialogAgencies(options?: {
       //    Prefer a direct id filter over an embed — clearer when RLS blocks a row.
       const { data: sharedAgencies, error: sharedAgenciesError } =
         await supabase.from("agencies").select("id, name").in("id", sharedIds);
-      if (sharedAgenciesError) throw sharedAgenciesError;
+      if (sharedAgenciesError) {
+        throw sharedAgenciesError;
+      }
 
       const mergedAgencies = [
         ...(ownedAgencies || []),

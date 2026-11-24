@@ -78,7 +78,7 @@ export async function reconcileTable(input: {
     return skippedResult(platform, summary, "not_yet_synced");
   }
 
-  let platformRows: CampaignDayRow[];
+  let platformRows: Array<CampaignDayRow>;
   try {
     const span = { start: window.start, end: window.end };
     platformRows = (await source.campaignDays(table, span, account)).rows;
@@ -89,7 +89,7 @@ export async function reconcileTable(input: {
     return errorResult(platform, window, sourceErrorKind(err), err, summary);
   }
 
-  let aiosRows: CampaignDayRow[];
+  let aiosRows: Array<CampaignDayRow>;
   try {
     aiosRows = await input.readAios(table, window.start, window.end);
   } catch (err) {

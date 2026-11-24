@@ -4,7 +4,7 @@ export function formatClientFollowUpMessage(
   notificationType: string,
   client: { id: string; name: string; follow_up_date?: string | null },
   recipientName: string,
-  assigneeNames: string[],
+  assigneeNames: Array<string>,
 ): string {
   const clientLink = `${AIOS_APP_URL}/clients?client=${encodeURIComponent(client.id)}`;
   const details = [`היי ${recipientName || "צוות"}, כאן כרמן 👋`, ""];

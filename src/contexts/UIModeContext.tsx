@@ -30,13 +30,17 @@ export function UIModeProvider({ children }: { children: ReactNode }) {
   const { data: mode = "classic", isLoading } = useQuery({
     queryKey: ["ui-mode", userId],
     queryFn: async () => {
-      if (!userId) return "classic" as UIMode;
+      if (!userId) {
+        return "classic" as UIMode;
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("ui_mode")
         .eq("id", userId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data?.ui_mode as UIMode) || "classic";
     },
     enabled: !!userId,
@@ -44,7 +48,9 @@ export function UIModeProvider({ children }: { children: ReactNode }) {
   });
 
   const toggleMode = async () => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     const newMode: UIMode = mode === "classic" ? "aios" : "classic";
 
     // Optimistic update

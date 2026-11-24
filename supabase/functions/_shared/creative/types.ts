@@ -76,8 +76,8 @@ export interface CreativeVariation {
   name: string;
   imageUrl: string;
   format: CreativeFormat;
-  layers: CreativeLayer[];
-  comments: CreativeComment[];
+  layers: Array<CreativeLayer>;
+  comments: Array<CreativeComment>;
   createdAt: string;
   source?: "ai" | "manual_edit" | "storyboard_import";
   visualStyle?: CreativeVisualStyleId;

@@ -26,11 +26,15 @@ Deno.test(
       step({ id: "1", parallel_track: true, sub_project_key: "creative" }),
       step({ id: "2", parallel_track: true, sub_project_key: "copy" }),
     ]);
-    if (batch.length !== 2) throw new Error("expected 2");
+    if (batch.length !== 2) {
+      throw new Error("expected 2");
+    }
     const single = selectParallelDispatchBatch([
       step({ id: "1", parallel_track: true, sub_project_key: "x" }),
     ]);
-    if (single.length !== 0) throw new Error("expected 0 for single");
+    if (single.length !== 0) {
+      throw new Error("expected 0 for single");
+    }
   },
 );
 
@@ -49,5 +53,7 @@ Deno.test("selectInProgressCursorTracks finds monitoring rows", () => {
       sub_project_key: "copy",
     }),
   ]);
-  if (rows.length !== 1) throw new Error("expected 1");
+  if (rows.length !== 1) {
+    throw new Error("expected 1");
+  }
 });

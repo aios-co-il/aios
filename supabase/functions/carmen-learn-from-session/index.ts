@@ -18,11 +18,15 @@ const corsHeaders = {
 const MODEL = "gpt-4o-mini";
 
 type Insight = {
-  what_worked: { observation: string; example?: string }[];
-  what_failed: { observation: string; example?: string; reason?: string }[];
-  facts: { entity_type?: string; entity_id?: string; fact: string }[];
-  explicit_instructions: { instruction: string }[];
-  style_preferences: { preference: string }[];
+  what_worked: Array<{ observation: string; example?: string }>;
+  what_failed: Array<{
+    observation: string;
+    example?: string;
+    reason?: string;
+  }>;
+  facts: Array<{ entity_type?: string; entity_id?: string; fact: string }>;
+  explicit_instructions: Array<{ instruction: string }>;
+  style_preferences: Array<{ preference: string }>;
   session_summary: string;
   quality_score: number; // 1-5
   task_type?: string;
@@ -136,7 +140,7 @@ function buildSchema() {
 }
 
 async function analyze(
-  history: any[],
+  history: Array<any>,
   apiKey: string | null,
 ): Promise<Insight | null> {
   if (!apiKey) {
@@ -198,8 +202,9 @@ async function analyze(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const { session_id, ai_conversation_id, force } = await req.json();
@@ -328,11 +333,19 @@ Deno.serve(async (req) => {
       .join("\n");
 
     const emb = await embed(summaryFull);
-    const tags: string[] = [];
-    if (insight.what_worked.length) tags.push("worked");
-    if (insight.what_failed.length) tags.push("failed");
-    if (insight.explicit_instructions.length) tags.push("instructions");
-    if (insight.style_preferences.length) tags.push("style");
+    const tags: Array<string> = [];
+    if (insight.what_worked.length) {
+      tags.push("worked");
+    }
+    if (insight.what_failed.length) {
+      tags.push("failed");
+    }
+    if (insight.explicit_instructions.length) {
+      tags.push("instructions");
+    }
+    if (insight.style_preferences.length) {
+      tags.push("style");
+    }
 
     if (existing && force) {
       await supabase

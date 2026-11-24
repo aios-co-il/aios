@@ -70,7 +70,7 @@ function AssistantText({ text }: { text: string }) {
 }
 
 /** Per project, kept while the studio is open so switching projects keeps each thread. */
-const threads = new Map<string, ChatEntry[]>();
+const threads = new Map<string, Array<ChatEntry>>();
 /** Per project, the server conversation its thread continues. */
 const conversations = new Map<string, string>();
 
@@ -84,7 +84,7 @@ export function CreativeStudioChat({
   onTurnDone,
   onClose,
 }: Props) {
-  const [entries, setEntries] = useState<ChatEntry[]>(
+  const [entries, setEntries] = useState<Array<ChatEntry>>(
     () => threads.get(itemId) ?? [],
   );
   const [draft, setDraft] = useState("");
@@ -120,17 +120,25 @@ export function CreativeStudioChat({
     });
 
   const handleAction = (action: StudioUiAction) => {
-    if (action.item_id !== itemId) return;
-    if (needsChatApproval(action))
+    if (action.item_id !== itemId) {
+      return;
+    }
+    if (needsChatApproval(action)) {
       push({ kind: "approval", action, status: "pending" });
-    else onUiAction(action);
+    } else {
+      onUiAction(action);
+    }
   };
 
   const resolveApproval = (index: number, approve: boolean) => {
     setEntries((list) =>
       list.map((entry, i) => {
-        if (i !== index || entry.kind !== "approval") return entry;
-        if (approve) onUiAction(entry.action);
+        if (i !== index || entry.kind !== "approval") {
+          return entry;
+        }
+        if (approve) {
+          onUiAction(entry.action);
+        }
         return { ...entry, status: approve ? "done" : "dismissed" };
       }),
     );
@@ -138,7 +146,9 @@ export function CreativeStudioChat({
 
   const send = async (text: string) => {
     const message = text.trim();
-    if (!message || busy) return;
+    if (!message || busy) {
+      return;
+    }
     const history = entries
       .filter(
         (entry): entry is { kind: "user" | "assistant"; text: string } =>
@@ -166,7 +176,9 @@ export function CreativeStudioChat({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחובר");
+      if (!session) {
+        throw new Error("לא מחובר");
+      }
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/run-ai-agent`,
         {
@@ -199,11 +211,15 @@ export function CreativeStudioChat({
       let buffer = "";
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
         buffer += decoder.decode(value, { stream: true });
         const { events, rest } = parseSseBuffer(buffer);
         buffer = rest;
-        if (events.length > 0) armStallTimer();
+        if (events.length > 0) {
+          armStallTimer();
+        }
         for (const event of events) {
           if (event.type === "token" && typeof event.content === "string") {
             answer += event.content;
@@ -217,17 +233,24 @@ export function CreativeStudioChat({
             pushTool(studioToolLine(event.tool));
           } else if (event.type === "ui_action") {
             const action = parseUiAction(event.action);
-            if (action) handleAction(action);
+            if (action) {
+              handleAction(action);
+            }
           } else if (event.type === "done" && !answer) {
-            if (typeof event.output === "string") answer = event.output;
-            else if (event.error) throw new Error(String(event.error));
+            if (typeof event.output === "string") {
+              answer = event.output;
+            } else if (event.error) {
+              throw new Error(String(event.error));
+            }
           }
         }
       }
       push({ kind: "assistant", text: answer.trim() || "סיימתי." });
     } catch (error: unknown) {
       if (stalled) {
-        if (answer.trim()) push({ kind: "assistant", text: answer.trim() });
+        if (answer.trim()) {
+          push({ kind: "assistant", text: answer.trim() });
+        }
         push({ kind: "assistant", text: STUDIO_STALL_MESSAGE });
       } else {
         const text = error instanceof Error ? error.message : "שגיאה";
@@ -241,11 +264,13 @@ export function CreativeStudioChat({
     }
   };
 
-  const uploadFiles = async (files: File[]) => {
-    if (files.length === 0) return;
+  const uploadFiles = async (files: Array<File>) => {
+    if (files.length === 0) {
+      return;
+    }
     setUploading(true);
     try {
-      const lines: string[] = [];
+      const lines: Array<string> = [];
       for (const file of files.slice(0, 5)) {
         const asset = await uploadCreativeAsset({
           supabase,

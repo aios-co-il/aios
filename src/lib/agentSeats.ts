@@ -44,7 +44,7 @@ export const AGENT_SPRITES: Record<AgentSeatKey, string> = {
 };
 
 /** Top rail order: shared space, then direct agents. */
-export const RAIL_SEAT_ORDER: AgentSeatKey[] = [
+export const RAIL_SEAT_ORDER: Array<AgentSeatKey> = [
   "shared",
   "carmen",
   "cursor",
@@ -56,27 +56,36 @@ export const RAIL_SEAT_ORDER: AgentSeatKey[] = [
 export function seatKeyFromRoute(
   route: BrainRoute | null | undefined,
 ): AgentSeatKey {
-  if (!route) return "carmen";
-  if (route.route_type === "parliament" || route.slug === "parliament")
+  if (!route) {
+    return "carmen";
+  }
+  if (route.route_type === "parliament" || route.slug === "parliament") {
     return "shared";
-  if (route.slug === "internal") return "carmen";
+  }
+  if (route.slug === "internal") {
+    return "carmen";
+  }
   const slug = route.slug as AgentSeatKey;
-  if (slug in AGENT_SPRITES) return slug;
+  if (slug in AGENT_SPRITES) {
+    return slug;
+  }
   return "carmen";
 }
 
 export function routeForSeatKey(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   key: AgentSeatKey,
 ): BrainRoute | undefined {
-  if (key === "shared")
+  if (key === "shared") {
     return routes.find(
       (r) => r.slug === "parliament" || r.route_type === "parliament",
     );
-  if (key === "carmen")
+  }
+  if (key === "carmen") {
     return routes.find(
       (r) => r.slug === "internal" || r.route_type === "internal",
     );
+  }
   return routes.find((r) => r.slug === key);
 }
 
@@ -85,11 +94,16 @@ export function messageSpeakerKey(msg: {
   speaker?: string | null;
   channel?: string | null;
 }): AgentSeatKey {
-  if (msg.role === "user") return "user";
+  if (msg.role === "user") {
+    return "user";
+  }
   const raw = (msg.speaker || msg.channel || "carmen").toLowerCase();
-  if (raw === "internal" || raw === "carmen" || raw === "parliament")
+  if (raw === "internal" || raw === "carmen" || raw === "parliament") {
     return "carmen";
-  if (raw in AGENT_SPRITES) return raw as AgentSeatKey;
+  }
+  if (raw in AGENT_SPRITES) {
+    return raw as AgentSeatKey;
+  }
   return "carmen";
 }
 
@@ -110,7 +124,7 @@ type ChatLike = {
 /** Ghost sprite for the agent that opened a Command Center chat topic. */
 export function topicAgentSprite(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
 ): string {
   const route = routeForRestoredChat(routes, conv);
   const key = seatKeyFromRoute(route);
@@ -119,7 +133,7 @@ export function topicAgentSprite(
 
 export function topicAgentLabel(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
 ): string {
   return routeForRestoredChat(routes, conv).label;
 }
@@ -129,27 +143,40 @@ export function messageChannelKey(msg: ChatLike): string {
   const raw = String(msg.channel || msg.speaker || "")
     .toLowerCase()
     .trim();
-  if (!raw || raw === "user") return "";
-  if (raw === "internal" || raw === "carmen") return "internal";
-  if (raw === "parliament" || raw === "shared") return "parliament";
+  if (!raw || raw === "user") {
+    return "";
+  }
+  if (raw === "internal" || raw === "carmen") {
+    return "internal";
+  }
+  if (raw === "parliament" || raw === "shared") {
+    return "parliament";
+  }
   return raw;
 }
 
 function messageBelongsToRoute(msg: ChatLike, route: BrainRoute): boolean {
   const channel = messageChannelKey(msg);
-  if (route.route_type === "parliament" || route.slug === "parliament")
+  if (route.route_type === "parliament" || route.slug === "parliament") {
     return true;
+  }
 
   if (route.slug === "internal" || route.route_type === "internal") {
     // Legacy untagged lines lived on Carmen; hide other direct seats.
-    if (!channel) return true;
+    if (!channel) {
+      return true;
+    }
     return channel === "internal" || channel === "carmen";
   }
 
   // Direct seat: only that seat's traffic (including the user's lines to it).
-  if (!channel) return false;
+  if (!channel) {
+    return false;
+  }
   // Model brains all have provider "model"; only the slug identifies one.
-  if (route.route_type === "model") return channel === route.slug;
+  if (route.route_type === "model") {
+    return channel === route.slug;
+  }
   return channel === route.slug || channel === route.provider;
 }
 
@@ -158,15 +185,16 @@ function messageBelongsToRoute(msg: ChatLike, route: BrainRoute): boolean {
  * Direct seats (and Carmen) show only that seat's thread — including user lines.
  */
 export function filterMessagesForRoute<T extends ChatLike>(
-  messages: T[],
+  messages: Array<T>,
   route: BrainRoute | null,
-): T[] {
+): Array<T> {
   if (
     !route ||
     route.route_type === "parliament" ||
     route.slug === "parliament"
-  )
+  ) {
     return messages;
+  }
   return messages.filter((m) => messageBelongsToRoute(m, route));
 }
 
@@ -181,10 +209,12 @@ export function lastConversationStorageKeyForSeat(
 export function conversationMatchesRoute(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
   route: BrainRoute,
-  routes: BrainRoute[] = [],
+  routes: Array<BrainRoute> = [],
 ): boolean {
   if (conv.brain_route_id) {
-    if (conv.brain_route_id === route.id) return true;
+    if (conv.brain_route_id === route.id) {
+      return true;
+    }
     const owned = routes.find((r) => r.id === conv.brain_route_id);
     if (owned) {
       if (route.route_type === "parliament" || route.slug === "parliament") {
@@ -206,16 +236,22 @@ export function conversationMatchesRoute(
   }
   // routing_mode is stored as route_type ("direct_channel") for every direct seat —
   // without a resolvable brain_route_id we must not leak Cursor↔Grok↔Codex threads.
-  if (mode === "direct_channel" || mode === route.route_type) return false;
-  if (route.route_type === "model") return mode === route.slug;
+  if (mode === "direct_channel" || mode === route.route_type) {
+    return false;
+  }
+  if (route.route_type === "model") {
+    return mode === route.slug;
+  }
   return mode === route.slug || mode === route.provider;
 }
 
 export function conversationsForRoute(
-  items: TopicChat[],
+  items: Array<TopicChat>,
   route: BrainRoute | null,
-  routes: BrainRoute[] = [],
-): TopicChat[] {
-  if (!route) return items;
+  routes: Array<BrainRoute> = [],
+): Array<TopicChat> {
+  if (!route) {
+    return items;
+  }
   return items.filter((c) => conversationMatchesRoute(c, route, routes));
 }

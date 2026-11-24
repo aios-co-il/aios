@@ -26,7 +26,7 @@ type Alert = Pick<
 >;
 
 /** `n` alerts of one rule, lines "<rule> 1" … "<rule> n". */
-function alerts(rule: Alert["rule_type"], n: number): Alert[] {
+function alerts(rule: Alert["rule_type"], n: number): Array<Alert> {
   return Array.from({ length: n }, (_, i) => ({
     rule_type: rule,
     line: `${rule} ${i + 1}`,

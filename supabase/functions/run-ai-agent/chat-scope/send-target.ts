@@ -5,6 +5,7 @@ import { asUuidOrNull } from "../../_shared/uuid.ts";
 export interface SendTarget {
   phone: string | null;
   contactName: string | null;
+  tenantId: string | null;
 }
 
 /**
@@ -16,11 +17,11 @@ export async function sendTargetFor(
   supabase: Pick<DbClient, "from">,
   contactType: unknown,
   contactId: unknown,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<SendTarget> {
   const id = asUuidOrNull(contactId);
   if (!id) {
-    return { phone: null, contactName: null };
+    return { phone: null, contactName: null, tenantId: null };
   }
 
   return contactType === "lead"
@@ -32,11 +33,11 @@ export async function sendTargetFor(
 async function leadTarget(
   supabase: Pick<DbClient, "from">,
   id: string,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<SendTarget> {
   const { data, error } = await supabase
     .from("leads")
-    .select("phone, company_name, contact_name")
+    .select("phone, company_name, contact_name, tenant_id")
     .eq("id", id)
     .in("tenant_id", tenantIds)
     .maybeSingle();
@@ -46,6 +47,7 @@ async function leadTarget(
 
   return {
     phone: data?.phone ?? null,
+    tenantId: data?.tenant_id ?? null,
     contactName: (data?.contact_name || data?.company_name) ?? null,
   };
 }
@@ -54,11 +56,11 @@ async function leadTarget(
 async function clientTarget(
   supabase: Pick<DbClient, "from">,
   id: string,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<SendTarget> {
   const { data, error } = await supabase
     .from("clients")
-    .select("phone, name, contact_name")
+    .select("phone, name, contact_name, tenant_id")
     .eq("id", id)
     .in("tenant_id", tenantIds)
     .maybeSingle();
@@ -68,6 +70,7 @@ async function clientTarget(
 
   return {
     phone: data?.phone ?? null,
+    tenantId: data?.tenant_id ?? null,
     contactName: (data?.contact_name || data?.name) ?? null,
   };
 }

@@ -11,7 +11,10 @@ type Schema = {
 };
 
 /** Every description of a field named `name` in a tool's parameters, at any depth. */
-function fieldDescriptions(schema: Schema | undefined, name: string): string[] {
+function fieldDescriptions(
+  schema: Schema | undefined,
+  name: string,
+): Array<string> {
   if (!schema) {
     return [];
   }

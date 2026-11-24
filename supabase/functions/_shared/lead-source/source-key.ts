@@ -64,7 +64,7 @@ export const LEAD_SOURCE_ALIASES: ReadonlyArray<
  * else is "other".
  */
 export const LEAD_SOURCE_WORDS: ReadonlyArray<
-  readonly [key: LeadSourceKey, words: readonly string[]]
+  readonly [key: LeadSourceKey, words: ReadonlyArray<string>]
 > = [
   ["website", ["אתר", "website"]],
   ["cold_call", ["שיחה", "טלפון", "coldcall"]],

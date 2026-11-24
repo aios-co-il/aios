@@ -75,8 +75,12 @@ Deno.serve(async (req) => {
   }
 
   const { data: sessions, error } = await query;
-  if (error) return json({ error: error.message }, 500);
-  if (!sessions?.length) return json({ processed: 0, results: [] });
+  if (error) {
+    return json({ error: error.message }, 500);
+  }
+  if (!sessions?.length) {
+    return json({ processed: 0, results: [] });
+  }
 
   const results: Array<ReconcileResult> = [];
   for (const session of sessions) {
