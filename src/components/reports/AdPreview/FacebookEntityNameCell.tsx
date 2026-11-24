@@ -20,6 +20,7 @@ export function FacebookEntityNameCell({ name, off, adId }: Props) {
   const source = useAdPreviewSource();
   const [openAdId, setOpenAdId] = useState<string | null>(null);
   const previewable = source && adId;
+
   return (
     <>
       <ReportNameCell

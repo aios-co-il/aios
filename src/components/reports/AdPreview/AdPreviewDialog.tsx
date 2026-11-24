@@ -23,6 +23,7 @@ type Props = {
  */
 export function AdPreviewDialog({ source, adId, adName, onClose }: Props) {
   const preview = useAdPreview(source, adId);
+
   return (
     <Dialog open={adId !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md" dir="rtl">

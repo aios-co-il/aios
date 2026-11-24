@@ -28,11 +28,13 @@ export async function fetchMetaPreviewSrc(
     headers: { Authorization: `Bearer ${token}` },
   });
   const payload: unknown = await response.json().catch(() => null);
+
   if (!response.ok) {
     throw new AdPreviewGraphError(
       `Graph ${response.status}: ${JSON.stringify(payload)}`,
     );
   }
+
   const body = firstPreviewBody(payload);
   const src = body ? metaPreviewSrc(iframeSrcOf(body) ?? "") : null;
   if (!src) {
@@ -40,6 +42,7 @@ export async function fetchMetaPreviewSrc(
       `Graph preview without a Meta iframe: ${JSON.stringify(payload)}`,
     );
   }
+
   return src;
 }
 
@@ -48,10 +51,12 @@ function firstPreviewBody(payload: unknown): string | null {
   if (!payload || typeof payload !== "object" || !("data" in payload)) {
     return null;
   }
+
   const first: unknown = Array.isArray(payload.data) ? payload.data[0] : null;
   if (!first || typeof first !== "object" || !("body" in first)) {
     return null;
   }
+
   return typeof first.body === "string" ? first.body : null;
 }
 

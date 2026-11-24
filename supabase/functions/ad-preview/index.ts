@@ -14,9 +14,11 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
   if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
   }
+
   const authorization = request.headers.get("Authorization") ?? "";
   const { status, body } = await handleAdPreview(
     await request.json().catch(() => null),
@@ -25,6 +27,7 @@ Deno.serve(async (request) => {
       fetch,
     },
   );
+
   return reply(body, status);
 });
 

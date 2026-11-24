@@ -62,6 +62,7 @@ export async function handleAdPreview(
     console.error("[ad-preview] rejected an invalid request body");
     return { status: 400, body: { error: "invalid_request" } };
   }
+
   try {
     const table = await accessibleTable(deps.store, request.access);
     if (!table || !(await deps.store.hasAdRow(table, request.adId))) {
@@ -70,11 +71,13 @@ export async function handleAdPreview(
       );
       return { status: 404, body: { error: "not_found" } };
     }
+
     const token = await deps.store.metaToken(table);
     if (!token) {
       console.error(`[ad-preview] no Meta token for table ${table.id}`);
       return { status: 502, body: { error: "preview_unavailable" } };
     }
+
     const src = await fetchMetaPreviewSrc(deps.fetch, token, request.adId);
     return { status: 200, body: { src } };
   } catch (error) {
@@ -94,17 +97,21 @@ function parseRequest(
   if (!body || typeof body !== "object") {
     return null;
   }
+
   const adId = stringField(body, "ad_id");
   const shareToken = stringField(body, "share_token");
   const tableId = stringField(body, "table_id");
+
   if (!adId || !AD_ID.test(adId)) {
     return null;
   }
+
   if (shareToken) {
     return SHARE_TOKEN.test(shareToken)
       ? { adId, access: { kind: "share", shareToken } }
       : null;
   }
+
   return tableId && UUID.test(tableId)
     ? { adId, access: { kind: "user", tableId } }
     : null;
@@ -125,8 +132,10 @@ async function accessibleTable(
     access.kind === "share"
       ? await store.tableForShare(access.shareToken)
       : await store.tableForUser(access.tableId);
+
   if (!table || !FACEBOOK_REPORT_TYPES.has(table.integrationType ?? "")) {
     return null;
   }
+
   return table;
 }
