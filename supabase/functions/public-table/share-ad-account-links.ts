@@ -12,16 +12,28 @@ import {
 
 /** The shared table as public-table loads it (a full crm_tables row). */
 export type ShareTableRow = {
+  tenant_id?: string | null;
   client_id?: string | null;
   integration_type?: string | null;
   integration_settings?: Record<string, unknown> | null;
 };
 
-/** The reads the links need, injected so tests can fake them. */
+/** The reads the links need, each scoped to the shared table's tenant. */
 export type ShareAdAccountReads = {
-  clientLinks(clientId: string): Promise<ClientAdLinks | null>;
-  clientAdTables(clientId: string): Promise<Array<AdAccountTable>>;
+  /** The client's saved links, or null when the client is not in the tenant. */
+  tenantClientLinks(
+    clientId: string,
+    tenantId: string,
+  ): Promise<ClientAdLinks | null>;
+  /** The tenant's ads tables of the client, in the internal report's order. */
+  tenantClientAdTables(
+    clientId: string,
+    tenantId: string,
+  ): Promise<Array<AdAccountTable>>;
 };
+
+/** The report's client and whether the id came from the tenant-writable settings JSON. */
+type ReportClient = { id: string; fromSettings: boolean };
 
 /**
  * The share link's "open ad account" buttons, as the signed-in report shows
@@ -42,24 +54,36 @@ export async function shareTableAdAccountLinks(
   }
 }
 
-/** The links of `shareTableAdAccountLinks`, reading the client only when needed. */
+/**
+ * The links of `shareTableAdAccountLinks`. Every read is limited to the
+ * table's tenant, and a client id taken from the settings JSON is used only
+ * once that client is found in the tenant, so a share never links another
+ * tenant's accounts.
+ */
 async function buildLinks(
   table: ShareTableRow,
   reads: ShareAdAccountReads,
 ): Promise<Array<AdAccountShortcut>> {
   const adTable = toAdAccountTable(table);
-  const clientId = reportClientIdOf(table);
-  if (!clientId) {
+  const tenantId = uuidOrNull(table.tenant_id);
+  const client = reportClientOf(table);
+  if (!tenantId || !client) {
     return getTableAdAccountLinks(adTable, []);
   }
 
-  const clientLinks = toClientAdLinks(await reads.clientLinks(clientId));
+  const clientRow = await reads.tenantClientLinks(client.id, tenantId);
+  if (!clientRow && client.fromSettings) {
+    return getTableAdAccountLinks(adTable, []);
+  }
+
+  const clientLinks = toClientAdLinks(clientRow);
   const ownLinks = getTableAdAccountLinks(adTable, [], clientLinks);
   if (ownLinks.length > 0) {
     return ownLinks;
   }
 
-  return getAdAccountLinks(await reads.clientAdTables(clientId), clientLinks);
+  const clientTables = await reads.tenantClientAdTables(client.id, tenantId);
+  return getAdAccountLinks(clientTables, clientLinks);
 }
 
 const AD_INTEGRATION_TYPES = [
@@ -71,20 +95,22 @@ const AD_INTEGRATION_TYPES = [
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Service-role reads for public-table. Like public-dashboard, the client's
- * tables are matched by client only: ads tables may sit under another tenant
- * (shared agency) while linked to this client, and the share token already
- * authorises the view. A failed read logs and shows no button.
+ * Service-role reads for public-table, each filtered by the shared table's
+ * tenant_id. Tables of shared agencies in other tenants are not linked: the
+ * buttons are the table tenant's own ads tables, in the order crm-tables
+ * lists that tenant's tables (category, then newest first). A failed read
+ * logs and shows no button.
  */
 export function supabaseShareAdAccountReads(
   supabase: SupabaseClient,
 ): ShareAdAccountReads {
   return {
-    async clientLinks(clientId) {
+    async tenantClientLinks(clientId, tenantId) {
       const { data, error } = await supabase
         .from("clients")
         .select("meta_ads_url, google_ads_url")
         .eq("id", clientId)
+        .eq("tenant_id", tenantId)
         .maybeSingle();
       if (error) {
         console.error("[public-table] client ad links read failed:", error);
@@ -92,10 +118,11 @@ export function supabaseShareAdAccountReads(
       }
       return data;
     },
-    async clientAdTables(clientId) {
+    async tenantClientAdTables(clientId, tenantId) {
       const { data, error } = await supabase
         .from("crm_tables")
         .select("integration_type, integration_settings")
+        .eq("tenant_id", tenantId)
         .or(
           `client_id.eq.${clientId},integration_settings->>clientId.eq.${clientId}`,
         )
@@ -112,16 +139,23 @@ export function supabaseShareAdAccountReads(
 }
 
 /**
- * The report's client, read the way DynamicTableView reads it. Only a uuid is
- * used, because the id goes into a PostgREST filter.
+ * The report's client, read the way DynamicTableView reads it: the client_id
+ * column, else the legacy settings key. Only a uuid is used, because the id
+ * goes into a PostgREST filter.
  */
-function reportClientIdOf(table: ShareTableRow): string | null {
+function reportClientOf(table: ShareTableRow): ReportClient | null {
+  const columnId = uuidOrNull(table.client_id);
+  if (columnId) {
+    return { id: columnId, fromSettings: false };
+  }
   const settings = table.integration_settings || {};
-  const candidate =
-    table.client_id || settings.clientId || settings.client_id || null;
-  return typeof candidate === "string" && UUID.test(candidate)
-    ? candidate
-    : null;
+  const settingsId = uuidOrNull(settings.clientId ?? settings.client_id);
+  return settingsId ? { id: settingsId, fromSettings: true } : null;
+}
+
+/** A uuid string, or null for anything else. */
+function uuidOrNull(value: unknown): string | null {
+  return typeof value === "string" && UUID.test(value) ? value : null;
 }
 
 /** The account ids a link is built from; every other setting is dropped. */

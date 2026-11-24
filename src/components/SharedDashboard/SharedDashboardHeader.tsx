@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import type { AdAccountShortcut } from "@functions/_shared/share-links/ad-account-links.ts";
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import { showsPreviousToggle } from "@/components/report-ui/dashboard/previousPlatformTabs";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";

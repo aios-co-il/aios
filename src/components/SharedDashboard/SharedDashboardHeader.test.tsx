@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AdAccountShortcut } from "@functions/_shared/share-links/ad-account-links.ts";
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import { withTestQuery } from "@/test/withTestQuery";
 import { SharedDashboardHeader } from "./SharedDashboardHeader";
 

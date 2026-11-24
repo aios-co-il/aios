@@ -1,4 +1,4 @@
-import type { AdAccountShortcut } from "@functions/_shared/share-links/ad-account-links.ts";
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import type { AdsReportRecord } from "@/components/reports/AdsGoalTables/adsGoalTablesTypes";
 import type { SharedSeoPayload } from "./sharedSeoPayload";
 

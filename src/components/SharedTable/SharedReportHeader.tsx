@@ -1,5 +1,5 @@
 import { BarChart3, Globe } from "lucide-react";
-import type { AdAccountShortcut } from "@functions/_shared/share-links/ad-account-links.ts";
+import type { AdAccountShortcut } from "@/lib/adAccountUrl";
 import type { AdsReportView } from "@/components/dynamic-tables/CampaignContinents/useContinentsReportView";
 import { PreviousPeriodToggle } from "@/components/reports/PreviousPeriod/PreviousPeriodToggle";
 import { AdAccountButtons } from "@/components/reports/ReportHeader/AdAccountButtons";

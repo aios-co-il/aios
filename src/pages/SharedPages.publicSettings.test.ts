@@ -8,8 +8,7 @@ import {
   toPublicTableSettings,
 } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import { isEcommerceReportTable } from "../../supabase/functions/_shared/campaign-goal/table-goal.ts";
-import { getAdAccountLinks } from "../../supabase/functions/_shared/share-links/ad-account-links.ts";
-import { toClientAdLinks } from "../../supabase/functions/_shared/share-links/ad-account-url.ts";
+import { getAdAccountLinks, toClientAdLinks } from "@/lib/adAccountUrl";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
