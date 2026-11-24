@@ -1,9 +1,10 @@
 -- A card entry that reports the client called or spoke ("גיא התקשר", "התקשר
 -- ביקש…", "דיבר טלפונית עם הלקוח") counts as contact, like one in the first
--- person (AIO-516). Plans ("מחר", "צריך", "שוב") and written channels
--- (WhatsApp, the group, email) do not, so "התקשר ללקוח מחר" and "דיברו
--- בוואטסאפ" stay uncounted; questions, negations and no-answer calls stay
--- excluded for every rule.
+-- person (AIO-516). Plans ("מחר", "צריך"), written channels (WhatsApp, the
+-- group, email), leads and instructions ("התקשר אליו") do not, so "דיברו
+-- בוואטסאפ" and "התקשרו 4 לידים" stay uncounted; questions, negations and
+-- no-answer calls stay excluded for every rule. The first-person rules are
+-- unchanged (a written channel next to "דיברתי איתו" still counts there).
 
 -- True when a client card entry's text reports a call or meeting that was held.
 CREATE OR REPLACE FUNCTION public.client_update_reports_contact(p_content text)
@@ -16,12 +17,18 @@ AS $$
       clause ~ '(^|[^א-ת])[וש]?(דיברתי|דברתי|דיברנו|דברנו|שוחחתי|שוחחנו|נפגשתי|נפגשנו|התקשרתי|התקשרנו)([^א-ת]|$)'
       OR clause ~ '(^|[^א-ת])[וש]?(דיבר|דיברה|שוחח|שוחחה)[[:space:]]+(עם|איתו|איתה|איתם|איתן)([^א-ת]|$)'
       OR clause ~ '(^|[^א-ת])[וש]?(היה|היתה|הייתה|התקיים|התקיימה|בוצע|בוצעה|קיימנו|עשינו|ערכנו)[[:space:]]+(לנו[[:space:]]+)?(זום|פגישה|פגישת|שיחה|שיחת|מפגש|ישיבה)'
-      -- Someone else called or spoke: only when the clause plans nothing and
-      -- names no written channel.
-      OR (
-        clause ~ '(^|[^א-ת])[וש]?(התקשר|התקשרה|התקשרו|נפגשו|דיבר|דיברה|דיברו|שוחח|שוחחה|שוחחו)([^א-ת]|$)'
-        AND clause !~ '(^|[^א-ת])(מחר|צריך|צריכה|צריכים|יש[[:space:]]+ל|נא|בבקשה|תזכורת|לחזור|אמור|אמורה|שוב)([^א-ת]|$)'
-        AND clause !~ '(וו?א?טסאפ|ווצאפ|בקבוצה|במייל|במסרון|בהודעה|בצאט|בצ׳אט)'
+      -- Someone else called or spoke ("גיא התקשר", "כשהתקשר אמר"): read per
+      -- comma part, so a plan later in the sentence does not cancel the call.
+      -- A part that plans, names a written channel, talks about leads or
+      -- tells someone to call ("התקשר אליו") does not count.
+      OR EXISTS (
+        SELECT 1
+        FROM regexp_split_to_table(clause, ',') AS part
+        WHERE part ~ '(^|[^א-ת])(כש|[וש])?(התקשר|התקשרה|התקשרו|נפגשו|דיבר|דיברה|דיברו|שוחח|שוחחה|שוחחו)([^א-ת]|$)'
+          AND part !~ '(^|[^א-ת])(מחר|צריך|צריכה|צריכים|יש[[:space:]]+ל|נא|בבקשה|תזכורת|לחזור|אמור|אמורה)([^א-ת]|$)'
+          AND part !~ '(וו?א?טסאפ|ווצאפ|בקבוצה|במייל|במסרון|בהודעה|בצאט|בצ׳אט)'
+          AND part !~ '(^|[^א-ת])(ליד|לידים)([^א-ת]|$)'
+          AND part !~ '^[[:space:]]*[וש]?התקשר[[:space:]]+(ללקוח|ללקוחה|אליו|אליה|אליהם|לו|לה|להם)([^א-ת]|$)'
       )
     ), false)
   FROM regexp_split_to_table(COALESCE(p_content, ''), E'[.!\n]+') AS clause
