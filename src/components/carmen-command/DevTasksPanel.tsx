@@ -38,7 +38,9 @@ export function DevTasksPanel({ tenantId }: { tenantId: string | null }) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session || !tenantId) return [];
+      if (!session || !tenantId) {
+        return [];
+      }
       return listDevTasks(session.access_token, tenantId);
     },
     enabled: Boolean(tenantId),
@@ -56,13 +58,17 @@ export function DevTasksPanel({ tenantId }: { tenantId: string | null }) {
 
   const runAction = useCallback(
     async (id: string, action: string, extra?: Record<string, unknown>) => {
-      if (!tenantId) return;
+      if (!tenantId) {
+        return;
+      }
       setBusyId(id);
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) throw new Error("לא מחובר");
+        if (!session) {
+          throw new Error("לא מחובר");
+        }
         await devTaskAction(session.access_token, {
           action,
           tenant_id: tenantId,

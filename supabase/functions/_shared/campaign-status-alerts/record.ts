@@ -39,7 +39,9 @@ export async function recordFindings(
       },
       notify,
     );
-    if (row) created++;
+    if (row) {
+      created++;
+    }
   }
   const resolved = await resolveClearedAlerts(db, {
     tenantId,

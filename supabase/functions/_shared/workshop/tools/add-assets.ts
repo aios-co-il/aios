@@ -25,16 +25,22 @@ export async function importWebImage(
     accept: "image/*,*/*",
     maxBytes: 8_000_000,
   });
-  if (!fetched.ok) return { error: fetched.error ?? "התמונה לא נגישה" };
+  if (!fetched.ok) {
+    return { error: fetched.error ?? "התמונה לא נגישה" };
+  }
   const mime = sniffMime(fetched.bytes);
-  if (!mime) return { error: "הקובץ אינו תמונה נתמכת (JPG, PNG או WebP)" };
+  if (!mime) {
+    return { error: "הקובץ אינו תמונה נתמכת (JPG, PNG או WebP)" };
+  }
   const extension =
     mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
   const path = `workshop-imports/${scope.tenantId}/${scope.itemId}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${extension}`;
   const { error } = await supabase.storage
     .from(IMPORT_BUCKET)
     .upload(path, fetched.bytes, { contentType: mime });
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
   return {
     url: supabase.storage.from(IMPORT_BUCKET).getPublicUrl(path).data
       .publicUrl as string,
@@ -44,16 +50,22 @@ export async function importWebImage(
 export async function workshopAddAssets(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const requested = (Array.isArray(args.assets) ? args.assets : []).slice(0, 8);
-  if (requested.length === 0) return { error: "assets נדרש" };
+  if (requested.length === 0) {
+    return { error: "assets נדרש" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const existing = await loadAssets(supabase, tenantId, itemId);
   const byUrl = new Map(existing.map((a) => [a.url, a]));
   const added: Array<{ title: string; type: string }> = [];
@@ -129,15 +141,20 @@ export async function workshopAddAssets(ctx: ToolContext) {
     }
     const known = byUrl.get(url);
     if (known) {
-      if (wantsLogo) logoUrl = known.url;
+      if (wantsLogo) {
+        logoUrl = known.url;
+      }
       if (wantsReference && !known.use_as_reference) {
         const marked = await supabase
           .from("workshop_assets")
           .update({ use_as_reference: true })
           .eq("id", known.id)
           .eq("tenant_id", tenantId);
-        if (marked.error) failed.push({ url, reason: marked.error.message });
-        else referenceCount += 1;
+        if (marked.error) {
+          failed.push({ url, reason: marked.error.message });
+        } else {
+          referenceCount += 1;
+        }
       }
       continue;
     }
@@ -165,8 +182,12 @@ export async function workshopAddAssets(ctx: ToolContext) {
       failed.push({ url, reason: savedImage.error.message });
       continue;
     }
-    if (wantsReference) referenceCount += 1;
-    if (wantsLogo) logoUrl = imported.url;
+    if (wantsReference) {
+      referenceCount += 1;
+    }
+    if (wantsLogo) {
+      logoUrl = imported.url;
+    }
     added.push({ title: title || hostLabel(url), type: "image" });
   }
   if (logoUrl) {

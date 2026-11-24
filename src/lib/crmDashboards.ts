@@ -32,7 +32,9 @@ export async function resolveDashboardHomeTenant(opts: {
       .select("tenant_id")
       .eq("id", agencyId)
       .maybeSingle();
-    if (data?.tenant_id) return data.tenant_id;
+    if (data?.tenant_id) {
+      return data.tenant_id;
+    }
   }
   if (clientId) {
     const { data } = await supabase
@@ -46,9 +48,13 @@ export async function resolveDashboardHomeTenant(opts: {
         .select("tenant_id")
         .eq("id", data.agency_id)
         .maybeSingle();
-      if (agency?.tenant_id) return agency.tenant_id;
+      if (agency?.tenant_id) {
+        return agency.tenant_id;
+      }
     }
-    if (data?.tenant_id) return data.tenant_id;
+    if (data?.tenant_id) {
+      return data.tenant_id;
+    }
   }
   return uiTenantId;
 }
@@ -68,21 +74,27 @@ async function fetchDashboardsByIds(
       .neq("tenant_id", tenantId)
       .in("agency_id", agencyIds)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     rows.push(...((data || []) as unknown as Array<CrmDashboardListRow>));
   }
 
   const chunkSize = 200;
   for (let i = 0; i < clientIds.length; i += chunkSize) {
     const chunk = clientIds.slice(i, i + chunkSize);
-    if (chunk.length === 0) continue;
+    if (chunk.length === 0) {
+      continue;
+    }
     const { data, error } = await supabase
       .from("crm_dashboards")
       .select(select)
       .neq("tenant_id", tenantId)
       .in("client_id", chunk)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     rows.push(...((data || []) as unknown as Array<CrmDashboardListRow>));
   }
 
@@ -108,7 +120,9 @@ export async function fetchAccessibleDashboards(
     .select(select)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
-  if (ownedErr) throw ownedErr;
+  if (ownedErr) {
+    throw ownedErr;
+  }
 
   const [
     { data: ownedAgencies, error: ownedAgenciesErr },
@@ -120,8 +134,12 @@ export async function fetchAccessibleDashboards(
       .select("agency_id")
       .eq("accessing_tenant_id", tenantId),
   ]);
-  if (ownedAgenciesErr) throw ownedAgenciesErr;
-  if (sharedErr) throw sharedErr;
+  if (ownedAgenciesErr) {
+    throw ownedAgenciesErr;
+  }
+  if (sharedErr) {
+    throw sharedErr;
+  }
 
   const ownedAgencyIds = Array.from(
     new Set((ownedAgencies || []).map((a) => a.id).filter(Boolean)),
@@ -139,7 +157,9 @@ export async function fetchAccessibleDashboards(
       .from("clients")
       .select("id")
       .in("agency_id", accessibleAgencyIds);
-    if (clientsErr) throw clientsErr;
+    if (clientsErr) {
+      throw clientsErr;
+    }
     const clientIds = (agencyClients || []).map((c) => c.id).filter(Boolean);
     foreignRows = await fetchDashboardsByIds(
       select,
@@ -154,7 +174,9 @@ export async function fetchAccessibleDashboards(
     ...((owned || []) as unknown as Array<CrmDashboardListRow>),
     ...foreignRows,
   ]) {
-    if (row?.id) map.set(row.id, row);
+    if (row?.id) {
+      map.set(row.id, row);
+    }
   }
 
   return Array.from(map.values()).sort((a, b) => {

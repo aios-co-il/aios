@@ -16,7 +16,9 @@ if (!manifestPath || !outputPath) {
 }
 
 const assert = (ok, msg) => {
-  if (!ok) throw Error(msg);
+  if (!ok) {
+    throw Error(msg);
+  }
 };
 const SAFE_NAME = /^[a-z0-9][a-z0-9._-]*$/i;
 
@@ -149,7 +151,9 @@ const text = (value, max) => String(value ?? "").slice(0, max);
 
 /** Volume keyframes: strictly increasing frames, volumes between 0 and 1. */
 const envelopeOf = (env) => {
-  if (!env) return null;
+  if (!env) {
+    return null;
+  }
   const { frames, volumes } = env;
   assert(
     Array.isArray(frames) &&
@@ -169,7 +173,9 @@ const envelopeOf = (env) => {
  * most 50 (render-worker music-bed.ts MAX_MUSIC_LOOPS).
  */
 const musicLoopsOf = (list) => {
-  if (list === undefined || list === null) return null;
+  if (list === undefined || list === null) {
+    return null;
+  }
   assert(Array.isArray(list) && list.length <= 50, "Invalid music loops");
   return list.map((loop) => {
     assert(
@@ -196,7 +202,9 @@ const musicLoopsOf = (list) => {
  * also says its line (0 or 1), whether it is the key word and whether it reads left to right.
  */
 const captionsOf = (list) => {
-  if (!Array.isArray(list)) return [];
+  if (!Array.isArray(list)) {
+    return [];
+  }
   assert(list.length <= 2000, "Too many captions");
   return list.map((line) => {
     assert(
@@ -282,9 +290,15 @@ if (manifest.schemaVersion === 1) {
     const clip = scene.clip || null;
     assert(still || clip, "Scene needs a still or a clip");
     assert(!(still && clip), "Scene has both a still and a clip");
-    if (still) await stageFile(root, publicDir, still);
-    if (clip) await stageFile(root, publicDir, clip);
-    if (v3 && scene.voice) await stageFile(root, publicDir, scene.voice);
+    if (still) {
+      await stageFile(root, publicDir, still);
+    }
+    if (clip) {
+      await stageFile(root, publicDir, clip);
+    }
+    if (v3 && scene.voice) {
+      await stageFile(root, publicDir, scene.voice);
+    }
     // After a line lip-synced on the still: the scene's animated clip (the skin's move).
     if (v3 && scene.moveClip) {
       assert(clip && scene.lipsync === true, "A move needs a talking clip");
@@ -315,9 +329,12 @@ if (manifest.schemaVersion === 1) {
   }
   let narration = null;
   let music = null;
-  if (manifest.narration)
+  if (manifest.narration) {
     narration = await stageFile(root, publicDir, manifest.narration);
-  if (manifest.music) music = await stageFile(root, publicDir, manifest.music);
+  }
+  if (manifest.music) {
+    music = await stageFile(root, publicDir, manifest.music);
+  }
   // Sound design: short effects at set frames, each inside the film.
   const effects = [];
   if (v3 && manifest.effects !== undefined) {

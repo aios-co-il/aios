@@ -38,7 +38,9 @@ export async function updateSignatureDocumentFields(
       .from("signature_documents")
       .update(withoutName)
       .eq("id", docId);
-    if (retry.error) throw retry.error;
+    if (retry.error) {
+      throw retry.error;
+    }
     const savedRecipientPosition = await syncSignatureRecipientPosition(
       docId,
       fields,
@@ -58,7 +60,9 @@ export async function updateSignatureDocumentFields(
     return { savedDocumentFields: false, savedRecipientPosition: true };
   }
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const savedRecipientPosition = await syncSignatureRecipientPosition(
     docId,
@@ -76,7 +80,9 @@ export async function syncSignatureRecipientPosition(
     .from("signature_recipients")
     .select("id, sign_order")
     .eq("document_id", docId);
-  if (readError) throw readError;
+  if (readError) {
+    throw readError;
+  }
   let saved = false;
   for (const recipient of recipients ?? []) {
     const sigField = fields.find(
@@ -94,8 +100,12 @@ export async function syncSignatureRecipientPosition(
       })
       .eq("id", recipient.id)
       .eq("document_id", docId);
-    if (error?.message?.includes("signature_position")) return false;
-    if (error) throw error;
+    if (error?.message?.includes("signature_position")) {
+      return false;
+    }
+    if (error) {
+      throw error;
+    }
     saved = true;
   }
   return saved;

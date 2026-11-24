@@ -22,8 +22,12 @@ export function ClientLinkedFiles({
         .from("team_chat_files")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (clientId) q = q.eq("client_id", clientId);
-      if (leadId) q = q.eq("lead_id", leadId);
+      if (clientId) {
+        q = q.eq("client_id", clientId);
+      }
+      if (leadId) {
+        q = q.eq("lead_id", leadId);
+      }
       const { data } = await q.order("created_at", { ascending: false });
       return data || [];
     },

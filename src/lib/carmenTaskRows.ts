@@ -60,9 +60,13 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
 type AnyRow = Record<string, any>;
 
 const fmt = (iso: string | null | undefined) => {
-  if (!iso) return null;
+  if (!iso) {
+    return null;
+  }
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
+  if (Number.isNaN(d.getTime())) {
+    return null;
+  }
   return d.toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
     day: "numeric",
@@ -85,22 +89,44 @@ export function agentTaskScheduleLabel(t: AnyRow): string {
     }
     return "חוזרת · ללא תזמון";
   }
-  if (type === "daily") return "כל 24 שעות";
-  if (type === "weekly") return "כל 7 ימים";
-  if (t.scheduled_at) return `פעם אחת · ${fmt(t.scheduled_at)}`;
+  if (type === "daily") {
+    return "כל 24 שעות";
+  }
+  if (type === "weekly") {
+    return "כל 7 ימים";
+  }
+  if (t.scheduled_at) {
+    return `פעם אחת · ${fmt(t.scheduled_at)}`;
+  }
   return "ידנית";
 }
 
 export function agentTaskStatus(t: AnyRow): TaskStatus {
   const s = String(t.status || "pending");
-  if (s === "running") return "running";
-  if (s === "failed") return "failed";
-  if (s === "paused" || t.enabled === false) return "paused";
-  if (s === "completed") return isRecurringAgentTask(t) ? "scheduled" : "done";
-  if (s === "cancelled") return "cancelled";
-  if (s === "scheduled") return "scheduled";
-  if (s === "open") return "waiting";
-  if (isRecurringAgentTask(t) || t.scheduled_at) return "scheduled";
+  if (s === "running") {
+    return "running";
+  }
+  if (s === "failed") {
+    return "failed";
+  }
+  if (s === "paused" || t.enabled === false) {
+    return "paused";
+  }
+  if (s === "completed") {
+    return isRecurringAgentTask(t) ? "scheduled" : "done";
+  }
+  if (s === "cancelled") {
+    return "cancelled";
+  }
+  if (s === "scheduled") {
+    return "scheduled";
+  }
+  if (s === "open") {
+    return "waiting";
+  }
+  if (isRecurringAgentTask(t) || t.scheduled_at) {
+    return "scheduled";
+  }
   return "waiting";
 }
 
@@ -130,18 +156,29 @@ export function mapAgentTask(t: AnyRow): CarmenTaskRow {
 
 export function goalStatus(g: AnyRow): TaskStatus {
   const s = String(g.status || "active");
-  if (s === "completed") return "done";
-  if (s === "cancelled") return "cancelled";
-  if (s === "paused") return "paused";
-  if (s === "blocked" || g.engine_status === "BLOCKED") return "blocked";
+  if (s === "completed") {
+    return "done";
+  }
+  if (s === "cancelled") {
+    return "cancelled";
+  }
+  if (s === "paused") {
+    return "paused";
+  }
+  if (s === "blocked" || g.engine_status === "BLOCKED") {
+    return "blocked";
+  }
   if (
     g.autonomous_mode &&
     ["PLANNING", "EXECUTING", "VERIFYING", "REPLANNING"].includes(
       String(g.engine_status),
     )
-  )
+  ) {
     return "running";
-  if (s === "in_progress") return "running";
+  }
+  if (s === "in_progress") {
+    return "running";
+  }
   return "waiting";
 }
 
@@ -174,12 +211,21 @@ export function mapGoal(g: AnyRow): CarmenTaskRow {
 
 export function devTaskStatus(d: AnyRow): TaskStatus {
   const s = String(d.status || "draft");
-  if (s === "done") return "done";
-  if (s === "cancelled") return "cancelled";
-  if (s === "blocked") return "blocked";
-  if (s === "draft") return "draft";
-  if (["sent_to_cursor", "in_progress", "pr_opened"].includes(s))
+  if (s === "done") {
+    return "done";
+  }
+  if (s === "cancelled") {
+    return "cancelled";
+  }
+  if (s === "blocked") {
+    return "blocked";
+  }
+  if (s === "draft") {
+    return "draft";
+  }
+  if (["sent_to_cursor", "in_progress", "pr_opened"].includes(s)) {
     return "running";
+  }
   return "waiting";
 }
 
@@ -278,20 +324,30 @@ export function selectRows(
   const q = (opts.search || "").trim().toLowerCase();
   return rows
     .filter((r) => {
-      if (filter === "running" && r.status !== "running") return false;
-      if (filter !== "all" && filter !== "running" && r.kind !== filter)
+      if (filter === "running" && r.status !== "running") {
         return false;
-      if (!opts.showFinished && FINISHED.includes(r.status)) return false;
-      if (q && !`${r.title} ${r.subtitle ?? ""}`.toLowerCase().includes(q))
+      }
+      if (filter !== "all" && filter !== "running" && r.kind !== filter) {
         return false;
+      }
+      if (!opts.showFinished && FINISHED.includes(r.status)) {
+        return false;
+      }
+      if (q && !`${r.title} ${r.subtitle ?? ""}`.toLowerCase().includes(q)) {
+        return false;
+      }
       return true;
     })
     .sort((a, b) => {
       const s = ORDER.indexOf(a.status) - ORDER.indexOf(b.status);
-      if (s !== 0) return s;
+      if (s !== 0) {
+        return s;
+      }
       const an = a.nextRunAt ? Date.parse(a.nextRunAt) : Infinity;
       const bn = b.nextRunAt ? Date.parse(b.nextRunAt) : Infinity;
-      if (an !== bn) return an - bn;
+      if (an !== bn) {
+        return an - bn;
+      }
       return (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "");
     });
 }

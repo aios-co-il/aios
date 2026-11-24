@@ -562,7 +562,9 @@ export function TriggerTestPanel({
   const { data: leads } = useQuery({
     queryKey: ["leads-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isLeadTrigger) return [];
+      if (!tenantId || !isLeadTrigger) {
+        return [];
+      }
       let q = supabase
         .from("leads")
         .select("id, contact_name, phone, email, source, status, notes")
@@ -582,7 +584,9 @@ export function TriggerTestPanel({
   const { data: clients } = useQuery({
     queryKey: ["clients-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isClientTrigger) return [];
+      if (!tenantId || !isClientTrigger) {
+        return [];
+      }
       let q = supabase
         .from("clients")
         .select("id, contact_name, phone, email, status")
@@ -602,7 +606,9 @@ export function TriggerTestPanel({
   const { data: tasks } = useQuery({
     queryKey: ["tasks-for-test", tenantId, searchQuery],
     queryFn: async () => {
-      if (!tenantId || !isTaskTrigger) return [];
+      if (!tenantId || !isTaskTrigger) {
+        return [];
+      }
       let q = supabase
         .from("tasks")
         .select("id, title, description, status")
@@ -665,7 +671,9 @@ export function TriggerTestPanel({
   };
 
   const handleRun = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsRunning(true);
     setTestResult(null);
 
@@ -689,7 +697,9 @@ export function TriggerTestPanel({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setTestResult(data);
 

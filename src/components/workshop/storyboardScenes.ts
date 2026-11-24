@@ -81,10 +81,15 @@ const numberOr = (value: unknown, fallback: number) => {
 };
 
 export function sceneState(row: SceneRow): SceneState {
-  if (row.status === "failed") return "failed";
-  if (row.status === "still_generating" || row.status === "clip_generating")
+  if (row.status === "failed") {
+    return "failed";
+  }
+  if (row.status === "still_generating" || row.status === "clip_generating") {
     return "working";
-  if (row.clip_asset_id) return row.clip_stale ? "clip_stale" : "clip_ready";
+  }
+  if (row.clip_asset_id) {
+    return row.clip_stale ? "clip_stale" : "clip_ready";
+  }
   return row.still_asset_id ? "picture" : "no_picture";
 }
 
@@ -141,12 +146,15 @@ export function changedText(
 ): SceneTextPatch | null {
   const start = sceneDraft(scene);
   const patch: SceneTextPatch = {};
-  if (draft.overlay_text.trim() !== start.overlay_text.trim())
+  if (draft.overlay_text.trim() !== start.overlay_text.trim()) {
     patch.overlay_text = draft.overlay_text.trim();
-  if (draft.voiceover_text.trim() !== start.voiceover_text.trim())
+  }
+  if (draft.voiceover_text.trim() !== start.voiceover_text.trim()) {
     patch.voiceover_text = draft.voiceover_text.trim();
-  if (scene.lipsync && draft.dialogue.trim() !== start.dialogue.trim())
+  }
+  if (scene.lipsync && draft.dialogue.trim() !== start.dialogue.trim()) {
     patch.dialogue = draft.dialogue.trim();
+  }
   return Object.keys(patch).length > 0 ? patch : null;
 }
 

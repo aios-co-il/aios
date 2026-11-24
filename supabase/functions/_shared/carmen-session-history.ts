@@ -10,7 +10,9 @@ export type SessionTurn = z.infer<typeof turnSchema>;
 
 /** Validate stored session messages, dropping malformed entries individually. */
 export function sessionHistoryEntries(value: unknown): Array<SessionTurn> {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.flatMap((raw) => {
     const parsed = turnSchema.safeParse(raw);
     return parsed.success ? [parsed.data] : [];
@@ -45,7 +47,9 @@ export function lastAssistantReply(
     .reverse()
     .find((m) => m.role === "assistant");
   const content = last?.content;
-  if (!content) return null;
+  if (!content) {
+    return null;
+  }
   const lastTs = timestampMs(last?.timestamp);
   return {
     text: content.trim(),
@@ -82,9 +86,15 @@ export function buildCarmenMergedHistory(
       : null;
 
   const dedupedContext = recentContext.filter((m) => {
-    if (!m?.timestamp) return true;
-    if (sessionTimestamps.has(m.timestamp)) return false;
-    if (oldestSessionTs && m.timestamp >= oldestSessionTs) return false;
+    if (!m?.timestamp) {
+      return true;
+    }
+    if (sessionTimestamps.has(m.timestamp)) {
+      return false;
+    }
+    if (oldestSessionTs && m.timestamp >= oldestSessionTs) {
+      return false;
+    }
     return true;
   });
 
@@ -99,6 +109,8 @@ export function buildCarmenMergedHistory(
   }
   merged.push(...(sessionHistory || []));
 
-  if (merged.length <= hardCap) return merged;
+  if (merged.length <= hardCap) {
+    return merged;
+  }
   return [merged[0], ...merged.slice(-(hardCap - 1))];
 }

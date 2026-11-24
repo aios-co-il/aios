@@ -27,7 +27,9 @@ export function useAgentGoals(agentId: string | null) {
         .select("*")
         .eq("agent_id", agentId!)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as any;
     },
   });
@@ -39,7 +41,9 @@ export function useAgentGoalMutations(agentId: string | null) {
 
   const create = useMutation({
     mutationFn: async (input: Partial<AgentGoal>) => {
-      if (!agentId || !tenantId) throw new Error("missing agent/tenant");
+      if (!agentId || !tenantId) {
+        throw new Error("missing agent/tenant");
+      }
       const { error } = await supabase.from("agent_goals" as any).insert({
         agent_id: agentId,
         tenant_id: tenantId,
@@ -49,7 +53,9 @@ export function useAgentGoalMutations(agentId: string | null) {
         status: input.status ?? "active",
         target_date: input.target_date ?? null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] });
@@ -67,7 +73,9 @@ export function useAgentGoalMutations(agentId: string | null) {
         .from("agent_goals" as any)
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] }),
@@ -80,7 +88,9 @@ export function useAgentGoalMutations(agentId: string | null) {
         .from("agent_goals" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-goals", agentId] });

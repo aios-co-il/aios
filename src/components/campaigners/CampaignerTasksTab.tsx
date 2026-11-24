@@ -86,7 +86,9 @@ export function CampaignerTasksTab({
           .eq("campaigner_id", campaignerId)
           .order("due_date", { ascending: false }),
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       let rows = data || [];
       const have = new Set(rows.map((task: { id: string }) => task.id));
       const missing = collaboratorTaskIds.filter((id) => !have.has(id));
@@ -98,7 +100,9 @@ export function CampaignerTasksTab({
             .in("id", chunk)
             .order("due_date", { ascending: false }),
         );
-        if (extraError) throw extraError;
+        if (extraError) {
+          throw extraError;
+        }
         rows = rows.concat(extra || []);
       }
       return withTaskCreatorNames(rows);
@@ -118,7 +122,9 @@ export function CampaignerTasksTab({
         .from("tasks")
         .update({ status })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

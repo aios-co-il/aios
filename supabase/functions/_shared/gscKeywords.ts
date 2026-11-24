@@ -101,7 +101,9 @@ export async function fetchGscKeywordsFromApi(
     const json = await resp.json();
     const pageRows = Array.isArray(json.rows) ? json.rows : [];
     collected.push(...pageRows.map(mapGscApiRow));
-    if (pageRows.length < pageSize) break;
+    if (pageRows.length < pageSize) {
+      break;
+    }
   }
   return collected;
 }
@@ -159,7 +161,9 @@ export async function resolveGscAccessToken(
             .eq("id", integration.id);
         }
       }
-      if (tok) return tok;
+      if (tok) {
+        return tok;
+      }
     } catch (e) {
       console.error("Error preparing GSC token:", e);
     }
@@ -196,7 +200,9 @@ export async function readGscSnapshots(
     console.error("readGscSnapshots error:", error);
     return null;
   }
-  if (!data?.length) return null;
+  if (!data?.length) {
+    return null;
+  }
 
   const bundle: GscSnapshotBundle = {
     current_90d: [],
@@ -208,7 +214,9 @@ export async function readGscSnapshots(
 
   for (const row of data) {
     const key = row.period_key as GscPeriodKey;
-    if (!(key in bundle)) continue;
+    if (!(key in bundle)) {
+      continue;
+    }
     const keywords = Array.isArray(row.keywords)
       ? (row.keywords as Array<GscKeywordRow>)
       : [];
@@ -258,7 +266,9 @@ export async function upsertGscSnapshot(
     },
     { onConflict: "tenant_id,site_url,period_key" },
   );
-  if (error) console.error("upsertGscSnapshot error:", error);
+  if (error) {
+    console.error("upsertGscSnapshot error:", error);
+  }
 }
 
 export function mapGscRowsToCrmRecords(rows: Array<GscKeywordRow>) {
@@ -293,7 +303,9 @@ export async function readSeoShareCacheFromDb(
     .select("payload, expires_at")
     .eq("share_token", shareToken)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error || !data) {
+    return null;
+  }
   if (new Date(data.expires_at) < new Date()) {
     await supabase
       .from("seo_share_response_cache")
@@ -323,5 +335,7 @@ export async function writeSeoShareCacheToDb(
       { share_token: shareToken, payload, expires_at: expiresAt },
       { onConflict: "share_token" },
     );
-  if (error) console.error("writeSeoShareCacheToDb error:", error);
+  if (error) {
+    console.error("writeSeoShareCacheToDb error:", error);
+  }
 }

@@ -27,8 +27,9 @@ function jsonResponse(body: any, status = 200) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const body = await req.json();
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -37,18 +38,27 @@ Deno.serve(async (req) => {
       const tenant_id = body.tenant_id as string | undefined;
       const name = (body.name as string | undefined) || "Cursor";
       const connection_id = body.connection_id as string | undefined;
-      if (!tenant_id) return jsonResponse({ error: "missing tenant_id" }, 400);
+      if (!tenant_id) {
+        return jsonResponse({ error: "missing tenant_id" }, 400);
+      }
 
       let q = supabase
         .from("agent_mcp_connections")
         .select("id, name, url, tenant_id")
         .eq("tenant_id", tenant_id);
-      if (connection_id) q = q.eq("id", connection_id);
-      else q = q.eq("name", name);
+      if (connection_id) {
+        q = q.eq("id", connection_id);
+      } else {
+        q = q.eq("name", name);
+      }
       const { data: rows, error: findErr } = await q.limit(5);
-      if (findErr) throw findErr;
+      if (findErr) {
+        throw findErr;
+      }
       const row = (rows || [])[0];
-      if (!row) return jsonResponse({ error: "connection not found" }, 404);
+      if (!row) {
+        return jsonResponse({ error: "connection not found" }, 404);
+      }
       if (!isInternalMcpUrl(row.url)) {
         return jsonResponse(
           { error: "refusing to resync a non-internal MCP URL" },
@@ -88,8 +98,9 @@ Deno.serve(async (req) => {
     if (!tenant_id || !name || !url) {
       return jsonResponse({ error: "missing tenant_id/name/url" }, 400);
     }
-    if (!/^https?:\/\//.test(url))
+    if (!/^https?:\/\//.test(url)) {
       return jsonResponse({ error: "url must be http(s)" }, 400);
+    }
 
     const { tools, state, lastError } = await probeMcp(url, bearer_token);
 
@@ -108,7 +119,9 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     return jsonResponse({
       ok: true,

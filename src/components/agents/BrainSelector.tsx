@@ -75,8 +75,11 @@ export function BrainSelector({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const manageKeys = () => {
-    if (onManageKeys) onManageKeys();
-    else navigate(buildPath("/llm-settings"));
+    if (onManageKeys) {
+      onManageKeys();
+    } else {
+      navigate(buildPath("/llm-settings"));
+    }
   };
 
   // Connected models (filtered by configured API keys)

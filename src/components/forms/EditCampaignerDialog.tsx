@@ -64,8 +64,12 @@ export function EditCampaignerDialog({
   const isControlled = externalOpen !== undefined;
   const open = isControlled ? externalOpen : internalOpen;
   const setOpen = (value: boolean) => {
-    if (onOpenChange) onOpenChange(value);
-    if (!isControlled) setInternalOpen(value);
+    if (onOpenChange) {
+      onOpenChange(value);
+    }
+    if (!isControlled) {
+      setInternalOpen(value);
+    }
   };
   const { tenantId } = useCurrentTenant();
   const { teamRoles, isLoading: rolesLoading } = useTeamRoles();
@@ -96,7 +100,9 @@ export function EditCampaignerDialog({
         }));
       }
     };
-    if (open) loadAgencies();
+    if (open) {
+      loadAgencies();
+    }
   }, [open, campaigner.id]);
 
   const { toast } = useToast();
@@ -115,7 +121,9 @@ export function EditCampaignerDialog({
           role: roles.length > 0 ? roles : null,
         })
         .eq("id", campaigner.id);
-      if (campaignerError) throw campaignerError;
+      if (campaignerError) {
+        throw campaignerError;
+      }
 
       // עדכון הקשרים לסוכנויות
       // מחיקת הקשרים הישנים
@@ -123,7 +131,9 @@ export function EditCampaignerDialog({
         .from("campaigner_agencies")
         .delete()
         .eq("campaigner_id", campaigner.id);
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        throw deleteError;
+      }
 
       // הוספת הקשרים החדשים
       if (agency_ids.length > 0) {
@@ -134,7 +144,9 @@ export function EditCampaignerDialog({
         const { error: insertError } = await supabase
           .from("campaigner_agencies")
           .insert(agencyLinks);
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
       }
     },
     onSuccess: () => {
@@ -160,21 +172,27 @@ export function EditCampaignerDialog({
         .from("client_team")
         .delete()
         .eq("campaigner_id", campaigner.id);
-      if (clientTeamError) throw clientTeamError;
+      if (clientTeamError) {
+        throw clientTeamError;
+      }
 
       // מחיקת הקשרים לסוכנויות
       const { error: agenciesError } = await supabase
         .from("campaigner_agencies")
         .delete()
         .eq("campaigner_id", campaigner.id);
-      if (agenciesError) throw agenciesError;
+      if (agenciesError) {
+        throw agenciesError;
+      }
 
       // מחיקת הקמפיינר
       const { error: campaignerError } = await supabase
         .from("campaigners")
         .delete()
         .eq("id", campaigner.id);
-      if (campaignerError) throw campaignerError;
+      if (campaignerError) {
+        throw campaignerError;
+      }
     },
     onSuccess: () => {
       toast({

@@ -94,16 +94,22 @@ export default function ChatInvite() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        return;
+      }
 
       const response = await supabase.functions.invoke("process-chat-invite", {
         body: { token },
       });
 
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
 
       const result = response.data;
-      if (result.error) throw new Error(result.error);
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
       toast.success(`הצטרפת בהצלחה לערוץ ${result.channelName || ""}`);
       navigate(`/t/${result.tenantSlug}/team-chat`);
@@ -122,7 +128,9 @@ export default function ChatInvite() {
         email,
         password,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     } catch (err: any) {
       toast.error(err.message || "שגיאה בהתחברות");
     } finally {
@@ -150,7 +158,9 @@ export default function ChatInvite() {
         },
       });
 
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
 
       const result = response.data;
       if (result.error) {
@@ -162,7 +172,9 @@ export default function ChatInvite() {
         email,
         password,
       });
-      if (signInError) throw signInError;
+      if (signInError) {
+        throw signInError;
+      }
 
       toast.success(`הצטרפת בהצלחה לערוץ ${result.channelName || ""}`);
       navigate(`/t/${result.tenantSlug}/team-chat`);
@@ -183,7 +195,9 @@ export default function ChatInvite() {
           redirectTo: `https://aios.co.il/chat-invite/${token}`,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     } catch (err: any) {
       toast.error(err.message || "שגיאה בהתחברות עם Google");
     }

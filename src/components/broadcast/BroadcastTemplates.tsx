@@ -91,8 +91,9 @@ export function BroadcastTemplates() {
                     variant="ghost"
                     size="icon"
                     onClick={() => {
-                      if (confirm("להעביר את הטמפלייט לארכיון?"))
+                      if (confirm("להעביר את הטמפלייט לארכיון?")) {
                         archive.mutate(t.id);
+                      }
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

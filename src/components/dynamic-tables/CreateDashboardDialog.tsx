@@ -81,7 +81,9 @@ export function CreateDashboardDialog({
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies-with-shared", tenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase.from("agencies").select("id, name, tenant_id");
       if (crossTenantAgencyIds.length > 0) {
         query = query.or(
@@ -91,7 +93,9 @@ export function CreateDashboardDialog({
         query = query.eq("tenant_id", tenantId);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -101,7 +105,9 @@ export function CreateDashboardDialog({
   const { data: allClients = [] } = useQuery({
     queryKey: ["clients-all-with-shared", tenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("id, name, agency_id, tenant_id");
@@ -113,14 +119,18 @@ export function CreateDashboardDialog({
         query = query.eq("tenant_id", tenantId);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
   });
 
   const filteredClients = useMemo(() => {
-    if (!agencyId) return [];
+    if (!agencyId) {
+      return [];
+    }
     let filtered = allClients.filter((c) => c.agency_id === agencyId);
     if (assignedClientIds) {
       filtered = filtered.filter((c) => assignedClientIds.includes(c.id));
@@ -132,11 +142,15 @@ export function CreateDashboardDialog({
   const { data: clientTables = [] } = useQuery({
     queryKey: ["crm-tables-client", clientId, tenantId],
     queryFn: async () => {
-      if (!clientId) return [];
+      if (!clientId) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         `crm-tables?tenant_id=${tenantId}`,
@@ -145,7 +159,9 @@ export function CreateDashboardDialog({
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       const tables = Array.isArray(response.data) ? response.data : [];
       return tables.filter((t: any) => t.client_id === clientId);
     },
@@ -154,7 +170,9 @@ export function CreateDashboardDialog({
 
   // Count clients for selected agency (preview for agency type)
   const agencyClientsCount = useMemo(() => {
-    if (!agencyId || dashboardType !== "agency") return 0;
+    if (!agencyId || dashboardType !== "agency") {
+      return 0;
+    }
     return allClients.filter((c) => c.agency_id === agencyId).length;
   }, [allClients, agencyId, dashboardType]);
 
@@ -202,7 +220,9 @@ export function CreateDashboardDialog({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -235,7 +255,9 @@ export function CreateDashboardDialog({
   ) => {
     setDashboardType(value);
     setClientId(""); // Reset client when type changes
-    if (value === "organization") setAgencyId("");
+    if (value === "organization") {
+      setAgencyId("");
+    }
   };
 
   const getIntegrationIcon = (type: string | null) => {
@@ -259,7 +281,9 @@ export function CreateDashboardDialog({
   };
 
   const orgClientsCount = useMemo(() => {
-    if (dashboardType !== "organization") return 0;
+    if (dashboardType !== "organization") {
+      return 0;
+    }
     return allClients.length;
   }, [allClients, dashboardType]);
 

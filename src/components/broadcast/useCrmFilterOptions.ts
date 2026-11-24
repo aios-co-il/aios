@@ -20,7 +20,9 @@ async function fetchNamedRows(
       .select("id, name")
       .eq("tenant_id", tenantId)
       .order("name");
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return (data || []).map((r) => ({ value: r.id, label: r.name || "—" }));
   }
   const { data, error } = await supabase
@@ -28,7 +30,9 @@ async function fetchNamedRows(
     .select("id, full_name")
     .eq("tenant_id", tenantId)
     .order("full_name");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).map((r) => ({ value: r.id, label: r.full_name || "—" }));
 }
 
@@ -53,7 +57,9 @@ export function useChatTags() {
             .select("id, name")
             .eq("tenant_id", tenantId)
             .order("sort_order");
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return (data || []).map((t) => ({
             value: t.id,
             label: t.name || "—",

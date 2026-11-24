@@ -26,7 +26,9 @@ const json = (body: unknown, status = 200) =>
 function isServiceRoleJwt(token: string): boolean {
   try {
     const payloadPart = token.split(".")[1];
-    if (!payloadPart) return false;
+    if (!payloadPart) {
+      return false;
+    }
     const base64 = payloadPart
       .replace(/-/g, "+")
       .replace(/_/g, "/")
@@ -39,13 +41,18 @@ function isServiceRoleJwt(token: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  }
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing authorization" }, 401);
+    if (!authHeader) {
+      return json({ error: "Missing authorization" }, 401);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -53,7 +60,9 @@ Deno.serve(async (req) => {
     const isServiceCall = token === SERVICE_ROLE_KEY || isServiceRoleJwt(token);
     const body = await req.json().catch(() => ({}));
     const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : null;
-    if (!tenantId) return json({ error: "tenant_id is required" }, 400);
+    if (!tenantId) {
+      return json({ error: "tenant_id is required" }, 400);
+    }
 
     let preferredUserId: string | null = null;
     if (!isServiceCall) {
@@ -67,7 +76,9 @@ Deno.serve(async (req) => {
       const {
         data: { user },
       } = await userClient.auth.getUser();
-      if (!user) return json({ error: "Unauthorized" }, 401);
+      if (!user) {
+        return json({ error: "Unauthorized" }, 401);
+      }
       preferredUserId = user.id;
       const { data: membership } = await userClient
         .from("tenant_users")
@@ -75,7 +86,9 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("user_id", user.id)
         .maybeSingle();
-      if (!membership) return json({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return json({ error: "Forbidden" }, 403);
+      }
     } else if (typeof body.user_id === "string") {
       preferredUserId = body.user_id;
     }
@@ -106,14 +119,18 @@ Deno.serve(async (req) => {
       .lte("start_time", to.toISOString())
       .order("start_time", { ascending: false })
       .limit(limit);
-    if (error) return json({ error: error.message }, 500);
+    if (error) {
+      return json({ error: error.message }, 500);
+    }
 
     // One representative row per Zoom/Recall meeting; enrichment updates every
     // recording variant with the same meeting_id.
     const grouped = new Map<string, NonNullable<typeof rows>[number]>();
     for (const row of rows || []) {
       const key = row.meeting_id || row.id;
-      if (!grouped.has(key)) grouped.set(key, row);
+      if (!grouped.has(key)) {
+        grouped.set(key, row);
+      }
     }
 
     const context = await loadCalendarMatchContext(admin, {
@@ -130,7 +147,9 @@ Deno.serve(async (req) => {
         context.events,
         context.clients,
       );
-      if (!match) continue;
+      if (!match) {
+        continue;
+      }
       matches.push({
         recording_id: recording.id,
         meeting_id: recording.meeting_id,

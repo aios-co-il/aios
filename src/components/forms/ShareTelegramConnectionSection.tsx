@@ -32,12 +32,16 @@ export function ShareTelegramConnectionSection({
   const { data: userTenants, isLoading: loadingTenants } = useQuery({
     queryKey: ["user-all-tenants-for-telegram-sharing", user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_users")
         .select(`tenant_id, tenants:tenant_id ( id, name, slug )`)
         .eq("user_id", user.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || [])
         .filter((tu) => tu.tenant_id !== currentTenantId && tu.tenants)
         .map((tu) => ({
@@ -57,14 +61,18 @@ export function ShareTelegramConnectionSection({
         .select("tenant_id")
         .eq("shared_from_state_id", botStateId)
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((d) => d.tenant_id) || [];
     },
     enabled: !!botStateId,
   });
 
   useEffect(() => {
-    if (existingShares) setSelectedTenants(existingShares);
+    if (existingShares) {
+      setSelectedTenants(existingShares);
+    }
   }, [existingShares]);
 
   const { data: sourceBot } = useQuery({
@@ -75,7 +83,9 @@ export function ShareTelegramConnectionSection({
         .select("bot_name, bot_username")
         .eq("id", botStateId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!botStateId,
@@ -83,7 +93,9 @@ export function ShareTelegramConnectionSection({
 
   const saveSharesMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("User not found");
+      if (!user?.id) {
+        throw new Error("User not found");
+      }
       const currentShares = existingShares || [];
       const toAdd = selectedTenants.filter((t) => !currentShares.includes(t));
       const toRemove = currentShares.filter(
@@ -99,7 +111,9 @@ export function ShareTelegramConnectionSection({
           bot_username: sourceBot?.bot_username || "",
           update_offset: 0,
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
 
       for (const tenantId of toRemove) {
@@ -108,7 +122,9 @@ export function ShareTelegramConnectionSection({
           .delete()
           .eq("tenant_id", tenantId)
           .eq("shared_from_state_id", botStateId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -132,7 +148,9 @@ export function ShareTelegramConnectionSection({
 
   const hasChanges = () => {
     const current = existingShares || [];
-    if (current.length !== selectedTenants.length) return true;
+    if (current.length !== selectedTenants.length) {
+      return true;
+    }
     return !current.every((t) => selectedTenants.includes(t));
   };
 
@@ -146,7 +164,9 @@ export function ShareTelegramConnectionSection({
     );
   }
 
-  if (!userTenants || userTenants.length === 0) return null;
+  if (!userTenants || userTenants.length === 0) {
+    return null;
+  }
 
   return (
     <Card>

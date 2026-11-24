@@ -79,7 +79,9 @@ Deno.serve(async (req: Request) => {
       .eq("tenant_id", tenant_id)
       .single();
 
-    if (brandError || !brand) throw new Error("Brand not found");
+    if (brandError || !brand) {
+      throw new Error("Brand not found");
+    }
     const brandData = brand as BrandRow;
 
     // Get prompts to scan
@@ -94,7 +96,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: prompts, error: promptsError } = await promptQuery;
-    if (promptsError) throw new Error("Failed to fetch prompts");
+    if (promptsError) {
+      throw new Error("Failed to fetch prompts");
+    }
     if (!prompts || prompts.length === 0) {
       return new Response(
         JSON.stringify({
@@ -229,15 +233,18 @@ Deno.serve(async (req: Request) => {
       const { error: insertError } = await supabase
         .from("ai_detection_results")
         .insert(results);
-      if (insertError) console.error("Error saving results:", insertError);
+      if (insertError) {
+        console.error("Error saving results:", insertError);
+      }
     }
 
     if (competitorResults.length > 0) {
       const { error: insertError } = await supabase
         .from("ai_detection_competitor_results")
         .insert(competitorResults);
-      if (insertError)
+      if (insertError) {
         console.error("Error saving competitor results:", insertError);
+      }
     }
 
     // Calculate and save weekly score
@@ -284,7 +291,9 @@ Deno.serve(async (req: Request) => {
         { onConflict: "brand_id,week_start", ignoreDuplicates: false },
       );
 
-    if (scoreError) console.error("Error saving score:", scoreError);
+    if (scoreError) {
+      console.error("Error saving score:", scoreError);
+    }
 
     return new Response(
       JSON.stringify({
@@ -320,7 +329,9 @@ function checkBrandMention(
   keywords: Array<string>,
 ): boolean {
   const lowerText = text.toLowerCase();
-  if (lowerText.includes(brandName.toLowerCase())) return true;
+  if (lowerText.includes(brandName.toLowerCase())) {
+    return true;
+  }
   return keywords.some((kw) => lowerText.includes(kw.toLowerCase()));
 }
 

@@ -37,7 +37,9 @@ export async function userHasTenantAccess(
       .eq("user_id", userId)
       .eq("role", "super_admin")
       .maybeSingle();
-    if (superRow) return true;
+    if (superRow) {
+      return true;
+    }
   } catch {
     /* user_roles may not be readable */
   }
@@ -92,8 +94,9 @@ export async function ensureDefaultRoutes(
     const { error } = await sb
       .from("agent_brain_routes")
       .upsert(rows, { onConflict: "tenant_id,slug" });
-    if (error)
+    if (error) {
       console.error("[agent-channel] seed routes failed", error.message);
+    }
   }
 
   const parliament = (existing || []).find(
@@ -138,14 +141,18 @@ export async function loadRoute(
   const routes = await ensureDefaultRoutes(sb, tenantId, null);
   if (opts.routeId && !opts.routeId.startsWith("fallback-")) {
     const hit = routes.find((r) => r.id === opts.routeId);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
     const { data } = await sb
       .from("agent_brain_routes")
       .select("*")
       .eq("id", opts.routeId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
-    if (data) return data as BrainRouteRow;
+    if (data) {
+      return data as BrainRouteRow;
+    }
   }
   const slug = opts.slug || "cursor";
   return (
@@ -203,10 +210,11 @@ export async function ensureConversation(
     })
     .select("id, status")
     .single();
-  if (error || !data)
+  if (error || !data) {
     throw new Error(
       `Failed to create conversation: ${error?.message || "unknown"}`,
     );
+  }
   nameChatTopicLater(sb, {
     conversationId: data.id,
     firstMessage: args.title,
@@ -270,8 +278,9 @@ export async function insertMessage(
         .eq("tenant_id", row.tenant_id)
         .eq("idempotency_key", row.idempotency_key)
         .maybeSingle();
-      if (existing)
+      if (existing) {
         return { row: existing as ConversationMessageRow, duplicate: true };
+      }
     }
     throw new Error(`insert message failed: ${error.message}`);
   }
@@ -392,8 +401,9 @@ export async function upsertRunningSession(
       .eq("id", existing.id)
       .select("*")
       .single();
-    if (error || !data)
+    if (error || !data) {
       throw new Error(`update session failed: ${error?.message}`);
+    }
     return data as ChannelSessionRow;
   }
   const { data, error } = await sb
@@ -415,8 +425,9 @@ export async function upsertRunningSession(
     })
     .select("*")
     .single();
-  if (error || !data)
+  if (error || !data) {
     throw new Error(`insert session failed: ${error?.message}`);
+  }
   return data as ChannelSessionRow;
 }
 
@@ -457,9 +468,13 @@ export async function resolveCallbackSessionForTenant(
       "codex",
     ] as Array<ChannelProvider>) {
       const running = await getRunningSession(sb, hint, provider);
-      if (running) return running;
+      if (running) {
+        return running;
+      }
       const latest = await getLatestSession(sb, hint, provider);
-      if (latest) return latest;
+      if (latest) {
+        return latest;
+      }
     }
   }
   const { data } = await sb
@@ -471,7 +486,9 @@ export async function resolveCallbackSessionForTenant(
     .order("last_activity_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (data) return data as ChannelSessionRow;
+  if (data) {
+    return data as ChannelSessionRow;
+  }
   const { data: recent } = await sb
     .from("agent_channel_sessions")
     .select("*")
@@ -517,6 +534,8 @@ export function duplicateSendResult(
   existing: ConversationMessageRow,
 ): SendResult | null {
   const dispatch = (existing.metadata as any)?.dispatch;
-  if (!dispatch) return null;
+  if (!dispatch) {
+    return null;
+  }
   return dispatch as SendResult;
 }

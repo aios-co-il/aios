@@ -94,7 +94,9 @@ function lastLine(
   const list = messages || [];
   const seatSlug = slugForCouncilSeat(who);
   const own = [...list].reverse().find((m) => {
-    if (m.role === "tool_call" || !m.content) return false;
+    if (m.role === "tool_call" || !m.content) {
+      return false;
+    }
     const speaker = speakerOf(m);
     if (who === "carmen") {
       return (
@@ -140,7 +142,9 @@ function seatState(
   seats: Array<ParliamentSeatView> | undefined,
   id: string,
 ): string {
-  if (id === "carmen") return "chair";
+  if (id === "carmen") {
+    return "chair";
+  }
   return seats?.find((s) => s.provider === id)?.state || "idle";
 }
 

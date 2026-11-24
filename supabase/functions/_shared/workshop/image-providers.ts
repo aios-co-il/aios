@@ -94,26 +94,30 @@ export async function generateStill(
     });
   const order =
     references.length > 0 ? REFERENCE_PROVIDER_ORDER : IMAGE_PROVIDER_ORDER;
-  if (deps.engine && !keys[deps.engine])
+  if (deps.engine && !keys[deps.engine]) {
     throw new Error(
       `${PROVIDER_LABEL[deps.engine]} לא מחובר. בחרו מנוע אחר או חברו את המפתח בהגדרות מודלי AI.`,
     );
+  }
   const available = deps.engine
     ? [deps.engine]
     : order.filter((provider) => keys[provider]);
-  if (available.length === 0)
+  if (available.length === 0) {
     throw new Error(
       "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
     );
+  }
   const failures: Array<string> = [];
   for (const provider of available) {
     const key = keys[provider]!;
     try {
-      if (provider === "openai")
+      if (provider === "openai") {
         return await viaOpenAi(key, prompt, aspect, fetchImpl, references);
-      if (provider === "google")
+      }
+      if (provider === "google") {
         return await viaGoogle(key, prompt, aspect, deps, references);
-      if (provider === "higgsfield")
+      }
+      if (provider === "higgsfield") {
         return await viaHiggsfield(
           key,
           prompt,
@@ -122,6 +126,7 @@ export async function generateStill(
           fetchImpl,
           references,
         );
+      }
       return await viaElevenLabs(
         key,
         prompt,
@@ -143,14 +148,18 @@ export async function generateStill(
       const timedOut =
         error instanceof Error &&
         (error.name === "TimeoutError" || error.name === "AbortError");
-      if (timedOut || (error as { accepted?: boolean })?.accepted) break;
+      if (timedOut || (error as { accepted?: boolean })?.accepted) {
+        break;
+      }
       // A pinned ElevenLabs choice on Starter still has to produce the picture.
       if (
         provider === "elevenlabs" &&
         /paid_plan_required|תוכנית pro/i.test(message)
       ) {
         for (const next of ["google", "higgsfield", "openai"] as const) {
-          if (keys[next] && !available.includes(next)) available.push(next);
+          if (keys[next] && !available.includes(next)) {
+            available.push(next);
+          }
         }
       }
     }

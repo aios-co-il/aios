@@ -415,12 +415,16 @@ export function StepConfigPanel({
         .select("id,name,contact_name,phone")
         .eq("tenant_id", tenantId!)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
 
-  if (!node) return null;
+  if (!node) {
+    return null;
+  }
 
   // Detect trigger type from flow
   const triggerNode = allNodes.find((n) => n.step_type === "trigger");
@@ -1854,7 +1858,9 @@ function ManyChatWhatsAppActionConfig({
           body: { tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return Array.isArray(data?.tags) ? data.tags : [];
     },
   });
@@ -1923,7 +1929,9 @@ function ManyChatWhatsAppActionConfig({
           value={phoneMode}
           onValueChange={(v) => {
             onConfigChange("phone_mode", v);
-            if (v === "contact") onConfigChange("phone_field", undefined);
+            if (v === "contact") {
+              onConfigChange("phone_field", undefined);
+            }
             if (v === "field" && !configuration?.phone_field) {
               onConfigChange(
                 "phone_field",
@@ -2068,18 +2076,26 @@ function MetaWhatsAppActionConfig({
           .select("integration_id")
           .eq("accessing_tenant_id", tenantId!),
       ]);
-      if (ownError) throw ownError;
-      if (grantsError) throw grantsError;
+      if (ownError) {
+        throw ownError;
+      }
+      if (grantsError) {
+        throw grantsError;
+      }
 
       const sharedIds = (grants || []).map((grant) => grant.integration_id);
-      if (sharedIds.length === 0) return own ?? [];
+      if (sharedIds.length === 0) {
+        return own ?? [];
+      }
       const { data: shared, error: sharedError } = await supabase
         .from("tenant_integrations")
         .select("id, tenant_id, display_name, settings, is_active")
         .in("id", sharedIds)
         .eq("integration_type", "meta_whatsapp")
         .eq("is_active", true);
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
       return [...(own ?? []), ...(shared ?? [])];
     },
   });
@@ -2107,8 +2123,12 @@ function MetaWhatsAppActionConfig({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       const rows = Array.isArray(data?.templates)
         ? data.templates
         : Array.isArray(data?.data)
@@ -2121,7 +2141,9 @@ function MetaWhatsAppActionConfig({
   });
 
   useEffect(() => {
-    if (!integrations.length) return;
+    if (!integrations.length) {
+      return;
+    }
     const current = configuration?.meta_whatsapp_integration_id;
     const stillValid =
       current && integrations.some((row) => row.id === current);
@@ -2269,8 +2291,9 @@ function MetaWhatsAppActionConfig({
                   const selected = templates.find(
                     (row: any) => row.name === value,
                   );
-                  if (selected?.language)
+                  if (selected?.language) {
                     onConfigChange("template_language", selected.language);
+                  }
                 }}
               >
                 <SelectTrigger dir="rtl">
@@ -2421,7 +2444,9 @@ function GreenAPIActionConfig({
   const { data: greenApiIntegrations, isLoading } = useQuery({
     queryKey: ["wa-integrations-for-flow", tenantId, providerFilter || "all"],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const types = providerFilter
         ? [providerFilter]
         : ["green_api", "manus_wa"];
@@ -2431,7 +2456,9 @@ function GreenAPIActionConfig({
         .eq("tenant_id", tenantId)
         .in("integration_type", types)
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -2474,8 +2501,12 @@ function GreenAPIActionConfig({
 
   // Auto-select integration when there is exactly one of the selected provider
   useEffect(() => {
-    if (greenApiMode !== "tenant") return;
-    if (!filteredIntegrations || filteredIntegrations.length === 0) return;
+    if (greenApiMode !== "tenant") {
+      return;
+    }
+    if (!filteredIntegrations || filteredIntegrations.length === 0) {
+      return;
+    }
     const current = configuration?.green_api_integration_id;
     const stillValid =
       current && filteredIntegrations.some((i) => i.id === current);
@@ -2645,16 +2676,21 @@ function GreenAPIActionConfig({
         onChange={(next) => {
           // Save new recipients list and clear legacy single-recipient fields
           onConfigChange("recipients", next);
-          if (configuration?.phone_mode)
+          if (configuration?.phone_mode) {
             onConfigChange("phone_mode", undefined);
-          if (configuration?.phone_field)
+          }
+          if (configuration?.phone_field) {
             onConfigChange("phone_field", undefined);
-          if (configuration?.manual_phone)
+          }
+          if (configuration?.manual_phone) {
             onConfigChange("manual_phone", undefined);
-          if (configuration?.group_id_field)
+          }
+          if (configuration?.group_id_field) {
             onConfigChange("group_id_field", undefined);
-          if (configuration?.manual_group_id)
+          }
+          if (configuration?.manual_group_id) {
             onConfigChange("manual_group_id", undefined);
+          }
         }}
       />
 
@@ -2880,14 +2916,18 @@ function AgentStepConfig({
   const { data: agents, isLoading } = useQuery({
     queryKey: ["ai-agents", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("ai_agents" as any)
         .select("*")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<any>;
     },
     enabled: !!tenantId,
@@ -2911,13 +2951,19 @@ function AgentStepConfig({
             ? `scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`
             : "scope.eq.global",
         );
-      if (error) return [];
+      if (error) {
+        return [];
+      }
       // De-dupe by slug, tenant override wins.
       const bySlug = new Map<string, any>();
       for (const row of (data as Array<any>) || []) {
-        if (!row.slug) continue;
+        if (!row.slug) {
+          continue;
+        }
         const existing = bySlug.get(row.slug);
-        if (!existing || row.scope === "tenant") bySlug.set(row.slug, row);
+        if (!existing || row.scope === "tenant") {
+          bySlug.set(row.slug, row);
+        }
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -3238,7 +3284,9 @@ function CreateAgentDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !name.trim()) throw new Error("שם הסוכן הוא שדה חובה");
+      if (!tenantId || !name.trim()) {
+        throw new Error("שם הסוכן הוא שדה חובה");
+      }
       const { data, error } = await supabase
         .from("ai_agents" as any)
         .insert({
@@ -3251,7 +3299,9 @@ function CreateAgentDialog({
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data as any).id as string;
     },
     onSuccess: (agentId) => {
@@ -3376,14 +3426,18 @@ function CarmenSessionConfig({
   const { data: allAgents } = useQuery({
     queryKey: ["all-agents-for-carmen", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("ai_agents")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -3393,14 +3447,18 @@ function CarmenSessionConfig({
   const { data: groups } = useQuery({
     queryKey: ["whatsapp-groups-for-carmen", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("whatsapp_groups")
         .select("id, group_name, group_chat_id, is_blocked")
         .eq("tenant_id", tenantId)
         .or("is_blocked.is.null,is_blocked.eq.false")
         .order("group_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -3413,7 +3471,9 @@ function CarmenSessionConfig({
   const { data: waConnections } = useQuery({
     queryKey: ["wa-connections-for-carmen", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const [
         { data: own, error: ownError },
         { data: grants, error: grantsError },
@@ -3431,8 +3491,12 @@ function CarmenSessionConfig({
           .select("integration_id")
           .eq("accessing_tenant_id", tenantId),
       ]);
-      if (ownError) throw ownError;
-      if (grantsError) throw grantsError;
+      if (ownError) {
+        throw ownError;
+      }
+      if (grantsError) {
+        throw grantsError;
+      }
 
       const sharedIds = (grants || []).map((grant) => grant.integration_id);
       let shared = (own || []).slice(0, 0);
@@ -3445,7 +3509,9 @@ function CarmenSessionConfig({
           .in("id", sharedIds)
           .in("integration_type", ["green_api", "manus_wa", "meta_whatsapp"])
           .eq("is_active", true);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         shared = data || [];
       }
 
@@ -3458,7 +3524,9 @@ function CarmenSessionConfig({
           .from("tenants")
           .select("id, name")
           .in("id", ownerTenantIds);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         tenantNames = new Map(
           (owners || []).map((owner) => [owner.id, owner.name]),
         );
@@ -3483,7 +3551,9 @@ function CarmenSessionConfig({
 
   // Default to Manus if no integration is selected yet and Manus exists
   useEffect(() => {
-    if (!waConnections || waConnections.length === 0) return;
+    if (!waConnections || waConnections.length === 0) {
+      return;
+    }
     const hasIntegrationId = configuration?.carmen_integration_id;
     if (!hasIntegrationId) {
       const manusConn = waConnections.find(
@@ -3857,7 +3927,9 @@ function CarmenSessionConfig({
                 const val = input?.value.trim();
                 if (val && !phones.includes(val)) {
                   updatePhones([...phones, val]);
-                  if (input) input.value = "";
+                  if (input) {
+                    input.value = "";
+                  }
                 }
               };
               return (
@@ -4022,13 +4094,17 @@ function WhatsAppTriggerConfig({
   const { data: groups } = useQuery({
     queryKey: ["whatsapp-groups-for-trigger", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("whatsapp_groups")
         .select("id, group_name, group_chat_id")
         .eq("tenant_id", tenantId)
         .order("group_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -4038,13 +4114,17 @@ function WhatsAppTriggerConfig({
   const { data: tags } = useQuery({
     queryKey: ["chat-tags-for-trigger", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("id, name, color")
         .eq("tenant_id", tenantId)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -4054,14 +4134,18 @@ function WhatsAppTriggerConfig({
   const { data: greenApiIntegrations } = useQuery({
     queryKey: ["green-api-integrations-for-trigger", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, settings, is_active, user_id, instance_id")
         .eq("tenant_id", tenantId)
         .eq("integration_type", "green_api")
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -4341,7 +4425,9 @@ function LeadSourceConfig({
         .select("id,name,contact_name,phone")
         .eq("tenant_id", tenantId!)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -4426,19 +4512,33 @@ function LeadSourceConfig({
         .ilike("notes", `%${formId}%`)
         .order("created_at", { ascending: false });
 
-      if (fromDate) query = query.gte("created_at", fromDate);
+      if (fromDate) {
+        query = query.gte("created_at", fromDate);
+      }
 
       const { data: recentLeads } = await query.limit(50);
 
       if (recentLeads && recentLeads.length > 0) {
         const parsed = recentLeads.map((lead) => {
           const fields: Record<string, string> = {};
-          if (lead.contact_name) fields["contact_name"] = lead.contact_name;
-          if (lead.company_name) fields["company_name"] = lead.company_name;
-          if (lead.phone) fields["phone"] = lead.phone;
-          if (lead.email) fields["email"] = lead.email;
-          if (lead.source) fields["source"] = lead.source;
-          if (lead.status) fields["status"] = lead.status;
+          if (lead.contact_name) {
+            fields["contact_name"] = lead.contact_name;
+          }
+          if (lead.company_name) {
+            fields["company_name"] = lead.company_name;
+          }
+          if (lead.phone) {
+            fields["phone"] = lead.phone;
+          }
+          if (lead.email) {
+            fields["email"] = lead.email;
+          }
+          if (lead.source) {
+            fields["source"] = lead.source;
+          }
+          if (lead.status) {
+            fields["status"] = lead.status;
+          }
 
           const notes = lead.notes || "";
           const fbFieldSection = notes.split("--- שדות טופס פייסבוק ---")[1];
@@ -4449,7 +4549,9 @@ function LeadSourceConfig({
               if (colonIdx > 0) {
                 const key = line.substring(0, colonIdx).trim();
                 const value = line.substring(colonIdx + 1).trim();
-                if (key && value) fields[`fb_${key}`] = value;
+                if (key && value) {
+                  fields[`fb_${key}`] = value;
+                }
               }
             }
           }
@@ -4841,14 +4943,18 @@ function FacebookFormSelectionDialog({
   const { data: fbIntegrations, isLoading: loadingIntegrations } = useQuery({
     queryKey: ["fb-integrations-for-flow", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, integration_type, settings, api_key, is_active")
         .eq("tenant_id", tenantId)
         .eq("integration_type", "facebook_lead_ads")
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && open,
@@ -4863,14 +4969,18 @@ function FacebookFormSelectionDialog({
   const { data: pagesData, isLoading: loadingPages } = useQuery({
     queryKey: ["fb-pages-for-flow", selectedIntegrationId, accessToken],
     queryFn: async () => {
-      if (!accessToken || !tenantId) return [];
+      if (!accessToken || !tenantId) {
+        return [];
+      }
       const { data, error } = await supabase.functions.invoke(
         "get-facebook-forms",
         {
           body: { tenant_id: tenantId, access_token: accessToken },
         },
       );
-      if (error || data?.error) return [];
+      if (error || data?.error) {
+        return [];
+      }
       return (data?.pages as Array<FacebookPage>) || [];
     },
     enabled: !!accessToken && !!tenantId && open,
@@ -4883,7 +4993,9 @@ function FacebookFormSelectionDialog({
   const { data: formsData, isLoading: loadingForms } = useQuery({
     queryKey: ["fb-forms-for-flow", selectedPageId, accessToken, pageToken],
     queryFn: async () => {
-      if (!accessToken || !selectedPageId || !tenantId) return [];
+      if (!accessToken || !selectedPageId || !tenantId) {
+        return [];
+      }
       const { data, error } = await supabase.functions.invoke(
         "get-facebook-forms",
         {
@@ -4895,7 +5007,9 @@ function FacebookFormSelectionDialog({
           },
         },
       );
-      if (error || data?.error) return [];
+      if (error || data?.error) {
+        return [];
+      }
       return (data?.forms as Array<FacebookForm>) || [];
     },
     enabled: !!accessToken && !!selectedPageId && !!tenantId && open,
@@ -4911,8 +5025,12 @@ function FacebookFormSelectionDialog({
     !!selectedIntegrationId && !!selectedPageId && !!selectedFormId;
 
   const filteredPages = useMemo(() => {
-    if (!pagesData || pagesData.length === 0) return [];
-    if (!pageSearchQuery.trim()) return pagesData;
+    if (!pagesData || pagesData.length === 0) {
+      return [];
+    }
+    if (!pageSearchQuery.trim()) {
+      return pagesData;
+    }
     const q = pageSearchQuery.trim().toLowerCase();
     return pagesData.filter((p: FacebookPage) =>
       p.name.toLowerCase().includes(q),
@@ -5154,14 +5272,18 @@ function CreateTaskActionConfig({
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-task-config", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -5170,14 +5292,18 @@ function CreateTaskActionConfig({
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners-for-task-config", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("campaigners")
         .select("id, full_name")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,

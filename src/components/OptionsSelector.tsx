@@ -161,7 +161,9 @@ const MobileView: React.FC<MobileViewProps> = ({
 }) => {
   const activeOptionData = allOptions.find((opt) => opt.id === activeOption);
 
-  if (!activeOptionData) return null;
+  if (!activeOptionData) {
+    return null;
+  }
 
   return (
     <div className="md:hidden flex flex-col gap-4 w-full">

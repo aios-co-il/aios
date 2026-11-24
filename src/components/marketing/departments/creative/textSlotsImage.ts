@@ -7,7 +7,9 @@ export async function loadImagePixels(
   url: string,
 ): Promise<PixelBuffer | null> {
   const resolved = await resolveCreativeImageUrl(url);
-  if (!resolved || typeof document === "undefined") return null;
+  if (!resolved || typeof document === "undefined") {
+    return null;
+  }
   return new Promise((resolve) => {
     const image = new Image();
     image.crossOrigin = "anonymous";

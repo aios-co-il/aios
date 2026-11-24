@@ -19,7 +19,9 @@ export function useUserTenants(userId?: string | null) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (mounted) setToken(session?.access_token ?? null);
+      if (mounted) {
+        setToken(session?.access_token ?? null);
+      }
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange(

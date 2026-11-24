@@ -82,7 +82,9 @@ export function AgentEditor({
         .from("ai_agents")
         .update({ engine })
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
@@ -174,7 +176,9 @@ function AgentTabsWithUrl({
     : params.get("tab") || "profile";
   const selectTab = (v: string) => {
     if (controlled) {
-      if (tab === undefined) setLocalTab(v);
+      if (tab === undefined) {
+        setLocalTab(v);
+      }
       onTabChange?.(v);
       return;
     }

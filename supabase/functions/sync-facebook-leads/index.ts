@@ -153,7 +153,9 @@ serve(async (req) => {
         formsToProcess = [[form_id, formMappings[form_id] || {}]];
       } else {
         formsToProcess = Object.entries(formMappings);
-        if (formsToProcess.length === 0) continue;
+        if (formsToProcess.length === 0) {
+          continue;
+        }
       }
 
       // Process each form
@@ -297,7 +299,9 @@ serve(async (req) => {
             for (const [fbField, systemField] of Object.entries(
               fieldMappings,
             )) {
-              if (systemField === "skip" || !systemField) continue;
+              if (systemField === "skip" || !systemField) {
+                continue;
+              }
 
               const value = fieldData[fbField];
               if (value) {

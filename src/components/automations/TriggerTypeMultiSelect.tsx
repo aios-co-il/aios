@@ -27,7 +27,9 @@ export function TriggerTypeMultiSelect({
 
   const toggle = (optionValue: string) => {
     if (value.includes(optionValue)) {
-      if (value.length === 1) return;
+      if (value.length === 1) {
+        return;
+      }
       onChange(value.filter((item) => item !== optionValue));
       return;
     }

@@ -37,7 +37,9 @@ export default function AccountingSettings() {
   const { data: integration, isLoading } = useQuery({
     queryKey: ["tenant-integration", tenantId, "sumit"],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -46,7 +48,9 @@ export default function AccountingSettings() {
         .eq("integration_type", "sumit")
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -60,7 +64,9 @@ export default function AccountingSettings() {
       is_active?: boolean;
       auto_sync_enabled?: boolean;
     }) => {
-      if (!tenantId) throw new Error("No tenant selected");
+      if (!tenantId) {
+        throw new Error("No tenant selected");
+      }
 
       if (integration) {
         const { error } = await supabase
@@ -71,7 +77,9 @@ export default function AccountingSettings() {
           })
           .eq("id", integration.id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("tenant_integrations").insert({
           tenant_id: tenantId,
@@ -79,7 +87,9 @@ export default function AccountingSettings() {
           ...data,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {

@@ -86,7 +86,9 @@ export function ClientTablesTab({
         `crm-tables?tenant_id=${tenantId}&client_id=${clientId}`,
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!clientId,
@@ -103,7 +105,9 @@ export function ClientTablesTab({
         `crm-tables?tenant_id=${tenantId}`,
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && showLinkSection,
@@ -164,7 +168,9 @@ export function ClientTablesTab({
   const serverErrorMessage = async (error: any, fallback: string) => {
     try {
       const details = await error?.context?.json();
-      if (details?.error) return details.error as string;
+      if (details?.error) {
+        return details.error as string;
+      }
     } catch {
       /* keep fallback */
     }
@@ -288,16 +294,22 @@ export function ClientTablesTab({
   );
 
   useEffect(() => {
-    if (items.length > 0) return;
-    if (contentKind === "table" && dashboards.length > 0)
+    if (items.length > 0) {
+      return;
+    }
+    if (contentKind === "table" && dashboards.length > 0) {
       setContentKind("dashboard");
-    if (contentKind === "dashboard" && tables.length > 0)
+    }
+    if (contentKind === "dashboard" && tables.length > 0) {
       setContentKind("table");
+    }
   }, [contentKind, dashboards.length, items.length, tables.length]);
 
   useEffect(() => {
     if (items.length === 0) {
-      if (activeTabId !== null) setActiveTabId(null);
+      if (activeTabId !== null) {
+        setActiveTabId(null);
+      }
       return;
     }
     const currentExists = !!items.find((i) => i.id === activeTabId);
@@ -309,9 +321,14 @@ export function ClientTablesTab({
   const activeItem = items.find((i) => i.id === activeTabId) || items[0];
 
   useEffect(() => {
-    if (!activeItem) return;
-    if (activeItem.kind === "table") prefetchReportTableView();
-    else prefetchDashboardView();
+    if (!activeItem) {
+      return;
+    }
+    if (activeItem.kind === "table") {
+      prefetchReportTableView();
+    } else {
+      prefetchDashboardView();
+    }
   }, [activeItem?.id, activeItem?.kind]);
 
   if (isLoading) {

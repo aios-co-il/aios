@@ -28,13 +28,27 @@ function ReportSection({
   kind: string;
   snapshot: SeoMonthlyShareSnapshot;
 }) {
-  if (kind === "cover") return <CoverSlide snapshot={snapshot} />;
-  if (kind === "metrics") return <MetricsSlide snapshot={snapshot} />;
-  if (kind === "keywords") return <KeywordsSlide snapshot={snapshot} />;
-  if (kind === "summary") return <SummarySlide snapshot={snapshot} />;
-  if (kind === "onsite") return <OnsiteSlide snapshot={snapshot} />;
-  if (kind === "articles") return <ArticlesSlide snapshot={snapshot} />;
-  if (kind === "links") return <LinksSlide snapshot={snapshot} />;
+  if (kind === "cover") {
+    return <CoverSlide snapshot={snapshot} />;
+  }
+  if (kind === "metrics") {
+    return <MetricsSlide snapshot={snapshot} />;
+  }
+  if (kind === "keywords") {
+    return <KeywordsSlide snapshot={snapshot} />;
+  }
+  if (kind === "summary") {
+    return <SummarySlide snapshot={snapshot} />;
+  }
+  if (kind === "onsite") {
+    return <OnsiteSlide snapshot={snapshot} />;
+  }
+  if (kind === "articles") {
+    return <ArticlesSlide snapshot={snapshot} />;
+  }
+  if (kind === "links") {
+    return <LinksSlide snapshot={snapshot} />;
+  }
   return <ClosingSlide snapshot={snapshot} />;
 }
 

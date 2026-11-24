@@ -22,7 +22,9 @@ export function computeNextRun(
   from: Date,
   timeZone: string | null | undefined = DEFAULT_TASK_TIMEZONE,
 ): string | null {
-  if (!cronExpression) return null;
+  if (!cronExpression) {
+    return null;
+  }
   const next = nextCronRun(
     cronExpression,
     from,
@@ -41,7 +43,9 @@ export function decideRecurringRun(
   now: Date,
 ): RecurringDecision {
   const nextRun = computeNextRun(task.cron_expression, now, task.timezone);
-  if (!nextRun) return { action: "invalid", nextRun: null };
+  if (!nextRun) {
+    return { action: "invalid", nextRun: null };
+  }
   const due = task.next_run ? new Date(task.next_run).getTime() : NaN;
   if (Number.isFinite(due) && now.getTime() - due > STALE_RUN_WINDOW_MS) {
     return { action: "skip_stale", nextRun };
@@ -64,7 +68,9 @@ export function freshOccurrenceResult(
     "last_output",
     "final_output",
   ]) {
-    if (key in prev) keep[key] = prev[key];
+    if (key in prev) {
+      keep[key] = prev[key];
+    }
   }
   return { ...keep, conversation_history: [], total_tool_calls: 0 };
 }

@@ -74,12 +74,16 @@ async function processTenantReminders(opts: {
         });
       }
     } else {
-      if (wa.error) opts.errors.push(`CRM WA ${lead.id}: ${wa.error}`);
+      if (wa.error) {
+        opts.errors.push(`CRM WA ${lead.id}: ${wa.error}`);
+      }
       fallbackLeads.push(lead);
     }
   }
 
-  if (fallbackLeads.length === 0) return;
+  if (fallbackLeads.length === 0) {
+    return;
+  }
 
   const payload = {
     trigger_type: opts.triggerType,
@@ -176,8 +180,12 @@ Deno.serve(async (req) => {
     } else if (dayAfterLeads && dayAfterLeads.length > 0) {
       const leadsByTenant: Record<string, Array<ReminderLead>> = {};
       for (const lead of dayAfterLeads as Array<ReminderLead>) {
-        if (!lead.tenant_id) continue;
-        if (!leadsByTenant[lead.tenant_id]) leadsByTenant[lead.tenant_id] = [];
+        if (!lead.tenant_id) {
+          continue;
+        }
+        if (!leadsByTenant[lead.tenant_id]) {
+          leadsByTenant[lead.tenant_id] = [];
+        }
         leadsByTenant[lead.tenant_id].push(lead);
       }
       for (const [tenantId, tenantLeads] of Object.entries(leadsByTenant)) {
@@ -215,8 +223,12 @@ Deno.serve(async (req) => {
     } else if (sameDayLeads && sameDayLeads.length > 0) {
       const leadsByTenant: Record<string, Array<ReminderLead>> = {};
       for (const lead of sameDayLeads as Array<ReminderLead>) {
-        if (!lead.tenant_id) continue;
-        if (!leadsByTenant[lead.tenant_id]) leadsByTenant[lead.tenant_id] = [];
+        if (!lead.tenant_id) {
+          continue;
+        }
+        if (!leadsByTenant[lead.tenant_id]) {
+          leadsByTenant[lead.tenant_id] = [];
+        }
         leadsByTenant[lead.tenant_id].push(lead);
       }
       for (const [tenantId, tenantLeads] of Object.entries(leadsByTenant)) {

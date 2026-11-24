@@ -30,7 +30,9 @@ export function sceneHeadline(
   to: number,
 ): string {
   const text = (scene.caption ?? "").replace(/\s+/g, " ").trim();
-  if (!text || (scene.kicker ?? "").trim()) return "";
+  if (!text || (scene.kicker ?? "").trim()) {
+    return "";
+  }
   const words = plainWords(text);
   const said = captions
     .flatMap((caption) => caption.words)

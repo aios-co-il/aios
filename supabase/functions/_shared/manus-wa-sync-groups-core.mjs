@@ -67,8 +67,12 @@ async function fetchAllGroups(buildUrl, headers) {
       buildUrl(cursor),
       headers,
     );
-    for (const g of groups) byId.set(g.id, g);
-    if (!nextCursor || nextCursor === cursor) break;
+    for (const g of groups) {
+      byId.set(g.id, g);
+    }
+    if (!nextCursor || nextCursor === cursor) {
+      break;
+    }
     cursor = nextCursor;
   }
   return [...byId.values()];
@@ -101,7 +105,9 @@ export async function fetchGroupsFromGateway(instanceId, apiKey) {
           (cursor) => {
             // Exact path — do not omit /api/v1.
             let url = `${BASE_URL}/api/v1/instances/${instanceId}/groups`;
-            if (cursor) url += `?cursor=${encodeURIComponent(cursor)}`;
+            if (cursor) {
+              url += `?cursor=${encodeURIComponent(cursor)}`;
+            }
             return url;
           },
           { "X-Api-Key": apiKey },
@@ -116,7 +122,9 @@ export async function fetchGroupsFromGateway(instanceId, apiKey) {
         fetchAllGroups(
           (cursor) => {
             let url = `${BASE_URL}/api/admin/instances/${instanceId}/groups`;
-            if (cursor) url += `?cursor=${encodeURIComponent(cursor)}`;
+            if (cursor) {
+              url += `?cursor=${encodeURIComponent(cursor)}`;
+            }
             return url;
           },
           { "X-Worker-Secret": WORKER_SECRET },
@@ -134,7 +142,9 @@ export async function fetchGroupsFromGateway(instanceId, apiKey) {
   for (const attempt of attempts) {
     try {
       const groups = await attempt.run();
-      if (groups.length > 0) return { groups, via: attempt.via };
+      if (groups.length > 0) {
+        return { groups, via: attempt.via };
+      }
       lastErr = new Error(`${attempt.via}: Gateway החזיר 0 קבוצות`);
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
@@ -161,10 +171,16 @@ async function loadTaggedManusSyncGroups(supabaseSvc, tenantId) {
       .or("is_blocked.is.null,is_blocked.eq.false")
       .order("group_name")
       .range(from, from + pageSize - 1);
-    if (error) throw error;
-    if (!data?.length) break;
+    if (error) {
+      throw error;
+    }
+    if (!data?.length) {
+      break;
+    }
     rows.push(...data);
-    if (data.length < pageSize) break;
+    if (data.length < pageSize) {
+      break;
+    }
   }
   return rows.map((row) => ({
     id: row.group_chat_id,
@@ -184,7 +200,9 @@ async function loadManusTrafficGroups(supabaseSvc, tenantId) {
     .eq("tenant_id", tenantId)
     .eq("provider", "manus_wa")
     .not("group_id", "is", null);
-  if (msgErr) throw msgErr;
+  if (msgErr) {
+    throw msgErr;
+  }
 
   const ids = [
     ...new Set(
@@ -194,7 +212,9 @@ async function loadManusTrafficGroups(supabaseSvc, tenantId) {
         .map(String),
     ),
   ];
-  if (!ids.length) return [];
+  if (!ids.length) {
+    return [];
+  }
 
   const rows = [];
   const chunkSize = 200;
@@ -206,7 +226,9 @@ async function loadManusTrafficGroups(supabaseSvc, tenantId) {
       .eq("tenant_id", tenantId)
       .in("id", chunk)
       .or("is_blocked.is.null,is_blocked.eq.false");
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     rows.push(...(data || []));
   }
 
@@ -227,17 +249,25 @@ async function clearStaleManusSyncTags(supabaseSvc, tenantId, keepGroupIds) {
       .eq("tenant_id", tenantId)
       .eq("description", MANUS_SYNC_TAG)
       .range(from, from + pageSize - 1);
-    if (error) throw error;
-    if (!data?.length) break;
+    if (error) {
+      throw error;
+    }
+    if (!data?.length) {
+      break;
+    }
     const stale = data.map((r) => r.id).filter((id) => !keep.has(String(id)));
     if (stale.length) {
       const { error: clearErr } = await supabaseSvc
         .from("whatsapp_groups")
         .update({ description: null, updated_at: new Date().toISOString() })
         .in("id", stale);
-      if (clearErr) throw clearErr;
+      if (clearErr) {
+        throw clearErr;
+      }
     }
-    if (data.length < pageSize) break;
+    if (data.length < pageSize) {
+      break;
+    }
   }
 }
 
@@ -274,7 +304,9 @@ async function persistSyncCatalog(
         )
         .select("id, group_name, group_chat_id")
         .maybeSingle();
-      if (upsertErr) throw upsertErr;
+      if (upsertErr) {
+        throw upsertErr;
+      }
       rowId = row?.id || null;
       rowName = row?.group_name || g.name;
     } else {
@@ -287,7 +319,9 @@ async function persistSyncCatalog(
         .eq("id", rowId);
     }
 
-    if (!rowId) continue;
+    if (!rowId) {
+      continue;
+    }
     keepIds.push(rowId);
     groupChatIds.push(g.id);
     const entry = {
@@ -318,7 +352,9 @@ async function persistSyncCatalog(
     .from("tenant_integrations")
     .update({ settings: mergedSettings })
     .eq("id", integ.id);
-  if (settingsErr) throw settingsErr;
+  if (settingsErr) {
+    throw settingsErr;
+  }
 
   return synced;
 }

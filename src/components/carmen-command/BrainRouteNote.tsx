@@ -15,7 +15,9 @@ export function BrainRouteNote({
   externalUrl,
 }: BrainRouteNoteProps) {
   const waiting = status === "waiting_external" || status === "debating";
-  if (!(waiting || externalUrl || billingNoteForRoute(provider))) return null;
+  if (!(waiting || externalUrl || billingNoteForRoute(provider))) {
+    return null;
+  }
   return (
     <p className="px-1 text-[10px] leading-snug text-[var(--cc-text-dim)]">
       {billingNoteForRoute(provider)}

@@ -88,7 +88,9 @@ const numberFrom = (
 ): number => {
   for (const key of keys) {
     const value = Number(data[key]);
-    if (value) return value;
+    if (value) {
+      return value;
+    }
   }
   return 0;
 };
@@ -123,7 +125,9 @@ function utcDateString(date: Date): string {
 
 function parseDate(value: unknown): Date | null {
   const raw = typeof value === "string" ? value.slice(0, 10) : "";
-  if (!ISO_DATE.test(raw)) return null;
+  if (!ISO_DATE.test(raw)) {
+    return null;
+  }
   const date = new Date(`${raw}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -203,9 +207,13 @@ export function buildWeeklyCampaignSections(
   for (const record of records) {
     const source = (record._source ?? options.defaultSource) as
       WeeklyAdsSource | undefined;
-    if (!source || !ADS_SOURCES.has(source)) continue;
+    if (!source || !ADS_SOURCES.has(source)) {
+      continue;
+    }
     const data = record.data ?? {};
-    if (!shouldIncludeCampaignRow(data)) continue;
+    if (!shouldIncludeCampaignRow(data)) {
+      continue;
+    }
 
     const { campaign, campaignId } = weeklyCampaignIdentity(data);
     const rowKey = `${source}:${campaignId}`;
@@ -222,12 +230,16 @@ export function buildWeeklyCampaignSections(
     }
 
     const date = parseDate(data.date);
-    if (!date) continue;
+    if (!date) {
+      continue;
+    }
     const recordSunday = getSundayStart(date);
     const weekIndex = Math.round(
       (currentSunday.getTime() - recordSunday.getTime()) / (7 * DAY_MS),
     );
-    if (weekIndex < 0 || weekIndex >= maxWeeks) continue;
+    if (weekIndex < 0 || weekIndex >= maxWeeks) {
+      continue;
+    }
 
     const week = weeks.get(weekIndex) ?? new Map<string, WeekCampaign>();
     const row: WeekCampaign = week.get(rowKey) ?? {

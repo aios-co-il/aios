@@ -24,11 +24,18 @@ const SECTIONS: Array<{ key: AssetSection["key"]; label: string }> = [
 ];
 
 const sectionOf = (asset: WorkshopAsset): AssetSection["key"] => {
-  if (asset.source === "client") return "client";
-  if (asset.asset_type === "image" || asset.asset_type === "video")
+  if (asset.source === "client") {
+    return "client";
+  }
+  if (asset.asset_type === "image" || asset.asset_type === "video") {
     return "image";
-  if (asset.asset_type === "link" || asset.asset_type === "site") return "link";
-  if (asset.asset_type === "text") return "text";
+  }
+  if (asset.asset_type === "link" || asset.asset_type === "site") {
+    return "link";
+  }
+  if (asset.asset_type === "text") {
+    return "text";
+  }
   return "file";
 };
 
@@ -70,7 +77,9 @@ export function assetStoragePath(
 /** What the user typed into "add a link": a bare address gets https. */
 export function normalizeLink(raw: string): string | null {
   const value = raw.trim();
-  if (!value || /\s/.test(value)) return null;
+  if (!value || /\s/.test(value)) {
+    return null;
+  }
   const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
   try {
     const url = new URL(withScheme);
@@ -85,7 +94,9 @@ export function normalizeLink(raw: string): string | null {
  * so the url can hold any text: only an http(s) address becomes a link, never javascript: or data:.
  */
 export function webHref(url: string | null | undefined): string | null {
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   try {
     const { protocol } = new URL(url);
     return protocol === "https:" || protocol === "http:" ? url : null;

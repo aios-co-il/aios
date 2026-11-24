@@ -25,7 +25,9 @@ export function ImportLeadsCSV() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     if (!file.name.endsWith(".csv")) {
       toast({
@@ -45,7 +47,9 @@ export function ImportLeadsCSV() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("משתמש לא מחובר");
+      if (!user) {
+        throw new Error("משתמש לא מחובר");
+      }
 
       const { data: tenantData } = await supabase
         .from("tenant_users")
@@ -53,7 +57,9 @@ export function ImportLeadsCSV() {
         .eq("user_id", user.id)
         .single();
 
-      if (!tenantData) throw new Error("לא נמצא tenant למשתמש");
+      if (!tenantData) {
+        throw new Error("לא נמצא tenant למשתמש");
+      }
 
       // Parse CSV
       const parsed = Papa.parse<any>(text, {
@@ -75,8 +81,12 @@ export function ImportLeadsCSV() {
         .select("id, name")
         .ilike("name", "%promo%")
         .maybeSingle();
-      if (agencyErr) throw agencyErr;
-      if (!promoAgency) throw new Error('סוכנות "promo" לא נמצאה');
+      if (agencyErr) {
+        throw agencyErr;
+      }
+      if (!promoAgency) {
+        throw new Error('סוכנות "promo" לא נמצאה');
+      }
 
       const { data: zivPerson, error: spErr } = await supabase
         .from("sales_people")
@@ -84,8 +94,12 @@ export function ImportLeadsCSV() {
         .eq("agency_id", promoAgency.id)
         .ilike("full_name", "%זיו%")
         .maybeSingle();
-      if (spErr) throw spErr;
-      if (!zivPerson) throw new Error('איש מכירות "זיו" לא נמצא');
+      if (spErr) {
+        throw spErr;
+      }
+      if (!zivPerson) {
+        throw new Error('איש מכירות "זיו" לא נמצא');
+      }
 
       const normalize = (s: string | null | undefined) =>
         (s || "")
@@ -100,26 +114,36 @@ export function ImportLeadsCSV() {
         );
 
       const parseDate = (val: string) => {
-        if (!val) return null;
+        if (!val) {
+          return null;
+        }
         // Try DD/MM/YY format
         const parts = val.split("/");
         if (parts.length === 3) {
           const day = parts[0].padStart(2, "0");
           const month = parts[1].padStart(2, "0");
           let year = parts[2];
-          if (year.length === 2) year = "20" + year;
+          if (year.length === 2) {
+            year = "20" + year;
+          }
           const d = new Date(`${year}-${month}-${day}`);
-          if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+          if (!isNaN(d.getTime())) {
+            return d.toISOString().split("T")[0];
+          }
         }
         // Try ISO format
         const d = new Date(val);
-        if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+        if (!isNaN(d.getTime())) {
+          return d.toISOString().split("T")[0];
+        }
         return null;
       };
 
       // Helpers to avoid mis-mapping date values into text fields
       const isDateLike = (val: any) => {
-        if (val === undefined || val === null) return false;
+        if (val === undefined || val === null) {
+          return false;
+        }
         return !!parseDate(String(val));
       };
 
@@ -128,7 +152,9 @@ export function ImportLeadsCSV() {
           const v = row[key] ?? row[String(key).trim()];
           if (v !== undefined && v !== null) {
             const s = String(v).trim();
-            if (s !== "") return s;
+            if (s !== "") {
+              return s;
+            }
           }
         }
         return undefined;
@@ -136,53 +162,79 @@ export function ImportLeadsCSV() {
 
       const mapSource = (val: string) => {
         const v = normalize(val);
-        if (v.includes("אתר") || v.includes("website")) return "website";
-        if (v.includes("לינקדאין") || v.includes("linkedin")) return "linkedin";
+        if (v.includes("אתר") || v.includes("website")) {
+          return "website";
+        }
+        if (v.includes("לינקדאין") || v.includes("linkedin")) {
+          return "linkedin";
+        }
         if (
           v.includes("שיחה") ||
           v.includes("טלפון") ||
           v.includes("איתי") ||
           v.includes("המלצה")
-        )
+        ) {
           return "referral";
+        }
         // Default to 'other' for all social media and unrecognized sources
         return "other";
       };
 
       const mapStatus = (val: string) => {
         const v = normalize(val);
-        if (v.includes("איןמענה") || v.includes("אינומענה")) return "contacted";
-        if (v.includes("פולואפ") || v.includes("פולאפ")) return "follow_up";
+        if (v.includes("איןמענה") || v.includes("אינומענה")) {
+          return "contacted";
+        }
+        if (v.includes("פולואפ") || v.includes("פולאפ")) {
+          return "follow_up";
+        }
         if (
           v.includes("הצעתמחיר") ||
           v.includes("הצעה") ||
           v.includes("נקבעהפגישה") ||
           v.includes("נקבעהשיחה")
-        )
+        ) {
           return "proposal_sent";
-        if (v.includes("פגישהעםאיתי") || v.includes("ממתיןלשיחה"))
+        }
+        if (v.includes("פגישהעםאיתי") || v.includes("ממתיןלשיחה")) {
           return "follow_up";
+        }
         // לא מעוניין / לא רלוונטי נשארים כ-new, רק תאריך ב"נסגר" יקבע closed
         return "new";
       };
 
       const mapResponseStatus = (val: string) => {
         const v = normalize(val);
-        if (v.includes("איןמענה4")) return "no_answer_4";
-        if (v.includes("איןמענה3")) return "no_answer_3";
-        if (v.includes("איןמענה2")) return "no_answer_2";
-        if (v.includes("איןמענה") || v.includes("אינומענה"))
+        if (v.includes("איןמענה4")) {
+          return "no_answer_4";
+        }
+        if (v.includes("איןמענה3")) {
+          return "no_answer_3";
+        }
+        if (v.includes("איןמענה2")) {
+          return "no_answer_2";
+        }
+        if (v.includes("איןמענה") || v.includes("אינומענה")) {
           return "no_answer_1";
-        if (v.includes("מכחישפניה")) return "denies_contact";
-        if (v.includes("לארלוונטי")) return "not_relevant";
+        }
+        if (v.includes("מכחישפניה")) {
+          return "denies_contact";
+        }
+        if (v.includes("לארלוונטי")) {
+          return "not_relevant";
+        }
         return null;
       };
 
       const sanitize = (obj: any) => {
         const cleaned: any = {};
         for (const [k, v] of Object.entries(obj)) {
-          if (v === undefined || v === null) continue;
-          if (typeof v === "string" && v.trim() === "") continue;
+          if (v === undefined || v === null) {
+            continue;
+          }
+          if (typeof v === "string" && v.trim() === "") {
+            continue;
+          }
           cleaned[k] = v;
         }
         return cleaned;
@@ -198,7 +250,9 @@ export function ImportLeadsCSV() {
         // ליד ID - אם קיים ונראה כמו UUID נשתמש בו
         if (row["ליד id"]) {
           const idStr = row["ליד id"].toString().trim();
-          if (isUUID(idStr)) lead.id = idStr;
+          if (isUUID(idStr)) {
+            lead.id = idStr;
+          }
         }
 
         // שם - contact name
@@ -208,7 +262,9 @@ export function ImportLeadsCSV() {
         }
 
         // נייד - phone
-        if (row["נייד"]) lead.phone = row["נייד"].toString().trim();
+        if (row["נייד"]) {
+          lead.phone = row["נייד"].toString().trim();
+        }
 
         // מייל - email (מתעלם מתאריכים)
         const emailVal = row["מייל"] ? row["מייל"].toString().trim() : "";
@@ -233,7 +289,9 @@ export function ImportLeadsCSV() {
         }
 
         // פרסום - industry/notes
-        if (row["פרסום"]) lead.industry = row["פרסום"].toString().trim();
+        if (row["פרסום"]) {
+          lead.industry = row["פרסום"].toString().trim();
+        }
 
         // מקור הגעה - source (חובה - ברירת מחדל "other")
         if (row["מקור הגעה"]) {
@@ -243,8 +301,9 @@ export function ImportLeadsCSV() {
         }
 
         // שם קמפיין - campaign_name
-        if (row["שם קמפיין"])
+        if (row["שם קמפיין"]) {
           lead.campaign_name = row["שם קמפיין"].toString().trim();
+        }
 
         // סטטוס + סיבת הפסד (אם רלוונטי)
         if (row["סטטוס"]) {
@@ -259,14 +318,20 @@ export function ImportLeadsCSV() {
             lead.lost_reason = statusText.trim();
           }
           const resp = mapResponseStatus(statusText);
-          if (resp) lead.response_status = resp;
+          if (resp) {
+            lead.response_status = resp;
+          }
         }
 
         // הערות - notes
-        if (row["הערות"]) lead.notes = row["הערות"].toString().trim();
+        if (row["הערות"]) {
+          lead.notes = row["הערות"].toString().trim();
+        }
 
         // מוצרים - products
-        if (row["מוצרים"]) lead.products = row["מוצרים"].toString().trim();
+        if (row["מוצרים"]) {
+          lead.products = row["מוצרים"].toString().trim();
+        }
 
         // שיחה עם איתי - תאריך פגישה/שיחה
         if (row["שיחה עם איתי"]) {
@@ -282,7 +347,9 @@ export function ImportLeadsCSV() {
           if (d) {
             lead.proposal_date = d;
             lead.proposal_sent_date = d;
-            if (lead.status === "new") lead.status = "proposal_sent";
+            if (lead.status === "new") {
+              lead.status = "proposal_sent";
+            }
           }
         }
 
@@ -318,14 +385,18 @@ export function ImportLeadsCSV() {
         if (monthlyKey && row[monthlyKey]) {
           const val = row[monthlyKey].toString().replace(/[^\d.-]/g, "");
           const n = parseFloat(val);
-          if (!isNaN(n) && n > 0) lead.monthly_budget = n;
+          if (!isNaN(n) && n > 0) {
+            lead.monthly_budget = n;
+          }
         }
 
         // הצעה 3 חודשים
         if (row["הצעה 3 חודשים"]) {
           const val = row["הצעה 3 חודשים"].toString().replace(/[^\d.-]/g, "");
           const n = parseFloat(val);
-          if (!isNaN(n) && n > 0) lead.three_month_budget = n;
+          if (!isNaN(n) && n > 0) {
+            lead.three_month_budget = n;
+          }
         }
 
         // שווי הצעות/הסכמים
@@ -334,10 +405,14 @@ export function ImportLeadsCSV() {
             .toString()
             .replace(/[^\d.-]/g, "");
           const n = parseFloat(val);
-          if (!isNaN(n) && n > 0) lead.estimated_deal_value = n;
+          if (!isNaN(n) && n > 0) {
+            lead.estimated_deal_value = n;
+          }
         }
 
-        if (!lead.status) lead.status = "new";
+        if (!lead.status) {
+          lead.status = "new";
+        }
 
         return sanitize(lead);
       });
@@ -347,7 +422,9 @@ export function ImportLeadsCSV() {
         const contact = (l.contact_name || "").trim();
         const email = (l.email || "").trim();
         const phone = (l.phone || "").trim();
-        if (!name && !contact && !email && !phone) return false;
+        if (!name && !contact && !email && !phone) {
+          return false;
+        }
         return true;
       });
 
@@ -378,7 +455,9 @@ export function ImportLeadsCSV() {
         .from("leads")
         .select("id, company_name, email, phone")
         .eq("agency_id", promoAgency.id);
-      if (existingErr) throw existingErr;
+      if (existingErr) {
+        throw existingErr;
+      }
       // בניית רשימות עדכון/הוספה לפי התאמה בתוך אותה סוכנות (השוואה לא רגישה לרישיות)
       const normalizeStr = (s: string | null | undefined) =>
         (s || "").toString().trim().toLowerCase();
@@ -423,7 +502,9 @@ export function ImportLeadsCSV() {
         const { error: updateError } = await supabase
           .from("leads")
           .upsert(updates);
-        if (updateError) throw updateError;
+        if (updateError) {
+          throw updateError;
+        }
       }
 
       // הוספות
@@ -431,7 +512,9 @@ export function ImportLeadsCSV() {
         const { error: insertError } = await supabase
           .from("leads")
           .insert(inserts);
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ["leads", tenantId] });

@@ -74,11 +74,13 @@ export async function pictureFromEngines(
   };
   if (input.openRouterKey && !input.engine) {
     const made = await viaOpenRouter(refs.length > 0);
-    if (made) return made;
+    if (made) {
+      return made;
+    }
   }
   let stillTimedOut = false;
   let stillError: string | undefined;
-  if (input.otherEngines || input.engine)
+  if (input.otherEngines || input.engine) {
     try {
       return await still(
         input.keys,
@@ -93,15 +95,20 @@ export async function pictureFromEngines(
       stillError = message;
       failures.push(message.replace(ALL_FAILED, "").trim());
     }
+  }
   if (input.openRouterKey && !stillTimedOut && !openRouterRefused) {
     if (refs.length > 0 && !openRouterSentRefs) {
       const made = await viaOpenRouter(true);
-      if (made) return made;
+      if (made) {
+        return made;
+      }
     }
     // References OpenRouter could not take are left out; the prompt carries the look.
     if ((!openRouterTried || refs.length > 0) && !openRouterRefused) {
       const made = await viaOpenRouter(false);
-      if (made) return made;
+      if (made) {
+        return made;
+      }
     }
   }
   throw new Error(

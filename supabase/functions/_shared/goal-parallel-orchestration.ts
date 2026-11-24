@@ -35,7 +35,9 @@ export function selectParallelDispatchBatch(
   const pending = steps
     .filter((s) => s.status === "pending" && isParallelCursorStep(s))
     .sort((a, b) => a.sort_order - b.sort_order);
-  if (pending.length < 2) return [];
+  if (pending.length < 2) {
+    return [];
+  }
   return pending.slice(0, MAX_PARALLEL_CURSOR_DISPATCH);
 }
 

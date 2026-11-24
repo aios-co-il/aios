@@ -88,7 +88,9 @@ export function useSeoScope(clientId: string | undefined) {
 
       // 2. Build the set of accessible tenant_ids via agency_tenant_access
       const tenantSet = new Set<string>();
-      if (clientTenantId) tenantSet.add(clientTenantId);
+      if (clientTenantId) {
+        tenantSet.add(clientTenantId);
+      }
 
       if (agencyId) {
         const { data: accessRows } = await supabase
@@ -97,8 +99,12 @@ export function useSeoScope(clientId: string | undefined) {
           .eq("agency_id", agencyId);
 
         for (const row of accessRows || []) {
-          if (row.accessing_tenant_id) tenantSet.add(row.accessing_tenant_id);
-          if (row.source_tenant_id) tenantSet.add(row.source_tenant_id);
+          if (row.accessing_tenant_id) {
+            tenantSet.add(row.accessing_tenant_id);
+          }
+          if (row.source_tenant_id) {
+            tenantSet.add(row.source_tenant_id);
+          }
         }
       }
 

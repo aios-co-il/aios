@@ -36,7 +36,9 @@ export function useUserRole() {
   } = useQuery({
     queryKey: ["user-roles", effectiveUserId, tenantId, isViewingAs],
     queryFn: async () => {
-      if (!effectiveUserId) return [];
+      if (!effectiveUserId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("user_roles")
@@ -44,7 +46,9 @@ export function useUserRole() {
         .eq("user_id", effectiveUserId)
         .or(`tenant_id.eq.${tenantId},tenant_id.is.null`);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((r) => r.role as UserRole);
     },
     enabled: !!effectiveUserId && !!tenantId,
@@ -59,7 +63,9 @@ export function useUserRole() {
   const { data: campaignerId } = useQuery({
     queryKey: ["user-campaigner-id", effectiveUserId],
     queryFn: async () => {
-      if (!effectiveUserId) return null;
+      if (!effectiveUserId) {
+        return null;
+      }
       const { data } = await supabase
         .from("profiles")
         .select("campaigner_id")
@@ -75,7 +81,9 @@ export function useUserRole() {
   const { data: campaignerRoleTags } = useQuery({
     queryKey: ["user-campaigner-role-tags", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return [] as Array<string>;
+      if (!campaignerId) {
+        return [] as Array<string>;
+      }
       const { data } = await supabase
         .from("campaigners")
         .select("role")
@@ -93,14 +101,18 @@ export function useUserRole() {
   const { data: salesPersonAgencyIds } = useQuery({
     queryKey: ["user-sales-person-agency-ids", effectiveUserId],
     queryFn: async () => {
-      if (!effectiveUserId) return null;
+      if (!effectiveUserId) {
+        return null;
+      }
       const { data: profile } = await supabase
         .from("profiles")
         .select("sales_person_id")
         .eq("id", effectiveUserId)
         .maybeSingle();
 
-      if (!profile?.sales_person_id) return null;
+      if (!profile?.sales_person_id) {
+        return null;
+      }
 
       const { data: agencies } = await supabase
         .from("sales_person_agencies")
@@ -117,14 +129,18 @@ export function useUserRole() {
   const { data: tenantMembership, isPending: membershipPending } = useQuery({
     queryKey: ["tenant-membership-role", effectiveUserId, tenantId],
     queryFn: async () => {
-      if (!effectiveUserId || !tenantId) return null;
+      if (!effectiveUserId || !tenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_users")
         .select("role")
         .eq("user_id", effectiveUserId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.role ?? null;
     },
     enabled: !!effectiveUserId && !!tenantId,

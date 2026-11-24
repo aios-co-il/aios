@@ -24,7 +24,9 @@ Deno.serve(async (req) => {
     // OAuth callback
     if (queryAction === "callback" || (hasOAuthCode && hasOAuthState)) {
       const code = url.searchParams.get("code");
-      if (!code) throw new Error("No authorization code provided");
+      if (!code) {
+        throw new Error("No authorization code provided");
+      }
 
       const supabaseClient = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
@@ -34,8 +36,9 @@ Deno.serve(async (req) => {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
       const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
       const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
-      if (!clientId || !clientSecret)
+      if (!clientId || !clientSecret) {
         throw new Error("Missing Google credentials");
+      }
 
       // Exchange code for tokens
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -66,7 +69,9 @@ Deno.serve(async (req) => {
       // state = userId|tenantId
       const stateParam = url.searchParams.get("state") || "";
       const [userId, tenantId] = stateParam.split("|");
-      if (!userId || !tenantId) throw new Error("Invalid state parameter");
+      if (!userId || !tenantId) {
+        throw new Error("Invalid state parameter");
+      }
 
       // Gmail profile uses the same permission as mailbox operations.
       let googleEmail = null;
@@ -137,7 +142,9 @@ Deno.serve(async (req) => {
     // Authenticated actions
     const authHeader =
       req.headers.get("Authorization") || req.headers.get("authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
 
     const anonClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -149,18 +156,24 @@ Deno.serve(async (req) => {
       data: { user },
       error: userError,
     } = await anonClient.auth.getUser();
-    if (userError || !user) throw new Error("Unauthorized");
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
 
     const requestBody = await req.json();
     const action = requestBody.action;
 
     if (action === "init") {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      if (!clientId) throw new Error("Missing GOOGLE_CLIENT_ID");
+      if (!clientId) {
+        throw new Error("Missing GOOGLE_CLIENT_ID");
+      }
 
       const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
       const tenantId = requestBody.tenantId;
-      if (!tenantId) throw new Error("Missing tenantId");
+      if (!tenantId) {
+        throw new Error("Missing tenantId");
+      }
 
       const authUrl = buildGmailAuthorizeUrl({
         clientId,
@@ -204,7 +217,9 @@ Deno.serve(async (req) => {
         .delete()
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

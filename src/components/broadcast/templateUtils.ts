@@ -16,7 +16,9 @@ export const SAMPLE_VARS: TemplateVars = buildTemplateVars({
 });
 
 export function formatBytes(n?: number) {
-  if (!n) return "";
+  if (!n) {
+    return "";
+  }
   return n >= 1024 * 1024
     ? `${(n / 1024 / 1024).toFixed(1)}MB`
     : `${Math.ceil(n / 1024)}KB`;

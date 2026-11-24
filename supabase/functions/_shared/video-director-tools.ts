@@ -69,8 +69,12 @@ export async function executeVideoDirectorTool(
   assertClientAccess: (clientId: string) => Promise<void> = async () => {},
 ) {
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
-  if (!isVideoDirectorTool(name)) return { error: "כלי לא מוכר" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
+  if (!isVideoDirectorTool(name)) {
+    return { error: "כלי לא מוכר" };
+  }
 
   const item = await supabase
     .from("marketing_work_items")
@@ -78,8 +82,12 @@ export async function executeVideoDirectorTool(
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (item.error) return { error: item.error.message };
-  if (!item.data) return { error: "פרויקט לא נמצא" };
+  if (item.error) {
+    return { error: item.error.message };
+  }
+  if (!item.data) {
+    return { error: "פרויקט לא נמצא" };
+  }
   const project = item.data as {
     id: string;
     title: string | null;
@@ -106,7 +114,9 @@ export async function executeVideoDirectorTool(
       .eq("item_id", itemId)
       .eq("tenant_id", tenantId)
       .order("position");
-    if (scenes.error) return { error: scenes.error.message };
+    if (scenes.error) {
+      return { error: scenes.error.message };
+    }
     const music = await supabase
       .from("marketing_assets")
       .select("id, url, created_at")
@@ -115,7 +125,9 @@ export async function executeVideoDirectorTool(
       .eq("type", "music")
       .order("created_at", { ascending: false })
       .limit(1);
-    if (music.error) return { error: music.error.message };
+    if (music.error) {
+      return { error: music.error.message };
+    }
     const render = await supabase
       .from("marketing_runs")
       .select("id, status, error, output, created_at")
@@ -124,7 +136,9 @@ export async function executeVideoDirectorTool(
       .eq("kind", "render")
       .order("created_at", { ascending: false })
       .limit(1);
-    if (render.error) return { error: render.error.message };
+    if (render.error) {
+      return { error: render.error.message };
+    }
     const sceneRows = rowsOf(scenes.data) as Array<{ status?: string }>;
     return {
       item_id: project.id,
@@ -153,13 +167,15 @@ export async function executeVideoDirectorTool(
       p_stage_id: project.current_stage_id,
     });
     if (queued.error) {
-      if (queued.error.message.includes("no approved clips"))
+      if (queued.error.message.includes("no approved clips")) {
         return { error: "אין לסצנות קליפים להרכבה" };
+      }
       return { error: queued.error.message };
     }
     const runs = rowsOf(queued.data) as Array<{ id?: string }>;
-    if (runs.length === 0)
+    if (runs.length === 0) {
       return { queued: false, message: "סרט כבר בהרכבה", cost_usd: 0 };
+    }
     return {
       queued: true,
       run_id: runs[0]?.id ?? null,

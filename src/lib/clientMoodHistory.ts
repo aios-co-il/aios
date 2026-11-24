@@ -53,7 +53,9 @@ export function getClientMoodChanges(
 
   for (const log of chronological) {
     const moodStatus = normalizeClientMoodStatus(log.status);
-    if (!moodStatus || moodStatus === previousMoodStatus) continue;
+    if (!moodStatus || moodStatus === previousMoodStatus) {
+      continue;
+    }
 
     changes.push({ ...log, moodStatus, previousMoodStatus });
     previousMoodStatus = moodStatus;

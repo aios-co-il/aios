@@ -76,7 +76,9 @@ export function EvalsTab({ agent }: { agent: any }) {
         name,
       };
       const { error } = await supabase.from("agent_evals").insert(payload);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-evals", agent.id] });
@@ -95,7 +97,9 @@ export function EvalsTab({ agent }: { agent: any }) {
           body: { eval_id, tenant_id: tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (d) => {
@@ -113,7 +117,9 @@ export function EvalsTab({ agent }: { agent: any }) {
         .from("agent_evals")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-evals", agent.id] }),

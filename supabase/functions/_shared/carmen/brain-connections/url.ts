@@ -14,17 +14,24 @@ export function normalizeBaseUrl(raw: string): string {
 /** Only public https endpoints. */
 export function baseUrlProblem(raw: string): string | null {
   const url = normalizeBaseUrl(raw);
-  if (!url) return "Base URL is required";
+  if (!url) {
+    return "Base URL is required";
+  }
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
     return "Base URL is not a valid URL";
   }
-  if (parsed.protocol !== "https:") return "Base URL must use https";
-  if (parsed.username || parsed.password)
+  if (parsed.protocol !== "https:") {
+    return "Base URL must use https";
+  }
+  if (parsed.username || parsed.password) {
     return "Base URL must not contain credentials";
-  if (isPrivateHost(parsed.hostname)) return "Base URL must be a public host";
+  }
+  if (isPrivateHost(parsed.hostname)) {
+    return "Base URL must be a public host";
+  }
   return null;
 }
 
@@ -44,9 +51,10 @@ export function isPrivateHost(host: string): boolean {
     h.endsWith(".localhost") ||
     h.endsWith(".internal") ||
     h.endsWith(".local")
-  )
+  ) {
     return true;
-  if (h.includes(":"))
+  }
+  if (h.includes(":")) {
     return (
       h === "::" ||
       h === "::1" ||
@@ -54,8 +62,11 @@ export function isPrivateHost(host: string): boolean {
       h.startsWith("fe80:") ||
       h.startsWith("::ffff:")
     );
+  }
   const m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (!m) return false;
+  if (!m) {
+    return false;
+  }
   const [a, b] = [Number(m[1]), Number(m[2])];
   return (
     a === 10 ||

@@ -19,28 +19,35 @@ const respond = (body: unknown, status = 200) =>
   });
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   try {
     const auth = await requireAuth(req);
-    if (!auth) return respond({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
     const {
       work_item_id,
       replace_existing = true,
       sync_tracked = true,
     } = await req.json();
-    if (!work_item_id) return respond({ error: "work_item_id required" }, 400);
+    if (!work_item_id) {
+      return respond({ error: "work_item_id required" }, 400);
+    }
 
     const { data: item } = await admin
       .from("marketing_work_items")
       .select("*")
       .eq("id", work_item_id)
       .single();
-    if (!item?.client_id)
+    if (!item?.client_id) {
       return respond({ error: "Work item needs a client" }, 400);
+    }
     if (auth.kind === "user") {
       const { data: membership } = await admin
         .from("tenant_users")
@@ -48,13 +55,16 @@ serve(async (req) => {
         .eq("tenant_id", item.tenant_id)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return respond({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return respond({ error: "Forbidden" }, 403);
+      }
     }
 
     const payload = (item.payload ?? {}) as Record<string, unknown>;
     const plan = payload.seo_plan;
-    if (!plan || typeof plan !== "object")
+    if (!plan || typeof plan !== "object") {
       return respond({ error: "No seo_plan on work item" }, 400);
+    }
 
     const { data: programRow } = await admin
       .from("seo_geo_programs")
@@ -74,7 +84,9 @@ serve(async (req) => {
         })
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       program = created;
     }
 

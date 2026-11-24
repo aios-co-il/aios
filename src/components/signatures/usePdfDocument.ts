@@ -72,7 +72,9 @@ export function usePdfDocument(
           setError(err instanceof Error ? err.message : "שגיאה בטעינת PDF");
         }
       } finally {
-        if (!cancelled && requestId === requestIdRef.current) setLoading(false);
+        if (!cancelled && requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     })();
 
@@ -96,7 +98,9 @@ export async function renderPdfPageToCanvas(
   const scale = Math.max(0.1, targetWidth / unscaled.width);
   const viewport = page.getViewport({ scale });
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("no_canvas_context");
+  if (!context) {
+    throw new Error("no_canvas_context");
+  }
 
   canvas.width = Math.floor(viewport.width);
   canvas.height = Math.floor(viewport.height);

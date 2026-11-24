@@ -112,7 +112,9 @@ function TimeSlot({
   });
 
   const slotTasks = tasks.filter((t) => {
-    if (!t.due_time) return false;
+    if (!t.due_time) {
+      return false;
+    }
     // Format time to match HH:MM
     const taskTime = t.due_time.substring(0, 5);
     return taskTime === time;

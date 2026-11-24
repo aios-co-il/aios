@@ -14,13 +14,15 @@ export type StaticRef = { url: string; kind: StaticRefKind };
 
 export const labelStaticRef = (ref: StaticRef, index: number): string => {
   const n = index + 1;
-  if (ref.kind === "edit")
+  if (ref.kind === "edit") {
     return `Edit target (revise this exact ad, change only the director note): ${ref.url}`;
+  }
   if (ref.kind === "director") {
     return `Director / reject reference ${n} (match taste, lighting, crop, material — new people unless this is also the edit target): ${ref.url}`;
   }
-  if (ref.kind === "talent")
+  if (ref.kind === "talent") {
     return `Talent / spokesman ${n} (keep this face, new scene): ${ref.url}`;
+  }
   if (ref.kind === "logo") {
     return `LOGO ${n} (download and ATTACH this exact mark. Integrate it into the still — the app will NOT overlay a watermark): ${ref.url}`;
   }
@@ -65,7 +67,9 @@ const pushRef = (
   url: string | undefined,
   kind: StaticRefKind,
 ) => {
-  if (!url || refs.some((item) => item.url === url)) return;
+  if (!url || refs.some((item) => item.url === url)) {
+    return;
+  }
   refs.push({ url, kind });
 };
 
@@ -97,14 +101,20 @@ export const collectStaticReferencePlan = ({
   const talent = wantsTalentLock(instructions);
   const refs: Array<StaticRef> = [];
   pushRef(refs, editTargetUrl, "edit");
-  for (const url of directorUrls) pushRef(refs, url, "director");
-  for (const url of project) pushRef(refs, url, talent ? "talent" : "style");
+  for (const url of directorUrls) {
+    pushRef(refs, url, "director");
+  }
+  for (const url of project) {
+    pushRef(refs, url, talent ? "talent" : "style");
+  }
   pushRef(refs, techniqueUrl, "technique");
   const sliced = refs.slice(0, MAX_STATIC_REFS);
   if (logoUrl && !sliced.some((item) => item.url === logoUrl)) {
     sliced.push({ url: logoUrl, kind: "logo" });
   }
-  if (sliced.length === 0) return { urls: [], refs: [] };
+  if (sliced.length === 0) {
+    return { urls: [], refs: [] };
+  }
   const kinds = new Set(sliced.map((item) => item.kind));
   const role: CreativeReferenceRole | undefined = kinds.has("edit")
     ? "revision"

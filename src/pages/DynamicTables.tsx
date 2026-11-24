@@ -168,7 +168,9 @@ export default function DynamicTables() {
   const [clientPopoverOpen, setClientPopoverOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     () => {
-      if (typeof window === "undefined") return null;
+      if (typeof window === "undefined") {
+        return null;
+      }
       return sessionStorage.getItem("dynamicTables.selectedCategory");
     },
   );
@@ -187,12 +189,16 @@ export default function DynamicTables() {
   const { data: assignedClientIds } = useQuery({
     queryKey: ["campaigner-client-ids", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return [];
+      if (!campaignerId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id")
         .eq("campaigner_id", campaignerId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((ct) => ct.client_id) || [];
     },
     enabled: !!campaignerId && isRestrictedCampaignerViewer,
@@ -205,20 +211,26 @@ export default function DynamicTables() {
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       // Owned agencies
       const { data: owned, error: ownedErr } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId);
-      if (ownedErr) throw ownedErr;
+      if (ownedErr) {
+        throw ownedErr;
+      }
 
       // Shared agencies (cross-tenant via agency_tenant_access)
       const { data: sharedAccess, error: sharedErr } = await supabase
         .from("agency_tenant_access")
         .select("agency_id, agencies(id, name)")
         .eq("accessing_tenant_id", tenantId);
-      if (sharedErr) throw sharedErr;
+      if (sharedErr) {
+        throw sharedErr;
+      }
 
       const shared = (sharedAccess || [])
         .map((row: any) =>
@@ -244,21 +256,27 @@ export default function DynamicTables() {
       agencies.map((a) => a.id).join(","),
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const agencyIds = agencies.map((a) => a.id);
       if (agencyIds.length === 0) {
         const { data, error } = await supabase
           .from("clients")
           .select("id, name, agency_id, website, is_seo_client, services")
           .eq("tenant_id", tenantId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data || [];
       }
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, agency_id, website, is_seo_client, services")
         .in("agency_id", agencyIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && agencies.length >= 0,
@@ -276,7 +294,9 @@ export default function DynamicTables() {
         "get-facebook-ad-accounts",
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     enabled: !!editingTable && isEditingFacebook,
@@ -297,7 +317,9 @@ export default function DynamicTables() {
 
   // Filter clients by selected agency in edit dialog
   const editFilteredClients = useMemo(() => {
-    if (!editAgencyId) return [];
+    if (!editAgencyId) {
+      return [];
+    }
     let filtered = clients.filter((c) => c.agency_id === editAgencyId);
     if (isRestrictedCampaignerViewer && assignedClientIds) {
       filtered = filtered.filter((c) => assignedClientIds.includes(c.id));
@@ -319,7 +341,9 @@ export default function DynamicTables() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       // Pass the UI's tenant explicitly — the function otherwise falls back to
       // the global user_active_tenant row, which another device may have
@@ -331,7 +355,9 @@ export default function DynamicTables() {
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       // Ensure we always return an array
       return Array.isArray(response.data)
         ? (response.data as Array<CrmTable>)
@@ -345,7 +371,9 @@ export default function DynamicTables() {
   const { data: dashboards = [], isLoading: dashboardsLoading } = useQuery({
     queryKey: ["crm-dashboards", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       return fetchAccessibleDashboards(tenantId);
     },
     enabled: !!tenantId,
@@ -353,7 +381,9 @@ export default function DynamicTables() {
 
   // Filter tables by selected agency and role
   const filteredTables = useMemo(() => {
-    if (!tables) return [];
+    if (!tables) {
+      return [];
+    }
 
     let result = tables;
 
@@ -390,10 +420,14 @@ export default function DynamicTables() {
     if (clientSearch.trim()) {
       const search = clientSearch.trim().toLowerCase();
       result = result.filter((table) => {
-        if (table.name?.toLowerCase().includes(search)) return true;
+        if (table.name?.toLowerCase().includes(search)) {
+          return true;
+        }
         if (table.client_id) {
           const client = clients.find((c) => c.id === table.client_id);
-          if (client?.name?.toLowerCase().includes(search)) return true;
+          if (client?.name?.toLowerCase().includes(search)) {
+            return true;
+          }
         }
         return false;
       });
@@ -419,7 +453,9 @@ export default function DynamicTables() {
         .from("crm_dashboards")
         .delete()
         .eq("id", dashboardId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-dashboards", tenantId] });
@@ -443,7 +479,9 @@ export default function DynamicTables() {
         .from("crm_dashboards")
         .update({ name })
         .eq("id", dashboardId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm-dashboards", tenantId] });
@@ -461,7 +499,9 @@ export default function DynamicTables() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-tables`,
@@ -512,11 +552,14 @@ export default function DynamicTables() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const body: any = { table_id: tableId, name, agency_id, client_id };
-      if (integration_settings !== undefined)
+      if (integration_settings !== undefined) {
         body.integration_settings = integration_settings;
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-tables`,
@@ -594,7 +637,9 @@ export default function DynamicTables() {
   };
 
   const handleSaveEdit = () => {
-    if (!editingTable || !editName.trim()) return;
+    if (!editingTable || !editName.trim()) {
+      return;
+    }
     const isFacebook =
       editingTable.integration_type === "facebook_insights" ||
       editingTable.integration_type === "facebook_ecommerce";
@@ -640,19 +685,25 @@ export default function DynamicTables() {
   };
 
   const getAgencyName = (agencyId: string | null) => {
-    if (!agencyId) return null;
+    if (!agencyId) {
+      return null;
+    }
     const agency = agencies.find((a) => a.id === agencyId);
     return agency?.name || null;
   };
 
   const getClientName = (clientId: string | null) => {
-    if (!clientId) return null;
+    if (!clientId) {
+      return null;
+    }
     const client = clients.find((c) => c.id === clientId);
     return client?.name || null;
   };
 
   const groupedTables = useMemo(() => {
-    if (!filteredTables) return {};
+    if (!filteredTables) {
+      return {};
+    }
 
     const groups: Record<string, Array<CrmTable>> = {};
     filteredTables.forEach((table) => {
@@ -673,7 +724,9 @@ export default function DynamicTables() {
 
   // Clear selectedCategory if it no longer exists in categories (don't auto-select first)
   useMemo(() => {
-    if (categories.length === 0) return;
+    if (categories.length === 0) {
+      return;
+    }
     if (selectedCategory && !categories.includes(selectedCategory)) {
       setSelectedCategory(null);
       try {
@@ -1340,8 +1393,9 @@ export default function DynamicTables() {
                     const agencyMatch = dashboard.agencies?.name
                       ?.toLowerCase()
                       .includes(search);
-                    if (!nameMatch && !clientMatch && !agencyMatch)
+                    if (!nameMatch && !clientMatch && !agencyMatch) {
                       return false;
+                    }
                   }
                   // Campaigners can only see dashboards linked to their assigned clients
                   if (isRestrictedCampaignerViewer && assignedClientIds) {
@@ -1603,7 +1657,9 @@ export default function DynamicTables() {
                   onValueChange={(val) => {
                     const newVal = val === "__none__" ? "" : val;
                     setEditAgencyId(newVal);
-                    if (newVal !== editAgencyId) setEditClientId("");
+                    if (newVal !== editAgencyId) {
+                      setEditClientId("");
+                    }
                   }}
                 >
                   <SelectTrigger className="flex-1">

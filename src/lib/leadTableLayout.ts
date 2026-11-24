@@ -27,8 +27,12 @@ export function isSalesPersonOnSurface(
   person: SurfaceSalesPerson,
   selectedAgency: string | null | undefined,
 ): boolean {
-  if (!selectedAgency || selectedAgency === "all") return true;
-  if (person.agency_id === selectedAgency) return true;
+  if (!selectedAgency || selectedAgency === "all") {
+    return true;
+  }
+  if (person.agency_id === selectedAgency) {
+    return true;
+  }
   return person.agencyIds?.includes(selectedAgency) ?? false;
 }
 

@@ -138,8 +138,9 @@ export function buildCampaignShutdownReport(
     for (const c of result.skipped_out_of_scope.slice(0, 8)) {
       lines.push(`• ${c.campaign_name} (${c.effective_status})`);
     }
-    if (result.skipped_out_of_scope.length > 8)
+    if (result.skipped_out_of_scope.length > 8) {
       lines.push(`… ועוד ${result.skipped_out_of_scope.length - 8}`);
+    }
   }
   if (result.still_active.length > 0) {
     lines.push("", "⚠️ עדיין פעילים:");
@@ -185,7 +186,9 @@ export function buildCampaignShutdownJobFromBrief(
   description: string | null | undefined,
   overrides: Partial<CampaignShutdownJob> = {},
 ): CampaignShutdownJob | null {
-  if (!looksLikeCampaignShutdownTask(title, description || "")) return null;
+  if (!looksLikeCampaignShutdownTask(title, description || "")) {
+    return null;
+  }
   const text = `${title}\n${description || ""}`;
   return {
     client_name_search: overrides.client_id

@@ -56,7 +56,9 @@ export function rgba(hex: string, alpha: number): string {
 /** A second confetti colour beside the brand's: its hue turned 150 degrees, bright. */
 export function companionColour(hex: string): string {
   const rgb = channels(hex);
-  if (!rgb) return "#ffd23f";
+  if (!rgb) {
+    return "#ffd23f";
+  }
   const [r, g, b] = rgb;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);

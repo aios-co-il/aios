@@ -81,9 +81,15 @@ const formatNumber = (num: number) =>
   new Intl.NumberFormat("he-IL").format(Math.round(num));
 
 const campaignGoalLabel = (goal: PulseCampaignGoalRow["goal"]) => {
-  if (goal === "ecommerce") return "איקומרס";
-  if (goal === "engagement") return "אינגייג׳מנט";
-  if (goal === "leads") return "לידים";
+  if (goal === "ecommerce") {
+    return "איקומרס";
+  }
+  if (goal === "engagement") {
+    return "אינגייג׳מנט";
+  }
+  if (goal === "leads") {
+    return "לידים";
+  }
   return "טעון סיווג";
 };
 

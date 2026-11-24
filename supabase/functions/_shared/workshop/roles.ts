@@ -108,8 +108,9 @@ export function aboutCarmen(message: string | null | undefined): boolean {
     FILM_NOUN.test(text) ||
     STATIC_DELIVERABLE.test(text) ||
     MAKE.test(text)
-  )
+  ) {
     return false;
+  }
   return (
     ABOUT_HER_SKINS.test(text) ||
     ABOUT_HER_LOOKS.test(text) ||
@@ -210,7 +211,9 @@ export function workshopRole(
   if (project?.landing || asksForLanding(text, firstOtherDeliverable(text))) {
     return "copywriter";
   }
-  if (EDITOR.test(text)) return "editor";
+  if (EDITOR.test(text)) {
+    return "editor";
+  }
   if (VIDEO.test(text)) {
     return filmRole(project);
   }
@@ -223,14 +226,22 @@ export function workshopRole(
   if (film >= 0 && (still < 0 || film < still)) {
     return filmRole(project);
   }
-  if (still >= 0) return "designer";
+  if (still >= 0) {
+    return "designer";
+  }
   if (project?.video) {
     return filmRole(project);
   }
-  if (project && STATIC_HINT.test(text)) return "designer";
-  if (STATIC_HINT.test(text) && !roleOfPersona(current)) return "designer";
+  if (project && STATIC_HINT.test(text)) {
+    return "designer";
+  }
+  if (STATIC_HINT.test(text) && !roleOfPersona(current)) {
+    return "designer";
+  }
   // With no project and no specialist yet, a bare yes or no answers the workshop's own persona
   // (say, a dev task she offered after a question about herself), not a designer's brief.
-  if (!project && !roleOfPersona(current) && bareReply(text)) return null;
+  if (!project && !roleOfPersona(current) && bareReply(text)) {
+    return null;
+  }
   return currentRole(current, project) ?? "designer";
 }

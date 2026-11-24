@@ -7,13 +7,16 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { brand_name, keywords, competitors, description } = await req.json();
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
+    }
 
     const competitorList = (competitors || []).filter(Boolean).join(", ");
     const keywordList = (keywords || []).filter(Boolean).join(", ");
@@ -127,7 +130,9 @@ ${competitorList ? `- מתחרים בשוק: ${competitorList}` : ""}
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in response");
+    if (!toolCall) {
+      throw new Error("No tool call in response");
+    }
 
     const parsed = JSON.parse(toolCall.function.arguments);
     return new Response(JSON.stringify({ prompts: parsed.prompts }), {

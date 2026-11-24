@@ -37,7 +37,9 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
         .eq("active", true)
         .order("route_type")
         .order("label");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -53,29 +55,41 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
         .eq("tenant_id", tenantId!)
         .eq("agent_id", agentId!)
         .not("user_id", "is", null);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<AccessRow>;
     },
   });
 
   const byUser = useMemo(() => {
     const m = new Map<string, AccessRow>();
-    for (const r of rowsQuery.data ?? []) if (r.user_id) m.set(r.user_id, r);
+    for (const r of rowsQuery.data ?? []) {
+      if (r.user_id) {
+        m.set(r.user_id, r);
+      }
+    }
     return m;
   }, [rowsQuery.data]);
 
   const save = useMutation({
     mutationFn: async (args: { userId: string; patch: AccessPatch | null }) => {
-      if (!tenantId || !agentId) throw new Error("לא נמצאה כרמן פעילה");
+      if (!tenantId || !agentId) {
+        throw new Error("לא נמצאה כרמן פעילה");
+      }
       const table = supabase.from("carmen_command_center_access");
       const patch = args.patch as Omit<AccessPatch, "brain_access"> & {
         brain_access?: Json;
       };
       const existing = byUser.get(args.userId);
       if (args.patch === null) {
-        if (!existing) return;
+        if (!existing) {
+          return;
+        }
         const { error } = await table.delete().eq("id", existing.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return;
       }
       // Select-then-write rather than upsert: the unique index on
@@ -94,7 +108,9 @@ export function useCarmenPermissions(tenantId: string | null | undefined) {
             brain_access: null,
             ...patch,
           });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: rowsKey });

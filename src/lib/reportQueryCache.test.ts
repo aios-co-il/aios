@@ -3,11 +3,17 @@ import type { DehydratedState } from "@tanstack/react-query";
 
 // Test the persistence filter inline (same rules as reportQueryCache.ts).
 function hasPersistableReportData(data: unknown): boolean {
-  if (data === undefined || data === null) return false;
-  if (Array.isArray(data)) return data.length > 0;
+  if (data === undefined || data === null) {
+    return false;
+  }
+  if (Array.isArray(data)) {
+    return data.length > 0;
+  }
   if (typeof data === "object") {
     const recordCount = (data as { records?: Array<unknown> }).records;
-    if (Array.isArray(recordCount)) return recordCount.length > 0;
+    if (Array.isArray(recordCount)) {
+      return recordCount.length > 0;
+    }
     return Object.keys(data as object).length > 0;
   }
   return true;

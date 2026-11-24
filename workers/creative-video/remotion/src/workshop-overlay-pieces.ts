@@ -153,8 +153,14 @@ export function overlayPieces(
   frame: Frame,
 ): Array<Piece> {
   const rand = random(seedOf(`${overlay}:${sceneId}`));
-  if (overlay === "bubbles") return bubbles(rand, t, frame);
-  if (overlay === "particles") return particles(rand, t, frame);
-  if (overlay === "confetti") return t < 0 ? [] : confetti(rand, t, frame);
+  if (overlay === "bubbles") {
+    return bubbles(rand, t, frame);
+  }
+  if (overlay === "particles") {
+    return particles(rand, t, frame);
+  }
+  if (overlay === "confetti") {
+    return t < 0 ? [] : confetti(rand, t, frame);
+  }
   return [];
 }

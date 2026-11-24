@@ -29,23 +29,31 @@ type GeneratedArticle = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   try {
     const auth = await requireAuth(req);
-    if (!auth) return respond({ error: "Unauthorized" }, 401);
+    if (!auth) {
+      return respond({ error: "Unauthorized" }, 401);
+    }
     const { entry_id } = await req.json();
-    if (!entry_id) return respond({ error: "entry_id required" }, 400);
+    if (!entry_id) {
+      return respond({ error: "entry_id required" }, 400);
+    }
 
     const { data: entry } = await admin
       .from("seo_geo_calendar_entries")
       .select("*")
       .eq("id", entry_id)
       .single();
-    if (!entry) return respond({ error: "Entry not found" }, 404);
+    if (!entry) {
+      return respond({ error: "Entry not found" }, 404);
+    }
     if (auth.kind === "user") {
       const { data: membership } = await admin
         .from("tenant_users")
@@ -53,17 +61,20 @@ serve(async (req) => {
         .eq("tenant_id", entry.tenant_id)
         .eq("user_id", auth.userId)
         .maybeSingle();
-      if (!membership) return respond({ error: "Forbidden" }, 403);
+      if (!membership) {
+        return respond({ error: "Forbidden" }, 403);
+      }
     }
 
     const approved =
       entry.approval_status === "approved" ||
       entry.approval_status === "auto_approved";
-    if (!approved)
+    if (!approved) {
       return respond(
         { error: "Entry must be approved before generation" },
         400,
       );
+    }
 
     await admin
       .from("seo_geo_calendar_entries")
@@ -105,7 +116,9 @@ serve(async (req) => {
         .maybeSingle();
       settings = (source?.settings ?? settings) as Record<string, string>;
     }
-    if (!settings.openai_api_key) throw new Error("OpenAI API key missing");
+    if (!settings.openai_api_key) {
+      throw new Error("OpenAI API key missing");
+    }
 
     const payload = (item?.payload ?? {}) as Record<string, unknown>;
     const keyword = String(entry.primary_keyword ?? "").trim();
@@ -156,7 +169,9 @@ JSON:
         ],
       }),
     });
-    if (!ai.ok) throw new Error(`OpenAI ${ai.status}: ${await ai.text()}`);
+    if (!ai.ok) {
+      throw new Error(`OpenAI ${ai.status}: ${await ai.text()}`);
+    }
     const parsed = JSON.parse(
       (await ai.json()).choices?.[0]?.message?.content ?? "{}",
     ) as GeneratedArticle;

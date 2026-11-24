@@ -96,22 +96,32 @@ async function getMetaToken(
       .eq("id", data.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (source.data?.api_key) data = { ...data, api_key: source.data.api_key };
+    if (source.data?.api_key) {
+      data = { ...data, api_key: source.data.api_key };
+    }
   }
   return data?.api_key || null;
 }
 
 function bearerAuthorized(authHeader: string | null): boolean {
-  if (!authHeader) return false;
+  if (!authHeader) {
+    return false;
+  }
   const cronSecret = Deno.env.get("CAMPAIGN_PULSE_CRON_SECRET");
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
-  if (SERVICE_KEY && authHeader === `Bearer ${SERVICE_KEY}`) return true;
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return true;
+  }
+  if (SERVICE_KEY && authHeader === `Bearer ${SERVICE_KEY}`) {
+    return true;
+  }
   // Accept any service_role JWT for this project (keys can differ between
   // callers / rotated secrets while still being valid for the same ref).
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   try {
     const payloadPart = token.split(".")[1];
-    if (!payloadPart) return false;
+    if (!payloadPart) {
+      return false;
+    }
     const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
     const payload = JSON.parse(atob(padded));
@@ -133,7 +143,9 @@ async function queuePulseWhatsApp(
   message: string,
   chatId: string | null,
 ): Promise<boolean> {
-  if (isPulseDeliveryExcludedPhone(chatId, tenantSlug)) return false;
+  if (isPulseDeliveryExcludedPhone(chatId, tenantSlug)) {
+    return false;
+  }
   const delivery = await supabase.rpc("claude_notify_david", {
     p_message: message,
     p_tenant: tenantId,
@@ -166,7 +178,9 @@ async function loadTeamManagerDeliveryPlans(
   const userIds = Array.from(
     new Set((roles || []).map((row: any) => row.user_id).filter(Boolean)),
   );
-  if (!userIds.length) return [];
+  if (!userIds.length) {
+    return [];
+  }
 
   const [{ data: profiles }, { data: managed }] = await Promise.all([
     supabase
@@ -181,7 +195,9 @@ async function loadTeamManagerDeliveryPlans(
 
   const agenciesByUser = new Map<string, Array<string>>();
   for (const row of managed || []) {
-    if (!row.user_id || !row.agency_id) continue;
+    if (!row.user_id || !row.agency_id) {
+      continue;
+    }
     agenciesByUser.set(row.user_id, [
       ...(agenciesByUser.get(row.user_id) || []),
       row.agency_id,
@@ -201,7 +217,9 @@ async function loadTeamManagerDeliveryPlans(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok");
+  if (req.method === "OPTIONS") {
+    return new Response("ok");
+  }
   if (!bearerAuthorized(req.headers.get("authorization"))) {
     return json({ error: "Unauthorized" }, 401);
   }
@@ -232,11 +250,14 @@ Deno.serve(async (req) => {
     error: settingsError,
     legacySchema,
   } = await loadPulseSettings(supabase, body.tenant_id);
-  if (settingsError) return json({ error: settingsError.message }, 500);
-  if (legacySchema)
+  if (settingsError) {
+    return json({ error: settingsError.message }, 500);
+  }
+  if (legacySchema) {
     console.warn(
       "[campaign-pulse] pulse_alert_rules missing; instant alerts disabled until schema deployment",
     );
+  }
 
   const results: Array<any> = [];
   for (const setting of settings || []) {
@@ -921,11 +942,12 @@ Deno.serve(async (req) => {
           p_tenant_id: tenantId,
         });
         deliveryClaimed = claim.data === true && !claim.error;
-        if (claim.error)
+        if (claim.error) {
           console.error(
             "Failed to claim campaign pulse delivery:",
             claim.error.message,
           );
+        }
       }
     }
     if (deliveryClaimed || instantAlerts.sent > 0) {

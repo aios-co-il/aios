@@ -55,7 +55,9 @@ export const WEEKDAY_LABELS = [
 
 function hm(time: string): [number, number] {
   const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!m) return [9, 0];
+  if (!m) {
+    return [9, 0];
+  }
   const h = Math.min(23, Math.max(0, Number(m[1])));
   const min = Math.min(59, Math.max(0, Number(m[2])));
   return [h, min];
@@ -100,12 +102,13 @@ export function scheduleFromCron(
   const simpleTime = /^\d+$/.test(mi) && /^\d+$/.test(ho);
   const time = simpleTime ? `${pad(Number(ho))}:${pad(Number(mi))}` : base.time;
   const everyMin = /^\*\/(\d+)$/.exec(mi);
-  if (everyMin && ho === "*" && dom === "*" && mon === "*" && dow === "*")
+  if (everyMin && ho === "*" && dom === "*" && mon === "*" && dow === "*") {
     return {
       ...base,
       preset: "every_minutes",
       everyMinutes: Number(everyMin[1]),
     };
+  }
   const everyHour = /^\*\/(\d+)$/.exec(ho);
   if (
     /^\d+$/.test(mi) &&
@@ -113,28 +116,36 @@ export function scheduleFromCron(
     dom === "*" &&
     mon === "*" &&
     dow === "*"
-  )
+  ) {
     return {
       ...base,
       preset: "every_hours",
       everyHours: Number(everyHour[1]),
       time: `00:${pad(Number(mi))}`,
     };
+  }
   if (simpleTime && mon === "*") {
-    if (dom === "*" && dow === "*") return { ...base, preset: "daily", time };
-    if (dom === "*" && dow === "0-4")
+    if (dom === "*" && dow === "*") {
+      return { ...base, preset: "daily", time };
+    }
+    if (dom === "*" && dow === "0-4") {
       return { ...base, preset: "weekdays", time };
-    if (dom === "*" && /^[0-7]$/.test(dow))
+    }
+    if (dom === "*" && /^[0-7]$/.test(dow)) {
       return { ...base, preset: "weekly", time, weekday: Number(dow) % 7 };
-    if (/^\d+$/.test(dom) && dow === "*")
+    }
+    if (/^\d+$/.test(dom) && dow === "*") {
       return { ...base, preset: "monthly", time, monthDay: Number(dom) };
+    }
   }
   return { ...base, preset: "custom" };
 }
 
 export function isUsableCron(cron: string): boolean {
   const parsed = parseCron(cron);
-  if (!parsed) return false;
+  if (!parsed) {
+    return false;
+  }
   // Guard against accidental "every minute" schedules for AI tasks.
   return !(parsed.minutes.length > 12 && parsed.hours.length === 24);
 }

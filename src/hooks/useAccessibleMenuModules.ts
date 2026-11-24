@@ -29,14 +29,22 @@ export function useAccessibleMenuModules() {
     for (const tab of MENU_TABS) {
       for (const module of tab.sections.flatMap((section) => section.items)) {
         const targetTabId = overlay.moduleHome.get(module.key)?.tabId || tab.id;
-        if (!modulesByTab.has(targetTabId)) continue;
+        if (!modulesByTab.has(targetTabId)) {
+          continue;
+        }
         const accessible = (() => {
           const configured = dbByKey.get(module.key);
-          if (configured && !configured.is_visible) return false;
-          if (module.key === "my-profile") return true;
+          if (configured && !configured.is_visible) {
+            return false;
+          }
+          if (module.key === "my-profile") {
+            return true;
+          }
           return hasPermission(permissionForMenuKey(module.key));
         })();
-        if (!accessible) continue;
+        if (!accessible) {
+          continue;
+        }
         modulesByTab.get(targetTabId)!.push({
           ...module,
           label: dbByKey.get(module.key)?.custom_label || module.label,

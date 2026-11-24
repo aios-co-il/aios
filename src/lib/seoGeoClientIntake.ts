@@ -80,7 +80,9 @@ export async function fetchSeoIntakePreview(
     .map((row) => {
       const payload = (row.payload ?? {}) as Record<string, unknown>;
       const text = String(payload.brief_text ?? payload.brief ?? "").trim();
-      if (!text) return null;
+      if (!text) {
+        return null;
+      }
       return {
         id: row.id,
         title: row.title,

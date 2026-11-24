@@ -23,7 +23,9 @@ export const missingCopyBlocks = (
       .map((variation) => variation.copyKey)
       .filter((key): key is string => !!key),
   );
-  if (source.copyKey) taken.add(source.copyKey);
+  if (source.copyKey) {
+    taken.add(source.copyKey);
+  }
   return blocks.filter((block) => block.text.trim() && !taken.has(block.key));
 };
 

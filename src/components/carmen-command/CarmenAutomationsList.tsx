@@ -106,7 +106,9 @@ export function CarmenAutomationsList({
   } = useQuery({
     queryKey: ["carmen-automations", tenantId],
     queryFn: async (): Promise<Array<CarmenAutomationRow>> => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const [
         { data: autos, error: autosError },
@@ -125,8 +127,12 @@ export function CarmenAutomationsList({
           .eq("tenant_id", tenantId)
           .eq("action_type", CARMEN_SESSION_TYPE),
       ]);
-      if (autosError) throw autosError;
-      if (stepsError) throw stepsError;
+      if (autosError) {
+        throw autosError;
+      }
+      if (stepsError) {
+        throw stepsError;
+      }
 
       const stepsByAutomation = new Map<
         string,
@@ -166,7 +172,9 @@ export function CarmenAutomationsList({
           .from("tenant_integrations")
           .select("id, integration_type, display_name, instance_id, settings")
           .in("id", integrationIds);
-        if (intError) throw intError;
+        if (intError) {
+          throw intError;
+        }
         for (const c of integrations || []) {
           labels.set(c.id, connectionLabel(c));
         }
@@ -223,13 +231,17 @@ export function CarmenAutomationsList({
   // Same update as the Automations page toggle (scoped to the active tenant).
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      if (!tenantId) throw new Error("Missing tenant");
+      if (!tenantId) {
+        throw new Error("Missing tenant");
+      }
       const { error } = await supabase
         .from("automations")
         .update({ active })
         .eq("id", id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_, { active }) => {
       invalidateLists();
@@ -244,7 +256,9 @@ export function CarmenAutomationsList({
   // then opened in the embedded editor instead of navigating to its route.
   const createCarmenFlowMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data, error } = await supabase
         .from("automations")
         .insert({
@@ -263,7 +277,9 @@ export function CarmenAutomationsList({
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -436,7 +452,9 @@ export function CarmenAutomationsList({
       <Dialog
         open={!!editingId}
         onOpenChange={(open) => {
-          if (!open) closeEditor();
+          if (!open) {
+            closeEditor();
+          }
         }}
       >
         <DialogContent

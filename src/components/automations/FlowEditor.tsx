@@ -182,7 +182,9 @@ export default function FlowEditor({
         delete next[id];
         return next;
       });
-      if (blocked) return;
+      if (blocked) {
+        return;
+      }
       setRfNodes((nds) => nds.filter((n) => n.id !== id));
       setRfEdges((eds) =>
         eds.filter((e) => e.source !== id && e.target !== id),
@@ -253,14 +255,18 @@ export default function FlowEditor({
   } = useQuery({
     queryKey: ["automation", automationId],
     queryFn: async () => {
-      if (!automationId || !tenantId) return null;
+      if (!automationId || !tenantId) {
+        return null;
+      }
       // No tenant filter — automations from other tenants may be visible as shared mirrors
       const { data, error } = await supabase
         .from("automations")
         .select("*")
         .eq("id", automationId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     // Same as Automations list: TenantProvider already serializes sync. Gating on
@@ -281,13 +287,17 @@ export default function FlowEditor({
   } = useQuery({
     queryKey: ["automation-flow-steps", automationId],
     queryFn: async () => {
-      if (!automationId || !tenantId) return [];
+      if (!automationId || !tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("automation_flow_steps" as any)
         .select("*")
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<any>;
     },
     enabled: !!automationId && !!tenantId,
@@ -314,7 +324,9 @@ export default function FlowEditor({
   }, [automation]);
 
   useEffect(() => {
-    if (!steps || initializedRef.current) return;
+    if (!steps || initializedRef.current) {
+      return;
+    }
 
     if (steps.length > 0) {
       const dataMap: Record<string, FlowNodeData> = {};
@@ -340,9 +352,13 @@ export default function FlowEditor({
 
       // Build edges from parent_step_id + condition_branch
       steps.forEach((s: any) => {
-        if (!s.parent_step_id) return;
+        if (!s.parent_step_id) {
+          return;
+        }
         const parent = dataMap[s.parent_step_id];
-        if (!parent) return;
+        if (!parent) {
+          return;
+        }
 
         let sourceHandle = "output";
         if (parent.step_type === "condition") {
@@ -403,7 +419,9 @@ export default function FlowEditor({
 
   const doInsertBetween = useCallback(
     (stepType: FlowNodeData["step_type"]) => {
-      if (!insertBetween) return;
+      if (!insertBetween) {
+        return;
+      }
       const { sourceId, targetId } = insertBetween;
       const sourceNode = nodeDataMap[sourceId];
       const targetNode = nodeDataMap[targetId];
@@ -647,9 +665,12 @@ export default function FlowEditor({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!automationId || !tenantId) throw new Error("Missing data");
-      if (isReadOnlyMirror)
+      if (!automationId || !tenantId) {
+        throw new Error("Missing data");
+      }
+      if (isReadOnlyMirror) {
         throw new Error("אוטומציה זו משותפת מארגון אחר וניתנת לצפייה בלבד");
+      }
 
       const allNodes = Object.values(nodeDataMap);
       const triggerNode = allNodes.find((n) => n.step_type === "trigger");
@@ -697,7 +718,9 @@ export default function FlowEditor({
         .eq("tenant_id", tenantId)
         .select("id")
         .single();
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       // Delete old steps
       const { error: deleteError } = await supabase
@@ -705,7 +728,9 @@ export default function FlowEditor({
         .delete()
         .eq("automation_id", automationId)
         .eq("tenant_id", tenantId);
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        throw deleteError;
+      }
 
       // Insert new steps
       if (stepsToInsert.length > 0) {
@@ -747,8 +772,9 @@ export default function FlowEditor({
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (nextActive: boolean) => {
-      if (!automationId || !tenantId)
+      if (!automationId || !tenantId) {
         throw new Error("Missing automation data");
+      }
       const { data, error } = await supabase
         .from("automations")
         .update({ active: nextActive } as any)
@@ -756,8 +782,12 @@ export default function FlowEditor({
         .eq("tenant_id", tenantId)
         .select("id")
         .single();
-      if (error) throw error;
-      if (!data) throw new Error("הפלוו לא נמצא בארגון הפעיל");
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        throw new Error("הפלוו לא נמצא בארגון הפעיל");
+      }
       return nextActive;
     },
     onMutate: async (nextActive: boolean) => {
@@ -1008,7 +1038,9 @@ export default function FlowEditor({
           <MiniMap
             nodeColor={(n) => {
               const nd = (n.data as any)?.nodeData as FlowNodeData | undefined;
-              if (!nd) return "#888";
+              if (!nd) {
+                return "#888";
+              }
               const colors: Record<string, string> = {
                 trigger: "#f59e0b",
                 action: "#3b82f6",

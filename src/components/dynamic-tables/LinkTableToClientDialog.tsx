@@ -59,7 +59,9 @@ export function LinkTableToClientDialog({
         .select("id, name, agency_id, agencies(name)")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (ownError) throw ownError;
+      if (ownError) {
+        throw ownError;
+      }
 
       // 2) Cross-tenant: clients of agencies shared with this tenant
       const { data: sharedAccess } = await supabase
@@ -83,7 +85,9 @@ export function LinkTableToClientDialog({
       // Merge & dedupe
       const map = new Map<string, any>();
       for (const c of [...(ownClients || []), ...sharedClients]) {
-        if (!map.has(c.id)) map.set(c.id, c);
+        if (!map.has(c.id)) {
+          map.set(c.id, c);
+        }
       }
       return Array.from(map.values()).sort((a, b) =>
         (a.name || "").localeCompare(b.name || "", "he"),
@@ -108,7 +112,9 @@ export function LinkTableToClientDialog({
         let message = error.message;
         try {
           const details = await (error as any).context?.json();
-          if (details?.error) message = details.error;
+          if (details?.error) {
+            message = details.error;
+          }
         } catch {
           /* keep generic message */
         }

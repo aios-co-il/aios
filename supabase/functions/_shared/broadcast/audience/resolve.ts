@@ -41,7 +41,9 @@ export async function resolveAudience(
   filter: AudienceFilter,
   depth = 0,
 ): Promise<Array<Recipient>> {
-  if (!filter?.source) throw new Error("missing_filter_source");
+  if (!filter?.source) {
+    throw new Error("missing_filter_source");
+  }
   let recipients: Array<Recipient>;
   switch (filter.source) {
     case "leads":
@@ -59,15 +61,21 @@ export async function resolveAudience(
       recipients = resolveManualContacts(filter);
       break;
     case "list": {
-      if (!filter.listId) throw new Error("missing_listId");
+      if (!filter.listId) {
+        throw new Error("missing_listId");
+      }
       const { data: list, error } = await db
         .from("broadcast_lists")
         .select("id, source, source_config, kind")
         .eq("tenant_id", tenantId)
         .eq("id", filter.listId)
         .maybeSingle();
-      if (error) throw error;
-      if (!list) throw new Error("list_not_found");
+      if (error) {
+        throw error;
+      }
+      if (!list) {
+        throw new Error("list_not_found");
+      }
       const cfg = toAudienceFilter(list.source_config);
       // Dynamic CRM-filter lists are resolved live; never nest list → list.
       if (
@@ -76,7 +84,9 @@ export async function resolveAudience(
         cfg?.source &&
         cfg.source !== "list"
       ) {
-        if (depth > 0) throw new Error("nested_list");
+        if (depth > 0) {
+          throw new Error("nested_list");
+        }
         recipients = await resolveAudience(db, tenantId, cfg, depth + 1);
       } else {
         recipients = await resolveStaticList(db, tenantId, filter.listId);

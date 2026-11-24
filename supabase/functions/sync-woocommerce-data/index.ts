@@ -61,9 +61,13 @@ async function fetchAllPages(
       page,
       ...extraParams,
     });
-    if (!Array.isArray(data) || data.length === 0) break;
+    if (!Array.isArray(data) || data.length === 0) {
+      break;
+    }
     results.push(...data);
-    if (data.length < PAGE_SIZE) break;
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
     page++;
   }
   return results;
@@ -78,7 +82,9 @@ async function upsertChunks(
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
     const chunk = rows.slice(i, i + UPSERT_CHUNK);
     const { error } = await supabase.from(table).upsert(chunk, { onConflict });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 }
 
@@ -163,7 +169,9 @@ serve(async (req) => {
     }
 
     const { data: sites, error: sitesError } = await sitesQuery;
-    if (sitesError) throw sitesError;
+    if (sitesError) {
+      throw sitesError;
+    }
     if (!sites || sites.length === 0) {
       return new Response(
         JSON.stringify({

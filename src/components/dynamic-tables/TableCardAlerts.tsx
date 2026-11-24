@@ -75,7 +75,9 @@ export function TableCardAlerts({
         .eq("table_id", tableId)
         .eq("is_active", true);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<ReportAlert>;
     },
     enabled: !!tableId,
@@ -88,7 +90,9 @@ export function TableCardAlerts({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return [];
+      if (!session) {
+        return [];
+      }
 
       const response = await supabase.functions.invoke(
         `crm-records?table_id=${tableId}&date_filter=last_30_days`,
@@ -96,7 +100,9 @@ export function TableCardAlerts({
           method: "GET",
         },
       );
-      if (response.error) return [];
+      if (response.error) {
+        return [];
+      }
       return Array.isArray(response.data)
         ? (response.data as Array<CrmRecord>)
         : [];
@@ -152,7 +158,9 @@ export function TableCardAlerts({
 
           // Only show alert if BLOCKED by Meta (not manually paused)
           if (effectiveStatus && BLOCKED_STATUSES.includes(effectiveStatus)) {
-            if (configuredStatus === "PAUSED") continue;
+            if (configuredStatus === "PAUSED") {
+              continue;
+            }
 
             triggered.push({
               alert,
@@ -228,7 +236,9 @@ export function TableCardAlerts({
         alert.metric,
       );
 
-      if (previousValue === 0) continue;
+      if (previousValue === 0) {
+        continue;
+      }
 
       const changePercent =
         ((currentValue - previousValue) / previousValue) * 100;
@@ -264,7 +274,9 @@ export function TableCardAlerts({
     return triggered;
   }, [alerts, records, integrationSettings]);
 
-  if (triggeredAlerts.length === 0) return null;
+  if (triggeredAlerts.length === 0) {
+    return null;
+  }
 
   // Show compact version for card
   const blockingAlerts = triggeredAlerts.filter((t) => t.isBlocking);
@@ -352,7 +364,9 @@ function getCampaignBlockReason(effectiveStatus: string): string {
 }
 
 function getLatestRecord(records: Array<CrmRecord>): CrmRecord | null {
-  if (records.length === 0) return null;
+  if (records.length === 0) {
+    return null;
+  }
   return records.reduce((latest, record) => {
     const recordDate = record.data?.date || record.data?.Date || "";
     const latestDate = latest?.data?.date || latest?.data?.Date || "";
@@ -370,14 +384,18 @@ function groupRecordsByCampaign(
       record.data?.campaignId ||
       record.data?.campaign_name ||
       "unknown";
-    if (!groups[campaignId]) groups[campaignId] = [];
+    if (!groups[campaignId]) {
+      groups[campaignId] = [];
+    }
     groups[campaignId].push(record);
   }
   return groups;
 }
 
 function getCampaignName(records: Array<CrmRecord>): string {
-  if (records.length === 0) return "";
+  if (records.length === 0) {
+    return "";
+  }
   return records[0].data?.campaign_name || records[0].data?.campaignName || "";
 }
 
@@ -392,12 +410,16 @@ function calculateMetric(
 
   const filtered = records.filter((r) => {
     const recordDate = r.data?.date || r.data?.Date;
-    if (!recordDate) return false;
+    if (!recordDate) {
+      return false;
+    }
     // Use >= startStr and < endStr to avoid overlap between periods
     return recordDate >= startStr && recordDate < endStr;
   });
 
-  if (filtered.length === 0) return 0;
+  if (filtered.length === 0) {
+    return 0;
+  }
 
   // For cost_per_lead: calculate as total spend / total leads
   if (metric === "cost_per_lead") {
@@ -419,7 +441,9 @@ function calculateMetric(
       totalLeads += leads;
     }
 
-    if (totalLeads === 0) return 0;
+    if (totalLeads === 0) {
+      return 0;
+    }
     return totalSpend / totalLeads;
   }
 
@@ -442,7 +466,9 @@ function calculateMetric(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalSpend / totalImpressions) * 1000;
   }
 
@@ -465,7 +491,9 @@ function calculateMetric(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalClicks / totalImpressions) * 100;
   }
 

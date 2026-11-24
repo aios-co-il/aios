@@ -276,7 +276,9 @@ function ContactLookupEditor({
   const { data: contacts } = useQuery({
     queryKey: ["email-recipient-contacts", tenantId, value.entity],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const table = value.entity === "lead" ? "leads" : "clients";
       const nameField = value.entity === "lead" ? "contact_name" : "name";
       const { data, error } = await supabase
@@ -286,7 +288,9 @@ function ContactLookupEditor({
         .not("email", "is", null)
         .order(nameField)
         .limit(500);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((r: any) => ({
         id: r.id,
         name: r[nameField] || "ללא שם",
@@ -298,7 +302,9 @@ function ContactLookupEditor({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return contacts || [];
+    if (!q) {
+      return contacts || [];
+    }
     return (contacts || []).filter(
       (c) =>
         c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q),

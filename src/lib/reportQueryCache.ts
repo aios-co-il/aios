@@ -22,11 +22,17 @@ const PERSISTED_QUERY_ROOTS = new Set([
 
 /** Never persist empty report payloads — permission fixes would stay invisible for days. */
 function hasPersistableReportData(data: unknown): boolean {
-  if (data === undefined || data === null) return false;
-  if (Array.isArray(data)) return data.length > 0;
+  if (data === undefined || data === null) {
+    return false;
+  }
+  if (Array.isArray(data)) {
+    return data.length > 0;
+  }
   if (typeof data === "object") {
     const recordCount = (data as { records?: Array<unknown> }).records;
-    if (Array.isArray(recordCount)) return recordCount.length > 0;
+    if (Array.isArray(recordCount)) {
+      return recordCount.length > 0;
+    }
     return Object.keys(data as object).length > 0;
   }
   return true;
@@ -41,8 +47,9 @@ function filterDehydratedState(state: DehydratedState): DehydratedState {
   return {
     ...state,
     queries: (state.queries ?? []).filter((entry) => {
-      if (!isPersistedQueryKey(entry.queryKey as ReadonlyArray<unknown>))
+      if (!isPersistedQueryKey(entry.queryKey as ReadonlyArray<unknown>)) {
         return false;
+      }
       return hasPersistableReportData(entry.state?.data);
     }),
   };
@@ -51,7 +58,9 @@ function filterDehydratedState(state: DehydratedState): DehydratedState {
 export function hydrateReportQueryCache(queryClient: QueryClient): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      return;
+    }
     const parsed = JSON.parse(raw) as {
       savedAt: number;
       state: DehydratedState;
@@ -96,14 +105,22 @@ export function setupReportQueryCachePersistence(
   hydrateReportQueryCache(queryClient);
 
   queryClient.getQueryCache().subscribe((event) => {
-    if (event.type !== "updated") return;
-    if (!isPersistedQueryKey(event.query.queryKey)) return;
+    if (event.type !== "updated") {
+      return;
+    }
+    if (!isPersistedQueryKey(event.query.queryKey)) {
+      return;
+    }
 
-    if (persistTimer) clearTimeout(persistTimer);
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+    }
     persistTimer = setTimeout(() => {
       try {
         const state = filterDehydratedState(dehydrate(queryClient));
-        if (state.queries.length === 0) return;
+        if (state.queries.length === 0) {
+          return;
+        }
         localStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({ savedAt: Date.now(), state }),

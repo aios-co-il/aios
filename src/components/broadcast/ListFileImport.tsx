@@ -24,10 +24,15 @@ type Target = "name" | "phone" | "email" | "custom" | "ignore";
 
 const guess = (h: string): Target => {
   const s = h.trim().toLowerCase();
-  if (/(phone|mobile|טלפון|נייד|פלאפון|וואטסאפ|whatsapp)/.test(s))
+  if (/(phone|mobile|טלפון|נייד|פלאפון|וואטסאפ|whatsapp)/.test(s)) {
     return "phone";
-  if (/(mail|אימייל|מייל|דוא)/.test(s)) return "email";
-  if (/^(name|full name|שם|שם מלא|איש קשר|contact)$/.test(s)) return "name";
+  }
+  if (/(mail|אימייל|מייל|דוא)/.test(s)) {
+    return "email";
+  }
+  if (/^(name|full name|שם|שם מלא|איש קשר|contact)$/.test(s)) {
+    return "name";
+  }
   return "custom";
 };
 
@@ -66,10 +71,14 @@ export function ListFileImport({ listId }: { listId: string }) {
   const [map, setMap] = useState<Array<Target>>([]);
 
   const onFile = async (file?: File) => {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     try {
       const parsed = await parseFile(file);
-      if (parsed.rows.length === 0) return toast.error("הקובץ ריק");
+      if (parsed.rows.length === 0) {
+        return toast.error("הקובץ ריק");
+      }
       setFileName(file.name);
       setHeaders(parsed.headers);
       setRows(parsed.rows);
@@ -80,19 +89,27 @@ export function ListFileImport({ listId }: { listId: string }) {
   };
 
   const runImport = () => {
-    if (!headers) return;
-    if (!map.includes("phone") && !map.includes("email"))
+    if (!headers) {
+      return;
+    }
+    if (!map.includes("phone") && !map.includes("email")) {
       return toast.error("צריך למפות עמודת טלפון או אימייל");
+    }
     const members: Array<NewMemberRow> = rows.map((r) => {
       const custom: Record<string, string> = {};
       const m: NewMemberRow = { custom_fields: custom };
       map.forEach((t, i) => {
         const v = r[i];
-        if (!v) return;
-        if (t === "name" || t === "phone" || t === "email") m[t] = v;
-        else if (t === "custom") {
+        if (!v) {
+          return;
+        }
+        if (t === "name" || t === "phone" || t === "email") {
+          m[t] = v;
+        } else if (t === "custom") {
           const key = fieldKeyFromHeader(headers[i]);
-          if (key) custom[key] = v;
+          if (key) {
+            custom[key] = v;
+          }
         }
       });
       return m;

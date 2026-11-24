@@ -27,7 +27,9 @@ export function isCursorAssignee(name: string | null | undefined): boolean {
   const n = String(name || "")
     .trim()
     .toLowerCase();
-  if (!n) return false;
+  if (!n) {
+    return false;
+  }
   return CURSOR_ASSIGNEE_NAMES.some((x) => n === x || n.includes("cursor"));
 }
 
@@ -47,7 +49,9 @@ export async function countInProgressCursorTasks(
     .select("assigned_agent")
     .eq("tenant_id", tenantId)
     .eq("status", "in_progress");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).filter((t: { assigned_agent?: string | null }) =>
     isCursorAssignee(t.assigned_agent),
   ).length;
@@ -65,11 +69,15 @@ export async function claimNextOpenCursorTask(
     .order("priority", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(20);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const candidate = (open || []).find((t: HumanTaskRow) =>
     isCursorAssignee(t.assigned_agent),
   );
-  if (!candidate) return null;
+  if (!candidate) {
+    return null;
+  }
 
   const { data: claimed, error: claimErr } = await supabase
     .from("tasks")
@@ -79,7 +87,9 @@ export async function claimNextOpenCursorTask(
     .eq("status", "open")
     .select("id, tenant_id, title, notes, status, assigned_agent, priority")
     .maybeSingle();
-  if (claimErr) throw claimErr;
+  if (claimErr) {
+    throw claimErr;
+  }
   return claimed;
 }
 
@@ -126,8 +136,9 @@ export async function mcpRequestDevTask(
     signal: AbortSignal.timeout(90_000),
   });
   const text = await resp.text();
-  if (!resp.ok)
+  if (!resp.ok) {
     throw new Error(`cursor-mcp ${resp.status}: ${text.slice(0, 400)}`);
+  }
   let parsed: any = {};
   try {
     parsed = JSON.parse(text);
@@ -160,8 +171,12 @@ export async function completeHumanCursorTask(
     .eq("id", taskId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (error) throw error;
-  if (!task) return { ok: false };
+  if (error) {
+    throw error;
+  }
+  if (!task) {
+    return { ok: false };
+  }
 
   await supabase
     .from("tasks")
@@ -186,7 +201,9 @@ export async function completeHumanCursorTask(
   await completeCursorSessionsForTask(supabase, tenantId, taskId);
 
   const inProgress = await countInProgressCursorTasks(supabase, tenantId);
-  if (inProgress > 0) return { ok: true, advanced: false };
+  if (inProgress > 0) {
+    return { ok: true, advanced: false };
+  }
 
   const next = await claimAndDispatchCursorTask(supabase, tenantId);
   return { ok: true, advanced: Boolean(next) };
@@ -202,14 +219,19 @@ export async function claimAndDispatchCursorTask(
 } | null> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const bearer = Deno.env.get("CURSOR_MCP_BEARER") || "";
-  if (!supabaseUrl || !bearer)
+  if (!supabaseUrl || !bearer) {
     throw new Error("SUPABASE_URL / CURSOR_MCP_BEARER missing");
+  }
 
   const inProgress = await countInProgressCursorTasks(supabase, tenantId);
-  if (inProgress > 0) return null;
+  if (inProgress > 0) {
+    return null;
+  }
 
   const task = await claimNextOpenCursorTask(supabase, tenantId);
-  if (!task) return null;
+  if (!task) {
+    return null;
+  }
 
   const { task: prompt, context } = buildCursorTaskPrompt(task);
   const fired = await mcpRequestDevTask(supabaseUrl, bearer, {

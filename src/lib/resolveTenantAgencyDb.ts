@@ -24,8 +24,12 @@ export async function fetchTenantHomeAgencyId(
       )
       .eq("accessing_tenant_id", tenantId),
   ]);
-  if (ownedError) throw ownedError;
-  if (sharedError) throw sharedError;
+  if (ownedError) {
+    throw ownedError;
+  }
+  if (sharedError) {
+    throw sharedError;
+  }
   const shared = (sharedAccess || []).flatMap((row) =>
     agenciesFromJoin((row as { agencies?: unknown }).agencies),
   );
@@ -43,13 +47,17 @@ export async function ensureLeadHomeAgency(
   lead: { id: string; agency_id?: string | null; tenant_id?: string | null },
   agencies?: ReadonlyArray<AgencyStamp> | null,
 ): Promise<string | null> {
-  if (lead.agency_id) return lead.agency_id;
+  if (lead.agency_id) {
+    return lead.agency_id;
+  }
   const tenantId = lead.tenant_id;
   let agencyId = pickTenantHomeAgencyId(tenantId, agencies);
   if (!agencyId && tenantId) {
     agencyId = await fetchTenantHomeAgencyId(tenantId);
   }
-  if (!agencyId) return null;
+  if (!agencyId) {
+    return null;
+  }
   const { error } = await supabase
     .from("leads")
     .update({ agency_id: agencyId })

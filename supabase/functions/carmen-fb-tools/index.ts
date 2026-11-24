@@ -46,7 +46,9 @@ async function getFbToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key || null;
 }
@@ -65,7 +67,9 @@ async function resolveFbToken(
       .maybeSingle();
     if (cl?.tenant_id) {
       const t = await getFbToken(supabase, cl.tenant_id);
-      if (t) return t;
+      if (t) {
+        return t;
+      }
     }
   }
   return getFbToken(supabase, tenant_id);
@@ -82,8 +86,9 @@ async function getClientAdAccount(
     .select("meta_ads_account_id")
     .eq("id", client_id)
     .maybeSingle();
-  if (cl?.meta_ads_account_id)
+  if (cl?.meta_ads_account_id) {
     return String(cl.meta_ads_account_id).replace(/^act_/, "");
+  }
 
   const { data: tables } = await supabase
     .from("crm_tables")
@@ -94,7 +99,9 @@ async function getClientAdAccount(
   for (const t of tables || []) {
     const s = t?.integration_settings || {};
     const acc = META_SETTING_KEYS.map((k) => s[k]).find(Boolean);
-    if (acc) return String(acc).replace(/^act_/, "");
+    if (acc) {
+      return String(acc).replace(/^act_/, "");
+    }
   }
   return null;
 }
@@ -119,7 +126,9 @@ async function fbPost(
 ) {
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
-    if (v == null) continue;
+    if (v == null) {
+      continue;
+    }
     body.set(k, typeof v === "object" ? JSON.stringify(v) : String(v));
   }
   body.set("access_token", token);
@@ -138,8 +147,9 @@ async function fbGet(path: string, fields: string, token: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(
@@ -164,15 +174,20 @@ Deno.serve(async (req) => {
     const caller = gate.caller;
     const tenant_id = caller.tenantId;
 
-    if (!tenant_id || !action) return err("tenant_id and action required");
-    if (!confirmed)
+    if (!tenant_id || !action) {
+      return err("tenant_id and action required");
+    }
+    if (!confirmed) {
       return err("not_confirmed", 403, {
         message: "דורש אישור מפורש (confirmed=true)",
       });
+    }
 
     const src = fbTokenSource(caller, body.client_id);
     const token = await resolveFbToken(supabase, src.tenantId, src.clientId);
-    if (!token) return err("fb_not_connected", 400);
+    if (!token) {
+      return err("fb_not_connected", 400);
+    }
 
     let result: any = {};
 
@@ -186,22 +201,29 @@ Deno.serve(async (req) => {
           status = "PAUSED",
           daily_budget,
         } = body;
-        if (!client_id || !name) return err("client_id, name required");
+        if (!client_id || !name) {
+          return err("client_id, name required");
+        }
         const adAccount = await getClientAdAccount(
           supabase,
           tenant_id,
           client_id,
         );
-        if (!adAccount) return err("client_no_ad_account");
+        if (!adAccount) {
+          return err("client_no_ad_account");
+        }
         const params: any = { name, objective, status, special_ad_categories };
-        if (daily_budget != null)
+        if (daily_budget != null) {
           params.daily_budget = Math.round(Number(daily_budget) * 100);
+        }
         const r = await fbPost(
           `act_${adAccount.replace(/^act_/, "")}/campaigns`,
           params,
           token,
         );
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         result = {
           campaign_id: r.json.id,
           name,
@@ -222,12 +244,14 @@ Deno.serve(async (req) => {
           end_time,
           status = "PAUSED",
         } = body;
-        if (!campaign_id || !name || !targeting)
+        if (!campaign_id || !name || !targeting) {
           return err("campaign_id, name, targeting required");
+        }
         // resolve ad account from campaign
         const camp = await fbGet(campaign_id, "account_id,name", token);
-        if (camp?.error)
+        if (camp?.error) {
           return err("fb_api_error", 400, { fb_error: camp.error });
+        }
         const params: any = {
           name,
           campaign_id,
@@ -236,28 +260,39 @@ Deno.serve(async (req) => {
           targeting,
           status,
         };
-        if (daily_budget != null)
+        if (daily_budget != null) {
           params.daily_budget = Math.round(Number(daily_budget) * 100);
-        if (start_time) params.start_time = start_time;
-        if (end_time) params.end_time = end_time;
+        }
+        if (start_time) {
+          params.start_time = start_time;
+        }
+        if (end_time) {
+          params.end_time = end_time;
+        }
         const r = await fbPost(`act_${camp.account_id}/adsets`, params, token);
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         result = { adset_id: r.json.id, campaign_id };
         break;
       }
       case "create_ad": {
         const { adset_id, name, creative_id, status = "PAUSED" } = body;
-        if (!adset_id || !name || !creative_id)
+        if (!adset_id || !name || !creative_id) {
           return err("adset_id, name, creative_id required");
+        }
         const adset = await fbGet(adset_id, "account_id", token);
-        if (adset?.error)
+        if (adset?.error) {
           return err("fb_api_error", 400, { fb_error: adset.error });
+        }
         const r = await fbPost(
           `act_${adset.account_id}/ads`,
           { name, adset_id, creative: { creative_id }, status },
           token,
         );
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         result = { ad_id: r.json.id, adset_id };
         break;
       }
@@ -273,29 +308,37 @@ Deno.serve(async (req) => {
           call_to_action_type = "LEARN_MORE",
           lead_form_id,
         } = body;
-        if (!client_id || !media_id || !page_id || !message)
+        if (!client_id || !media_id || !page_id || !message) {
           return err("client_id, media_id, page_id, message required");
+        }
         const adAccount = await getClientAdAccount(
           supabase,
           tenant_id,
           client_id,
         );
-        if (!adAccount) return err("client_no_ad_account");
+        if (!adAccount) {
+          return err("client_no_ad_account");
+        }
         const { data: media } = await supabase
           .from("marketing_media_library")
           .select("bucket_path, mime_type")
           .eq("id", media_id)
           .eq("tenant_id", tenant_id)
           .maybeSingle();
-        if (!media) return err("media_not_found");
-        if (!media.ad_ready && !/^image|^video/.test(media.mime_type))
+        if (!media) {
+          return err("media_not_found");
+        }
+        if (!media.ad_ready && !/^image|^video/.test(media.mime_type)) {
           return err("media_not_ad_ready");
+        }
 
         // Get signed URL to download from our bucket then upload to FB.
         const { data: signed } = await supabase.storage
           .from("carmen-media")
           .createSignedUrl(media.bucket_path, 600);
-        if (!signed?.signedUrl) return err("signed_url_failed");
+        if (!signed?.signedUrl) {
+          return err("signed_url_failed");
+        }
         const fileRes = await fetch(signed.signedUrl);
         const blob = await fileRes.blob();
 
@@ -311,8 +354,9 @@ Deno.serve(async (req) => {
             { method: "POST", body: fd },
           );
           const j = await r.json();
-          if (j?.error)
+          if (j?.error) {
             return err("fb_video_upload_failed", 400, { fb_error: j.error });
+          }
           videoId = j.id;
         } else {
           const fd = new FormData();
@@ -327,8 +371,9 @@ Deno.serve(async (req) => {
             { method: "POST", body: fd },
           );
           const j = await r.json();
-          if (j?.error)
+          if (j?.error) {
             return err("fb_image_upload_failed", 400, { fb_error: j.error });
+          }
           const hashes = j?.images ? (Object.values(j.images)[0] as any) : null;
           imageHash = hashes?.hash;
         }
@@ -343,7 +388,9 @@ Deno.serve(async (req) => {
               : { link: link || `https://fb.me/${page_id}` },
           },
         };
-        if (imageHash) link_data.image_hash = imageHash;
+        if (imageHash) {
+          link_data.image_hash = imageHash;
+        }
         const video_data: any = videoId
           ? {
               video_id: videoId,
@@ -369,7 +416,9 @@ Deno.serve(async (req) => {
           params,
           token,
         );
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
 
         await supabase
           .from("marketing_media_library")
@@ -395,25 +444,31 @@ Deno.serve(async (req) => {
       }
       case "replace_lead_form": {
         const { ad_id, new_form_id } = body;
-        if (!ad_id || !new_form_id) return err("ad_id, new_form_id required");
+        if (!ad_id || !new_form_id) {
+          return err("ad_id, new_form_id required");
+        }
         const ad = await fbGet(ad_id, "creative,account_id", token);
-        if (ad?.error) return err("fb_api_error", 400, { fb_error: ad.error });
+        if (ad?.error) {
+          return err("fb_api_error", 400, { fb_error: ad.error });
+        }
         const before = await fbGet(
           ad.creative.id,
           "object_story_spec,name",
           token,
         );
         const spec = before.object_story_spec || {};
-        if (spec.link_data?.call_to_action)
+        if (spec.link_data?.call_to_action) {
           spec.link_data.call_to_action = {
             ...spec.link_data.call_to_action,
             value: { lead_gen_form_id: new_form_id },
           };
-        if (spec.video_data?.call_to_action)
+        }
+        if (spec.video_data?.call_to_action) {
           spec.video_data.call_to_action = {
             ...spec.video_data.call_to_action,
             value: { lead_gen_form_id: new_form_id },
           };
+        }
         const r = await fbPost(
           `act_${ad.account_id}/adcreatives`,
           {
@@ -422,39 +477,53 @@ Deno.serve(async (req) => {
           },
           token,
         );
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         const r2 = await fbPost(
           ad_id,
           { creative: { creative_id: r.json.id } },
           token,
         );
-        if (!r2.ok)
+        if (!r2.ok) {
           return err("fb_api_error", 400, { fb_error: r2.json?.error });
+        }
         result = { ad_id, new_creative_id: r.json.id, new_form_id };
         break;
       }
       case "update_budget": {
         const { entity_id, daily_budget, lifetime_budget } = body;
-        if (!entity_id) return err("entity_id required");
+        if (!entity_id) {
+          return err("entity_id required");
+        }
         const params: Record<string, any> = {};
-        if (daily_budget != null)
+        if (daily_budget != null) {
           params.daily_budget = Math.round(Number(daily_budget) * 100);
-        if (lifetime_budget != null)
+        }
+        if (lifetime_budget != null) {
           params.lifetime_budget = Math.round(Number(lifetime_budget) * 100);
-        if (!Object.keys(params).length)
+        }
+        if (!Object.keys(params).length) {
           return err("daily_budget or lifetime_budget required");
+        }
         const r = await fbPost(entity_id, params, token);
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         result = { entity_id, ...params };
         break;
       }
       case "pause":
       case "resume": {
         const { entity_id } = body;
-        if (!entity_id) return err("entity_id required");
+        if (!entity_id) {
+          return err("entity_id required");
+        }
         const status = action === "pause" ? "PAUSED" : "ACTIVE";
         const r = await fbPost(entity_id, { status }, token);
-        if (!r.ok) return err("fb_api_error", 400, { fb_error: r.json?.error });
+        if (!r.ok) {
+          return err("fb_api_error", 400, { fb_error: r.json?.error });
+        }
         result = { entity_id, status };
         break;
       }
@@ -467,7 +536,9 @@ Deno.serve(async (req) => {
           budget_level = "campaign",
           status: adStatus = "PAUSED",
         } = body;
-        if (!source_ad_id) return err("source_ad_id required");
+        if (!source_ad_id) {
+          return err("source_ad_id required");
+        }
 
         let variants: Array<any>;
         try {
@@ -481,18 +552,22 @@ Deno.serve(async (req) => {
           "id,name,adset_id,campaign_id,account_id,status,effective_status,creative{id,name,object_story_spec,asset_feed_spec,effective_object_story_id}",
           token,
         );
-        if (ad?.error)
+        if (ad?.error) {
           return err("source_ad_unavailable", 400, { fb_error: ad.error });
-        if (!ad?.adset_id)
+        }
+        if (!ad?.adset_id) {
           return err("source_ad_missing_adset", 400, { ad_id: source_ad_id });
-        if (!ad?.account_id)
+        }
+        if (!ad?.account_id) {
           return err("source_ad_missing_account", 400, { ad_id: source_ad_id });
+        }
 
         const creative = ad.creative || {};
-        if (!creative?.id)
+        if (!creative?.id) {
           return err("source_creative_unavailable", 400, {
             ad_id: source_ad_id,
           });
+        }
         if (!creative.object_story_spec && !creative.asset_feed_spec) {
           return err("source_creative_unsupported", 400, {
             ad_id: source_ad_id,

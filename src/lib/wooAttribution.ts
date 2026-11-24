@@ -30,7 +30,9 @@ const metaValue = (
 ): string | null => {
   const row = (meta || []).find((m) => m.key === key);
   const value = row?.value;
-  if (value === null || value === undefined || value === "") return null;
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
   return String(value);
 };
 
@@ -51,7 +53,9 @@ export function extractWooOrderAttribution(
   );
   const device_type = metaValue(metaData, ATTRIBUTION_META_KEYS.device_type);
 
-  if (!source_type && !utm_source && !referrer && !session_entry) return null;
+  if (!source_type && !utm_source && !referrer && !session_entry) {
+    return null;
+  }
 
   const partial = {
     source_type,
@@ -80,7 +84,9 @@ export function buildWooAttributionLabel(
     | null
     | undefined,
 ): string {
-  if (!attr) return "לא ידוע";
+  if (!attr) {
+    return "לא ידוע";
+  }
 
   const src = (attr.utm_source || "").toLowerCase();
   const med = (attr.utm_medium || "").toLowerCase();
@@ -120,7 +126,9 @@ export function buildWooAttributionLabel(
   if (attr.utm_source && attr.utm_medium) {
     return `${attr.utm_source} / ${attr.utm_medium}`;
   }
-  if (attr.utm_source) return attr.utm_source;
+  if (attr.utm_source) {
+    return attr.utm_source;
+  }
 
   return "אחר";
 }
@@ -153,7 +161,9 @@ const isValidWooOrderStatus = (status?: string | null): boolean =>
 export function isGooglePaidWooAttribution(
   attr: WooOrderAttribution | null | undefined,
 ): boolean {
-  if (!attr) return false;
+  if (!attr) {
+    return false;
+  }
 
   const src = (attr.utm_source || "").toLowerCase();
   const med = (attr.utm_medium || "").toLowerCase();
@@ -169,7 +179,9 @@ export function isGooglePaidWooAttribution(
     entry.includes("gclid") ||
     entry.includes("gad_source");
 
-  if (!looksGoogle) return false;
+  if (!looksGoogle) {
+    return false;
+  }
 
   return (
     med === "paid" ||
@@ -186,7 +198,9 @@ export function isGooglePaidWooAttribution(
 export function isGoogleOrganicWooAttribution(
   attr: WooOrderAttribution | null | undefined,
 ): boolean {
-  if (!attr || isGooglePaidWooAttribution(attr)) return false;
+  if (!attr || isGooglePaidWooAttribution(attr)) {
+    return false;
+  }
 
   const src = (attr.utm_source || "").toLowerCase();
   const med = (attr.utm_medium || "").toLowerCase();
@@ -217,8 +231,12 @@ export function shouldUseGoogleWooAttributionOverlay(
   clientId?: string | null,
   integrationSettings?: { use_woo_google_attribution?: boolean } | null,
 ): boolean {
-  if (integrationSettings?.use_woo_google_attribution === true) return true;
-  if (integrationSettings?.use_woo_google_attribution === false) return false;
+  if (integrationSettings?.use_woo_google_attribution === true) {
+    return true;
+  }
+  if (integrationSettings?.use_woo_google_attribution === false) {
+    return false;
+  }
   return !!clientId && GOOGLE_WOO_ATTRIBUTION_CLIENT_IDS.has(clientId);
 }
 
@@ -238,7 +256,9 @@ export function summarizeGoogleAttributedWooOrders(
   };
 
   orders.forEach((order) => {
-    if (!isValidWooOrderStatus(order.status)) return;
+    if (!isValidWooOrderStatus(order.status)) {
+      return;
+    }
     const total = Number(order.total || 0);
     if (isGooglePaidWooAttribution(order.attribution)) {
       summary.paidOrders += 1;
@@ -263,12 +283,16 @@ export function aggregateOrdersByAttribution(
   const map: Record<string, WooAttributionBreakdownRow> = {};
 
   orders.forEach((order) => {
-    if (!isValidWooOrderStatus(order.status)) return;
+    if (!isValidWooOrderStatus(order.status)) {
+      return;
+    }
     const label =
       order.attribution?.label ||
       buildWooAttributionLabel(order.attribution) ||
       "לא ידוע";
-    if (!map[label]) map[label] = { label, orders: 0, revenue: 0 };
+    if (!map[label]) {
+      map[label] = { label, orders: 0, revenue: 0 };
+    }
     map[label].orders += 1;
     map[label].revenue += Number(order.total || 0);
   });

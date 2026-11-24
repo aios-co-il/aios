@@ -15,7 +15,9 @@ export const buildLayerTextShadow = ({
   shadowColor = DEFAULT_COLOR,
   shadowBlur = 12,
 }: Partial<LayerShadow>): string | undefined => {
-  if (shadowStyle === "none") return undefined;
+  if (shadowStyle === "none") {
+    return undefined;
+  }
   const depth = Math.max(0, Math.round(shadowDepth));
   const blur = Math.max(0, Math.round(shadowBlur));
   const color = shadowColor || DEFAULT_COLOR;
@@ -63,13 +65,20 @@ const hexFromCssColor = (value: string) => {
   const hex = value.match(/#([0-9a-fA-F]{3,8})/);
   if (hex) {
     const raw = hex[1];
-    if (raw.length === 3)
+    if (raw.length === 3) {
       return `#${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`;
-    if (raw.length === 8) return `#${raw.slice(0, 6)}`;
-    if (raw.length === 6) return `#${raw}`;
+    }
+    if (raw.length === 8) {
+      return `#${raw.slice(0, 6)}`;
+    }
+    if (raw.length === 6) {
+      return `#${raw}`;
+    }
   }
   const rgb = value.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
-  if (!rgb) return DEFAULT_COLOR;
+  if (!rgb) {
+    return DEFAULT_COLOR;
+  }
   const toHex = (part: string) => Number(part).toString(16).padStart(2, "0");
   return `#${toHex(rgb[1])}${toHex(rgb[2])}${toHex(rgb[3])}`;
 };
@@ -84,13 +93,14 @@ export const inferLayerShadow = (layer: CreativeLayer): LayerShadow => {
     };
   }
   const css = layer.textShadow ?? "";
-  if (!css)
+  if (!css) {
     return {
       shadowStyle: "none",
       shadowDepth: 0,
       shadowColor: DEFAULT_COLOR,
       shadowBlur: 8,
     };
+  }
   if (
     /-1px 0 0|-?\d+px 0 0/.test(css) &&
     /0 0 \d+px/.test(css) &&

@@ -127,7 +127,9 @@ export function ClientCredentialsTab({
         .select("*")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!clientId && !!tenantId,
@@ -143,7 +145,9 @@ export function ClientCredentialsTab({
   };
 
   const handleAdd = async () => {
-    if (!newCred.service_name.trim()) return;
+    if (!newCred.service_name.trim()) {
+      return;
+    }
     try {
       const { error } = await (supabase as any)
         .from("client_credentials")
@@ -156,7 +160,9 @@ export function ClientCredentialsTab({
           url: newCred.url.trim() || null,
           notes: newCred.notes.trim() || null,
         });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("פרטי גישה נוספו");
       setAdding(false);
       setNewCred(emptyCred);
@@ -181,7 +187,9 @@ export function ClientCredentialsTab({
   };
 
   const handleUpdate = async () => {
-    if (!editingId || !editCred.service_name.trim()) return;
+    if (!editingId || !editCred.service_name.trim()) {
+      return;
+    }
     try {
       const { error } = await (supabase as any)
         .from("client_credentials")
@@ -193,7 +201,9 @@ export function ClientCredentialsTab({
           notes: editCred.notes.trim() || null,
         })
         .eq("id", editingId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("פרטי גישה עודכנו");
       setEditingId(null);
       setEditCred(emptyCred);
@@ -212,7 +222,9 @@ export function ClientCredentialsTab({
         .from("client_credentials")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("נמחק");
       queryClient.invalidateQueries({
         queryKey: ["client-credentials", clientId],

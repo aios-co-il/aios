@@ -23,9 +23,12 @@ function bearerFrom(req: Request): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
 
   let body: any;
   try {
@@ -37,18 +40,22 @@ Deno.serve(async (req) => {
   const conversationId = String(body.conversation_id || "").trim();
   const sessionId = String(body.session_id || "").trim();
   const content = String(body.content || "").trim();
-  if (!conversationId || !content)
+  if (!conversationId || !content) {
     return json(400, { error: "conversation_id and content are required" });
+  }
 
   const token = bearerFrom(req);
-  if (!token) return json(401, { error: "Missing callback token" });
+  if (!token) {
+    return json(401, { error: "Missing callback token" });
+  }
 
   const sb = serviceClient();
   const session = sessionId ? await loadSession(sb, sessionId) : null;
   const origin = resolveCallbackOrigin(body.origin, session?.provider);
   const tenantId = String(body.tenant_id || session?.tenant_id || "").trim();
-  if (!tenantId || !sessionId)
+  if (!tenantId || !sessionId) {
     return json(401, { error: "session_id and tenant_id are required" });
+  }
 
   const ok = await verifyCallbackToken({
     token,
@@ -56,7 +63,9 @@ Deno.serve(async (req) => {
     conversationId,
     tenantId,
   });
-  if (!ok) return json(401, { error: "Invalid callback token" });
+  if (!ok) {
+    return json(401, { error: "Invalid callback token" });
+  }
 
   const payload: CallbackPayload = {
     tenant_id: tenantId,

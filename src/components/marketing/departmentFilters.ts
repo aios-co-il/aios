@@ -23,22 +23,33 @@ export function isCopyDepartmentItem(
 ) {
   const payload = item.payload ?? {};
   const department = payload.department;
-  if (typeof department === "string" && otherDepartments.has(department))
+  if (typeof department === "string" && otherDepartments.has(department)) {
     return false;
-  if (Array.isArray(payload.storyboard)) return false;
-  if (Array.isArray(payload.variations)) return false;
-  if (payload.project_type === "static" || payload.project_type === "video")
+  }
+  if (Array.isArray(payload.storyboard)) {
     return false;
-  if (department === "copy") return true;
-  if (copyStageId && item.current_stage_id === copyStageId) return true;
+  }
+  if (Array.isArray(payload.variations)) {
+    return false;
+  }
+  if (payload.project_type === "static" || payload.project_type === "video") {
+    return false;
+  }
+  if (department === "copy") {
+    return true;
+  }
+  if (copyStageId && item.current_stage_id === copyStageId) {
+    return true;
+  }
   if (
     !department &&
     (payload.brief_text ||
       payload.copy_text ||
       payload.copy_chat ||
       payload.copy_concepts)
-  )
+  ) {
     return true;
+  }
   return false;
 }
 
@@ -53,21 +64,39 @@ export function isCreativeDepartmentItem(
 ) {
   const payload = item.payload ?? {};
   const department = payload.department;
-  if (typeof department === "string" && nonCreativeDepartments.has(department))
+  if (
+    typeof department === "string" &&
+    nonCreativeDepartments.has(department)
+  ) {
     return false;
-  if (department === "creative") return true;
-  if (item.pipeline_id && socialPipelineIds?.has(item.pipeline_id))
+  }
+  if (department === "creative") {
+    return true;
+  }
+  if (item.pipeline_id && socialPipelineIds?.has(item.pipeline_id)) {
     return false;
-  if (payload.handoff_from === "copy") return true;
-  if (payload.intake_source === "copy_link") return true;
-  if (creativeStageId && item.current_stage_id === creativeStageId) return true;
-  if (Array.isArray(payload.variations)) return true;
+  }
+  if (payload.handoff_from === "copy") {
+    return true;
+  }
+  if (payload.intake_source === "copy_link") {
+    return true;
+  }
+  if (creativeStageId && item.current_stage_id === creativeStageId) {
+    return true;
+  }
+  if (Array.isArray(payload.variations)) {
+    return true;
+  }
   // Video scenes live in marketing_video_scenes; older items may still carry payload.storyboard.
   // A static project is work in progress here before its first picture, as the screen's own new
   // projects are; the workshop groups both under Creative (projectDepartment, has_creative).
-  if (payload.project_type === "video" || payload.project_type === "static")
+  if (payload.project_type === "video" || payload.project_type === "static") {
     return true;
-  if (!department && !!payload.image_url) return true;
+  }
+  if (!department && !!payload.image_url) {
+    return true;
+  }
   return false;
 }
 

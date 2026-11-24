@@ -26,10 +26,12 @@ vi.mock("@/integrations/supabase/client", () => {
       };
     }
     chain.then = (resolve: (value: unknown) => unknown) => {
-      if (table === "marketing_pipeline_stages")
+      if (table === "marketing_pipeline_stages") {
         return resolve({ count: 5, data: null, error: null });
-      if (state.lookupError && !methods.includes("insert"))
+      }
+      if (state.lookupError && !methods.includes("insert")) {
         return resolve({ data: null, error: state.lookupError });
+      }
       // Like PostgREST: ordered by created_at, then limited.
       const sorted = [...state.pipelines].sort((a, b) =>
         a.created_at.localeCompare(b.created_at),

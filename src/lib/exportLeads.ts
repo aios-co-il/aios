@@ -140,7 +140,9 @@ const LEAD_EXPORT_SELECT = `
 `;
 
 function toDate(value: Date | string | null | undefined): Date | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -153,15 +155,20 @@ function endOfDayIso(date: Date): string {
 
 function chunk<T>(items: Array<T>, size: number): Array<Array<T>> {
   const out: Array<Array<T>> = [];
-  for (let i = 0; i < items.length; i += size)
+  for (let i = 0; i < items.length; i += size) {
     out.push(items.slice(i, i + size));
+  }
   return out;
 }
 
 export function formatLeadExportDate(value: string | null | undefined): string {
-  if (!value) return "";
+  if (!value) {
+    return "";
+  }
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return date.toLocaleDateString("he-IL");
   }
@@ -176,10 +183,15 @@ export function formatLeadExportUpdate(update: LeadExportUpdate): string {
 }
 
 function stringifyFormValue(value: unknown): string {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
+  if (value == null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
+  }
   if (Array.isArray(value)) {
     return value
       .map((item) => stringifyFormValue(item))
@@ -206,7 +218,9 @@ export function collectFormDataKeys(
       continue;
     }
     for (const key of Object.keys(lead.form_data as Record<string, unknown>)) {
-      if (key.trim()) keys.add(key);
+      if (key.trim()) {
+        keys.add(key);
+      }
     }
   }
   return Array.from(keys).sort((a, b) => a.localeCompare(b, "he"));
@@ -218,13 +232,19 @@ export function leadMatchesTagFilter(
   filterTagIds: Array<string>,
   selectedTagIdSet: Set<string>,
 ): boolean {
-  if (filterTagIds.length === 0) return true;
+  if (filterTagIds.length === 0) {
+    return true;
+  }
   const ids = tagIdsOnLead || [];
   const hasNone = filterTagIds.includes("none");
   const hasSpecific = filterTagIds.some((id) => id !== "none");
   const hasMatchingTag = ids.some((id) => selectedTagIdSet.has(id));
-  if (hasNone && !hasSpecific) return ids.length === 0;
-  if (hasNone && hasSpecific) return ids.length === 0 || hasMatchingTag;
+  if (hasNone && !hasSpecific) {
+    return ids.length === 0;
+  }
+  if (hasNone && hasSpecific) {
+    return ids.length === 0 || hasMatchingTag;
+  }
   return hasMatchingTag;
 }
 
@@ -254,8 +274,12 @@ export function leadExportMatchesPageScope(
   filters: Pick<LeadExportFilters, "tenantId" | "isOwner" | "userAgencyIds">,
 ): boolean {
   const isTenantMatch = lead.tenant_id === filters.tenantId;
-  if (filters.isOwner) return isTenantMatch;
-  if (isTenantMatch) return true;
+  if (filters.isOwner) {
+    return isTenantMatch;
+  }
+  if (isTenantMatch) {
+    return true;
+  }
   return !!(lead.agency_id && filters.userAgencyIds?.includes(lead.agency_id));
 }
 
@@ -302,12 +326,18 @@ function applyLeadExportFilters(query: any, filters: LeadExportFilters): any {
   }
 
   const startDate = toDate(filters.startDate);
-  if (startDate) query = query.gte("created_at", startDate.toISOString());
+  if (startDate) {
+    query = query.gte("created_at", startDate.toISOString());
+  }
   const endDate = toDate(filters.endDate);
-  if (endDate) query = query.lte("created_at", endOfDayIso(endDate));
+  if (endDate) {
+    query = query.lte("created_at", endOfDayIso(endDate));
+  }
 
   const search = filters.searchQuery?.trim();
-  if (search) query = query.or(leadSearchOrFilter(search));
+  if (search) {
+    query = query.or(leadSearchOrFilter(search));
+  }
 
   return query;
 }
@@ -321,7 +351,9 @@ async function paginateQuery<T>(
     const to = from + LEAD_EXPORT_PAGE_SIZE - 1;
     const page = await runPage(from, to);
     all.push(...page);
-    if (page.length < LEAD_EXPORT_PAGE_SIZE) break;
+    if (page.length < LEAD_EXPORT_PAGE_SIZE) {
+      break;
+    }
     from += LEAD_EXPORT_PAGE_SIZE;
   }
   return all;
@@ -345,7 +377,9 @@ export async function fetchAllLeadsForExport(
     query = applyLeadExportFilters(query, filters);
     query = query.range(from, to);
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return (data || []) as Array<LeadExportRecord>;
   }).then((rows) =>
     rows.filter((lead) => leadExportMatchesPageScope(lead, filters)),
@@ -372,16 +406,24 @@ export async function fetchAllLeadsForExport(
           .in("lead_id", idChunk)
           .order("id", { ascending: true })
           .range(from, to);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data || [];
       });
       tagRows.push(...chunkRows);
     }
 
     for (const row of tagRows) {
-      if (!row.lead_id) continue;
-      if (!tagIdsByLead[row.lead_id]) tagIdsByLead[row.lead_id] = [];
-      if (!tagNamesByLead[row.lead_id]) tagNamesByLead[row.lead_id] = [];
+      if (!row.lead_id) {
+        continue;
+      }
+      if (!tagIdsByLead[row.lead_id]) {
+        tagIdsByLead[row.lead_id] = [];
+      }
+      if (!tagNamesByLead[row.lead_id]) {
+        tagNamesByLead[row.lead_id] = [];
+      }
       if (!tagIdsByLead[row.lead_id].includes(row.tag_id)) {
         tagIdsByLead[row.lead_id].push(row.tag_id);
       }
@@ -410,14 +452,18 @@ export async function fetchAllLeadsForExport(
           .order("created_at", { ascending: true })
           .order("id", { ascending: true })
           .range(from, to);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data || [];
       });
       updateRows.push(...chunkRows);
     }
 
     for (const row of updateRows) {
-      if (!updatesByLead[row.lead_id]) updatesByLead[row.lead_id] = [];
+      if (!updatesByLead[row.lead_id]) {
+        updatesByLead[row.lead_id] = [];
+      }
       updatesByLead[row.lead_id].push({
         content: row.content || "",
         created_at: row.created_at,
@@ -429,7 +475,9 @@ export async function fetchAllLeadsForExport(
   const filterTagIds = filters.filterTagIds || [];
   const selectedTagIdSet = new Set(filterTagIds.filter((id) => id !== "none"));
   const filteredLeads = leads.filter((lead) => {
-    if (filterTagIds.length === 0) return true;
+    if (filterTagIds.length === 0) {
+      return true;
+    }
     return leadMatchesTagFilter(
       tagNamesByLead[lead.id],
       tagIdsByLead[lead.id],
@@ -480,8 +528,12 @@ export async function fetchAllLeadsForExport(
       .eq("tenant_id", tenantId)
       .order("sort_order"),
   ]);
-  if (stagesError) throw stagesError;
-  if (statusesError) throw statusesError;
+  if (stagesError) {
+    throw stagesError;
+  }
+  if (statusesError) {
+    throw statusesError;
+  }
 
   return {
     leads: filteredLeads,

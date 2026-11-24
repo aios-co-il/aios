@@ -38,20 +38,26 @@ export function useAutoCreateTeamMember() {
    */
   const createCampaigner = useMutation({
     mutationFn: async (params: CreateCampaignerParams) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       const { data: profileRow, error: profileReadError } = await supabase
         .from("profiles")
         .select("campaigner_id")
         .eq("id", params.userId)
         .maybeSingle();
-      if (profileReadError) throw profileReadError;
+      if (profileReadError) {
+        throw profileReadError;
+      }
 
       const { data: existingCampaigners, error: listError } = await supabase
         .from("campaigners")
         .select("id, full_name, email, active, created_at")
         .eq("tenant_id", tenantId);
-      if (listError) throw listError;
+      if (listError) {
+        throw listError;
+      }
 
       const assigned = (existingCampaigners || []).find(
         (row) => row.id === profileRow?.campaigner_id,
@@ -88,7 +94,9 @@ export function useAutoCreateTeamMember() {
           .select("id")
           .single();
 
-        if (campaignerError) throw campaignerError;
+        if (campaignerError) {
+          throw campaignerError;
+        }
         campaigner = { id: created.id, reused: false };
       }
 
@@ -106,7 +114,9 @@ export function useAutoCreateTeamMember() {
             ignoreDuplicates: true,
           });
 
-        if (linksError) throw linksError;
+        if (linksError) {
+          throw linksError;
+        }
       }
 
       // 3. קישור הקמפיינר למשתמש
@@ -115,7 +125,9 @@ export function useAutoCreateTeamMember() {
         .update({ campaigner_id: campaigner.id })
         .eq("id", params.userId);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        throw profileError;
+      }
 
       return campaigner;
     },
@@ -146,20 +158,26 @@ export function useAutoCreateTeamMember() {
    */
   const createSalesPerson = useMutation({
     mutationFn: async (params: CreateSalesPersonParams) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       const { data: profileRow, error: profileReadError } = await supabase
         .from("profiles")
         .select("sales_person_id")
         .eq("id", params.userId)
         .maybeSingle();
-      if (profileReadError) throw profileReadError;
+      if (profileReadError) {
+        throw profileReadError;
+      }
 
       const { data: existingSalesPeople, error: listError } = await supabase
         .from("sales_people")
         .select("id, full_name, email, active, created_at")
         .eq("tenant_id", tenantId);
-      if (listError) throw listError;
+      if (listError) {
+        throw listError;
+      }
 
       const assigned = (existingSalesPeople || []).find(
         (row) => row.id === profileRow?.sales_person_id,
@@ -196,7 +214,9 @@ export function useAutoCreateTeamMember() {
           .select("id")
           .single();
 
-        if (salesPersonError) throw salesPersonError;
+        if (salesPersonError) {
+          throw salesPersonError;
+        }
         salesPerson = { id: created.id, reused: false };
       }
 
@@ -206,7 +226,9 @@ export function useAutoCreateTeamMember() {
         .update({ sales_person_id: salesPerson.id })
         .eq("id", params.userId);
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        throw profileError;
+      }
 
       return salesPerson;
     },

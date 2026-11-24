@@ -143,7 +143,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
         .select("website")
         .eq("id", clientId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!clientId,
@@ -214,13 +216,17 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   // Save linked table ID to SEO table's integration_settings
   const saveLinkMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      if (!seoTable?.id) return;
+      if (!seoTable?.id) {
+        return;
+      }
       const currentSettings = (seoTable.integration_settings as any) || {};
       const { error } = await supabase
         .from("crm_tables")
         .update({ integration_settings: { ...currentSettings, [key]: value } })
         .eq("id", seoTable.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["seo-scope", clientId] });
@@ -236,16 +242,22 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   } = useQuery({
     queryKey: ["crm-records", selectedGaTableId],
     queryFn: async () => {
-      if (!selectedGaTableId) return [];
+      if (!selectedGaTableId) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
       const response = await supabase.functions.invoke(
         `crm-records?table_id=${selectedGaTableId}`,
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!selectedGaTableId,
@@ -257,7 +269,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const { data: gaAggregateRecords } = useQuery({
     queryKey: ["crm-records-aggregate", selectedGaTableId],
     queryFn: async () => {
-      if (!selectedGaTableId) return [];
+      if (!selectedGaTableId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("crm_records")
         .select("id, data")
@@ -269,7 +283,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
         ])
         .order("created_at", { ascending: false })
         .limit(600);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!selectedGaTableId,
@@ -280,7 +296,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const gaRecords = useMemo(() => {
     const base = Array.isArray(gaRecordsRaw) ? gaRecordsRaw : [];
     const agg = Array.isArray(gaAggregateRecords) ? gaAggregateRecords : [];
-    if (agg.length === 0) return base;
+    if (agg.length === 0) {
+      return base;
+    }
     const existingIds = new Set(base.map((r: any) => r.id));
     const newAgg = agg.filter((r: any) => !existingIds.has(r.id));
     return [...newAgg, ...base];
@@ -303,7 +321,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
           body: { tableId, startDate, endDate },
         },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -370,7 +390,9 @@ export function SeoReportTabs({ tenantId, clientId }: SeoReportTabsProps) {
   const gscTop20Sig = useRef("");
   const handleTop20Queries = useCallback((rows: Array<GscKeywordData>) => {
     const sig = rows.map((row) => `${row.keyword}\t${row.position}`).join("\n");
-    if (gscTop20Sig.current === sig) return;
+    if (gscTop20Sig.current === sig) {
+      return;
+    }
     gscTop20Sig.current = sig;
     setGscTop20Rows(rows);
   }, []);

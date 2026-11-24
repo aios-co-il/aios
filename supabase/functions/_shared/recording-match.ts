@@ -36,7 +36,9 @@ export async function matchRecordingToClient(
       .eq("tenant_id", opts.tenant_id)
       .eq("active", true),
   ]);
-  if (!clients?.length) return none;
+  if (!clients?.length) {
+    return none;
+  }
 
   const transcriptHead = opts.transcription
     .split(/\s+/)
@@ -128,7 +130,9 @@ ${transcriptHead}`,
           opts.host_email &&
           c.email.toLowerCase() === opts.host_email.toLowerCase(),
       );
-      if (hostMatch && !ids.includes(hostMatch.id)) ids.push(hostMatch.id);
+      if (hostMatch && !ids.includes(hostMatch.id)) {
+        ids.push(hostMatch.id);
+      }
       return {
         matchType: "internal",
         clientId: null,

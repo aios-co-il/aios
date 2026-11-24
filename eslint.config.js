@@ -15,7 +15,7 @@ export default tseslint.config(
   },
   {
     rules: {
-      curly: "warn",
+      curly: "error",
       "func-style": ["warn", "declaration", { allowArrowFunctions: false }],
       "max-lines": [
         "warn",

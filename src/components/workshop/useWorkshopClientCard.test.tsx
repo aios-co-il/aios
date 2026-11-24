@@ -14,7 +14,9 @@ vi.mock("@/integrations/supabase/client", () => {
     let rows = tables[table] ?? [];
     let head = false;
     const chain: Record<string, unknown> = {};
-    for (const name of ["order", "limit", "gte"]) chain[name] = () => chain;
+    for (const name of ["order", "limit", "gte"]) {
+      chain[name] = () => chain;
+    }
     chain.select = (_columns: string, options?: { head?: boolean }) => {
       head = options?.head === true;
       return chain;

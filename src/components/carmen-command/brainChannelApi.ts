@@ -56,7 +56,9 @@ export async function postChannel(
     "agent-channel-send",
     { body },
   );
-  if (!error) return { ok: true, status: 200, json: asJson(data) };
+  if (!error) {
+    return { ok: true, status: 200, json: asJson(data) };
+  }
   // Non-2xx: keep the status and error body the callers branch on.
   if (error instanceof FunctionsHttpError) {
     const res = error.context as Response;
@@ -76,16 +78,21 @@ export async function fetchBrainRoutes(
 ): Promise<{ list: Array<BrainRoute>; restricted: boolean }> {
   // "View as": the server would answer for the signed-in admin, so preview
   // from the tenant's full route list and the viewed user's own row.
-  if (viewAsUserId) return previewBrainRoutes(tenantId, viewAsUserId);
+  if (viewAsUserId) {
+    return previewBrainRoutes(tenantId, viewAsUserId);
+  }
   const res = await postChannel({ action: "list_routes", tenant_id: tenantId });
-  if (!res.ok) throw new Error(String(res.status));
+  if (!res.ok) {
+    throw new Error(String(res.status));
+  }
   const routes = Array.isArray(res.json.routes)
     ? (res.json.routes as Array<BrainRoute>)
     : [];
   const restricted = res.json.restricted === true;
   // A restricted user gets exactly the brains they may use, even none.
-  if (!routes.length && !restricted)
+  if (!routes.length && !restricted) {
     return { list: FALLBACK_BRAIN_ROUTES, restricted };
+  }
   return { list: routes, restricted };
 }
 
@@ -116,7 +123,9 @@ export async function fetchChannelHealth(
     action: "channel_health",
     tenant_id: tenantId,
   });
-  if (!res.ok || typeof res.json.ok !== "boolean") return null;
+  if (!res.ok || typeof res.json.ok !== "boolean") {
+    return null;
+  }
   return res.json as unknown as ChannelHealth;
 }
 

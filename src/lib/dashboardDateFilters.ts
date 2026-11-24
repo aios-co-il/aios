@@ -94,8 +94,12 @@ export function dateFilterHasOption(
   expectedLabel?: string,
 ): boolean {
   const hit = options.find((o) => o.value === value);
-  if (!hit) return false;
-  if (expectedLabel !== undefined && hit.label !== expectedLabel) return false;
+  if (!hit) {
+    return false;
+  }
+  if (expectedLabel !== undefined && hit.label !== expectedLabel) {
+    return false;
+  }
   return true;
 }
 
@@ -211,8 +215,9 @@ export function getDashboardDateRange(
         endDate: fmt(new Date(today.getFullYear(), today.getMonth(), 0)),
       };
     case "custom":
-      if (customStart && customEnd)
+      if (customStart && customEnd) {
         return { startDate: customStart, endDate: customEnd };
+      }
       return {
         startDate: fmt(subDays(today, 30)),
         endDate: fmt(subDays(today, 1)),

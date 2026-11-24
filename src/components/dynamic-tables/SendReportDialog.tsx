@@ -105,7 +105,9 @@ export function SendReportDialog({
   const { data: client } = useQuery({
     queryKey: ["client-for-report", clientId],
     queryFn: async () => {
-      if (!clientId) return null;
+      if (!clientId) {
+        return null;
+      }
       const { data } = await supabase
         .from("clients")
         .select("id, name, phone, email, whatsapp_group_id")
@@ -158,16 +160,24 @@ export function SendReportDialog({
 
   useEffect(() => {
     if (client) {
-      if (client.phone) setDirectPhone(client.phone);
-      if (client.email) setEmailAddress(client.email);
-      if (client.whatsapp_group_id)
+      if (client.phone) {
+        setDirectPhone(client.phone);
+      }
+      if (client.email) {
+        setEmailAddress(client.email);
+      }
+      if (client.whatsapp_group_id) {
         setSelectedGroupId(client.whatsapp_group_id);
+      }
     }
   }, [client]);
 
   useEffect(() => {
-    if (gmailToken?.google_email) setEmailSender("gmail");
-    else setEmailSender("aios");
+    if (gmailToken?.google_email) {
+      setEmailSender("gmail");
+    } else {
+      setEmailSender("aios");
+    }
   }, [gmailToken]);
 
   const handleSend = async () => {
@@ -187,7 +197,9 @@ export function SendReportDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       if (sendWhatsApp) {
         const hasGroup = selectedGroupId && selectedGroupId !== "__none__";
@@ -198,8 +210,12 @@ export function SendReportDialog({
         }
 
         const captionParts: Array<string> = [];
-        if (messageText) captionParts.push(messageText);
-        if (shareLink) captionParts.push(`\n📊 צפה בדוח המלא: ${shareLink}`);
+        if (messageText) {
+          captionParts.push(messageText);
+        }
+        if (shareLink) {
+          captionParts.push(`\n📊 צפה בדוח המלא: ${shareLink}`);
+        }
         const fullCaption = captionParts.join("");
 
         // Group preferred; the phone still goes along as the fallback.
@@ -291,8 +307,9 @@ export function SendReportDialog({
             },
           );
           const result = await response.json();
-          if (!response.ok)
+          if (!response.ok) {
             throw new Error(result.error || "שגיאה בשליחה ב-Gmail");
+          }
           toast.success(`הדוח נשלח מ-${gmailToken.google_email}`);
         } else {
           // Resend: inline attachment via content_id
@@ -320,8 +337,9 @@ export function SendReportDialog({
             },
           );
           const result = await response.json();
-          if (!response.ok)
+          if (!response.ok) {
             throw new Error(result.error || "שגיאה בשליחת אימייל");
+          }
           toast.success("הדוח נשלח באימייל בהצלחה");
         }
         sentChannels.push("email");

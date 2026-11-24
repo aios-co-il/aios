@@ -177,7 +177,9 @@ Deno.test(
     });
     assertStrictEquals(result.ok, false);
     assertEquals(keys, ["same", "same"]);
-    if (!result.ok) assertMatch(result.error, /לא ענה/);
+    if (!result.ok) {
+      assertMatch(result.error, /לא ענה/);
+    }
   },
 );
 

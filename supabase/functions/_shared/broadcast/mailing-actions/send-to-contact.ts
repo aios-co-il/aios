@@ -17,7 +17,9 @@ export async function executeSendTemplateToContact(
   tenantId: string,
   ctx: MailingActionContext,
 ) {
-  if (isTestRun(data)) return { success: true, skipped: "test_run" };
+  if (isTestRun(data)) {
+    return { success: true, skipped: "test_run" };
+  }
   const template = await loadTemplate(db, tenantId, config.template_id);
   const content = templateContent(template);
   const channel = content.channel;
@@ -28,20 +30,24 @@ export async function executeSendTemplateToContact(
     data,
     ctx.triggerType,
   );
-  if (!contact) throw new Error("לא נמצא איש קשר לשליחה");
+  if (!contact) {
+    throw new Error("לא נמצא איש קשר לשליחה");
+  }
 
   const phone = channel === "email" ? null : normalizePhone(contact.phone);
   const email =
     channel === "email"
       ? (contact.email || "").toLowerCase() || null
       : contact.email;
-  if (channel === "email" ? !email : !phone)
+  if (channel === "email" ? !email : !phone) {
     return {
       success: true,
       skipped: channel === "email" ? "no_email" : "no_phone",
     };
-  if (await isOptedOut(db, tenantId, channel, { phone, email }))
+  }
+  if (await isOptedOut(db, tenantId, channel, { phone, email })) {
     return { success: true, skipped: "opted_out" };
+  }
 
   // One long-lived stream per automation + template; dispatch sends its
   // pending rows and never marks it complete.
@@ -72,7 +78,9 @@ export async function executeSendTemplateToContact(
       .from("broadcasts")
       .update({ ...fields, status: "sending" })
       .eq("id", broadcastId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   } else {
     const { data: created, error } = await db
       .from("broadcasts")
@@ -88,7 +96,9 @@ export async function executeSendTemplateToContact(
       })
       .select("id")
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     broadcastId = created.id;
   }
 
@@ -105,12 +115,13 @@ export async function executeSendTemplateToContact(
   });
   if (insErr) {
     // Unique (broadcast, phone|email): this contact already got this template.
-    if (String(insErr.code) === "23505" || /duplicate/i.test(insErr.message))
+    if (String(insErr.code) === "23505" || /duplicate/i.test(insErr.message)) {
       return {
         success: true,
         skipped: "already_sent",
         broadcast_id: broadcastId,
       };
+    }
     throw insErr;
   }
   return { success: true, queued: true, broadcast_id: broadcastId, channel };

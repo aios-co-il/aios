@@ -60,7 +60,9 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
   const candidates = [table.last_sync_at, settings.last_sync_at]
     .map((value) => (typeof value === "string" && value.trim() ? value : null))
     .filter((value): value is string => !!value);
-  if (!candidates.length) return null;
+  if (!candidates.length) {
+    return null;
+  }
   return candidates.sort(
     (a, b) => new Date(b).getTime() - new Date(a).getTime(),
   )[0];
@@ -77,35 +79,47 @@ export function isSyncStale(
   nowMs = Date.now(),
   staleMs = STALE_SYNC_MS,
 ): boolean {
-  if (hasRepeatedSyncFailures(table)) return true;
+  if (hasRepeatedSyncFailures(table)) {
+    return true;
+  }
   const lastSync = resolveLastSyncAt(table);
-  if (!lastSync) return true;
+  if (!lastSync) {
+    return true;
+  }
   const ts = new Date(lastSync).getTime();
-  if (Number.isNaN(ts)) return true;
+  if (Number.isNaN(ts)) {
+    return true;
+  }
   return nowMs - ts > staleMs;
 }
 
 export function platformLabel(
   integrationType: string | null | undefined,
 ): string {
-  if (integrationType === "google_ads") return "Google";
+  if (integrationType === "google_ads") {
+    return "Google";
+  }
   if (
     integrationType === "facebook_insights" ||
     integrationType === "facebook_ecommerce"
-  )
+  ) {
     return "Meta";
+  }
   return String(integrationType || "unknown");
 }
 
 export function platformKey(
   integrationType: string | null | undefined,
 ): "meta" | "google" | null {
-  if (integrationType === "google_ads") return "google";
+  if (integrationType === "google_ads") {
+    return "google";
+  }
   if (
     integrationType === "facebook_insights" ||
     integrationType === "facebook_ecommerce"
-  )
+  ) {
     return "meta";
+  }
   return null;
 }
 
@@ -119,9 +133,13 @@ export function pickFreshestTablePerPlatform(
 ): Array<CampaignTableLike> {
   const best = new Map<string, CampaignTableLike>();
   for (const table of tables) {
-    if (table.campaign_active === false) continue;
+    if (table.campaign_active === false) {
+      continue;
+    }
     const key = platformKey(table.integration_type);
-    if (!key) continue;
+    if (!key) {
+      continue;
+    }
     const prev = best.get(key);
     if (!prev) {
       best.set(key, table);
@@ -223,7 +241,9 @@ export type PulseCriticalIssue = {
 
 /** Meta reports `act_123`; table settings often store the bare id. */
 export function normalizeAdAccountId(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
   const trimmed = value.trim().replace(/^act_/i, "");
   return trimmed ? trimmed : null;
 }
@@ -242,7 +262,9 @@ export function clientAdAccountIds(
       "customer_id",
     ]) {
       const id = normalizeAdAccountId(settings[key]);
-      if (id) ids.add(id);
+      if (id) {
+        ids.add(id);
+      }
     }
   }
   return Array.from(ids);
@@ -250,8 +272,9 @@ export function clientAdAccountIds(
 
 function isCriticalAlert(alert: CampaignAlertLike): boolean {
   const type = String(alert.alert_type || "");
-  if ((PULSE_CRITICAL_ALERT_TYPES as ReadonlyArray<string>).includes(type))
+  if ((PULSE_CRITICAL_ALERT_TYPES as ReadonlyArray<string>).includes(type)) {
     return true;
+  }
   return String(alert.severity || "") === "critical";
 }
 
@@ -271,24 +294,32 @@ export function selectPulseCriticalAlerts(
   for (const client of clients) {
     byClientId.set(client.clientId, client);
     for (const adAccountId of client.adAccountIds) {
-      if (!byAdAccount.has(adAccountId)) byAdAccount.set(adAccountId, client);
+      if (!byAdAccount.has(adAccountId)) {
+        byAdAccount.set(adAccountId, client);
+      }
     }
   }
 
   const issues: Array<PulseCriticalIssue> = [];
   const seen = new Set<string>();
   for (const alert of alerts) {
-    if (!isCriticalAlert(alert)) continue;
+    if (!isCriticalAlert(alert)) {
+      continue;
+    }
     const adAccountId = normalizeAdAccountId(alert.ad_account_id);
     const client =
       (alert.client_id ? byClientId.get(alert.client_id) : undefined) ??
       (adAccountId ? byAdAccount.get(adAccountId) : undefined);
-    if (!client || !client.hasActiveCampaignTable) continue;
+    if (!client || !client.hasActiveCampaignTable) {
+      continue;
+    }
 
     const alertType = String(alert.alert_type || "alert");
     const campaignName = alert.campaign_name || alert.campaign_id || null;
     const key = `${client.clientId}|${alertType}|${campaignName ?? ""}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     issues.push({
       clientId: client.clientId,
@@ -308,14 +339,18 @@ export function countStoppedCampaignsByClient(
 ): Map<string, number> {
   const counts = new Map<string, number>();
   for (const issue of issues) {
-    if (issue.alertType !== "campaign_stopped") continue;
+    if (issue.alertType !== "campaign_stopped") {
+      continue;
+    }
     counts.set(issue.clientId, (counts.get(issue.clientId) || 0) + 1);
   }
   return counts;
 }
 
 function criticalIssueLines(issues: Array<PulseCriticalIssue>): Array<string> {
-  if (!issues.length) return [];
+  if (!issues.length) {
+    return [];
+  }
   // One line per client + alert type: four disapproved ads are one problem, not four.
   const groups = new Map<
     string,
@@ -331,7 +366,9 @@ function criticalIssueLines(issues: Array<PulseCriticalIssue>): Array<string> {
       count: 0,
     };
     group.count += 1;
-    if (issue.campaignName) group.campaigns.push(issue.campaignName);
+    if (issue.campaignName) {
+      group.campaigns.push(issue.campaignName);
+    }
     groups.set(key, group);
   }
   const grouped = [...groups.values()];
@@ -346,7 +383,9 @@ function criticalIssueLines(issues: Array<PulseCriticalIssue>): Array<string> {
     lines.push(`• ${group.client}: ${group.label}${detail}`);
   }
   const remaining = grouped.length - PULSE_CRITICAL_LINE_LIMIT;
-  if (remaining > 0) lines.push(`• ועוד ${remaining} התראות קריטיות בדשבורד`);
+  if (remaining > 0) {
+    lines.push(`• ועוד ${remaining} התראות קריטיות בדשבורד`);
+  }
   return lines;
 }
 
@@ -355,7 +394,9 @@ export function effectiveIsEcommerce(
   clientIsEcommerce: boolean | null | undefined,
   tables: Array<CampaignTableLike>,
 ): boolean {
-  if (clientIsEcommerce) return true;
+  if (clientIsEcommerce) {
+    return true;
+  }
   return tables.some(
     (table) =>
       table.integration_type === "facebook_ecommerce" &&
@@ -375,8 +416,9 @@ export function tableMatchesServices(
   table: CampaignTableLike,
   services: Set<string>,
 ): boolean {
-  if (table.integration_type === "google_ads")
+  if (table.integration_type === "google_ads") {
     return services.has("ppc_google");
+  }
   if (
     table.integration_type === "facebook_insights" ||
     table.integration_type === "facebook_ecommerce"
@@ -411,7 +453,9 @@ function applyStoppedCampaigns(
   stoppedCampaignCount: number | undefined,
 ): { status: PulseStatus; flags: Array<string> } {
   const count = stoppedCampaignCount ?? 0;
-  if (count <= 0) return { status, flags };
+  if (count <= 0) {
+    return { status, flags };
+  }
   flags.push(count === 1 ? "קמפיין נעצר" : `${count} קמפיינים נעצרו`);
   return { status: "critical", flags };
 }
@@ -488,7 +532,9 @@ export function classifyCampaignPulseStatus(input: ClassifyPulseInput): {
 
   if (stalePlatforms.length) {
     flags.push(`סנכרון ישן או חסר: ${stalePlatforms.join(", ")}`);
-    if (status === "healthy") status = "warning";
+    if (status === "healthy") {
+      status = "warning";
+    }
   }
 
   const stopped = applyStoppedCampaigns(
@@ -526,7 +572,9 @@ export function isPulseDeliveryExcludedRecipient(
   name: string | null | undefined,
 ): boolean {
   const normalized = String(name || "").trim();
-  if (!normalized) return false;
+  if (!normalized) {
+    return false;
+  }
   return PULSE_DELIVERY_EXCLUDED_RECIPIENT_NAMES.some(
     (excluded) =>
       normalized === excluded || normalized.startsWith(`${excluded} `),
@@ -549,7 +597,9 @@ export function isPulseDeliveryExcludedPhone(
     return false;
   }
   const digits = String(phone || "").replace(/\D/g, "");
-  if (!digits) return false;
+  if (!digits) {
+    return false;
+  }
   return PULSE_DELIVERY_EXCLUDED_PHONE_SUFFIXES.some((suffix) =>
     digits.endsWith(suffix),
   );
@@ -644,7 +694,9 @@ function goalWindowTotals(
 }
 
 function roundMetric(value: number | null, digits = 2): number | null {
-  if (value === null || Number.isNaN(value)) return null;
+  if (value === null || Number.isNaN(value)) {
+    return null;
+  }
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }
@@ -669,7 +721,9 @@ export function computeGoalMetricsFromRecords(
   d14Str: string,
 ): GoalMetricBundle {
   const recent = records.filter((row) => {
-    if (!isCampaignLevelAdsRow(row.data || null)) return false;
+    if (!isCampaignLevelAdsRow(row.data || null)) {
+      return false;
+    }
     const date = typeof row.data?.date === "string" ? row.data.date : null;
     return date && date >= d14Str;
   });
@@ -783,7 +837,9 @@ type SnapshotExpandable = {
 };
 
 function snapshotGoalMode(row: SnapshotExpandable): CampaignGoalMode {
-  if (row.campaign_goal_mode) return row.campaign_goal_mode;
+  if (row.campaign_goal_mode) {
+    return row.campaign_goal_mode;
+  }
   return row.is_ecommerce ? "ecommerce" : "leads";
 }
 
@@ -848,8 +904,12 @@ export function expandSnapshotToGoalRows(
     efficiency_kind: "roas",
   };
 
-  if (mode === "hybrid") return [leadRow, ecommerceRow];
-  if (mode === "ecommerce") return [ecommerceRow];
+  if (mode === "hybrid") {
+    return [leadRow, ecommerceRow];
+  }
+  if (mode === "ecommerce") {
+    return [ecommerceRow];
+  }
   return [leadRow];
 }
 
@@ -897,12 +957,16 @@ export function buildPulseCategoryDigestLines(
       }),
     ),
   );
-  if (!campaigns.length) return [];
+  if (!campaigns.length) {
+    return [];
+  }
 
   const lines: Array<string> = ["*לפי קטגוריה:*"];
   for (const [goal, label] of PULSE_CATEGORY_LABELS) {
     const inGoal = campaigns.filter((campaign) => campaign.goal === goal);
-    if (!inGoal.length) continue;
+    if (!inGoal.length) {
+      continue;
+    }
     const critical = inGoal.filter(
       (campaign) => campaign.status === "critical",
     ).length;
@@ -938,7 +1002,9 @@ export function buildPulseCategoryDigestLines(
         `🔴 ${client}${campaign.campaign_name || "קמפיין"}: ${campaign.status_reason || "חריגה מתמשכת"}`,
       );
     }
-    if (exceptions.length > 3) lines.push(`ועוד ${exceptions.length - 3}`);
+    if (exceptions.length > 3) {
+      lines.push(`ועוד ${exceptions.length - 3}`);
+    }
   }
 
   return lines;
@@ -950,7 +1016,9 @@ export function filterPulseRowsByClientIds<T extends { client_id: string }>(
   clientIds: Iterable<string>,
 ): Array<T> {
   const allowed = new Set(clientIds);
-  if (!allowed.size) return [];
+  if (!allowed.size) {
+    return [];
+  }
   return rows.filter((row) => allowed.has(row.client_id));
 }
 
@@ -1041,7 +1109,9 @@ export function buildPulseWhatsAppDigest(
   const tally = tallyPerformance(clients);
   const agencies = new Map<string, Array<ClientPerformance>>();
   for (const client of clients) {
-    if (!client.agency) continue;
+    if (!client.agency) {
+      continue;
+    }
     agencies.set(client.agency, [
       ...(agencies.get(client.agency) || []),
       client,
@@ -1058,12 +1128,13 @@ export function buildPulseWhatsAppDigest(
     );
     agencyLines.push(...performanceDetailLines(members));
   }
-  if (!agencies.size)
+  if (!agencies.size) {
     agencyLines.push(
       ...(performanceDetailLines(clients).length
         ? ["", ...performanceDetailLines(clients)]
         : []),
     );
+  }
   return [
     "*בדיקת דופק הושלמה*",
     `נבדקו ${clients.length} לקוחות פעילים`,
@@ -1165,9 +1236,12 @@ function performanceDetailLines(
 ): Array<string> {
   const lines: Array<string> = [];
   const critical = clients.filter((c) => c.status === "critical");
-  for (const c of critical.slice(0, 5))
+  for (const c of critical.slice(0, 5)) {
     lines.push(`🔴 ${c.name}${c.reason ? ` — ${c.reason}` : ""}`);
-  if (critical.length > 5) lines.push(`🔴 ועוד ${critical.length - 5}`);
+  }
+  if (critical.length > 5) {
+    lines.push(`🔴 ועוד ${critical.length - 5}`);
+  }
   const warning = clients
     .filter((c) => c.status === "warning")
     .map((c) => c.name);

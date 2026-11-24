@@ -37,7 +37,9 @@ export function useAgentKnowledge(agentId: string | null) {
         .select("*")
         .eq("agent_id", agentId!)
         .order("position");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as any as Array<KnowledgeFolder>;
     },
   });
@@ -53,7 +55,9 @@ export function useAgentKnowledge(agentId: string | null) {
         )
         .eq("agent_id", agentId!)
         .order("updated_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as any as Array<KnowledgeItem>;
     },
   });
@@ -75,7 +79,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
       parent_folder_id?: string | null;
       icon?: string;
     }) => {
-      if (!agentId || !tenantId) throw new Error("missing agent/tenant");
+      if (!agentId || !tenantId) {
+        throw new Error("missing agent/tenant");
+      }
       const { error } = await supabase
         .from("agent_knowledge_folders" as any)
         .insert({
@@ -85,7 +91,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
           parent_folder_id: input.parent_folder_id ?? null,
           icon: input.icon ?? null,
         });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       inv();
@@ -100,7 +108,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
         .from("agent_knowledge_folders" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       inv();
@@ -111,7 +121,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
 
   const createItem = useMutation({
     mutationFn: async (input: Partial<KnowledgeItem>) => {
-      if (!agentId || !tenantId) throw new Error("missing agent/tenant");
+      if (!agentId || !tenantId) {
+        throw new Error("missing agent/tenant");
+      }
       const { error } = await supabase
         .from("agent_knowledge_items" as any)
         .insert({
@@ -124,7 +136,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
           url: input.url ?? null,
           tags: input.tags ?? [],
         });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       inv();
@@ -142,7 +156,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
         .from("agent_knowledge_items" as any)
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => inv(),
     onError: (e: any) => toast.error(e.message),
@@ -154,7 +170,9 @@ export function useAgentKnowledgeMutations(agentId: string | null) {
         .from("agent_knowledge_items" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       inv();

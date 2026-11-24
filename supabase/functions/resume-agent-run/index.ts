@@ -12,8 +12,9 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const auth = await requireAuth(req);
@@ -43,7 +44,9 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", approval_id)
       .single();
-    if (aErr || !approval) throw aErr ?? new Error("not found");
+    if (aErr || !approval) {
+      throw aErr ?? new Error("not found");
+    }
 
     const gate = await authorizeRunDecision(
       supabase,
@@ -84,7 +87,9 @@ Deno.serve(async (req) => {
               },
             },
           );
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           executionResult = data ?? { ok: true };
         } catch (e: any) {
           executionResult = { ok: false, error: String(e?.message ?? e) };

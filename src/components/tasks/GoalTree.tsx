@@ -51,7 +51,9 @@ export function GoalTree() {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as Array<Goal>;
     },
     enabled: !!tenantId,
@@ -66,13 +68,21 @@ export function GoalTree() {
         .select("goal_id, status" as any)
         .eq("tenant_id", tenantId!)
         .not("goal_id" as any, "is", null);
-      if (error) return {};
+      if (error) {
+        return {};
+      }
       const counts: Record<string, { total: number; done: number }> = {};
       (data as Array<any>)?.forEach((t: any) => {
-        if (!t.goal_id) return;
-        if (!counts[t.goal_id]) counts[t.goal_id] = { total: 0, done: 0 };
+        if (!t.goal_id) {
+          return;
+        }
+        if (!counts[t.goal_id]) {
+          counts[t.goal_id] = { total: 0, done: 0 };
+        }
         counts[t.goal_id].total++;
-        if (t.status === "done") counts[t.goal_id].done++;
+        if (t.status === "done") {
+          counts[t.goal_id].done++;
+        }
       });
       return counts;
     },
@@ -81,13 +91,17 @@ export function GoalTree() {
 
   const createGoalMutation = useMutation({
     mutationFn: async (parentId?: string) => {
-      if (!newGoalTitle.trim() || !tenantId) return;
+      if (!newGoalTitle.trim() || !tenantId) {
+        return;
+      }
       const { error } = await (supabase as any).from("goals").insert({
         tenant_id: tenantId,
         title: newGoalTitle.trim(),
         parent_goal_id: parentId || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals", tenantId] });
@@ -110,7 +124,9 @@ export function GoalTree() {
         .from("goals")
         .update({ status })
         .eq("id", goalId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals", tenantId] });
@@ -247,7 +263,9 @@ export function GoalTree() {
     );
   };
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return null;
+  }
 
   return (
     <Card>

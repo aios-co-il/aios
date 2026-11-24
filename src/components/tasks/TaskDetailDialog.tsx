@@ -107,7 +107,9 @@ function isUsableDate(value: Date | undefined): value is Date {
 }
 
 function parseOptionalDate(value: string | null | undefined): Date | undefined {
-  if (!value) return undefined;
+  if (!value) {
+    return undefined;
+  }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
@@ -214,13 +216,17 @@ export function TaskDetailDialog({
 
   const syncTitleFieldHeight = useCallback(() => {
     const field = titleFieldRef.current;
-    if (!field) return;
+    if (!field) {
+      return;
+    }
     field.style.height = "auto";
     field.style.height = `${field.scrollHeight}px`;
   }, []);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) {
+      return;
+    }
     syncTitleFieldHeight();
   }, [title, isActive, isMobile, syncTitleFieldHeight]);
 
@@ -233,7 +239,9 @@ export function TaskDetailDialog({
         .select("*")
         .eq("id", leadId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!leadId && isActive,
@@ -378,8 +386,12 @@ export function TaskDetailDialog({
 
   // Filter clients based on search
   const filteredClients = useMemo(() => {
-    if (!clients) return [];
-    if (!clientSearch.trim()) return clients;
+    if (!clients) {
+      return [];
+    }
+    if (!clientSearch.trim()) {
+      return clients;
+    }
     return clients.filter((c) =>
       c.name.toLowerCase().includes(clientSearch.toLowerCase()),
     );
@@ -387,8 +399,12 @@ export function TaskDetailDialog({
 
   // Filter campaigners based on search
   const filteredCampaigners = useMemo(() => {
-    if (!campaigners) return [];
-    if (!campaignerSearch.trim()) return campaigners;
+    if (!campaigners) {
+      return [];
+    }
+    if (!campaignerSearch.trim()) {
+      return campaigners;
+    }
     return campaigners.filter((c) =>
       c.full_name.toLowerCase().includes(campaignerSearch.toLowerCase()),
     );
@@ -396,8 +412,12 @@ export function TaskDetailDialog({
 
   // Filter leads based on search
   const filteredLeads = useMemo(() => {
-    if (!leads) return [];
-    if (!leadSearch.trim()) return leads;
+    if (!leads) {
+      return [];
+    }
+    if (!leadSearch.trim()) {
+      return leads;
+    }
     return leads.filter((l) =>
       l.company_name?.toLowerCase().includes(leadSearch.toLowerCase()),
     );
@@ -405,13 +425,17 @@ export function TaskDetailDialog({
 
   // Get selected client name
   const selectedClientName = useMemo(() => {
-    if (!clientId) return "";
+    if (!clientId) {
+      return "";
+    }
     return clients?.find((c) => c.id === clientId)?.name || "";
   }, [clients, clientId]);
 
   // Get assigned campaigner name
   const assignedCampaignerName = useMemo(() => {
-    if (!assignedCampaignerId) return "";
+    if (!assignedCampaignerId) {
+      return "";
+    }
     return (
       campaigners?.find((c) => c.id === assignedCampaignerId)?.full_name || ""
     );
@@ -419,7 +443,9 @@ export function TaskDetailDialog({
 
   // Get selected lead name
   const selectedLeadName = useMemo(() => {
-    if (!leadId) return "";
+    if (!leadId) {
+      return "";
+    }
     return leads?.find((l) => l.id === leadId)?.company_name || "";
   }, [leads, leadId]);
 
@@ -489,7 +515,9 @@ export function TaskDetailDialog({
         .from("tasks")
         .update(updatePayload as any)
         .eq("id", task!.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (tenantId) {
         try {
@@ -519,7 +547,9 @@ export function TaskDetailDialog({
       queryClient.invalidateQueries({ queryKey: ["lead-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-events-weekly"] });
       toast.success("המשימה עודכנה");
-      if (!isPanel) onOpenChange(false);
+      if (!isPanel) {
+        onOpenChange(false);
+      }
     },
     onError: (error: Error) => {
       toast.error(`שגיאה בעדכון המשימה: ${error.message}`);
@@ -542,7 +572,9 @@ export function TaskDetailDialog({
         tenant_id: collabTenantId,
         added_by: user?.id,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (campaignerId !== userCampaignerId) {
         void notifyTaskCollaboratorAdded({
           tenantId,
@@ -576,7 +608,9 @@ export function TaskDetailDialog({
         .from("task_collaborators")
         .delete()
         .eq("id", collaboratorId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -596,7 +630,9 @@ export function TaskDetailDialog({
         .from("tasks")
         .update({ campaigner_id: campaignerId })
         .eq("id", task!.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -617,7 +653,9 @@ export function TaskDetailDialog({
 
   const persistRecurrence = useMutation({
     mutationFn: async (next: TaskRecurrenceValue) => {
-      if (!task?.id) return;
+      if (!task?.id) {
+        return;
+      }
       const payload: Record<string, unknown> = {
         recurrence_interval: 1,
       };
@@ -649,7 +687,9 @@ export function TaskDetailDialog({
         .from("tasks")
         .update(payload as any)
         .eq("id", task.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_data, next) => {
       queryClient.invalidateQueries({ queryKey: ["tasks", tenantId] });
@@ -670,7 +710,9 @@ export function TaskDetailDialog({
 
   const handleRecurrenceChange = (next: TaskRecurrenceValue) => {
     setRecurrence(next);
-    if (next.time) setDueTime(next.time);
+    if (next.time) {
+      setDueTime(next.time);
+    }
     if (!task?.recurrence_frequency && next.frequency) {
       const first = computeFirstOccurrenceDate({
         frequency: next.frequency,
@@ -686,13 +728,17 @@ export function TaskDetailDialog({
   // Add update mutation
   const addUpdate = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("User not authenticated");
+      if (!user?.id) {
+        throw new Error("User not authenticated");
+      }
       const { error } = await supabase.from("task_updates").insert({
         task_id: task!.id,
         content: newUpdate,
         user_id: user.id,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       void notifyTaskUpdateAdded({
         tenantId,
         taskId: task!.id,
@@ -1406,7 +1452,9 @@ export function TaskDetailDialog({
               className="bg-card"
               onClick={() => {
                 onMoveToBacklog(task.id);
-                if (!isPanel) onOpenChange(false);
+                if (!isPanel) {
+                  onOpenChange(false);
+                }
               }}
             >
               <ListTodo className="h-4 w-4" />

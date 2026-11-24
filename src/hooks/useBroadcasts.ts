@@ -87,7 +87,9 @@ export function useBroadcasts() {
         .select("*")
         .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as unknown as Array<Broadcast>;
     },
   });
@@ -123,7 +125,9 @@ export function useBroadcasts() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as Broadcast;
     },
     onSuccess: () =>
@@ -139,7 +143,9 @@ export function useBroadcasts() {
         .from("broadcasts")
         .update(patch as any)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcasts", tenantId] }),
@@ -148,7 +154,9 @@ export function useBroadcasts() {
   const remove = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("broadcasts").delete().eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcasts", tenantId] }),
@@ -165,7 +173,9 @@ export function useBroadcasts() {
         body: { dryRun: true, filter, channel, tenantId },
       },
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as { success: boolean; total: number; sample: Array<any> };
   };
 
@@ -177,7 +187,9 @@ export function useBroadcasts() {
         body: { broadcastId },
       },
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as { success: boolean; total: number };
   };
 
@@ -197,9 +209,12 @@ export function useBroadcasts() {
       scheduledAt?: string | null;
     }) => {
       const res = await enqueue(id);
-      if (!res?.total && res?.total !== 0)
+      if (!res?.total && res?.total !== 0) {
         throw new Error("אין נמענים תקינים לדיוור");
-      if (res.total === 0) throw new Error("אין נמענים תקינים לדיוור");
+      }
+      if (res.total === 0) {
+        throw new Error("אין נמענים תקינים לדיוור");
+      }
       const patch: any = sendNow
         ? {
             status: "sending",
@@ -211,7 +226,9 @@ export function useBroadcasts() {
         .from("broadcasts")
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return res.total;
     },
     onSuccess: () =>

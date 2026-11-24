@@ -83,14 +83,18 @@ export function LeadFilterPresetTabs({
   const { data: presets = [] } = useQuery({
     queryKey: ["lead-filter-presets", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("lead_filter_presets")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<FilterPreset>;
     },
     enabled: !!tenantId,
@@ -102,7 +106,9 @@ export function LeadFilterPresetTabs({
         .from("lead_filter_presets")
         .delete()
         .eq("id", presetId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return presetId;
     },
     onSuccess: (deletedPresetId) => {

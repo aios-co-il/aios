@@ -129,7 +129,9 @@ export function activeRoleSlugs(
   disabled: ReadonlyArray<string> = [],
   pinned: ReadonlyArray<string> = [],
 ) {
-  if (disabled.includes(slug)) return [];
+  if (disabled.includes(slug)) {
+    return [];
+  }
   const members: ReadonlyArray<string> = CARMEN_ROLES.find(
     (role) => role.slug === slug,
   )?.members ?? [slug];

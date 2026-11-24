@@ -56,7 +56,9 @@ export default function UnifiedSettings() {
           body: { action: "list", tenant_id: currentTenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.connections || [];
     },
     enabled: !!currentTenantId,
@@ -76,7 +78,9 @@ export default function UnifiedSettings() {
             },
           },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return (data?.integrations || []) as Array<WorkspaceIntegration>;
       },
       enabled: !!currentTenantId,
@@ -98,7 +102,9 @@ export default function UnifiedSettings() {
           connection_id: integrationId,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({ title: "החיבור נותק בהצלחה" });
       queryClient.invalidateQueries({
         queryKey: ["unified-connections", currentTenantId],
@@ -331,7 +337,9 @@ export default function UnifiedSettings() {
         open={pickerOpen}
         onOpenChange={(val) => {
           setPickerOpen(val);
-          if (!val) setDirectIntegrationType(undefined);
+          if (!val) {
+            setDirectIntegrationType(undefined);
+          }
         }}
         selectedCategory={selectedCategory}
         tenantId={currentTenantId || ""}

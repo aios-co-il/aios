@@ -94,10 +94,16 @@ export function SeoGeoWorkflowStudio({
         .select("*")
         .eq("work_item_id", workItem.id)
         .maybeSingle();
-      if (error) throw error;
-      if (data) return data;
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        return data;
+      }
       // A program belongs to the project's own client; none while the screen shows another one.
-      if (!workItem.client_id || workItem.client_id !== clientId) return null;
+      if (!workItem.client_id || workItem.client_id !== clientId) {
+        return null;
+      }
       const { data: created, error: insertError } = await seoGeoDb
         .from("seo_geo_programs")
         .insert({
@@ -109,7 +115,9 @@ export function SeoGeoWorkflowStudio({
         })
         .select("*")
         .single();
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
       return created;
     },
   });
@@ -118,7 +126,9 @@ export function SeoGeoWorkflowStudio({
   const { data: wpSites = [] } = useQuery({
     queryKey: ["seo-geo-wp-sites", tenantId, workItem.client_id],
     queryFn: async () => {
-      if (!workItem.client_id) return [];
+      if (!workItem.client_id) {
+        return [];
+      }
       const { data } = await supabase
         .from("social_media_wordpress_sites")
         .select("id,site_url,site_name")
@@ -137,7 +147,9 @@ export function SeoGeoWorkflowStudio({
         .select("*")
         .eq("work_item_id", workItem.id)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<SeoGeoKeyword>;
     },
   });
@@ -150,7 +162,9 @@ export function SeoGeoWorkflowStudio({
         .select("*")
         .eq("work_item_id", workItem.id)
         .order("scheduled_date");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<SeoGeoCalendarEntry>;
     },
   });
@@ -167,8 +181,12 @@ export function SeoGeoWorkflowStudio({
         "marketing-seo-materialize",
         { body: { work_item_id: workItem.id } },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -184,7 +202,9 @@ export function SeoGeoWorkflowStudio({
       .from("seo_geo_programs")
       .update(patch)
       .eq("work_item_id", workItem.id);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     invalidate();
   };
 
@@ -193,8 +213,11 @@ export function SeoGeoWorkflowStudio({
       .from("seo_geo_keywords")
       .update({ promoted })
       .eq("id", row.id);
-    if (error) toast.error(error.message);
-    else invalidate();
+    if (error) {
+      toast.error(error.message);
+    } else {
+      invalidate();
+    }
   };
 
   const setApproval = async (
@@ -209,8 +232,11 @@ export function SeoGeoWorkflowStudio({
         approved_by_carmen: false,
       })
       .eq("id", entry.id);
-    if (error) toast.error(error.message);
-    else invalidate();
+    if (error) {
+      toast.error(error.message);
+    } else {
+      invalidate();
+    }
   };
 
   const generateEntry = async (entryId: string) => {
@@ -218,8 +244,12 @@ export function SeoGeoWorkflowStudio({
       "marketing-seo-generate-entry",
       { body: { entry_id: entryId } },
     );
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
+    if (error) {
+      throw error;
+    }
+    if (data?.error) {
+      throw new Error(data.error);
+    }
     toast.success("כרמן כתבה טיוטה");
     invalidate();
   };
@@ -231,8 +261,12 @@ export function SeoGeoWorkflowStudio({
         body: entryId ? { entry_id: entryId } : { work_item_id: workItem.id },
       },
     );
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
+    if (error) {
+      throw error;
+    }
+    if (data?.error) {
+      throw new Error(data.error);
+    }
     toast.success(`פורסמו ${data.published ?? 0} מאמרים`);
     invalidate();
   };
@@ -260,7 +294,9 @@ export function SeoGeoWorkflowStudio({
   }, [entries]);
 
   const sendChat = async () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim()) {
+      return;
+    }
     const msg = chatInput.trim();
     setChatInput("");
     setChatLog((prev) => [...prev, { role: "user", text: msg }]);
@@ -270,10 +306,16 @@ export function SeoGeoWorkflowStudio({
         "marketing-seo-chat",
         { body: { work_item_id: workItem.id, message: msg } },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       setChatLog((prev) => [...prev, { role: "assistant", text: data.reply }]);
-      if (data.actions?.length) invalidate();
+      if (data.actions?.length) {
+        invalidate();
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "צ'אט נכשל");
     } finally {

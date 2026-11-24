@@ -34,7 +34,9 @@ export function PermanentDeleteLeadDialog({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setPhrase("");
+        if (!next) {
+          setPhrase("");
+        }
         onOpenChange(next);
       }}
     >

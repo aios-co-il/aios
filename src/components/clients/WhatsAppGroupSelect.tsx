@@ -35,7 +35,9 @@ export function WhatsAppGroupSelect({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groups || [];
+    if (!q) {
+      return groups || [];
+    }
     return (groups || []).filter((g) =>
       g.group_name?.toLowerCase().includes(q),
     );

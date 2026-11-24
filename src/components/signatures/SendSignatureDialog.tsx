@@ -146,7 +146,9 @@ export function SendSignatureDialog({
         .eq("tenant_id", tenantId!)
         .eq("setting_key", "signature_email")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data?.setting_value ?? null) as
         ({ logoUrl?: string | null } & Partial<SignatureEmailColors>) | null;
     },
@@ -162,7 +164,9 @@ export function SendSignatureDialog({
         .eq("tenant_id", tenantId!)
         .eq("setting_key", "signature_template_email")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data?.setting_value ?? {}) as Record<
         string,
         {
@@ -185,7 +189,9 @@ export function SendSignatureDialog({
         .eq("tenant_id", tenantId!)
         .eq("setting_key", "branding")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const settings = data?.setting_value as { logoUrl?: string } | null;
       return settings?.logoUrl || null;
     },
@@ -205,7 +211,9 @@ export function SendSignatureDialog({
         .select("name, email")
         .eq("document_id", doc!.id)
         .order("sign_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled:
@@ -220,7 +228,9 @@ export function SendSignatureDialog({
         .select("document_fields")
         .eq("id", doc!.id)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return parseDocumentFields(data.document_fields);
     },
     enabled: open && !!doc?.id,
@@ -240,8 +250,13 @@ export function SendSignatureDialog({
       colorsReady.current = false;
       return;
     }
-    if (!doc?.id || loadingRecipients || initializedDocument.current === doc.id)
+    if (
+      !doc?.id ||
+      loadingRecipients ||
+      initializedDocument.current === doc.id
+    ) {
       return;
+    }
     initializedDocument.current = doc.id;
     preparedDocument.current = null;
     const existing = existingRecipients[0];
@@ -261,12 +276,16 @@ export function SendSignatureDialog({
   ]);
 
   useEffect(() => {
-    if (!open || logoChoice.current === "manual") return;
+    if (!open || logoChoice.current === "manual") {
+      return;
+    }
     setLogoUrl(emailSettings?.logoUrl || brandLogo || null);
   }, [open, doc?.id, brandLogo, emailSettings?.logoUrl]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const fillable = documentFields.filter(
       (field) => !isSignatureFieldType(field.type),
     );
@@ -292,16 +311,24 @@ export function SendSignatureDialog({
   }, [open, doc?.id, documentFields]);
 
   useEffect(() => {
-    if (!open) return;
-    if (emailDraftReady.current || emailSettings === undefined) return;
-    if (resolvedMode === "template" && templateEmails === undefined) return;
+    if (!open) {
+      return;
+    }
+    if (emailDraftReady.current || emailSettings === undefined) {
+      return;
+    }
+    if (resolvedMode === "template" && templateEmails === undefined) {
+      return;
+    }
     emailDraftReady.current = true;
     setEmailSubject(templateEmail?.subject?.trim() || "בקשה לחתימה: {{title}}");
     setEmailBody(templateEmail?.body || "");
   }, [open, emailSettings, templateEmails, templateEmail, resolvedMode]);
 
   useEffect(() => {
-    if (!open || colorsReady.current || emailSettings === undefined) return;
+    if (!open || colorsReady.current || emailSettings === undefined) {
+      return;
+    }
     colorsReady.current = true;
     setEmailColors(resolveSignatureEmailColors(emailSettings));
   }, [open, emailSettings]);
@@ -321,7 +348,9 @@ export function SendSignatureDialog({
   const canWhatsApp = !!phone.trim();
 
   const runAction = async (action: SendAction) => {
-    if (!doc) return;
+    if (!doc) {
+      return;
+    }
     if (!name.trim()) {
       toast.error("הזן שם חותם");
       return;
@@ -347,7 +376,9 @@ export function SendSignatureDialog({
     // Reserve the window during the click; mobile browsers block windows opened after network work.
     const whatsappWindow =
       action === "whatsapp" ? window.open("about:blank", "_blank") : null;
-    if (whatsappWindow) whatsappWindow.opener = null;
+    if (whatsappWindow) {
+      whatsappWindow.opener = null;
+    }
     setBusy(action);
     try {
       const preparation = sendSignatureDocument({
@@ -387,8 +418,9 @@ export function SendSignatureDialog({
         action === "copy"
           ? copySigningUrl(
               preparation.then((result) => {
-                if (!result.signingLinks[0]?.url)
+                if (!result.signingLinks[0]?.url) {
                   throw new Error("לא נוצר קישור לחתימה");
+                }
                 return result.signingLinks[0].url;
               }),
             ).then(
@@ -397,17 +429,25 @@ export function SendSignatureDialog({
             )
           : null;
       const result = await preparation;
-      if (!result.signingLinks.length) throw new Error("לא נוצר קישור לחתימה");
+      if (!result.signingLinks.length) {
+        throw new Error("לא נוצר קישור לחתימה");
+      }
       preparedDocument.current = result.documentId;
       setLinks(result.signingLinks);
       setLastAction(action);
 
       if (action === "copy") {
-        if (await copying) toast.success("הקישור לחתימה הועתק");
-        else toast.info("הקישור מוכן — לחץ על העתקה ליד הקישור למטה");
+        if (await copying) {
+          toast.success("הקישור לחתימה הועתק");
+        } else {
+          toast.info("הקישור מוכן — לחץ על העתקה ליד הקישור למטה");
+        }
       } else if (action === "email") {
-        if (result.emailSent) toast.success("נשלח לאימייל");
-        else toast.warning("הכנה הצליחה — שליחת המייל נכשלה (אפשר להעתיק)");
+        if (result.emailSent) {
+          toast.success("נשלח לאימייל");
+        } else {
+          toast.warning("הכנה הצליחה — שליחת המייל נכשלה (אפשר להעתיק)");
+        }
       } else if (action === "whatsapp") {
         const link = result.signingLinks[0];
         const url = buildWhatsAppSignUrl({
@@ -416,8 +456,9 @@ export function SendSignatureDialog({
           recipientName: link.name,
           documentTitle: documentTitleOverride || doc.title,
         });
-        if (url && whatsappWindow) whatsappWindow.location.replace(url);
-        else {
+        if (url && whatsappWindow) {
+          whatsappWindow.location.replace(url);
+        } else {
           whatsappWindow?.close();
           toast.info("הקישור מוכן — לחץ על קישור הוואטסאפ למטה");
         }
@@ -655,7 +696,9 @@ export function SendSignatureDialog({
                     onChange={async (event) => {
                       const file = event.target.files?.[0];
                       event.target.value = "";
-                      if (!file || !tenantId) return;
+                      if (!file || !tenantId) {
+                        return;
+                      }
                       if (
                         !file.type.startsWith("image/") ||
                         file.size > 2 * 1024 * 1024
@@ -670,7 +713,9 @@ export function SendSignatureDialog({
                         const { error } = await supabase.storage
                           .from("tenant-logos")
                           .upload(path, file, { upsert: false });
-                        if (error) throw error;
+                        if (error) {
+                          throw error;
+                        }
                         const { data } = supabase.storage
                           .from("tenant-logos")
                           .getPublicUrl(path);
@@ -781,7 +826,9 @@ export function SendSignatureDialog({
                     (resolvedMode === "template" && !doc?.id)
                   }
                   onClick={async () => {
-                    if (!tenantId) return;
+                    if (!tenantId) {
+                      return;
+                    }
                     setSavingDefaults(true);
                     try {
                       const { error: logoError } = await supabase
@@ -798,7 +845,9 @@ export function SendSignatureDialog({
                           },
                           { onConflict: "tenant_id,setting_key" },
                         );
-                      if (logoError) throw logoError;
+                      if (logoError) {
+                        throw logoError;
+                      }
                       if (resolvedMode === "template" && doc?.id) {
                         const { error } = await supabase
                           .from("tenant_settings")
@@ -816,7 +865,9 @@ export function SendSignatureDialog({
                             },
                             { onConflict: "tenant_id,setting_key" },
                           );
-                        if (error) throw error;
+                        if (error) {
+                          throw error;
+                        }
                         await queryClient.invalidateQueries({
                           queryKey: ["signature-template-email", tenantId],
                         });

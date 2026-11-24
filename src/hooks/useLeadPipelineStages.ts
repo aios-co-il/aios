@@ -23,7 +23,9 @@ export function useLeadPipelineStages() {
   } = useQuery({
     queryKey: ["lead-pipeline-stages", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("lead_pipeline_stages")
@@ -31,7 +33,9 @@ export function useLeadPipelineStages() {
         .eq("tenant_id", tenantId)
         .order("sort_order");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<LeadPipelineStage>;
     },
     enabled: !!tenantId,
@@ -65,7 +69,9 @@ export function useLeadPipelineStageMutations() {
         })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -79,7 +85,9 @@ export function useLeadPipelineStageMutations() {
 
   const createStage = useMutation({
     mutationFn: async ({ label, color }: { label: string; color: string }) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const { data: existing } = await supabase
         .from("lead_pipeline_stages")
@@ -99,7 +107,9 @@ export function useLeadPipelineStageMutations() {
         sort_order: maxOrder + 1,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -119,7 +129,9 @@ export function useLeadPipelineStageMutations() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -143,7 +155,9 @@ export function useLeadPipelineStageMutations() {
         ),
       );
       const failed = results.find((result) => result.error);
-      if (failed?.error) throw failed.error;
+      if (failed?.error) {
+        throw failed.error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

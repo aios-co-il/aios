@@ -141,7 +141,9 @@ function rpcError(
 function bearerFrom(req: Request): string | undefined {
   const h =
     req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!h) return undefined;
+  if (!h) {
+    return undefined;
+  }
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m ? m[1].trim() : undefined;
 }
@@ -215,7 +217,9 @@ async function resolveContext(
     tenantId: Deno.env.get("CLAUDE_DEFAULT_TENANT_ID") || null,
     agentId: null as string | null,
   };
-  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return fallback;
+  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return fallback;
+  }
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
@@ -248,7 +252,9 @@ async function resolveContext(
 }
 
 function sbClient() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return null;
+  }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -258,9 +264,13 @@ function sbClient() {
 // routine session knows what was already asked (and where it landed) instead of
 // starting cold. Returns a prompt block, or '' when there's nothing / no tenant.
 async function recentDispatchContext(tenantId: string | null): Promise<string> {
-  if (!tenantId) return "";
+  if (!tenantId) {
+    return "";
+  }
   const sb = sbClient();
-  if (!sb) return "";
+  if (!sb) {
+    return "";
+  }
   try {
     const { data } = await sb
       .from("claude_dispatches")
@@ -269,7 +279,9 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .order("created_at", { ascending: false })
       .limit(5);
     const rows = (data || []) as Array<any>;
-    if (!rows.length) return "";
+    if (!rows.length) {
+      return "";
+    }
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
         .slice(0, 16)
@@ -309,7 +321,9 @@ async function logDispatch(args: {
   sessionUrl: string;
 }): Promise<void> {
   const sb = sbClient();
-  if (!sb) return;
+  if (!sb) {
+    return;
+  }
   try {
     await sb.from("claude_dispatches").insert({
       tenant_id: args.tenantId,
@@ -373,12 +387,15 @@ async function handleToolCall(
 ): Promise<string> {
   if (name === "request_dev_task") {
     const task = String(args?.task ?? "").trim();
-    if (!task) throw new Error("request_dev_task requires a non-empty 'task'.");
+    if (!task) {
+      throw new Error("request_dev_task requires a non-empty 'task'.");
+    }
     const { id, token } = resolveRoutine("dev");
-    if (!id || !token)
+    if (!id || !token) {
       throw new Error(
         "Claude dev routine is not configured (set CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN secrets).",
       );
+    }
     const branch = String(args?.branch ?? "").trim();
     const context = String(args?.context ?? "").trim();
     const text =
@@ -420,12 +437,15 @@ async function handleToolCall(
 
   if (name === "ask_claude") {
     const request = String(args?.request ?? "").trim();
-    if (!request) throw new Error("ask_claude requires a non-empty 'request'.");
+    if (!request) {
+      throw new Error("ask_claude requires a non-empty 'request'.");
+    }
     const { id, token } = resolveRoutine("general");
-    if (!id || !token)
+    if (!id || !token) {
       throw new Error(
         "Claude routine is not configured (set CLAUDE_ROUTINE_ID / CLAUDE_ROUTINE_TOKEN secrets).",
       );
+    }
     const context = String(args?.context ?? "").trim();
     const text =
       `[Carmen → Claude · REQUEST]\n` +
@@ -451,8 +471,9 @@ async function handleToolCall(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   // Lightweight health check / friendly GET.
   if (req.method === "GET") {

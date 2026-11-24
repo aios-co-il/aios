@@ -13,19 +13,28 @@ export function isAllowedOutboundUrl(raw: string): boolean {
   } catch {
     return false;
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") return false;
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    return false;
+  }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host.endsWith(".internal")
-  )
+  ) {
     return false;
+  }
   // IPv6 literals: block loopback, unspecified, unique-local and link-local.
   if (host.includes(":")) {
-    if (host === "::" || host === "::1") return false;
-    if (/^(fc|fd|fe8|fe9|fea|feb)/.test(host)) return false;
-    if (host.startsWith("::ffff:")) return false;
+    if (host === "::" || host === "::1") {
+      return false;
+    }
+    if (/^(fc|fd|fe8|fe9|fea|feb)/.test(host)) {
+      return false;
+    }
+    if (host.startsWith("::ffff:")) {
+      return false;
+    }
     return true;
   }
   const ipv4 = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
@@ -39,8 +48,9 @@ export function isAllowedOutboundUrl(raw: string): boolean {
       (a === 172 && b >= 16 && b <= 31) ||
       (a === 192 && b === 168) ||
       (a === 100 && b >= 64 && b <= 127)
-    )
+    ) {
       return false;
+    }
   }
   return true;
 }

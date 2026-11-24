@@ -55,7 +55,9 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return withTaskCreatorNames(data || []);
     },
     enabled: !!clientId,
@@ -73,7 +75,9 @@ export function ClientTasksTab({ clientId, clientName }: ClientTasksTabProps) {
         .from("tasks")
         .update({ status })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["client-tasks", clientId] });

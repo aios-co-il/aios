@@ -184,7 +184,9 @@ function CreateChannelDialog({
         .from("tenant_users")
         .select("user_id")
         .eq("tenant_id", tenantId);
-      if (!tuData || tuData.length === 0) return [];
+      if (!tuData || tuData.length === 0) {
+        return [];
+      }
 
       const userIds = tuData.map((tu: any) => tu.user_id);
       const { data: profiles } = await supabase
@@ -244,7 +246,9 @@ function CreateChannelDialog({
       } else {
         q = q.eq("tenant_id", tenantId);
       }
-      if (selectedAgencyId) q = q.eq("agency_id", selectedAgencyId);
+      if (selectedAgencyId) {
+        q = q.eq("agency_id", selectedAgencyId);
+      }
       const { data } = await q.order("name");
       return data || [];
     },
@@ -259,7 +263,9 @@ function CreateChannelDialog({
         .from("leads")
         .select("id, company_name, contact_name")
         .eq("tenant_id", tenantId);
-      if (selectedAgencyId) q = q.eq("agency_id", selectedAgencyId);
+      if (selectedAgencyId) {
+        q = q.eq("agency_id", selectedAgencyId);
+      }
       const { data } = await q
         .order("created_at", { ascending: false })
         .limit(100);
@@ -278,17 +284,27 @@ function CreateChannelDialog({
         is_private: isPrivate,
         created_by: userId!,
       };
-      if (selectedCategoryId) insertData.category_id = selectedCategoryId;
-      if (selectedAgencyId) insertData.agency_id = selectedAgencyId;
-      if (selectedClientId) insertData.linked_client_id = selectedClientId;
-      if (selectedLeadId) insertData.linked_lead_id = selectedLeadId;
+      if (selectedCategoryId) {
+        insertData.category_id = selectedCategoryId;
+      }
+      if (selectedAgencyId) {
+        insertData.agency_id = selectedAgencyId;
+      }
+      if (selectedClientId) {
+        insertData.linked_client_id = selectedClientId;
+      }
+      if (selectedLeadId) {
+        insertData.linked_lead_id = selectedLeadId;
+      }
 
       const { data: channel, error } = await supabase
         .from("team_channels")
         .insert(insertData)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Add creator as admin
       const members = [
@@ -311,7 +327,9 @@ function CreateChannelDialog({
       const { error: memberError } = await supabase
         .from("team_channel_members")
         .insert(members);
-      if (memberError) throw memberError;
+      if (memberError) {
+        throw memberError;
+      }
 
       return channel;
     },
@@ -430,7 +448,9 @@ function CreateChannelDialog({
               value={selectedClientId}
               onValueChange={(v) => {
                 setSelectedClientId(v === "none" ? "" : v);
-                if (v !== "none") setSelectedLeadId("");
+                if (v !== "none") {
+                  setSelectedLeadId("");
+                }
               }}
             >
               <SelectTrigger className="mt-1">
@@ -456,7 +476,9 @@ function CreateChannelDialog({
               value={selectedLeadId}
               onValueChange={(v) => {
                 setSelectedLeadId(v === "none" ? "" : v);
-                if (v !== "none") setSelectedClientId("");
+                if (v !== "none") {
+                  setSelectedClientId("");
+                }
               }}
             >
               <SelectTrigger className="mt-1">
@@ -489,7 +511,9 @@ function CreateChannelDialog({
             <div className="max-h-40 overflow-y-auto mt-1 space-y-1">
               {tenantUsers?.map((tu: any) => {
                 const profile = tu.profiles;
-                if (!profile || profile.id === userId) return null;
+                if (!profile || profile.id === userId) {
+                  return null;
+                }
                 const selected = selectedMembers.includes(profile.id);
                 return (
                   <button
@@ -558,7 +582,9 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
         icon: newIcon,
         sort_order: categories.length,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setNewName("");
@@ -585,7 +611,9 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
         .from("team_channel_categories")
         .update({ name, icon })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setEditingId(null);
@@ -603,7 +631,9 @@ function ManageCategoriesDialog({ tenantId }: { tenantId: string }) {
         .from("team_channel_categories")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -804,7 +834,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
         .from("tenant_users")
         .select("user_id, tenant_id")
         .eq("tenant_id", tenantId);
-      if (!tuData || tuData.length === 0) return [];
+      if (!tuData || tuData.length === 0) {
+        return [];
+      }
 
       const userIds = tuData.map((tu: any) => tu.user_id);
       const { data: profiles } = await supabase
@@ -827,7 +859,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
   };
 
   const saveEdit = async () => {
-    if (!editingUser) return;
+    if (!editingUser) {
+      return;
+    }
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -846,7 +880,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !editingUser) return;
+    if (!file || !editingUser) {
+      return;
+    }
     setUploading(true);
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -854,18 +890,23 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       const { error: uploadError } = await supabase.storage
         .from("team-chat-files")
         .upload(filePath, file);
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
       const { data: urlData, error: urlError } = await supabase.storage
         .from("team-chat-files")
         .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10);
-      if (urlError || !urlData)
+      if (urlError || !urlData) {
         throw urlError ?? new Error("Failed to sign URL");
+      }
 
       const { error } = await supabase
         .from("profiles")
         .update({ avatar_url: urlData.signedUrl })
         .eq("id", editingUser.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success("התמונה עודכנה");
       refetchMembers();
@@ -878,7 +919,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
   };
 
   const generateAvatarAI = async () => {
-    if (!aiPrompt.trim() || !editingUser) return;
+    if (!aiPrompt.trim() || !editingUser) {
+      return;
+    }
     setGeneratingAi(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -891,7 +934,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data?.avatar_url) {
         await supabase
           .from("profiles")
@@ -909,7 +954,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
   };
 
   const removeAvatar = async () => {
-    if (!editingUser) return;
+    if (!editingUser) {
+      return;
+    }
     const { error } = await supabase
       .from("profiles")
       .update({ avatar_url: null })
@@ -924,7 +971,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
   };
 
   const deleteUser = async () => {
-    if (!deleteConfirmUser) return;
+    if (!deleteConfirmUser) {
+      return;
+    }
     const deletedId = deleteConfirmUser.id;
     const membersQueryKey = ["team-members-manage", tenantId] as const;
     try {
@@ -1036,7 +1085,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       <Dialog
         open={!!editingUser}
         onOpenChange={(o) => {
-          if (!o) setEditingUser(null);
+          if (!o) {
+            setEditingUser(null);
+          }
         }}
       >
         <DialogContent dir="rtl" className="sm:max-w-md">
@@ -1167,7 +1218,9 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
       <AlertDialog
         open={!!deleteConfirmUser}
         onOpenChange={(o) => {
-          if (!o) setDeleteConfirmUser(null);
+          if (!o) {
+            setDeleteConfirmUser(null);
+          }
         }}
       >
         <AlertDialogContent dir="rtl">
@@ -1229,8 +1282,11 @@ function ChannelSidebar({
   const toggleCategory = (key: string) => {
     setCollapsedCategories((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   };
@@ -1530,7 +1586,9 @@ function TeamMessageList({
                                 e.preventDefault();
                                 saveEdit(msg);
                               }
-                              if (e.key === "Escape") cancelEdit();
+                              if (e.key === "Escape") {
+                                cancelEdit();
+                              }
                             }}
                           />
                           <div className="flex gap-1">
@@ -1717,7 +1775,9 @@ function TeamMessageList({
       <AlertDialog
         open={!!deleteConfirmMsg}
         onOpenChange={(open) => {
-          if (!open) setDeleteConfirmMsg(null);
+          if (!open) {
+            setDeleteConfirmMsg(null);
+          }
         }}
       >
         <AlertDialogContent dir="rtl">
@@ -1814,7 +1874,9 @@ function TeamMessageInput({
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
       };
 
       mediaRecorder.onstop = async () => {
@@ -1822,7 +1884,9 @@ function TeamMessageInput({
         const audioBlob = new Blob(audioChunksRef.current, {
           type: mediaRecorder.mimeType,
         });
-        if (audioBlob.size < 100) return;
+        if (audioBlob.size < 100) {
+          return;
+        }
 
         setIsTranscribing(true);
         try {
@@ -1841,7 +1905,9 @@ function TeamMessageInput({
             },
           );
           const result = await res.json();
-          if (result.error) throw new Error(result.error);
+          if (result.error) {
+            throw new Error(result.error);
+          }
           if (result.text) {
             setText((prev) => (prev ? prev + " " + result.text : result.text));
           }
@@ -1896,8 +1962,9 @@ function TeamMessageInput({
         const { data: urlData, error: urlError } = await supabase.storage
           .from("team-chat-files")
           .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10);
-        if (urlError || !urlData)
+        if (urlError || !urlData) {
           throw urlError ?? new Error("Failed to sign URL");
+        }
         const isImage = file.type.startsWith("image/");
 
         newAttachments.push({
@@ -1945,13 +2012,17 @@ function TeamMessageInput({
       );
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
     await uploadFiles(files);
   };
 
@@ -1983,7 +2054,9 @@ function TeamMessageInput({
 
   const addLink = () => {
     const url = linkInput.trim();
-    if (!url) return;
+    if (!url) {
+      return;
+    }
     const finalUrl = url.startsWith("http") ? url : `https://${url}`;
     setAttachments((prev) => [
       ...prev,
@@ -2013,7 +2086,9 @@ function TeamMessageInput({
         .insert(insertData)
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Update file records with message_id
       if (uploadedFileIdsRef.current.length > 0 && msg) {
@@ -2042,7 +2117,9 @@ function TeamMessageInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (canSend) sendMessage.mutate();
+      if (canSend) {
+        sendMessage.mutate();
+      }
     }
   };
 
@@ -2312,14 +2389,18 @@ function MemberRow({
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim()) {
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
         .from("profiles")
         .update({ full_name: newName.trim() })
         .eq("id", member.user_id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("השם עודכן בהצלחה");
       setEditing(false);
       onNameUpdated();
@@ -2347,8 +2428,12 @@ function MemberRow({
               className="h-7 text-sm"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Enter") {
+                  handleSave();
+                }
+                if (e.key === "Escape") {
+                  setEditing(false);
+                }
               }}
             />
             <Button
@@ -2503,7 +2588,9 @@ function ManageChannelMembersDialog({
         .from("team_channels")
         .update({ notification_group_link: channelGroupLink || null })
         .eq("id", channel.id);
-      if (chErr) throw chErr;
+      if (chErr) {
+        throw chErr;
+      }
 
       // Save per-member settings
       for (const [userId, s] of Object.entries(memberNotifySettings)) {
@@ -2516,7 +2603,9 @@ function ManageChannelMembersDialog({
           })
           .eq("channel_id", channel.id)
           .eq("user_id", userId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -2561,7 +2650,9 @@ function ManageChannelMembersDialog({
         })
         .select("token")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -2592,7 +2683,9 @@ function ManageChannelMembersDialog({
         .from("tenant_users")
         .select("user_id")
         .eq("tenant_id", tenantId);
-      if (!tuData || tuData.length === 0) return [];
+      if (!tuData || tuData.length === 0) {
+        return [];
+      }
 
       const userIds = tuData.map((tu: any) => tu.user_id);
       const { data: profiles } = await supabase
@@ -2610,7 +2703,9 @@ function ManageChannelMembersDialog({
     queryKey: ["team-member-profiles", tenantId, channel.id],
     queryFn: async () => {
       const memberIds = members.map((m) => m.user_id);
-      if (memberIds.length === 0) return [];
+      if (memberIds.length === 0) {
+        return [];
+      }
       const { data } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
@@ -2633,7 +2728,9 @@ function ManageChannelMembersDialog({
         role: "member",
         tenant_id: channel.tenant_id,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("החבר נוסף בהצלחה");
@@ -2655,7 +2752,9 @@ function ManageChannelMembersDialog({
         .delete()
         .eq("channel_id", channel.id)
         .eq("user_id", userId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("החבר הוסר מהקבוצה");
@@ -2916,7 +3015,9 @@ function ChannelAvatarDialog({
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     setUploading(true);
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -2924,18 +3025,23 @@ function ChannelAvatarDialog({
       const { error: uploadError } = await supabase.storage
         .from("team-chat-files")
         .upload(filePath, file);
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
       const { data: urlData, error: urlError } = await supabase.storage
         .from("team-chat-files")
         .createSignedUrl(filePath, 60 * 60 * 24 * 365 * 10);
-      if (urlError || !urlData)
+      if (urlError || !urlData) {
         throw urlError ?? new Error("Failed to sign URL");
+      }
 
       const { error } = await supabase
         .from("team_channels")
         .update({ avatar_url: urlData.signedUrl })
         .eq("id", channel.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success("האווטר עודכן בהצלחה");
       onUpdated();
@@ -2948,7 +3054,9 @@ function ChannelAvatarDialog({
   };
 
   const generateWithAI = async () => {
-    if (!aiPrompt.trim()) return;
+    if (!aiPrompt.trim()) {
+      return;
+    }
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -2957,8 +3065,12 @@ function ChannelAvatarDialog({
           body: { prompt: aiPrompt, channelId: channel.id, tenantId },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       toast.success("האווטר נוצר בהצלחה!");
       onUpdated();
@@ -3170,7 +3282,9 @@ function EditChannelDialog({
         .from("team_channels")
         .update({ name, description: description || null, color })
         .eq("id", channel.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הערוץ עודכן בהצלחה");
@@ -3204,7 +3318,9 @@ function EditChannelDialog({
       const { error } = await supabase
         .from("team_channel_whatsapp_links")
         .insert(insertData);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("שיוך וואטסאפ נוסף");
@@ -3221,7 +3337,9 @@ function EditChannelDialog({
         .from("team_channel_whatsapp_links")
         .delete()
         .eq("id", linkId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("שיוך הוסר");
@@ -3249,7 +3367,9 @@ function EditChannelDialog({
         .from("team_channels")
         .delete()
         .eq("id", channel.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הערוץ נמחק בהצלחה");
       onDeleted();
       setOpen(false);
@@ -3260,7 +3380,9 @@ function EditChannelDialog({
     }
   };
 
-  if (!isAdmin) return null;
+  if (!isAdmin) {
+    return null;
+  }
 
   // Groups not yet linked
   const linkedGroupIds = new Set(
@@ -3580,10 +3702,14 @@ function ThreadDialog({
         .select("*")
         .eq("parent_message_id", parentMessage!.id)
         .order("created_at", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const senderIds = [...new Set(data.map((m: any) => m.sender_id))];
-      if (senderIds.length === 0) return [];
+      if (senderIds.length === 0) {
+        return [];
+      }
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email, avatar_url")
@@ -3600,7 +3726,9 @@ function ThreadDialog({
 
   // Realtime for thread
   useEffect(() => {
-    if (!parentMessage?.id || !open) return;
+    if (!parentMessage?.id || !open) {
+      return;
+    }
     const channel = supabase
       .channel(`thread-${parentMessage.id}`)
       .on(
@@ -3634,7 +3762,9 @@ function ThreadDialog({
         content: replyText.trim(),
         parent_message_id: parentMessage!.id,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       setReplyText("");
@@ -3647,7 +3777,9 @@ function ThreadDialog({
     onError: (err: any) => toast.error(err.message),
   });
 
-  if (!parentMessage) return null;
+  if (!parentMessage) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -3727,7 +3859,9 @@ function ThreadDialog({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                if (replyText.trim()) sendReply.mutate();
+                if (replyText.trim()) {
+                  sendReply.mutate();
+                }
               }
             }}
           />
@@ -3775,7 +3909,9 @@ function NotifyTargetDialog({
   const { data: memberProfiles = [] } = useQuery({
     queryKey: ["notify-member-profiles", memberUserIds.join(",")],
     queryFn: async () => {
-      if (memberUserIds.length === 0) return [];
+      if (memberUserIds.length === 0) {
+        return [];
+      }
       const { data } = await supabase
         .from("profiles")
         .select("id, full_name, phone, campaigner_id, notification_group_link")
@@ -3955,17 +4091,23 @@ export default function TeamChat() {
         .select("channel_id")
         .eq("user_id", userId!)
         .filter("tenant_id", "eq", tenantId);
-      if (memError) throw memError;
+      if (memError) {
+        throw memError;
+      }
 
       const channelIds = (memberships || []).map((m: any) => m.channel_id);
-      if (channelIds.length === 0) return [];
+      if (channelIds.length === 0) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("team_channels")
         .select("*")
         .in("id", channelIds)
         .order("created_at", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<TeamChannel>;
     },
     enabled: !!tenantId && !!userId,
@@ -3999,7 +4141,9 @@ export default function TeamChat() {
         .eq("channel_id", activeChannelId!)
         .order("created_at", { ascending: true })
         .limit(500);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const senderIds = [...new Set(allMsgs.map((m: any) => m.sender_id))];
       const { data: profiles } = await supabase
@@ -4038,7 +4182,9 @@ export default function TeamChat() {
         .from("team_channel_members")
         .select("*")
         .eq("channel_id", activeChannelId!);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<ChannelMember>;
     },
     enabled: !!activeChannelId,
@@ -4046,7 +4192,9 @@ export default function TeamChat() {
 
   // Realtime subscription for active channel messages
   useEffect(() => {
-    if (!activeChannelId) return;
+    if (!activeChannelId) {
+      return;
+    }
 
     const channel = supabase
       .channel(`team-messages-${activeChannelId}`)
@@ -4115,7 +4263,9 @@ export default function TeamChat() {
 
   // Realtime subscription for unread counts (listen to all team_messages in tenant)
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
 
     const channel = supabase
       .channel(`team-unread-${tenantId}`)
@@ -4151,7 +4301,9 @@ export default function TeamChat() {
         .from("team_messages")
         .update({ content, is_edited: true })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => refetchMessages(),
     onError: (err: any) => toast.error("שגיאה בעריכת ההודעה: " + err.message),
@@ -4164,7 +4316,9 @@ export default function TeamChat() {
         .from("team_messages")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       refetchMessages();
@@ -4203,7 +4357,9 @@ export default function TeamChat() {
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -4273,7 +4429,9 @@ export default function TeamChat() {
             .is("parent_message_id", null)
             .neq("sender_id", userId!);
           const lastRead = readMap.get(ch.id);
-          if (lastRead) query = query.gt("created_at", lastRead);
+          if (lastRead) {
+            query = query.gt("created_at", lastRead);
+          }
           const { count } = await query;
           return { id: ch.id, count: count ?? 0 };
         }),
@@ -4281,7 +4439,9 @@ export default function TeamChat() {
 
       const counts: Record<string, number> = {};
       results.forEach(({ id, count }) => {
-        if (count > 0) counts[id] = count;
+        if (count > 0) {
+          counts[id] = count;
+        }
       });
       return counts;
     },
@@ -4292,7 +4452,9 @@ export default function TeamChat() {
   // Mark channel as read when switching
   const markAsRead = useCallback(
     async (channelId: string) => {
-      if (!userId) return;
+      if (!userId) {
+        return;
+      }
       await supabase.from("team_message_read_status").upsert(
         {
           channel_id: channelId,
@@ -4326,7 +4488,9 @@ export default function TeamChat() {
     }
   }, [messages.length, activeChannelId, markAsRead]);
 
-  if (!tenantId) return null;
+  if (!tenantId) {
+    return null;
+  }
 
   const showSidebar = isMobile ? !activeChannelId : true;
   const showChat = isMobile ? !!activeChannelId : true;
@@ -4398,7 +4562,9 @@ export default function TeamChat() {
               <ConvertMessageToTaskDialog
                 open={!!taskMessage}
                 onOpenChange={(open) => {
-                  if (!open) setTaskMessage(null);
+                  if (!open) {
+                    setTaskMessage(null);
+                  }
                 }}
                 messageText={taskMessage?.content || ""}
                 contactId={
@@ -4431,7 +4597,9 @@ export default function TeamChat() {
         parentMessage={threadMessage}
         open={!!threadMessage}
         onOpenChange={(open) => {
-          if (!open) setThreadMessage(null);
+          if (!open) {
+            setThreadMessage(null);
+          }
         }}
         channelId={activeChannelId || ""}
         tenantId={tenantId}

@@ -10,17 +10,21 @@ export function createReplyRecorder() {
   return {
     /** Feed every emitted SSE event through this. */
     observe(event: { type?: string; id?: unknown; content?: unknown }) {
-      if (event?.type === "conversation_id" && typeof event.id === "string")
+      if (event?.type === "conversation_id" && typeof event.id === "string") {
         conversationId = event.id;
-      if (event?.type === "token" && typeof event.content === "string")
+      }
+      if (event?.type === "token" && typeof event.content === "string") {
         text += event.content;
+      }
     },
     get conversationId() {
       return conversationId;
     },
     /** The streamed text, or the final output when nothing was streamed. */
     reply(finalOutput: unknown): string {
-      if (text.trim()) return text;
+      if (text.trim()) {
+        return text;
+      }
       return typeof finalOutput === "string" ? finalOutput : "";
     },
   };

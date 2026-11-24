@@ -40,14 +40,17 @@ export function BrainConnectionsTab() {
   // The slug, so the open dialog reads fresh state after a save or share.
   const [keySlug, setKeySlug] = useState<string | null>(null);
 
-  if (!tenantId) return null;
-  if (isLoading)
+  if (!tenantId) {
+    return null;
+  }
+  if (isLoading) {
     return (
       <div className="flex justify-center py-8">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
-  if (error || !data)
+  }
+  if (error || !data) {
     return (
       <Card className="p-4 text-sm text-muted-foreground">
         <ShieldCheck className="mb-2 h-5 w-5" />
@@ -56,6 +59,7 @@ export function BrainConnectionsTab() {
           : `טעינת המוחות נכשלה: ${error?.message ?? ""}`}
       </Card>
     );
+  }
 
   const connections = new Map(data.connections.map((c) => [c.id, c]));
   const builtins = new Map(data.builtins.map((b) => [b.slug, b]));
@@ -81,12 +85,13 @@ export function BrainConnectionsTab() {
         onTest={() => conn && test.mutate({ connection_id: conn.id })}
         onEdit={() => conn && setModelDialog({ conn })}
         onDelete={() => {
-          if (conn && confirm(`למחוק את ${conn.name}? המפתח יימחק מה-Vault.`))
+          if (conn && confirm(`למחוק את ${conn.name}? המפתח יימחק מה-Vault.`)) {
             write.mutate({
               action: "delete",
               payload: { connection_id: conn.id },
               success: "נמחק",
             });
+          }
         }}
         onKey={() => setKeySlug(r.slug)}
       />

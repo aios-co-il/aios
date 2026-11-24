@@ -48,7 +48,9 @@ export function emptySeoMonthlyWork(): SeoMonthlyWork {
 
 export function parseSeoMonthlyWork(raw: unknown): SeoMonthlyWork {
   const base = emptySeoMonthlyWork();
-  if (!raw || typeof raw !== "object") return base;
+  if (!raw || typeof raw !== "object") {
+    return base;
+  }
   const obj = raw as Record<string, unknown>;
   return {
     summary: typeof obj.summary === "string" ? obj.summary : "",
@@ -78,10 +80,14 @@ function asString(v: unknown): string {
 }
 
 function normalizeOnsite(row: unknown): SeoOnsiteItem | null {
-  if (!row || typeof row !== "object") return null;
+  if (!row || typeof row !== "object") {
+    return null;
+  }
   const r = row as Record<string, unknown>;
   const title = asString(r.title);
-  if (!title) return null;
+  if (!title) {
+    return null;
+  }
   const kindRaw = asString(r.kind) || "other";
   const kind: SeoOnsiteKind =
     kindRaw === "meta" ||
@@ -100,10 +106,14 @@ function normalizeOnsite(row: unknown): SeoOnsiteItem | null {
 }
 
 function normalizeArticle(row: unknown): SeoArticleItem | null {
-  if (!row || typeof row !== "object") return null;
+  if (!row || typeof row !== "object") {
+    return null;
+  }
   const r = row as Record<string, unknown>;
   const title = asString(r.title);
-  if (!title) return null;
+  if (!title) {
+    return null;
+  }
   return {
     id: asString(r.id) || newId(),
     title,
@@ -114,10 +124,14 @@ function normalizeArticle(row: unknown): SeoArticleItem | null {
 }
 
 function normalizeLink(row: unknown): SeoLinkItem | null {
-  if (!row || typeof row !== "object") return null;
+  if (!row || typeof row !== "object") {
+    return null;
+  }
   const r = row as Record<string, unknown>;
   const url = asString(r.url);
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   return {
     id: asString(r.id) || newId(),
     url,
@@ -176,7 +190,9 @@ function dropDuplicates<T>(rows: Array<T>, key: (row: T) => string): Array<T> {
   const seen = new Set<string>();
   return rows.filter((row) => {
     const k = key(row);
-    if (!k || seen.has(k)) return false;
+    if (!k || seen.has(k)) {
+      return false;
+    }
     seen.add(k);
     return true;
   });

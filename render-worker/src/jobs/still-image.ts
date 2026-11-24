@@ -17,8 +17,12 @@ export async function publicStill(
   bytes: Uint8Array,
   convert: (bytes: Uint8Array) => Promise<Uint8Array> = toPng,
 ) {
-  if (isJpeg(bytes)) return { bytes, ext: "jpg", contentType: "image/jpeg" };
-  if (isPng(bytes)) return { bytes, ext: "png", contentType: "image/png" };
+  if (isJpeg(bytes)) {
+    return { bytes, ext: "jpg", contentType: "image/jpeg" };
+  }
+  if (isPng(bytes)) {
+    return { bytes, ext: "png", contentType: "image/png" };
+  }
   return { bytes: await convert(bytes), ext: "png", contentType: "image/png" };
 }
 

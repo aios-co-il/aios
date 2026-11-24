@@ -32,7 +32,9 @@ export function QuickReplies({
 
   const send = (choices: Record<string, string>) => {
     const answer = quickReplyAnswer(groups, choices);
-    if (!answer || !onAnswer) return;
+    if (!answer || !onAnswer) {
+      return;
+    }
     setSent(true);
     onAnswer(answer);
   };

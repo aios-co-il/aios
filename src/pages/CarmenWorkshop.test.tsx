@@ -50,8 +50,9 @@ vi.mock("@/integrations/supabase/client", () => {
   const from = (table: string) => {
     let rows = table === "clients" ? state.clients : state.items;
     const chain: Record<string, unknown> = {};
-    for (const name of ["select", "order", "limit", "in"])
+    for (const name of ["select", "order", "limit", "in"]) {
       chain[name] = () => chain;
+    }
     chain.eq = (column: string, value: unknown) => {
       rows = rows.filter((row) => valueAt(row, column) === value);
       return chain;
@@ -61,8 +62,9 @@ vi.mock("@/integrations/supabase/client", () => {
       return chain;
     };
     chain.not = (column: string, operator: string, value: unknown) => {
-      if (operator === "is" && value === null)
+      if (operator === "is" && value === null) {
         rows = rows.filter((row) => valueAt(row, column) != null);
+      }
       return chain;
     };
     chain.maybeSingle = () =>

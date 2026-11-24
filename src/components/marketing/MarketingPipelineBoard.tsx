@@ -224,7 +224,9 @@ function StatusBar({ items }: { items: Array<any> }) {
   const done = items.filter((i) => i.status === "completed").length;
   const draft = items.filter((i) => i.status === "draft").length;
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex items-center gap-1.5 border-b border-border/40 px-4 py-2 text-[11px]">
@@ -499,7 +501,9 @@ export function MarketingPipelineBoard({
       const { error } = await supabase.functions.invoke("marketing-run-stage", {
         body: { item_id: item.id, stage_id: stageId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({ title: "השלב הורץ בהצלחה" });
       refetchItems();
       queryClient.invalidateQueries({

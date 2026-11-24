@@ -67,8 +67,12 @@ function sanitize(name: string) {
 }
 
 function formatSize(size?: number) {
-  if (!size) return "";
-  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  if (!size) {
+    return "";
+  }
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -97,9 +101,13 @@ export function NotesWithAttachments({
 
   const upload = useCallback(
     async (files: FileList | Array<File> | null) => {
-      if (!files || !tenantId) return;
+      if (!files || !tenantId) {
+        return;
+      }
       const arr = Array.from(files);
-      if (!arr.length) return;
+      if (!arr.length) {
+        return;
+      }
       setUploading(true);
       const added: Array<TaskAttachment> = [];
       try {
@@ -132,7 +140,9 @@ export function NotesWithAttachments({
         }
       } finally {
         setUploading(false);
-        if (fileRef.current) fileRef.current.value = "";
+        if (fileRef.current) {
+          fileRef.current.value = "";
+        }
       }
     },
     [attachments, onAttachmentsChange, taskId, tenantId],
@@ -144,8 +154,12 @@ export function NotesWithAttachments({
       preventDefault: () => void,
     ) => {
       const files = filesFromClipboardData(clipboardData ?? null);
-      if (!files.length) return false;
-      if (!claimClipboardPaste()) return true;
+      if (!files.length) {
+        return false;
+      }
+      if (!claimClipboardPaste()) {
+        return true;
+      }
       preventDefault();
       void upload(files);
       return true;
@@ -163,10 +177,14 @@ export function NotesWithAttachments({
   const listenForPagePaste =
     variant === "files" || variant === "cubes" || variant === "stacked";
   useEffect(() => {
-    if (!listenForPagePaste) return;
+    if (!listenForPagePaste) {
+      return;
+    }
     const onPaste = (event: ClipboardEvent) => {
       const files = filesFromClipboardData(event.clipboardData);
-      if (!shouldUploadClipboardPaste(event.target, files)) return;
+      if (!shouldUploadClipboardPaste(event.target, files)) {
+        return;
+      }
       takeClipboardFiles(event.clipboardData, () => event.preventDefault());
     };
     document.addEventListener("paste", onPaste);
@@ -196,11 +214,15 @@ export function NotesWithAttachments({
   };
 
   const getThumb = async (a: TaskAttachment) => {
-    if (signed[a.path]) return;
+    if (signed[a.path]) {
+      return;
+    }
     const { data } = await supabase.storage
       .from("task-attachments")
       .createSignedUrl(a.path, 3600);
-    if (data?.signedUrl) setSigned((s) => ({ ...s, [a.path]: data.signedUrl }));
+    if (data?.signedUrl) {
+      setSigned((s) => ({ ...s, [a.path]: data.signedUrl }));
+    }
   };
 
   const fileInput = (
@@ -218,7 +240,9 @@ export function NotesWithAttachments({
     <div className={cn("flex flex-wrap gap-2", largeThumbs && "gap-3")}>
       {attachments.map((a, i) => {
         const isImg = a.type?.startsWith("image/");
-        if (isImg && !signed[a.path]) void getThumb(a);
+        if (isImg && !signed[a.path]) {
+          void getThumb(a);
+        }
         return (
           <div
             key={`${a.path}-${i}`}
@@ -343,7 +367,9 @@ export function NotesWithAttachments({
 
   const focusPasteField = () => {
     const field = pasteRef.current;
-    if (!field || document.activeElement === field) return;
+    if (!field || document.activeElement === field) {
+      return;
+    }
     field.focus({ preventScroll: true });
   };
 
@@ -432,8 +458,12 @@ export function NotesWithAttachments({
     </div>
   );
 
-  if (variant === "notes") return notesCube;
-  if (variant === "files") return filesCube;
+  if (variant === "notes") {
+    return notesCube;
+  }
+  if (variant === "files") {
+    return filesCube;
+  }
 
   if (variant === "cubes") {
     return (

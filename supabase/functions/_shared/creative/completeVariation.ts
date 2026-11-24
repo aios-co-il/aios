@@ -37,7 +37,9 @@ export const buildLayersForComplete = ({
   layers: Array<CreativeLayer>;
   compositionId?: CompositionId;
 } => {
-  if (!liveTextLayers) return { layers: [] };
+  if (!liveTextLayers) {
+    return { layers: [] };
+  }
   const resolvedComposition =
     compositionId ??
     pickVariationComposition({

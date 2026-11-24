@@ -62,10 +62,20 @@ export function pickableConnections<T extends { id: string }>(
 
 /** The failover kind for an HTTP status from a chat API (0 = timeout). */
 export function failureKindFor(status: number): FailureKind {
-  if (status === 0) return "timeout";
-  if (status === 429) return "rate_limit";
-  if (status === 402) return "quota";
-  if (status === 401 || status === 403) return "authentication";
-  if (status >= 500) return "provider_unavailable";
+  if (status === 0) {
+    return "timeout";
+  }
+  if (status === 429) {
+    return "rate_limit";
+  }
+  if (status === 402) {
+    return "quota";
+  }
+  if (status === 401 || status === 403) {
+    return "authentication";
+  }
+  if (status >= 500) {
+    return "provider_unavailable";
+  }
   return "invalid_request";
 }

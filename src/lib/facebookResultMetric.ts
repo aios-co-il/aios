@@ -36,8 +36,12 @@ export function facebookResultLabel(
   kind: string | null | undefined,
   label?: string | null,
 ): string | null {
-  if (label) return label;
-  if (!kind) return null;
+  if (label) {
+    return label;
+  }
+  if (!kind) {
+    return null;
+  }
   return FACEBOOK_RESULT_KIND_LABELS[kind] || null;
 }
 
@@ -50,7 +54,9 @@ export function addFacebookResult(
     | undefined,
 ): FacebookResultTotals {
   const kind = data?.result_kind ? String(data.result_kind) : null;
-  if (!kind) return totals;
+  if (!kind) {
+    return totals;
+  }
   const value = Number(data?.results) || 0;
   if (!totals.result_kind) {
     return {
@@ -63,7 +69,9 @@ export function addFacebookResult(
       result_mixed: false,
     };
   }
-  if (totals.result_kind !== kind) return { ...totals, result_mixed: true };
+  if (totals.result_kind !== kind) {
+    return { ...totals, result_mixed: true };
+  }
   return { ...totals, results: totals.results + value };
 }
 

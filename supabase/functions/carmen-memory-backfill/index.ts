@@ -10,8 +10,9 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   const supabase = svc();
   const url = new URL(req.url);
   const tenantParam = url.searchParams.get("tenant_id");
@@ -19,8 +20,9 @@ Deno.serve(async (req) => {
   const messagesDays = parseInt(url.searchParams.get("messages_days") ?? "90");
 
   let tenants: Array<string> = [];
-  if (tenantParam) tenants = [tenantParam];
-  else {
+  if (tenantParam) {
+    tenants = [tenantParam];
+  } else {
     const { data } = await supabase.from("tenants").select("id");
     tenants = (data ?? []).map((t: any) => t.id);
   }
@@ -28,25 +30,31 @@ Deno.serve(async (req) => {
   const stats: Record<string, any> = {};
   for (const tenant_id of tenants) {
     stats[tenant_id] = {};
-    if (module === "all" || module === "system_map")
+    if (module === "all" || module === "system_map") {
       stats[tenant_id].system_map = await seedSystemMap(supabase, tenant_id);
-    if (module === "all" || module === "clients")
+    }
+    if (module === "all" || module === "clients") {
       stats[tenant_id].clients = await seedClients(supabase, tenant_id);
-    if (module === "all" || module === "team")
+    }
+    if (module === "all" || module === "team") {
       stats[tenant_id].team = await seedTeam(supabase, tenant_id);
-    if (module === "all" || module === "tasks")
+    }
+    if (module === "all" || module === "tasks") {
       stats[tenant_id].tasks = await seedTasks(supabase, tenant_id);
-    if (module === "all" || module === "messages")
+    }
+    if (module === "all" || module === "messages") {
       stats[tenant_id].messages = await seedMessages(
         supabase,
         tenant_id,
         messagesDays,
       );
-    if (module === "all" || module === "conversations")
+    }
+    if (module === "all" || module === "conversations") {
       stats[tenant_id].conversations = await seedConversations(
         supabase,
         tenant_id,
       );
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, stats }), {
@@ -197,7 +205,9 @@ async function seedTasks(supabase: any, tenant_id: string) {
   let n = 0;
   for (const t of data ?? []) {
     const assignee = t.assigned_to_campaigner_id ?? t.campaigner_id;
-    if (!assignee) continue;
+    if (!assignee) {
+      continue;
+    }
     await upsertPointer(supabase, {
       tenant_id,
       category: "team",
@@ -230,7 +240,9 @@ async function seedMessages(supabase: any, tenant_id: string, days: number) {
   let n = 0;
   for (const m of data ?? []) {
     const body = m.message ?? (m as any).body ?? (m as any).text ?? "";
-    if (!body || String(body).trim().length < 2) continue;
+    if (!body || String(body).trim().length < 2) {
+      continue;
+    }
     const date = (m.created_at ?? "").slice(0, 10);
     const channel = m.provider ?? "unknown";
     await upsertPointer(supabase, {

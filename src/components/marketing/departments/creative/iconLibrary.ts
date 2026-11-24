@@ -46,7 +46,9 @@ export const isCreativeIconId = (value?: string): value is CreativeIconId =>
 
 export const searchCreativeIcons = (query: string) => {
   const needle = query.trim().toLowerCase();
-  if (!needle) return [...CREATIVE_ICONS];
+  if (!needle) {
+    return [...CREATIVE_ICONS];
+  }
   return CREATIVE_ICONS.filter(
     (item) =>
       item.label.includes(query.trim()) ||

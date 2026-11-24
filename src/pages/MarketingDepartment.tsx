@@ -125,9 +125,15 @@ export default function MarketingDepartment() {
   }, [clientId, department, navigate, tenantSlug]);
 
   useEffect(() => {
-    if (department !== "creative") return;
-    if (searchParams.get("client")) return;
-    if (clientId) return;
+    if (department !== "creative") {
+      return;
+    }
+    if (searchParams.get("client")) {
+      return;
+    }
+    if (clientId) {
+      return;
+    }
     navigate(`/t/${tenantSlug}/marketing/department/creative?client=all`, {
       replace: true,
     });
@@ -136,9 +142,11 @@ export default function MarketingDepartment() {
   const selectClient = (id: string | null) => {
     const param = clientFilterToParam(id);
     const suffix = param ? `?client=${param}` : "";
-    if (department)
+    if (department) {
       navigate(`/t/${tenantSlug}/marketing/department/${department}${suffix}`);
-    else navigate(`/t/${tenantSlug}/marketing${suffix}`);
+    } else {
+      navigate(`/t/${tenantSlug}/marketing${suffix}`);
+    }
   };
   const selectDepartment = (id: DepartmentId) => {
     if (id === "analytics") {

@@ -114,7 +114,9 @@ export function GoogleAdsTableDialog({
       const response = await supabase.functions.invoke("google-ads-auth", {
         body: { action: "check_status" },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     enabled: open && dataSource === "direct_api",
@@ -131,7 +133,9 @@ export function GoogleAdsTableDialog({
       const response = await supabase.functions.invoke("google-ads-auth", {
         body: { action: "get_accounts" },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     enabled:
@@ -145,7 +149,9 @@ export function GoogleAdsTableDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const slug =
         tableName
@@ -179,7 +185,9 @@ export function GoogleAdsTableDialog({
           .select("agency_id")
           .eq("id", clientId)
           .maybeSingle();
-        if (clientRow?.agency_id) resolvedAgencyId = clientRow.agency_id;
+        if (clientRow?.agency_id) {
+          resolvedAgencyId = clientRow.agency_id;
+        }
       }
 
       const response = await supabase.functions.invoke("crm-tables", {
@@ -197,7 +205,9 @@ export function GoogleAdsTableDialog({
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: async (data) => {
@@ -396,7 +406,9 @@ export function GoogleAdsTableDialog({
                       {accounts
                         .filter((account) => {
                           const searchTerm = accountSearch.trim().toLowerCase();
-                          if (!searchTerm) return true;
+                          if (!searchTerm) {
+                            return true;
+                          }
 
                           const normalizedSearchTerm = searchTerm.replace(
                             /\D/g,

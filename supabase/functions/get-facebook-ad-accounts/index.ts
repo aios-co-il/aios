@@ -14,8 +14,9 @@ const jsonResponse = (body: unknown, status = 200) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(
@@ -32,12 +33,16 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-    if (authError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
+    if (authError || !user) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
 
     const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
       _user_id: user.id,
     });
-    if (!tenantId) return jsonResponse({ error: "No tenant found" }, 403);
+    if (!tenantId) {
+      return jsonResponse({ error: "No tenant found" }, 403);
+    }
 
     const url = new URL(req.url);
     const requestBody =
@@ -93,10 +98,12 @@ Deno.serve(async (req) => {
           );
           crossTenantAccess = !!hasAccess;
         }
-        if (sameTenant || crossTenantAccess) integration = specific;
+        if (sameTenant || crossTenantAccess) {
+          integration = specific;
+        }
       }
 
-      if (!integration)
+      if (!integration) {
         return jsonResponse(
           {
             error: "Integration not found or access denied",
@@ -104,6 +111,7 @@ Deno.serve(async (req) => {
           },
           403,
         );
+      }
     } else {
       const { data: ownIntegration } = await supabaseAdmin
         .from("tenant_integrations")
@@ -152,8 +160,9 @@ Deno.serve(async (req) => {
         .select("api_key, settings")
         .eq("id", integration.shared_from_integration_id)
         .maybeSingle();
-      if (sourceIntegration?.api_key)
+      if (sourceIntegration?.api_key) {
         integration = { ...integration, api_key: sourceIntegration.api_key };
+      }
     }
 
     if (!integration?.api_key) {
@@ -171,7 +180,7 @@ Deno.serve(async (req) => {
 
     // Fast path: validate exactly one account. This avoids enumerating every Business Manager account.
     if (rawAdAccountId) {
-      if (!requestedAdAccountId)
+      if (!requestedAdAccountId) {
         return jsonResponse(
           {
             error: "Invalid ad account id",
@@ -179,6 +188,7 @@ Deno.serve(async (req) => {
           },
           400,
         );
+      }
 
       const graphUrl = new URL(
         `https://graph.facebook.com/v21.0/act_${requestedAdAccountId}`,
@@ -232,8 +242,12 @@ Deno.serve(async (req) => {
         while (next) {
           const response = await fetch(next);
           const data: any = await response.json();
-          if (!response.ok || data.error) break;
-          if (Array.isArray(data.data)) rows.push(...data.data);
+          if (!response.ok || data.error) {
+            break;
+          }
+          if (Array.isArray(data.data)) {
+            rows.push(...data.data);
+          }
           next = data.paging?.next || null;
         }
       } catch (error: any) {
@@ -270,7 +284,9 @@ Deno.serve(async (req) => {
 
     const byId = new Map<string, any>();
     for (const account of [...owned, ...businessAccounts]) {
-      if (account?.id && !byId.has(account.id)) byId.set(account.id, account);
+      if (account?.id && !byId.has(account.id)) {
+        byId.set(account.id, account);
+      }
     }
 
     return jsonResponse({

@@ -18,19 +18,21 @@ export function CarmenPermissionsTab() {
   const { routes, byUser, save, loading, hasCarmen } =
     useCarmenPermissions(tenantId);
 
-  if (membersLoading || loading)
+  if (membersLoading || loading) {
     return (
       <div className="flex justify-center py-10">
         <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
+  }
 
-  if (!hasCarmen)
+  if (!hasCarmen) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground" dir="rtl">
         לא נמצאה כרמן פעילה בארגון, ולכן אין למה להגדיר הרשאות.
       </p>
     );
+  }
 
   return (
     <div className="space-y-3" dir="rtl">

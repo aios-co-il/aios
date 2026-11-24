@@ -28,8 +28,12 @@ export function higgsfieldLipsyncBody({
   durationS,
   aspect,
 }: MediaInput) {
-  if (!imageUrl) throw new Error("higgsfield lipsync needs a public image url");
-  if (!audioUrl) throw new Error("higgsfield lipsync needs a public audio url");
+  if (!imageUrl) {
+    throw new Error("higgsfield lipsync needs a public image url");
+  }
+  if (!audioUrl) {
+    throw new Error("higgsfield lipsync needs a public audio url");
+  }
   return {
     prompt,
     image_urls: [imageUrl],
@@ -54,10 +58,11 @@ export function higgsfieldLipsyncProvider({
   const model =
     process.env.HIGGSFIELD_LIPSYNC_MODEL || "bytedance/seedance-2.5";
   const auth = () => {
-    if (!credential.includes(":"))
+    if (!credential.includes(":")) {
       throw new Error(
         "A Higgsfield key in id:secret form is required for lip sync",
       );
+    }
     return {
       Authorization: `Key ${credential}`,
       "Content-Type": "application/json",
@@ -79,12 +84,14 @@ export function higgsfieldLipsyncProvider({
         },
       );
       const data = await providerJson<HiggsfieldRequestResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `higgsfield lipsync ${response.status}: ${errorText(data)}`,
         );
-      if (!data.request_id)
+      }
+      if (!data.request_id) {
         throw new Error("higgsfield lipsync returned no request_id");
+      }
       return { jobId: data.request_id };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -93,19 +100,22 @@ export function higgsfieldLipsyncProvider({
         { headers: auth() },
       );
       const data = await providerJson<HiggsfieldRequestResponse>(response);
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(
           `higgsfield lipsync poll ${response.status}: ${data.message ?? response.status}`,
         );
-      if (data.status === "completed")
+      }
+      if (data.status === "completed") {
         return data.video?.url
           ? { status: "succeeded", url: data.video.url }
           : { status: "failed", error: "higgsfield returned no video url" };
-      if (data.status === "failed" || data.status === "nsfw")
+      }
+      if (data.status === "failed" || data.status === "nsfw") {
         return {
           status: "failed",
           error: data.error || data.message || "higgsfield lipsync failed",
         };
+      }
       return { status: "pending" };
     },
   };

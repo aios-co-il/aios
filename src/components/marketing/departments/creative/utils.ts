@@ -36,9 +36,12 @@ export const aspectRatioClass = (format?: string) =>
 export const getProjectType = (
   payload: Record<string, unknown> | null | undefined,
 ): CreativeProjectType => {
-  if (payload?.project_type === "video") return "video";
-  if (Array.isArray(payload?.storyboard) && payload.storyboard.length > 0)
+  if (payload?.project_type === "video") {
     return "video";
+  }
+  if (Array.isArray(payload?.storyboard) && payload.storyboard.length > 0) {
+    return "video";
+  }
   return "static";
 };
 
@@ -53,12 +56,16 @@ export const storyboardFrameX = (order: number) =>
 export const layoutStoryboardRtl = (
   frames: Array<StoryboardFrame>,
 ): Array<StoryboardFrame> => {
-  if (frames.length <= 1) return frames;
+  if (frames.length <= 1) {
+    return frames;
+  }
   const ordered = [...frames].sort((a, b) => a.order - b.order);
   const alreadyRtl = ordered.every(
     (frame, index) => index === 0 || frame.x < ordered[index - 1].x,
   );
-  if (alreadyRtl) return frames;
+  if (alreadyRtl) {
+    return frames;
+  }
   return frames.map((frame) => ({
     ...frame,
     x: storyboardFrameX(frame.order),
@@ -162,8 +169,9 @@ export const defaultFormat = (
     value === "1:1" ||
     value === "4:5" ||
     value === "16:9"
-  )
+  ) {
     return value;
+  }
   return "1:1";
 };
 
@@ -175,9 +183,12 @@ export const isLiveTextLayers = (
 export const isVariationLiveText = (
   variation?: Pick<CreativeVariation, "liveTextLayers" | "layers"> | null,
 ): boolean => {
-  if (!variation) return false;
-  if (typeof variation.liveTextLayers === "boolean")
+  if (!variation) {
+    return false;
+  }
+  if (typeof variation.liveTextLayers === "boolean") {
     return variation.liveTextLayers;
+  }
   return (variation.layers ?? []).some(
     (layer) =>
       layer.role === "footer" ||
@@ -187,7 +198,9 @@ export const isVariationLiveText = (
 };
 
 const isVariation = (value: unknown): value is CreativeVariation => {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object") {
+    return false;
+  }
   const variation = value as CreativeVariation;
   return (
     typeof variation.id === "string" && typeof variation.imageUrl === "string"
@@ -217,7 +230,9 @@ export const getVariations = (
       .map((frame, index): CreativeVariation | null => {
         const imageUrl =
           typeof frame.imageUrl === "string" ? frame.imageUrl : "";
-        if (!imageUrl) return null;
+        if (!imageUrl) {
+          return null;
+        }
         const overlayText =
           typeof frame.overlayText === "string" ? frame.overlayText : "";
         return {
@@ -266,7 +281,9 @@ export const buildTextLayersFromCopy = (
     )
     .filter(Boolean);
 
-  if (lines.length === 0) return [];
+  if (lines.length === 0) {
+    return [];
+  }
 
   const headline = lines[0];
   const subline = lines[1] ?? "";
@@ -386,37 +403,50 @@ export const makeVariation = ({
 });
 
 export const getLinkedCopyText = (item: CreativeItem | null) => {
-  if (!item?.payload) return "";
+  if (!item?.payload) {
+    return "";
+  }
   return String(item.payload.copy_text ?? "");
 };
 
 export const getBriefText = (item: CreativeItem | null) => {
-  if (!item?.payload) return "";
+  if (!item?.payload) {
+    return "";
+  }
   return String(item.payload.brief_text ?? item.payload.brief ?? "");
 };
 
 export const getApprovedCopyConcepts = (
   item: CreativeItem | null,
 ): Array<CopyConcept> => {
-  if (!item?.payload) return [];
+  if (!item?.payload) {
+    return [];
+  }
   const storedApproved = parseCopyConceptsFromPayload({
     copy_concepts: item.payload.approved_concepts,
   });
-  if (storedApproved.length > 0)
+  if (storedApproved.length > 0) {
     return storedApproved.map((concept) => ({ ...concept, approved: true }));
+  }
   return approvedCopyConcepts(parseCopyConceptsFromPayload(item.payload));
 };
 
 export const getConceptBrief = (item: CreativeItem | null) => {
-  if (!item?.payload) return "";
+  if (!item?.payload) {
+    return "";
+  }
   const stored = item.payload.concept_brief;
-  if (typeof stored === "string" && stored.trim()) return stored.trim();
+  if (typeof stored === "string" && stored.trim()) {
+    return stored.trim();
+  }
   return formatCopyConceptsForCreative(getApprovedCopyConcepts(item));
 };
 
 export const cameFromCopy = (item: CreativeItem | null) => {
   const payload = item?.payload;
-  if (!payload) return false;
+  if (!payload) {
+    return false;
+  }
   return (
     payload.handoff_from === "copy" ||
     payload.intake_source === "copy_link" ||

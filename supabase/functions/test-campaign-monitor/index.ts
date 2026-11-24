@@ -24,7 +24,9 @@ async function runCron(fnName: string, maxBatches = 20) {
     const json = await res.json().catch(() => ({}));
     summary.invocations++;
     summary.last_response = json;
-    if (!json?.has_more) break;
+    if (!json?.has_more) {
+      break;
+    }
     // small delay between batches to let chained self-invokes settle
     await new Promise((r) => setTimeout(r, 1500));
   }
@@ -32,8 +34,9 @@ async function runCron(fnName: string, maxBatches = 20) {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -54,7 +57,9 @@ serve(async (req) => {
       .eq("task_mode", "anomaly_alert")
       .gte("created_at", oneHourAgo)
       .order("created_at", { ascending: false });
-    if (tenantFilter) anomalyQ = anomalyQ.eq("tenant_id", tenantFilter);
+    if (tenantFilter) {
+      anomalyQ = anomalyQ.eq("tenant_id", tenantFilter);
+    }
     const { data: anomalies } = await anomalyQ;
 
     // 3) All tables whose ad-account is currently NOT active (live billing/disable issues)
@@ -62,7 +67,9 @@ serve(async (req) => {
       .from("crm_tables")
       .select("id, name, tenant_id, integration_type, integration_settings")
       .in("integration_type", ["facebook_insights", "facebook_ecommerce"]);
-    if (tenantFilter) tablesQ = tablesQ.eq("tenant_id", tenantFilter);
+    if (tenantFilter) {
+      tablesQ = tablesQ.eq("tenant_id", tenantFilter);
+    }
     const { data: tables } = await tablesQ;
 
     const billingIssues = (tables || [])

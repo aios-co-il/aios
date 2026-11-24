@@ -202,8 +202,9 @@ async function analyze(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const { session_id, ai_conversation_id, force } = await req.json();
@@ -333,10 +334,18 @@ Deno.serve(async (req) => {
 
     const emb = await embed(summaryFull);
     const tags: Array<string> = [];
-    if (insight.what_worked.length) tags.push("worked");
-    if (insight.what_failed.length) tags.push("failed");
-    if (insight.explicit_instructions.length) tags.push("instructions");
-    if (insight.style_preferences.length) tags.push("style");
+    if (insight.what_worked.length) {
+      tags.push("worked");
+    }
+    if (insight.what_failed.length) {
+      tags.push("failed");
+    }
+    if (insight.explicit_instructions.length) {
+      tags.push("instructions");
+    }
+    if (insight.style_preferences.length) {
+      tags.push("style");
+    }
 
     if (existing && force) {
       await supabase

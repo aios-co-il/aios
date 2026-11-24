@@ -107,7 +107,9 @@ export const WorkshopFilm: React.FC<WorkshopFilmProps> = ({
       ) : null}
       {scenes.map((scene, index) => {
         const enter = enterOf(index);
-        if (scene.transition !== "skin" || enter <= 0) return null;
+        if (scene.transition !== "skin" || enter <= 0) {
+          return null;
+        }
         return (
           <Sequence
             key={`flash-${scene.id}`}

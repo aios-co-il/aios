@@ -91,12 +91,16 @@ function CoreTab() {
   });
 
   useEffect(() => {
-    if (agent) setForm({ ...agent, mood: agent.mood ?? "none" });
+    if (agent) {
+      setForm({ ...agent, mood: agent.mood ?? "none" });
+    }
   }, [agent]);
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!form?.id) throw new Error("לא נמצא סוכן");
+      if (!form?.id) {
+        throw new Error("לא נמצא סוכן");
+      }
       const { error } = await supabase
         .from("ai_agents")
         .update({
@@ -110,7 +114,9 @@ function CoreTab() {
           mood: form.mood === "none" ? null : form.mood,
         })
         .eq("id", form.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("נשמר");
@@ -121,18 +127,20 @@ function CoreTab() {
     onError: (e) => toast.error("שמירה נכשלה: " + (e?.message || e)),
   });
 
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin" />
       </div>
     );
-  if (!form)
+  }
+  if (!form) {
     return (
       <div className="p-6 text-center text-muted-foreground">
         לא נמצא סוכן פעיל (כרמן).
       </div>
     );
+  }
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto" dir="rtl">

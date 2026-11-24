@@ -51,7 +51,9 @@ export function WooCommerceDashboard({
         .eq("client_id", clientId)
         .eq("woocommerce_enabled", true)
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<any>;
     },
     enabled: !!clientId,
@@ -74,7 +76,9 @@ export function WooCommerceDashboard({
       wooDateRange.end,
     ],
     queryFn: async () => {
-      if (siteIds.length === 0) return [];
+      if (siteIds.length === 0) {
+        return [];
+      }
       return fetchWooOrdersInRange(
         siteIds,
         wooDateRange,

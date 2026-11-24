@@ -195,7 +195,9 @@ export function WeeklyTaskBoard() {
         query = query.eq("tenant_id", tenantId!);
       }
       const { data, error } = await query.order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -217,7 +219,9 @@ export function WeeklyTaskBoard() {
       const { data, error } = await query
         .order("created_at", { ascending: false })
         .limit(400);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -245,8 +249,12 @@ export function WeeklyTaskBoard() {
   const effectiveCampaignerFilter = isViewingAs ? "mine" : filters.campaignerId;
 
   useLayoutEffect(() => {
-    if (isViewingAs || !user?.id) return;
-    if (presetKeyRef.current === user.id) return;
+    if (isViewingAs || !user?.id) {
+      return;
+    }
+    if (presetKeyRef.current === user.id) {
+      return;
+    }
     presetKeyRef.current = user.id;
     setFilters(readTasksFilterPreset(user.id));
     if (hasTasksFilterPreset(user.id)) {
@@ -269,7 +277,9 @@ export function WeeklyTaskBoard() {
 
   const linkedTaskId = searchParams.get("task");
   useEffect(() => {
-    if (!linkedTaskId || !user?.id) return;
+    if (!linkedTaskId || !user?.id) {
+      return;
+    }
     let cancelled = false;
 
     const openLinkedTask = async () => {
@@ -287,7 +297,9 @@ export function WeeklyTaskBoard() {
         .eq("id", linkedTaskId)
         .maybeSingle();
 
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       if (error || !data) {
         toast.error("המשימה לא נמצאה או שאין לך הרשאה לצפות בה");
         return;
@@ -362,13 +374,16 @@ export function WeeklyTaskBoard() {
   // Owners without a linked staff row: "mine" only matches created_by and looks empty.
   // Apply once on entry — do not override when the user explicitly picks "שלי בלבד".
   useLayoutEffect(() => {
-    if (isViewingAs) return;
+    if (isViewingAs) {
+      return;
+    }
     if (
       !mineIdentityReady ||
       !mineIdentity ||
       appliedOwnerBoardDefaultRef.current
-    )
+    ) {
       return;
+    }
     if (
       effectiveCampaignerFilter === "mine" &&
       mineIdentity.kind === "created_by" &&
@@ -443,7 +458,9 @@ export function WeeklyTaskBoard() {
   const [connectingCalendar, setConnectingCalendar] = useState(false);
 
   const handleConnectCalendar = async () => {
-    if (!tenantId || connectingCalendar) return;
+    if (!tenantId || connectingCalendar) {
+      return;
+    }
     setConnectingCalendar(true);
     try {
       await startCalendarOAuth(tenantId, calendarProvider);
@@ -624,7 +641,9 @@ export function WeeklyTaskBoard() {
           .order("created_at", { ascending: true })
           .order("sort_order", { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         taskRows = (data || []) as Array<Task>;
       }
 
@@ -655,7 +674,9 @@ export function WeeklyTaskBoard() {
               .or(dueOr),
           );
           const { data: extra, error: extraError } = await extraQuery;
-          if (extraError) throw extraError;
+          if (extraError) {
+            throw extraError;
+          }
           taskRows = taskRows.concat((extra || []) as Array<Task>);
         }
       }
@@ -664,7 +685,9 @@ export function WeeklyTaskBoard() {
       const collabSet = new Set(collaboratorTaskIds);
       taskRows = taskRows
         .filter((task) => {
-          if (seen.has(task.id)) return false;
+          if (seen.has(task.id)) {
+            return false;
+          }
           seen.add(task.id);
           return true;
         })
@@ -705,11 +728,15 @@ export function WeeklyTaskBoard() {
         }
         const { data: recurringExtra, error: recurringError } =
           await recurringQuery;
-        if (recurringError) throw recurringError;
+        if (recurringError) {
+          throw recurringError;
+        }
         taskRows = taskRows.concat((recurringExtra || []) as Array<Task>);
         const seenRecurring = new Set<string>();
         taskRows = taskRows.filter((task) => {
-          if (seenRecurring.has(task.id)) return false;
+          if (seenRecurring.has(task.id)) {
+            return false;
+          }
           seenRecurring.add(task.id);
           return true;
         });
@@ -722,7 +749,9 @@ export function WeeklyTaskBoard() {
             .filter((id): id is string => Boolean(id)),
         ),
       );
-      if (creatorIds.length === 0) return taskRows;
+      if (creatorIds.length === 0) {
+        return taskRows;
+      }
 
       const { data: creators } = await supabase
         .from("profiles")
@@ -746,7 +775,9 @@ export function WeeklyTaskBoard() {
 
   // View-as preview: show the selected user's queue, not the admin's.
   useEffect(() => {
-    if (!isViewingAs || !viewAsUserId) return;
+    if (!isViewingAs || !viewAsUserId) {
+      return;
+    }
     presetKeyRef.current = null;
     setFilters(defaultTaskFilters);
     setLocalTasks([]);
@@ -814,8 +845,12 @@ export function WeeklyTaskBoard() {
   );
 
   useEffect(() => {
-    if (isError) return;
-    if (!isSuccess && !isFetching) return;
+    if (isError) {
+      return;
+    }
+    if (!isSuccess && !isFetching) {
+      return;
+    }
     // Sync with server results (including empty). While a refetch is in flight we keep
     // previous rows to avoid an empty flash — but ALWAYS narrow by selectedAgency so the
     // header agency filter cannot leave other agencies' tasks on the board.
@@ -848,7 +883,9 @@ export function WeeklyTaskBoard() {
   ]);
 
   useEffect(() => {
-    if (!isError || !tasksError) return;
+    if (!isError || !tasksError) {
+      return;
+    }
     console.error("[tasks] fetch failed", tasksError);
     toast.error("שגיאה בטעינת משימות");
   }, [isError, tasksError]);
@@ -939,7 +976,9 @@ export function WeeklyTaskBoard() {
       recurrenceMonthday?: number | null;
       collaboratorIds?: Array<string>;
     }) => {
-      if (!tenantId) throw new Error("TENANT_NOT_READY");
+      if (!tenantId) {
+        throw new Error("TENANT_NOT_READY");
+      }
       // A task attached to a client must carry that client's agency, otherwise
       // it shows up under whichever agency the header happened to be on.
       const agencyId = resolveNewTaskAgency({
@@ -949,7 +988,9 @@ export function WeeklyTaskBoard() {
         selectedAgency,
         fallbackAgencyId: firstAgency?.id,
       });
-      if (!agencyId) throw new Error("NO_AGENCY");
+      if (!agencyId) {
+        throw new Error("NO_AGENCY");
+      }
 
       const myCampaignerId = primaryCampaignerId;
       const assignedSalesPersonId = mySalesPersonId;
@@ -1027,7 +1068,9 @@ export function WeeklyTaskBoard() {
           .from("tasks")
           .insert(payloads)
           .select("id");
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         newTask = createdTasks?.[0] ?? null;
       } else {
         const { data: created, error } = await supabase
@@ -1035,7 +1078,9 @@ export function WeeklyTaskBoard() {
           .insert(insertData)
           .select()
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         newTask = created;
 
         const uniqueCollaborators = Array.from(
@@ -1056,7 +1101,9 @@ export function WeeklyTaskBoard() {
                 added_by: boardUserId,
               })),
             );
-          if (collabError) throw collabError;
+          if (collabError) {
+            throw collabError;
+          }
         }
       }
 
@@ -1107,7 +1154,9 @@ export function WeeklyTaskBoard() {
       // Optimistic add so the user sees it immediately even if filters are restrictive
       if (newTask && typeof newTask === "object" && "id" in newTask) {
         setLocalTasks((prev) => {
-          if (!newTask) return prev;
+          if (!newTask) {
+            return prev;
+          }
           return prev.some((t) => t.id === (newTask as any).id)
             ? prev
             : [newTask as any, ...prev];
@@ -1206,7 +1255,9 @@ export function WeeklyTaskBoard() {
         .from("tasks")
         .update({ status: completed ? "done" : "open" })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { taskId, completed };
     },
     onMutate: async ({ taskId, completed }) => {
@@ -1264,7 +1315,9 @@ export function WeeklyTaskBoard() {
         .from("tasks")
         .update(updateData)
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       try {
         const { syncTaskCalendarEvent } = await import("@/lib/calendarApi");
@@ -1321,13 +1374,17 @@ export function WeeklyTaskBoard() {
       const update: { client_id: string | null; agency_id?: string } = {
         client_id: clientId,
       };
-      if (clientAgencyId) update.agency_id = clientAgencyId;
+      if (clientAgencyId) {
+        update.agency_id = clientAgencyId;
+      }
 
       const { error } = await supabase
         .from("tasks")
         .update(update)
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async ({ taskId, clientId }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
@@ -1344,7 +1401,9 @@ export function WeeklyTaskBoard() {
             }
           : t;
       queryClient.setQueriesData<Array<any>>({ queryKey: ["tasks"] }, (old) => {
-        if (!Array.isArray(old)) return old;
+        if (!Array.isArray(old)) {
+          return old;
+        }
         return old.map(patch);
       });
       setLocalTasks((prev) => prev.map(patch));
@@ -1372,7 +1431,9 @@ export function WeeklyTaskBoard() {
         .from("tasks")
         .update({ campaigner_id: campaignerId })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async ({ taskId, campaignerId }) => {
       await queryClient.cancelQueries({ queryKey: ["tasks"] });
@@ -1389,7 +1450,9 @@ export function WeeklyTaskBoard() {
             }
           : t;
       queryClient.setQueriesData<Array<any>>({ queryKey: ["tasks"] }, (old) => {
-        if (!Array.isArray(old)) return old;
+        if (!Array.isArray(old)) {
+          return old;
+        }
         return old.map(patch);
       });
       // Also update local tasks state since rendering reads from it
@@ -1413,7 +1476,9 @@ export function WeeklyTaskBoard() {
           .from("tasks")
           .update({ sort_order: update.sort_order })
           .eq("id", update.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -1434,7 +1499,9 @@ export function WeeklyTaskBoard() {
       googleCalendarEventId?: string | null;
     }) => {
       const { error } = await supabase.from("tasks").delete().eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (googleCalendarEventId) {
         try {
@@ -1471,7 +1538,9 @@ export function WeeklyTaskBoard() {
         .from("tasks")
         .update({ duration_minutes: duration })
         .eq("id", taskId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { taskId, duration };
     },
     onSuccess: ({ taskId, duration }) => {
@@ -1556,7 +1625,9 @@ export function WeeklyTaskBoard() {
     const { active, over } = event;
     setActiveTaskId(null);
 
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
 
     const activeId = active.id as string;
     const dropTarget = over.id as string;
@@ -1565,7 +1636,9 @@ export function WeeklyTaskBoard() {
     if (dropTarget === "backlog") {
       const taskId = activeId;
       const draggedTask = localTasks.find((t) => t.id === taskId);
-      if (!draggedTask) return;
+      if (!draggedTask) {
+        return;
+      }
 
       // Optimistic update - clear date and time
       setLocalTasks((prev) =>
@@ -1590,7 +1663,9 @@ export function WeeklyTaskBoard() {
       const eventId = activeId.replace("calendar-event-", "");
       const draggedEvent = calendarEvents.find((e) => e.id === eventId);
 
-      if (!draggedEvent) return;
+      if (!draggedEvent) {
+        return;
+      }
 
       // Check if drop target includes time (format: ISO_DATE_TIME)
       if (dropTarget.includes("_")) {
@@ -1628,7 +1703,9 @@ export function WeeklyTaskBoard() {
     const taskId = activeId;
     const draggedTask = localTasks.find((t) => t.id === taskId);
 
-    if (!draggedTask) return;
+    if (!draggedTask) {
+      return;
+    }
 
     // Check if dropped on another task (reordering within same container)
     const targetTask = localTasks.find((t) => t.id === dropTarget);
@@ -1737,13 +1814,21 @@ export function WeeklyTaskBoard() {
   // Backlog includes: overdue, no due_date, or has due_date but no due_time.
   // Recurring tasks only appear here on their due day (not all week).
   const backlogTasks = tasks.filter((t) => {
-    if (t.status === "done") return false;
+    if (t.status === "done") {
+      return false;
+    }
     if (isRecurringBoardTask(t)) {
       return recurringTaskBelongsInBacklog(t, today, filters.showAllRecurring);
     }
-    if (isTaskOverdue(t, today)) return true;
-    if (t.due_date === null) return true;
-    if (!t.due_time) return true;
+    if (isTaskOverdue(t, today)) {
+      return true;
+    }
+    if (t.due_date === null) {
+      return true;
+    }
+    if (!t.due_time) {
+      return true;
+    }
     return false;
   });
 
@@ -1757,17 +1842,25 @@ export function WeeklyTaskBoard() {
     ) {
       return false;
     }
-    if (t.due_date === null) return false;
-    if (!t.due_time) return false; // No time = goes to backlog
+    if (t.due_date === null) {
+      return false;
+    }
+    if (!t.due_time) {
+      return false;
+    } // No time = goes to backlog
     const dueDate = new Date(t.due_date);
-    if (dueDate < today && t.status !== "done") return false; // Overdue, show in backlog
+    if (dueDate < today && t.status !== "done") {
+      return false;
+    } // Overdue, show in backlog
     return dueDate >= dateRange.start && dueDate <= dateRange.end;
   });
 
   // For daily view - filter tasks for the specific day (include tasks with OR without time).
   // Completed tasks stay visible (strikethrough / muted) — do not hide on status=done.
   const dailyTasks = tasks.filter((t) => {
-    if (!t.due_date) return false;
+    if (!t.due_date) {
+      return false;
+    }
     if (
       !shouldShowRecurringTaskOnBoard(t, {
         showAllRecurring: filters.showAllRecurring,
@@ -1834,7 +1927,9 @@ export function WeeklyTaskBoard() {
   const handleViewModeChange = (value: string) => {
     if (value) {
       setViewMode(value as ViewMode);
-      if (value === "chat") setMobileCalendarOpen(false);
+      if (value === "chat") {
+        setMobileCalendarOpen(false);
+      }
     }
   };
 

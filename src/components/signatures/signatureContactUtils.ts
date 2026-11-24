@@ -19,8 +19,12 @@ export function splitContactName(fullName: string): {
   lastName: string;
 } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: "", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  if (parts.length === 0) {
+    return { firstName: "", lastName: "" };
+  }
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
@@ -48,7 +52,9 @@ export function buildFieldPrefill(
 
   const prefill: Record<string, string> = {};
   for (const field of fields) {
-    if ((field.recipient_index ?? 0) !== recipientIndex) continue;
+    if ((field.recipient_index ?? 0) !== recipientIndex) {
+      continue;
+    }
     if (
       field.type === "signature" ||
       field.type === "signature_stamp" ||
@@ -58,7 +64,9 @@ export function buildFieldPrefill(
       continue;
     }
     const val = typeToValue[field.type];
-    if (val?.trim()) prefill[field.id] = val.trim();
+    if (val?.trim()) {
+      prefill[field.id] = val.trim();
+    }
   }
   return prefill;
 }

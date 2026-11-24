@@ -11,6 +11,8 @@ export function cleanTopic(raw: string | null | undefined): string | null {
     .replace(/^["'“”׳״\s]+|["'“”׳״.!?:\s]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text || text.split(" ").length > 8) return null;
+  if (!text || text.split(" ").length > 8) {
+    return null;
+  }
   return text.slice(0, TOPIC_MAX);
 }

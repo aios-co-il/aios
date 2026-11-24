@@ -46,7 +46,9 @@ export function skinEnter(frame: number, frames: number, fps: number) {
 
 /** The outgoing picture over the last `frames` frames before a skin switch. */
 export function skinExit(frame: number, total: number, frames: number) {
-  if (frames <= 0) return { scale: 1, brightness: 1, blur: 0 };
+  if (frames <= 0) {
+    return { scale: 1, brightness: 1, blur: 0 };
+  }
   const p = interpolate(frame, [total - frames, total - frames / 2], [0, 1], {
     ...clamp,
     easing: Easing.in(Easing.cubic),

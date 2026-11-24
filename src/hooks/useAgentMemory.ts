@@ -47,11 +47,18 @@ export function useAgentMemory(
         .eq("agent_id", agentId!)
         .order("created_at", { ascending: false })
         .limit(500);
-      if (category) q = q.eq("category", category);
-      if (subcategory === null) q = q.is("subcategory", null);
-      else if (subcategory) q = q.eq("subcategory", subcategory);
+      if (category) {
+        q = q.eq("category", category);
+      }
+      if (subcategory === null) {
+        q = q.is("subcategory", null);
+      } else if (subcategory) {
+        q = q.eq("subcategory", subcategory);
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as any;
     },
   });
@@ -67,7 +74,9 @@ export function useAgentMemoryTree(agentId: string | null) {
         .select("category, subcategory")
         .eq("agent_id", agentId!)
         .limit(5000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return buildTree((data ?? []) as any);
     },
   });
@@ -81,7 +90,9 @@ export function useDeleteAgentMemory(agentId: string | null) {
         .from("agent_memory" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-memory", agentId] });
@@ -107,7 +118,9 @@ export function useCarmenMemoryTree() {
           .from("carmen_memory_episodes" as any)
           .select("id", { count: "exact", head: true }),
       ]);
-      if (pointers.error) throw pointers.error;
+      if (pointers.error) {
+        throw pointers.error;
+      }
       const tree = buildTree((pointers.data ?? []) as any);
       return { tree, episodesCount: episodes.count ?? 0 };
     },
@@ -134,11 +147,18 @@ export function useCarmenMemoryPointers(
         .order("ref_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(500);
-      if (category) q = q.eq("category", category);
-      if (subcategory === null) q = q.is("subcategory", null);
-      else if (subcategory) q = q.eq("subcategory", subcategory);
+      if (category) {
+        q = q.eq("category", category);
+      }
+      if (subcategory === null) {
+        q = q.is("subcategory", null);
+      } else if (subcategory) {
+        q = q.eq("subcategory", subcategory);
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as any;
     },
   });
@@ -157,7 +177,9 @@ export function useCarmenMemoryEpisodes(enabled = false) {
         .order("ref_date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(300);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<any>;
     },
   });
@@ -171,7 +193,9 @@ function buildTree(
   const byCat = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const cat = r.category || "other";
-    if (!byCat.has(cat)) byCat.set(cat, new Map());
+    if (!byCat.has(cat)) {
+      byCat.set(cat, new Map());
+    }
     const subMap = byCat.get(cat)!;
     const subKey = r.subcategory || "__root__";
     subMap.set(subKey, (subMap.get(subKey) ?? 0) + 1);

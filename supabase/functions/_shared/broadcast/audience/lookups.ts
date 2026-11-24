@@ -57,9 +57,13 @@ export async function loadLookups(
     );
     const today = todayIso();
     for (const t of team) {
-      if (t.end_date && t.end_date < today) continue;
+      if (t.end_date && t.end_date < today) {
+        continue;
+      }
       const name = campaignerNames.get(t.campaigner_id);
-      if (!name) continue;
+      if (!name) {
+        continue;
+      }
       const prev = clientCampaigner.get(t.client_id);
       clientCampaigner.set(t.client_id, prev ? `${prev}, ${name}` : name);
     }

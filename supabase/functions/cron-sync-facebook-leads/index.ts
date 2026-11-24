@@ -247,10 +247,15 @@ serve(async (req) => {
                 /אימייל|דוא|email|mail/i.test(k),
               )?.[1] ??
                 null);
-            if (!leadRecord.contact_name && heurName)
+            if (!leadRecord.contact_name && heurName) {
               leadRecord.contact_name = heurName;
-            if (!leadRecord.phone && heurPhone) leadRecord.phone = heurPhone;
-            if (!leadRecord.email && heurEmail) leadRecord.email = heurEmail;
+            }
+            if (!leadRecord.phone && heurPhone) {
+              leadRecord.phone = heurPhone;
+            }
+            if (!leadRecord.email && heurEmail) {
+              leadRecord.email = heurEmail;
+            }
 
             // Ensure company_name is set
             if (
@@ -275,7 +280,9 @@ serve(async (req) => {
                 totalSkipped++;
                 continue;
               }
-              if (receiptError) throw receiptError;
+              if (receiptError) {
+                throw receiptError;
+              }
 
               const automationResponse = await fetch(
                 `${supabaseUrl}/functions/v1/trigger-automation`,
@@ -403,7 +410,9 @@ serve(async (req) => {
           let nextUrl = fbData.paging?.next;
           while (nextUrl) {
             const nextResponse = await fetch(nextUrl);
-            if (!nextResponse.ok) break;
+            if (!nextResponse.ok) {
+              break;
+            }
 
             const nextData = await nextResponse.json();
             const nextLeads = nextData.data || [];
@@ -515,7 +524,9 @@ serve(async (req) => {
                   totalSkipped++;
                   continue;
                 }
-                if (receiptError) throw receiptError;
+                if (receiptError) {
+                  throw receiptError;
+                }
 
                 const automationResponse = await fetch(
                   `${supabaseUrl}/functions/v1/trigger-automation`,
@@ -670,7 +681,9 @@ serve(async (req) => {
         const config = step.configuration as any;
         const formId = config?.facebook_form_id;
         const integrationId = config?.facebook_integration_id;
-        if (!formId || !integrationId) continue;
+        if (!formId || !integrationId) {
+          continue;
+        }
 
         const key = `${step.tenant_id}:${formId}`;
         if (coveredFormIds.has(key)) {
@@ -685,7 +698,9 @@ serve(async (req) => {
           .eq("active", true)
           .maybeSingle();
 
-        if (!autoCheck) continue;
+        if (!autoCheck) {
+          continue;
+        }
 
         if (!flowFormMap.has(key)) {
           flowFormMap.set(key, {
@@ -840,30 +855,41 @@ serve(async (req) => {
 
             for (const ff of formFields) {
               const val = fieldData[ff.key] || fieldData[ff.label] || "";
-              if (!val) continue;
-              if (ff.type === "FULL_NAME") mappedName = val;
-              else if (ff.type === "PHONE") mappedPhone = val;
-              else if (ff.type === "EMAIL") mappedEmail = val;
-              else if (ff.type === "CUSTOM") {
+              if (!val) {
+                continue;
+              }
+              if (ff.type === "FULL_NAME") {
+                mappedName = val;
+              } else if (ff.type === "PHONE") {
+                mappedPhone = val;
+              } else if (ff.type === "EMAIL") {
+                mappedEmail = val;
+              } else if (ff.type === "CUSTOM") {
                 // Heuristic: check label/key for name/phone/email keywords
                 const lbl = (ff.label || ff.key || "").toLowerCase();
-                if (!mappedName && (lbl.includes("שם") || lbl.includes("name")))
+                if (
+                  !mappedName &&
+                  (lbl.includes("שם") || lbl.includes("name"))
+                ) {
                   mappedName = val;
+                }
                 if (
                   !mappedPhone &&
                   (lbl.includes("טלפון") ||
                     lbl.includes("phone") ||
                     lbl.includes("נייד"))
-                )
+                ) {
                   mappedPhone = val;
+                }
                 if (
                   !mappedEmail &&
                   (lbl.includes("אימייל") ||
                     lbl.includes("דוא") ||
                     lbl.includes("email") ||
                     lbl.includes("mail"))
-                )
+                ) {
                   mappedEmail = val;
+                }
               }
             }
 

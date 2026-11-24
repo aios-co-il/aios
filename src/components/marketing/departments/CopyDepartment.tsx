@@ -196,9 +196,13 @@ const timeAgo = (iso: string) => {
     1,
     Math.floor((Date.now() - new Date(iso).getTime()) / 60000),
   );
-  if (minutes < 60) return `${minutes}ד׳`;
+  if (minutes < 60) {
+    return `${minutes}ד׳`;
+  }
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}ש׳`;
+  if (hours < 24) {
+    return `${hours}ש׳`;
+  }
   return `${Math.floor(hours / 24)}י׳`;
 };
 
@@ -229,7 +233,9 @@ const invokeErrorMessage = async (
   data: { error?: string } | null,
   fallback: string,
 ) => {
-  if (data?.error) return data.error;
+  if (data?.error) {
+    return data.error;
+  }
   const context =
     error && typeof error === "object"
       ? (error as { context?: Response }).context
@@ -237,7 +243,9 @@ const invokeErrorMessage = async (
   if (context && typeof context.json === "function") {
     try {
       const body = (await context.json()) as { error?: string };
-      if (body?.error) return body.error;
+      if (body?.error) {
+        return body.error;
+      }
     } catch {
       /* ignore */
     }
@@ -305,7 +313,9 @@ export function CopyDepartment({
         conceptsTimeoutRef.current = null;
       }
       conceptsAbortRef.current?.abort();
-      if (kind !== "timeout") setGeneratingConcepts(false);
+      if (kind !== "timeout") {
+        setGeneratingConcepts(false);
+      }
     },
     [],
   );
@@ -318,7 +328,9 @@ export function CopyDepartment({
         copyTimeoutRef.current = null;
       }
       copyAbortRef.current?.abort();
-      if (kind !== "timeout") setGeneratingCopyFor(null);
+      if (kind !== "timeout") {
+        setGeneratingCopyFor(null);
+      }
     },
     [],
   );
@@ -343,8 +355,12 @@ export function CopyDepartment({
             .eq("tenant_id", tenantId)
             .eq("stage_type", "copy"),
         ]);
-      if (error) throw error;
-      if (stageError) throw stageError;
+      if (error) {
+        throw error;
+      }
+      if (stageError) {
+        throw stageError;
+      }
       const copyStageIds = new Set((copyStages ?? []).map((stage) => stage.id));
       return readCopyDepartmentItems(data ?? [], copyStageIds);
     },
@@ -359,7 +375,9 @@ export function CopyDepartment({
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<ClientRow>;
     },
   });
@@ -372,15 +390,20 @@ export function CopyDepartment({
         .select("id,name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<AgencyRow>;
     },
   });
 
   useEffect(() => {
-    if (!selectedId && items[0]?.id) setSelectedId(items[0].id);
-    if (selectedId && !items.some((item) => item.id === selectedId))
+    if (!selectedId && items[0]?.id) {
+      setSelectedId(items[0].id);
+    }
+    if (selectedId && !items.some((item) => item.id === selectedId)) {
       setSelectedId(items[0]?.id ?? null);
+    }
   }, [items, selectedId]);
 
   useEffect(() => {
@@ -453,7 +476,9 @@ export function CopyDepartment({
   };
 
   const sendPrompt = async () => {
-    if (!selected || !composer.trim() || sending) return;
+    if (!selected || !composer.trim() || sending) {
+      return;
+    }
     const prompt = composer.trim();
     setComposer("");
     setPendingPrompt(prompt);
@@ -524,15 +549,20 @@ export function CopyDepartment({
           user_name: "מחלקת קופי",
         },
       });
-      if (error)
+      if (error) {
         throw new Error(
           await invokeErrorMessage(error, data, "כרמן לא הצליחה לכתוב"),
         );
-      if (data?.error) throw new Error(data.error);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       const output = String(
         data?.output ?? data?.reply ?? data?.message ?? "",
       ).trim();
-      if (!output) throw new Error("כרמן החזירה תשובה ריקה");
+      if (!output) {
+        throw new Error("כרמן החזירה תשובה ריקה");
+      }
       const copyDocument = extractCopyDocument(output);
       const now = new Date().toISOString();
       const nextChat = [
@@ -563,7 +593,9 @@ export function CopyDepartment({
         .update({ payload: readCopyPayload(nextPayload), status: "draft" })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
-      if (saveError) throw saveError;
+      if (saveError) {
+        throw saveError;
+      }
       await supabase.from("marketing_assets").insert({
         tenant_id: tenantId,
         item_id: selected.id,
@@ -584,7 +616,9 @@ export function CopyDepartment({
   };
 
   const persistPayload = async (patch: CopyPayload) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const nextPayload = {
       ...(selected.payload ?? {}),
       department: "copy",
@@ -595,7 +629,9 @@ export function CopyDepartment({
       .update({ payload: readCopyPayload(nextPayload), status: "draft" })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   };
 
   const saveConcepts = async (
@@ -617,7 +653,9 @@ export function CopyDepartment({
 
   const openCopyVariationEditor = (id: string) => {
     const item = copyVariations.find((variation) => variation.id === id);
-    if (!item) return;
+    if (!item) {
+      return;
+    }
     setEditingCopyId(id);
     setEditingCopyDraft(stripVariationHeader(item.text));
   };
@@ -628,7 +666,9 @@ export function CopyDepartment({
   };
 
   const saveCopyVariationEdit = async () => {
-    if (!selected || !editingCopyId) return;
+    if (!selected || !editingCopyId) {
+      return;
+    }
     setSavingCopyEdit(true);
     try {
       const nextVariations = replaceCopyVariationText(
@@ -664,7 +704,9 @@ export function CopyDepartment({
   };
 
   const generateConcepts = async () => {
-    if (!selected || generatingConcepts || generatingCopyFor) return;
+    if (!selected || generatingConcepts || generatingCopyFor) {
+      return;
+    }
     const gate = copyConceptsGenerateGate({
       title: selected.title ?? "",
       brief: asText(selected.payload?.brief_text),
@@ -743,17 +785,21 @@ export function CopyDepartment({
               "AbortError",
             ),
           );
-        if (controller.signal.aborted) fail();
-        else controller.signal.addEventListener("abort", fail, { once: true });
+        if (controller.signal.aborted) {
+          fail();
+        } else {
+          controller.signal.addEventListener("abort", fail, { once: true });
+        }
       });
       const { data, error } = await Promise.race([invoke, aborted]);
       if (conceptsTimeoutRef.current === timeoutId) {
         window.clearTimeout(timeoutId);
         conceptsTimeoutRef.current = null;
       }
-      if (controller.signal.aborted)
+      if (controller.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
-      if (error)
+      }
+      if (error) {
         throw new Error(
           await invokeErrorMessage(
             error,
@@ -761,17 +807,24 @@ export function CopyDepartment({
             "כרמן לא הצליחה להציע קונספטים",
           ),
         );
-      if (data?.error) throw new Error(data.error);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       const output = String(
         data?.output ?? data?.reply ?? data?.message ?? "",
       ).trim();
-      if (!output) throw new Error("כרמן החזירה תשובה ריקה");
+      if (!output) {
+        throw new Error("כרמן החזירה תשובה ריקה");
+      }
       const parsed = parseConceptsFromCarmen(output);
-      if (parsed.length === 0)
+      if (parsed.length === 0) {
         throw new Error("לא הצלחתי לפענח קונספטים מהתשובה. נסו שוב.");
+      }
       const nextConcepts = appendCopyConcepts(concepts, parsed);
-      if (nextConcepts.length === concepts.length)
+      if (nextConcepts.length === concepts.length) {
         throw new Error("כרמן הציעה קונספטים שכבר יש. נסו שוב.");
+      }
       await persistPayload({
         copy_concepts: nextConcepts,
         copy_variations: copyVariations,
@@ -793,7 +846,9 @@ export function CopyDepartment({
       await refresh();
     } catch (error: unknown) {
       const kind = conceptsAbortKindRef.current;
-      if (kind === "switch") return;
+      if (kind === "switch") {
+        return;
+      }
       if (kind === "cancel") {
         toast.message("יצירת הקונספטים בוטלה");
         return;
@@ -808,14 +863,17 @@ export function CopyDepartment({
         window.clearTimeout(timeoutId);
         conceptsTimeoutRef.current = null;
       }
-      if (conceptsAbortRef.current === controller)
+      if (conceptsAbortRef.current === controller) {
         conceptsAbortRef.current = null;
+      }
       setGeneratingConcepts(false);
     }
   };
 
   const generateCopyForConcept = async (conceptId: string) => {
-    if (!selected || generatingCopyFor || generatingConcepts) return;
+    if (!selected || generatingCopyFor || generatingConcepts) {
+      return;
+    }
     const concept = concepts.find((item) => item.id === conceptId);
     if (!concept) {
       toast.error("הקונספט לא נמצא");
@@ -901,32 +959,42 @@ export function CopyDepartment({
               "AbortError",
             ),
           );
-        if (controller.signal.aborted) fail();
-        else controller.signal.addEventListener("abort", fail, { once: true });
+        if (controller.signal.aborted) {
+          fail();
+        } else {
+          controller.signal.addEventListener("abort", fail, { once: true });
+        }
       });
       const { data, error } = await Promise.race([invoke, aborted]);
       if (copyTimeoutRef.current === timeoutId) {
         window.clearTimeout(timeoutId);
         copyTimeoutRef.current = null;
       }
-      if (controller.signal.aborted)
+      if (controller.signal.aborted) {
         throw new DOMException("Aborted", "AbortError");
-      if (error)
+      }
+      if (error) {
         throw new Error(
           await invokeErrorMessage(error, data, "כרמן לא הצליחה לכתוב קופי"),
         );
-      if (data?.error) throw new Error(data.error);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       const output = String(
         data?.output ?? data?.reply ?? data?.message ?? "",
       ).trim();
-      if (!output) throw new Error("כרמן החזירה תשובה ריקה");
+      if (!output) {
+        throw new Error("כרמן החזירה תשובה ריקה");
+      }
       const copyDocument = extractCopyDocument(output);
       const incoming = hydrateCopyVariations(copyDocument, []).slice(
         0,
         COPY_VARIATIONS_PER_CONCEPT,
       );
-      if (incoming.length === 0)
+      if (incoming.length === 0) {
         throw new Error("לא הצלחתי לפענח קופי מהתשובה. נסו שוב.");
+      }
       const remapped = stampCopiesWithConcept(
         remapCopyVariationKeys(incoming, copyVariations),
         concept,
@@ -963,7 +1031,9 @@ export function CopyDepartment({
       await refresh();
     } catch (error: unknown) {
       const kind = copyAbortKindRef.current;
-      if (kind === "switch") return;
+      if (kind === "switch") {
+        return;
+      }
       if (kind === "cancel") {
         toast.message("כתיבת הקופי בוטלה");
         return;
@@ -978,13 +1048,17 @@ export function CopyDepartment({
         window.clearTimeout(timeoutId);
         copyTimeoutRef.current = null;
       }
-      if (copyAbortRef.current === controller) copyAbortRef.current = null;
+      if (copyAbortRef.current === controller) {
+        copyAbortRef.current = null;
+      }
       setGeneratingCopyFor(null);
     }
   };
 
   const toggleConceptApproval = async (id: string) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const now = new Date().toISOString();
     const nextConcepts = concepts.map((concept) =>
       concept.id === id
@@ -1004,7 +1078,9 @@ export function CopyDepartment({
   };
 
   const toggleCopyApproval = async (id: string) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const now = new Date().toISOString();
     const nextVariations = copyVariations.map((item) =>
       item.id === id
@@ -1024,7 +1100,9 @@ export function CopyDepartment({
   };
 
   const deleteConcept = async (id: string) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const nextConcepts = concepts.filter((concept) => concept.id !== id);
     try {
       await saveConcepts(nextConcepts);
@@ -1036,7 +1114,9 @@ export function CopyDepartment({
   };
 
   const deleteCopyVariation = async (id: string) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const nextVariations = copyVariations.filter((item) => item.id !== id);
     const nextConcepts = concepts.map((concept) =>
       concept.copyId === id
@@ -1057,7 +1137,9 @@ export function CopyDepartment({
   };
 
   const assignConceptCopy = async (conceptId: string, copyId: string) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const copy = copyVariations.find((item) => item.id === copyId);
     const nextConcepts = concepts.map((concept) =>
       concept.id === conceptId
@@ -1079,23 +1161,30 @@ export function CopyDepartment({
 
   const handoff = useMutation({
     mutationFn: async (targetId: string | null) => {
-      if (!selected?.client_id)
+      if (!selected?.client_id) {
         throw new Error("שייכו לקוח בהגדרות כדי להעביר לקריאייטיב");
+      }
       const pipeline = await ensurePipelineForClient({
         clientId: selected.client_id,
         tenantId,
         track: "campaigns",
       });
-      if (!pipeline) throw new Error("לא נמצא פייפליין");
+      if (!pipeline) {
+        throw new Error("לא נמצא פייפליין");
+      }
       const { data: stages, error: stageError } = await supabase
         .from("marketing_pipeline_stages")
         .select("id,stage_type")
         .eq("pipeline_id", pipeline.id);
-      if (stageError) throw stageError;
+      if (stageError) {
+        throw stageError;
+      }
       const creativeStage = stages?.find(
         (stage) => stage.stage_type === "creative",
       );
-      if (!creativeStage) throw new Error("שלב קריאייטיב לא נמצא");
+      if (!creativeStage) {
+        throw new Error("שלב קריאייטיב לא נמצא");
+      }
       const readyConcepts = approvedCopyConcepts(
         parseCopyConceptsFromPayload(selected.payload),
       );
@@ -1122,8 +1211,12 @@ export function CopyDepartment({
           .eq("tenant_id", tenantId)
           .eq("id", targetId)
           .maybeSingle();
-        if (targetError) throw targetError;
-        if (!target) throw new Error("פרויקט הקריאייטיב שנבחר לא נמצא");
+        if (targetError) {
+          throw targetError;
+        }
+        if (!target) {
+          throw new Error("פרויקט הקריאייטיב שנבחר לא נמצא");
+        }
         existing = readCopyWorkItem(target);
       }
       const nextCreativePayload = overlayCopyHandoffPayload({
@@ -1145,7 +1238,9 @@ export function CopyDepartment({
           })
           .eq("id", existing.id)
           .eq("tenant_id", tenantId);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { data: created, error } = await supabase
           .from("marketing_work_items")
@@ -1161,11 +1256,15 @@ export function CopyDepartment({
           })
           .select("id,title")
           .single();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         creativeId = created.id;
         creativeTitle = created.title ?? selected.title;
       }
-      if (!creativeId) throw new Error("לא הצלחתי לזהות את פרויקט הקריאייטיב");
+      if (!creativeId) {
+        throw new Error("לא הצלחתי לזהות את פרויקט הקריאייטיב");
+      }
       const { error: stampError } = await supabase
         .from("marketing_work_items")
         .update({
@@ -1177,7 +1276,9 @@ export function CopyDepartment({
         })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
-      if (stampError) throw stampError;
+      if (stampError) {
+        throw stampError;
+      }
       await supabase.from("marketing_assets").insert({
         tenant_id: tenantId,
         item_id: creativeId,
@@ -1251,16 +1352,22 @@ export function CopyDepartment({
   const saveRename = async (itemId: string) => {
     const nextTitle = renameValue.trim();
     setRenamingId(null);
-    if (!nextTitle) return;
+    if (!nextTitle) {
+      return;
+    }
     const current = items.find((item) => item.id === itemId);
-    if (current && current.title === nextTitle) return;
+    if (current && current.title === nextTitle) {
+      return;
+    }
     try {
       const { error } = await supabase
         .from("marketing_work_items")
         .update({ title: nextTitle })
         .eq("id", itemId)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("השם עודכן");
       await refresh();
     } catch (error: unknown) {
@@ -1269,7 +1376,9 @@ export function CopyDepartment({
   };
 
   const deleteProject = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget) {
+      return;
+    }
     setDeleting(true);
     try {
       await supabase
@@ -1282,8 +1391,12 @@ export function CopyDepartment({
         .delete()
         .eq("id", deleteTarget.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
-      if (selectedId === deleteTarget.id) setSelectedId(null);
+      if (error) {
+        throw error;
+      }
+      if (selectedId === deleteTarget.id) {
+        setSelectedId(null);
+      }
       toast.success("הפרויקט נמחק");
       setDeleteTarget(null);
       await refresh();
@@ -1771,7 +1884,9 @@ function CopyVariationEditDialog({
     <Dialog
       open={!!item}
       onOpenChange={(open) => {
-        if (!open && !saving) onClose();
+        if (!open && !saving) {
+          onClose();
+        }
       }}
     >
       <DialogContent className="max-w-lg" dir="rtl">
@@ -1863,7 +1978,9 @@ function CopyEditor({
         .update({ payload: readCopyPayload(nextPayload) })
         .eq("id", item.id)
         .eq("tenant_id", tenantId);
-      if (itemError) throw itemError;
+      if (itemError) {
+        throw itemError;
+      }
       const { error: assetError } = await supabase
         .from("marketing_assets")
         .insert({
@@ -1874,7 +1991,9 @@ function CopyEditor({
           content: markdown,
           meta: { source: "manual_edit", skin_slug: "copywriter" },
         });
-      if (assetError) throw assetError;
+      if (assetError) {
+        throw assetError;
+      }
       toast.success("נשמר");
       await onSaved();
     } catch (error: unknown) {
@@ -1929,7 +2048,9 @@ function NewProjectDialog({
   const [saving, setSaving] = useState(false);
 
   const create = async () => {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      return;
+    }
     setSaving(true);
     try {
       let pipelineId: string | null = null;
@@ -1947,7 +2068,9 @@ function NewProjectDialog({
             .from("marketing_pipeline_stages")
             .select("id,stage_type")
             .eq("pipeline_id", pipeline.id);
-          if (stageError) throw stageError;
+          if (stageError) {
+            throw stageError;
+          }
           pipelineId = pipeline.id;
           stageId =
             stages?.find((stage) => stage.stage_type === "copy")?.id ?? null;
@@ -1978,7 +2101,9 @@ function NewProjectDialog({
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setTitle("");
       onCreated(data.id);
     } catch (error: unknown) {
@@ -2058,7 +2183,9 @@ function ProjectSettings({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     setTitle(item.title ?? "");
     const rawType = asText(item.payload?.content_type);
     setContentType(
@@ -2088,9 +2215,13 @@ function ProjectSettings({
         .eq("tenant_id", tenantId)
         .order("start_time", { ascending: false })
         .limit(50);
-      if (assignedClientId) query = query.eq("client_id", assignedClientId);
+      if (assignedClientId) {
+        query = query.eq("client_id", assignedClientId);
+      }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<RecordingRow>;
     },
   });
@@ -2114,7 +2245,9 @@ function ProjectSettings({
           .from("marketing_pipeline_stages")
           .select("id,stage_type")
           .eq("pipeline_id", pipeline.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         pipelineId = pipeline.id;
         stageId =
           stages?.find((stage) => stage.stage_type === "copy")?.id ?? null;
@@ -2148,7 +2281,9 @@ function ProjectSettings({
       })
       .eq("id", item.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   };
 
   const save = async () => {
@@ -2163,7 +2298,9 @@ function ProjectSettings({
         .update({ title: title.trim() || item.title })
         .eq("id", item.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("ההגדרות נשמרו");
       await onSaved();
       onOpenChange(false);
@@ -2175,7 +2312,9 @@ function ProjectSettings({
   };
 
   const uploadFiles = async (files: FileList | null) => {
-    if (!files?.length) return;
+    if (!files?.length) {
+      return;
+    }
     setUploading(true);
     try {
       const uploaded: Array<BriefFile> = [];
@@ -2184,7 +2323,9 @@ function ProjectSettings({
         const { error } = await supabase.storage
           .from("entity-attachments")
           .upload(path, file);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         uploaded.push({
           name: file.name,
           path,
@@ -2204,14 +2345,18 @@ function ProjectSettings({
         })
         .eq("id", item.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הקובץ צורף לבריף");
       await onSaved();
     } catch (error: unknown) {
       toast.error(errorMessage(error, "ההעלאה נכשלה"));
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 

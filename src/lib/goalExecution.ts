@@ -94,7 +94,9 @@ export async function listExecutionGoals(
     }),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "list failed");
+  if (!res.ok) {
+    throw new Error(json.error || "list failed");
+  }
   return json.goals || [];
 }
 
@@ -109,7 +111,9 @@ export async function getExecutionGoal(
     body: JSON.stringify({ action: "get", tenant_id: tenantId, id }),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "get failed");
+  if (!res.ok) {
+    throw new Error(json.error || "get failed");
+  }
   return json;
 }
 
@@ -210,7 +214,9 @@ export async function goalExecutionAction(
     !(json as { goal?: unknown }).goal
   ) {
     const err = (json as { error?: string }).error;
-    if (err) throw new Error(String(err));
+    if (err) {
+      throw new Error(String(err));
+    }
   }
   return json;
 }

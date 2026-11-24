@@ -29,10 +29,16 @@ export const wooDashboardQueryKeys = {
 };
 
 function parseCustomDashboardDate(value?: Date | string | null): Date | null {
-  if (!value) return null;
-  if (value instanceof Date) return value;
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
   const [y, m, d] = String(value).split("-").map(Number);
-  if (!y || !m || !d) return null;
+  if (!y || !m || !d) {
+    return null;
+  }
   return new Date(y, m - 1, d);
 }
 
@@ -86,8 +92,12 @@ export function getDynamicTableDateRangeIso(
   customFrom?: Date | null,
   customTo?: Date | null,
 ): { start: string; end: string } | null {
-  if (dateFilter === "all") return null;
-  if (dateFilter === "custom" && !(customFrom && customTo)) return null;
+  if (dateFilter === "all") {
+    return null;
+  }
+  if (dateFilter === "custom" && !(customFrom && customTo)) {
+    return null;
+  }
 
   const { startDate, endDate } = getDashboardDateRange(
     dateFilter,
@@ -96,7 +106,9 @@ export function getDynamicTableDateRangeIso(
     customTo ? format(customTo, "yyyy-MM-dd") : null,
   );
 
-  if (!startDate || !endDate) return null;
+  if (!startDate || !endDate) {
+    return null;
+  }
 
   const [sy, sm, sd] = startDate.split("-").map(Number);
   const [ey, em, ed] = endDate.split("-").map(Number);
@@ -133,11 +145,17 @@ async function fetchWooOrdersForColumnInRange(
       .not(column, "is", null)
       .order(column, { ascending: false })
       .range(from, from + WOO_PAGE_SIZE - 1);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const batch = (orders as Array<any>) || [];
-    if (batch.length === 0) break;
+    if (batch.length === 0) {
+      break;
+    }
     all.push(...batch);
-    if (batch.length < WOO_PAGE_SIZE) break;
+    if (batch.length < WOO_PAGE_SIZE) {
+      break;
+    }
   }
   return all;
 }
@@ -148,7 +166,9 @@ export async function fetchWooOrdersInRange(
   range: { start: string; end: string } | null,
   select = "id, total, status, date_created, date_completed, date_paid, attribution",
 ): Promise<Array<any>> {
-  if (siteIds.length === 0) return [];
+  if (siteIds.length === 0) {
+    return [];
+  }
   if (!range) {
     const all: Array<any> = [];
     for (let page = 0; page < WOO_MAX_PAGES; page++) {
@@ -159,11 +179,17 @@ export async function fetchWooOrdersInRange(
         .in("site_id", siteIds)
         .order("date_created", { ascending: false })
         .range(from, from + WOO_PAGE_SIZE - 1);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const batch = (orders as Array<any>) || [];
-      if (batch.length === 0) break;
+      if (batch.length === 0) {
+        break;
+      }
       all.push(...batch);
-      if (batch.length < WOO_PAGE_SIZE) break;
+      if (batch.length < WOO_PAGE_SIZE) {
+        break;
+      }
     }
     return all;
   }
@@ -209,10 +235,14 @@ export async function fetchWooReportAttribution(
     },
     bySource: [],
   };
-  if (!clientId) return empty;
+  if (!clientId) {
+    return empty;
+  }
 
   const siteIds = await fetchWooSiteIdsForClient(clientId);
-  if (siteIds.length === 0) return empty;
+  if (siteIds.length === 0) {
+    return empty;
+  }
 
   const list = await fetchWooOrdersInRange(siteIds, range);
   const valid = list as Array<WooOrderRevenueRow>;
@@ -243,10 +273,14 @@ export async function fetchWooDashboardSummary(
       organicRevenue: 0,
     },
   };
-  if (!clientId) return empty;
+  if (!clientId) {
+    return empty;
+  }
 
   const siteIds = await fetchWooSiteIdsForClient(clientId);
-  if (siteIds.length === 0) return empty;
+  if (siteIds.length === 0) {
+    return empty;
+  }
 
   const list = await fetchWooOrdersInRange(
     siteIds,
@@ -290,7 +324,9 @@ export async function shareWordpressSiteWithAgencyTenants(
   siteId: string,
   agencyId: string | null | undefined,
 ) {
-  if (!agencyId) return;
+  if (!agencyId) {
+    return;
+  }
 
   const { data: agency } = await supabase
     .from("agencies")
@@ -304,12 +340,16 @@ export async function shareWordpressSiteWithAgencyTenants(
     .eq("agency_id", agencyId);
 
   const tenantIds = new Set<string>();
-  if (agency?.tenant_id) tenantIds.add(agency.tenant_id);
+  if (agency?.tenant_id) {
+    tenantIds.add(agency.tenant_id);
+  }
   (accessRows || []).forEach((row: { accessing_tenant_id: string }) => {
     tenantIds.add(row.accessing_tenant_id);
   });
 
-  if (tenantIds.size === 0) return;
+  if (tenantIds.size === 0) {
+    return;
+  }
 
   const rows = Array.from(tenantIds).map((tenant_id) => ({
     site_id: siteId,

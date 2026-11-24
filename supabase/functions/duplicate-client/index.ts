@@ -136,7 +136,9 @@ Deno.serve(async (req) => {
           tenant_id: newTenantId,
         }));
         const { error } = await admin.from("client_contacts").insert(rows);
-        if (!error) stats.contacts = rows.length;
+        if (!error) {
+          stats.contacts = rows.length;
+        }
       }
     }
 
@@ -151,7 +153,9 @@ Deno.serve(async (req) => {
       if (team && team.length > 0) {
         const rows = team.map((t: any) => ({ ...t, client_id: newClientId }));
         const { error } = await admin.from("client_team").insert(rows);
-        if (!error) stats.team = rows.length;
+        if (!error) {
+          stats.team = rows.length;
+        }
       }
     }
 
@@ -168,7 +172,9 @@ Deno.serve(async (req) => {
           tenant_id: newTenantId,
         }));
         const { error } = await admin.from("client_credentials").insert(rows);
-        if (!error) stats.credentials = rows.length;
+        if (!error) {
+          stats.credentials = rows.length;
+        }
       }
     }
 

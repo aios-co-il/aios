@@ -47,8 +47,9 @@ describe("film look", () => {
   });
 
   test("a chosen whip, ripple or glitch is kept, at its own length", () => {
-    for (const type of ["whip", "ripple", "glitch"])
+    for (const type of ["whip", "ripple", "glitch"]) {
       expect(sceneTransition(2, type)).toBe(type);
+    }
     expect(transitionFrames(90, 90, "whip")).toBe(9);
     expect(transitionFrames(90, 90, "glitch")).toBe(8);
     expect(transitionFrames(90, 90, "ripple")).toBe(20);
@@ -142,10 +143,15 @@ describe("film look", () => {
     const sourcesFor = async (meta: RowMeta) => {
       const db = {
         select: async (table: string, query: string) => {
-          if (!query.includes("tenant_id=eq.t1")) return [];
-          if (table === "marketing_video_scenes") return [row(meta)];
-          if (table === "marketing_assets")
+          if (!query.includes("tenant_id=eq.t1")) {
+            return [];
+          }
+          if (table === "marketing_video_scenes") {
+            return [row(meta)];
+          }
+          if (table === "marketing_assets") {
             return [{ id: "clip-1", type: "video_clip", url: "t1/c.mp4" }];
+          }
           return [];
         },
       };

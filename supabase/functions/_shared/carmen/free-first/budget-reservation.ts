@@ -58,7 +58,9 @@ export async function withReservedBudget<T>(
     ...args,
     estimateUsd: args.estimateUsd,
   });
-  if (!reserved.ok) return { ok: false, reason: "budget_denied" };
+  if (!reserved.ok) {
+    return { ok: false, reason: "budget_denied" };
+  }
   // On transport ambiguity the full reserved sum is charged until an operator
   // or usage reconciliation confirms the actual provider cost.
   try {

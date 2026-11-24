@@ -65,7 +65,9 @@ export function StatusStageSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -80,7 +82,9 @@ export function StatusStageSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -210,7 +214,9 @@ export function StatusStageMultiSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -224,7 +230,9 @@ export function StatusStageMultiSelect({
         .eq("tenant_id", tenantId!)
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: loadLeadCatalog,
@@ -291,7 +299,9 @@ export function StatusStageMultiSelect({
                   },
                 ];
       for (const group of scopeGroups) {
-        if (seen.has(group.label)) continue;
+        if (seen.has(group.label)) {
+          continue;
+        }
         seen.add(group.label);
         collected.push(group);
       }
@@ -390,7 +400,9 @@ function isOptionSelected(
   options: Array<CatalogOption>,
 ): boolean {
   const encoded = encodeStatusSelection(option.kind, option.value);
-  if (selected.includes(encoded)) return true;
+  if (selected.includes(encoded)) {
+    return true;
+  }
   return selected.some(
     (item) => resolveStoredStatusSelection(item, options) === encoded,
   );

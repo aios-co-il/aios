@@ -49,8 +49,9 @@ function json(body: unknown, status = 200) {
 }
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -58,14 +59,17 @@ serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
     const authHeader = req.headers.get("authorization");
-    if (!authHeader)
+    if (!authHeader) {
       return json({ error: "Missing authorization header" }, 401);
+    }
     const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
       error: authError,
     } = await admin.auth.getUser(token);
-    if (authError || !user) return json({ error: "Unauthorized" }, 401);
+    if (authError || !user) {
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     const body = await req.json().catch(() => ({}));
     const entityType: string = body?.entity_type;
@@ -100,8 +104,9 @@ serve(async (req: Request) => {
       .select("*")
       .eq("id", entityId)
       .maybeSingle();
-    if (srcErr || !source)
+    if (srcErr || !source) {
       return json({ error: "Source entity not found" }, 404);
+    }
     const sourceTenantId: string = source.tenant_id;
 
     // ---- Authorization ----
@@ -117,8 +122,9 @@ serve(async (req: Request) => {
       (roles || []).some(
         (r: any) => r.tenant_id === sourceTenantId && ADMIN_ROLES.has(r.role),
       );
-    if (!hasSourceAdmin)
+    if (!hasSourceAdmin) {
       return json({ error: "No permission on source entity" }, 403);
+    }
 
     const { data: memberships } = await admin
       .from("tenant_users")
@@ -158,11 +164,15 @@ serve(async (req: Request) => {
     const blob = JSON.stringify({ source, childSteps });
     const referencedTypes = new Set<string>();
     for (const { token, type } of INTEGRATION_TOKENS) {
-      if (token.test(blob)) referencedTypes.add(type);
+      if (token.test(blob)) {
+        referencedTypes.add(type);
+      }
     }
     // For an agent there is little JSON to scan, so fall back to its tenant's active set.
     if (entityType === "agent") {
-      for (const t of sourceActiveTypes) referencedTypes.add(t as string);
+      for (const t of sourceActiveTypes) {
+        referencedTypes.add(t as string);
+      }
     }
 
     const results: Array<any> = [];
@@ -239,7 +249,9 @@ serve(async (req: Request) => {
               writing_style: source.writing_style,
               metadata: source.metadata,
             });
-            if (error) throw error;
+            if (error) {
+              throw error;
+            }
 
             // Carry over the source tenant's custom (tenant-scoped) skin overrides.
             const { data: tenantSkins } = await admin
@@ -279,11 +291,15 @@ serve(async (req: Request) => {
             source_automation_id: source.id,
             source_tenant_id: sourceTenantId,
           });
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
 
           // Deep-copy flow steps, remapping self-referential parent_step_id.
           const idMap = new Map<string, string>();
-          for (const st of childSteps) idMap.set(st.id, newId());
+          for (const st of childSteps) {
+            idMap.set(st.id, newId());
+          }
           const rows = childSteps.map((st) => ({
             id: idMap.get(st.id),
             automation_id: newEntityId,
@@ -304,7 +320,9 @@ serve(async (req: Request) => {
             const { error: stepsErr } = await admin
               .from("automation_flow_steps")
               .insert(rows);
-            if (stepsErr) throw stepsErr;
+            if (stepsErr) {
+              throw stepsErr;
+            }
           }
         } else if (entityType === "pipeline") {
           // Remap stage.agent_id to the target tenant's agent (Carmen), else null.
@@ -325,10 +343,14 @@ serve(async (req: Request) => {
             track: source.track,
             is_active: false,
           });
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
 
           const idMap = new Map<string, string>();
-          for (const st of childSteps) idMap.set(st.id, newId());
+          for (const st of childSteps) {
+            idMap.set(st.id, newId());
+          }
           const rows = childSteps.map((st) => ({
             id: idMap.get(st.id),
             pipeline_id: newEntityId,
@@ -349,7 +371,9 @@ serve(async (req: Request) => {
             const { error: stagesErr } = await admin
               .from("marketing_pipeline_stages")
               .insert(rows);
-            if (stagesErr) throw stagesErr;
+            if (stagesErr) {
+              throw stagesErr;
+            }
           }
         }
 

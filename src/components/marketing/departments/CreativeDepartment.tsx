@@ -323,7 +323,9 @@ const syncCreativePipelineStage = async ({
     })
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 };
 
 export function CreativeDepartment({
@@ -403,10 +405,11 @@ export function CreativeDepartment({
   const startWork = (label: string, variationId?: string) => {
     const controller = new AbortController();
     abortControllersRef.current.push(controller);
-    if (variationId)
+    if (variationId) {
       setBusyIds((ids) =>
         ids.includes(variationId) ? ids : [...ids, variationId],
       );
+    }
     setActiveJobs((count) => {
       const next = count + 1;
       setGenerateProgress(
@@ -424,14 +427,19 @@ export function CreativeDepartment({
     abortControllersRef.current = abortControllersRef.current.filter(
       (controller) => controller.signal !== signal,
     );
-    if (variationId)
+    if (variationId) {
       setBusyIds((ids) => ids.filter((id) => id !== variationId));
-    if (!had) return;
+    }
+    if (!had) {
+      return;
+    }
     setActiveJobs((count) => {
       const next = Math.max(0, count - 1);
-      if (next === 0) setGenerateProgress(null);
-      else
+      if (next === 0) {
+        setGenerateProgress(null);
+      } else {
         setGenerateProgress(`${next} משימות אצל ${CREATIVE_DIRECT_LABEL_HE}`);
+      }
       return next;
     });
   };
@@ -470,9 +478,15 @@ export function CreativeDepartment({
           .eq("tenant_id", tenantId)
           .eq("track", "social_organic"),
       ]);
-      if (error) throw error;
-      if (stageError) throw stageError;
-      if (pipelineError) throw pipelineError;
+      if (error) {
+        throw error;
+      }
+      if (stageError) {
+        throw stageError;
+      }
+      if (pipelineError) {
+        throw pipelineError;
+      }
       return filterCreativeDepartmentItems(
         (data ?? []) as Array<CreativeItem>,
         (creativeStages ?? []).map((stage) => stage.id),
@@ -490,7 +504,9 @@ export function CreativeDepartment({
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<{ id: string; name: string }>;
     },
   });
@@ -574,7 +590,9 @@ export function CreativeDepartment({
         .select("item_id, tokens_in, tokens_out, cost_usd, model")
         .eq("tenant_id", tenantId)
         .in("item_id", itemIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -619,22 +637,30 @@ export function CreativeDepartment({
   const { data: context, isLoading: loadingContext } = useQuery({
     queryKey: ["creative-department-context", selected?.client_id, tenantId],
     queryFn: async () => {
-      if (!selected?.client_id) return null;
+      if (!selected?.client_id) {
+        return null;
+      }
       const pipeline = await ensurePipelineForClient({
         clientId: selected.client_id,
         tenantId,
         track: "campaigns",
       });
-      if (!pipeline) throw new Error("לא ניתן לפתוח פייפליין קמפיינים ללקוח");
+      if (!pipeline) {
+        throw new Error("לא ניתן לפתוח פייפליין קמפיינים ללקוח");
+      }
       const { data: stages, error } = await supabase
         .from("marketing_pipeline_stages")
         .select("id, stage_type, sort_order")
         .eq("pipeline_id", pipeline.id)
         .order("sort_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const creativeStage =
         stages?.find((stage) => stage.stage_type === "creative") ?? null;
-      if (!creativeStage) throw new Error("שלב הקריאייטיב לא נמצא בפייפליין");
+      if (!creativeStage) {
+        throw new Error("שלב הקריאייטיב לא נמצא בפייפליין");
+      }
       return {
         pipeline,
         creativeStage,
@@ -660,7 +686,9 @@ export function CreativeDepartment({
         .eq("id", selected!.client_id!)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
         id: string;
         name: string;
@@ -684,7 +712,9 @@ export function CreativeDepartment({
         .order("updated_at", { ascending: false });
       query = applyClientFilter(query, linkCopyClientFilter);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return ((data ?? []) as Array<CreativeItem>).filter((item) =>
         isLinkableCopyItem(item),
       );
@@ -712,9 +742,12 @@ export function CreativeDepartment({
     creativeAgentUrl || creativeDirect?.agentUrl || null;
 
   useEffect(() => {
-    if (!selectedId && items[0]?.id) setSelectedId(items[0].id);
-    if (selectedId && !items.some((item) => item.id === selectedId))
+    if (!selectedId && items[0]?.id) {
+      setSelectedId(items[0].id);
+    }
+    if (selectedId && !items.some((item) => item.id === selectedId)) {
       setSelectedId(items[0]?.id ?? null);
+    }
   }, [items, selectedId]);
 
   useEffect(() => {
@@ -744,15 +777,18 @@ export function CreativeDepartment({
       itemId: selectedId,
       frames: storyboard,
     };
-    if (selectedId)
+    if (selectedId) {
       persistedStillsRef.current.set(selectedId, persistedStillsOf(storyboard));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- storyboardSignature stands in for storyboard
   }, [storyboardSignature, selectedId]);
 
   // Scene status and clips change from the render worker; refetch when they do.
   const watchScenes = !!selectedId && projectType === "video";
   useEffect(() => {
-    if (!watchScenes || !selectedId) return;
+    if (!watchScenes || !selectedId) {
+      return;
+    }
     const channel = supabase
       .channel(`creative-video-scenes-${selectedId}`)
       .on(
@@ -800,8 +836,9 @@ export function CreativeDepartment({
   );
 
   useEffect(() => {
-    if (!selectedVariationId && variations[0]?.id)
+    if (!selectedVariationId && variations[0]?.id) {
       setSelectedVariationId(variations[0].id);
+    }
     if (
       selectedVariationId &&
       !variations.some((variation) => variation.id === selectedVariationId)
@@ -838,7 +875,9 @@ export function CreativeDepartment({
         .eq("item_id", selectedId!)
         .in("type", ["image", "data"])
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<CreativeAssetRow>;
     },
   });
@@ -861,7 +900,9 @@ export function CreativeDepartment({
   };
 
   const saveProject = async (draft: CreativeProjectDraft) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     setSaving(true);
     try {
       const nextPayload = {
@@ -886,7 +927,9 @@ export function CreativeDepartment({
         })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הפרויקט נשמר");
       await refresh();
     } catch (error: unknown) {
@@ -900,7 +943,9 @@ export function CreativeDepartment({
     nextClientId: string | null,
     draft: CreativeProjectDraft,
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     let pipelineId: string | null = null;
     let stageId: string | null = null;
     let website: string | null = null;
@@ -919,7 +964,9 @@ export function CreativeDepartment({
           .from("marketing_pipeline_stages")
           .select("id,stage_type")
           .eq("pipeline_id", pipeline.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         pipelineId = pipeline.id;
         stageId =
           stages?.find((stage) => stage.stage_type === "creative")?.id ?? null;
@@ -930,7 +977,9 @@ export function CreativeDepartment({
         .eq("id", nextClientId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (clientError) throw clientError;
+      if (clientError) {
+        throw clientError;
+      }
       website = client?.website ?? null;
       attachments = client?.attachments ?? [];
       clientName = client?.name ?? undefined;
@@ -993,7 +1042,9 @@ export function CreativeDepartment({
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     await Promise.all([
       refresh(),
       queryClient.invalidateQueries({
@@ -1025,7 +1076,9 @@ export function CreativeDepartment({
     nextFrames: Array<StoryboardFrame>,
     message = "ה-storyboard נשמר",
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     await saveScenes(selected.id, nextFrames);
     const existingStyle = getStoryboardStyle(selected.payload);
     const firstImage = [...nextFrames]
@@ -1046,7 +1099,9 @@ export function CreativeDepartment({
       .update({ payload: nextPayload })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     await supabase.from("marketing_assets").insert({
       tenant_id: tenantId,
       item_id: selected.id,
@@ -1059,7 +1114,9 @@ export function CreativeDepartment({
         frame_count: nextFrames.length,
       },
     });
-    if (message) toast.success(message);
+    if (message) {
+      toast.success(message);
+    }
     await refresh();
   };
 
@@ -1069,7 +1126,9 @@ export function CreativeDepartment({
     options?: { lock?: boolean },
   ): Promise<Array<StoryboardFrame>> => {
     const fallback = framesOverride ?? storyboardDraft;
-    if (!selected) return fallback;
+    if (!selected) {
+      return fallback;
+    }
     if (!selected.client_id) {
       toast.error("יש לשייך לקוח לפרויקט לפני יצירת פריימים");
       return fallback;
@@ -1212,20 +1271,28 @@ export function CreativeDepartment({
       return next;
     } catch (error: unknown) {
       if (isGenerationAborted(error)) {
-        if (!shouldLock) throw error;
+        if (!shouldLock) {
+          throw error;
+        }
         toast.message("היצירה נעצרה");
         return fallback;
       }
       toast.error(errorMessage(error, "יצירת הפריים נכשלה"));
-      if (!shouldLock) throw error;
+      if (!shouldLock) {
+        throw error;
+      }
       return fallback;
     } finally {
-      if (shouldLock) setGenerating(false);
+      if (shouldLock) {
+        setGenerating(false);
+      }
     }
   };
 
   const updateVideoSettings = async (patch: Partial<CreativeVideoSettings>) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const { error } = await supabase
       .from("marketing_work_items")
       .update({
@@ -1233,13 +1300,17 @@ export function CreativeDepartment({
       })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     await refresh();
   };
 
   const [characterUploading, setCharacterUploading] = useState(false);
   const uploadCharacter = async (file: File) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     setCharacterUploading(true);
     try {
       const asset = await uploadCreativeAsset({
@@ -1277,7 +1348,9 @@ export function CreativeDepartment({
     frame: StoryboardFrame,
     instruction: string,
   ) => {
-    if (!selected || !frame.imageUrl) return;
+    if (!selected || !frame.imageUrl) {
+      return;
+    }
     const readyContext = ensureCreativeStageReady(context);
     setGenerating(true);
     try {
@@ -1343,7 +1416,9 @@ export function CreativeDepartment({
 
   /** Opens the budget confirmation; frames from the scene sheet may carry unsaved edits. */
   const requestAnimate = (frames: Array<StoryboardFrame>) => {
-    if (frames.length === 0) return;
+    if (frames.length === 0) {
+      return;
+    }
     const edited = new Map(frames.map((frame) => [frame.id, frame]));
     setStoryboardDraft((draft) =>
       draft.map((frame) => edited.get(frame.id) ?? frame),
@@ -1352,7 +1427,9 @@ export function CreativeDepartment({
   };
 
   const confirmAnimate = async () => {
-    if (!selected || !clipConfirm) return;
+    if (!selected || !clipConfirm) {
+      return;
+    }
     setQueueingClips(true);
     try {
       const edited = new Map(clipConfirm.map((frame) => [frame.id, frame]));
@@ -1394,7 +1471,9 @@ export function CreativeDepartment({
   };
 
   const confirmSound = async () => {
-    if (!selected || !soundConfirm) return;
+    if (!selected || !soundConfirm) {
+      return;
+    }
     const kind = soundConfirm;
     setQueueingClips(true);
     try {
@@ -1434,7 +1513,9 @@ export function CreativeDepartment({
   };
 
   const confirmRender = async () => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     setQueueingClips(true);
     try {
       const queued = await queueVideoRender({
@@ -1494,8 +1575,9 @@ export function CreativeDepartment({
   // When a production finishes, load the new film right away.
   const productionStatus = production?.status;
   useEffect(() => {
-    if (!selectedId || !productionStatus || productionStatus === "running")
+    if (!selectedId || !productionStatus || productionStatus === "running") {
       return;
+    }
     void queryClient.invalidateQueries({
       queryKey: ["creative-render-run", tenantId, selectedId],
     });
@@ -1503,7 +1585,9 @@ export function CreativeDepartment({
 
   const confirmProduce = async (approvedPlan?: ProductionPlan) => {
     const plan = approvedPlan ?? produceConfirm;
-    if (!selected || !plan) return;
+    if (!selected || !plan) {
+      return;
+    }
     setProduceConfirm(null);
     beginGeneration();
     setGenerating(true);
@@ -1559,9 +1643,11 @@ export function CreativeDepartment({
         refresh(),
       ]);
     } catch (error: unknown) {
-      if (isGenerationAborted(error))
+      if (isGenerationAborted(error)) {
         toast.message("ההפקה נעצרה — מה שכבר נוצר נשמר");
-      else toast.error(errorMessage(error, "הפקת הסרט נכשלה"));
+      } else {
+        toast.error(errorMessage(error, "הפקת הסרט נכשלה"));
+      }
     } finally {
       setGenerating(false);
       setGenerateProgress(null);
@@ -1570,7 +1656,9 @@ export function CreativeDepartment({
   };
 
   const requestProduce = () => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     if (!selected.client_id) {
       toast.error("יש לשייך לקוח לפרויקט לפני הפקת סרט");
       return;
@@ -1582,8 +1670,11 @@ export function CreativeDepartment({
       hasMusic: productionInfo?.hasMusic ?? false,
     });
     // Only the free assembly is left: nothing to approve.
-    if (plan.assembleOnly) void confirmProduce(plan);
-    else setProduceConfirm(plan);
+    if (plan.assembleOnly) {
+      void confirmProduce(plan);
+    } else {
+      setProduceConfirm(plan);
+    }
   };
 
   const { data: renderRun } = useQuery({
@@ -1630,7 +1721,9 @@ export function CreativeDepartment({
   });
 
   const uploadReference = async (file: File) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     if (!file.type.startsWith("video/")) {
       toast.error("בחרו קובץ וידאו (mp4, mov או webm)");
       return;
@@ -1661,7 +1754,9 @@ export function CreativeDepartment({
   };
 
   const applyReferenceProposal = async () => {
-    if (!selected || proposalFrames.length === 0) return;
+    if (!selected || proposalFrames.length === 0) {
+      return;
+    }
     const next = proposalToFrames(proposalFrames, storyboardFrameX);
     setStoryboardDraft(next);
     await persistStoryboard(next, "הסטוריבורד הוחלף בהצעה מהרפרנס");
@@ -1714,14 +1809,18 @@ export function CreativeDepartment({
     message = "הגרסה נשמרה",
   ) => {
     const run = async () => {
-      if (!selected) return;
+      if (!selected) {
+        return;
+      }
       const { data: latestRow, error: readError } = await supabase
         .from("marketing_work_items")
         .select("payload")
         .eq("id", selected.id)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (readError) throw readError;
+      if (readError) {
+        throw readError;
+      }
       const latestPayload = (latestRow?.payload ??
         selected.payload ??
         {}) as StoredCreativePayload;
@@ -1756,7 +1855,9 @@ export function CreativeDepartment({
         .update({ payload: nextPayload })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
-      if (itemError) throw itemError;
+      if (itemError) {
+        throw itemError;
+      }
 
       if (active) {
         const { error: assetError } = await supabase
@@ -1773,7 +1874,9 @@ export function CreativeDepartment({
             }),
             meta: serializeCreativeAssetMeta(active),
           });
-        if (assetError) throw assetError;
+        if (assetError) {
+          throw assetError;
+        }
       }
 
       toast.success(message);
@@ -1790,7 +1893,9 @@ export function CreativeDepartment({
   const selectedStyleId = pendingStyleId ?? getVisualStyleId(selected?.payload);
 
   const persistVisualStyle = async (visualStyle: CreativeVisualStyleId) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     setPendingStyleId(visualStyle);
     const { error } = await supabase
       .from("marketing_work_items")
@@ -1816,7 +1921,9 @@ export function CreativeDepartment({
     variation: CreativeVariation,
     enabled: boolean,
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const nextVariations = variations.map((row) =>
       row.id === variation.id ? { ...row, liveTextLayers: enabled } : row,
     );
@@ -1832,9 +1939,12 @@ export function CreativeDepartment({
   };
 
   const prepareCreativeStage = async () => {
-    if (!selected) throw new Error("לא נבחר פרויקט");
-    if (!selected.client_id)
+    if (!selected) {
+      throw new Error("לא נבחר פרויקט");
+    }
+    if (!selected.client_id) {
       throw new Error("יש לשייך לקוח לפרויקט לפני יצירת קריאייטיב");
+    }
     const readyContext = ensureCreativeStageReady(context);
     await syncCreativePipelineStage({
       itemId: selected.id,
@@ -1907,7 +2017,9 @@ export function CreativeDepartment({
     liveTextLayers?: boolean;
     signal?: AbortSignal;
   }): Promise<CreativeVariation> => {
-    if (!selected) throw new Error("לא נבחר פרויקט");
+    if (!selected) {
+      throw new Error("לא נבחר פרויקט");
+    }
     const jobSignal = signal ?? generationSignal();
     throwIfGenerationAborted(!!jobSignal?.aborted);
     const readyContext = ensureCreativeStageReady(context);
@@ -2103,7 +2215,9 @@ export function CreativeDepartment({
         cursorJobIdsRef.current.delete(dispatched.jobId);
       }
     } catch (error: unknown) {
-      if (isGenerationAborted(error)) throw error;
+      if (isGenerationAborted(error)) {
+        throw error;
+      }
       if (isCursorCreativeSpendError(error)) {
         toast.warning(CURSOR_CREATIVE_SPEND_MESSAGE);
       } else if (isCursorCreativeUnavailable(error)) {
@@ -2161,7 +2275,9 @@ export function CreativeDepartment({
     conceptId?: string,
     liveTextLayers?: boolean,
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const approved = getApprovedCopyConcepts(selected);
     const chosenConcept =
       findCopyConcept(approved, conceptId ?? target?.conceptId) ??
@@ -2243,10 +2359,15 @@ export function CreativeDepartment({
           : `נוצר קריאייטיב ל${nextVariation.copyLabel || "קופי"}${nextVariation.conceptName ? ` · ${nextVariation.conceptName}` : ""} בסגנון ${style.label}`,
       );
       setSelectedVariationId(nextVariation.id);
-      if (mode !== "replace") setWorkspacePanel(null);
+      if (mode !== "replace") {
+        setWorkspacePanel(null);
+      }
     } catch (error: unknown) {
-      if (isGenerationAborted(error)) toast.message("היצירה נעצרה");
-      else toast.error(errorMessage(error, "יצירת הקריאייטיב נכשלה"));
+      if (isGenerationAborted(error)) {
+        toast.message("היצירה נעצרה");
+      } else {
+        toast.error(errorMessage(error, "יצירת הקריאייטיב נכשלה"));
+      }
     } finally {
       finishWork(signal, replaceTarget?.id);
     }
@@ -2256,7 +2377,9 @@ export function CreativeDepartment({
     conceptId?: string,
     liveTextLayers?: boolean,
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const approved = getApprovedCopyConcepts(selected);
     const textMode = liveTextLayers ?? nextLiveTextLayers;
     if (!conceptId && approved.length > 1) {
@@ -2272,7 +2395,9 @@ export function CreativeDepartment({
     styleMode: "same" | "mixed",
     liveTextLayers?: boolean,
   ) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const approved = getApprovedCopyConcepts(selected);
     const visualPrompt = resolveVisualPrompt(selected.payload, approved);
     if (cameFromCopy(selected) && !visualPrompt) {
@@ -2343,16 +2468,20 @@ export function CreativeDepartment({
           : "נוצר קריאייטיב לכל וריאציית קופי",
       );
     } catch (error: unknown) {
-      if (isGenerationAborted(error))
+      if (isGenerationAborted(error)) {
         toast.message("היצירה נעצרה — מה שכבר נוצר נשמר");
-      else toast.error(errorMessage(error, "יצירת הגריד נכשלה"));
+      } else {
+        toast.error(errorMessage(error, "יצירת הגריד נכשלה"));
+      }
     } finally {
       finishWork(signal);
     }
   };
 
   const generateSiblingsInStyle = async (source: CreativeVariation) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const missing = missingCopyBlocks(copyBlocks, variations, source);
     if (missing.length === 0) {
       toast.message("אין וריאציות קופי נוספות — כל הקופי כבר בגריד");
@@ -2393,10 +2522,11 @@ export function CreativeDepartment({
         `נוצרו ${missing.length} וריאציות באותו סגנון, מותאמות לקופי`,
       );
     } catch (error: unknown) {
-      if (isGenerationAborted(error))
+      if (isGenerationAborted(error)) {
         toast.message("היצירה נעצרה — מה שכבר נוצר נשמר");
-      else
+      } else {
         toast.error(errorMessage(error, "יצירת הווריאציות בסגנון הזה נכשלה"));
+      }
     } finally {
       finishWork(signal, source.id);
     }
@@ -2405,7 +2535,9 @@ export function CreativeDepartment({
   const stopGeneration = () => {
     generateAbortRef.current = true;
     generateAbortControllerRef.current?.abort();
-    for (const controller of abortControllersRef.current) controller.abort();
+    for (const controller of abortControllersRef.current) {
+      controller.abort();
+    }
     const jobIds = [...cursorJobIdsRef.current];
     if (selected) {
       for (const jobId of jobIds) {
@@ -2437,19 +2569,22 @@ export function CreativeDepartment({
           : `נפתח ${CREATIVE_DIRECT_LABEL_HE} — כרמן ומחלקת קריאייטיב שולחות לכאן`,
       );
     } catch (error: unknown) {
-      if (isCursorCreativeSpendError(error))
+      if (isCursorCreativeSpendError(error)) {
         toast.warning(CURSOR_CREATIVE_SPEND_MESSAGE);
-      else
+      } else {
         toast.error(
           errorMessage(error, `פתיחת ${CREATIVE_DIRECT_LABEL_HE} נכשלה`),
         );
+      }
     } finally {
       setOpeningCreativeDirect(false);
     }
   };
 
   const rejectVariation = async () => {
-    if (!selected || !rejectTarget || !rejectNote.trim()) return;
+    if (!selected || !rejectTarget || !rejectNote.trim()) {
+      return;
+    }
     const target = rejectTarget;
     const note = rejectNote.trim();
     const directorRefUrls = rejectRefs.map((reference) => reference.url);
@@ -2504,15 +2639,20 @@ export function CreativeDepartment({
       );
       setSelectedVariationId(created.id);
     } catch (error: unknown) {
-      if (isGenerationAborted(error)) toast.message("היצירה נעצרה");
-      else toast.error(errorMessage(error, "יצירת וריאציית הרג׳קט נכשלה"));
+      if (isGenerationAborted(error)) {
+        toast.message("היצירה נעצרה");
+      } else {
+        toast.error(errorMessage(error, "יצירת וריאציית הרג׳קט נכשלה"));
+      }
     } finally {
       finishWork(signal, target.id);
     }
   };
 
   const eraseVariation = async (job: EraseJob) => {
-    if (!selected || !eraseTarget) return;
+    if (!selected || !eraseTarget) {
+      return;
+    }
     const target = eraseTarget;
     setEraseTarget(null);
     const signal = startWork(
@@ -2572,15 +2712,20 @@ export function CreativeDepartment({
       );
       setSelectedVariationId(created.id);
     } catch (error: unknown) {
-      if (isGenerationAborted(error)) toast.message("המחיקה נעצרה");
-      else toast.error(errorMessage(error, "מחיקת האזור נכשלה"));
+      if (isGenerationAborted(error)) {
+        toast.message("המחיקה נעצרה");
+      } else {
+        toast.error(errorMessage(error, "מחיקת האזור נכשלה"));
+      }
     } finally {
       finishWork(signal, target.id);
     }
   };
 
   const reviseVariation = async () => {
-    if (!selected || !reviseTarget || !reviseNote.trim()) return;
+    if (!selected || !reviseTarget || !reviseNote.trim()) {
+      return;
+    }
     const target = reviseTarget;
     const note = reviseNote.trim();
     const directorRefUrls = reviseRefs.map((reference) => reference.url);
@@ -2622,8 +2767,11 @@ export function CreativeDepartment({
       );
       setSelectedVariationId(created.id);
     } catch (error: unknown) {
-      if (isGenerationAborted(error)) toast.message("היצירה נעצרה");
-      else toast.error(errorMessage(error, "יצירת וריאציית התיקון נכשלה"));
+      if (isGenerationAborted(error)) {
+        toast.message("היצירה נעצרה");
+      } else {
+        toast.error(errorMessage(error, "יצירת וריאציית התיקון נכשלה"));
+      }
     } finally {
       finishWork(signal, target.id);
     }
@@ -2647,7 +2795,9 @@ export function CreativeDepartment({
   };
 
   const deleteProject = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget) {
+      return;
+    }
     setDeleting(true);
     try {
       await supabase
@@ -2660,7 +2810,9 @@ export function CreativeDepartment({
         .delete()
         .eq("id", deleteTarget.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (selectedId === deleteTarget.id) {
         setSelectedId(null);
         setSelectedVariationId(null);
@@ -2677,7 +2829,9 @@ export function CreativeDepartment({
   };
 
   const saveVariation = async () => {
-    if (!variationDraft) return;
+    if (!variationDraft) {
+      return;
+    }
     setSaving(true);
     try {
       const nextVariations = variations.map((variation) =>
@@ -2694,7 +2848,9 @@ export function CreativeDepartment({
   };
 
   const addComment = async () => {
-    if (!variationDraft || !commentDraft.trim()) return;
+    if (!variationDraft || !commentDraft.trim()) {
+      return;
+    }
     const comment: CreativeComment = {
       id: crypto.randomUUID(),
       text: commentDraft.trim(),
@@ -2717,7 +2873,9 @@ export function CreativeDepartment({
   };
 
   const linkCopyFromItem = async (copyItem: CreativeItem) => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const summary = copyPullSummary(copyItem.payload);
     const at = new Date().toISOString();
     const nextPayload = overlayCopyHandoffPayload({
@@ -2733,7 +2891,9 @@ export function CreativeDepartment({
       .update({ payload: nextPayload })
       .eq("id", selected.id)
       .eq("tenant_id", tenantId);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const { error: stampError } = await supabase
       .from("marketing_work_items")
       .update({
@@ -2745,7 +2905,9 @@ export function CreativeDepartment({
       })
       .eq("id", copyItem.id)
       .eq("tenant_id", tenantId);
-    if (stampError) throw stampError;
+    if (stampError) {
+      throw stampError;
+    }
     toast.success(
       summary.approvedCount > 0
         ? `הקופי והקונספטים שויכו (${summary.approvedCount} מאושרים)`
@@ -2769,7 +2931,9 @@ export function CreativeDepartment({
   };
 
   const refreshFromLinkedCopy = async () => {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const linkedId =
       typeof selected.payload?.linked_copy_item_id === "string"
         ? selected.payload.linked_copy_item_id
@@ -2789,7 +2953,9 @@ export function CreativeDepartment({
           .eq("id", linkedId)
           .eq("tenant_id", tenantId)
           .maybeSingle();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         copyItem = (data as CreativeItem | null) ?? null;
       }
       if (!copyItem) {
@@ -2807,10 +2973,12 @@ export function CreativeDepartment({
 
   const handoff = useMutation({
     mutationFn: async () => {
-      if (!selected || !context?.campaignStage)
+      if (!selected || !context?.campaignStage) {
         throw new Error("שלב הקמפיינים לא נמצא");
-      if (projectType === "video")
+      }
+      if (projectType === "video") {
         await saveScenes(selected.id, storyboardDraft);
+      }
       const { error } = await supabase
         .from("marketing_work_items")
         .update({
@@ -2825,7 +2993,9 @@ export function CreativeDepartment({
         })
         .eq("id", selected.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: async () => {
       toast.success("הקריאייטיב אושר והועבר למחלקת הקמפיינים");
@@ -3393,7 +3563,9 @@ export function CreativeDepartment({
 
   /** Carmen's studio_ui_action runs here, through the same handlers as the buttons. */
   const runStudioAction = (action: StudioUiAction) => {
-    if (!selected || action.item_id !== selected.id) return;
+    if (!selected || action.item_id !== selected.id) {
+      return;
+    }
     const frame = action.scene_id
       ? storyboardDraft.find((value) => value.id === action.scene_id)
       : undefined;
@@ -3405,7 +3577,9 @@ export function CreativeDepartment({
         requestProduce();
         break;
       case "animate_scene":
-        if (frame) requestAnimate([frame]);
+        if (frame) {
+          requestAnimate([frame]);
+        }
         break;
       case "regenerate_frame":
         if (frame) {
@@ -3430,16 +3604,24 @@ export function CreativeDepartment({
         }
         break;
       case "approve_to_campaigns":
-        if (canHandoff) handoff.mutate();
+        if (canHandoff) {
+          handoff.mutate();
+        }
         break;
       case "focus_scene":
-        if (frame) setSceneFocus({ id: frame.id, n: Date.now() });
+        if (frame) {
+          setSceneFocus({ id: frame.id, n: Date.now() });
+        }
         break;
       case "focus_variation":
-        if (variation) setSelectedVariationId(variation.id);
+        if (variation) {
+          setSelectedVariationId(variation.id);
+        }
         break;
       case "open_drawer":
-        if (action.drawer) setWorkspacePanel(action.drawer);
+        if (action.drawer) {
+          setWorkspacePanel(action.drawer);
+        }
         break;
     }
   };
@@ -3890,8 +4072,9 @@ export function CreativeDepartment({
           if (onClientChange && createdClientId !== undefined) {
             const filterClient =
               listFilter !== ALL_CLIENTS_FILTER ? listFilter : null;
-            if (createdClientId !== filterClient)
+            if (createdClientId !== filterClient) {
               onClientChange(createdClientId);
+            }
           }
           setSelectedId(id);
           setWorkspacePanel(null);
@@ -4444,7 +4627,9 @@ function ManualCreativeDialog({
         .order("updated_at", { ascending: false });
       query = applyClientFilter(query, assignedClientId);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return ((data ?? []) as Array<CreativeItem>).filter((item) =>
         isLinkableCopyItem(item),
       );
@@ -4473,14 +4658,18 @@ function ManualCreativeDialog({
   }, [defaultClientId, open]);
 
   useEffect(() => {
-    if (mode !== "from_copy" || !selectedCopyItem) return;
+    if (mode !== "from_copy" || !selectedCopyItem) {
+      return;
+    }
     setTitle(selectedCopyItem.title?.trim() || "קריאייטיב מקופי");
     setBrief(String(selectedCopyItem.payload?.brief_text ?? ""));
     setCopyText(String(selectedCopyItem.payload?.copy_text ?? ""));
   }, [mode, selectedCopyItem]);
 
   useEffect(() => {
-    if (projectType === "video" && format === "1:1") setFormat("9:16");
+    if (projectType === "video" && format === "1:1") {
+      setFormat("9:16");
+    }
   }, [projectType, format]);
 
   const canCreate =
@@ -4500,7 +4689,9 @@ function ManualCreativeDialog({
       : null;
 
   const create = async () => {
-    if (!canCreate) return;
+    if (!canCreate) {
+      return;
+    }
     setSaving(true);
     try {
       let pipelineId: string | null = null;
@@ -4511,16 +4702,22 @@ function ManualCreativeDialog({
           tenantId,
           track: "campaigns",
         });
-        if (!pipeline) throw new Error("לא ניתן לפתוח פייפליין קמפיינים ללקוח");
+        if (!pipeline) {
+          throw new Error("לא ניתן לפתוח פייפליין קמפיינים ללקוח");
+        }
         const { data: stages, error: stageError } = await supabase
           .from("marketing_pipeline_stages")
           .select("id,stage_type")
           .eq("pipeline_id", pipeline.id);
-        if (stageError) throw stageError;
+        if (stageError) {
+          throw stageError;
+        }
         pipelineId = pipeline.id;
         stageId =
           stages?.find((stage) => stage.stage_type === "creative")?.id ?? null;
-        if (!stageId) throw new Error("שלב הקריאייטיב לא נמצא");
+        if (!stageId) {
+          throw new Error("שלב הקריאייטיב לא נמצא");
+        }
       }
       const linkedCopy = mode === "from_copy" ? selectedCopyItem : null;
       const at = new Date().toISOString();
@@ -4569,7 +4766,9 @@ function ManualCreativeDialog({
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (projectType === "video") {
         await saveVideoStoryboard({
           tenantId,
@@ -4590,7 +4789,9 @@ function ManualCreativeDialog({
           })
           .eq("id", linkedCopy.id)
           .eq("tenant_id", tenantId);
-        if (stampError) throw stampError;
+        if (stampError) {
+          throw stampError;
+        }
       }
       toast.success(
         mode === "from_copy"

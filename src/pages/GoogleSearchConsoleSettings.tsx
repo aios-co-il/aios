@@ -76,7 +76,9 @@ export default function GoogleSearchConsoleSettings() {
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       if (response.data?.authUrl) {
         window.location.href = response.data.authUrl;
       }
@@ -96,7 +98,9 @@ export default function GoogleSearchConsoleSettings() {
         .update({ is_active: false })
         .eq("id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -358,7 +362,9 @@ export default function GoogleSearchConsoleSettings() {
       <ManageIntegrationPermissionsDialog
         open={!!sharingIntegrationId}
         onOpenChange={(open) => {
-          if (!open) setSharingIntegrationId(null);
+          if (!open) {
+            setSharingIntegrationId(null);
+          }
         }}
         integrationId={sharingIntegrationId || ""}
         integrationName={`Google Search Console - ${sharingIntegrationName}`}

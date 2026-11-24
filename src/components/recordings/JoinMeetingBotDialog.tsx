@@ -81,7 +81,9 @@ export function JoinMeetingBotDialog({
 
   const dispatchMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("לא נבחר ארגון");
+      if (!tenantId) {
+        throw new Error("לא נבחר ארגון");
+      }
       const { data, error } = await supabase.functions.invoke(
         "dispatch-meeting-bot",
         {

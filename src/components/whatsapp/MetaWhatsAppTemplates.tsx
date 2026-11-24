@@ -72,12 +72,22 @@ const templateHeader = (template: MetaTemplate) =>
 
 const templateHeaderLabel = (template: MetaTemplate) => {
   const header = templateHeader(template);
-  if (!header) return null;
+  if (!header) {
+    return null;
+  }
   const format = String(header.format ?? "TEXT").toUpperCase();
-  if (format === "TEXT") return header.text ?? "כותרת טקסט";
-  if (format === "DOCUMENT") return "📄 PDF";
-  if (format === "IMAGE") return "🖼️ תמונה";
-  if (format === "VIDEO") return "🎬 וידאו";
+  if (format === "TEXT") {
+    return header.text ?? "כותרת טקסט";
+  }
+  if (format === "DOCUMENT") {
+    return "📄 PDF";
+  }
+  if (format === "IMAGE") {
+    return "🖼️ תמונה";
+  }
+  if (format === "VIDEO") {
+    return "🎬 וידאו";
+  }
   return format;
 };
 
@@ -152,7 +162,9 @@ const templateBody = (template: MetaTemplate) =>
   )?.text ?? "";
 
 const supportsDirectSend = (template: MetaTemplate) => {
-  if (template.parameter_format === "named") return false;
+  if (template.parameter_format === "named") {
+    return false;
+  }
   if (
     !template.components?.every((component) =>
       ["HEADER", "BODY", "FOOTER", "BUTTONS"].includes(
@@ -167,8 +179,12 @@ const supportsDirectSend = (template: MetaTemplate) => {
     const format = String(header.format ?? "TEXT").toUpperCase();
     if (format === "TEXT") {
       const headerText = header.text ?? "";
-      if (variableIndexes(headerText).length > 0) return false;
-      if (hasInvalidVariableSyntax(headerText)) return false;
+      if (variableIndexes(headerText).length > 0) {
+        return false;
+      }
+      if (hasInvalidVariableSyntax(headerText)) {
+        return false;
+      }
     } else if (!["IMAGE", "VIDEO", "DOCUMENT"].includes(format)) {
       return false;
     }
@@ -191,10 +207,18 @@ const friendlyError = (
     meta_error?: { error_user_msg?: string };
   },
 ) => {
-  if (data?.guidance) return `${data.error ?? "שגיאה"}\n${data.guidance}`;
-  if (data?.meta_error?.error_user_msg) return data.meta_error.error_user_msg;
-  if (data?.error) return data.error;
-  if (error instanceof Error) return error.message;
+  if (data?.guidance) {
+    return `${data.error ?? "שגיאה"}\n${data.guidance}`;
+  }
+  if (data?.meta_error?.error_user_msg) {
+    return data.meta_error.error_user_msg;
+  }
+  if (data?.error) {
+    return data.error;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
   return "אירעה שגיאה מול Meta";
 };
 
@@ -326,9 +350,12 @@ export function MetaWhatsAppTemplates({
         },
       },
     );
-    if (error) throw error;
-    if (!data?.success || !data?.handle)
+    if (error) {
+      throw error;
+    }
+    if (!data?.success || !data?.handle) {
       throw new Error(data?.error || "העלאת הקובץ ל-Meta נכשלה");
+    }
     if (String(data.format) !== headerType) {
       throw new Error("סוג הקובץ לא תואם לסוג הכותרת שנבחר");
     }
@@ -343,7 +370,9 @@ export function MetaWhatsAppTemplates({
         form.headerType === "VIDEO" ||
         form.headerType === "DOCUMENT"
       ) {
-        if (!headerFile) throw new Error("יש לבחור קובץ לכותרת");
+        if (!headerFile) {
+          throw new Error("יש לבחור קובץ לכותרת");
+        }
         headerHandle = await uploadHeaderMedia(headerFile, form.headerType);
       }
 
@@ -424,8 +453,12 @@ export function MetaWhatsAppTemplates({
           },
         },
       );
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "מחיקת התבנית נכשלה");
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
+        throw new Error(data?.error || "מחיקת התבנית נכשלה");
+      }
     },
     onSuccess: () => {
       toast.success("התבנית נמחקה");
@@ -436,7 +469,9 @@ export function MetaWhatsAppTemplates({
 
   const sendMutation = useMutation({
     mutationFn: async () => {
-      if (!sendTemplate) throw new Error("לא נבחרה תבנית");
+      if (!sendTemplate) {
+        throw new Error("לא נבחרה תבנית");
+      }
       const components = sendValues.length
         ? [
             {
@@ -463,8 +498,12 @@ export function MetaWhatsAppTemplates({
           },
         },
       );
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "שליחת התבנית נכשלה");
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
+        throw new Error(data?.error || "שליחת התבנית נכשלה");
+      }
     },
     onSuccess: () => {
       toast.success("הודעת התבנית נשלחה");

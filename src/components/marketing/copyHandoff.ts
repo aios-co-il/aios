@@ -60,16 +60,22 @@ export function findExistingCreativeSibling(
   const pointed = asText(copyItem.payload?.handoff_to_creative_item_id);
   if (pointed) {
     const hit = others.find((item) => item.id === pointed);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
 
   const linked = others
     .filter((item) => asText(item.payload?.linked_copy_item_id) === copyItem.id)
     .sort(byUpdatedDesc);
-  if (linked[0]) return linked[0];
+  if (linked[0]) {
+    return linked[0];
+  }
 
   const title = (copyItem.title ?? "").trim();
-  if (!title) return null;
+  if (!title) {
+    return null;
+  }
   const sameTitle = others
     .filter((item) => (item.title ?? "").trim() === title)
     .filter((item) => item.client_id === copyItem.client_id)
@@ -106,8 +112,9 @@ export function suggestedCreativeTarget(
   openProjects: Array<HandoffWorkItem>,
 ): HandoffWorkItem | null {
   const sibling = findExistingCreativeSibling(copyItem, openProjects);
-  if (sibling && openProjects.some((item) => item.id === sibling.id))
+  if (sibling && openProjects.some((item) => item.id === sibling.id)) {
     return sibling;
+  }
   return openProjects[0] ?? null;
 }
 

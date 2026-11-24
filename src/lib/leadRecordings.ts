@@ -75,13 +75,17 @@ export function groupLeadRecordings(
   const callBuckets = new Map<string, Array<StoredCallRecording>>();
   const fileBuckets = new Map<string, Array<StoredFileRecording>>();
   for (const call of calls) {
-    if (!call.lead_id) continue;
+    if (!call.lead_id) {
+      continue;
+    }
     const bucket = callBuckets.get(call.lead_id) ?? [];
     bucket.push(call);
     callBuckets.set(call.lead_id, bucket);
   }
   for (const file of files) {
-    if (!file.lead_id) continue;
+    if (!file.lead_id) {
+      continue;
+    }
     const bucket = fileBuckets.get(file.lead_id) ?? [];
     bucket.push(file);
     fileBuckets.set(file.lead_id, bucket);

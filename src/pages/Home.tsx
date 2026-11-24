@@ -349,7 +349,9 @@ export default function Home() {
   const { hasPermission } = useUserPermissions();
 
   const canAccess = (permission?: string) => {
-    if (!permission) return true;
+    if (!permission) {
+      return true;
+    }
     return hasPermission(permission as any);
   };
 
@@ -379,7 +381,9 @@ export default function Home() {
           const accessibleModules = category.modules.filter((m) =>
             canAccess(m.permission),
           );
-          if (accessibleModules.length === 0) return null;
+          if (accessibleModules.length === 0) {
+            return null;
+          }
 
           return (
             <div key={category.id}>

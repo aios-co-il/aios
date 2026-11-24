@@ -142,7 +142,9 @@ export function DateRangeFilter({
   };
 
   const handleCustomApply = () => {
-    if (!customStart || !customEnd) return;
+    if (!customStart || !customEnd) {
+      return;
+    }
 
     setSelectedPreset("custom");
     setIsCustomOpen(false);
@@ -169,12 +171,16 @@ export function DateRangeFilter({
   };
 
   const formatCustomRange = () => {
-    if (!customStart || !customEnd) return "בחר תאריכים";
+    if (!customStart || !customEnd) {
+      return "בחר תאריכים";
+    }
     return `${format(customStart, "dd/MM/yy", { locale: he })} - ${format(customEnd, "dd/MM/yy", { locale: he })}`;
   };
 
   const getSelectedLabel = () => {
-    if (selectedPreset === "custom") return formatCustomRange();
+    if (selectedPreset === "custom") {
+      return formatCustomRange();
+    }
     return (
       presets.find((p) => p.key === selectedPreset)?.label || "7 ימים אחרונים"
     );

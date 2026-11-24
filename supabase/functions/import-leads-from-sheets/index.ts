@@ -8,7 +8,9 @@ const corsHeaders = {
 
 // Normalize phone for comparison
 function normalizePhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   return phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
 }
 
@@ -46,10 +48,14 @@ const hebrewMonths: Record<string, number> = {
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
 const parseDate = (val: string): string | null => {
-  if (!val) return null;
+  if (!val) {
+    return null;
+  }
 
   const strVal = String(val).trim();
-  if (!strVal) return null;
+  if (!strVal) {
+    return null;
+  }
 
   // Helper function to validate year is reasonable (1900-2100)
   const isValidYear = (year: number) => year >= 1900 && year <= 2100;
@@ -62,7 +68,9 @@ const parseDate = (val: string): string | null => {
     let year = parseInt(slashParts[2], 10);
 
     // Convert 2-digit year
-    if (year < 100) year = year > 50 ? 1900 + year : 2000 + year;
+    if (year < 100) {
+      year = year > 50 ? 1900 + year : 2000 + year;
+    }
 
     if (
       isValidYear(year) &&
@@ -139,13 +147,19 @@ const parseDate = (val: string): string | null => {
 };
 
 const parseCreatedAt = (val: string): string | null => {
-  if (!val) return null;
+  if (!val) {
+    return null;
+  }
   const strVal = String(val).trim();
-  if (!strVal) return null;
+  if (!strVal) {
+    return null;
+  }
 
   if (/^\d{4}-\d{2}-\d{2}T/.test(strVal)) {
     const parsed = new Date(strVal);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
   }
 
   const dateOnly = parseDate(strVal);
@@ -381,7 +395,9 @@ Deno.serve(async (req) => {
 
       // Map fields
       for (const [field, value] of Object.entries(rowData)) {
-        if (!value) continue;
+        if (!value) {
+          continue;
+        }
         const strValue = String(value).trim();
 
         switch (field) {
@@ -395,7 +411,9 @@ Deno.serve(async (req) => {
             leadData[field] = strValue;
             break;
           case "email":
-            if (strValue.includes("@")) leadData.email = strValue;
+            if (strValue.includes("@")) {
+              leadData.email = strValue;
+            }
             break;
           case "phone":
             leadData.phone = strValue.replace(/[^\d+\-\s]/g, "");
@@ -416,12 +434,16 @@ Deno.serve(async (req) => {
           case "three_month_budget":
           case "estimated_deal_value": {
             const num = parseFloat(strValue.replace(/[^\d.-]/g, ""));
-            if (!isNaN(num) && num > 0) leadData[field] = num;
+            if (!isNaN(num) && num > 0) {
+              leadData[field] = num;
+            }
             break;
           }
           case "created_at": {
             const createdAt = parseCreatedAt(strValue);
-            if (createdAt) leadData.created_at = createdAt;
+            if (createdAt) {
+              leadData.created_at = createdAt;
+            }
             break;
           }
           case "proposal_date": {

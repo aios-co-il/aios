@@ -182,16 +182,24 @@ export const MODEL_CATALOG: Array<ModelDef> = [
  * Falls back to default Gemini 3 Flash.
  */
 export function resolveModelId(engine: string | null | undefined): string {
-  if (!engine) return "google/gemini-3-flash-preview";
+  if (!engine) {
+    return "google/gemini-3-flash-preview";
+  }
   // Already a full id?
   const direct = MODEL_CATALOG.find((m) => m.id === engine);
-  if (direct) return direct.id;
+  if (direct) {
+    return direct.id;
+  }
   // Alias match
   const byAlias = MODEL_CATALOG.find((m) => m.alias === engine);
-  if (byAlias) return byAlias.id;
+  if (byAlias) {
+    return byAlias.id;
+  }
   // Manus is routed separately (not via resolveLLMTarget / OpenAI-compatible)
   const lower = engine.toLowerCase();
-  if (lower === "manus/manus-1" || lower === "manus-1") return "manus/manus-1";
+  if (lower === "manus/manus-1" || lower === "manus-1") {
+    return "manus/manus-1";
+  }
   return legacyModelId(engine) || "google/gemini-3-flash-preview";
 }
 

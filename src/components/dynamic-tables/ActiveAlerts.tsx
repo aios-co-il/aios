@@ -89,14 +89,18 @@ export function ActiveAlerts({
         .eq("table_id", tableId)
         .eq("is_active", true);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<ReportAlert>;
     },
     enabled: !!tableId,
   });
 
   const triggeredAlerts = useMemo(() => {
-    if (!alerts.length) return [];
+    if (!alerts.length) {
+      return [];
+    }
 
     const triggered: Array<TriggeredAlert> = [];
     const today = new Date();
@@ -247,7 +251,9 @@ export function ActiveAlerts({
           alert.metric,
         );
 
-        if (previousValue === 0) continue;
+        if (previousValue === 0) {
+          continue;
+        }
 
         const changePercent =
           ((currentValue - previousValue) / previousValue) * 100;
@@ -293,7 +299,9 @@ export function ActiveAlerts({
     return triggered;
   }, [alerts, records, integrationSettings]);
 
-  if (triggeredAlerts.length === 0) return null;
+  if (triggeredAlerts.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-2 mb-4">
@@ -425,7 +433,9 @@ function getCampaignBlockReason(effectiveStatus: string): string {
 }
 
 function getLatestRecord(records: Array<any>): any | null {
-  if (records.length === 0) return null;
+  if (records.length === 0) {
+    return null;
+  }
 
   return records.reduce((latest, record) => {
     const recordDate = record.data?.date || record.data?.Date || "";
@@ -455,7 +465,9 @@ function groupRecordsByCampaign(
 }
 
 function getCampaignName(records: Array<any>): string {
-  if (records.length === 0) return "";
+  if (records.length === 0) {
+    return "";
+  }
   const firstRecord = records[0];
   return (
     firstRecord.data?.campaign_name ||
@@ -476,12 +488,16 @@ function calculateMetrics(
 
   const filtered = records.filter((r) => {
     const recordDate = r.data?.date || r.data?.Date;
-    if (!recordDate) return false;
+    if (!recordDate) {
+      return false;
+    }
     // Use >= startStr and < endStr to avoid overlap between periods
     return recordDate >= startStr && recordDate < endStr;
   });
 
-  if (filtered.length === 0) return 0;
+  if (filtered.length === 0) {
+    return 0;
+  }
 
   // For cost_per_lead: calculate as total spend / total leads
   if (metric === "cost_per_lead") {
@@ -503,7 +519,9 @@ function calculateMetrics(
       totalLeads += leads;
     }
 
-    if (totalLeads === 0) return 0;
+    if (totalLeads === 0) {
+      return 0;
+    }
     return totalSpend / totalLeads;
   }
 
@@ -526,7 +544,9 @@ function calculateMetrics(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalSpend / totalImpressions) * 1000;
   }
 
@@ -549,7 +569,9 @@ function calculateMetrics(
       totalImpressions += impressions;
     }
 
-    if (totalImpressions === 0) return 0;
+    if (totalImpressions === 0) {
+      return 0;
+    }
     return (totalClicks / totalImpressions) * 100;
   }
 

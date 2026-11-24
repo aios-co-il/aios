@@ -22,12 +22,15 @@ export function buildOutboundRequest(
   settings: PbxSettings,
   call: OutboundCall,
 ): { url: string; init: RequestInit } {
-  if (!settings.outbound_url) throw new Error("outbound_url is not set");
+  if (!settings.outbound_url) {
+    throw new Error("outbound_url is not set");
+  }
   const params: Record<string, string> = {};
   const set = (key: string | undefined, fallback: string, value: unknown) => {
     const name = (key || "").trim() || fallback;
-    if (value !== null && value !== undefined && value !== "")
+    if (value !== null && value !== undefined && value !== "") {
       params[name] = String(value);
+    }
   };
   set(settings.param_caller, "caller", call.callerNumber);
   set(settings.param_destination, "destination", call.destinationNumber);
@@ -36,13 +39,16 @@ export function buildOutboundRequest(
 
   const headers: Record<string, string> = {};
   const authHeader = settings.outbound_auth_header?.trim();
-  if (authHeader && settings.outbound_auth_value)
+  if (authHeader && settings.outbound_auth_value) {
     headers[authHeader] = settings.outbound_auth_value;
+  }
 
   const method = settings.outbound_method === "GET" ? "GET" : "POST";
   const url = new URL(settings.outbound_url);
   if (method === "GET") {
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    for (const [k, v] of Object.entries(params)) {
+      url.searchParams.set(k, v);
+    }
     return { url: url.toString(), init: { method, headers } };
   }
   if (settings.outbound_format === "form") {

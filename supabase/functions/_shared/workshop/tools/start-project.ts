@@ -13,7 +13,9 @@ import { VIEW_CLIENT_DENIED, startProjectClient } from "../view-client.ts";
 export async function workshopStartProject(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, userId, deps } = ctx;
   const brief = String(args.brief ?? "").trim();
-  if (!brief) return { error: "brief נדרש" };
+  if (!brief) {
+    return { error: "brief נדרש" };
+  }
   const refusal = openProjectRefusal(deps.openItemId, deps.userText);
   if (refusal) {
     return refusal;
@@ -25,10 +27,11 @@ export async function workshopStartProject(ctx: ToolContext) {
     try {
       await assertClientAccess(clientId);
     } catch (error) {
-      if (!start.fromView)
+      if (!start.fromView) {
         return {
           error: error instanceof Error ? error.message : "אין הרשאה ללקוח הזה",
         };
+      }
       clientId = null;
       clientNote = VIEW_CLIENT_DENIED;
     }
@@ -81,7 +84,9 @@ export async function workshopStartProject(ctx: ToolContext) {
     })
     .select("id")
     .single();
-  if (created.error) return { error: created.error.message };
+  if (created.error) {
+    return { error: created.error.message };
+  }
   const itemId = created.data.id as string;
   const artifact = await recordArtifact(supabase, {
     tenantId,

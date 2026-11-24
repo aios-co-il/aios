@@ -27,7 +27,9 @@ serve(async (_req) => {
       .select("user_id, watch_channel_id, watch_expires_at, needs_reconnect")
       .eq("needs_reconnect", false);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const due = (tokens || []).filter(
       (t: any) =>

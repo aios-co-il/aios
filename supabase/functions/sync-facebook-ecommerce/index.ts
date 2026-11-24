@@ -341,8 +341,9 @@ Deno.serve(async (req) => {
       "sync-facebook-ecommerce",
     );
     const campaignObjectives: Record<string, string | null | undefined> = {};
-    for (const c of Object.values(campaignStatuses))
+    for (const c of Object.values(campaignStatuses)) {
       campaignObjectives[c.id] = c.objective;
+    }
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);
@@ -391,11 +392,12 @@ Deno.serve(async (req) => {
             type: fieldTypes[i],
             position: i,
           });
-        if (fieldErr)
+        if (fieldErr) {
           console.error(
             `[sync-facebook-ecommerce] field insert error for ${fieldKeys[i]}:`,
             fieldErr.message,
           );
+        }
       }
     }
 

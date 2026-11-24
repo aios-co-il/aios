@@ -35,8 +35,9 @@ const imageSizeForFormat = (format: unknown): string => {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   let runId: string | null = null;
   const supaUrl = Deno.env.get("SUPABASE_URL")!;
@@ -71,12 +72,18 @@ serve(async (req) => {
           .select("settings")
           .eq("id", data.shared_from_integration_id)
           .maybeSingle();
-        if (src?.settings) settings = src.settings as Record<string, string>;
+        if (src?.settings) {
+          settings = src.settings as Record<string, string>;
+        }
       }
       const key = settings.openai_api_key;
-      if (key) return key;
+      if (key) {
+        return key;
+      }
       const fallback = await resolveOpenAIKey();
-      if (fallback) return fallback;
+      if (fallback) {
+        return fallback;
+      }
       throw new Error(
         "OpenAI API key חסר — הגדר אותו בהגדרות האינטגרציות או כ־OPENAI_API_KEY",
       );
@@ -101,14 +108,18 @@ serve(async (req) => {
       .select("*")
       .eq("id", item_id)
       .single();
-    if (itemErr || !item) throw new Error("Work item not found");
+    if (itemErr || !item) {
+      throw new Error("Work item not found");
+    }
 
     const { data: stage, error: stageErr } = await admin
       .from("marketing_pipeline_stages")
       .select("*")
       .eq("id", stage_id)
       .single();
-    if (stageErr || !stage) throw new Error("Stage not found");
+    if (stageErr || !stage) {
+      throw new Error("Stage not found");
+    }
     if (!item.pipeline_id && stage.pipeline_id) {
       await admin
         .from("marketing_work_items")
@@ -179,8 +190,9 @@ serve(async (req) => {
       })
       .select("id")
       .single();
-    if (runErr || !runRow)
+    if (runErr || !runRow) {
       throw new Error("Failed to create run: " + runErr?.message);
+    }
     runId = runRow.id;
 
     // Get OpenAI API key from tenant_integrations
@@ -207,12 +219,21 @@ serve(async (req) => {
 
     // Build messages from Carmen Core + the pinned existing Skin + stage context.
     const systemParts: Array<string> = [];
-    if (agent?.system_prompt) systemParts.push(agent.system_prompt);
-    if (skinBlock) systemParts.push(skinBlock);
-    if (agent?.personality) systemParts.push(`אישיות: ${agent.personality}`);
-    if (agent?.writing_style)
+    if (agent?.system_prompt) {
+      systemParts.push(agent.system_prompt);
+    }
+    if (skinBlock) {
+      systemParts.push(skinBlock);
+    }
+    if (agent?.personality) {
+      systemParts.push(`אישיות: ${agent.personality}`);
+    }
+    if (agent?.writing_style) {
       systemParts.push(`סגנון כתיבה: ${agent.writing_style}`);
-    if (instructions) systemParts.push(instructions);
+    }
+    if (instructions) {
+      systemParts.push(instructions);
+    }
     if (client) {
       systemParts.push(
         `\nהקשר על הלקוח:\n- שם: ${client.name ?? "—"}\n- אתר: ${client.website ?? "—"}\n- תיאור: ${client.business_description ?? "—"}\n- תחום: ${client.industry ?? "—"}`,
@@ -235,11 +256,15 @@ serve(async (req) => {
       item.payload?.brief ??
       item.payload?.source_summary ??
       "";
-    if (sourceBrief) userParts.push(`בריף מקור / סיכום פגישה:\n${sourceBrief}`);
+    if (sourceBrief) {
+      userParts.push(`בריף מקור / סיכום פגישה:\n${sourceBrief}`);
+    }
     if (stageType !== "creative" && approvedConcepts) {
       userParts.push(`קונספטים מאושרים ממחלקת הקופי:\n${approvedConcepts}`);
     }
-    if (item.payload?.notes) userParts.push(`הערות: ${item.payload.notes}`);
+    if (item.payload?.notes) {
+      userParts.push(`הערות: ${item.payload.notes}`);
+    }
     const storyboardFrame = item.payload?.storyboard_frame as
       Record<string, unknown> | undefined;
     if (
@@ -353,14 +378,18 @@ serve(async (req) => {
       }
       const data = await aiRes.json();
       const b64Data = data.data?.[0]?.b64_json;
-      if (!b64Data) throw new Error(`No image returned from ${IMAGE_MODEL}`);
+      if (!b64Data) {
+        throw new Error(`No image returned from ${IMAGE_MODEL}`);
+      }
       const bytes = Uint8Array.from(atob(b64Data), (c) => c.charCodeAt(0));
       const fileName = `${Date.now()}-${runRow.id}.png`;
       const filePath = `${item.tenant_id}/marketing/${item_id}/${fileName}`;
       const { error: upErr } = await admin.storage
         .from("entity-attachments")
         .upload(filePath, bytes, { contentType: "image/png", upsert: false });
-      if (upErr) throw new Error("Upload failed: " + upErr.message);
+      if (upErr) {
+        throw new Error("Upload failed: " + upErr.message);
+      }
       const { data: pub } = admin.storage
         .from("entity-attachments")
         .getPublicUrl(filePath);
@@ -394,10 +423,12 @@ serve(async (req) => {
       });
       if (!aiRes.ok) {
         const t = await aiRes.text();
-        if (aiRes.status === 429)
+        if (aiRes.status === 429) {
           throw new Error("חרגת ממכסת בקשות AI. נסה שוב בעוד מספר דקות.");
-        if (aiRes.status === 402)
+        }
+        if (aiRes.status === 402) {
           throw new Error("נגמרו הקרדיטים. הוסף קרדיטים בהגדרות הסביבה.");
+        }
         throw new Error(`AI gateway ${aiRes.status}: ${t}`);
       }
       const data = await aiRes.json();
@@ -431,9 +462,15 @@ serve(async (req) => {
 
     // Update item payload with latest copy/image
     const newPayload = { ...(item.payload ?? {}) };
-    if (assetType === "brief") newPayload.brief_text = assetContent;
-    if (assetType === "copy") newPayload.copy_text = assetContent;
-    if (assetType === "image") newPayload.image_url = assetUrl;
+    if (assetType === "brief") {
+      newPayload.brief_text = assetContent;
+    }
+    if (assetType === "copy") {
+      newPayload.copy_text = assetContent;
+    }
+    if (assetType === "image") {
+      newPayload.image_url = assetUrl;
+    }
     newPayload.last_skin_slug = skinSlug;
     await admin
       .from("marketing_work_items")
@@ -484,7 +521,9 @@ serve(async (req) => {
             .eq("id", owner.user_id)
             .maybeSingle();
 
-          if (!profile) continue;
+          if (!profile) {
+            continue;
+          }
 
           const stageName = stage.name ?? stageType;
           const itemTitle = item.title ?? "פריט תוכן";

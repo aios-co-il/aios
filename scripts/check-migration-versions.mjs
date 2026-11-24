@@ -17,7 +17,9 @@ import { fileURLToPath } from "node:url";
 export function duplicateMigrationVersions(fileNames) {
   const byVersion = new Map();
   for (const name of fileNames) {
-    if (!name.endsWith(".sql")) continue;
+    if (!name.endsWith(".sql")) {
+      continue;
+    }
     const version = name.split("_")[0];
     byVersion.set(version, [...(byVersion.get(version) || []), name]);
   }

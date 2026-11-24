@@ -78,7 +78,9 @@ Deno.serve(async (req) => {
       const fiveMinFromNow = Date.now() + 5 * 60 * 1000;
       const stale = !expiresAt || expiresAt < fiveMinFromNow;
 
-      if (!force && !stale) return accessToken;
+      if (!force && !stale) {
+        return accessToken;
+      }
 
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
@@ -224,7 +226,9 @@ Deno.serve(async (req) => {
 
       const listsProperty = (r: any) => {
         const props = (r.settings as any)?.available_properties;
-        if (!Array.isArray(props)) return false;
+        if (!Array.isArray(props)) {
+          return false;
+        }
         return props.some((p: any) => {
           const id =
             typeof p === "string"
@@ -251,12 +255,16 @@ Deno.serve(async (req) => {
     ): Promise<string> {
       let token = integ.api_key as string;
       const refreshToken = settingsObj?.refresh_token;
-      if (!refreshToken) return token;
+      if (!refreshToken) {
+        return token;
+      }
       const expiresAt = settingsObj?.expires_at
         ? new Date(settingsObj.expires_at).getTime()
         : 0;
       const stale = !expiresAt || expiresAt < Date.now() + 5 * 60 * 1000;
-      if (!force && !stale) return token;
+      if (!force && !stale) {
+        return token;
+      }
 
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
@@ -321,7 +329,9 @@ Deno.serve(async (req) => {
       let lastErr = "";
       for (const cand of candidates) {
         const candSettings = { ...((cand.settings as any) || {}) };
-        if (candSettings.needs_reauth) continue;
+        if (candSettings.needs_reauth) {
+          continue;
+        }
         try {
           const token = await refreshTokenFor(cand, candSettings, false);
           const probe = await probePropertyAccess(token);

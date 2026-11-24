@@ -21,13 +21,17 @@ export async function loadWordPressSite(
     .select("id,tenant_id,client_id,site_url,username,app_password")
     .eq("id", siteId)
     .maybeSingle();
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
   const scopeError = wordPressSiteScopeError(
     data as { tenant_id: string; client_id: string | null },
     scope.tenantId,
     scope.clientId,
   );
-  if (scopeError) throw new Error(scopeError);
+  if (scopeError) {
+    throw new Error(scopeError);
+  }
   const { id, site_url, username, app_password } = data as WpSite;
   return { id, site_url, username, app_password };
 }
@@ -50,7 +54,9 @@ export async function publishToWordPress(
     content: article.contentHtml,
     status: article.status ?? "publish",
   };
-  if (article.excerpt) body.excerpt = article.excerpt;
+  if (article.excerpt) {
+    body.excerpt = article.excerpt;
+  }
   if (article.metaDescription || article.focusKeyword) {
     body.meta = {
       ...(article.metaDescription
@@ -69,9 +75,10 @@ export async function publishToWordPress(
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok)
+  if (!res.ok) {
     throw new Error(
       `WordPress ${res.status}: ${(await res.text()).slice(0, 300)}`,
     );
+  }
   return (await res.json()) as { id: number; link: string };
 }

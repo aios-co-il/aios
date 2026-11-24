@@ -13,7 +13,9 @@ function recorder(answers: Record<string, Error | undefined>) {
     run: async (provider: string, fallbackFrom: string | null) => {
       calls.push([provider, fallbackFrom]);
       const answer = answers[provider];
-      if (answer instanceof Error) throw answer;
+      if (answer instanceof Error) {
+        throw answer;
+      }
       return { provider, fallbackFrom };
     },
   };

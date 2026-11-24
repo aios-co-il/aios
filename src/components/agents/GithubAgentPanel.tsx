@@ -47,7 +47,9 @@ export function GithubAgentPanel() {
   const { data: credential } = useQuery({
     queryKey: ["agent-credentials", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("agent_credentials" as any)
         .select("*")
@@ -63,7 +65,9 @@ export function GithubAgentPanel() {
   const { data: approvals = [] } = useQuery({
     queryKey: ["agent-approvals", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agent_approval_queue" as any)
         .select("*")
@@ -79,7 +83,9 @@ export function GithubAgentPanel() {
   const { data: actionLog = [] } = useQuery({
     queryKey: ["agent-action-log", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agent_action_log" as any)
         .select("*")
@@ -94,7 +100,9 @@ export function GithubAgentPanel() {
   // Save GitHub token
   const saveToken = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !tokenInput) throw new Error("Missing data");
+      if (!tenantId || !tokenInput) {
+        throw new Error("Missing data");
+      }
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -131,7 +139,9 @@ export function GithubAgentPanel() {
 
   // Send chat support message
   const sendChat = async () => {
-    if (!chatMessage.trim() || !tenantId) return;
+    if (!chatMessage.trim() || !tenantId) {
+      return;
+    }
     setIsSending(true);
     setChatResponse(null);
 
@@ -144,7 +154,9 @@ export function GithubAgentPanel() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setChatResponse(data);
       setChatMessage("");
       queryClient.invalidateQueries({
@@ -169,7 +181,9 @@ export function GithubAgentPanel() {
       const { error } = await supabase.functions.invoke("github-agent", {
         body: { action, tenant_id: tenantId, approval_id: approvalId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success(action === "approve_action" ? "אושר!" : "נדחה");
       queryClient.invalidateQueries({
         queryKey: ["agent-approvals", tenantId],

@@ -130,7 +130,9 @@ export function BroadcastDomainSettings() {
   };
 
   const saveEdit = async () => {
-    if (!editingId || !editDomain.trim() || !editLocal.trim()) return;
+    if (!editingId || !editDomain.trim() || !editLocal.trim()) {
+      return;
+    }
     try {
       const result = await update.mutateAsync({
         id: editingId,
@@ -262,7 +264,9 @@ export function BroadcastDomainSettings() {
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        if (confirm("למחוק את הדומיין?")) remove.mutate(d.id);
+                        if (confirm("למחוק את הדומיין?")) {
+                          remove.mutate(d.id);
+                        }
                       }}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />

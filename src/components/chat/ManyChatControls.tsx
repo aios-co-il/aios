@@ -42,7 +42,9 @@ export function ManyChatControls({
           body: { tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.tags || [];
     },
     enabled: !!tenantId,
@@ -56,7 +58,9 @@ export function ManyChatControls({
         .from(table)
         .update({ manychat_subscriber_id: newId })
         .eq("id", contactId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Subscriber ID עודכן בהצלחה");
@@ -79,7 +83,9 @@ export function ManyChatControls({
           tenantId,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הטאג נוסף בהצלחה");

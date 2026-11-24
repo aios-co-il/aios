@@ -1809,7 +1809,9 @@ Deno.serve(async (req) => {
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
-      if (manusErr) throw manusErr;
+      if (manusErr) {
+        throw manusErr;
+      }
       carmenRole = resolveCarmenConnectionRole(integration, {
         tenantHasActiveManus: Boolean(manusOwner?.id),
       });

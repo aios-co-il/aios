@@ -30,11 +30,14 @@ vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
 vi.mock("@/integrations/supabase/client", () => {
   const query = (table: string) => {
     const chain: Record<string, unknown> = {};
-    for (const name of ["select", "eq", "order", "in", "limit"])
+    for (const name of ["select", "eq", "order", "in", "limit"]) {
       chain[name] = () => chain;
+    }
     chain.maybeSingle = async () => ({ data: mocks.page, error: null });
     chain.update = (value: { meta: Record<string, unknown> }) => {
-      if (table === "workshop_artifacts") mocks.pageWrites.push(value);
+      if (table === "workshop_artifacts") {
+        mocks.pageWrites.push(value);
+      }
       return chain;
     };
     chain.then = (resolve: (value: unknown) => unknown) =>

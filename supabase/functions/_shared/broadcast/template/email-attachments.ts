@@ -20,12 +20,18 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 
 /** Parse the stored jsonb into attachments, dropping malformed items. */
 export function toEmailAttachments(value: unknown): Array<EmailAttachment> {
-  if (!Array.isArray(value)) return [];
+  if (!Array.isArray(value)) {
+    return [];
+  }
   const out: Array<EmailAttachment> = [];
   for (const item of value) {
-    if (!isRecord(item)) continue;
+    if (!isRecord(item)) {
+      continue;
+    }
     const { name, url, path, size, content_type } = item;
-    if (typeof name !== "string" || typeof url !== "string") continue;
+    if (typeof name !== "string" || typeof url !== "string") {
+      continue;
+    }
     out.push({
       name,
       url,

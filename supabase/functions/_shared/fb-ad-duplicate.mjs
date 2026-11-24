@@ -6,7 +6,9 @@ export function deepClone(value) {
 
 /** Extract lead_gen_form_id from object_story_spec call_to_action values. */
 export function extractLeadFormId(objectStorySpec) {
-  if (!objectStorySpec || typeof objectStorySpec !== "object") return null;
+  if (!objectStorySpec || typeof objectStorySpec !== "object") {
+    return null;
+  }
   const paths = [
     objectStorySpec?.link_data?.call_to_action?.value?.lead_gen_form_id,
     objectStorySpec?.video_data?.call_to_action?.value?.lead_gen_form_id,
@@ -14,13 +16,17 @@ export function extractLeadFormId(objectStorySpec) {
     objectStorySpec?.template_data?.call_to_action?.value?.lead_gen_form_id,
   ];
   for (const id of paths) {
-    if (id != null && String(id).trim()) return String(id);
+    if (id != null && String(id).trim()) {
+      return String(id);
+    }
   }
   return null;
 }
 
 export function extractPageId(objectStorySpec) {
-  if (!objectStorySpec || typeof objectStorySpec !== "object") return null;
+  if (!objectStorySpec || typeof objectStorySpec !== "object") {
+    return null;
+  }
   return objectStorySpec.page_id ? String(objectStorySpec.page_id) : null;
 }
 
@@ -40,14 +46,24 @@ export function applyVariantToObjectStorySpec(objectStorySpec, variant = {}) {
     variant.description != null ? String(variant.description) : null;
 
   const patchStoryBlock = (block) => {
-    if (!block || typeof block !== "object") return block;
-    if (primary != null) block.message = primary;
-    if (headline != null) block.name = headline;
-    if (description != null) block.description = description;
+    if (!block || typeof block !== "object") {
+      return block;
+    }
+    if (primary != null) {
+      block.message = primary;
+    }
+    if (headline != null) {
+      block.name = headline;
+    }
+    if (description != null) {
+      block.description = description;
+    }
     return block;
   };
 
-  if (spec.link_data) spec.link_data = patchStoryBlock(spec.link_data);
+  if (spec.link_data) {
+    spec.link_data = patchStoryBlock(spec.link_data);
+  }
   if (spec.video_data) {
     spec.video_data = patchStoryBlock(spec.video_data);
     // video_data uses title in some creatives
@@ -57,9 +73,12 @@ export function applyVariantToObjectStorySpec(objectStorySpec, variant = {}) {
       spec.video_data.title = headline;
     }
   }
-  if (spec.photo_data) spec.photo_data = patchStoryBlock(spec.photo_data);
-  if (spec.template_data)
+  if (spec.photo_data) {
+    spec.photo_data = patchStoryBlock(spec.photo_data);
+  }
+  if (spec.template_data) {
     spec.template_data = patchStoryBlock(spec.template_data);
+  }
 
   if (
     !spec.link_data &&
@@ -123,9 +142,15 @@ export function normalizeAdCopyVariants(args = {}) {
     throw new Error("variants_required");
   }
   const count = args.count != null ? Number(args.count) : raw.length;
-  if (!Number.isFinite(count) || count < 1) throw new Error("invalid_count");
-  if (count > MAX) throw new Error(`max_variants_${MAX}`);
-  if (raw.length < count) throw new Error("variants_count_mismatch");
+  if (!Number.isFinite(count) || count < 1) {
+    throw new Error("invalid_count");
+  }
+  if (count > MAX) {
+    throw new Error(`max_variants_${MAX}`);
+  }
+  if (raw.length < count) {
+    throw new Error("variants_count_mismatch");
+  }
 
   const variants = raw.slice(0, count).map((v, i) => {
     const primary_text = v?.primary_text ?? v?.message ?? v?.body ?? v?.text;

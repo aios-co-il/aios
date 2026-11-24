@@ -28,7 +28,9 @@ export function publishingImageProxyUrl(
 }
 
 export function isAbsoluteHttpUrl(value: string | null | undefined): boolean {
-  if (!value) return false;
+  if (!value) {
+    return false;
+  }
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
@@ -41,21 +43,29 @@ export function isAbsoluteHttpUrl(value: string | null | undefined): boolean {
 export function extractEntityAttachmentPath(
   value: string | null | undefined,
 ): string | null {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
   const trimmed = value.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
   const bare = trimmed.match(
     /^(?:entity-attachments\/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/publishing\/.+)$/i,
   );
-  if (bare) return bare[1];
+  if (bare) {
+    return bare[1];
+  }
 
   try {
     const url = new URL(trimmed);
     const match = url.pathname.match(
       /\/storage\/v1\/object\/(?:public|sign|authenticated)\/entity-attachments\/(.+)$/,
     );
-    if (!match?.[1]) return null;
+    if (!match?.[1]) {
+      return null;
+    }
     return decodeURIComponent(match[1]);
   } catch {
     return null;
@@ -73,10 +83,16 @@ export function resolveMagazineImageUrl(
   proxyUrlFor: (kind: MagazineImageKind) => string,
 ): string | null {
   const value = typeof raw === "string" ? raw.trim() : "";
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
-  if (extractEntityAttachmentPath(value)) return proxyUrlFor(kind);
-  if (!isAbsoluteHttpUrl(value)) return null;
+  if (extractEntityAttachmentPath(value)) {
+    return proxyUrlFor(kind);
+  }
+  if (!isAbsoluteHttpUrl(value)) {
+    return null;
+  }
   return value;
 }
 

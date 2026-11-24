@@ -132,7 +132,9 @@ export function productionProgress(
   production: VideoProduction | null,
   renderStatus: string | undefined,
 ): ProductionProgress | null {
-  if (production?.status !== "running") return null;
+  if (production?.status !== "running") {
+    return null;
+  }
   const animating = frames.filter((f) => f.status === "clip_generating").length;
   const total = Math.max(frames.length, 1);
   if (animating > 0) {
@@ -142,7 +144,8 @@ export function productionProgress(
       percent: Math.round(10 + (ready / total) * 75),
     };
   }
-  if (renderStatus === "queued" || renderStatus === "running")
+  if (renderStatus === "queued" || renderStatus === "running") {
     return { label: "מרכיב את הסרט…", percent: 92 };
+  }
   return { label: "מכין קריינות ומוזיקה…", percent: 85 };
 }

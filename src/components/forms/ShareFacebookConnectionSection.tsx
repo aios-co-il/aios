@@ -33,7 +33,9 @@ export function ShareFacebookConnectionSection({
   const { data: userTenants, isLoading: loadingTenants } = useQuery({
     queryKey: ["user-all-tenants-for-sharing", user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("tenant_users")
@@ -50,7 +52,9 @@ export function ShareFacebookConnectionSection({
         )
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Filter out current tenant and flatten
       return (data || [])
@@ -74,7 +78,9 @@ export function ShareFacebookConnectionSection({
         .eq("shared_from_integration_id", integrationId)
         .eq("is_active", true);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((d) => d.tenant_id) || [];
     },
     enabled: !!integrationId,
@@ -90,7 +96,9 @@ export function ShareFacebookConnectionSection({
   // Save shares mutation
   const saveSharesMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id) throw new Error("User not found");
+      if (!user?.id) {
+        throw new Error("User not found");
+      }
 
       // Get current shares
       const currentShares = existingShares || [];
@@ -149,7 +157,9 @@ export function ShareFacebookConnectionSection({
 
   const hasChanges = () => {
     const current = existingShares || [];
-    if (current.length !== selectedTenants.length) return true;
+    if (current.length !== selectedTenants.length) {
+      return true;
+    }
     return !current.every((t) => selectedTenants.includes(t));
   };
 

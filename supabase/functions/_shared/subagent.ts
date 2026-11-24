@@ -228,7 +228,9 @@ export async function advanceDangerLane(
     .eq("tenant_id", tenantId)
     .eq("is_dangerous", true)
     .eq("status", "running");
-  if ((runningDanger ?? 0) > 0) return { fired: false, reason: "busy" };
+  if ((runningDanger ?? 0) > 0) {
+    return { fired: false, reason: "busy" };
+  }
 
   // Next queued dangerous task, FIFO.
   const { data: next } = await supabase
@@ -241,7 +243,9 @@ export async function advanceDangerLane(
     .order("queue_position", { ascending: true, nullsFirst: false })
     .limit(1)
     .maybeSingle();
-  if (!next) return { fired: false, reason: "empty" };
+  if (!next) {
+    return { fired: false, reason: "empty" };
+  }
 
   // Promote to running and fire. Stamp last_run so the one-shot dispatcher
   // (which only claims pending tasks with last_run IS NULL) cannot also fire it
@@ -254,7 +258,9 @@ export async function advanceDangerLane(
     .eq("status", "queued") // only promote if still queued (race guard)
     .select("id")
     .maybeSingle();
-  if (!promoted) return { fired: false, reason: "raced" };
+  if (!promoted) {
+    return { fired: false, reason: "raced" };
+  }
   fireRunAgentTask(next.id);
   return { fired: true, task_id: next.id };
 }
@@ -348,15 +354,18 @@ export async function getBatchResults(
     .select("id, title, status, run_count, started_at, completed_at, result")
     .eq("tenant_id", tenantId)
     .eq("batch_id", batchId);
-  if (error) throw new Error(`getBatchResults: ${error.message}`);
+  if (error) {
+    throw new Error(`getBatchResults: ${error.message}`);
+  }
 
   const rows = (data || []) as Array<any>;
   const tasks: Array<SubagentResultPayload> = rows.map((row) => {
     const result = (row.result || {}) as any;
     const status = row.status as string;
     let output: string | undefined;
-    if (typeof result.final_output === "string") output = result.final_output;
-    else if (Array.isArray(result.conversation_history)) {
+    if (typeof result.final_output === "string") {
+      output = result.final_output;
+    } else if (Array.isArray(result.conversation_history)) {
       const last = [...result.conversation_history]
         .reverse()
         .find(
@@ -365,7 +374,9 @@ export async function getBatchResults(
             typeof m.content === "string" &&
             m.content.trim().length > 0,
         );
-      if (last) output = last.content;
+      if (last) {
+        output = last.content;
+      }
     }
     return {
       sub_task_id: row.id,
@@ -425,8 +436,12 @@ export async function getSubagentResult(
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (error) throw new Error(`getSubagentResult: ${error.message}`);
-  if (!data) throw new Error(`subagent task not found: ${subTaskId}`);
+  if (error) {
+    throw new Error(`getSubagentResult: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error(`subagent task not found: ${subTaskId}`);
+  }
 
   const result = (data.result || {}) as any;
   const status = data.status as string;
@@ -446,7 +461,9 @@ export async function getSubagentResult(
           typeof m.content === "string" &&
           m.content.trim().length > 0,
       );
-    if (lastAssistant) output = lastAssistant.content;
+    if (lastAssistant) {
+      output = lastAssistant.content;
+    }
   }
 
   return {

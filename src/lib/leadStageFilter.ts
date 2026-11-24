@@ -9,9 +9,13 @@ export function normalizeLeadStageIds(value: unknown): Array<string> {
   const seen = new Set<string>();
   const ids: Array<string> = [];
   for (const item of raw) {
-    if (typeof item !== "string") continue;
+    if (typeof item !== "string") {
+      continue;
+    }
     const id = item.trim();
-    if (!id || id === "all" || seen.has(id)) continue;
+    if (!id || id === "all" || seen.has(id)) {
+      continue;
+    }
     seen.add(id);
     ids.push(id);
   }
@@ -30,7 +34,9 @@ export function leadMatchesStageFilter(
   stageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (stageIds.length === 0) return true;
+  if (stageIds.length === 0) {
+    return true;
+  }
   const listed = typeof status === "string" && stageIds.includes(status);
   return normalizeLeadValueFilterMode(mode) === "hide" ? !listed : listed;
 }
@@ -41,7 +47,9 @@ export function leadMatchesResponseStatusFilter(
   selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (selected.length === 0) return true;
+  if (selected.length === 0) {
+    return true;
+  }
   const key = status == null || status === "" ? "none" : status;
   const listed = selected.includes(key);
   return normalizeLeadValueFilterMode(mode) === "hide" ? !listed : listed;
@@ -57,8 +65,12 @@ export function includedStageIds(
   mode: LeadValueFilterMode = "show",
 ): Array<string> | null {
   const ids = normalizeLeadStageIds(selected);
-  if (ids.length === 0) return null;
-  if (normalizeLeadValueFilterMode(mode) === "show") return ids;
+  if (ids.length === 0) {
+    return null;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "show") {
+    return ids;
+  }
   const hidden = new Set(ids);
   return allStageIds.filter((id) => !hidden.has(id));
 }
@@ -70,8 +82,12 @@ export function stagesForKanbanQuery(
   mode: LeadValueFilterMode = "show",
 ): Array<string> {
   const included = includedStageIds(selected, allStageIds, mode);
-  if (included == null) return [...allStageIds];
-  if (included.length === 0) return [NO_MATCHING_STAGE_ID];
+  if (included == null) {
+    return [...allStageIds];
+  }
+  if (included.length === 0) {
+    return [NO_MATCHING_STAGE_ID];
+  }
   return included;
 }
 
@@ -83,9 +99,15 @@ export function kanbanResponseStatuses(
   selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): Array<string> | null {
-  if (selected.length === 0) return null;
-  if (normalizeLeadValueFilterMode(mode) === "hide") return null;
-  if (selected.includes("none")) return null;
+  if (selected.length === 0) {
+    return null;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "hide") {
+    return null;
+  }
+  if (selected.includes("none")) {
+    return null;
+  }
   return [...selected];
 }
 
@@ -93,8 +115,12 @@ export function responseFilterNeedsClient(
   selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (selected.length === 0) return false;
-  if (normalizeLeadValueFilterMode(mode) === "hide") return true;
+  if (selected.length === 0) {
+    return false;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "hide") {
+    return true;
+  }
   return selected.includes("none");
 }
 
@@ -105,7 +131,9 @@ export function applyLeadStageQuery(
   allStageIds?: ReadonlyArray<string>,
 ): any {
   const ids = normalizeLeadStageIds(selected);
-  if (ids.length === 0) return query;
+  if (ids.length === 0) {
+    return query;
+  }
   if (normalizeLeadValueFilterMode(mode) === "show") {
     return query.in("status", ids);
   }
@@ -129,15 +157,23 @@ export function applyResponseStatusFilter(
   selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): any {
-  if (selected.length === 0) return query;
+  if (selected.length === 0) {
+    return query;
+  }
   const keys = selected.filter((status) => status && status !== "none");
   const hasNone = selected.includes("none");
-  if (!hasNone && keys.length === 0) return query;
+  if (!hasNone && keys.length === 0) {
+    return query;
+  }
   const hide = normalizeLeadValueFilterMode(mode) === "hide";
 
   if (!hide) {
-    if (hasNone && keys.length === 0) return query.is("response_status", null);
-    if (!hasNone) return query.in("response_status", keys);
+    if (hasNone && keys.length === 0) {
+      return query.is("response_status", null);
+    }
+    if (!hasNone) {
+      return query.in("response_status", keys);
+    }
     return query;
   }
 
@@ -158,9 +194,12 @@ export function applyResponseStatusFilter(
 export function leadStageIdsFromPreset(
   filters: { stageIds?: unknown; stageId?: unknown } | null | undefined,
 ): Array<string> {
-  if (!filters) return [];
-  if (Array.isArray(filters.stageIds))
+  if (!filters) {
+    return [];
+  }
+  if (Array.isArray(filters.stageIds)) {
     return normalizeLeadStageIds(filters.stageIds);
+  }
   return normalizeLeadStageIds(filters.stageId);
 }
 

@@ -138,7 +138,9 @@ export function decodePrivatePhoneRows(
       "client_id",
     ] as const) {
       const v: unknown = Reflect.get(row, key);
-      if (typeof v === "string") out[key] = v;
+      if (typeof v === "string") {
+        out[key] = v;
+      }
     }
     const tier: unknown = Reflect.get(row, "dev_escalation_tier");
     if (typeof tier === "string" || tier === null) {

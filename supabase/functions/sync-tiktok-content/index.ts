@@ -33,9 +33,12 @@ Deno.serve(async (req) => {
   try {
     const TIKTOK_ACCESS_TOKEN = Deno.env.get("TIKTOK_ACCESS_TOKEN");
     const TIKTOK_API_KEY = Deno.env.get("TIKTOK_API_KEY");
-    if (!TIKTOK_ACCESS_TOKEN)
+    if (!TIKTOK_ACCESS_TOKEN) {
       throw new Error("TIKTOK_ACCESS_TOKEN not configured");
-    if (!TIKTOK_API_KEY) throw new Error("TIKTOK_API_KEY not configured");
+    }
+    if (!TIKTOK_API_KEY) {
+      throw new Error("TIKTOK_API_KEY not configured");
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -142,7 +145,9 @@ Deno.serve(async (req) => {
     while (hasMore && all.length < maxVideos && pages < 10) {
       const url = `${GATEWAY_URL}/video/list/?fields=${videoFields.join(",")}`;
       const pageBody: any = { max_count: Math.min(20, maxVideos - all.length) };
-      if (cursor !== undefined) pageBody.cursor = cursor;
+      if (cursor !== undefined) {
+        pageBody.cursor = cursor;
+      }
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -268,11 +273,12 @@ Deno.serve(async (req) => {
             type: fieldTypes[i],
             position: i,
           });
-        if (fieldErr)
+        if (fieldErr) {
           console.error(
             `[sync-tiktok-content] field insert ${fieldKeys[i]}:`,
             fieldErr.message,
           );
+        }
       }
     }
 
@@ -282,8 +288,9 @@ Deno.serve(async (req) => {
       .delete()
       .eq("table_id", table_id)
       .eq("tenant_id", tableTenantId);
-    if (delErr)
+    if (delErr) {
       console.error("[sync-tiktok-content] delete error:", delErr.message);
+    }
 
     let inserted = 0;
     if (records.length > 0) {
@@ -296,9 +303,11 @@ Deno.serve(async (req) => {
       const { error: insErr, count } = await supabaseAdmin
         .from("crm_records")
         .insert(rows, { count: "exact" });
-      if (insErr)
+      if (insErr) {
         console.error("[sync-tiktok-content] insert error:", insErr.message);
-      else inserted = count ?? rows.length;
+      } else {
+        inserted = count ?? rows.length;
+      }
     }
 
     await supabaseAdmin

@@ -97,7 +97,9 @@ export function CalendarEventEditDialog({
   }, [event]);
 
   const handleSave = () => {
-    if (!event) return;
+    if (!event) {
+      return;
+    }
 
     const startDateTime = `${startDate}T${startTime}:00`;
     const endDateTime = `${endDate}T${endTime}:00`;
@@ -111,12 +113,16 @@ export function CalendarEventEditDialog({
   };
 
   const handleDelete = () => {
-    if (!event) return;
+    if (!event) {
+      return;
+    }
     onDelete(event.id);
   };
 
   const handleCreateTask = () => {
-    if (!event || !onCreateTask) return;
+    if (!event || !onCreateTask) {
+      return;
+    }
 
     try {
       const start = parseISO(event.start);
@@ -144,7 +150,9 @@ export function CalendarEventEditDialog({
     }
   };
 
-  if (!event) return null;
+  if (!event) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

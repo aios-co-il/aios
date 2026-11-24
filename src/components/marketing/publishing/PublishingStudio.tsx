@@ -261,14 +261,18 @@ const normalizeClientName = (value: unknown) =>
 
 function sourceMonthFromSheet(sheetName: string) {
   const match = sheetName.match(/חודש\s*0?([1-9]|1[0-2])/);
-  if (!match) return "";
+  if (!match) {
+    return "";
+  }
   const month = Number(match[1]);
   const year = new Date().getFullYear();
   return `${year}-${String(month).padStart(2, "0")}-01`;
 }
 
 function formatSourceMonth(value: string | null) {
-  if (!value) return "ללא תאריך";
+  if (!value) {
+    return "ללא תאריך";
+  }
   return new Intl.DateTimeFormat("he-IL", {
     month: "long",
     year: "numeric",
@@ -283,16 +287,18 @@ function suggestDestination(
     `${row.customerName} ${row.primaryKeyword} ${row.topic}`.toLowerCase();
   const includes = (...terms: Array<string>) =>
     terms.some((term) => text.includes(term));
-  if (includes("שיניים", "חניכיים", "רופא", "רפוא", "טיפולית", "שיקום"))
+  if (includes("שיניים", "חניכיים", "רופא", "רפוא", "טיפולית", "שיקום")) {
     return {
       siteKey: "site-05",
       category: includes("שיניים", "חניכיים") ? "רפואת שיניים" : "טיפול ושיקום",
     };
-  if (includes("טיול", "טרק", "צלילה", "אילת", "יפן", "סין"))
+  }
+  if (includes("טיול", "טרק", "צלילה", "אילת", "יפן", "סין")) {
     return {
       siteKey: "site-08",
       category: includes("צלילה") ? "צלילה וים" : "טיולים בעולם",
     };
+  }
   if (
     includes(
       "אדריכ",
@@ -304,19 +310,25 @@ function suggestDestination(
       "מיגון חדר",
       "מעלית",
     )
-  )
+  ) {
     return {
       siteKey: "site-04",
       category: includes("מיגון", "ממד", "מיגונית")
         ? "מיגון ובטיחות"
         : "בנייה ושיפוצים",
     };
-  if (includes("מכונת", "תעשיית", "אריז", "חד פעמי", "תאורה", "ניקוי", "כביסה"))
+  }
+  if (
+    includes("מכונת", "תעשיית", "אריז", "חד פעמי", "תאורה", "ניקוי", "כביסה")
+  ) {
     return {
       siteKey: "site-09",
       category: includes("אריז") ? "אריזה ומיתוג" : "תעשייה וציוד",
     };
-  if (includes("רואה חשבון", "פנסי", "זכיינ", "השמה", "שיווק", "עסק", "כספים"))
+  }
+  if (
+    includes("רואה חשבון", "פנסי", "זכיינ", "השמה", "שיווק", "עסק", "כספים")
+  ) {
     return {
       siteKey: "site-03",
       category: includes("שיווק")
@@ -325,7 +337,8 @@ function suggestDestination(
           ? "קריירה והשמה"
           : "עסקים",
     };
-  if (includes("כלב", "פאות", "כיסוי ראש", "מטפחת", "מתנות", "העצמה", "סטרס"))
+  }
+  if (includes("כלב", "פאות", "כיסוי ראש", "מטפחת", "מתנות", "העצמה", "סטרס")) {
     return {
       siteKey: "site-06",
       category: includes("כלב")
@@ -334,12 +347,16 @@ function suggestDestination(
           ? "אופנה וטיפוח"
           : "התפתחות אישית",
     };
-  if (includes("עורך דין", 'עו"ד', "גישור", "חקיר", "ביטוח לאומי"))
+  }
+  if (includes("עורך דין", 'עו"ד', "גישור", "חקיר", "ביטוח לאומי")) {
     return { siteKey: "site-02", category: "משפט וזכויות" };
-  if (includes("טכנולוג", "שליטה ובקרה", "בטיחות", "רכב שטח"))
+  }
+  if (includes("טכנולוג", "שליטה ובקרה", "בטיחות", "רכב שטח")) {
     return { siteKey: "site-01", category: "טכנולוגיה" };
-  if (includes("זהב", "קנייה", "קונה", "צרכנ"))
+  }
+  if (includes("זהב", "קנייה", "קונה", "צרכנ")) {
     return { siteKey: "site-07", category: "כסף וחיסכון" };
+  }
   return { siteKey: "site-10", category: "איך עושים" };
 }
 
@@ -447,7 +464,9 @@ export function PublishingStudio({
         )
         .eq("tenant_id", tenantId)
         .order("site_key");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<PublishingSite>;
     },
   });
@@ -463,9 +482,12 @@ export function PublishingStudio({
         "domain-connections",
         { body: { tenant_id: tenantId, action: "list_projects" } },
       );
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.detail || data?.error || "טעינת האתרים נכשלה");
+      }
       return (data.projects ?? []) as Array<VercelProject>;
     },
     refetchInterval: 15000,
@@ -479,7 +501,9 @@ export function PublishingStudio({
         .select("id,site_url,site_name,client_id,is_active")
         .eq("tenant_id", tenantId)
         .eq("is_active", true);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<WordPressSite>;
     },
   });
@@ -492,7 +516,9 @@ export function PublishingStudio({
         .select("id,name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<ClientOption>;
     },
   });
@@ -509,7 +535,9 @@ export function PublishingStudio({
         .order("source_month", { ascending: false, nullsFirst: false })
         .order("customer_name")
         .limit(500);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<PublishingArticle>;
     },
   });
@@ -586,18 +614,21 @@ export function PublishingStudio({
         if (
           articleStatusFilter === "published" &&
           article.status !== "published"
-        )
+        ) {
           return false;
+        }
         if (
           articleStatusFilter === "unpublished" &&
           article.status === "published"
-        )
+        ) {
           return false;
+        }
         if (
           articleClientFilter !== "all" &&
           article.customer_name?.trim() !== articleClientFilter
-        )
+        ) {
           return false;
+        }
         return true;
       }),
     [articleClientFilter, articleStatusFilter, articles],
@@ -649,7 +680,9 @@ export function PublishingStudio({
   );
 
   useEffect(() => {
-    if (correlationSynced.current || !correlatedSites.length) return;
+    if (correlationSynced.current || !correlatedSites.length) {
+      return;
+    }
     const updates = correlatedSites.filter(
       (row): row is typeof row & { site: PublishingSite } => {
         const { site, project, primaryDomain } = row;
@@ -707,7 +740,9 @@ export function PublishingStudio({
       const { error } = await db
         .from("publishing_sites")
         .upsert(rows, { onConflict: "tenant_id,site_key" });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await queryClient.invalidateQueries({
         queryKey: ["publishing-sites", tenantId],
       });
@@ -720,8 +755,9 @@ export function PublishingStudio({
   };
 
   const syncWordPressSites = async () => {
-    if (!wordpressSites.length)
+    if (!wordpressSites.length) {
       return toast.error("לא נמצאו אתרי WordPress מחוברים");
+    }
     setBusy(true);
     try {
       const rows = wordpressSites.map((site) => ({
@@ -738,7 +774,9 @@ export function PublishingStudio({
       const { error } = await db
         .from("publishing_sites")
         .upsert(rows, { onConflict: "tenant_id,site_key" });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await queryClient.invalidateQueries({
         queryKey: ["publishing-sites", tenantId],
       });
@@ -757,13 +795,17 @@ export function PublishingStudio({
         "domain-connections",
         { body: { tenant_id: tenantId, action: "test" } },
       );
-      if (error) throw error;
-      if (!data?.ionos?.connected)
+      if (error) {
+        throw error;
+      }
+      if (!data?.ionos?.connected) {
         throw new Error(
           `IONOS לא התחבר (HTTP ${data?.ionos?.status ?? "?"})${data?.ionos?.error ? `: ${data.ionos.error}` : ""}`,
         );
-      if (!data?.vercel?.connected || !data?.vercel?.project_access)
+      }
+      if (!data?.vercel?.connected || !data?.vercel?.project_access) {
         throw new Error("Vercel מחובר אך אין גישה לפרויקט האתר");
+      }
       toast.success(
         data?.ionos?.paperlief_found
           ? "IONOS ו-Vercel מחוברים; paperlief.com זוהה"
@@ -783,9 +825,12 @@ export function PublishingStudio({
         "domain-connections",
         { body: { tenant_id: tenantId, action: "connect" } },
       );
-      if (error) throw error;
-      if (!data?.success || !data?.connected)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success || !data?.connected) {
         throw new Error(data?.detail || data?.error || "חיבור הדומיין נכשל");
+      }
       toast.success("paperlief.com חובר ל-Vercel ורשומת ה-DNS עודכנה ב-IONOS");
     } catch (error: unknown) {
       let detail = errorMessage(error, "חיבור paperlief.com נכשל");
@@ -805,7 +850,9 @@ export function PublishingStudio({
   };
 
   const createVercelSite = async () => {
-    if (!newSiteName.trim()) return;
+    if (!newSiteName.trim()) {
+      return;
+    }
     setBusy(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -818,9 +865,12 @@ export function PublishingStudio({
           },
         },
       );
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.detail || data?.error || "יצירת האתר נכשלה");
+      }
       await db.from("publishing_sites").upsert(
         {
           tenant_id: tenantId,
@@ -856,8 +906,9 @@ export function PublishingStudio({
     const missing = pbnRows.filter(
       (row) => row.project?.deployment?.state !== "READY",
     );
-    if (!missing.length)
+    if (!missing.length) {
       return toast.success("כל אתרי ה-PBN כבר קיימים ב-Vercel");
+    }
     setBusy(true);
     const failed: Array<string> = [];
     try {
@@ -880,9 +931,12 @@ export function PublishingStudio({
               },
             },
           );
-          if (error) throw error;
-          if (!data?.success)
+          if (error) {
+            throw error;
+          }
+          if (!data?.success) {
             throw new Error(data?.detail || data?.error || "יצירת האתר נכשלה");
+          }
           const { error: updateError } = await db
             .from("publishing_sites")
             .update({
@@ -891,7 +945,9 @@ export function PublishingStudio({
               status: "draft",
             })
             .eq("id", site.id);
-          if (updateError) throw updateError;
+          if (updateError) {
+            throw updateError;
+          }
         } catch {
           failed.push(site.name);
         }
@@ -903,9 +959,9 @@ export function PublishingStudio({
           queryKey: ["publishing-sites", tenantId],
         }),
       ]);
-      if (failed.length)
+      if (failed.length) {
         toast.error(`${failed.length} אתרים לא נוצרו: ${failed.join(", ")}`);
-      else {
+      } else {
         toast.success(`${missing.length} אתרים נוצרו ב-Vercel ונקשרו ל-AIOS`);
         setSiteDialogOpen(false);
       }
@@ -916,7 +972,9 @@ export function PublishingStudio({
   };
 
   const refreshPbnDesign = async () => {
-    if (!pbnRows.length) return;
+    if (!pbnRows.length) {
+      return;
+    }
     setBusy(true);
     const failed: Array<string> = [];
     try {
@@ -939,9 +997,12 @@ export function PublishingStudio({
               },
             },
           );
-          if (error) throw error;
-          if (!data?.success)
+          if (error) {
+            throw error;
+          }
+          if (!data?.success) {
             throw new Error(data?.detail || data?.error || "שדרוג האתר נכשל");
+          }
         } catch (error: unknown) {
           failed.push(
             `${site.name}${error instanceof Error && error.message ? ` (${error.message})` : ""}`,
@@ -949,11 +1010,11 @@ export function PublishingStudio({
         }
       }
       await refetchVercel();
-      if (failed.length)
+      if (failed.length) {
         toast.error(`${failed.length} אתרים לא שודרגו: ${failed.join(", ")}`, {
           duration: 12000,
         });
-      else {
+      } else {
         toast.success(
           "העיצוב החדש נפרס בכל אתרי ה-PBN — רענן את האתרים בלחיצה קשה (Ctrl+Shift+R)",
         );
@@ -976,7 +1037,9 @@ export function PublishingStudio({
           .from("publishing_sites")
           .update({ is_hidden: true })
           .eq("id", site.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await db.from("publishing_sites").upsert(
           {
@@ -991,7 +1054,9 @@ export function PublishingStudio({
           },
           { onConflict: "tenant_id,site_key" },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
       await queryClient.invalidateQueries({
         queryKey: ["publishing-sites", tenantId],
@@ -1005,7 +1070,9 @@ export function PublishingStudio({
   };
 
   const assignDomain = async () => {
-    if (!selectedProject || !domainName.trim()) return;
+    if (!selectedProject || !domainName.trim()) {
+      return;
+    }
     setConnectingDomain(true);
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -1019,9 +1086,12 @@ export function PublishingStudio({
           },
         },
       );
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.detail || data?.error || "שיוך הדומיין נכשל");
+      }
       await db
         .from("publishing_sites")
         .update({ base_url: `https://${data.domain}`, status: "active" })
@@ -1062,7 +1132,9 @@ export function PublishingStudio({
             )
           );
         });
-        if (headerIndex < 0) continue;
+        if (headerIndex < 0) {
+          continue;
+        }
         const headers = rows[headerIndex].map((value) => normalize(value));
         for (
           let rowIndex = headerIndex + 1;
@@ -1084,8 +1156,9 @@ export function PublishingStudio({
           ]);
           const topic = readCell(record, ["נושא", "topic", "title"]);
           const targetUrl = readCell(record, ["url", "קישור", "כתובת"]);
-          if (!customerName && !primaryKeyword && !topic && !targetUrl)
+          if (!customerName && !primaryKeyword && !topic && !targetUrl) {
             continue;
+          }
           const errors = [
             !primaryKeyword && "חסר ביטוי עוגן",
             !targetUrl && "חסר קישור חיצוני",
@@ -1114,7 +1187,9 @@ export function PublishingStudio({
       const unique = parsed.filter((row) => {
         const key =
           `${row.targetUrl}|${row.primaryKeyword}|${row.topic}`.toLowerCase();
-        if (seen.has(key)) return false;
+        if (seen.has(key)) {
+          return false;
+        }
         seen.add(key);
         return true;
       });
@@ -1141,12 +1216,15 @@ export function PublishingStudio({
     );
 
   const importRows = async () => {
-    if (!previewRows.length || !sites.length) return;
+    if (!previewRows.length || !sites.length) {
+      return;
+    }
     const invalidRows = previewRows.filter((row) => row.errors.length);
-    if (invalidRows.length)
+    if (invalidRows.length) {
       return toast.error(
         `יש ${invalidRows.length} שורות עם שדות חסרים או URL לא תקין`,
       );
+    }
     setBusy(true);
     try {
       const { data: importRecord, error: importError } = await db
@@ -1160,7 +1238,9 @@ export function PublishingStudio({
         })
         .select("id")
         .single();
-      if (importError) throw importError;
+      if (importError) {
+        throw importError;
+      }
       const payload = previewRows.map((row) => ({
         tenant_id: tenantId,
         import_id: importRecord.id,
@@ -1185,7 +1265,9 @@ export function PublishingStudio({
           onConflict: "tenant_id,target_url,primary_keyword,proposed_topic",
         })
         .select("id");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const importedCount = inserted?.length ?? 0;
       await db
         .from("publishing_imports")
@@ -1221,7 +1303,9 @@ export function PublishingStudio({
           : {}),
       })
       .eq("id", article.id);
-    if (error) return toast.error(error.message || "עדכון הסטטוס נכשל");
+    if (error) {
+      return toast.error(error.message || "עדכון הסטטוס נכשל");
+    }
     await queryClient.invalidateQueries({
       queryKey: ["publishing-articles", tenantId],
     });
@@ -1241,7 +1325,9 @@ export function PublishingStudio({
         updated_at: new Date().toISOString(),
       })
       .eq("id", article.id);
-    if (error) return toast.error(error.message || "שיוך הלקוח נכשל");
+    if (error) {
+      return toast.error(error.message || "שיוך הלקוח נכשל");
+    }
     await queryClient.invalidateQueries({
       queryKey: ["publishing-articles", tenantId],
     });
@@ -1258,7 +1344,9 @@ export function PublishingStudio({
   };
 
   const saveArticle = async () => {
-    if (!editingArticle || !editorTitle.trim()) return;
+    if (!editingArticle || !editorTitle.trim()) {
+      return;
+    }
     setSavingArticle(true);
     try {
       const paragraphs = editorContent
@@ -1275,7 +1363,9 @@ export function PublishingStudio({
           updated_at: new Date().toISOString(),
         })
         .eq("id", editingArticle.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await queryClient.invalidateQueries({
         queryKey: ["publishing-articles", tenantId],
       });
@@ -1306,7 +1396,9 @@ export function PublishingStudio({
 
   const generateArticles = async (articleIds: Array<string>) => {
     const ids = articleIds.slice(0, 10);
-    if (!ids.length || generatingArticleIds.length) return;
+    if (!ids.length || generatingArticleIds.length) {
+      return;
+    }
     stopGenerationRef.current = false;
     setGeneratingArticleIds(ids);
     setGenerationProgress({ current: 0, total: ids.length, stopping: false });
@@ -1316,15 +1408,21 @@ export function PublishingStudio({
 
     try {
       for (const id of ids) {
-        if (stopGenerationRef.current) break;
+        if (stopGenerationRef.current) {
+          break;
+        }
         setGeneratingArticleIds(ids.slice(completed));
         try {
           const { data, error } = await supabase.functions.invoke(
             "generate-publishing-articles",
             { body: { article_ids: [id] } },
           );
-          if (error) throw error;
-          if (data?.error) throw new Error(data.error);
+          if (error) {
+            throw error;
+          }
+          if (data?.error) {
+            throw new Error(data.error);
+          }
           generated += Number(data?.generated ?? 0);
           failed += Number(data?.failed ?? 0);
         } catch {
@@ -1364,7 +1462,9 @@ export function PublishingStudio({
 
   const generateArticleImages = async (articleIds: Array<string>) => {
     const ids = articleIds.slice(0, 10);
-    if (!ids.length || imageProgress) return;
+    if (!ids.length || imageProgress) {
+      return;
+    }
     setImageProgress({ current: 0, total: ids.length });
     let generated = 0;
     let failed = 0;
@@ -1375,8 +1475,12 @@ export function PublishingStudio({
             "generate-publishing-articles",
             { body: { article_ids: [id], mode: "images" } },
           );
-          if (error) throw error;
-          if (data?.error) throw new Error(data.error);
+          if (error) {
+            throw error;
+          }
+          if (data?.error) {
+            throw new Error(data.error);
+          }
           generated += Number(data?.generated ?? 0);
           failed += Number(data?.failed ?? 0);
         } catch {
@@ -1388,16 +1492,17 @@ export function PublishingStudio({
           });
         }
       }
-      if (failed)
+      if (failed) {
         toast.warning(
           `${generated} מאמרים קיבלו תמונות חדשות, ${failed} נכשלו`,
         );
-      else
+      } else {
         toast.success(
           generated === 1
             ? "התמונות נוצרו מחדש למאמר"
             : `התמונות נוצרו מחדש ל-${generated} מאמרים`,
         );
+      }
     } finally {
       setImageProgress(null);
     }
@@ -1418,11 +1523,14 @@ export function PublishingStudio({
         !article.site_id ||
         !article.target_url,
     );
-    if (!selected.length) return toast.error("לא נמצאו מאמרים מוכנים לפרסום");
-    if (invalid.length)
+    if (!selected.length) {
+      return toast.error("לא נמצאו מאמרים מוכנים לפרסום");
+    }
+    if (invalid.length) {
       return toast.error(
         `${invalid.length} מאמרים חסרים תוכן, אתר או קישור יעד`,
       );
+    }
     setPublishingSelected(true);
     try {
       const publishedAt = new Date().toISOString();
@@ -1431,8 +1539,9 @@ export function PublishingStudio({
           const slug =
             article.slug || createArticleSlug(article.title!, article.id);
           const liveUrl = articleLiveUrl(siteById.get(article.site_id!), slug);
-          if (!liveUrl)
+          if (!liveUrl) {
             throw new Error(`לאתר של המאמר "${article.title}" אין כתובת פעילה`);
+          }
           return db
             .from("publishing_articles")
             .update({
@@ -1447,7 +1556,9 @@ export function PublishingStudio({
         }),
       );
       const failed = results.find((result) => result.error);
-      if (failed?.error) throw failed.error;
+      if (failed?.error) {
+        throw failed.error;
+      }
       const checks = await Promise.all(
         selected.map(async (article) => {
           const slug =
@@ -1487,7 +1598,9 @@ export function PublishingStudio({
         queryKey: ["publishing-articles", tenantId],
       });
       await queryClient.invalidateQueries({ queryKey: ["seo-monthly-work"] });
-      if (clearSelection) setSelectedArticleIds([]);
+      if (clearSelection) {
+        setSelectedArticleIds([]);
+      }
       toast.success(
         `${selected.length} מאמרים פורסמו; הקישורים זמינים בלשונית "פורסמו"`,
       );
@@ -1502,7 +1615,9 @@ export function PublishingStudio({
     publishArticles(selectedArticleIds, true);
 
   const publishFilteredClient = () => {
-    if (articleClientFilter === "all") return;
+    if (articleClientFilter === "all") {
+      return;
+    }
     const skipped = articles.filter(
       (article) =>
         article.customer_name?.trim() === articleClientFilter &&
@@ -1545,7 +1660,9 @@ export function PublishingStudio({
         <Select
           onValueChange={(articleId) => {
             const article = articles.find((item) => item.id === articleId);
-            if (article) openArticleEditor(article);
+            if (article) {
+              openArticleEditor(article);
+            }
           }}
         >
           <SelectTrigger className="max-w-xl flex-1">
@@ -2391,7 +2508,7 @@ export function PublishingStudio({
                     ? editingArticle.content
                     : []
                   ).map((part, index) => {
-                    if (part.startsWith("## "))
+                    if (part.startsWith("## ")) {
                       return (
                         <h2
                           key={index}
@@ -2400,7 +2517,8 @@ export function PublishingStudio({
                           {part.slice(3)}
                         </h2>
                       );
-                    if (part.startsWith("LIST: "))
+                    }
+                    if (part.startsWith("LIST: ")) {
                       return (
                         <ul
                           key={index}
@@ -2414,7 +2532,8 @@ export function PublishingStudio({
                             ))}
                         </ul>
                       );
-                    if (part.startsWith("TIP: "))
+                    }
+                    if (part.startsWith("TIP: ")) {
                       return (
                         <aside
                           key={index}
@@ -2424,6 +2543,7 @@ export function PublishingStudio({
                           <p className="mt-1">{part.slice(5).trim()}</p>
                         </aside>
                       );
+                    }
                     return (
                       <div key={index}>
                         <p>{part}</p>

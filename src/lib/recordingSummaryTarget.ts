@@ -28,23 +28,34 @@ export function resolveSummaryTarget(
   const scope = row.summary_scope ?? null;
   const campaignerId = row.campaigner_ids?.find((id) => !!id) ?? null;
 
-  if (scope === "client" && row.client_id)
+  if (scope === "client" && row.client_id) {
     return { target_type: "client", target_id: row.client_id };
-  if (scope === "lead" && row.lead_id)
+  }
+  if (scope === "lead" && row.lead_id) {
     return { target_type: "lead", target_id: row.lead_id };
+  }
   if (scope === "campaigner" && campaignerId) {
     return { target_type: "campaigner", target_id: campaignerId };
   }
-  if (scope === "agency" && row.agency_id)
+  if (scope === "agency" && row.agency_id) {
     return { target_type: "agency", target_id: row.agency_id };
+  }
 
-  if (row.client_id) return { target_type: "client", target_id: row.client_id };
-  if (row.lead_id) return { target_type: "lead", target_id: row.lead_id };
-  if (campaignerId)
+  if (row.client_id) {
+    return { target_type: "client", target_id: row.client_id };
+  }
+  if (row.lead_id) {
+    return { target_type: "lead", target_id: row.lead_id };
+  }
+  if (campaignerId) {
     return { target_type: "campaigner", target_id: campaignerId };
-  if (row.agency_id) return { target_type: "agency", target_id: row.agency_id };
-  if (fallbackAgencyId)
+  }
+  if (row.agency_id) {
+    return { target_type: "agency", target_id: row.agency_id };
+  }
+  if (fallbackAgencyId) {
     return { target_type: "agency", target_id: fallbackAgencyId };
+  }
 
   return null;
 }
