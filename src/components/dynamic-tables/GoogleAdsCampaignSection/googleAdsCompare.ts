@@ -1,6 +1,15 @@
-import { REPORT_CELL } from "@/components/report-ui/ReportTable";
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
-import type { PreviousValueProps } from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import {
+  REPORT_CELL,
+  REPORT_POSITIVE,
+} from "@/components/report-ui/ReportTable";
+import {
+  changeMarksFor,
+  previousCellsFor,
+} from "@/components/reports/PreviousPeriod/previousCells";
+import type {
+  ChangeMark,
+  PreviousValueProps,
+} from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
 import type {
@@ -109,4 +118,29 @@ export function googlePreviousCell(
     const metric = compared?.[label];
     return metric ? cell(metric.metric, metric.format, metric.direction) : null;
   };
+}
+
+/**
+ * The change mark of a column's current value, read by its header like
+ * googlePreviousCell: null when the column is not compared, the comparison is
+ * off or the campaign did not run then.
+ */
+export function googleChangeMark(
+  current: GoogleAdsTotals,
+  previous: GoogleAdsTotals | null | undefined,
+  compared: Partial<Record<string, GoogleComparedMetric>> | null | undefined,
+) {
+  const markOf = changeMarksFor(current, previous);
+  return function changeOf(label: string): ChangeMark | null {
+    const metric = compared?.[label];
+    return metric ? markOf(metric.metric, metric.direction) : null;
+  };
+}
+
+/**
+ * The accent of a positive result cell under its change mark: a coloured mark
+ * replaces the accent, whose dark-mode colour would otherwise win over it.
+ */
+export function positiveTone(mark: ChangeMark | null): string {
+  return mark?.className ? "font-medium" : REPORT_POSITIVE;
 }

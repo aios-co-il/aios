@@ -1,6 +1,9 @@
 import { Fragment } from "react";
 import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import {
+  changeMarksFor,
+  previousCellsFor,
+} from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import { Card } from "@/components/ui/card";
 import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
@@ -8,6 +11,7 @@ import {
   type FacebookTablePrevious,
   previousRowsOf,
 } from "./facebookPreviousPeriod";
+import { MarkedCell } from "./MarkedCell";
 import type {
   FacebookReportCampaign,
   FacebookReportEntry,
@@ -110,6 +114,7 @@ function LeadCells({
   isTotal: boolean;
 }) {
   const prev = previousCellsFor(campaigns, previous);
+  const mark = changeMarksFor(campaigns, previous);
   /** An amount in the report's currency. */
   function money(value: number, digits = 0) {
     return `${currency}${formatReportNumber(value, digits)}`;
@@ -122,15 +127,26 @@ function LeadCells({
       <td className="p-2 text-center">
         {formatReportNumber(sumOf(campaigns, "clicks"))}
       </td>
-      <td className={resultCellClass("text-green-600", isTotal)}>
+      <MarkedCell
+        className={resultCellClass("text-green-600", isTotal)}
+        mark={mark((rows) => sumOf(rows, "leads"), "higher")}
+      >
         {formatReportNumber(sumOf(campaigns, "leads"))}
-      </td>
+      </MarkedCell>
       {prev((rows) => sumOf(rows, "leads"), formatReportNumber, "higher")}
-      <td className="p-2 text-center">{money(sumOf(campaigns, "spend"))}</td>
+      <MarkedCell
+        className="p-2 text-center"
+        mark={mark((rows) => sumOf(rows, "spend"), "neutral")}
+      >
+        {money(sumOf(campaigns, "spend"))}
+      </MarkedCell>
       {prev((rows) => sumOf(rows, "spend"), money, "neutral")}
-      <td className={resultCellClass("text-blue-600", isTotal)}>
+      <MarkedCell
+        className={resultCellClass("text-blue-600", isTotal)}
+        mark={mark(costPerLead, "lower")}
+      >
         {money(costPerLead(campaigns), 1)}
-      </td>
+      </MarkedCell>
       {prev(costPerLead, (value) => money(value, 1), "lower")}
     </>
   );

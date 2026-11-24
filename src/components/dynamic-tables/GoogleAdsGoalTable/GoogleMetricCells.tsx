@@ -1,6 +1,10 @@
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import {
+  changeMarksFor,
+  previousCellsFor,
+} from "@/components/reports/PreviousPeriod/previousCells";
 import { formatReportNumber, ratio, resultCellClass } from "@/lib/reportNumber";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
+import { MarkedCell } from "../MarkedCell";
 import type { GoogleGoalMetrics } from "./googleGoalMetrics";
 
 type Props = {
@@ -21,13 +25,19 @@ export function GoogleMetricCells({
   isTotal,
 }: Props) {
   const prev = previousCellsFor(m, previous);
+  const mark = changeMarksFor(m, previous);
   /** An amount in the report's currency. */
   function money(value: number, digits = 0) {
     return `${currency}${formatReportNumber(value, digits)}`;
   }
   const cost = (
     <>
-      <td className="p-2 text-center">{money(m.cost)}</td>
+      <MarkedCell
+        className="p-2 text-center"
+        mark={mark((data) => data.cost, "neutral")}
+      >
+        {money(m.cost)}
+      </MarkedCell>
       {prev((data) => data.cost, money, "neutral")}
     </>
   );
@@ -35,12 +45,20 @@ export function GoogleMetricCells({
     return (
       <>
         <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
-        <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
+        <MarkedCell
+          className="p-2 text-center"
+          mark={mark((data) => data.clicks, "higher")}
+        >
+          {formatReportNumber(m.clicks)}
+        </MarkedCell>
         {prev((data) => data.clicks, formatReportNumber, "higher")}
         {cost}
-        <td className={resultCellClass("text-blue-600", isTotal)}>
+        <MarkedCell
+          className={resultCellClass("text-blue-600", isTotal)}
+          mark={mark(costPerClick, "lower")}
+        >
           {money(costPerClick(m), 2)}
-        </td>
+        </MarkedCell>
         {prev(costPerClick, (value) => money(value, 2), "lower")}
       </>
     );
@@ -49,9 +67,12 @@ export function GoogleMetricCells({
     <>
       <td className="p-2 text-center">{formatReportNumber(m.impressions)}</td>
       <td className="p-2 text-center">{formatReportNumber(m.clicks)}</td>
-      <td className={resultCellClass("text-green-600", isTotal)}>
+      <MarkedCell
+        className={resultCellClass("text-green-600", isTotal)}
+        mark={mark((data) => data.conversions, "higher")}
+      >
         {formatReportNumber(Math.round(m.conversions))}
-      </td>
+      </MarkedCell>
       {prev(
         (data) => data.conversions,
         (value) => formatReportNumber(Math.round(value)),
@@ -60,20 +81,29 @@ export function GoogleMetricCells({
       {cost}
       {goal === "ecommerce" ? (
         <>
-          <td className={resultCellClass("text-purple-600", isTotal)}>
+          <MarkedCell
+            className={resultCellClass("text-purple-600", isTotal)}
+            mark={mark((data) => data.conversions_value, "higher")}
+          >
             {money(m.conversions_value)}
-          </td>
+          </MarkedCell>
           {prev((data) => data.conversions_value, money, "higher")}
-          <td className={resultCellClass("text-blue-600", isTotal)}>
+          <MarkedCell
+            className={resultCellClass("text-blue-600", isTotal)}
+            mark={mark(roas, "higher")}
+          >
             {formatReportNumber(roas(m), 2)}x
-          </td>
+          </MarkedCell>
           {prev(roas, (value) => `${formatReportNumber(value, 2)}x`, "higher")}
         </>
       ) : (
         <>
-          <td className={resultCellClass("text-blue-600", isTotal)}>
+          <MarkedCell
+            className={resultCellClass("text-blue-600", isTotal)}
+            mark={mark(costPerLead, "lower")}
+          >
             {money(costPerLead(m), 1)}
-          </td>
+          </MarkedCell>
           {prev(costPerLead, (value) => money(value, 1), "lower")}
         </>
       )}

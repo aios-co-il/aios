@@ -140,8 +140,17 @@ describe("GoogleAdsCampaignSection", () => {
       .map((cell) => cell.textContent);
     expect(heads.filter((head) => head === "תקופה קודמת")).toHaveLength(4);
     const shop = cellTexts(within(salesTable).getByText("PMax חנות"));
-    // Purchases 2 against 1, revenue 500 against 200: both up.
-    expect(shop.slice(8, 12)).toStrictEqual(["2", "▲ 1", "500", "▲ 200"]);
+    // Purchases 2 against 1, revenue 500 against 200: both up, marked on the
+    // current figures while the previous ones stay plain.
+    expect(shop.slice(8, 12)).toStrictEqual(["▲ 2", "1", "▲ 500", "200"]);
+    const shopCells = [
+      ...(within(salesTable).getByText("PMax חנות").closest("tr")?.children ??
+        []),
+    ];
+    const [purchases, purchasesBefore] = shopCells.slice(8, 10);
+    expect(purchases).toHaveClass("text-green-600");
+    expect(purchasesBefore).toHaveClass("text-muted-foreground");
+    expect(purchasesBefore).not.toHaveClass("text-green-600");
     // The lead campaign did not run then.
     const lead = cellTexts(within(leadsTable).getByText("PMax לידים"));
     expect(lead.filter((text) => text === "—")).toHaveLength(4);

@@ -66,8 +66,39 @@ describe("GoalCampaignTable", () => {
       "תקופה קודמת",
     ]);
     const cells = screen.getByText("f1").closest("tr")?.children ?? [];
-    // Leads went up from 2: the previous value with an up arrow.
-    expect(cells[2]?.textContent).toBe("▲ 2");
+    // Leads went up from 2: the current value carries the up arrow and green.
+    expect(cells[1]?.textContent).toBe("▲ 5");
+    expect(cells[1]?.className).toContain("text-green-600");
+    expect(cells[2]?.textContent).toBe("2");
+    expect(cells[2]?.className).not.toContain("text-green-600");
+    // Cost per lead fell from 50 to 20: good news, marked on the current value.
+    expect(cells[3]?.textContent).toMatch(/^▼ /);
+    expect(cells[3]?.className).toContain("text-green-600");
+    expect(cells[4]?.textContent).not.toMatch(/[▲▼]/);
+  });
+
+  it("marks a fall in leads in red on the current value", () => {
+    renderTable(
+      [campaign("f1", "facebook", { leads: 2, spend: 100 })],
+      [campaign("f1", "facebook", { leads: 5, spend: 100 })],
+    );
+
+    const cells = screen.getByText("f1").closest("tr")?.children ?? [];
+    expect(cells[1]?.textContent).toBe("▼ 2");
+    expect(cells[1]?.className).toContain("text-red-600");
+    expect(cells[2]?.textContent).toBe("5");
+    expect(cells[2]?.className).not.toContain("text-red-600");
+  });
+
+  it("leaves a campaign that did not run then unmarked", () => {
+    renderTable(
+      [campaign("f1", "facebook", { leads: 5, spend: 100 })],
+      [campaign("other", "facebook", { leads: 2, spend: 100 })],
+    );
+
+    const cells = screen.getByText("f1").closest("tr")?.children ?? [];
+    expect(cells[1]?.textContent).toBe("5");
+    expect(cells[2]?.textContent).toBe("—");
   });
 });
 

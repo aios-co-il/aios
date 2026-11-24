@@ -1,6 +1,11 @@
 import { Fragment } from "react";
-import { PreviousValueCell } from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import {
+  ChangeArrow,
+  changeMark,
+  PreviousValueCell,
+} from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { DashboardCurrencies } from "@/lib/dashboardCurrencies";
+import { cn } from "@/lib/utils";
 import { CampaignStatusSwitch } from "../CampaignStatusSwitch";
 import type { ReportCampaignRow } from "../data/reportData";
 import type { ReportFigures } from "../metrics/reportFigures";
@@ -105,8 +110,9 @@ export function GoalCampaignChannelRows({
 /**
  * A cell per metric; a dash where the row cannot measure it. While the
  * previous period is compared, each is followed by its previous value;
- * `previous` is null for a campaign that did not run then. An amount split by
- * currency has no single previous value to compare, so that cell is a dash.
+ * `previous` is null for a campaign that did not run then. The change's arrow
+ * and colour mark the current value. An amount split by currency has no
+ * single previous value to compare, so that cell is a dash and unmarked.
  */
 export function MetricCells({
   metrics,
@@ -123,21 +129,28 @@ export function MetricCells({
     const metric = REPORT_METRICS[key];
     const split = isSplitMetric(key, figures, money);
     const before = previous && !split ? metric.compute(previous) : null;
+    const current = metric.compute(figures) ?? 0;
+    const direction = GOOD_WHEN_DIRECTION[metric.goodWhen];
+    const available = isMetricAvailable(key, figures);
+    // A dash for a metric the row cannot measure carries no change mark.
+    const mark =
+      available && before !== null
+        ? changeMark(current, before, direction)
+        : null;
     return (
       <Fragment key={key}>
-        <td className={CELL}>
-          {isMetricAvailable(key, figures)
-            ? readReportMetric(key, figures, money).text
-            : "—"}
+        <td className={cn(CELL, mark?.className)}>
+          <ChangeArrow mark={mark} />
+          {available ? readReportMetric(key, figures, money).text : "—"}
         </td>
         {previous !== undefined && (
           <PreviousValueCell
-            current={metric.compute(figures) ?? 0}
+            current={current}
             previous={before ?? undefined}
             format={(value) =>
               formatMetricValue(metric.format, value, money.ads)
             }
-            direction={GOOD_WHEN_DIRECTION[metric.goodWhen]}
+            direction={direction}
             cellClassName={CELL}
           />
         )}

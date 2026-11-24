@@ -1,15 +1,21 @@
 import { Fragment } from "react";
 import {
   REPORT_CELL,
-  REPORT_POSITIVE,
   ReportTd,
   ReportTh,
 } from "@/components/report-ui/ReportTable";
-import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
+import {
+  type ChangeMark,
+  PreviousValueHead,
+} from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import type { GoogleReportGoal } from "../../../../supabase/functions/_shared/campaign-goal/google-classify.ts";
 import { ratio } from "@/lib/reportNumber";
+import { cn } from "@/lib/utils";
+import { MarkedCell } from "../MarkedCell";
 import {
+  googleChangeMark,
   googlePreviousCell,
+  positiveTone,
   type GoogleComparedMetric,
 } from "./googleAdsCompare";
 import type {
@@ -66,6 +72,9 @@ export function GoogleAdsCampaignCells({
   previous?: GoogleAdsTotals | null;
 }) {
   const prev = googlePreviousCell(row, previous, compared);
+  const mark = googleChangeMark(row, previous, compared);
+  const conversionsMark = mark(goal === "ecommerce" ? "רכישות" : "המרות");
+  const revenueMark = mark("הכנסות");
   const cpc = ratio(row.spend, row.clicks);
   const cpa = ratio(row.spend, row.conversions);
   const roas = ratio(row.conversions_value, row.spend);
@@ -73,23 +82,36 @@ export function GoogleAdsCampaignCells({
   return (
     <>
       <ReportTd>{formatNumber(row.impressions)}</ReportTd>
-      <ReportTd>{formatNumber(row.clicks)}</ReportTd>
+      <MarkedCell className={REPORT_CELL} mark={mark("קליקים")}>
+        {formatNumber(row.clicks)}
+      </MarkedCell>
       {prev("קליקים")}
       <ReportTd>
         {(ratio(row.clicks, row.impressions) * 100).toFixed(2)}%
       </ReportTd>
       <ReportTd>{cpc > 0 ? formatUnitCost(cpc) : "-"}</ReportTd>
-      <ReportTd>{formatCurrency(row.spend)}</ReportTd>
+      <MarkedCell className={REPORT_CELL} mark={mark("הוצאה")}>
+        {formatCurrency(row.spend)}
+      </MarkedCell>
       {prev("הוצאה")}
       {goal === "traffic" ? null : goal === "ecommerce" ? (
         <>
-          <ReportTd className={good(row.conversions)}>
+          <MarkedCell
+            className={cn(REPORT_CELL, good(row.conversions, conversionsMark))}
+            mark={conversionsMark}
+          >
             {formatNumber(row.conversions)}
-          </ReportTd>
+          </MarkedCell>
           {prev("רכישות")}
-          <ReportTd className={good(row.conversions_value)}>
+          <MarkedCell
+            className={cn(
+              REPORT_CELL,
+              good(row.conversions_value, revenueMark),
+            )}
+            mark={revenueMark}
+          >
             {formatCurrency(row.conversions_value)}
-          </ReportTd>
+          </MarkedCell>
           {prev("הכנסות")}
           <ReportTd>{roas > 0 ? roas.toFixed(2) : "-"}</ReportTd>
           <ReportTd>{aov > 0 ? formatCurrency(aov) : "-"}</ReportTd>
@@ -97,11 +119,16 @@ export function GoogleAdsCampaignCells({
         </>
       ) : (
         <>
-          <ReportTd className={good(row.conversions)}>
+          <MarkedCell
+            className={cn(REPORT_CELL, good(row.conversions, conversionsMark))}
+            mark={conversionsMark}
+          >
             {formatNumber(row.conversions)}
-          </ReportTd>
+          </MarkedCell>
           {prev("המרות")}
-          <ReportTd>{cpa > 0 ? formatCurrency(cpa) : "-"}</ReportTd>
+          <MarkedCell className={REPORT_CELL} mark={mark("עלות להמרה")}>
+            {cpa > 0 ? formatCurrency(cpa) : "-"}
+          </MarkedCell>
           {prev("עלות להמרה")}
         </>
       )}
@@ -109,7 +136,7 @@ export function GoogleAdsCampaignCells({
   );
 }
 
-/** The accent for a positive result. */
-function good(value: number): string | undefined {
-  return value > 0 ? REPORT_POSITIVE : undefined;
+/** The accent for a positive result, under its change mark. */
+function good(value: number, mark: ChangeMark | null): string | undefined {
+  return value > 0 ? positiveTone(mark) : undefined;
 }
