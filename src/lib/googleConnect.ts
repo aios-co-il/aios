@@ -24,17 +24,17 @@ const POPUP_CLOSED_POLL_MS = 600;
 const TRY_AGAIN = "נסו להתחבר שוב.";
 
 /** What the app says for the error a connect returned with instead of a code. */
-const CONNECT_ERROR_TEXT: Partial<Record<string, string>> = {
-  [CONSENT_REFUSED_ERROR]: "החיבור ל-Google בוטל.",
-  [INVALID_STATE_ERROR]: "קישור החיבור פג תוקף. נסו להתחבר שוב.",
-};
+const CONNECT_ERROR_TEXT = new Map<string, string>([
+  [CONSENT_REFUSED_ERROR, "החיבור ל-Google בוטל."],
+  [INVALID_STATE_ERROR, "קישור החיבור פג תוקף. נסו להתחבר שוב."],
+]);
 
 /** Google's error codes are snake_case words; any other value came from a crafted link and is not shown. */
 const ERROR_CODE = /^[a-z_]{1,40}$/;
 
 /** The text to show for a connect's error code (Google's `error`, or ours). */
 export function connectErrorMessage(error: string): string {
-  const known = CONNECT_ERROR_TEXT[error];
+  const known = CONNECT_ERROR_TEXT.get(error);
   if (known) {
     return known;
   }

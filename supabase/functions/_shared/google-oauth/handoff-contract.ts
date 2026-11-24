@@ -38,3 +38,27 @@ export const MISSING_CODE_ERROR = "missing_code";
 
 /** Hosts where callbacks and the app may run on plain http (local development). */
 export const LOCAL_HOSTS: ReadonlyArray<string> = ["localhost", "127.0.0.1"];
+
+/** What a popup callback posts to the window that opened it. */
+export type PopupMessage =
+  | {
+      type: typeof CONNECT_CODE_MESSAGE;
+      provider: GoogleConnectFunction;
+      code: string;
+      state: string;
+    }
+  | {
+      type: typeof CONNECT_ERROR_MESSAGE;
+      provider: GoogleConnectFunction;
+      state: string;
+      error: string;
+    };
+
+/** What a full-page callback puts in the integrations page's URL fragment. */
+export type FragmentHandoff =
+  | {
+      [CONNECT_FRAGMENT_KEY]: GoogleConnectFunction;
+      code: string;
+      state: string;
+    }
+  | { [CONNECT_FRAGMENT_KEY]: GoogleConnectFunction; error: string };

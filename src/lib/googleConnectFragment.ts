@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   CONNECT_CODE_TTL_MS,
   CONNECT_FRAGMENT_KEY,
+  INVALID_STATE_ERROR,
   GOOGLE_CONNECT_FUNCTIONS,
   type GoogleConnectFunction,
 } from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
@@ -93,9 +94,8 @@ export function takeStashedConnect(
   now: number = Date.now(),
 ): FragmentConnect | null {
   try {
-    const raw = unstoredConnect ?? sessionStorage.getItem(PENDING_CONNECT_KEY);
+    const raw = unstoredConnect ?? takeStoredConnect();
     unstoredConnect = null;
-    sessionStorage.removeItem(PENDING_CONNECT_KEY);
     if (!raw) {
       return null;
     }
@@ -104,14 +104,28 @@ export function takeStashedConnect(
       console.error("Ignoring an unreadable pending Google connect");
       return null;
     }
-    if (now - pending.data.at > CONNECT_CODE_TTL_MS) {
-      console.warn("Ignoring a pending Google connect older than its code");
-      return null;
+    const { connect, at } = pending.data;
+    if (now - at > CONNECT_CODE_TTL_MS) {
+      console.warn("A pending Google connect is older than its code");
+      return { provider: connectProvider(connect), error: INVALID_STATE_ERROR };
     }
 
-    return pending.data.connect;
+    return connect;
   } catch (error) {
     console.error("Could not read the pending Google connect:", error);
     return null;
   }
+}
+
+/** The connect kept in sessionStorage, removed so it is handled once. */
+function takeStoredConnect(): string | null {
+  const raw = sessionStorage.getItem(PENDING_CONNECT_KEY);
+  sessionStorage.removeItem(PENDING_CONNECT_KEY);
+
+  return raw;
+}
+
+/** The function the connect belongs to. */
+function connectProvider(connect: FragmentConnect): GoogleConnectFunction {
+  return "code" in connect ? connect.code.provider : connect.provider;
 }

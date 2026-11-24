@@ -53,7 +53,7 @@ describe("stashFragmentConnect", () => {
     expect(takeStashedConnect()).toBeNull();
   });
 
-  it("drops a connect older than Google's code lifetime", () => {
+  it("reports a connect older than Google's code lifetime as expired", () => {
     window.history.replaceState(
       null,
       "",
@@ -61,7 +61,10 @@ describe("stashFragmentConnect", () => {
     );
     stashFragmentConnect(0);
 
-    expect(takeStashedConnect(10 * 60 * 1000 + 1)).toBeNull();
+    expect(takeStashedConnect(10 * 60 * 1000 + 1)).toEqual({
+      provider: "gmail-auth",
+      error: "invalid_state",
+    });
   });
 
   it("ignores a stored value that is not a connect", () => {
@@ -79,9 +82,11 @@ describe("stashFragmentConnect without sessionStorage", () => {
   });
 
   it("keeps the connect in memory when storage is blocked", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
+    for (const method of ["setItem", "getItem", "removeItem"] as const) {
+      vi.spyOn(Storage.prototype, method).mockImplementation(() => {
+        throw new Error("blocked");
+      });
+    }
     window.history.replaceState(
       null,
       "",

@@ -5,6 +5,7 @@
 import { appReturnOrigin } from "./app-origin.ts";
 import {
   CONNECT_FRAGMENT_KEY,
+  type FragmentHandoff,
   type GoogleConnectFunction,
 } from "./handoff-contract.ts";
 import type { OAuthState } from "./oauth-state.ts";
@@ -49,7 +50,7 @@ export function redirectHandoffError(
 function integrationsRedirect(
   origin: string | null,
   tenantSlug: string,
-  fragment: Record<string, string>,
+  fragment: FragmentHandoff,
 ): Response {
   const target = new URL(
     `/t/${encodeURIComponent(tenantSlug)}/integrations`,

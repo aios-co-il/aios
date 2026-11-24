@@ -8,6 +8,7 @@ import {
   type GoogleConnectFunction,
   INVALID_STATE_ERROR,
   MISSING_CODE_ERROR,
+  type PopupMessage,
 } from "./handoff-contract.ts";
 import {
   oauthStateSecret,
@@ -63,7 +64,11 @@ function popupErrorPage(
 }
 
 /** An HTML page that posts the message to the opener on the target origin, shows the text, and closes. */
-function popupPage(message: unknown, target: string, text: string): Response {
+function popupPage(
+  message: PopupMessage,
+  target: string,
+  text: string,
+): Response {
   return new Response(
     `<!DOCTYPE html>
 <html>
