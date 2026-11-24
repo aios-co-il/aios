@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { format } from "date-fns";
+import type { DashboardDateRange } from "@/components/reports/ReportHeader/DashboardDateControls";
 import { buildSharedDashboardUrl } from "@/lib/appEnv";
 import { lazyWithRetry } from "@/lib/lazyWithRetry";
 import { HiddenCaptureFrame } from "../ClientReportCard/HiddenCaptureFrame";
@@ -31,6 +33,9 @@ const DEFAULT_DATE_FILTER = "last_30_days";
  */
 export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
   const [dateFilter, setDateFilter] = useState(DEFAULT_DATE_FILTER);
+  const [customDateRange, setCustomDateRange] = useState<DashboardDateRange>(
+    {},
+  );
   const card = useClientReportCard({
     target: { kind: "dashboard", id: dashboard.id, name: dashboard.name },
     clientId,
@@ -40,7 +45,11 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
     captureImage: captureDashboardImage,
   });
   const { token } = card.share;
-  const sync = useDashboardSync(clientId, tenantId, token, dateFilter);
+  const sync = useDashboardSync(clientId, tenantId, token, {
+    filter: dateFilter,
+    customStart: dayOf(customDateRange.from),
+    customEnd: dayOf(customDateRange.to),
+  });
 
   return (
     <div className="space-y-3 min-w-0" dir="rtl">
@@ -55,6 +64,8 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
             shareTokenOverride={token}
             dateFilter={dateFilter}
             onDateFilterChange={setDateFilter}
+            customDateRange={customDateRange}
+            onCustomDateRangeChange={setCustomDateRange}
           />
         )}
       </LiveReportFrame>
@@ -83,10 +94,16 @@ export function ClientDashboardPanel({ dashboard, clientId, tenantId }: Props) {
           <SharedDashboard
             shareTokenOverride={token}
             dateFilter={dateFilter}
+            customDateRange={customDateRange}
             snapshotMode
           />
         </HiddenCaptureFrame>
       )}
     </div>
   );
+}
+
+/** A picked day as yyyy-MM-dd, as the ads sync reads it; null when unpicked. */
+function dayOf(day: Date | undefined): string | null {
+  return day ? format(day, "yyyy-MM-dd") : null;
 }

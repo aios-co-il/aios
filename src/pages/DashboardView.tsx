@@ -1887,6 +1887,10 @@ export default function DashboardView() {
               <GoogleAnalyticsDashboard
                 records={allAnalyticsRecords}
                 externalDateFilter={dateFilter}
+                externalCustomDateRange={{
+                  from: customDateRange.from,
+                  to: customDateRange.to,
+                }}
                 dashboardId={dashboardId}
                 tableId={analyticsTableIds[0]}
                 relatedTableIds={analyticsTableIds.slice(1)}

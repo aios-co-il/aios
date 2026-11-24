@@ -51,11 +51,15 @@ Deno.serve(async (req) => {
     if (steps.length === 0 || !client_id) {
       return json({ error: "No events" }, 404);
     }
-    const dates = requestDates(body);
-    if (!dates) {
+    const period = requestDates(body);
+    if (!period.ok) {
+      console.warn("[ga-event-users] rejected date range:", period.error);
+      return json({ error: "Invalid date range" }, 400);
+    }
+    if (!period.dates) {
       return json(emptyEventUsers(steps), 200);
     }
-    const { startDate, endDate } = dates;
+    const { startDate, endDate } = period.dates;
     const ga = await readGaConnection(db, { tenant_id, client_id });
     if (!ga) {
       return json({ error: "No Google Analytics" }, 404);

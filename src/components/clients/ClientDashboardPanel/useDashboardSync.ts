@@ -8,19 +8,20 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdsRangeSync } from "@/hooks/useAdsRangeSync";
 import { isAdsSyncTable } from "@/lib/adsRangeSync/syncAdsTableRange";
+import type { SyncDateSelection } from "@/lib/adsRangeSync/syncWindow";
 import { rangeSyncFailureMessage } from "@/lib/adsRangeSync/rangeSyncFailureMessage";
 import { type SyncableReportTable, syncReportTables } from "@/lib/reportSync";
 
 /**
  * Syncs every source table of the client's dashboard, then reloads the live
  * dashboard so the card shows the fresh numbers. Ads tables sync the
- * dashboard's picked window, 30 days per request.
+ * dashboard's picked window, custom range included, 30 days per request.
  */
 export function useDashboardSync(
   clientId: string,
   tenantId: string,
   shareToken: string | null,
-  dateFilter: string,
+  selection: SyncDateSelection,
 ) {
   const queryClient = useQueryClient();
   const tables = useQuery({
@@ -65,7 +66,7 @@ export function useDashboardSync(
       adsTables.length
         ? adsSync.syncAsync({
             tables: adsTables,
-            selection: { filter: dateFilter },
+            selection,
           })
         : Promise.resolve([]),
     ]);
