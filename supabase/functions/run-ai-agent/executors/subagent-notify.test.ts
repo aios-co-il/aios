@@ -48,3 +48,49 @@ Deno.test("omitted optional WhatsApp target fields normalize to null", () => {
     },
   );
 });
+
+Deno.test(
+  "legacy private JIDs keep completion delivery when is_group is omitted",
+  () => {
+    assertEquals(
+      subagentNotify({
+        surface: "whatsapp",
+        tenant_id: "tenant",
+        chat_id: "972501234567@c.us",
+      }),
+      {
+        surface: "whatsapp",
+        tenant_id: "tenant",
+        chat_id: "972501234567@c.us",
+        is_group: false,
+        automation_id: null,
+        connection_user_id: null,
+        phone_number: null,
+      },
+    );
+  },
+);
+
+Deno.test(
+  "an omitted group flag cannot turn a group or invalid target into a private chat",
+  () => {
+    for (const chat_id of ["120363000@g.us", "invalid"]) {
+      assertEquals(
+        subagentNotify({ surface: "whatsapp", tenant_id: "tenant", chat_id }),
+        null,
+      );
+    }
+  },
+);
+
+Deno.test("explicit group flags remain unchanged", () => {
+  assertEquals(
+    subagentNotify({
+      surface: "whatsapp",
+      tenant_id: "tenant",
+      chat_id: "120363000@g.us",
+      is_group: true,
+    })?.is_group,
+    true,
+  );
+});

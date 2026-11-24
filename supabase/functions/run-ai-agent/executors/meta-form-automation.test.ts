@@ -96,3 +96,35 @@ Deno.test(
     );
   },
 );
+
+Deno.test("overlapping pages count the same automation only once", async () => {
+  const fixture = executorClient([firstPage, [firstPage[0]]]);
+  assertEquals(
+    await findAutomationForMetaForm(
+      fixture.context.supabase,
+      ["tenant"],
+      undefined,
+      "Alpha",
+    ),
+    firstPage[0],
+  );
+  assertEquals(fixture.calls.length, 2);
+});
+
+Deno.test(
+  "overlapping pages still reject distinct matching automations",
+  async () => {
+    const fixture = executorClient([firstPage, [firstPage[0], last]]);
+    await assertRejects(
+      () =>
+        findAutomationForMetaForm(
+          fixture.context.supabase,
+          ["tenant"],
+          undefined,
+          "Sales",
+        ),
+      Error,
+      "נמצאו כמה אוטומציות",
+    );
+  },
+);

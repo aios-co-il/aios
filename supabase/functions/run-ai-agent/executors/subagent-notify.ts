@@ -1,3 +1,4 @@
+import { requireOriginChatId } from "../../_shared/carmen-session-identity.ts";
 import type { ToolWhatsAppNotify } from "../tool-context.ts";
 import type { CarmenWaNotify } from "../../_shared/carmen-session-identity.ts";
 
@@ -16,12 +17,15 @@ export function subagentNotify(
     phone_number,
     is_group,
   } = notify;
+  const origin = is_group === undefined ? requireOriginChatId(chat_id) : null;
+  const isGroup =
+    is_group === undefined && origin?.ok && !origin.isGroup ? false : is_group;
   if (
     typeof tenant_id !== "string" ||
     !tenant_id ||
     typeof chat_id !== "string" ||
     !chat_id ||
-    typeof is_group !== "boolean" ||
+    typeof isGroup !== "boolean" ||
     (automation_id != null && typeof automation_id !== "string") ||
     (connection_user_id != null && typeof connection_user_id !== "string") ||
     (phone_number != null && typeof phone_number !== "string")
@@ -36,6 +40,6 @@ export function subagentNotify(
     connection_user_id: connection_user_id ?? null,
     chat_id,
     phone_number: phone_number ?? null,
-    is_group,
+    is_group: isGroup,
   };
 }

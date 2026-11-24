@@ -32,7 +32,9 @@ export async function findAutomationForMetaForm(
     const page = data || [];
     matches.push(
       ...page.filter(
-        (a) => !automationName || metaNameMatches(a.name, automationName),
+        (a) =>
+          (!automationName || metaNameMatches(a.name, automationName)) &&
+          !matches.some((match) => match.id === a.id),
       ),
     );
     if (automationId || page.length < pageSize) {
