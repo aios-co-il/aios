@@ -29,7 +29,6 @@ const corsHeaders = {
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
-const REDIRECT_URI = callbackUri("google-ads-auth", "oauth_callback");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -139,7 +138,10 @@ async function getAuthUrl(
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
-  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set(
+    "redirect_uri",
+    callbackUri("google-ads-auth", "oauth_callback"),
+  );
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", scopes.join(" "));
   authUrl.searchParams.set("access_type", "offline");

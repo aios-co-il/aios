@@ -40,7 +40,6 @@ Deno.serve(async (req) => {
   // OAuth configuration
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  const redirectUri = callbackUri("google-analytics-auth", "oauth_callback");
 
   if (!clientId || !clientSecret) {
     console.error("Missing Google OAuth credentials");
@@ -77,7 +76,10 @@ Deno.serve(async (req) => {
 
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", clientId);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set(
+        "redirect_uri",
+        callbackUri("google-analytics-auth", "oauth_callback"),
+      );
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", scopes);
       authUrl.searchParams.set("access_type", "offline");

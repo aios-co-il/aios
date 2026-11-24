@@ -46,11 +46,33 @@ export function callbackUri(
   functionName: string,
   action: string | null,
 ): string {
-  const base =
-    Deno.env.get("PUBLIC_API_URL") || Deno.env.get("SUPABASE_URL") || "";
-  const uri = `${base.replace(/\/+$/, "")}/functions/v1/${functionName}`;
+  const uri = `${apiOrigin()}/functions/v1/${functionName}`;
 
   return action ? `${uri}?action=${action}` : uri;
+}
+
+const apiOriginSchema = z
+  .string()
+  .url()
+  .pipe(
+    z
+      .string()
+      .transform((value) => new URL(value))
+      .refine((url) => url.protocol === "https:" || url.protocol === "http:")
+      .transform((url) => url.origin),
+  );
+
+function apiOrigin(): string {
+  const configured =
+    Deno.env.get("PUBLIC_API_URL") || Deno.env.get("SUPABASE_URL");
+  const origin = apiOriginSchema.safeParse(configured);
+  if (!origin.success) {
+    throw new Error(
+      "PUBLIC_API_URL or SUPABASE_URL must be an http(s) URL such as https://api.aios.co.il",
+    );
+  }
+
+  return origin.data;
 }
 
 const userInfoSchema = z.object({ email: z.string().optional() });

@@ -37,6 +37,7 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  PUBLIC_API_URL: null,
 };
 
 Deno.test({

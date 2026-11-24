@@ -24,13 +24,17 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  PUBLIC_API_URL: null,
   APP_URL: "https://aios.co.il",
 };
 
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-ads-auth`;
 
 /** Runs the real handler; Google is never called. */
-async function run(request: Request) {
+async function run(
+  request: Request,
+  runtimeEnv: Record<string, string | null> = env,
+) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     users: { session: USER_ID },
@@ -41,7 +45,7 @@ async function run(request: Request) {
     },
   });
 
-  return await withRuntime({ env, fetch: http.fetch }, async () => {
+  return await withRuntime({ env: runtimeEnv, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
     return { response: await handle(request), http };
   });
@@ -74,6 +78,31 @@ Deno.test({
         assertEquals(state?.userId, USER_ID);
         assertEquals(state?.tenantId, TENANT);
         assertEquals(state?.origin, null);
+      },
+    );
+
+    await t.step(
+      "the authorize URL sends Google the custom-domain callback when PUBLIC_API_URL is set",
+      async () => {
+        const { response } = await run(
+          new Request(`${FUNCTION_URL}?action=get_auth_url`, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer session",
+              "Content-Type": "application/json",
+            },
+            body: "{}",
+          }),
+          {
+            ...env,
+            PUBLIC_API_URL: "https://api.aios.co.il",
+          },
+        );
+        const { auth_url } = await response.json();
+        assertEquals(
+          new URL(auth_url).searchParams.get("redirect_uri"),
+          "https://api.aios.co.il/functions/v1/google-ads-auth?action=oauth_callback",
+        );
       },
     );
 

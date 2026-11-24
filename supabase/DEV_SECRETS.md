@@ -39,7 +39,7 @@ Rules: every value is a dev/test credential created for this purpose, never copi
 
 ## Only with a custom domain
 
-- `PUBLIC_API_URL`: the project's custom domain, for example `https://api.aios.co.il` on Production. The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain. Leave it unset elsewhere: the callback then uses `SUPABASE_URL`. Its callbacks must be in the Google OAuth client's redirect URIs before it is set.
+- `PUBLIC_API_URL`: the project's custom domain, for example `https://api.aios.co.il` on Production. The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain. Leave it unset elsewhere: the callback then uses `SUPABASE_URL`. Its callbacks must be in the Google OAuth client's redirect URIs before it is set. Setting or removing it fails a connect that is open at that moment, because Google issued the code for the old callback; the user connects again.
 
 ## Open points
 

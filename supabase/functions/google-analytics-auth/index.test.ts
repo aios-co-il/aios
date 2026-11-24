@@ -28,6 +28,7 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  PUBLIC_API_URL: null,
   APP_URL: "https://aios.co.il",
 };
 
@@ -75,10 +76,11 @@ function authorize(token: string | null, body: Record<string, unknown>) {
 async function run(
   request: Request,
   integrations: Array<Record<string, unknown>> = [],
+  runtimeEnv: Record<string, string | null> = env,
 ) {
   const http = fakeHttp(integrations);
 
-  return await withRuntime({ env, fetch: http.fetch }, async () => {
+  return await withRuntime({ env: runtimeEnv, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
     return { response: await handle(request), http };
   });
@@ -125,6 +127,25 @@ Deno.test({
         assertEquals(state?.userId, MEMBER);
         assertEquals(state?.tenantId, TENANT);
         assertEquals(state?.origin, null);
+      },
+    );
+
+    await t.step(
+      "the authorize URL sends Google the custom-domain callback when PUBLIC_API_URL is set",
+      async () => {
+        const { response } = await run(
+          authorize("member", { tenantId: TENANT }),
+          [],
+          {
+            ...env,
+            PUBLIC_API_URL: "https://api.aios.co.il",
+          },
+        );
+        const { authUrl } = await response.json();
+        assertEquals(
+          new URL(authUrl).searchParams.get("redirect_uri"),
+          "https://api.aios.co.il/functions/v1/google-analytics-auth?action=oauth_callback",
+        );
       },
     );
 

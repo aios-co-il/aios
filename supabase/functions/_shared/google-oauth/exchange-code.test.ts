@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { withRuntime } from "../testing/served-handler.ts";
 import { callbackUri } from "./exchange-code.ts";
 
@@ -38,3 +38,36 @@ Deno.test(
     );
   },
 );
+
+Deno.test("a custom domain with a path keeps only its origin", async () => {
+  assertEquals(
+    await uriWith(
+      { SUPABASE_URL, PUBLIC_API_URL: "https://api.aios.co.il/extra/" },
+      "gmail-auth",
+      null,
+    ),
+    "https://api.aios.co.il/functions/v1/gmail-auth",
+  );
+});
+
+Deno.test("a base without a scheme is refused", async () => {
+  await assertRejects(
+    () =>
+      uriWith(
+        { SUPABASE_URL, PUBLIC_API_URL: "api.aios.co.il" },
+        "gmail-auth",
+        null,
+      ),
+    Error,
+    "PUBLIC_API_URL or SUPABASE_URL",
+  );
+});
+
+Deno.test("no base URL at all is refused", async () => {
+  await assertRejects(
+    () =>
+      uriWith({ SUPABASE_URL: null, PUBLIC_API_URL: null }, "gmail-auth", null),
+    Error,
+    "PUBLIC_API_URL or SUPABASE_URL",
+  );
+});
