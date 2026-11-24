@@ -31,7 +31,9 @@ export function ToolsTab({ agent }: { agent: any }) {
         .from("ai_agents")
         .update({ allowed_tools: Array.from(selected) })
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
@@ -42,8 +44,11 @@ export function ToolsTab({ agent }: { agent: any }) {
 
   const toggle = (name: string) => {
     const next = new Set(selected);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
+    if (next.has(name)) {
+      next.delete(name);
+    } else {
+      next.add(name);
+    }
     setSelected(next);
   };
 
@@ -54,12 +59,14 @@ export function ToolsTab({ agent }: { agent: any }) {
       t.name.includes(search.toLowerCase()),
   );
   const groups: Record<string, typeof ALL_TOOLS> = {};
-  for (const t of filtered) (groups[t.group] ||= []).push(t);
+  for (const t of filtered) {
+    (groups[t.group] ||= []).push(t);
+  }
 
   const allSelected = selected.size === 0; // empty = all allowed (legacy behavior)
   // run-ai-agent keeps these in Carmen's pool whatever this list says, unless
   // disabled_tools (Carmen Access) turns them off.
-  const disabledTools: string[] = agent.disabled_tools || [];
+  const disabledTools: Array<string> = agent.disabled_tools || [];
   const alwaysOn = new Set(
     isCarmenAgentRow(agent)
       ? CARMEN_PULSE_TOOL_NAMES.filter((name) => !disabledTools.includes(name))

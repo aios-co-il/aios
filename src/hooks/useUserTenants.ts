@@ -19,7 +19,9 @@ export function useUserTenants(userId?: string | null) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (mounted) setToken(session?.access_token ?? null);
+      if (mounted) {
+        setToken(session?.access_token ?? null);
+      }
     };
 
     const { data: subscription } = supabase.auth.onAuthStateChange(
@@ -54,14 +56,14 @@ export function useUserTenants(userId?: string | null) {
 
       if (error) {
         console.error("Error fetching user tenants:", error);
-        return [] as any[];
+        return [] as Array<any>;
       }
 
       const tenants = (data as any)?.tenants;
       // Ensure tenants is always an array before filtering
       if (!Array.isArray(tenants)) {
         console.warn("Tenants data is not an array:", tenants);
-        return [] as any[];
+        return [] as Array<any>;
       }
 
       // sanitize
@@ -77,7 +79,7 @@ export function useUserTenants(userId?: string | null) {
 
   return useMemo(
     () => ({
-      userTenants: (query.data as any[]) ?? [],
+      userTenants: (query.data as Array<any>) ?? [],
       isLoading: query.isLoading || query.isFetching,
       refetch: query.refetch,
     }),

@@ -94,7 +94,7 @@ const PLATFORM_TIPS: Record<
     bestTime: string;
     format: string;
     emoji: string;
-    peakDays: number[];
+    peakDays: Array<number>;
   }
 > = {
   instagram: {
@@ -236,7 +236,7 @@ const channelConfig: Record<
 
 // ─── Peak hours by channel (Israel timezone, best practices) ────────────────
 
-const PEAK_HOURS: Record<string, number[]> = {
+const PEAK_HOURS: Record<string, Array<number>> = {
   instagram: [8, 12, 17, 20],
   facebook: [9, 13, 19],
   twitter: [8, 12, 17],
@@ -272,7 +272,9 @@ function getSmartScheduleDate(channel: string): string {
 function PlatformTipsBanner({ platformFilter }: { platformFilter: string }) {
   const [open, setOpen] = useState(true);
   const tip = PLATFORM_TIPS[platformFilter];
-  if (!tip) return null;
+  if (!tip) {
+    return null;
+  }
 
   return (
     <div className="mx-4 mt-3">
@@ -390,7 +392,9 @@ function PostDetailDialog({
   const [editDate, setEditDate] = useState("");
   const [editStatus, setEditStatus] = useState("");
 
-  if (!item) return null;
+  if (!item) {
+    return null;
+  }
 
   const imageUrl = item.payload?.image_url;
   const copyText = item.payload?.copy_text ?? item.payload?.brief_text;
@@ -504,7 +508,9 @@ function PostDetailDialog({
                 }
                 patch.status = status;
               }
-              if (editDate) patch.scheduled_date = editDate;
+              if (editDate) {
+                patch.scheduled_date = editDate;
+              }
               if (Object.keys(patch).length > 0) {
                 onUpdate(item.id, patch);
                 onClose();
@@ -540,7 +546,7 @@ function NewItemDialog({
 }) {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(defaultDate);
-  const [channels, setChannels] = useState<string[]>(["instagram"]);
+  const [channels, setChannels] = useState<Array<string>>(["instagram"]);
   const [copy, setCopy] = useState("");
   const [autoRun, setAutoRun] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -552,7 +558,9 @@ function NewItemDialog({
   };
 
   const handleSave = async () => {
-    if (!title.trim() || channels.length === 0) return;
+    if (!title.trim() || channels.length === 0) {
+      return;
+    }
     setSaving(true);
     try {
       const { data: stage } = await supabase
@@ -587,7 +595,9 @@ function NewItemDialog({
       const { error } = await supabase
         .from("marketing_work_items")
         .insert(inserts);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success(`${inserts.length} פריטי תוכן נוצרו`);
 
@@ -915,7 +925,9 @@ function BulkActionsBar({
   onSchedule: () => void;
   onClear: () => void;
 }) {
-  if (count === 0) return null;
+  if (count === 0) {
+    return null;
+  }
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-card border rounded-2xl shadow-xl px-6 py-3 flex items-center gap-4 z-50 backdrop-blur-sm">
       <span className="text-sm font-medium">{count} פריטים נבחרו</span>
@@ -1009,7 +1021,7 @@ export function SocialContentGantt({
   const [newItemDate, setNewItemDate] = useState("");
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
 
   // ─── Data ─────────────────────────────────────────────────────────────────
 
@@ -1021,7 +1033,7 @@ export function SocialContentGantt({
         .select("*, marketing_pipeline_stages(name, stage_type)")
         .eq("pipeline_id", pipelineId)
         .order("scheduled_date", { ascending: true, nullsFirst: false });
-      return (data ?? []) as WorkItem[];
+      return (data ?? []) as Array<WorkItem>;
     },
   });
 
@@ -1031,7 +1043,9 @@ export function SocialContentGantt({
         .from("marketing_work_items")
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["social-gantt-items", pipelineId] });
@@ -1048,7 +1062,9 @@ export function SocialContentGantt({
   // ─── Filtered items ───────────────────────────────────────────────────────
 
   const filteredItems = useMemo(() => {
-    if (platformFilter === "all") return items;
+    if (platformFilter === "all") {
+      return items;
+    }
     return items.filter((item) => {
       const ch = item.payload?.channel ?? item.target_channel ?? "general";
       return ch === platformFilter;
@@ -1064,11 +1080,13 @@ export function SocialContentGantt({
   }, [currentMonth]);
 
   const itemsByDate = useMemo(() => {
-    const map: Record<string, WorkItem[]> = {};
+    const map: Record<string, Array<WorkItem>> = {};
     filteredItems.forEach((item) => {
       if (item.scheduled_date) {
         const key = item.scheduled_date.slice(0, 10);
-        if (!map[key]) map[key] = [];
+        if (!map[key]) {
+          map[key] = [];
+        }
         map[key].push(item);
       }
     });
@@ -1082,8 +1100,10 @@ export function SocialContentGantt({
 
   // ─── Peak days for current filter ────────────────────────────────────────
 
-  const peakDays: number[] = useMemo(() => {
-    if (platformFilter === "all") return [];
+  const peakDays: Array<number> = useMemo(() => {
+    if (platformFilter === "all") {
+      return [];
+    }
     return PLATFORM_TIPS[platformFilter]?.peakDays ?? [];
   }, [platformFilter]);
 
@@ -1180,7 +1200,7 @@ export function SocialContentGantt({
 
         {/* View toggle */}
         <div className="mr-auto flex items-center gap-1 rounded-lg border p-0.5">
-          {(["month", "list"] as ViewMode[]).map((v) => (
+          {(["month", "list"] as Array<ViewMode>).map((v) => (
             <Button
               key={v}
               variant={viewMode === v ? "secondary" : "ghost"}

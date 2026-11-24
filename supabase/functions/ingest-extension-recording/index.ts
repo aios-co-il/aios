@@ -28,7 +28,9 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing authorization" }, 401);
+    if (!authHeader) {
+      return json({ error: "Missing authorization" }, 401);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,10 +45,14 @@ Deno.serve(async (req) => {
       data: { user },
       error: authError,
     } = await userClient.auth.getUser();
-    if (authError || !user) return json({ error: "Unauthorized" }, 401);
+    if (authError || !user) {
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     const { recording_id } = await req.json();
-    if (!recording_id) return json({ error: "recording_id is required" }, 400);
+    if (!recording_id) {
+      return json({ error: "recording_id is required" }, 400);
+    }
 
     // RLS-scoped read: enforces that the caller belongs to the recording's tenant.
     const { data: recording, error: recError } = await userClient
@@ -57,8 +63,9 @@ Deno.serve(async (req) => {
       .eq("id", recording_id)
       .maybeSingle();
 
-    if (recError || !recording)
+    if (recError || !recording) {
       return json({ error: "Recording not found" }, 404);
+    }
     if (
       !recording.file_path &&
       !recording.audio_file_path &&
@@ -73,7 +80,7 @@ Deno.serve(async (req) => {
     // has progressive audio parts but no playable file/duration — point
     // playback at the first part so the recording is usable end-to-end.
     if (!recording.file_path && recording.audio_file_paths?.length) {
-      const parts: string[] = recording.audio_file_paths;
+      const parts: Array<string> = recording.audio_file_paths;
       const micParts = parts.filter((p: string) =>
         /_mic_part\d+\./.test(p),
       ).length;

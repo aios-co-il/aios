@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status });
 
 Deno.test("ElevenLabs is polled until the picture is ready", async () => {
-  const calls: string[] = [];
+  const calls: Array<string> = [];
   let polls = 0;
   const made = await generateStill({ elevenlabs: "e" }, "a cat", "4:5", {
     sleep: async () => {},
@@ -53,8 +53,9 @@ Deno.test("ElevenLabs gets the references as inline images", async () => {
           body = JSON.parse(String(init.body));
           return json({ id: "g1" });
         }
-        if (url.endsWith("/g1"))
+        if (url.endsWith("/g1")) {
           return json({ status: "completed", content_url: "https://c/x.png" });
+        }
         return new Response(png, { headers: { "content-type": "image/png" } });
       }) as typeof fetch,
     },
@@ -90,13 +91,19 @@ const acceptedByElevenLabs = (
   poll: (attempt: number) => Response,
   download = () => new Response(png),
 ) => {
-  const hosts: string[] = [];
+  const hosts: Array<string> = [];
   let attempt = 0;
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     hosts.push(new URL(url).host);
-    if (url.includes("higgsfield")) return json({ request_id: "req-1" });
-    if (url.startsWith("https://files/")) return download();
-    if (init?.method === "POST") return json({ id: "gen-1" });
+    if (url.includes("higgsfield")) {
+      return json({ request_id: "req-1" });
+    }
+    if (url.startsWith("https://files/")) {
+      return download();
+    }
+    if (init?.method === "POST") {
+      return json({ id: "gen-1" });
+    }
     attempt += 1;
     return poll(attempt);
   }) as typeof fetch;

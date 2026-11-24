@@ -20,11 +20,11 @@ export interface EmailOption {
   icon?: string;
 }
 
-type EmailsUpdater = string[] | ((prev: string[]) => string[]);
+type EmailsUpdater = Array<string> | ((prev: Array<string>) => Array<string>);
 
 interface EmailRecipientsSelectorProps {
-  options: EmailOption[];
-  selectedEmails: string[];
+  options: Array<EmailOption>;
+  selectedEmails: Array<string>;
   onChange: (emails: EmailsUpdater) => void;
 }
 
@@ -41,11 +41,15 @@ export function EmailRecipientsSelector({
   // otherwise multiple empty-email options all get toggled together.
   const validOptions = (() => {
     const seen = new Set<string>();
-    const out: EmailOption[] = [];
+    const out: Array<EmailOption> = [];
     for (const opt of options) {
       const email = normalizeEmail(opt.email || "");
-      if (!email || !EMAIL_REGEX.test(email)) continue;
-      if (seen.has(email)) continue;
+      if (!email || !EMAIL_REGEX.test(email)) {
+        continue;
+      }
+      if (seen.has(email)) {
+        continue;
+      }
       seen.add(email);
       out.push({ ...opt, email });
     }
@@ -63,7 +67,9 @@ export function EmailRecipientsSelector({
     const normalized = normalizeEmail(email);
     onChange((prev) => {
       const has = prev.some((e) => normalizeEmail(e) === normalized);
-      if (has) return prev.filter((e) => normalizeEmail(e) !== normalized);
+      if (has) {
+        return prev.filter((e) => normalizeEmail(e) !== normalized);
+      }
       return [...prev, normalized];
     });
   };
@@ -75,10 +81,16 @@ export function EmailRecipientsSelector({
 
   const addManualEmail = () => {
     const trimmed = normalizeEmail(manualEmail);
-    if (!trimmed) return;
-    if (!EMAIL_REGEX.test(trimmed)) return;
+    if (!trimmed) {
+      return;
+    }
+    if (!EMAIL_REGEX.test(trimmed)) {
+      return;
+    }
     onChange((prev) => {
-      if (prev.some((e) => normalizeEmail(e) === trimmed)) return prev;
+      if (prev.some((e) => normalizeEmail(e) === trimmed)) {
+        return prev;
+      }
       return [...prev, trimmed];
     });
     setManualEmail("");

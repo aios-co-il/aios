@@ -18,7 +18,9 @@ const LOCK_HOLDER = "autonomous-goal-worker";
 const BATCH_LIMIT = 8;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
 
   try {
     const supabase = createClient(

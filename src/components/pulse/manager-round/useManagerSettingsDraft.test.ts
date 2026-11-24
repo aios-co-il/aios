@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_PULSE_ALERT_RULES } from "@/lib/pulseAlertRules";
 import { useManagerSettingsDraft } from "./useManagerSettingsDraft";
 
-const owner = vi.hoisted(() => ({ value: false, calls: [] as unknown[] }));
+const owner = vi.hoisted(() => ({ value: false, calls: [] as Array<unknown> }));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (fn: string, args: unknown) => {

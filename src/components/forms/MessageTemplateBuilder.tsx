@@ -66,7 +66,9 @@ export function MessageTemplateBuilder({
 
   const insertVariable = (variableKey: string) => {
     const textarea = textareaRef.current;
-    if (!textarea) return;
+    if (!textarea) {
+      return;
+    }
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;

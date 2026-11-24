@@ -26,12 +26,12 @@ export interface FilterPreset {
     searchQuery?: string | null;
     salesPersonId?: string;
     stageId?: string;
-    stageIds?: string[];
+    stageIds?: Array<string>;
     stageFilterMode?: "show" | "hide";
-    responseStatus?: string | string[]; // Support both old (string) and new (array) format
+    responseStatus?: string | Array<string>; // Support both old (string) and new (array) format
     responseStatusFilterMode?: "show" | "hide";
     tagId?: string; // Legacy format
-    tagIds?: string[]; // New format
+    tagIds?: Array<string>; // New format
     startDate?: string | null;
     endDate?: string | null;
     followUpToday?: boolean; // Filter for leads with follow-up date today
@@ -51,8 +51,8 @@ interface LeadFilterPresetTabsProps {
   onOpenFiltersDialog: () => void;
   onEditPreset: (preset: FilterPreset) => void;
   hasActiveFilters: boolean;
-  pipelineStages?: StagePreset[];
-  activeStageIds?: string[];
+  pipelineStages?: Array<StagePreset>;
+  activeStageIds?: Array<string>;
   stageFilterMode?: "show" | "hide";
   onStageSelect?: (stageId: string) => void;
   stageCounts?: Record<string, number>;
@@ -83,15 +83,19 @@ export function LeadFilterPresetTabs({
   const { data: presets = [] } = useQuery({
     queryKey: ["lead-filter-presets", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("lead_filter_presets")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
-      return data as FilterPreset[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<FilterPreset>;
     },
     enabled: !!tenantId,
   });
@@ -102,7 +106,9 @@ export function LeadFilterPresetTabs({
         .from("lead_filter_presets")
         .delete()
         .eq("id", presetId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return presetId;
     },
     onSuccess: (deletedPresetId) => {

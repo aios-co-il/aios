@@ -10,7 +10,7 @@ const storedSettingsSchema = z.record(z.unknown()).nullable();
  */
 export function reconnectSettings(
   storedSettings: unknown,
-  pages: unknown[],
+  pages: Array<unknown>,
   tokenExpiresAt: string,
 ): Record<string, unknown> {
   const stored = storedSettingsSchema.parse(storedSettings) ?? {};

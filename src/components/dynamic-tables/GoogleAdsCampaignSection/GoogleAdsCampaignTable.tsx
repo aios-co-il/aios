@@ -27,7 +27,7 @@ import type {
 } from "./types";
 
 type Props = GoogleAdsFormatters & {
-  rows: GoogleAdsCampaignSummaryRow[];
+  rows: Array<GoogleAdsCampaignSummaryRow>;
   goal: GoogleReportGoal;
   groupTotals: GoogleAdsTotals;
   store: GoogleStoreTotals;

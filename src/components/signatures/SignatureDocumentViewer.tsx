@@ -49,8 +49,11 @@ export const SignatureDocumentViewer = forwardRef<
   const pageStageRef = useRef<HTMLDivElement | null>(null);
   const setPageStageRef = (node: HTMLDivElement | null) => {
     pageStageRef.current = node;
-    if (typeof ref === "function") ref(node);
-    else if (ref) ref.current = node;
+    if (typeof ref === "function") {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
   };
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -72,7 +75,9 @@ export const SignatureDocumentViewer = forwardRef<
 
   useEffect(() => {
     const el = pageStageRef.current;
-    if (!el || !onHeightChange) return;
+    if (!el || !onHeightChange) {
+      return;
+    }
     const update = () => onHeightChange(el.getBoundingClientRect().height);
     update();
     const ro = new ResizeObserver(update);
@@ -95,13 +100,17 @@ export const SignatureDocumentViewer = forwardRef<
       try {
         const canvas = canvasRef.current;
         const stage = pageStageRef.current;
-        if (!canvas || cancelled) return;
+        if (!canvas || cancelled) {
+          return;
+        }
 
         const parentWidth =
           stage?.clientWidth || stage?.parentElement?.clientWidth || 800;
         const safePage = Math.min(Math.max(1, page), pdf.numPages || 1);
         await renderPdfPageToCanvas(pdf, safePage, canvas, parentWidth);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         setPdfReady(true);
         if (onHeightChange && pageStageRef.current) {
@@ -114,7 +123,9 @@ export const SignatureDocumentViewer = forwardRef<
           );
         }
       } finally {
-        if (!cancelled) setRendering(false);
+        if (!cancelled) {
+          setRendering(false);
+        }
       }
     })();
 

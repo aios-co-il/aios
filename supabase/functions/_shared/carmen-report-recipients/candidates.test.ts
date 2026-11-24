@@ -34,9 +34,9 @@ const STAFF = [OWNER, MANAGER, NO_PHONE];
 
 /** The configured rows through the candidate steps, as the resolver runs them. */
 function resolveRows(input: {
-  configured: ConfiguredReportRecipient[];
-  staff: ReportStaffMember[];
-  clientPhones?: string[];
+  configured: Array<ConfiguredReportRecipient>;
+  staff: Array<ReportStaffMember>;
+  clientPhones?: Array<string>;
 }) {
   const staffById = new Map(input.staff.map((m) => [m.user_id, m]));
   const clientPhones = new Set(input.clientPhones);

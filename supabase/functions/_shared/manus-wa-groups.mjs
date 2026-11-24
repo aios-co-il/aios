@@ -5,7 +5,9 @@ export function normalizeManusGroupsPayload(data) {
     data?.data?.groups ??
     data?.data ??
     (Array.isArray(data) ? data : []);
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
 
   return raw
     .map((g) => {
@@ -20,7 +22,9 @@ export function normalizeManusGroupsPayload(data) {
       };
     })
     .filter((g) => {
-      if (!g.id || !g.isMember) return false;
+      if (!g.id || !g.isMember) {
+        return false;
+      }
       // WhatsApp group JIDs are …@g.us (Baileys / Manus / Green API).
       return /@g\.us$/i.test(g.id) || String(g.id).includes("@g.us");
     });

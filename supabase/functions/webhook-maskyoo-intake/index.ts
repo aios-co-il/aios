@@ -13,7 +13,9 @@ const corsHeaders = {
 
 // Normalize phone for comparison and storage
 function normalizePhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   // Remove all non-digit characters
   let cleaned = phone.replace(/\D/g, "");
   // Handle Israeli phones
@@ -33,7 +35,9 @@ function formatPhoneForStorage(
   phone: string | null | undefined,
 ): string | null {
   const normalized = normalizePhone(phone);
-  if (!normalized) return null;
+  if (!normalized) {
+    return null;
+  }
   // Store in format 972XXXXXXXXX
   if (normalized.startsWith("0")) {
     return "972" + normalized.slice(1);
@@ -48,7 +52,9 @@ function phonesMatch(
 ): boolean {
   const n1 = normalizePhone(phone1);
   const n2 = normalizePhone(phone2);
-  if (!n1 || !n2) return false;
+  if (!n1 || !n2) {
+    return false;
+  }
   return n1 === n2;
 }
 

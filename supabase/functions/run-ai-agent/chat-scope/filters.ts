@@ -27,7 +27,7 @@ export interface ScopeFilterable<Q> {
  * return a few rows too many (coarse lead and long-list filters); the row
  * check removes those.
  */
-export function chatScopeFilters(scope: ChatScope): ChatScopeFilter[] {
+export function chatScopeFilters(scope: ChatScope): Array<ChatScopeFilter> {
   if (scope.mode === "full") {
     return [];
   }
@@ -96,7 +96,7 @@ export function withChatScopeColumns(select: string): string {
 }
 
 /** A group turn: that group only, and green_api rows only on allowed lines. */
-function groupFilters(scope: ChatScope): ChatScopeFilter[] {
+function groupFilters(scope: ChatScope): Array<ChatScopeFilter> {
   if (!scope.groupId) {
     return matchNothing();
   }
@@ -113,8 +113,8 @@ function groupFilters(scope: ChatScope): ChatScopeFilter[] {
 }
 
 /** The or() alternatives of a staff scope; empty when nothing can match. */
-function staffParts(scope: ChatScope): string[] {
-  const parts: string[] = [];
+function staffParts(scope: ChatScope): Array<string> {
+  const parts: Array<string> = [];
   if (scope.clientIds === "all" || scope.clientIds.length > MAX_PUSHDOWN_IDS) {
     parts.push("client_id.not.is.null");
   } else if (scope.clientIds.length) {
@@ -144,7 +144,7 @@ function staffParts(scope: ChatScope): string[] {
 }
 
 /** A filter no row passes (id is never null). */
-function matchNothing(): ChatScopeFilter[] {
+function matchNothing(): Array<ChatScopeFilter> {
   return [{ op: "is", column: "id", value: null }];
 }
 
@@ -156,6 +156,6 @@ function greenRule(scope: ChatScope): string {
 }
 
 /** A PostgREST in-list: (a,b,c). */
-function idList(ids: string[]): string {
+function idList(ids: Array<string>): string {
   return `(${ids.join(",")})`;
 }

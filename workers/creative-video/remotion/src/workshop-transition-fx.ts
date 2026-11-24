@@ -62,7 +62,9 @@ export function fxEnter(
   if (type === "whip") {
     // In from the left (Hebrew reads right to left), pushing the outgoing picture out.
     const p = inOutQuint(t);
-    if (p >= 1) return AT_REST;
+    if (p >= 1) {
+      return AT_REST;
+    }
     return {
       style: { transform: `translateX(${((p - 1) * 100).toFixed(2)}%)` },
       fx: { ...NO_FX, blur: whipBlur(width, p) },
@@ -71,7 +73,9 @@ export function fxEnter(
   if (type === "ripple") {
     // A circle of the new picture spreads from the centre, wavering like water, and calms as
     // it fills the frame.
-    if (t >= 1) return AT_REST;
+    if (t >= 1) {
+      return AT_REST;
+    }
     const p = outQuad(t);
     const edge = p * 128;
     const mask = `radial-gradient(circle at 50% 50%, #000 ${Math.max(0, edge - 26).toFixed(1)}%, rgba(0,0,0,0) ${edge.toFixed(1)}%)`;
@@ -85,7 +89,9 @@ export function fxEnter(
     };
   }
   if (type === "glitch") {
-    if (t >= 1) return AT_REST;
+    if (t >= 1) {
+      return AT_REST;
+    }
     const left = 1 - t;
     const shown = t > 0.6 || GLITCH_SHOWN[frame % GLITCH_SHOWN.length] === 1;
     return {

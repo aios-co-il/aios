@@ -34,7 +34,7 @@ interface CategoryTable {
 
 interface Props {
   category: string;
-  tables: CategoryTable[];
+  tables: Array<CategoryTable>;
 }
 
 const FN_BY_TYPE: Record<string, string> = {
@@ -60,7 +60,7 @@ async function syncAdsTableInPieces(table: CategoryTable): Promise<void> {
 }
 
 async function runWithConcurrency<T>(
-  items: T[],
+  items: Array<T>,
   limit: number,
   worker: (item: T, idx: number) => Promise<void>,
 ) {
@@ -80,7 +80,7 @@ async function runWithConcurrency<T>(
 async function resolveReportTenantIds(
   clientId: string,
   tableTenantId?: string | null,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data: client } = await supabase
     .from("clients")
     .select("tenant_id, agency_id")
@@ -108,7 +108,7 @@ async function resolveReportTenantIds(
 
 function ahrefsReportsForClient(
   clientId: string,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   columns = "*",
 ) {
   let q = supabase
@@ -116,19 +116,25 @@ function ahrefsReportsForClient(
     .select(columns)
     .eq("client_id", clientId)
     .order("report_date", { ascending: false });
-  if (tenantIds.length === 1) q = q.eq("tenant_id", tenantIds[0]);
-  else if (tenantIds.length > 1) q = q.in("tenant_id", tenantIds);
+  if (tenantIds.length === 1) {
+    q = q.eq("tenant_id", tenantIds[0]);
+  } else if (tenantIds.length > 1) {
+    q = q.in("tenant_id", tenantIds);
+  }
   return q;
 }
 
 async function syncStoredAhrefsReportTable(t: CategoryTable) {
   const settings = t.integration_settings || {};
   const clientId = settings.clientId || settings.client_id || t.client_id;
-  if (!clientId || !t.tenant_id) throw new Error("Missing SEO report scope");
+  if (!clientId || !t.tenant_id) {
+    throw new Error("Missing SEO report scope");
+  }
 
   const reportTenantIds = await resolveReportTenantIds(clientId, t.tenant_id);
-  if (reportTenantIds.length === 0)
+  if (reportTenantIds.length === 0) {
     throw new Error("Missing SEO report tenant scope");
+  }
 
   const { data: clientRow } = await supabase
     .from("clients")
@@ -170,7 +176,7 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     )
       .not("metadata->ahrefs_project_id", "is", null)
       .limit(20);
-    const rows = (lastWithProject as any[]) || [];
+    const rows = (lastWithProject as Array<any>) || [];
     const match =
       rows.find(
         (r: any) =>
@@ -198,7 +204,9 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
       },
     },
   );
-  if (fetchError) throw fetchError;
+  if (fetchError) {
+    throw fetchError;
+  }
 
   // Step 2: Read freshly stored reports and rebuild crm_records
   const { data: reports, error } = await ahrefsReportsForClient(
@@ -206,9 +214,12 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     reportTenantIds,
   );
 
-  if (error) throw error;
-  if (!reports || reports.length === 0)
+  if (error) {
+    throw error;
+  }
+  if (!reports || reports.length === 0) {
     throw new Error("לא נמצאו דוחות Ahrefs שמורים");
+  }
 
   const target = normalizedDomain;
 
@@ -216,10 +227,10 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     ? reports.filter((report: any) => normalizeDomain(report.domain) === target)
     : reports;
 
-  const recordsToInsert: any[] = [];
+  const recordsToInsert: Array<any> = [];
   for (const report of (reportsToUse.length > 0
     ? reportsToUse
-    : reports) as any[]) {
+    : reports) as Array<any>) {
     const rd = report.report_data || {};
     const snapshot = rd.snapshot || {};
     const reportDate = report.report_date || report.received_at;
@@ -281,7 +292,9 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
     const { error: insertError } = await supabase
       .from("crm_records" as any)
       .insert(recordsToInsert.slice(i, i + 500));
-    if (insertError) throw insertError;
+    if (insertError) {
+      throw insertError;
+    }
   }
 
   const syncedAt = new Date().toISOString();
@@ -297,10 +310,13 @@ async function syncStoredAhrefsReportTable(t: CategoryTable) {
 async function syncTrackedOnlyForTable(t: CategoryTable) {
   const settings = t.integration_settings || {};
   const clientId = settings.clientId || settings.client_id || t.client_id;
-  if (!clientId || !t.tenant_id) throw new Error("Missing SEO report scope");
+  if (!clientId || !t.tenant_id) {
+    throw new Error("Missing SEO report scope");
+  }
   const reportTenantIds = await resolveReportTenantIds(clientId, t.tenant_id);
-  if (reportTenantIds.length === 0)
+  if (reportTenantIds.length === 0) {
     throw new Error("Missing SEO report tenant scope");
+  }
   const { data: clientRow } = await supabase
     .from("clients")
     .select("website, ahrefs_domain")
@@ -331,8 +347,12 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
       },
     },
   );
-  if (error) throw error;
-  if ((data as any)?.error) throw new Error((data as any).error);
+  if (error) {
+    throw error;
+  }
+  if ((data as any)?.error) {
+    throw new Error((data as any).error);
+  }
 
   // Persist project id on the table so future syncs (full + tracked) reuse it.
   const persistedProjectId = (data as any)?.projectId;
@@ -361,14 +381,14 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
     reportTenantIds,
   );
   const reportsToUse = target
-    ? ((reports as any[]) || []).filter(
+    ? ((reports as Array<any>) || []).filter(
         (r: any) => normalizeDomain(r.domain) === target,
       )
-    : (reports as any[]) || [];
-  const recordsToInsert: any[] = [];
+    : (reports as Array<any>) || [];
+  const recordsToInsert: Array<any> = [];
   for (const report of reportsToUse.length > 0
     ? reportsToUse
-    : (reports as any[]) || []) {
+    : (reports as Array<any>) || []) {
     const rd = report.report_data || {};
     const snapshot = rd.snapshot || {};
     const reportDate = report.report_date || report.received_at;
@@ -412,7 +432,9 @@ async function syncTrackedOnlyForTable(t: CategoryTable) {
       const { error: insertError } = await supabase
         .from("crm_records" as any)
         .insert(recordsToInsert.slice(i, i + 500));
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
     }
   }
   return (data as any)?.tracked_count ?? 0;
@@ -455,7 +477,9 @@ export function CategorySyncControl({ category, tables }: Props) {
         continue;
       }
       const d = new Date(ts);
-      if (!oldest || d < oldest) oldest = d;
+      if (!oldest || d < oldest) {
+        oldest = d;
+      }
     }
     return { oldestSyncAt: oldest, neverSyncedCount: never };
   }, [syncableTables]);
@@ -501,7 +525,9 @@ export function CategorySyncControl({ category, tables }: Props) {
           };
         }
         const { error } = await supabase.functions.invoke(fnName, { body });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         success++;
       } catch (e: any) {
         console.error(`[CategorySyncControl] sync failed for ${t.name}:`, e);

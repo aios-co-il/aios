@@ -35,8 +35,8 @@ const SIGNED_SECONDS = 600;
 export async function readableReferenceUrls(
   supabase: SigningClient,
   tenantId: string,
-  urls: string[],
-): Promise<string[]> {
+  urls: Array<string>,
+): Promise<Array<string>> {
   const readable = await Promise.all(
     urls.map(async (url) => {
       const path = extractEntityAttachmentPath(url);

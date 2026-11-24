@@ -86,14 +86,14 @@ export function CarmenConversationAccessTab({
   const qc = useQueryClient();
   const autoSyncedRef = useRef(false);
   const autoManusSyncRef = useRef(false);
-  const [phones, setPhones] = useState<PrivatePhoneRow[]>([]);
+  const [phones, setPhones] = useState<Array<PrivatePhoneRow>>([]);
   const [phonesDirty, setPhonesDirty] = useState(false);
-  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [groupIds, setGroupIds] = useState<Array<string>>([]);
   const [requireDirect, setRequireDirect] = useState(true);
   const [openMemberGroups, setOpenMemberGroups] = useState(false);
   const [denyMessage, setDenyMessage] = useState("");
   const [newPhone, setNewPhone] = useState("");
-  const [clientRows, setClientRows] = useState<ClientGroupRow[]>([]);
+  const [clientRows, setClientRows] = useState<Array<ClientGroupRow>>([]);
 
   const policyKey = ["carmen-access-policy", tenantId, agent.id];
 
@@ -107,14 +107,16 @@ export function CarmenConversationAccessTab({
             .eq("tenant_id", tenantId)
             .eq("agent_id", agent.id)
             .maybeSingle();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data;
         }
       : skipToken,
   });
 
   const { data: manusGroups, isLoading: groupsLoading } = useQuery<
-    ManusGroupRow[]
+    Array<ManusGroupRow>
   >({
     queryKey: ["carmen-manus-groups", tenantId],
     queryFn: tenantId ? () => fetchCarmenManusGroups(tenantId) : skipToken,
@@ -211,13 +213,15 @@ export function CarmenConversationAccessTab({
   );
 
   const persistPolicy = async (draft: {
-    phones: PrivatePhoneRow[];
-    groupIds: string[];
+    phones: Array<PrivatePhoneRow>;
+    groupIds: Array<string>;
     requireDirect: boolean;
     openMemberGroups: boolean;
     denyMessage: string;
   }) => {
-    if (!tenantId) throw new Error("חסר tenant");
+    if (!tenantId) {
+      throw new Error("חסר tenant");
+    }
     const allowedManusGroups = draft.groupIds.filter((id) =>
       manusGroupIdSet.has(id),
     );
@@ -234,11 +238,15 @@ export function CarmenConversationAccessTab({
     const { error: pErr } = await supabase
       .from("carmen_access_policies")
       .upsert(payload, { onConflict: "tenant_id,agent_id" });
-    if (pErr) throw pErr;
+    if (pErr) {
+      throw pErr;
+    }
 
     for (const entry of draft.phones) {
       const phone = normalizePhone(entry.phone);
-      if (phone.length < 9) continue;
+      if (phone.length < 9) {
+        continue;
+      }
       const { data: existing } = await supabase
         .from("carmen_whatsapp_identities")
         .select("id")
@@ -262,13 +270,19 @@ export function CarmenConversationAccessTab({
   };
 
   useEffect(() => {
-    if (policyLoading || automationLoading) return;
-    if (!phonesDirty) setPhones(mergedPhones);
+    if (policyLoading || automationLoading) {
+      return;
+    }
+    if (!phonesDirty) {
+      setPhones(mergedPhones);
+    }
   }, [mergedPhones, policyLoading, automationLoading, phonesDirty]);
 
   useEffect(() => {
-    if (!policy) return;
-    const savedGroups: string[] = Array.isArray(policy.allowed_group_ids)
+    if (!policy) {
+      return;
+    }
+    const savedGroups: Array<string> = Array.isArray(policy.allowed_group_ids)
       ? policy.allowed_group_ids
       : [];
     setGroupIds(savedGroups);
@@ -279,7 +293,9 @@ export function CarmenConversationAccessTab({
 
   // Drop saved group selections that are not Manus-connected once the list loads.
   useEffect(() => {
-    if (manusGroupIdSet.size === 0) return;
+    if (manusGroupIdSet.size === 0) {
+      return;
+    }
     setGroupIds((prev) => {
       const filtered = prev.filter((id) => manusGroupIdSet.has(id));
       return filtered.length === prev.length ? prev : filtered;
@@ -287,12 +303,16 @@ export function CarmenConversationAccessTab({
   }, [manusGroupIdSet]);
 
   useEffect(() => {
-    if (clientGroupAccess) setClientRows(clientGroupAccess);
+    if (clientGroupAccess) {
+      setClientRows(clientGroupAccess);
+    }
   }, [clientGroupAccess]);
 
   const autoSyncFromAutomation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !automationCfg) return;
+      if (!tenantId || !automationCfg) {
+        return;
+      }
       const built = buildPolicyFromAutomation(automationCfg, manusGroups || []);
       // Keep identity-approved private phones when seeding — never wipe the UI
       // with an empty automation-only list from a group-only trigger step.
@@ -330,9 +350,12 @@ export function CarmenConversationAccessTab({
       policyLoading ||
       groupsLoading ||
       automationLoading
-    )
+    ) {
       return;
-    if (!tenantId || !automationCfg) return;
+    }
+    if (!tenantId || !automationCfg) {
+      return;
+    }
     const identityPrivateCount = (identities || []).filter((id) => {
       const surfaces = Array.isArray(id.surfaces)
         ? id.surfaces
@@ -348,7 +371,9 @@ export function CarmenConversationAccessTab({
         !policy?.open_member_groups) ||
       (policyPhoneCount === 0 &&
         (automationPhoneCount > 0 || identityPrivateCount > 0));
-    if (!needsSeed) return;
+    if (!needsSeed) {
+      return;
+    }
     autoSyncedRef.current = true;
     autoSyncFromAutomation.mutate();
   }, [
@@ -363,7 +388,9 @@ export function CarmenConversationAccessTab({
 
   const syncManusGroups = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("חסר tenant");
+      if (!tenantId) {
+        throw new Error("חסר tenant");
+      }
       return syncCarmenManusGroups(tenantId);
     },
     onSuccess: (data) => {
@@ -385,13 +412,19 @@ export function CarmenConversationAccessTab({
     (manusSyncInfo.count || 0) > (manusGroups?.length || 0);
 
   useEffect(() => {
-    if (autoManusSyncRef.current || !tenantId || groupsLoading) return;
-    if (syncManusGroups.isPending) return;
+    if (autoManusSyncRef.current || !tenantId || groupsLoading) {
+      return;
+    }
+    if (syncManusGroups.isPending) {
+      return;
+    }
     const needsSync =
       !manusSyncInfo?.hasSync ||
       groupsCountMismatch ||
       (manusGroups?.length || 0) === 0;
-    if (!needsSync) return;
+    if (!needsSync) {
+      return;
+    }
     autoManusSyncRef.current = true;
     syncManusGroups.mutate();
   }, [
@@ -406,7 +439,9 @@ export function CarmenConversationAccessTab({
 
   const importFromAutomation = useMutation({
     mutationFn: async () => {
-      if (!automationCfg) throw new Error("לא נמצאה אוטומציית כרמן לייבוא");
+      if (!automationCfg) {
+        throw new Error("לא נמצאה אוטומציית כרמן לייבוא");
+      }
       const built = buildPolicyFromAutomation(automationCfg, manusGroups || []);
       setPhonesDirty(true);
       setPhones(built.phones);
@@ -419,8 +454,12 @@ export function CarmenConversationAccessTab({
 
   const persistClientGroups = async () => {
     for (const row of clientRows) {
-      if (!row.client_id || !row.whatsapp_group_id) continue;
-      if (!manusGroupIdSet.has(row.whatsapp_group_id)) continue;
+      if (!row.client_id || !row.whatsapp_group_id) {
+        continue;
+      }
+      if (!manusGroupIdSet.has(row.whatsapp_group_id)) {
+        continue;
+      }
       const payload = {
         tenant_id: tenantId,
         client_id: row.client_id,
@@ -453,8 +492,12 @@ export function CarmenConversationAccessTab({
                 onConflict: "tenant_id,client_id,whatsapp_group_id",
               });
         const { error: retryError } = await retry;
-        if (retryError) throw retryError;
-      } else if (error) throw error;
+        if (retryError) {
+          throw retryError;
+        }
+      } else if (error) {
+        throw error;
+      }
     }
   };
 
@@ -483,7 +526,9 @@ export function CarmenConversationAccessTab({
 
   const introduce = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("חסר tenant");
+      if (!tenantId) {
+        throw new Error("חסר tenant");
+      }
       const selectedGroups = (manusGroups || []).filter(
         (group: any) => openMemberGroups || groupIds.includes(group.id),
       );
@@ -510,8 +555,12 @@ export function CarmenConversationAccessTab({
         "carmen-introduce-group",
         { body: { tenantId, agentId: agent.id } },
       );
-      if (error) throw new Error(error.message || "שליחת הקודים נכשלה");
-      if (data?.error) throw new Error(String(data.error));
+      if (error) {
+        throw new Error(error.message || "שליחת הקודים נכשלה");
+      }
+      if (data?.error) {
+        throw new Error(String(data.error));
+      }
       return data as { groups?: number; codes?: number; reason?: string };
     },
     onSuccess: (data) => {
@@ -556,27 +605,41 @@ export function CarmenConversationAccessTab({
   };
 
   const privateStatusLabel = (row: PrivatePhoneRow) => {
-    if (row.status === "approved") return "מאושר";
-    if (row.status === "pending") return "ממתין";
-    if (row.source === "automation") return "אוטומציה";
-    if (row.source === "policy") return "מדיניות";
+    if (row.status === "approved") {
+      return "מאושר";
+    }
+    if (row.status === "pending") {
+      return "ממתין";
+    }
+    if (row.source === "automation") {
+      return "אוטומציה";
+    }
+    if (row.source === "policy") {
+      return "מדיניות";
+    }
     return "מאושר";
   };
 
   const toggleGroup = (id: string) => {
-    if (openMemberGroups) return;
+    if (openMemberGroups) {
+      return;
+    }
     setGroupIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
   const selectAllGroups = () => {
-    if (openMemberGroups) return;
+    if (openMemberGroups) {
+      return;
+    }
     setGroupIds((manusGroups || []).map((g: { id: string }) => g.id));
   };
 
   const clearAllGroups = () => {
-    if (openMemberGroups) return;
+    if (openMemberGroups) {
+      return;
+    }
     setGroupIds([]);
   };
 
@@ -782,8 +845,11 @@ export function CarmenConversationAccessTab({
                         setPhonesDirty(true);
                         const next = [...phones];
                         const s = new Set(row.surfaces || ["whatsapp_private"]);
-                        if (c) s.add("whatsapp_group");
-                        else s.delete("whatsapp_group");
+                        if (c) {
+                          s.add("whatsapp_group");
+                        } else {
+                          s.delete("whatsapp_group");
+                        }
                         next[idx] = { ...row, surfaces: Array.from(s) };
                         setPhones(next);
                       }}
@@ -938,10 +1004,11 @@ export function CarmenConversationAccessTab({
               checked={openMemberGroups}
               onCheckedChange={(v) => {
                 setOpenMemberGroups(v);
-                if (v)
+                if (v) {
                   setGroupIds(
                     (manusGroups || []).map((g: { id: string }) => g.id),
                   );
+                }
               }}
               id="open-member"
             />

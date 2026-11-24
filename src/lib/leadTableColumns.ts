@@ -23,7 +23,7 @@ export function leadTableColumnVisibilityKey(field: {
   return field.visibilityKey ?? field.key;
 }
 
-export const LEAD_TABLE_COLUMN_FIELDS: LeadTableColumnField[] = [
+export const LEAD_TABLE_COLUMN_FIELDS: Array<LeadTableColumnField> = [
   { key: "contact_name", label: "שם", type: "text", required: true },
   { key: "created_at", label: "תאריך", type: "date", required: false },
   { key: "sales_person", label: "משתמש", type: "text", required: false },
@@ -88,7 +88,9 @@ export function isLeadTableColumnVisible(
   isFieldVisible: (key: string, defaultVisible?: boolean) => boolean,
 ): boolean {
   const field = LEAD_TABLE_COLUMN_FIELDS.find((item) => item.key === fieldKey);
-  if (field?.required) return true;
+  if (field?.required) {
+    return true;
+  }
   return isFieldVisible(
     field ? leadTableColumnVisibilityKey(field) : fieldKey,
     field?.defaultVisible ?? true,
@@ -135,17 +137,23 @@ const LEAD_TABLE_WIDTH_COLUMN_IDS = new Set([
 export function parseLeadTableColumnWidths(
   raw: string | null | undefined,
 ): Record<string, number> {
-  if (!raw) return {};
+  if (!raw) {
+    return {};
+  }
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return {};
+    }
     const widths: Record<string, number> = {};
     for (const [id, value] of Object.entries(parsed)) {
-      if (!LEAD_TABLE_WIDTH_COLUMN_IDS.has(id) && !id.startsWith("cf:"))
+      if (!LEAD_TABLE_WIDTH_COLUMN_IDS.has(id) && !id.startsWith("cf:")) {
         continue;
+      }
       const width = typeof value === "number" ? value : Number(value);
-      if (!Number.isFinite(width)) continue;
+      if (!Number.isFinite(width)) {
+        continue;
+      }
       widths[id] = Math.round(
         Math.min(
           LEAD_TABLE_COLUMN_MAX_WIDTH,
@@ -164,7 +172,9 @@ let memoryWidths: Record<string, number> | null = null;
 export function readLeadTableColumnWidths(
   storage?: Pick<Storage, "getItem"> | null,
 ): Record<string, number> {
-  if (memoryWidths) return memoryWidths;
+  if (memoryWidths) {
+    return memoryWidths;
+  }
   try {
     memoryWidths = parseLeadTableColumnWidths(
       storage?.getItem(LEAD_TABLE_COLUMN_WIDTHS_STORAGE_KEY) ?? null,
@@ -194,7 +204,7 @@ export function writeLeadTableColumnWidths(
 
 export function applyLeadTableColumnWidths<
   T extends { id: string; width: number },
->(columns: T[], saved: Record<string, number>): T[] {
+>(columns: Array<T>, saved: Record<string, number>): Array<T> {
   return columns.map((column) => {
     const width = saved[column.id];
     return width ? { ...column, width } : column;
@@ -209,7 +219,7 @@ export function getLeadTableCustomColumns<
     sort_order?: number;
   },
 >(
-  fields: T[],
+  fields: Array<T>,
   systemFieldKeys: ReadonlySet<string>,
 ): Array<T & { visibilityKey: string }> {
   return fields
@@ -241,14 +251,20 @@ export function formatLeadTableFieldValue(
   value: unknown,
   type = "text",
 ): string {
-  if (value == null || value === "") return "—";
+  if (value == null || value === "") {
+    return "—";
+  }
   if (type === "checkbox") {
     return value === true || value === "true" ? "כן" : "לא";
   }
-  if (typeof value === "number") return String(value);
+  if (typeof value === "number") {
+    return String(value);
+  }
   if (typeof value === "string") {
     const date = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-    if (type === "date" && date) return `${date[3]}/${date[2]}/${date[1]}`;
+    if (type === "date" && date) {
+      return `${date[3]}/${date[2]}/${date[1]}`;
+    }
     if (value.startsWith("[")) {
       try {
         const parsed = JSON.parse(value) as unknown;
@@ -278,7 +294,9 @@ export function formatLeadFilesColumn(lead: {
   const links = Array.isArray(lead.folder_links) ? lead.folder_links.length : 0;
   const folder = lead.folder_link?.trim() ? 1 : 0;
   const total = attachments + links + folder;
-  if (!total) return "—";
+  if (!total) {
+    return "—";
+  }
   return total === 1 ? "קובץ אחד" : `${total} קבצים`;
 }
 

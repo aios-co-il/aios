@@ -43,7 +43,7 @@ export function googleManualRoiFigures(
  */
 export function googleLeadCampaignRecords<
   T extends { data?: GoogleAdsRowData | null },
->(records: T[], table: GoogleReportTable): T[] {
+>(records: Array<T>, table: GoogleReportTable): Array<T> {
   const { goalOf } = googleCampaignGoalOf(
     records.map((record) => ({ table_id: table.id, data: record.data })),
     [table],

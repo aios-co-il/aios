@@ -9,11 +9,11 @@ type Row = Record<string, unknown>;
  * claims interleave like two webhook deliveries.
  */
 export function fakeChatMessages(
-  seed: Row[],
+  seed: Array<Row>,
   opts: { selectError?: unknown; updateError?: unknown } = {},
 ) {
   const rows = seed.map((row) => structuredClone(row));
-  const updates: Row[] = [];
+  const updates: Array<Row> = [];
   const value = (row: Row, column: string) => {
     const path = column.match(/^raw_provider_data->>(.+)$/);
     if (!path) {

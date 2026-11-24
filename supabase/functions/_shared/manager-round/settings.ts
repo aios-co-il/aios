@@ -39,10 +39,10 @@ export type ManagerSettings = {
   notify_since: string | null;
   kinds: Partial<Record<FindingKind, KindSettings>>;
   /** User ids; empty means the tenant owners. */
-  brief_recipients: string[];
+  brief_recipients: Array<string>;
   business_hours: BusinessHours;
   /** Israel calendar days (YYYY-MM-DD) with no business hours. */
-  holidays: string[];
+  holidays: Array<string>;
   /** Business hours a client's message in a linked group or a private chat may wait for a staff reply (read by the chat collector, AIO-252). */
   unanswered_reply_hours: number;
   /** Business hours after the first send: [to the manager, to the owner]. */
@@ -169,7 +169,7 @@ export function record(raw: unknown): Record<string, unknown> {
 }
 
 /** The strings of an array, or an empty list. */
-function stringList(raw: unknown): string[] {
+function stringList(raw: unknown): Array<string> {
   return Array.isArray(raw)
     ? raw.filter((item): item is string => typeof item === "string")
     : [];

@@ -52,7 +52,9 @@ export function useBrainConnections(tenantId: string | null) {
       // The brain picker and the permissions grid read the same routes.
       qc.invalidateQueries({ queryKey: ["brain-routes", tenantId] });
       qc.invalidateQueries({ queryKey: ["carmen-perm-routes", tenantId] });
-      if (success) toast.success(success);
+      if (success) {
+        toast.success(success);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -87,8 +89,12 @@ async function invokeBrainConnections<T>(
     "carmen-brain-connections",
     { body: { tenant_id: tenantId, ...body } },
   );
-  if (error) throw new Error(await errorText(error));
-  if (data === null) throw new Error("Empty response");
+  if (error) {
+    throw new Error(await errorText(error));
+  }
+  if (data === null) {
+    throw new Error("Empty response");
+  }
   return data;
 }
 
@@ -98,8 +104,9 @@ async function errorText(error: Error): Promise<string> {
     error.context instanceof Response
   ) {
     const body: unknown = await error.context.json().catch(() => null);
-    if (body && typeof body === "object" && "error" in body)
+    if (body && typeof body === "object" && "error" in body) {
       return String(body.error);
+    }
   }
   return error.message;
 }

@@ -108,7 +108,9 @@ describe("scene overlays", () => {
       );
     }
     expect(nearTop.length).toBeGreaterThan(0);
-    for (const piece of nearTop) expect(piece.opacity).toBeLessThan(0.2);
+    for (const piece of nearTop) {
+      expect(piece.opacity).toBeLessThan(0.2);
+    }
   });
 
   test("confetti bursts at the scene's start, fills the frame, then falls out of it", () => {

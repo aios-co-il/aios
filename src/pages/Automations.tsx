@@ -123,29 +123,37 @@ export default function Automations() {
   } = useQuery({
     queryKey: ["automations", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data: own, error: ownErr } = await supabase
         .from("automations")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (ownErr) throw ownErr;
+      if (ownErr) {
+        throw ownErr;
+      }
 
       const { data: shareRows, error: shareErr } = await supabase
         .from("automation_shared_tenants")
         .select("automation_id")
         .eq("tenant_id", tenantId);
-      if (shareErr) throw shareErr;
+      if (shareErr) {
+        throw shareErr;
+      }
 
       const sharedIds = (shareRows || []).map((r: any) => r.automation_id);
-      let shared: any[] = [];
+      let shared: Array<any> = [];
       if (sharedIds.length > 0) {
         const { data: sharedAutos, error: sharedErr } = await supabase
           .from("automations")
           .select("*")
           .in("id", sharedIds);
-        if (sharedErr) throw sharedErr;
+        if (sharedErr) {
+          throw sharedErr;
+        }
         shared = (sharedAutos || []).map((a: any) => ({
           ...a,
           _isSharedMirror: true,
@@ -161,7 +169,9 @@ export default function Automations() {
   const { data: logs } = useQuery({
     queryKey: ["automation-logs", selectedAutomationId],
     queryFn: async () => {
-      if (!selectedAutomationId) return [];
+      if (!selectedAutomationId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("automation_logs")
@@ -170,7 +180,9 @@ export default function Automations() {
         .order("triggered_at", { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!selectedAutomationId,
@@ -179,14 +191,18 @@ export default function Automations() {
   // Toggle automation active status
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      if (!tenantId) throw new Error("Missing tenant");
+      if (!tenantId) {
+        throw new Error("Missing tenant");
+      }
       const { error } = await supabase
         .from("automations")
         .update({ active })
         .eq("id", id)
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations", tenantId] });
@@ -211,7 +227,9 @@ export default function Automations() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations", tenantId] });
@@ -231,7 +249,9 @@ export default function Automations() {
   // Duplicate automation (including flow steps)
   const duplicateMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       // 1. Load source automation
       const { data: src, error: srcErr } = await supabase
@@ -239,7 +259,9 @@ export default function Automations() {
         .select("*")
         .eq("id", id)
         .single();
-      if (srcErr) throw srcErr;
+      if (srcErr) {
+        throw srcErr;
+      }
 
       // 2. Insert clone
       const {
@@ -260,14 +282,18 @@ export default function Automations() {
         })
         .select()
         .single();
-      if (insErr) throw insErr;
+      if (insErr) {
+        throw insErr;
+      }
 
       // 3. Clone flow steps if any (preserving parent_step_id mapping)
       const { data: steps, error: stepsErr } = await supabase
         .from("automation_flow_steps")
         .select("*")
         .eq("automation_id", id);
-      if (stepsErr) throw stepsErr;
+      if (stepsErr) {
+        throw stepsErr;
+      }
 
       if (steps && steps.length > 0) {
         const idMap = new Map<string, string>();
@@ -293,7 +319,9 @@ export default function Automations() {
         const { error: stepInsErr } = await supabase
           .from("automation_flow_steps")
           .insert(newSteps);
-        if (stepInsErr) throw stepInsErr;
+        if (stepInsErr) {
+          throw stepInsErr;
+        }
       }
 
       return clone;
@@ -317,7 +345,9 @@ export default function Automations() {
   // Create Manus direct WhatsApp channel
   const createManusFlowMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data: agentsList } = await supabase
         .from("ai_agents" as any)
         .select("id,name,active")
@@ -326,11 +356,12 @@ export default function Automations() {
       // Use Carmen as the routing agent — she has manus-mcp connected and will
       // forward the request to Manus via ask_manus / request_dev_task tools.
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
-      if (!carmenAgent)
+        ) || ((agentsList as Array<any>) || [])[0];
+      if (!carmenAgent) {
         throw new Error("לא נמצאה כרמן פעילה. ודא שסוכן כרמן קיים.");
+      }
       const { data, error } = await supabase
         .from("automations")
         .insert({
@@ -346,7 +377,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const { data: waInt } = await supabase
         .from("tenant_integrations" as any)
         .select("id")
@@ -439,7 +472,9 @@ export default function Automations() {
   // Create new Carmen WhatsApp session automation
   const createCarmenFlowMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data, error } = await supabase
         .from("automations")
         .insert({
@@ -458,7 +493,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -479,7 +516,9 @@ export default function Automations() {
   // synthesis is a planned engine enhancement.
   const createCampaignPulseMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       // Find Carmen (or any active agent) for the agent nodes.
       const { data: agentsList } = await supabase
         .from("ai_agents" as any)
@@ -487,10 +526,12 @@ export default function Automations() {
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmen =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
-      if (!carmen) throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
+        ) || ((agentsList as Array<any>) || [])[0];
+      if (!carmen) {
+        throw new Error("לא נמצא סוכן פעיל (כרמן). צרי סוכן תחילה.");
+      }
 
       const { data: automation, error: autoErr } = await supabase
         .from("automations")
@@ -507,7 +548,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (autoErr) throw autoErr;
+      if (autoErr) {
+        throw autoErr;
+      }
 
       const aid = automation.id;
       const mk = (over: any) => ({
@@ -588,7 +631,9 @@ export default function Automations() {
       const { error: stepErr } = await supabase
         .from("automation_flow_steps")
         .insert([trigger, campaigner, seo, analyst, report] as any);
-      if (stepErr) throw stepErr;
+      if (stepErr) {
+        throw stepErr;
+      }
       return automation;
     },
     onSuccess: (data) => {
@@ -610,7 +655,9 @@ export default function Automations() {
   // Create "Manus Direct" automation — manual_command trigger + send_manus_direct action
   const createManusDirectMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       // Find Carmen or any active agent for the agent node
       const { data: agentsList } = await supabase
         .from("ai_agents" as any)
@@ -618,9 +665,9 @@ export default function Automations() {
         .eq("tenant_id", tenantId)
         .eq("active", true);
       const carmenAgent =
-        ((agentsList as any[]) || []).find((a) =>
+        ((agentsList as Array<any>) || []).find((a) =>
           /כרמן|carmen/i.test(a.name || ""),
-        ) || ((agentsList as any[]) || [])[0];
+        ) || ((agentsList as Array<any>) || [])[0];
       // Create the automation header
       const { data, error } = await supabase
         .from("automations")
@@ -637,7 +684,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const mk = (over: any) => ({
         id: crypto.randomUUID(),
         automation_id: data.id,
@@ -727,7 +776,9 @@ export default function Automations() {
   // Meta WhatsApp: webhook lead → send approved template to the lead's phone
   const createMetaWhatsappLeadFlowMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const { data: metaInt } = await supabase
         .from("tenant_integrations" as any)
         .select("id")
@@ -751,7 +802,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const mk = (over: any) => ({
         id: crypto.randomUUID(),
         automation_id: data.id,
@@ -790,7 +843,9 @@ export default function Automations() {
       const { error: stepErr } = await supabase
         .from("automation_flow_steps" as any)
         .insert([trigger, send]);
-      if (stepErr) throw stepErr;
+      if (stepErr) {
+        throw stepErr;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -814,7 +869,9 @@ export default function Automations() {
   // Create new flow automation
   const createFlowMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
       const triggerStepId = crypto.randomUUID();
       const { data, error } = await supabase
         .from("automations")
@@ -829,7 +886,9 @@ export default function Automations() {
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const { error: stepError } = await supabase
         .from("automation_flow_steps" as any)
@@ -846,7 +905,9 @@ export default function Automations() {
           parent_step_id: null,
           condition_branch: null,
         });
-      if (stepError) throw stepError;
+      if (stepError) {
+        throw stepError;
+      }
 
       return data;
     },
@@ -1085,7 +1146,7 @@ export default function Automations() {
           const configuredTriggers = Array.isArray(
             (automation as any).configuration?.trigger_types,
           )
-            ? ((automation as any).configuration.trigger_types as string[])
+            ? ((automation as any).configuration.trigger_types as Array<string>)
             : [];
           const triggerType = automation.trigger_type;
           const triggerLabel =

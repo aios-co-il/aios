@@ -39,7 +39,7 @@ function staffMember(fields: Partial<StaffMember>): StaffMember {
 
 /** A directory with these assignments; `known` false hides the client. */
 function directory(
-  assignments: CampaignerAssignment[],
+  assignments: Array<CampaignerAssignment>,
   known = true,
 ): PeopleDirectory {
   return {
@@ -148,7 +148,7 @@ Deno.test("resolveClientRecipients", async (t) => {
 });
 
 Deno.test("resolveBriefRecipients", async (t) => {
-  const keys = (members: StaffMember[], chosen: string[]) =>
+  const keys = (members: Array<StaffMember>, chosen: Array<string>) =>
     resolveBriefRecipients(members, { brief_recipients: chosen }).map(
       (r) => r.key,
     );

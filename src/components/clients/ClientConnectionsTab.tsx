@@ -73,10 +73,11 @@ export function ClientConnectionsTab({
   const [newPageId, setNewPageId] = useState("");
   const [newPageName, setNewPageName] = useState("");
 
-  if (conns.isLoading || !conns.data)
+  if (conns.isLoading || !conns.data) {
     return (
       <div className="p-4 text-sm text-muted-foreground">טוען חיבורים...</div>
     );
+  }
 
   const c = conns.data.client as Record<string, any> | null;
 
@@ -88,7 +89,9 @@ export function ClientConnectionsTab({
   const setFieldValue = (key: ChannelFieldKey, value: string) => {
     setEdits((prev) => ({ ...prev, [key]: value }));
     // Clear resolved page preview when meta_ads_account_id changes
-    if (key === "meta_ads_account_id") setResolvedPage(null);
+    if (key === "meta_ads_account_id") {
+      setResolvedPage(null);
+    }
   };
 
   const persistClientFields = async () => {
@@ -101,7 +104,9 @@ export function ClientConnectionsTab({
       .from("clients")
       .update(payload as never)
       .eq("id", clientId);
-    if (error) throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
     setEdits({});
     conns.invalidate();
   };
@@ -142,8 +147,12 @@ export function ClientConnectionsTab({
           },
         },
       );
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.message || data.error);
+      if (error) {
+        throw new Error(error.message);
+      }
+      if (data?.error) {
+        throw new Error(data.message || data.error);
+      }
 
       setResolvedPage(data as ResolvedPage);
       toast.success(
@@ -160,11 +169,13 @@ export function ClientConnectionsTab({
 
   const currentFields = (): Record<ChannelFieldKey, string> => {
     const out = {} as Record<ChannelFieldKey, string>;
-    for (const key of ALL_CHANNEL_FIELD_KEYS) out[key] = fieldValue(key);
+    for (const key of ALL_CHANNEL_FIELD_KEYS) {
+      out[key] = fieldValue(key);
+    }
     return out;
   };
 
-  const services: string[] = Array.isArray(c?.services) ? c.services : [];
+  const services: Array<string> = Array.isArray(c?.services) ? c.services : [];
   const filledCount = countFilledConnections(currentFields(), services);
   const createDashboard = shouldCreateDashboardForConnections(
     currentFields(),
@@ -178,17 +189,24 @@ export function ClientConnectionsTab({
         await persistClientFields();
       }
       const summary = await provision(clientId, { createDashboard });
-      const parts: string[] = [];
-      if (summary.resolved.length)
+      const parts: Array<string> = [];
+      if (summary.resolved.length) {
         parts.push(`זוהו: ${summary.resolved.join(", ")}`);
-      if (summary.created.length)
+      }
+      if (summary.created.length) {
         parts.push(`נוצרו: ${summary.created.join(", ")}`);
-      if (summary.updated.length)
+      }
+      if (summary.updated.length) {
         parts.push(`עודכנו: ${summary.updated.join(", ")}`);
-      if (summary.dashboardCreated) parts.push("דשבורד נוצר");
-      else if (!summary.createDashboard) parts.push("טבלה בלבד (בלי דשבורד)");
-      if (summary.skipped.length)
+      }
+      if (summary.dashboardCreated) {
+        parts.push("דשבורד נוצר");
+      } else if (!summary.createDashboard) {
+        parts.push("טבלה בלבד (בלי דשבורד)");
+      }
+      if (summary.skipped.length) {
         parts.push(`דולגו: ${summary.skipped.join(", ")}`);
+      }
       toast.success(
         parts.length ? parts.join(" · ") : "אין ערוצים עם מזהים להקמה",
       );
@@ -200,7 +218,9 @@ export function ClientConnectionsTab({
   };
 
   const addPage = async () => {
-    if (!newPageId) return;
+    if (!newPageId) {
+      return;
+    }
     const { error } = await supabase.from("social_pages").insert({
       client_id: clientId,
       tenant_id: tenantId,
@@ -209,7 +229,9 @@ export function ClientConnectionsTab({
       page_name: newPageName || null,
       is_active: true,
     });
-    if (error) return toast.error(error.message);
+    if (error) {
+      return toast.error(error.message);
+    }
     setNewPageId("");
     setNewPageName("");
     toast.success("העמוד נוסף");
@@ -218,7 +240,9 @@ export function ClientConnectionsTab({
 
   const removePage = async (id: string) => {
     const { error } = await supabase.from("social_pages").delete().eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      return toast.error(error.message);
+    }
     conns.invalidate();
   };
 
@@ -227,7 +251,9 @@ export function ClientConnectionsTab({
       .from("social_media_wordpress_sites")
       .delete()
       .eq("id", id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      return toast.error(error.message);
+    }
     conns.invalidate();
   };
 

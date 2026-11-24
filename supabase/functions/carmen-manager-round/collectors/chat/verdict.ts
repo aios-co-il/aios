@@ -12,7 +12,7 @@ export type ChatVerdict = {
   needs_reply: boolean;
   is_request: boolean;
   /** The client messages the model read as complaints. */
-  complaint_ids: string[];
+  complaint_ids: Array<string>;
   /** The client messages this read judged (the new lines it was shown). */
   read_ids: Array<string>;
   urgency: "low" | "normal" | "high";
@@ -36,7 +36,7 @@ export const DROP_CONFIDENCE = 0.8;
  */
 export function parseModelVerdict(
   text: string,
-  lineIds: (string | null)[],
+  lineIds: Array<string | null>,
 ): ChatVerdict | null {
   const value = parseJson(text);
   const fields = verdictFields(value);
@@ -86,7 +86,7 @@ export function verdictSaysRequest(verdict: ChatVerdict | null): boolean {
 }
 
 /** The messages a confident verdict reads as complaints. */
-export function verdictComplaints(verdict: ChatVerdict | null): string[] {
+export function verdictComplaints(verdict: ChatVerdict | null): Array<string> {
   return verdict && verdict.confidence >= MIN_CONFIDENCE
     ? verdict.complaint_ids
     : [];

@@ -25,10 +25,14 @@ export interface SignatureEmailSettings extends Partial<SignatureEmailColors> {
 }
 
 export function safeHexColor(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
+  if (typeof value !== "string") {
+    return fallback;
+  }
   const trimmed = value.trim();
   const six = /^#([0-9a-fA-F]{6})$/.exec(trimmed);
-  if (six) return `#${six[1].toLowerCase()}`;
+  if (six) {
+    return `#${six[1].toLowerCase()}`;
+  }
   const three = /^#([0-9a-fA-F]{3})$/.exec(trimmed);
   if (three) {
     const [r, g, b] = three[1].split("");

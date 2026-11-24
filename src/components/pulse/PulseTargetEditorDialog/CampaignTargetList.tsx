@@ -9,7 +9,7 @@ import { TargetRow } from "./TargetRow";
 import type { CampaignTargetRow } from "./useCampaignTargetRows";
 
 type CampaignTargetListProps = {
-  rows: CampaignTargetRow[];
+  rows: Array<CampaignTargetRow>;
   savingKey: string | null;
   onSave: (input: PulseTargetSaveInput) => void;
 };

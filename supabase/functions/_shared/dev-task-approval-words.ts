@@ -14,11 +14,19 @@ import { askedChoices } from "./workshop/tapped-answers.ts";
  */
 export function isExplicitDevTaskApproval(text: unknown): boolean {
   const t = normalizeApprovalText(text);
-  if (!t || t.length > 80) return false;
-  if (isExplicitRejectionPhrase(t) || HOLD.test(t)) return false;
-  if (isExplicitApprovalPhrase(t)) return true;
+  if (!t || t.length > 80) {
+    return false;
+  }
+  if (isExplicitRejectionPhrase(t) || HOLD.test(t)) {
+    return false;
+  }
+  if (isExplicitApprovalPhrase(t)) {
+    return true;
+  }
   const list = words(t);
-  if (!list.some((word) => ANCHORS.has(word))) return false;
+  if (!list.some((word) => ANCHORS.has(word))) {
+    return false;
+  }
   return list.every((word) => ANCHORS.has(word) || FILLERS.has(word));
 }
 
@@ -136,8 +144,12 @@ const FIRST_NO = new Set(["לא", "אל", "בטלי", "תבטלי", "ביטול"
  */
 export function isExplicitDevTaskDecline(text: unknown): boolean {
   const t = normalizeApprovalText(text);
-  if (!t || t.length > 80) return false;
-  if (isExplicitRejectionPhrase(t)) return true;
+  if (!t || t.length > 80) {
+    return false;
+  }
+  if (isExplicitRejectionPhrase(t)) {
+    return true;
+  }
   const list = words(t);
   return list.length <= 4 && FIRST_NO.has(list[0]);
 }

@@ -9,13 +9,8 @@ export type RiskClass =
   | "unknown";
 
 /** Classes only an approver role may approve. Unknown tools are treated as approver-only. */
-export const APPROVER_ONLY_RISK_CLASSES: readonly RiskClass[] = Object.freeze([
-  "money",
-  "external_send",
-  "config",
-  "destructive",
-  "unknown",
-]);
+export const APPROVER_ONLY_RISK_CLASSES: ReadonlyArray<RiskClass> =
+  Object.freeze(["money", "external_send", "config", "destructive", "unknown"]);
 
 /** Risk class of a row's tool_name (direct-tool rows use the called tool's name). */
 export function approvalRiskClass(

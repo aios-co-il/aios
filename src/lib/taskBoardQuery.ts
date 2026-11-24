@@ -67,9 +67,11 @@ export function filterTasksForChatSearch<
     campaigners?: { full_name?: string | null } | null;
     creator_name?: string | null;
   },
->(tasks: T[], search: string): T[] {
+>(tasks: Array<T>, search: string): Array<T> {
   const q = search.trim().toLowerCase();
-  if (!q) return tasks;
+  if (!q) {
+    return tasks;
+  }
   return tasks.filter(
     (task) =>
       (task.title || "").toLowerCase().includes(q) ||
@@ -91,27 +93,43 @@ export function sortTasksForChatList<
     target_date?: string | null;
     created_at?: string;
   },
->(tasks: T[], today: Date): T[] {
+>(tasks: Array<T>, today: Date): Array<T> {
   const rank = (task: T) => {
-    if (task.status === "done") return 3;
-    if (isTaskOverdue(task, today)) return 0;
-    if (task.status === "in_progress") return 1;
+    if (task.status === "done") {
+      return 3;
+    }
+    if (isTaskOverdue(task, today)) {
+      return 0;
+    }
+    if (task.status === "in_progress") {
+      return 1;
+    }
     return 2;
   };
   return [...tasks].sort((a, b) => {
     const rankDiff = rank(a) - rank(b);
-    if (rankDiff !== 0) return rankDiff;
-    if (b.priority !== a.priority) return b.priority - a.priority;
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority;
+    }
     const aDeadline = a.target_date || a.due_date;
     const bDeadline = b.target_date || b.due_date;
     if (aDeadline && bDeadline && aDeadline !== bDeadline) {
       return aDeadline.localeCompare(bDeadline);
     }
-    if (aDeadline && !bDeadline) return -1;
-    if (!aDeadline && bDeadline) return 1;
+    if (aDeadline && !bDeadline) {
+      return -1;
+    }
+    if (!aDeadline && bDeadline) {
+      return 1;
+    }
     const aCreated = a.created_at || "";
     const bCreated = b.created_at || "";
-    if (aCreated !== bCreated) return bCreated.localeCompare(aCreated);
+    if (aCreated !== bCreated) {
+      return bCreated.localeCompare(aCreated);
+    }
     return b.id.localeCompare(a.id);
   });
 }
@@ -122,9 +140,13 @@ export function taskAppearsOnTimeGrid(
   dateRange: { start: Date; end: Date },
   today: Date = startOfDay(new Date()),
 ): boolean {
-  if (!task.due_date || !task.due_time) return false;
+  if (!task.due_date || !task.due_time) {
+    return false;
+  }
   // Completed tasks remain on the calendar (marked done); include them for grid + Google dedupe.
   const dueDate = new Date(task.due_date);
-  if (dueDate < today && task.status !== "done") return false;
+  if (dueDate < today && task.status !== "done") {
+    return false;
+  }
   return dueDate >= dateRange.start && dueDate <= dateRange.end;
 }

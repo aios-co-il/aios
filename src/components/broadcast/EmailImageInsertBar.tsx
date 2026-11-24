@@ -66,7 +66,9 @@ export function EmailImageInsertBar({
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
-          if (f) void insertImage(f);
+          if (f) {
+            void insertImage(f);
+          }
         }}
       />
     </div>

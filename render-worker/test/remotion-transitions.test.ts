@@ -56,8 +56,9 @@ describe("transitions and end cards", () => {
     );
     expect([...END_CARD_STYLES]).toEqual(WORKER_END_CARDS);
     // render-job.mjs lets each of them through.
-    for (const name of [...WORKSHOP_TRANSITIONS, ...END_CARD_STYLES])
+    for (const name of [...WORKSHOP_TRANSITIONS, ...END_CARD_STYLES]) {
       expect(JOB).toContain(`"${name}"`);
+    }
   });
 
   test("every transition ends at rest, with no filter left on the picture", () => {

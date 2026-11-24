@@ -65,7 +65,9 @@ test("a narration still being made is waited for, a bounded time", async () => {
     now: () => now,
     sleep: async (ms) => {
       now += ms;
-      if (now >= 15_000) ready = true;
+      if (now >= 15_000) {
+        ready = true;
+      }
     },
     log: (line) => lines.push(line),
   });
@@ -148,8 +150,9 @@ test("a talking film is timed by each scene's own voice of its current line only
   const db = filmDb({ rows, payload: {} });
   const select = db.select;
   db.select = async (table, query) => {
-    if (!(table === "marketing_assets" && query.startsWith("id=in.")))
+    if (!(table === "marketing_assets" && query.startsWith("id=in."))) {
       return select(table, query);
+    }
     db.queries.push([table, query]);
     return assets;
   };
@@ -159,6 +162,7 @@ test("a talking film is timed by each scene's own voice of its current line only
   expect(sized.filmS).toBeCloseTo(6.5 + 7.5 + 3.5, 1);
   // Every filter carries the run's tenant.
   expect(db.queries.length).toBeGreaterThan(3);
-  for (const [, query] of db.queries)
+  for (const [, query] of db.queries) {
     expect(query).toContain("tenant_id=eq.t1");
+  }
 });

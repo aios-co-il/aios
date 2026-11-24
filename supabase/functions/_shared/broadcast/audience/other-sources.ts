@@ -8,14 +8,18 @@ export async function resolveCampaigners(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   let q = db
     .from("campaigners")
     .select("id, full_name, phone, email, role, active")
     .eq("tenant_id", tenantId);
-  if (f.activeOnly !== false) q = q.eq("active", true);
+  if (f.activeOnly !== false) {
+    q = q.eq("active", true);
+  }
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const roles = f.roles;
   return (data || [])
     .filter((c) =>
@@ -41,14 +45,18 @@ export async function resolveWaGroups(
   db: AudienceDb,
   tenantId: string,
   f: AudienceFilter,
-): Promise<Recipient[]> {
-  if (!hasItems(f.groupIds)) throw new Error("missing_groupIds");
+): Promise<Array<Recipient>> {
+  if (!hasItems(f.groupIds)) {
+    throw new Error("missing_groupIds");
+  }
   const { data, error } = await db
     .from("whatsapp_groups")
     .select("id, group_name, group_chat_id")
     .eq("tenant_id", tenantId)
     .in("id", f.groupIds);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).map((g): Recipient => ({
     entity_type: "wa_group",
     entity_id: g.id,
@@ -64,7 +72,7 @@ export async function resolveWaGroups(
  * Typed contacts: an entry with "@" is an email (dropped when malformed),
  * anything else a phone (normalized later by reachability).
  */
-export function resolveManualContacts(f: AudienceFilter): Recipient[] {
+export function resolveManualContacts(f: AudienceFilter): Array<Recipient> {
   return (f.manualContacts || [])
     .map((c) => c.trim())
     .filter((c) => c !== "" && (!c.includes("@") || isEmailAddress(c)))

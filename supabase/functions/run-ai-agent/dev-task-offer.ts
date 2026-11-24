@@ -18,7 +18,9 @@ export async function findOfferedDevTask(
   status?: string | null;
 } | null> {
   const started = Date.parse(args.turnStartedAt);
-  if (!Number.isFinite(started)) return null;
+  if (!Number.isFinite(started)) {
+    return null;
+  }
   const { data } = await supabase
     .from("dev_tasks")
     .select("id, title, assigned_agent, status")
@@ -46,7 +48,9 @@ export async function declineOfferedDevTask(
     .eq("status", "draft")
     .select("id")
     .maybeSingle();
-  if (error || !data?.id) return false;
+  if (error || !data?.id) {
+    return false;
+  }
   await logDevTaskEvent(supabase, {
     devTaskId: args.taskId,
     tenantId: args.tenantId,

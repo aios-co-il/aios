@@ -16,7 +16,7 @@ import { upsertCampaignAlert } from "./upsert-alert.ts";
 
 export async function recordFindings(
   db: DbClient,
-  input: { tenantId: string; report: ReportAccount; findings: Finding[] },
+  input: { tenantId: string; report: ReportAccount; findings: Array<Finding> },
 ): Promise<{ created: number; resolved: number }> {
   const { tenantId, report, findings } = input;
   let created = 0;
@@ -39,7 +39,9 @@ export async function recordFindings(
       },
       notify,
     );
-    if (row) created++;
+    if (row) {
+      created++;
+    }
   }
   const resolved = await resolveClearedAlerts(db, {
     tenantId,

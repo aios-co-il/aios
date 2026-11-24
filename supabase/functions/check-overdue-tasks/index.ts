@@ -27,7 +27,9 @@ Deno.serve(async (req) => {
       .is("overdue_notified_at", null)
       .limit(100);
 
-    if (fetchError) throw fetchError;
+    if (fetchError) {
+      throw fetchError;
+    }
 
     if (!overdueTasks?.length) {
       return new Response(

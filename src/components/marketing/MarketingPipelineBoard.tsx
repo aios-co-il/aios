@@ -218,13 +218,15 @@ function WorkItemCard({
 }
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
-function StatusBar({ items }: { items: any[] }) {
+function StatusBar({ items }: { items: Array<any> }) {
   const running = items.filter((i) => i.status === "in_progress").length;
   const waiting = items.filter((i) => i.status === "awaiting_approval").length;
   const done = items.filter((i) => i.status === "completed").length;
   const draft = items.filter((i) => i.status === "draft").length;
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex items-center gap-1.5 border-b border-border/40 px-4 py-2 text-[11px]">
@@ -285,7 +287,7 @@ function DepartmentCard({
   onRun,
 }: {
   stage: any;
-  items: any[];
+  items: Array<any>;
   onOpenConfig: (stage: any) => void;
   onOpenWorkspace: (stage: any) => void;
   onNewItem: (stageId: string) => void;
@@ -450,7 +452,7 @@ export function MarketingPipelineBoard({
   });
 
   // Group items by current_stage_id
-  const itemsByStage: Record<string, any[]> = {};
+  const itemsByStage: Record<string, Array<any>> = {};
   (items ?? []).forEach((item: any) => {
     const sid = item.current_stage_id ?? "__unassigned__";
     (itemsByStage[sid] ??= []).push(item);
@@ -499,7 +501,9 @@ export function MarketingPipelineBoard({
       const { error } = await supabase.functions.invoke("marketing-run-stage", {
         body: { item_id: item.id, stage_id: stageId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({ title: "השלב הורץ בהצלחה" });
       refetchItems();
       queryClient.invalidateQueries({

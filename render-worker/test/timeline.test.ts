@@ -57,8 +57,9 @@ test("buildTimeline keeps approved clips in storyboard order", () => {
 
 const media = (args: Array<string>) => {
   const result = spawnSync("ffmpeg", args, { stdio: "ignore" });
-  if (result.status !== 0)
+  if (result.status !== 0) {
     throw new Error(`ffmpeg fixture failed: ${args.join(" ")}`);
+  }
 };
 
 test.skipIf(!hasFfmpeg)(

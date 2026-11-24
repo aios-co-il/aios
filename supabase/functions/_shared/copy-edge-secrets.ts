@@ -30,23 +30,33 @@ export const AGENT_EDGE_SECRET_ALLOWLIST = [
 
 export function isForbiddenSecretName(name: string): boolean {
   const u = name.toUpperCase();
-  if (u.startsWith("SUPABASE_")) return true;
-  if (u.startsWith("META_") || u.includes("WHATSAPP") || u.includes("FACEBOOK"))
+  if (u.startsWith("SUPABASE_")) {
     return true;
+  }
+  if (
+    u.startsWith("META_") ||
+    u.includes("WHATSAPP") ||
+    u.includes("FACEBOOK")
+  ) {
+    return true;
+  }
   if (
     u === "APP_URL" ||
     u === "RESEND_API_KEY" ||
     u === "RESEND_WEBHOOK_SECRET"
-  )
+  ) {
     return true;
-  if (u.includes("MANUS")) return true;
+  }
+  if (u.includes("MANUS")) {
+    return true;
+  }
   return false;
 }
 
 export function selectSecretsToCopy(
-  requested: string[] | null | undefined,
-  allowlist: readonly string[] = AGENT_EDGE_SECRET_ALLOWLIST,
-): string[] {
+  requested: Array<string> | null | undefined,
+  allowlist: ReadonlyArray<string> = AGENT_EDGE_SECRET_ALLOWLIST,
+): Array<string> {
   const src = requested?.length ? requested : [...allowlist];
   const allow = new Set(allowlist);
   return [...new Set(src.map((n) => String(n).trim()).filter(Boolean))].filter(
@@ -69,8 +79,14 @@ export function assertSafeTargetRef(
 ): string {
   const t = String(targetRef || "").trim();
   const s = String(sourceRef || "").trim();
-  if (!/^[a-z]{20}$/.test(t)) throw new Error("invalid target_ref");
-  if (!s) throw new Error("missing source project ref");
-  if (t === s) throw new Error("refusing to copy onto the source project");
+  if (!/^[a-z]{20}$/.test(t)) {
+    throw new Error("invalid target_ref");
+  }
+  if (!s) {
+    throw new Error("missing source project ref");
+  }
+  if (t === s) {
+    throw new Error("refusing to copy onto the source project");
+  }
   return t;
 }

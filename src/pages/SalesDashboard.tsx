@@ -30,7 +30,9 @@ export default function SalesDashboard() {
   const { data: leadsStats, isLoading: leadsLoading } = useQuery({
     queryKey: ["leads-stats", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       let query = supabase
         .from("leads")
         .select("status, estimated_deal_value, products")
@@ -42,7 +44,9 @@ export default function SalesDashboard() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const stats = {
         total: data.length,
@@ -81,7 +85,9 @@ export default function SalesDashboard() {
   const { data: productsStats } = useQuery({
     queryKey: ["products-stats", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       let query = supabase
         .from("leads")
         .select("products, estimated_deal_value, status")
@@ -100,8 +106,12 @@ export default function SalesDashboard() {
             .select("id, name, active")
             .eq("tenant_id", tenantId),
         ]);
-      if (error) throw error;
-      if (prodError) throw prodError;
+      if (error) {
+        throw error;
+      }
+      if (prodError) {
+        throw prodError;
+      }
 
       const idToName = new Map<string, string>();
       const normNameToId = new Map<string, string>();
@@ -125,26 +135,33 @@ export default function SalesDashboard() {
       >();
 
       (data || []).forEach((lead: any) => {
-        if (!lead.products) return;
-        let tokens: string[] = [];
+        if (!lead.products) {
+          return;
+        }
+        let tokens: Array<string> = [];
 
         if (Array.isArray(lead.products)) {
-          tokens = lead.products as string[];
+          tokens = lead.products as Array<string>;
         } else if (typeof lead.products === "string") {
           const raw = lead.products.trim();
           // JSON array string (from edit dialog)
           if (raw.startsWith("[") && raw.endsWith("]")) {
             try {
               const parsed = JSON.parse(raw);
-              if (Array.isArray(parsed)) tokens = parsed.map(String);
+              if (Array.isArray(parsed)) {
+                tokens = parsed.map(String);
+              }
             } catch {
               // Fall back to the comma-separated or plain-text product format below.
             }
           }
           // Comma separated names
           if (tokens.length === 0) {
-            if (raw.includes(",")) tokens = raw.split(",").map((p) => p.trim());
-            else if (raw) tokens = [raw];
+            if (raw.includes(",")) {
+              tokens = raw.split(",").map((p) => p.trim());
+            } else if (raw) {
+              tokens = [raw];
+            }
           }
         }
 
@@ -154,11 +171,13 @@ export default function SalesDashboard() {
             tokens
               .map((t) => {
                 const s = String(t).trim();
-                if (idToName.has(s)) return s; // already an id
+                if (idToName.has(s)) {
+                  return s;
+                } // already an id
                 const byName = normNameToId.get(normalize(s));
                 return byName || null;
               })
-              .filter(Boolean) as string[],
+              .filter(Boolean) as Array<string>,
           ),
         );
 
@@ -198,7 +217,9 @@ export default function SalesDashboard() {
   const { data: salesPeopleStats } = useQuery({
     queryKey: ["sales-people-stats", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       let query = supabase
         .from("sales_people")
         .select("id, full_name, active")
@@ -209,7 +230,9 @@ export default function SalesDashboard() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return {
         total: data.length,
@@ -223,7 +246,9 @@ export default function SalesDashboard() {
   const { data: timelineData } = useQuery({
     queryKey: ["leads-timeline", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("leads")
         .select("created_at, status, won_date, proposal_sent_date")
@@ -235,7 +260,9 @@ export default function SalesDashboard() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Group by date for the last 30 days
       const last30Days = Array.from({ length: 30 }, (_, i) => {

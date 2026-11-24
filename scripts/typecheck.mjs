@@ -31,10 +31,11 @@ export function normalizeDiagnosticMessage(message, projectRoot) {
 export function collectDiagnostics(projectRoot = root) {
   const configPath = path.join(projectRoot, config);
   const read = ts.readConfigFile(configPath, ts.sys.readFile);
-  if (read.error)
+  if (read.error) {
     throw new Error(
       ts.flattenDiagnosticMessageText(read.error.messageText, "\n"),
     );
+  }
   const parsed = ts.parseJsonConfigFileContent(
     read.config,
     ts.sys,
@@ -55,9 +56,17 @@ export function collectDiagnostics(projectRoot = root) {
     rootNames: parsed.fileNames,
     options: parsed.options,
   });
+  // Keep generated contracts available to consumers, but report errors in owned code.
+  const generatedFiles = [
+    "src/integrations/supabase/types.ts",
+    "supabase/functions/_shared/database.types.ts",
+  ].map((file) => path.resolve(projectRoot, file));
   return ts
     .getPreEmitDiagnostics(program)
     .filter((d) => d.category === ts.DiagnosticCategory.Error)
+    .filter(
+      (d) => !d.file || !generatedFiles.includes(path.resolve(d.file.fileName)),
+    )
     .map((d) => {
       // Configuration/global errors and sources outside the frontend must never
       // become allowed debt (missing files, compiler options, missing libraries).
@@ -110,8 +119,9 @@ export function run(args = process.argv.slice(2)) {
   const baseline = fs.existsSync(projectBaselinePath)
     ? validateBaseline(JSON.parse(fs.readFileSync(projectBaselinePath, "utf8")))
     : null;
-  if (!baseline && !acceptNew)
+  if (!baseline && !acceptNew) {
     throw new Error("Missing baseline; initial capture requires --accept-new.");
+  }
   if (baseline && baseline.typescriptVersion !== ts.version && !acceptNew) {
     throw new Error(
       `Compiler version changed: baseline ${baseline.typescriptVersion}, installed ${ts.version}. Capture a new baseline explicitly.`,
@@ -122,8 +132,9 @@ export function run(args = process.argv.slice(2)) {
     current,
     baseline?.diagnostics ?? [],
   );
-  for (const d of added)
+  for (const d of added) {
     console.error(`${d.file}:${d.line}:${d.column} TS${d.code}: ${d.message}`);
+  }
   if (added.length && !acceptNew) {
     console.error(
       `${added.length} new TypeScript diagnostic(s); baseline updates cannot accept new errors.`,
@@ -154,8 +165,9 @@ export function run(args = process.argv.slice(2)) {
     0,
   );
   if (resolvedCount) {
-    for (const d of resolved)
+    for (const d of resolved) {
       console.error(`${d.file} TS${d.code}: ${d.count} resolved: ${d.message}`);
+    }
     console.error(
       `Remove ${resolvedCount} resolved diagnostic(s) with pnpm typecheck:update and commit the reduced baseline.`,
     );

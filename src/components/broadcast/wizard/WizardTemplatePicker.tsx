@@ -15,21 +15,26 @@ export function WizardTemplatePicker({
   templateId,
   onSelect,
 }: {
-  templates: MessageTemplate[];
+  templates: Array<MessageTemplate>;
   templateId: string | null;
   onSelect: (template: MessageTemplate | null) => void;
 }) {
-  if (templates.length === 0) return null;
+  if (templates.length === 0) {
+    return null;
+  }
   return (
     <div className="space-y-1">
       <Label>טמפלייט (אופציונלי)</Label>
       <Select
         value={templateId ?? "none"}
         onValueChange={(v) => {
-          if (v === "none") onSelect(null);
-          else {
+          if (v === "none") {
+            onSelect(null);
+          } else {
             const t = templates.find((x) => x.id === v);
-            if (t) onSelect(t);
+            if (t) {
+              onSelect(t);
+            }
           }
         }}
       >
@@ -53,9 +58,11 @@ export function WizardTemplatePicker({
 export function WizardTemplateAttachments({
   attachments,
 }: {
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
 }) {
-  if (attachments.length === 0) return null;
+  if (attachments.length === 0) {
+    return null;
+  }
   return (
     <p className="text-xs text-muted-foreground">
       קבצים מצורפים מהטמפלייט: {attachments.map((a) => a.name).join(", ")}

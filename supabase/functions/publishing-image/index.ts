@@ -29,20 +29,28 @@ const fail = (error: string, status: number) =>
   });
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "GET" && request.method !== "HEAD")
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") {
     return fail("method_not_allowed", 405);
+  }
 
   const params = new URL(request.url).searchParams;
   const articleId = String(params.get("article_id") ?? "").trim();
   const kind = String(params.get("kind") ?? "hero").trim() as MagazineImageKind;
-  if (!UUID_PATTERN.test(articleId)) return fail("article_id_invalid", 400);
-  if (kind !== "hero" && kind !== "inline") return fail("kind_invalid", 400);
+  if (!UUID_PATTERN.test(articleId)) {
+    return fail("article_id_invalid", 400);
+  }
+  if (kind !== "hero" && kind !== "inline") {
+    return fail("kind_invalid", 400);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceKey) return fail("server_not_configured", 500);
+  if (!supabaseUrl || !serviceKey) {
+    return fail("server_not_configured", 500);
+  }
 
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -53,14 +61,20 @@ Deno.serve(async (request) => {
     .select("id,tenant_id")
     .eq("id", articleId)
     .maybeSingle();
-  if (articleError) return fail("article_lookup_failed", 500);
-  if (!article) return fail("article_not_found", 404);
+  if (articleError) {
+    return fail("article_lookup_failed", 500);
+  }
+  if (!article) {
+    return fail("article_not_found", 404);
+  }
 
   const path = publishingImageStoragePath(article.tenant_id, article.id, kind);
   const { data: file, error: downloadError } = await admin.storage
     .from(ENTITY_ATTACHMENTS_BUCKET)
     .download(path);
-  if (downloadError || !file) return fail("image_not_found", 404);
+  if (downloadError || !file) {
+    return fail("image_not_found", 404);
+  }
 
   const headers = {
     ...corsHeaders,
@@ -68,7 +82,8 @@ Deno.serve(async (request) => {
     "Cache-Control":
       "public, max-age=3600, s-maxage=31536000, stale-while-revalidate=86400",
   };
-  if (request.method === "HEAD")
+  if (request.method === "HEAD") {
     return new Response(null, { status: 200, headers });
+  }
   return new Response(await file.arrayBuffer(), { status: 200, headers });
 });

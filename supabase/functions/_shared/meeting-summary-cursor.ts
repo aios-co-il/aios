@@ -57,18 +57,23 @@ export async function dispatchMeetingSummaryToCursor(
     assignClientFromSummary?: boolean;
   },
 ): Promise<SummaryDispatch> {
-  if (!cursorApiKey()) return { ok: false, reason: "not_configured" };
+  if (!cursorApiKey()) {
+    return { ok: false, reason: "not_configured" };
+  }
 
   const route = await loadRoute(admin, args.tenantId, { slug: "cursor" });
-  if (!route || route.provider !== "cursor")
+  if (!route || route.provider !== "cursor") {
     return { ok: false, reason: "no_route" };
+  }
 
   const userId = await resolveSummaryUserId(
     admin,
     args.tenantId,
     args.userId || args.createdBy,
   );
-  if (!userId) return { ok: false, reason: "no_user" };
+  if (!userId) {
+    return { ok: false, reason: "no_user" };
+  }
 
   const carmen = route.agent_id
     ? { id: route.agent_id }
@@ -186,7 +191,9 @@ async function claimSummarySend(
     );
     if (existing) {
       const age = Date.now() - new Date(existing.created_at).getTime();
-      if (age < MANUAL_RESEND_WINDOW_MS) return false;
+      if (age < MANUAL_RESEND_WINDOW_MS) {
+        return false;
+      }
       await admin
         .from("ai_conversation_messages")
         .update({ idempotency_key: `${args.claimKey}:spent:${existing.id}` })
@@ -216,7 +223,9 @@ export async function persistMeetingSummaryReply(
   summary: string,
 ): Promise<boolean> {
   const job = meetingSummaryJobFromMetadata(metadata);
-  if (!job || !summary.trim()) return false;
+  if (!job || !summary.trim()) {
+    return false;
+  }
 
   const { fileUrl } = await saveSummaryForTarget(admin, {
     tenant_id: job.tenant_id,
@@ -264,7 +273,9 @@ async function resolveSummaryUserId(
   tenantId: string,
   preferred?: string | null,
 ): Promise<string | null> {
-  if (preferred) return preferred;
+  if (preferred) {
+    return preferred;
+  }
   const { data } = await admin
     .from("user_roles")
     .select("user_id")

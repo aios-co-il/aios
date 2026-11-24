@@ -108,7 +108,7 @@ serve(async (req) => {
 
     let totalSynced = 0;
     let totalSkipped = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     // Compute since timestamp (unix seconds)
     let sinceSec: number;
@@ -153,7 +153,9 @@ serve(async (req) => {
         formsToProcess = [[form_id, formMappings[form_id] || {}]];
       } else {
         formsToProcess = Object.entries(formMappings);
-        if (formsToProcess.length === 0) continue;
+        if (formsToProcess.length === 0) {
+          continue;
+        }
       }
 
       // Process each form
@@ -260,7 +262,7 @@ serve(async (req) => {
             const fieldMappings = formMapping.fields || {};
 
             // Support both legacy single and new multi-select salesperson
-            const salesPersonIds: string[] =
+            const salesPersonIds: Array<string> =
               formMapping.sales_person_ids ||
               (formMapping.sales_person_id
                 ? [formMapping.sales_person_id]
@@ -297,7 +299,9 @@ serve(async (req) => {
             for (const [fbField, systemField] of Object.entries(
               fieldMappings,
             )) {
-              if (systemField === "skip" || !systemField) continue;
+              if (systemField === "skip" || !systemField) {
+                continue;
+              }
 
               const value = fieldData[fbField];
               if (value) {

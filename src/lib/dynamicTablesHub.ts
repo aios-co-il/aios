@@ -22,7 +22,9 @@ export function stripCategorySearchParam(path: string): string {
 }
 
 export function clearLegacyDynamicTablesCategory(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    return;
+  }
   try {
     sessionStorage.removeItem(DYNAMIC_TABLES_CATEGORY_STORAGE_KEY);
   } catch {

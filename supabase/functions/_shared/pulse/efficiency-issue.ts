@@ -21,7 +21,9 @@ export type EfficiencyIssue = { level: "alert" | "watch"; label: string };
  */
 export function evaluateEfficiencyIssue({
   campaignRows = [],
-}: { campaignRows?: EfficiencyCampaignRow[] } = {}): EfficiencyIssue | null {
+}: {
+  campaignRows?: Array<EfficiencyCampaignRow>;
+} = {}): EfficiencyIssue | null {
   const flagged = campaignRows
     .filter(
       (row) =>

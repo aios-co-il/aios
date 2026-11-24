@@ -34,10 +34,13 @@ export type ScopeClient = Pick<
 >;
 
 export type AdScopeStore = {
-  clientsByIds(ids: string[]): Promise<ScopeClient[]>;
-  clientIdsForMetaAccount(variants: string[]): Promise<string[]>;
-  clientIdsForGoogleCustomer(variants: string[]): Promise<string[]>;
-  sharedAgencyIds(tenantId: string, access: AdToolAccess): Promise<string[]>;
+  clientsByIds(ids: Array<string>): Promise<Array<ScopeClient>>;
+  clientIdsForMetaAccount(variants: Array<string>): Promise<Array<string>>;
+  clientIdsForGoogleCustomer(variants: Array<string>): Promise<Array<string>>;
+  sharedAgencyIds(
+    tenantId: string,
+    access: AdToolAccess,
+  ): Promise<Array<string>>;
 };
 
 type TargetResult = { ok: true } | AdToolDenied;
@@ -129,7 +132,7 @@ export async function checkGoogleTarget(input: {
 export function clientInScope(
   client: ScopeClient,
   tenantId: string,
-  sharedAgencyIds: readonly string[],
+  sharedAgencyIds: ReadonlyArray<string>,
 ): boolean {
   return (
     (!!client.tenant_id && client.tenant_id === tenantId) ||
@@ -141,7 +144,7 @@ export function clientInScope(
 async function anyClientInScope(
   store: AdScopeStore,
   scope: AdScope,
-  clientIds: string[],
+  clientIds: Array<string>,
 ): Promise<boolean> {
   const ids = [...new Set(clientIds.filter(Boolean))];
   if (!ids.length) {

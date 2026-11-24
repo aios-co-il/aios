@@ -13,7 +13,7 @@ const corsHeaders = {
 
 interface DuplicateGroup {
   normalized_phone: string;
-  leads: LeadInfo[];
+  leads: Array<LeadInfo>;
 }
 
 interface LeadInfo {
@@ -74,7 +74,7 @@ serve(async (req: Request) => {
     }
 
     // Manual query to find duplicates - need to paginate to get all leads
-    let allLeads: any[] = [];
+    let allLeads: Array<any> = [];
     let from = 0;
     const pageSize = 1000;
 
@@ -89,22 +89,30 @@ serve(async (req: Request) => {
         .neq("phone", "")
         .range(from, from + pageSize - 1);
 
-      if (pageError) throw pageError;
+      if (pageError) {
+        throw pageError;
+      }
 
-      if (!pageLeads || pageLeads.length === 0) break;
+      if (!pageLeads || pageLeads.length === 0) {
+        break;
+      }
 
       allLeads = [...allLeads, ...pageLeads];
 
-      if (pageLeads.length < pageSize) break;
+      if (pageLeads.length < pageSize) {
+        break;
+      }
       from += pageSize;
     }
 
     const leadsError = null;
 
-    if (leadsError) throw leadsError;
+    if (leadsError) {
+      throw leadsError;
+    }
 
     // Normalize phones and group duplicates
-    const phoneGroups: Map<string, any[]> = new Map();
+    const phoneGroups: Map<string, Array<any>> = new Map();
 
     for (const lead of allLeads || []) {
       const normalized = lead.phone?.replace(/[^0-9]/g, "") || "";
@@ -117,12 +125,12 @@ serve(async (req: Request) => {
     }
 
     // Filter to only groups with duplicates
-    const duplicateGroups: DuplicateGroup[] = [];
+    const duplicateGroups: Array<DuplicateGroup> = [];
 
     for (const [phone, leads] of phoneGroups) {
       if (leads.length > 1) {
         // Get additional info for each lead
-        const enrichedLeads: LeadInfo[] = [];
+        const enrichedLeads: Array<LeadInfo> = [];
 
         for (const lead of leads) {
           const [updatesRes, tasksRes, messagesRes, tagsRes] =
@@ -174,7 +182,7 @@ serve(async (req: Request) => {
       tasks_transferred: 0,
       messages_transferred: 0,
       statuses_updated: 0,
-      details: [] as any[],
+      details: [] as Array<any>,
     };
 
     // Process each duplicate group
@@ -188,17 +196,23 @@ serve(async (req: Request) => {
         // Total activity score
         const aActivity = a.updates_count + a.tasks_count + a.messages_count;
         const bActivity = b.updates_count + b.tasks_count + b.messages_count;
-        if (aActivity !== bActivity) return bActivity - aActivity;
+        if (aActivity !== bActivity) {
+          return bActivity - aActivity;
+        }
 
         // Has specific response status
         const aHasStatus =
           a.response_status && !a.response_status.startsWith("custom_") ? 1 : 0;
         const bHasStatus =
           b.response_status && !b.response_status.startsWith("custom_") ? 1 : 0;
-        if (aHasStatus !== bHasStatus) return bHasStatus - aHasStatus;
+        if (aHasStatus !== bHasStatus) {
+          return bHasStatus - aHasStatus;
+        }
 
         // More tags
-        if (a.tags_count !== b.tags_count) return b.tags_count - a.tags_count;
+        if (a.tags_count !== b.tags_count) {
+          return b.tags_count - a.tags_count;
+        }
 
         // Oldest
         return (
@@ -215,7 +229,7 @@ serve(async (req: Request) => {
         master_id: master.id,
         master_name: master.company_name,
         duplicates_to_delete: duplicateIds,
-        actions: [] as string[],
+        actions: [] as Array<string>,
       };
 
       if (!dry_run) {

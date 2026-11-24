@@ -13,7 +13,7 @@ type Faults = { lookup?: string; insert?: string };
  * campaign_alerts in memory: the open-alert lookup, the insert and the
  * notified_at claim. `faults` makes the lookup or the insert fail.
  */
-function fakeAlerts(rows: Row[] = [], faults: Faults = {}) {
+function fakeAlerts(rows: Array<Row> = [], faults: Faults = {}) {
   const from = () => {
     const filters: Array<(row: Row) => boolean> = [];
     let patch: Row | null = null;
@@ -58,7 +58,7 @@ function fakeAlerts(rows: Row[] = [], faults: Faults = {}) {
 
 /** A notifier that records the alert ids it was asked to send. */
 function recorder() {
-  const sent: string[] = [];
+  const sent: Array<string> = [];
   return { sent, notify: async (id: string) => void sent.push(id) };
 }
 

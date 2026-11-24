@@ -33,7 +33,9 @@ export function MFASettings() {
     try {
       const { data, error } =
         await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setIsEnrolled(
         data?.currentLevel === "aal2" || data?.nextLevel === "aal2",
@@ -50,7 +52,9 @@ export function MFASettings() {
     try {
       // First check if there's already an unverified factor and remove it
       const existingFactors = await supabase.auth.mfa.listFactors();
-      if (existingFactors.error) throw existingFactors.error;
+      if (existingFactors.error) {
+        throw existingFactors.error;
+      }
 
       // Remove any existing unverified factors
       const unverifiedFactors = existingFactors.data?.totp || [];
@@ -67,7 +71,9 @@ export function MFASettings() {
         friendlyName: `Authenticator ${new Date().getTime()}`,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data) {
         setQrCode(data.totp.qr_code);
@@ -107,7 +113,9 @@ export function MFASettings() {
     try {
       // First create a challenge
       const challenge = await supabase.auth.mfa.challenge({ factorId });
-      if (challenge.error) throw challenge.error;
+      if (challenge.error) {
+        throw challenge.error;
+      }
 
       // Then verify with the challenge ID
       const { error } = await supabase.auth.mfa.verify({
@@ -116,7 +124,9 @@ export function MFASettings() {
         code: verifyCode,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "הצלחה!",
@@ -142,16 +152,22 @@ export function MFASettings() {
   const disableMFA = async () => {
     try {
       const factors = await supabase.auth.mfa.listFactors();
-      if (factors.error) throw factors.error;
+      if (factors.error) {
+        throw factors.error;
+      }
 
       const totpFactor = factors.data?.totp?.[0];
-      if (!totpFactor) return;
+      if (!totpFactor) {
+        return;
+      }
 
       const { error } = await supabase.auth.mfa.unenroll({
         factorId: totpFactor.id,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "הצלחה",

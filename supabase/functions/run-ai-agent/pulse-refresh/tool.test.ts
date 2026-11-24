@@ -14,15 +14,18 @@ const ROWS = {
 
 /** A Supabase stand-in that loses every claim, so nothing is fetched. */
 function fakeSupabase() {
-  const seen: { tables: string[]; tenantFilters: unknown[]; rpcs: unknown[] } =
-    { tables: [], tenantFilters: [], rpcs: [] };
+  const seen: {
+    tables: Array<string>;
+    tenantFilters: Array<unknown>;
+    rpcs: Array<unknown>;
+  } = { tables: [], tenantFilters: [], rpcs: [] };
   const supabase = {
     from<T extends keyof typeof ROWS>(table: T) {
       seen.tables.push(table);
       const chain = {
         select: () => chain,
         eq: () => chain,
-        in: (_column: string, values: unknown[]) => (
+        in: (_column: string, values: Array<unknown>) => (
           seen.tenantFilters.push(values),
           chain
         ),
@@ -43,7 +46,7 @@ function fakeSupabase() {
 /** executeTool's context for a WhatsApp turn of USER in TENANT. */
 function context(overrides: Partial<RefreshPulseContext> = {}) {
   const { supabase, seen } = fakeSupabase();
-  const scopeChecks: string[] = [];
+  const scopeChecks: Array<string> = [];
   const ctx: RefreshPulseContext = {
     args: {},
     supabase,
@@ -67,7 +70,7 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
       const { ctx, seen, scopeChecks } = context({
         args: { client_id: CLIENT, client_name: "אלפא" },
       });
-      const loaded: unknown[] = [];
+      const loaded: Array<unknown> = [];
       const result = await executeRefreshCampaignPulse(ctx, async (args) => {
         loaded.push(args);
         return { count: 1, freshness: "2026-10-26T04:00:00Z" };
@@ -117,7 +120,7 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
     "empty client filters reach get_latest_campaign_pulse as unset",
     async () => {
       const { ctx } = context({ args: { client_id: "", client_name: "" } });
-      const loaded: unknown[] = [];
+      const loaded: Array<unknown> = [];
       await executeRefreshCampaignPulse(ctx, async (args) => {
         loaded.push(args);
         return {};
@@ -130,7 +133,7 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
     "a blank client_id reads the whole tenant's pulse, as the refresh did",
     async () => {
       const { ctx, scopeChecks } = context({ args: { client_id: "  " } });
-      const loaded: unknown[] = [];
+      const loaded: Array<unknown> = [];
       const result = await executeRefreshCampaignPulse(ctx, async (args) => {
         loaded.push(args);
         return {};
@@ -145,7 +148,7 @@ Deno.test("executeRefreshCampaignPulse", async (t) => {
     const { ctx, scopeChecks } = context({
       args: { client_id: ` ${CLIENT} ` },
     });
-    const loaded: unknown[] = [];
+    const loaded: Array<unknown> = [];
     await executeRefreshCampaignPulse(ctx, async (args) => {
       loaded.push(args);
       return {};

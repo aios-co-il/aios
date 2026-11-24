@@ -27,15 +27,18 @@ function ChangeIndicator({
   label: string;
   inverse?: boolean;
 }) {
-  if (current == null || previous == null) return null;
+  if (current == null || previous == null) {
+    return null;
+  }
   const diff = current - previous;
-  if (diff === 0)
+  if (diff === 0) {
     return (
       <span className="text-xs text-muted-foreground flex items-center gap-0.5">
         <Minus className="h-3 w-3" />
         {label}
       </span>
     );
+  }
   const isPositive = inverse ? diff < 0 : diff > 0;
   return (
     <span
@@ -54,16 +57,20 @@ function ChangeIndicator({
 // Helper to get a value from snapshot trying multiple key variants
 function getVal(
   obj: Record<string, any>,
-  ...keys: string[]
+  ...keys: Array<string>
 ): number | undefined {
   for (const k of keys) {
-    if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+    if (obj[k] !== undefined && obj[k] !== null) {
+      return obj[k];
+    }
   }
   return undefined;
 }
 
 function countAtOrBelow(kws: Array<any> | undefined, maxPos: number): number {
-  if (!Array.isArray(kws)) return 0;
+  if (!Array.isArray(kws)) {
+    return 0;
+  }
   let n = 0;
   for (const kw of kws) {
     const rank =
@@ -72,7 +79,9 @@ function countAtOrBelow(kws: Array<any> | undefined, maxPos: number): number {
         position: kw?.best_position,
         gsc_position: kw?.gsc_position,
       });
-    if (rank && rank.position >= 1 && rank.position <= maxPos) n++;
+    if (rank && rank.position >= 1 && rank.position <= maxPos) {
+      n++;
+    }
   }
   return n;
 }
@@ -92,13 +101,17 @@ export function SeoSnapshotCards({
     const name = String(kw?.keyword || "")
       .toLowerCase()
       .trim();
-    if (name) mergedByKw.set(name, kw);
+    if (name) {
+      mergedByKw.set(name, kw);
+    }
   }
   for (const kw of organicKeywords || []) {
     const name = String(kw?.keyword || "")
       .toLowerCase()
       .trim();
-    if (name && !mergedByKw.has(name)) mergedByKw.set(name, kw);
+    if (name && !mergedByKw.has(name)) {
+      mergedByKw.set(name, kw);
+    }
   }
   const liveList = Array.from(mergedByKw.values());
   const liveTop3 = countAtOrBelow(liveList, 3);
@@ -195,7 +208,9 @@ export function SeoSnapshotCards({
     })
     .filter((m) => m.value !== undefined);
 
-  if (metrics.length === 0) return null;
+  if (metrics.length === 0) {
+    return null;
+  }
 
   return (
     <div className="grid gap-3 grid-cols-2 md:grid-cols-4">

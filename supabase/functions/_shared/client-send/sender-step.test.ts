@@ -112,7 +112,7 @@ Deno.test("refuseClientSendWith", async (t) => {
 Deno.test("clientSendRefusalOf", async (t) => {
   /** The requests an injected guard got, and the step's answer. */
   async function ask(decision: ClientSendDecision, sent: SenderSend) {
-    const asked: ClientSendRequest[] = [];
+    const asked: Array<ClientSendRequest> = [];
     const refused = await clientSendRefusalOf(async (request) => {
       asked.push(request);
       return decision;

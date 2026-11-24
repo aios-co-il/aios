@@ -35,14 +35,18 @@ export function CarmenSubAgents({
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("אין ארגון פעיל");
+      if (!tenantId) {
+        throw new Error("אין ארגון פעיל");
+      }
       const { data, error } = await supabase
         .from("ai_agents")
         .insert({
@@ -54,7 +58,9 @@ export function CarmenSubAgents({
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -70,10 +76,12 @@ export function CarmenSubAgents({
 
   if (agentId) {
     const agent = agents.find((a: any) => a.id === agentId);
-    if (isLoading)
+    if (isLoading) {
       return <p className="text-sm text-muted-foreground">טוען…</p>;
-    if (!agent)
+    }
+    if (!agent) {
       return <p className="text-sm text-muted-foreground">הסוכן לא נמצא.</p>;
+    }
     return (
       <div className="-mx-4 -mt-4 flex min-h-[70vh] flex-col">
         <AgentEditor

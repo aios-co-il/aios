@@ -1,4 +1,4 @@
--- Google tokens in integration_secrets (20261123120000_integration_secrets.sql).
+-- Google tokens in integration_secrets (20261124110000_integration_secrets.sql).
 -- Synthetic tenant, users and rows; full rollback. Runs on a scratch database,
 -- a Preview branch or Staging.
 --

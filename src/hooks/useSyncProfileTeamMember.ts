@@ -8,7 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
  * (או לאחר עדכון `profiles.full_name`).
  */
 export async function syncProfileToTeamMember(userId: string): Promise<void> {
-  if (!userId) return;
+  if (!userId) {
+    return;
+  }
 
   // טען את הפרופיל
   const { data: profile, error: profileError } = await supabase

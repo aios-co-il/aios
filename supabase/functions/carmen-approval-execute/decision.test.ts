@@ -137,9 +137,9 @@ Deno.test("markApprovalFailed", async (t) => {
 
   await t.step("a failed update is logged, not thrown", async () => {
     const { client } = fakeDb({ agent_approval_queue: [fail] });
-    const logged: unknown[][] = [];
+    const logged: Array<Array<unknown>> = [];
     const original = console.error;
-    console.error = (...args: unknown[]) => logged.push(args);
+    console.error = (...args: Array<unknown>) => logged.push(args);
     try {
       await markApprovalFailed(client, ROW, { error: "boom" });
     } finally {

@@ -8,12 +8,14 @@ const corsHeaders = {
 
 // Phone normalization helper
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   return phone.replace(/[\s\-()+]/g, "");
 }
 
 // Generate phone variations for matching
-function getPhoneVariations(phone: string): string[] {
+function getPhoneVariations(phone: string): Array<string> {
   const normalized = normalizePhone(phone);
   const variations = new Set<string>();
 
@@ -70,9 +72,11 @@ Deno.serve(async (req) => {
       const norm = signature.replace(/^sha256=/, "");
       const ok = norm.length === expected.length;
       let diff = 0;
-      if (ok)
-        for (let i = 0; i < expected.length; i++)
+      if (ok) {
+        for (let i = 0; i < expected.length; i++) {
           diff |= norm.charCodeAt(i) ^ expected.charCodeAt(i);
+        }
+      }
       if (!ok || diff !== 0) {
         return new Response(JSON.stringify({ error: "Invalid signature" }), {
           status: 403,

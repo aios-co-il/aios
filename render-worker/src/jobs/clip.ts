@@ -118,7 +118,9 @@ export async function generateClip({
   submitting?: <T>(submit: () => Promise<T>) => Promise<T>;
 }) {
   const input = run.input ?? {};
-  if (!run.scene_id) throw finalError("clip run: scene_id is required");
+  if (!run.scene_id) {
+    throw finalError("clip run: scene_id is required");
+  }
   const item = await loadRunItem(db, run);
   const scene = await loadRunScene<SceneRow>(
     db,
@@ -140,8 +142,9 @@ export async function generateClip({
         ),
       )
     : [];
-  if (!still?.url)
+  if (!still?.url) {
     throw finalError("clip run: the scene has no still (is required)");
+  }
   // Judged on the motion as the engine gets it (clipPrompt drops the sentences asking for text).
   const carmen = showsCarmen({
     visual_prompt: scene.visual_prompt,
@@ -265,8 +268,9 @@ async function finishClip({
   const deadline = Date.now() + TIMEOUT_MS();
   let result = await provider.poll(jobId);
   while (result.status === "pending") {
-    if (Date.now() > deadline)
+    if (Date.now() > deadline) {
       throw new Error(`${provider.name} job ${jobId} timed out`);
+    }
     await sleep(POLL_EVERY_MS());
     result = await provider.poll(jobId);
   }
@@ -288,10 +292,11 @@ async function finishClip({
   if (!bytes) {
     // A succeeded job without bytes carries its link (fetch reads a missing one as "undefined").
     const response = await fetch(String(result.url));
-    if (!response.ok)
+    if (!response.ok) {
       throw new Error(
         `clip download ${response.status} (job ${jobId} kept for retry)`,
       );
+    }
     bytes = new Uint8Array(await response.arrayBuffer());
   }
   const path = await clipPath(db, run, item.folder);
@@ -348,7 +353,9 @@ export async function failClip({
   db: Pick<SupabaseRest, "update">;
   run: Pick<VideoRun, "scene_id" | "tenant_id">;
 }) {
-  if (!run.scene_id) return;
+  if (!run.scene_id) {
+    return;
+  }
   await db.update(
     "marketing_video_scenes",
     `id=eq.${run.scene_id}&tenant_id=eq.${run.tenant_id}&status=eq.clip_generating`,

@@ -23,7 +23,7 @@ const CALENDAR_REQUIRED_SCOPES: ReadonlyArray<string> = [
 const LEGACY_FULL_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 
 /** Required Calendar scopes missing from Google's token response. */
-export function missingCalendarScopes(tokenResponse: unknown): string[] {
+export function missingCalendarScopes(tokenResponse: unknown): Array<string> {
   if (
     missingGrantedScopes(tokenResponse, [LEGACY_FULL_CALENDAR_SCOPE]).length ===
     0

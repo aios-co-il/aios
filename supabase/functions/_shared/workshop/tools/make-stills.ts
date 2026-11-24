@@ -28,7 +28,9 @@ import { allStillsMade } from "./stills-approval.ts";
 export async function workshopMakeStills(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const generateImage = deps.generateImage;
   if (!generateImage) {
     return { error: "יצירת תמונות לא זמינה כאן" };
@@ -39,14 +41,19 @@ export async function workshopMakeStills(ctx: ToolContext) {
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   const scenes = await loadScenes(supabase, tenantId, itemId);
-  if (scenes.length === 0)
+  if (scenes.length === 0) {
     return { error: "אין סטוריבורד. קודם workshop_storyboard." };
+  }
   const redo = args.redo === true;
   const { redoIds, pending } = pendingStills(scenes, project.payload, redo);
-  if (pending.length === 0) return { success: true, created: 0, remaining: 0 };
+  if (pending.length === 0) {
+    return { success: true, created: 0, remaining: 0 };
+  }
   if (await stillsRunning(supabase, tenantId, itemId)) {
     return ALREADY_RUNNING;
   }
@@ -55,7 +62,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
     save: (next) => savePayload(supabase, tenantId, itemId, next),
     needsEngine: true,
   });
-  if ("gate" in brief) return brief.gate;
+  if ("gate" in brief) {
+    return brief.gate;
+  }
   await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
   if (brief.payload !== project.payload) {
     await savePayload(supabase, tenantId, itemId, brief.payload);
@@ -72,14 +81,17 @@ export async function workshopMakeStills(ctx: ToolContext) {
     format,
     engine: brief.engine,
   });
-  if ("stop" in gate) return gate.stop;
+  if ("stop" in gate) {
+    return gate.stop;
+  }
   let payload = gate.payload;
   if (redo) {
     payload = withLook(payload, {}, { anchorUrl: null }).payload;
     payload = { ...payload, [REDO_KEY]: [...redoIds] };
   }
-  if (payload !== project.payload)
+  if (payload !== project.payload) {
     await savePayload(supabase, tenantId, itemId, payload);
+  }
   const look = lookOf(payload);
   const job: StillJob = {
     ctx,
@@ -111,7 +123,9 @@ export async function workshopMakeStills(ctx: ToolContext) {
     "workshop_make_stills",
     created,
   );
-  if (leftToRedo.length === 0) delete settled[REDO_KEY];
+  if (leftToRedo.length === 0) {
+    delete settled[REDO_KEY];
+  }
   // The last picture: semi-automatic mode asks the user to approve them (stills-approval.ts).
   const done =
     remaining === 0 ? await allStillsMade(ctx, itemId, settled) : null;

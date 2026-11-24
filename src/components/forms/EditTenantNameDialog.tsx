@@ -50,13 +50,19 @@ export function EditTenantNameDialog({
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      if (!tenant) return;
+      if (!tenant) {
+        return;
+      }
 
       const trimmedName = name.trim();
       const normalizedSlug = normalizeTenantSlugInput(slug);
       const slugError = tenantSlugValidationMessage(normalizedSlug);
-      if (!trimmedName) throw new Error("יש להזין שם ארגון");
-      if (slugError) throw new Error(slugError);
+      if (!trimmedName) {
+        throw new Error("יש להזין שם ארגון");
+      }
+      if (slugError) {
+        throw new Error(slugError);
+      }
 
       if (normalizedSlug !== (tenant.slug || "")) {
         const { data: existing } = await supabase
@@ -66,7 +72,9 @@ export function EditTenantNameDialog({
           .neq("id", tenant.id)
           .maybeSingle();
 
-        if (existing) throw new Error("הסלאג הזה כבר תפוס — בחר אחר");
+        if (existing) {
+          throw new Error("הסלאג הזה כבר תפוס — בחר אחר");
+        }
       }
 
       const { error } = await supabase
@@ -75,8 +83,9 @@ export function EditTenantNameDialog({
         .eq("id", tenant.id);
 
       if (error) {
-        if (error.code === "23505")
+        if (error.code === "23505") {
           throw new Error("הסלאג הזה כבר תפוס — בחר אחר");
+        }
         throw error;
       }
 

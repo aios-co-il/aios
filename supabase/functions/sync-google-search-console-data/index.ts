@@ -168,7 +168,7 @@ serve(async (req) => {
     }
 
     // Process and insert data
-    const records: any[] = [];
+    const records: Array<any> = [];
 
     if (searchData.rows) {
       for (const row of searchData.rows) {

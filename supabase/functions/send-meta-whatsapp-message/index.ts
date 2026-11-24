@@ -24,10 +24,12 @@ const reply = (body: unknown, status = 200) =>
   });
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST")
+  }
+  if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -35,8 +37,9 @@ Deno.serve(async (request) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const authHeader = request.headers.get("Authorization") ?? "";
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!supabaseUrl || !serviceKey || !jwt)
+    if (!supabaseUrl || !serviceKey || !jwt) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -49,7 +52,9 @@ Deno.serve(async (request) => {
     let userId = "";
     if (!isServiceRole) {
       const { data, error } = await authClient.auth.getUser(jwt);
-      if (error || !data.user) return reply({ error: "unauthorized" }, 401);
+      if (error || !data.user) {
+        return reply({ error: "unauthorized" }, 401);
+      }
       userId = data.user.id;
     }
 
@@ -73,19 +78,21 @@ Deno.serve(async (request) => {
     if (clientId && leadId && !phoneNumber) {
       return reply({ error: "choose_client_or_lead" }, 400);
     }
-    if (groupId)
+    if (groupId) {
       return reply(
         { error: "Meta WhatsApp Cloud API does not support groups" },
         400,
       );
+    }
     if (isServiceRole) {
       if (typeof senderUserId !== "string" || !senderUserId) {
         return reply({ error: "senderUserId_required_for_service_role" }, 400);
       }
       userId = senderUserId;
     }
-    if (!message && !template?.name)
+    if (!message && !template?.name) {
       return reply({ error: "message_or_template_required" }, 400);
+    }
 
     let tenantId = typeof suppliedTenantId === "string" ? suppliedTenantId : "";
     let contactPhone = typeof phoneNumber === "string" ? phoneNumber : "";
@@ -96,9 +103,12 @@ Deno.serve(async (request) => {
         .select("tenant_id,phone")
         .eq("id", clientId)
         .single();
-      if (!data?.tenant_id) return reply({ error: "client_not_found" }, 404);
-      if (tenantId && tenantId !== data.tenant_id)
+      if (!data?.tenant_id) {
+        return reply({ error: "client_not_found" }, 404);
+      }
+      if (tenantId && tenantId !== data.tenant_id) {
         return reply({ error: "tenant_entity_mismatch" }, 403);
+      }
       tenantId = data.tenant_id;
       contactPhone ||= data?.phone ?? "";
     } else if (leadId) {
@@ -107,15 +117,22 @@ Deno.serve(async (request) => {
         .select("tenant_id,phone")
         .eq("id", leadId)
         .single();
-      if (!data?.tenant_id) return reply({ error: "lead_not_found" }, 404);
-      if (tenantId && tenantId !== data.tenant_id)
+      if (!data?.tenant_id) {
+        return reply({ error: "lead_not_found" }, 404);
+      }
+      if (tenantId && tenantId !== data.tenant_id) {
         return reply({ error: "tenant_entity_mismatch" }, 403);
+      }
       tenantId = data.tenant_id;
       contactPhone ||= data?.phone ?? "";
     }
     const to = digitsOnly(contactPhone).replace(/^00/, "").replace(/^0/, "972");
-    if (!tenantId) return reply({ error: "tenant_not_found" }, 404);
-    if (!to) return reply({ error: "phone_number_required" }, 400);
+    if (!tenantId) {
+      return reply({ error: "tenant_not_found" }, 404);
+    }
+    if (!to) {
+      return reply({ error: "phone_number_required" }, 400);
+    }
 
     const service = serviceClient();
     const access = lineStore(service);
@@ -169,10 +186,13 @@ Deno.serve(async (request) => {
     }
     const { data: integrations, error: integrationError } =
       await integrationQuery.order("created_at").limit(1);
-    if (integrationError) throw integrationError;
+    if (integrationError) {
+      throw integrationError;
+    }
     const integration = integrations?.[0];
-    if (!integration)
+    if (!integration) {
       return reply({ error: "meta_whatsapp_not_connected" }, 400);
+    }
 
     const isSharedAcrossTenants = integration.tenant_id !== tenantId;
     if (isSharedAcrossTenants) {
@@ -183,7 +203,9 @@ Deno.serve(async (request) => {
           p_integration_id: integration.id,
         },
       );
-      if (accessError) throw accessError;
+      if (accessError) {
+        throw accessError;
+      }
       if (canUse !== true && superAdmin !== true) {
         return reply({ error: "integration_not_shared_with_tenant" }, 403);
       }
@@ -199,7 +221,9 @@ Deno.serve(async (request) => {
           .maybeSingle();
         permitted = Boolean(permission);
       }
-      if (!permitted) return reply({ error: "integration_access_denied" }, 403);
+      if (!permitted) {
+        return reply({ error: "integration_access_denied" }, 403);
+      }
     }
 
     const { data: tokenRow, error: tokenError } = await admin
@@ -207,9 +231,12 @@ Deno.serve(async (request) => {
       .select("access_token")
       .eq("integration_id", integration.id)
       .maybeSingle();
-    if (tokenError) throw tokenError;
-    if (!tokenRow?.access_token)
+    if (tokenError) {
+      throw tokenError;
+    }
+    if (!tokenRow?.access_token) {
       return reply({ error: "meta_whatsapp_token_missing" }, 400);
+    }
 
     const settings = (integration.settings ?? {}) as Record<string, any>;
     const phoneNumberId = String(
@@ -220,7 +247,9 @@ Deno.serve(async (request) => {
         Deno.env.get("META_GRAPH_API_VERSION") ??
         DEFAULT_META_GRAPH_VERSION,
     );
-    if (!phoneNumberId) return reply({ error: "phone_number_id_missing" }, 400);
+    if (!phoneNumberId) {
+      return reply({ error: "phone_number_id_missing" }, 400);
+    }
 
     const graphBody = template?.name
       ? {
@@ -326,8 +355,9 @@ Deno.serve(async (request) => {
       },
       ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
-    if (insertError)
+    if (insertError) {
       console.error("Failed to save Meta WhatsApp message", insertError);
+    }
 
     return reply({ success: true, messageId });
   } catch (error) {

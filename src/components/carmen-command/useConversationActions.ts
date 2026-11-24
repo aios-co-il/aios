@@ -24,8 +24,12 @@ export function useConversationActions(
         .update({ title })
         .eq("id", id)
         .select("id");
-      if (error) throw error;
-      if (!data?.length) throw new Error(NOT_CHANGED);
+      if (error) {
+        throw error;
+      }
+      if (!data?.length) {
+        throw new Error(NOT_CHANGED);
+      }
     },
     onSuccess: refresh,
     onError: fail("שינוי השם נכשל"),
@@ -38,11 +42,17 @@ export function useConversationActions(
         .delete()
         .eq("id", id)
         .select("id");
-      if (error) throw error;
-      if (!data?.length) throw new Error(NOT_CHANGED);
+      if (error) {
+        throw error;
+      }
+      if (!data?.length) {
+        throw new Error(NOT_CHANGED);
+      }
     },
     onSuccess: (_, id) => {
-      if (id === conversationIdRef.current) startNewConversation();
+      if (id === conversationIdRef.current) {
+        startNewConversation();
+      }
       return refresh();
     },
     onError: fail("המחיקה נכשלה"),

@@ -13,7 +13,7 @@ import { delivery, type World } from "./fake-world.ts";
 /** The round's ports over the world `w` (sends land in `w.sent`), with these collectors registered. */
 export function deps(
   w: World,
-  collectors: readonly Collector[] = [],
+  collectors: ReadonlyArray<Collector> = [],
 ): RoundDeps {
   return {
     db: createClient<Database>("http://localhost:54321", "test-key"),

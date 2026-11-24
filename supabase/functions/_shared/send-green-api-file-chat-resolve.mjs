@@ -11,7 +11,9 @@ export const SEND_REPORT_CLIENT_TIMEOUT_MS = 60_000;
 export function normalizeGreenApiPhoneChatId(phoneNumber, countryCode = "972") {
   const originalPhone = String(phoneNumber || "");
   let digits = originalPhone.replace(/[^0-9]/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
   const defaultCountryCode = String(countryCode || "972");
   if (!digits.startsWith(defaultCountryCode)) {
     digits = digits.startsWith("0")
@@ -23,7 +25,9 @@ export function normalizeGreenApiPhoneChatId(phoneNumber, countryCode = "972") {
 
 /** Reject bare/invalid phone chat ids like 972@c.us (country code only). */
 export function isValidGreenApiChatId(chatId) {
-  if (!chatId || typeof chatId !== "string") return false;
+  if (!chatId || typeof chatId !== "string") {
+    return false;
+  }
   if (chatId.endsWith("@g.us")) {
     return chatId.length > 10;
   }

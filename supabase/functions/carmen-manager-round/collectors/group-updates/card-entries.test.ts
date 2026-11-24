@@ -37,9 +37,9 @@ Deno.test("loadCardEntries", async (t) => {
     const { db } = recordingClient(() =>
       Array.from({ length: CARD_ENTRY_LIMIT }, () => row),
     );
-    const warned: unknown[] = [];
+    const warned: Array<unknown> = [];
     const warn = console.warn;
-    console.warn = (...args: unknown[]) => warned.push(args);
+    console.warn = (...args: Array<unknown>) => warned.push(args);
     try {
       await loadCardEntries(db, { clientIds: [CLIENT], since });
     } finally {

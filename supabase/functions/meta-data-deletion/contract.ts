@@ -21,13 +21,15 @@ export interface DeletionRequestStatus {
 export function isDeletionRequestStatusValue(
   value: unknown,
 ): value is DeletionRequestStatusValue {
-  return (DELETION_REQUEST_STATUSES as readonly unknown[]).includes(value);
+  return (DELETION_REQUEST_STATUSES as ReadonlyArray<unknown>).includes(value);
 }
 
 export function readDeletionRequestStatus(
   value: unknown,
 ): DeletionRequestStatus | null {
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
   const confirmation_code =
     "confirmation_code" in value ? value.confirmation_code : undefined;
   const status = "status" in value ? value.status : undefined;

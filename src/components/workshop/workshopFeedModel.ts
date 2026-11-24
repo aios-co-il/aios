@@ -66,9 +66,13 @@ const RECENT_FAILURE_MS = 30 * 60_000;
  * recent ones are worth saying aloud, an old leftover is cleared quietly.
  */
 export function splitFailures(
-  rows: WorkshopArtifact[],
+  rows: Array<WorkshopArtifact>,
   now = Date.now(),
-): { kept: WorkshopArtifact[]; failedIds: string[]; messages: string[] } {
+): {
+  kept: Array<WorkshopArtifact>;
+  failedIds: Array<string>;
+  messages: Array<string>;
+} {
   const failed = rows.filter((row) => row.status === "failed");
   const messages = [
     ...new Set(
@@ -86,9 +90,9 @@ export function splitFailures(
 
 /** The pages to show: all of them, or one folder's. The feed keeps arrival order. */
 export function pagesIn(
-  artifacts: WorkshopArtifact[],
+  artifacts: Array<WorkshopArtifact>,
   folder: string | null,
-): WorkshopArtifact[] {
+): Array<WorkshopArtifact> {
   const ordered = [...artifacts].sort((a, b) =>
     a.created_at.localeCompare(b.created_at),
   );
@@ -97,7 +101,7 @@ export function pagesIn(
     : ordered.filter((artifact) => artifact.folder === folder);
 }
 
-export const foldersOf = (artifacts: WorkshopArtifact[]) =>
+export const foldersOf = (artifacts: Array<WorkshopArtifact>) =>
   folderTree(artifacts);
 
 /** The folder whose tab shows the storyboard grid (FOLDER_BY_KIND.storyboard). */
@@ -107,7 +111,10 @@ export const SCENES_FOLDER = "video/scenes";
  * The folder tabs, with the scenes tab counting the storyboard's scenes. A project whose scenes
  * came from the user's own materials may have no scene pages, so the tab is added for it.
  */
-export function folderTabs(artifacts: WorkshopArtifact[], sceneCount: number) {
+export function folderTabs(
+  artifacts: Array<WorkshopArtifact>,
+  sceneCount: number,
+) {
   const folders = foldersOf(artifacts);
   if (sceneCount === 0) {
     return folders;
@@ -135,16 +142,16 @@ const isStoragePath = (url: string | null): url is string =>
   !!url && !/^(https?:|data:|blob:)/i.test(url);
 
 /** Files in the private creative-video bucket are stored as paths and need a signed link to show. */
-export const storagePathsIn = (artifacts: WorkshopArtifact[]) => [
+export const storagePathsIn = (artifacts: Array<WorkshopArtifact>) => [
   ...new Set(
     artifacts.flatMap((a) => [a.url, a.thumb_url]).filter(isStoragePath),
   ),
 ];
 
 export const withSignedUrls = (
-  artifacts: WorkshopArtifact[],
+  artifacts: Array<WorkshopArtifact>,
   signed: Record<string, string>,
-): WorkshopArtifact[] =>
+): Array<WorkshopArtifact> =>
   artifacts.map((a) => ({
     ...a,
     url: isStoragePath(a.url) ? (signed[a.url] ?? null) : a.url,
@@ -154,7 +161,7 @@ export const withSignedUrls = (
   }));
 
 /** The project's own main format, read from the brief page Carmen wrote when she opened it. */
-export function projectFormat(artifacts: WorkshopArtifact[]): string {
+export function projectFormat(artifacts: Array<WorkshopArtifact>): string {
   const brief = artifacts.find((a) => a.kind === "brief");
   const plan = brief?.meta?.plan as Record<string, unknown> | undefined;
   const format = plan?.format;

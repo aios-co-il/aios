@@ -17,8 +17,9 @@ const corsHeaders = {
 const BASE_URL = "https://whatsappgw-pzpyrrww.manus.space";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -127,7 +128,9 @@ Deno.serve(async (req) => {
         .select("tenant_id, group_chat_id")
         .eq("id", groupId)
         .single();
-      if (!tenantId) tenantId = group?.tenant_id;
+      if (!tenantId) {
+        tenantId = group?.tenant_id;
+      }
       groupChatId = group?.group_chat_id;
     }
     if (!tenantId) {
@@ -296,7 +299,9 @@ Deno.serve(async (req) => {
         const isManusTimeout =
           typeof respData?.error === "string" &&
           /timeout of \d+ms exceeded/i.test(respData.error);
-        if (res.ok && respData?.success !== false) break;
+        if (res.ok && respData?.success !== false) {
+          break;
+        }
         if (!isManusTimeout && res.status < 500) {
           // non-retryable client error
           break;
@@ -375,7 +380,9 @@ Deno.serve(async (req) => {
       sender_phone: groupChatId ? null : to,
       ...sendKindColumns({ sendKind, sendRef, isServiceRole }),
     });
-    if (insertError) console.error("Failed to save message:", insertError);
+    if (insertError) {
+      console.error("Failed to save message:", insertError);
+    }
 
     return new Response(
       JSON.stringify({ success: true, messageId: respData.messageId }),

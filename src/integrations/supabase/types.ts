@@ -16262,6 +16262,7 @@ export type Database = {
           created_at: string;
           id: string;
           module: string;
+          tenant_id: string;
           updated_at: string;
           user_id: string;
         };
@@ -16270,6 +16271,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           module: string;
+          tenant_id: string;
           updated_at?: string;
           user_id: string;
         };
@@ -16278,10 +16280,19 @@ export type Database = {
           created_at?: string;
           id?: string;
           module?: string;
+          tenant_id?: string;
           updated_at?: string;
           user_id?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       user_roles: {
         Row: {
@@ -17603,6 +17614,10 @@ export type Database = {
       bump_skill_usage_by_slug: {
         Args: { p_slugs: string[]; p_tenant_id: string };
         Returns: undefined;
+      };
+      caller_manages_tenant_permissions: {
+        Args: { _tenant_id: string; _user_id: string };
+        Returns: boolean;
       };
       caller_owns_tenant: { Args: { _tenant_id: string }; Returns: boolean };
       caller_owns_tenant_of_user: {

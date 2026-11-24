@@ -34,7 +34,7 @@ function run(
   w: World,
   manager: Parameters<typeof rules>[0] | null,
   fields: Partial<RoundRequest> = {},
-  collectors: Collector[] = [selfTestCollector],
+  collectors: Array<Collector> = [selfTestCollector],
 ) {
   const tenant = {
     tenant_id: TENANT,

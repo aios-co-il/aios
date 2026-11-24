@@ -145,7 +145,9 @@ function rpcError(
 function bearerFrom(req: Request): string | undefined {
   const h =
     req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!h) return undefined;
+  if (!h) {
+    return undefined;
+  }
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m ? m[1].trim() : undefined;
 }
@@ -213,12 +215,15 @@ async function handleTool(
     metadata: attachments.length ? { attachments } : undefined,
   };
   const result = await ingestChannelReply(payload);
-  if (result.duplicate)
+  if (result.duplicate) {
     return "Already delivered (idempotent). No duplicate message was created.";
-  if (eventType === "approval_request")
+  }
+  if (eventType === "approval_request") {
     return "Approval request posted to the AIOS conversation. Wait for David.";
-  if (eventType === "progress")
+  }
+  if (eventType === "progress") {
     return "Progress note posted to the AIOS conversation.";
+  }
   return "Answer delivered to the AIOS Carmen conversation.";
 }
 
@@ -246,8 +251,9 @@ async function uploadLinkText(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   if (req.method === "GET") {
     return new Response(

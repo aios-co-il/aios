@@ -196,8 +196,8 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
-const pick = <T extends readonly string[]>(list: T, value: unknown) =>
-  typeof value === "string" && (list as readonly string[]).includes(value)
+const pick = <T extends ReadonlyArray<string>>(list: T, value: unknown) =>
+  typeof value === "string" && (list as ReadonlyArray<string>).includes(value)
     ? (value as T[number])
     : undefined;
 
@@ -225,11 +225,13 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
     .eq("item_id", itemId)
     .eq("tenant_id", tenantId)
     .order("position");
-  if (error) throw new Error(error.message);
-  return (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (Array.isArray(data) ? data : []) as Array<Record<string, unknown>>;
 }
 
-const sceneAt = (scenes: Record<string, unknown>[], number: unknown) => {
+const sceneAt = (scenes: Array<Record<string, unknown>>, number: unknown) => {
   const index = Math.round(Number(number)) - 1;
   return Number.isInteger(index) && index >= 0 && index < scenes.length
     ? scenes[index]
@@ -247,7 +249,9 @@ async function savePayload(
     .update({ payload })
     .eq("id", project.id)
     .eq("tenant_id", tenantId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 const isVideo = (payload: Record<string, unknown>) =>
@@ -258,14 +262,20 @@ export function missingForStudio(
   payload: Record<string, unknown>,
   counts: { scenes: number; copy: number },
 ) {
-  const missing: string[] = [];
-  if (!payload.logo_url) missing.push("לוגו");
+  const missing: Array<string> = [];
+  if (!payload.logo_url) {
+    missing.push("לוגו");
+  }
   const refs = Array.isArray(payload.style_references)
     ? payload.style_references
     : [];
-  if (refs.length === 0) missing.push("רפרנס סגנון (תמונה או מודעה קודמת)");
+  if (refs.length === 0) {
+    missing.push("רפרנס סגנון (תמונה או מודעה קודמת)");
+  }
   if (isVideo(payload)) {
-    if (counts.scenes === 0) missing.push("סצנות לסטוריבורד");
+    if (counts.scenes === 0) {
+      missing.push("סצנות לסטוריבורד");
+    }
   } else if (counts.copy === 0 && !text(payload.brief_text)) {
     missing.push("קופי או בריף");
   }
@@ -279,9 +289,13 @@ export async function executeCreativeStudioTool(
   args: Record<string, unknown>,
   assertClientAccess: (clientId: string) => Promise<void> = async () => {},
 ) {
-  if (!isCreativeStudioTool(name)) return { error: "כלי לא מוכר" };
+  if (!isCreativeStudioTool(name)) {
+    return { error: "כלי לא מוכר" };
+  }
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
 
   const loaded = await supabase
     .from("marketing_work_items")
@@ -289,8 +303,12 @@ export async function executeCreativeStudioTool(
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (loaded.error) return { error: loaded.error.message };
-  if (!loaded.data) return { error: "פרויקט לא נמצא" };
+  if (loaded.error) {
+    return { error: loaded.error.message };
+  }
+  if (!loaded.data) {
+    return { error: "פרויקט לא נמצא" };
+  }
   const project = {
     ...(loaded.data as Project),
     payload: asRecord((loaded.data as Project).payload),
@@ -312,7 +330,7 @@ export async function executeCreativeStudioTool(
       ? await loadScenes(supabase, tenantId, itemId)
       : [];
     const variations = Array.isArray(payload.variations)
-      ? (payload.variations as Record<string, unknown>[])
+      ? (payload.variations as Array<Record<string, unknown>>)
       : [];
     const copyCount = Array.isArray(payload.copy_variations)
       ? payload.copy_variations.length
@@ -386,7 +404,7 @@ export async function executeCreativeStudioTool(
   if (name === "update_studio_settings") {
     const nextVideo = { ...video };
     const next = { ...payload };
-    const changed: string[] = [];
+    const changed: Array<string> = [];
     const format = pick(FORMATS, args.format);
     if (format) {
       next.format = format;
@@ -420,7 +438,9 @@ export async function executeCreativeStudioTool(
       nextVideo.voice_id = voice;
       changed.push("קול קריינות");
     }
-    if (changed.length === 0) return { error: "לא נמסרה הגדרה תקינה לשינוי" };
+    if (changed.length === 0) {
+      return { error: "לא נמסרה הגדרה תקינה לשינוי" };
+    }
     next.video = nextVideo;
     await savePayload(supabase, tenantId, project, next);
     return { updated: true, changed };
@@ -429,17 +449,24 @@ export async function executeCreativeStudioTool(
   if (name === "attach_to_project") {
     const role = pick(ATTACH_ROLES, args.role);
     const url = args.file_url;
-    if (!role) return { error: "role לא תקין" };
-    if (!isHttpUrl(url)) return { error: "file_url חייב להיות קישור https" };
+    if (!role) {
+      return { error: "role לא תקין" };
+    }
+    if (!isHttpUrl(url)) {
+      return { error: "file_url חייב להיות קישור https" };
+    }
     const fileName = text(args.file_name, 200);
     const next = { ...payload };
-    if (role === "logo") next.logo_url = url;
+    if (role === "logo") {
+      next.logo_url = url;
+    }
     if (role === "style_reference") {
       const refs = Array.isArray(payload.style_references)
-        ? [...(payload.style_references as unknown[])]
+        ? [...(payload.style_references as Array<unknown>)]
         : [];
-      if (!refs.some((ref) => asRecord(ref).url === url))
+      if (!refs.some((ref) => asRecord(ref).url === url)) {
         refs.push({ url, ...(fileName ? { name: fileName } : {}) });
+      }
       next.style_references = refs.slice(-12);
     }
     if (role === "brand_book") {
@@ -466,7 +493,9 @@ export async function executeCreativeStudioTool(
     name === "add_scene" ||
     name === "delete_scene"
   ) {
-    if (!isVideo(payload)) return { error: "זה לא פרויקט וידאו" };
+    if (!isVideo(payload)) {
+      return { error: "זה לא פרויקט וידאו" };
+    }
     const scenes = await loadScenes(supabase, tenantId, itemId);
     const fields: Record<string, unknown> = {};
     for (const key of [
@@ -477,25 +506,34 @@ export async function executeCreativeStudioTool(
       "voiceover_text",
     ]) {
       const value = text(args[key]);
-      if (value !== undefined) fields[key] = value;
+      if (value !== undefined) {
+        fields[key] = value;
+      }
     }
     if (args.duration_s !== undefined) {
       const seconds = Number(args.duration_s);
-      if (!Number.isFinite(seconds)) return { error: "duration_s לא תקין" };
+      if (!Number.isFinite(seconds)) {
+        return { error: "duration_s לא תקין" };
+      }
       fields.duration_s = Math.min(120, Math.max(0.5, seconds));
     }
 
     if (name === "edit_scene") {
       const scene = sceneAt(scenes, args.scene_number);
-      if (!scene) return { error: `אין סצנה ${args.scene_number}` };
-      if (Object.keys(fields).length === 0)
+      if (!scene) {
+        return { error: `אין סצנה ${args.scene_number}` };
+      }
+      if (Object.keys(fields).length === 0) {
         return { error: "לא נמסר שדה לעדכון" };
+      }
       const { error } = await supabase
         .from("marketing_video_scenes")
         .update(fields)
         .eq("id", scene.id)
         .eq("tenant_id", tenantId);
-      if (error) return { error: error.message };
+      if (error) {
+        return { error: error.message };
+      }
       return {
         updated: true,
         scene_number: Number(args.scene_number),
@@ -541,7 +579,9 @@ export async function executeCreativeStudioTool(
         })
         .select("id")
         .single();
-      if (error) return { error: error.message };
+      if (error) {
+        return { error: error.message };
+      }
       return {
         added: true,
         scene_number: after + 1,
@@ -550,66 +590,84 @@ export async function executeCreativeStudioTool(
     }
 
     const scene = sceneAt(scenes, args.scene_number);
-    if (!scene) return { error: `אין סצנה ${args.scene_number}` };
-    if (args.confirmed !== true)
+    if (!scene) {
+      return { error: `אין סצנה ${args.scene_number}` };
+    }
+    if (args.confirmed !== true) {
       return {
         needs_confirmation: true,
         message: `למחוק את סצנה ${args.scene_number} (${scene.title || "ללא שם"})? אשרו ואמחק.`,
       };
+    }
     const { error } = await supabase
       .from("marketing_video_scenes")
       .delete()
       .eq("id", scene.id)
       .eq("tenant_id", tenantId);
-    if (error) return { error: error.message };
+    if (error) {
+      return { error: error.message };
+    }
     return { deleted: true, scene_number: Number(args.scene_number) };
   }
 
   // studio_ui_action
   const action = pick(UI_ACTIONS, args.action) as UiAction | undefined;
-  if (!action) return { error: "action לא תקין" };
-  const videoOnly: UiAction[] = [
+  if (!action) {
+    return { error: "action לא תקין" };
+  }
+  const videoOnly: Array<UiAction> = [
     "produce_video",
     "regenerate_frame",
     "animate_scene",
     "focus_scene",
   ];
-  const staticOnly: UiAction[] = [
+  const staticOnly: Array<UiAction> = [
     "generate_variations",
     "single_variation",
     "revise_variation",
     "focus_variation",
   ];
-  if (videoOnly.includes(action) && !isVideo(payload))
+  if (videoOnly.includes(action) && !isVideo(payload)) {
     return { error: "הפעולה הזו היא לסרטון, והפרויקט סטטי" };
-  if (staticOnly.includes(action) && isVideo(payload))
+  }
+  if (staticOnly.includes(action) && isVideo(payload)) {
     return { error: "הפעולה הזו היא לפוסט סטטי, והפרויקט סרטון" };
+  }
 
   const uiAction: Record<string, unknown> = { type: action, item_id: itemId };
   if (["regenerate_frame", "animate_scene", "focus_scene"].includes(action)) {
     const scenes = await loadScenes(supabase, tenantId, itemId);
     const scene = sceneAt(scenes, args.scene_number);
-    if (!scene) return { error: `אין סצנה ${args.scene_number}` };
+    if (!scene) {
+      return { error: `אין סצנה ${args.scene_number}` };
+    }
     uiAction.scene_id = scene.id;
   }
   if (["revise_variation", "focus_variation"].includes(action)) {
     const variations = Array.isArray(payload.variations)
-      ? (payload.variations as Record<string, unknown>[])
+      ? (payload.variations as Array<Record<string, unknown>>)
       : [];
     const id = text(args.variation_id, 80);
-    if (!id || !variations.some((variation) => variation.id === id))
+    if (!id || !variations.some((variation) => variation.id === id)) {
       return { error: "variation_id לא נמצא בפרויקט" };
+    }
     uiAction.variation_id = id;
   }
   const note = text(args.note, 1000);
-  if (note) uiAction.note = note;
-  if (typeof args.text_as_layers === "boolean")
+  if (note) {
+    uiAction.note = note;
+  }
+  if (typeof args.text_as_layers === "boolean") {
     uiAction.text_as_layers = args.text_as_layers;
-  if (typeof args.mixed_structure === "boolean")
+  }
+  if (typeof args.mixed_structure === "boolean") {
     uiAction.mixed_structure = args.mixed_structure;
+  }
   const drawer = pick(DRAWERS, args.drawer);
   if (action === "open_drawer") {
-    if (!drawer) return { error: "drawer לא תקין" };
+    if (!drawer) {
+      return { error: "drawer לא תקין" };
+    }
     uiAction.drawer = drawer;
   }
   const paid = [

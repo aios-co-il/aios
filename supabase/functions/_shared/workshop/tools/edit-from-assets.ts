@@ -15,32 +15,41 @@ import { forgetKeptDesign } from "./keep-design.ts";
 export async function workshopEditFromAssets(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   // A running production's paid runs belong to the scenes it has (save_video_storyboard refuses
   // too, for a production that starts meanwhile).
   const video = asRecord(loaded.project.payload.video);
-  if (productionRunning(asRecord(video.production)))
+  if (productionRunning(asRecord(video.production))) {
     return { ...PRODUCTION_LOCKED };
+  }
   const brief = await briefProject(deps, loaded.project.payload, args, {
     kind: "video",
     save: (next) => savePayload(supabase, tenantId, itemId, next),
     needsEngine: false,
     needsStyle: false,
   });
-  if ("gate" in brief) return brief.gate;
+  if ("gate" in brief) {
+    return brief.gate;
+  }
   const built = await buildEditScenes(supabase, tenantId, itemId, args, {
     loadAssets: (id) => loadAssets(supabase, tenantId, id),
     loadScenes: (id) => loadScenes(supabase, tenantId, id),
     replaceRefusal: (old) => paidReplaceRefusal(supabase, tenantId, old, deps),
   });
-  if ("error" in built) return built;
+  if ("error" in built) {
+    return built;
+  }
   await savePayload(supabase, tenantId, itemId, {
     ...forgetKeptDesign(brief.payload),
     project_type: "video",

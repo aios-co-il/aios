@@ -7,40 +7,46 @@ type ContentPlanItem = {
   cluster?: string;
   intent?: string;
   angle?: string;
-  geoQuestions?: string[];
+  geoQuestions?: Array<string>;
   priority?: string;
 };
 
 type Cluster = {
   name?: string;
   pillarKeyword?: string;
-  supportingKeywords?: string[];
+  supportingKeywords?: Array<string>;
   intent?: string;
   priority?: string;
   evidence?: string;
 };
 
 type SeoPlan = {
-  clusters?: Cluster[];
-  contentPlan?: ContentPlanItem[];
+  clusters?: Array<Cluster>;
+  contentPlan?: Array<ContentPlanItem>;
 };
 
-function spreadDates(count: number, horizonMonths: number): string[] {
-  if (count <= 0) return [];
+function spreadDates(count: number, horizonMonths: number): Array<string> {
+  if (count <= 0) {
+    return [];
+  }
   const start = new Date();
   start.setUTCHours(12, 0, 0, 0);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + Math.max(1, horizonMonths));
-  const days: string[] = [];
+  const days: Array<string> = [];
   for (
     let cursor = new Date(start);
     cursor <= end;
     cursor.setUTCDate(cursor.getUTCDate() + 1)
   ) {
     const dow = cursor.getUTCDay();
-    if (dow !== 5 && dow !== 6) days.push(cursor.toISOString().slice(0, 10));
+    if (dow !== 5 && dow !== 6) {
+      days.push(cursor.toISOString().slice(0, 10));
+    }
   }
-  if (!days.length) return [];
+  if (!days.length) {
+    return [];
+  }
   const step = Math.max(1, Math.floor(days.length / count));
   return Array.from(
     { length: count },
@@ -81,13 +87,13 @@ export async function materializeSeoGeoPlan(
       .eq("work_item_id", workItemId);
   }
 
-  const keywordRows: Record<string, unknown>[] = [];
+  const keywordRows: Array<Record<string, unknown>> = [];
   let sort = 0;
   for (const cluster of plan.clusters ?? []) {
     const keywords = [
       cluster.pillarKeyword,
       ...(cluster.supportingKeywords ?? []),
-    ].filter(Boolean) as string[];
+    ].filter(Boolean) as Array<string>;
     for (const keyword of keywords) {
       keywordRows.push({
         tenant_id: tenantId,
@@ -106,9 +112,12 @@ export async function materializeSeoGeoPlan(
 
   const contentPlan = plan.contentPlan ?? [];
   for (const item of contentPlan) {
-    if (!item.primaryKeyword) continue;
-    if (keywordRows.some((row) => row.keyword === item.primaryKeyword))
+    if (!item.primaryKeyword) {
       continue;
+    }
+    if (keywordRows.some((row) => row.keyword === item.primaryKeyword)) {
+      continue;
+    }
     keywordRows.push({
       tenant_id: tenantId,
       client_id: clientId,
@@ -127,7 +136,9 @@ export async function materializeSeoGeoPlan(
     const { error } = await admin
       .from("seo_geo_keywords")
       .upsert(keywordRows, { onConflict: "work_item_id,keyword" });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 
   const dates = spreadDates(contentPlan.length, horizonMonths);
@@ -155,7 +166,9 @@ export async function materializeSeoGeoPlan(
     const { error } = await admin
       .from("seo_geo_calendar_entries")
       .insert(entries);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 
   return { keywords: keywordRows.length, entries: entries.length };
@@ -172,7 +185,9 @@ export async function syncTrackedKeywords(
     .eq("client_id", params.clientId)
     .eq("is_active", true);
   const ids = (projects ?? []).map((p) => p.id);
-  if (!ids.length) return 0;
+  if (!ids.length) {
+    return 0;
+  }
   const { data: tracked } = await admin
     .from("rank_tracking_keywords")
     .select("keyword,current_position,search_volume")
@@ -190,10 +205,14 @@ export async function syncTrackedKeywords(
     metadata: { position: row.current_position, volume: row.search_volume },
     sort_order: 1000 + index,
   }));
-  if (!rows.length) return 0;
+  if (!rows.length) {
+    return 0;
+  }
   const { error } = await admin
     .from("seo_geo_keywords")
     .upsert(rows, { onConflict: "work_item_id,keyword" });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return rows.length;
 }

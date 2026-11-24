@@ -23,9 +23,9 @@ export type AccountSnapshot = {
   /** Graph account_status: 1 is active. */
   accountStatus: number;
   /** ACTIVE and WITH_ISSUES campaigns. */
-  campaigns: MetaCampaign[];
+  campaigns: Array<MetaCampaign>;
   /** DISAPPROVED and PENDING_BILLING_INFO ads. */
-  blockedAds: MetaAd[];
+  blockedAds: Array<MetaAd>;
   /** At least one ad is live or in review (ACTIVE, PENDING_REVIEW, IN_PROCESS, PREAPPROVED). */
   hasLiveAd: boolean;
 };

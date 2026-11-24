@@ -96,8 +96,10 @@ export function AlertsManagementDialog({
         .eq("table_id", tableId)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      return data as ReportAlert[];
+      if (error) {
+        throw error;
+      }
+      return data as Array<ReportAlert>;
     },
     enabled: !!tableId && open,
   });
@@ -109,7 +111,9 @@ export function AlertsManagementDialog({
         table_id: tableId,
         ...data,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["report-alerts", tableId] });
@@ -134,7 +138,9 @@ export function AlertsManagementDialog({
         .from("report_alerts")
         .update(data)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["report-alerts", tableId] });
@@ -152,7 +158,9 @@ export function AlertsManagementDialog({
         .from("report_alerts")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["report-alerts", tableId] });

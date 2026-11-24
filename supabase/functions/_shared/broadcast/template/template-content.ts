@@ -22,7 +22,7 @@ export type EmailTemplateContent = {
   bodyText: string | null;
   bodyHtml: string | null;
   htmlMode: boolean;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
 };
 
 export type WhatsappTemplateContent = {

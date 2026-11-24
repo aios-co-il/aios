@@ -14,11 +14,11 @@ export type FakeAutoSendBackend = {
     whatsapp_direct: boolean;
     email: boolean;
   };
-  optIns: Row[];
-  refusals: Row[];
+  optIns: Array<Row>;
+  refusals: Array<Row>;
   upsertError: { message: string } | null;
   /** RPCs and tables that answer a database error. */
-  failing: string[];
+  failing: Array<string>;
   /** Holds the save until released, to look at the switch meanwhile. */
   upsertGate: Promise<void> | null;
   upsert: ReturnType<typeof vi.fn>;
@@ -87,7 +87,7 @@ function fakeRpc(name: string) {
 
 /** A PostgREST builder that answers each table from `backend`. */
 function fakeTable(table: string) {
-  const rows: Record<string, Row[]> = {
+  const rows: Record<string, Array<Row>> = {
     client_auto_send_opt_ins: backend.optIns,
     client_send_refusals: backend.refusals,
   };

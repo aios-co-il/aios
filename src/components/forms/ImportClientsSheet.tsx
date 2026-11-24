@@ -52,7 +52,9 @@ export function ImportClientsSheet({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {

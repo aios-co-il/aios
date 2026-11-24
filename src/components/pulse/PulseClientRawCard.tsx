@@ -33,7 +33,7 @@ const GOAL_SECTION_LABELS: Record<PulseCampaignGoal, string> = {
   unknown: "טעון סיווג",
 };
 
-const GOAL_SECTION_ORDER: PulseCampaignGoal[] = [
+const GOAL_SECTION_ORDER: Array<PulseCampaignGoal> = [
   "leads",
   "engagement",
   "ecommerce",
@@ -60,8 +60,12 @@ const outcomeColumnLabel = (
   goal: PulseCampaignGoal,
   outcomeKind: string | null,
 ) => {
-  if (goal === "leads") return "לידים";
-  if (goal === "ecommerce") return "רכישות";
+  if (goal === "leads") {
+    return "לידים";
+  }
+  if (goal === "ecommerce") {
+    return "רכישות";
+  }
   if (goal === "engagement") {
     const labels: Record<string, string> = {
       video_views: "צפיות",
@@ -77,15 +81,25 @@ const outcomeColumnLabel = (
 };
 
 const efficiencyColumnLabel = (row: PulseCampaignGoalRow) => {
-  if (row.goal === "ecommerce") return "ROAS";
-  if (row.goal === "leads") return "עלות לליד";
-  if (row.goal === "engagement") return "עלות לתוצאה";
+  if (row.goal === "ecommerce") {
+    return "ROAS";
+  }
+  if (row.goal === "leads") {
+    return "עלות לליד";
+  }
+  if (row.goal === "engagement") {
+    return "עלות לתוצאה";
+  }
   return "יעילות";
 };
 
 const formatEfficiency = (row: PulseCampaignGoalRow) => {
-  if (row.efficiency_7d === null || row.efficiency_7d === undefined) return "—";
-  if (row.goal === "ecommerce") return row.efficiency_7d.toFixed(2);
+  if (row.efficiency_7d === null || row.efficiency_7d === undefined) {
+    return "—";
+  }
+  if (row.goal === "ecommerce") {
+    return row.efficiency_7d.toFixed(2);
+  }
   return formatPulseMoney(row.efficiency_7d);
 };
 
@@ -128,7 +142,7 @@ function CampaignGoalTable({
   period,
 }: {
   goal: PulseCampaignGoal;
-  campaigns: PulseCampaignGoalRow[];
+  campaigns: Array<PulseCampaignGoalRow>;
   period: PulsePeriod;
 }) {
   const spendLabel = pulseSpendColumnLabel(period).split(" ")[0];
@@ -233,7 +247,9 @@ export type PulseClientRawCardProps = {
   agencyName: string;
   period: PulsePeriod;
   pulse: PulseSnapshotRow | null;
-  campaignsByGoal: Partial<Record<PulseCampaignGoal, PulseCampaignGoalRow[]>>;
+  campaignsByGoal: Partial<
+    Record<PulseCampaignGoal, Array<PulseCampaignGoalRow>>
+  >;
   lastCampaignTouchAt: string | null;
   onOpenClient: () => void;
   onCallLog: () => void;

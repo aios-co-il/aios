@@ -29,7 +29,9 @@ export function useBroadcastBlacklist() {
             .eq("tenant_id", tenantId)
             .order("created_at", { ascending: false })
             .limit(1000);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data;
         }
       : skipToken,
@@ -52,7 +54,9 @@ export function useBroadcastBlacklist() {
         .from("broadcast_opt_outs")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: refresh,
   });

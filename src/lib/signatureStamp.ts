@@ -4,7 +4,7 @@ export const STAMP_NAME_KEY = "__stamp_name";
 export const STAMP_ID_KEY = "__stamp_company_id";
 
 export function getSignatureStamp(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   fallback: { name?: string | null; company_id?: string | null } = {},
 ) {
@@ -28,7 +28,7 @@ export function getSignatureStamp(
 }
 
 export function applySignatureStamp(
-  fields: DocumentField[],
+  fields: Array<DocumentField>,
   values: Record<string, string>,
   name: string,
   companyId: string,
@@ -39,8 +39,12 @@ export function applySignatureStamp(
     [STAMP_ID_KEY]: companyId.trim(),
   };
   for (const field of fields) {
-    if (field.type === "company_name") next[field.id] = name.trim();
-    if (field.type === "id_number") next[field.id] = companyId.trim();
+    if (field.type === "company_name") {
+      next[field.id] = name.trim();
+    }
+    if (field.type === "id_number") {
+      next[field.id] = companyId.trim();
+    }
   }
   return next;
 }

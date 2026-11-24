@@ -46,7 +46,7 @@ export function addCampaignPlace(
 export function campaignPlaces(
   placesByCampaign: Map<string, Map<string, CampaignPlace>>,
   campaignKey: string,
-): CampaignPlace[] {
+): Array<CampaignPlace> {
   return [...(placesByCampaign.get(campaignKey)?.values() || [])];
 }
 
@@ -57,7 +57,7 @@ export function campaignPlaces(
  * ties itself, so the order of the places does not matter.
  */
 export function campaignTarget(
-  places: CampaignPlace[],
+  places: Array<CampaignPlace>,
   goal: string,
 ): ResolvedPulseTarget | null {
   return resolvePulseTargetAcross(
@@ -78,7 +78,7 @@ export const UNNAMED_CAMPAIGN = "ללא שם";
 /** The target columns of a pulse row (campaign_breakdown). */
 export function campaignTargetFields(
   target: ResolvedPulseTarget | null,
-  places: CampaignPlace[],
+  places: Array<CampaignPlace>,
 ) {
   return {
     target_value: target?.value ?? null,

@@ -10,8 +10,8 @@ export interface FolderLink {
 }
 
 interface FolderLinksFieldProps {
-  links: FolderLink[];
-  onChange: (links: FolderLink[]) => void;
+  links: Array<FolderLink>;
+  onChange: (links: Array<FolderLink>) => void;
   readOnly?: boolean;
 }
 
@@ -24,7 +24,9 @@ export function FolderLinksField({
   const [newUrl, setNewUrl] = useState("");
 
   const handleAdd = () => {
-    if (!newName.trim() || !newUrl.trim()) return;
+    if (!newName.trim() || !newUrl.trim()) {
+      return;
+    }
 
     // Validate URL
     try {

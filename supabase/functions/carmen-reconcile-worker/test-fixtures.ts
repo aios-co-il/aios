@@ -20,7 +20,7 @@ export const account = {
   currency: "ILS",
 };
 
-export type SavedRun = { run: StoredRun; findings: ReconcileFinding[] };
+export type SavedRun = { run: StoredRun; findings: Array<ReconcileFinding> };
 
 /** An active client's report table, synced after Oct 25 ended. */
 export function table(
@@ -54,12 +54,12 @@ export function day(campaign: string, spend: number): CampaignDayRow {
 
 /** A store over `tables` and stored rows, whose previous run per table has the status in `previous`. */
 export function memoryStore(
-  tables: ListedTable[],
-  aios: Record<string, CampaignDayRow[]>,
+  tables: Array<ListedTable>,
+  aios: Record<string, Array<CampaignDayRow>>,
   previous: Record<string, string> = {},
   offTenants: Array<string> = [],
 ) {
-  const saved: SavedRun[] = [];
+  const saved: Array<SavedRun> = [];
   const store: ReconcileStore = {
     listTables: ({ afterId, limit }) =>
       Promise.resolve(

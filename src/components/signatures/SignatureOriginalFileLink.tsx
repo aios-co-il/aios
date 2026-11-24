@@ -14,7 +14,9 @@ export function SignatureOriginalFileLink({
   useEffect(() => {
     let cancelled = false;
     resolveSignatureDocumentUrl(fileUrl).then((url) => {
-      if (!cancelled) setHref(url);
+      if (!cancelled) {
+        setHref(url);
+      }
     });
     return () => {
       cancelled = true;

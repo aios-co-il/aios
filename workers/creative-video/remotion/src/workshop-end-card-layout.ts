@@ -12,7 +12,7 @@ export type EndCardStyle = (typeof END_CARD_STYLES)[number];
 
 export const isEndCardStyle = (value: unknown): value is EndCardStyle =>
   typeof value === "string" &&
-  (END_CARD_STYLES as readonly string[]).includes(value);
+  (END_CARD_STYLES as ReadonlyArray<string>).includes(value);
 
 /** What each design is drawn from. */
 export type EndCardProps = {
@@ -29,7 +29,7 @@ export type EndCardProps = {
 const GLYPH_EM = 0.56;
 
 /** The call to action's lines: wrapped by the render worker, else the text on one line. */
-export const ctaLinesOf = (brand: WorkshopBrand): string[] =>
+export const ctaLinesOf = (brand: WorkshopBrand): Array<string> =>
   brand.ctaLines?.length
     ? brand.ctaLines.slice(0, 3)
     : brand.ctaText
@@ -42,7 +42,7 @@ export const ctaLinesOf = (brand: WorkshopBrand): string[] =>
  * end-card.ts).
  */
 export const ctaFontSize = (
-  lines: string[],
+  lines: Array<string>,
   boxWidth: number,
   maxPx: number,
 ) => {

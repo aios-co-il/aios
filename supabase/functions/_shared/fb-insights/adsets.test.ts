@@ -75,9 +75,9 @@ Deno.test("fetchAdsets", async (t) => {
       const graph = fakeGraph(firstPage, {
         error: { message: "Rate limit reached" },
       });
-      const logged: unknown[][] = [];
+      const logged: Array<Array<unknown>> = [];
       const realError = console.error;
-      console.error = (...args: unknown[]) => {
+      console.error = (...args: Array<unknown>) => {
         logged.push(args);
       };
       try {
@@ -105,8 +105,8 @@ Deno.test("fetchAdsets", async (t) => {
 });
 
 /** A Graph API stand-in that answers each request with the next page. */
-function fakeGraph(...pages: unknown[]) {
-  const urls: string[] = [];
+function fakeGraph(...pages: Array<unknown>) {
+  const urls: Array<string> = [];
   const fetchPage = (input: RequestInfo | URL) => {
     urls.push(String(input));
     return Promise.resolve(Response.json(pages[urls.length - 1]));

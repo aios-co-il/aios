@@ -9,7 +9,9 @@ export function useParliamentActions(
 ) {
   const cancelParliament = useCallback(
     async (conversationId: string | null) => {
-      if (!tenantId || !conversationId) return;
+      if (!tenantId || !conversationId) {
+        return;
+      }
       await postChannel({
         action: "cancel_parliament",
         tenant_id: tenantId,
@@ -27,7 +29,9 @@ export function useParliamentActions(
       conversationId: string | null,
       extra?: Record<string, string>,
     ) => {
-      if (!tenantId || !conversationId) return;
+      if (!tenantId || !conversationId) {
+        return;
+      }
       const res = await postChannel({
         action,
         tenant_id: tenantId,
@@ -35,8 +39,12 @@ export function useParliamentActions(
         ...(extra || {}),
       });
       const json = res.json;
-      if (!res.ok) throw new Error(json.error || "פעולת פרלמנט נכשלה");
-      if (json.status) setStatus(json.status);
+      if (!res.ok) {
+        throw new Error(json.error || "פעולת פרלמנט נכשלה");
+      }
+      if (json.status) {
+        setStatus(json.status);
+      }
       return json;
     },
     [tenantId, setStatus],

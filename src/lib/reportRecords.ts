@@ -67,10 +67,14 @@ export function reportRecordsQuery(
         method: "GET",
         signal,
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       const parsed = crmRecordsSchema.safeParse(response.data);
-      if (!parsed.success) throw new Error("Invalid report response");
-      return parsed.data satisfies CrmRecord[];
+      if (!parsed.success) {
+        throw new Error("Invalid report response");
+      }
+      return parsed.data satisfies Array<CrmRecord>;
     },
   };
 }
@@ -85,6 +89,6 @@ export function reportRecordsQueryOptions(
 ) {
   return {
     ...reportRecordsQuery(client, tableId, dateFilter, dateFrom, dateTo),
-    ...reportQueryOptions<CrmRecord[]>(),
+    ...reportQueryOptions<Array<CrmRecord>>(),
   };
 }

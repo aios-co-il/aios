@@ -61,8 +61,9 @@ Deno.test("plain yes messages approve a dev task", () => {
     "yes, send it",
     "go ahead",
     "🎤 כן תשלחי",
-  ])
+  ]) {
     assertStrictEquals(isExplicitDevTaskApproval(text), true, text);
+  }
 });
 
 Deno.test("button labels and everyday yes replies approve", () => {
@@ -77,8 +78,9 @@ Deno.test("button labels and everyday yes replies approve", () => {
     "כן, ל-Claude Code",
     "כן, ל־Cursor",
     "סבבה",
-  ])
+  ]) {
     assertStrictEquals(isExplicitDevTaskApproval(text), true, text);
+  }
 });
 
 Deno.test("a no, a hold or a new request is not an approval", () => {
@@ -96,15 +98,17 @@ Deno.test("a no, a hold or a new request is not an approval", () => {
     "מה המשימה?",
     "no",
     "don't send it",
-  ])
+  ]) {
     assertStrictEquals(isExplicitDevTaskApproval(text), false, text);
+  }
 });
 
 Deno.test(
   "the user's yes in the next message approves the offered task",
   () => {
-    for (const userText of ["כן", "כן תשלחי", "מאשר", "יאללה", "כן, לשלוח"])
+    for (const userText of ["כן", "כן תשלחי", "מאשר", "יאללה", "כן, לשלוח"]) {
       assertEquals(devTaskApprovalDecision(yes({ userText })), { ok: true });
+    }
     assertEquals(
       devTaskApprovalDecision(
         yes({
@@ -179,12 +183,13 @@ Deno.test("a message that is not a yes is refused with what to ask", () => {
 
 Deno.test("a missing task or one that already left is refused", () => {
   assertStrictEquals(reason(yes({ task: null })), "not_found");
-  for (const status of ["in_progress", "done", "cancelled"])
+  for (const status of ["in_progress", "done", "cancelled"]) {
     assertStrictEquals(
       reason(yes({ task: { ...offered, status } })),
       "not_draft",
       status,
     );
+  }
 });
 
 Deno.test("a yes that names the other agent does not approve", () => {
@@ -250,10 +255,12 @@ Deno.test("a yes approves only the task Carmen's last message offered", () => {
     { offeredTaskId: "task-2" },
     { offeredTaskId: null },
     { task: { ...offered, id: null } },
-  ])
+  ]) {
     assertStrictEquals(reason(yes(over)), "not_offered", JSON.stringify(over));
+  }
   const decision = devTaskApprovalDecision(yes({ lastAssistantText: "" }));
-  if (!decision.ok)
+  if (!decision.ok) {
     assertMatch(decision.message, /\[\[בחירה: לשלוח את משימת הפיתוח\?/);
+  }
   assertStrictEquals(decision.ok, false);
 });

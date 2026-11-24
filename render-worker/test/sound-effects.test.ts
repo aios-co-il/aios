@@ -81,7 +81,9 @@ function effectsDb({
       return table === "marketing_assets" ? assets : [];
     },
     async upload(bucket: string, path: string, bytes: Uint8Array) {
-      if (failUpload) throw new Error("storage down");
+      if (failUpload) {
+        throw new Error("storage down");
+      }
       calls.uploads.push({ bucket, path, size: bytes.length });
     },
     async update(table: string, filter: string, patch: RunPatch) {

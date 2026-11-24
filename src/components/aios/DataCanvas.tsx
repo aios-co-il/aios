@@ -7,7 +7,7 @@ import { DataStats } from "./DataStats";
 import type { DisplayData } from "./AIOSChatBar";
 
 interface DataCanvasProps {
-  panels: DisplayData[];
+  panels: Array<DisplayData>;
   onRemovePanel: (index: number) => void;
 }
 

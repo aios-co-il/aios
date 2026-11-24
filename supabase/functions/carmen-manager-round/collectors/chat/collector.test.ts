@@ -11,7 +11,7 @@ import type { ChatSources } from "./sources.ts";
 const collect = (fake: ChatSources, fields: Partial<CollectorContext> = {}) =>
   createChatCollector(() => fake).collect(chatContext(fields));
 
-const kindsOff = (...kinds: string[]) =>
+const kindsOff = (...kinds: Array<string>) =>
   resolveManagerSettings({
     manager: {
       mode: "observe",

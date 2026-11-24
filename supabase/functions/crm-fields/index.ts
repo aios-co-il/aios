@@ -72,7 +72,9 @@ serve(async (req) => {
           .eq("table_id", tableId)
           .order("position", { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ fields: fields || [] }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -201,11 +203,21 @@ serve(async (req) => {
         }
 
         const updateData: any = { updated_at: new Date().toISOString() };
-        if (name) updateData.name = name;
-        if (position !== undefined) updateData.position = position;
-        if (is_required !== undefined) updateData.is_required = is_required;
-        if (is_visible !== undefined) updateData.is_visible = is_visible;
-        if (config !== undefined) updateData.config = config;
+        if (name) {
+          updateData.name = name;
+        }
+        if (position !== undefined) {
+          updateData.position = position;
+        }
+        if (is_required !== undefined) {
+          updateData.is_required = is_required;
+        }
+        if (is_visible !== undefined) {
+          updateData.is_visible = is_visible;
+        }
+        if (config !== undefined) {
+          updateData.config = config;
+        }
 
         const { data: field, error } = await supabase
           .from("crm_fields")
@@ -214,7 +226,9 @@ serve(async (req) => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ field }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -247,7 +261,9 @@ serve(async (req) => {
           .delete()
           .eq("id", field_id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },

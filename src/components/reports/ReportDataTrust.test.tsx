@@ -5,14 +5,14 @@ import { ReportDataTrust } from "./ReportDataTrust";
 
 const state = vi.hoisted(() => {
   const runs: Array<Record<string, unknown>> = [];
-  const calls: Array<[string, unknown[]]> = [];
+  const calls: Array<[string, Array<unknown>]> = [];
   return { runs, calls };
 });
 
 vi.mock("@/integrations/supabase/client", () => {
   const builder: Record<string, unknown> = {};
   for (const method of ["select", "eq", "order", "limit"]) {
-    builder[method] = (...args: unknown[]) => {
+    builder[method] = (...args: Array<unknown>) => {
       state.calls.push([method, args]);
       return builder;
     };

@@ -3,7 +3,9 @@ import { resolveBuildCommitSha, resolveBuildGitBranch } from "@/lib/buildInfo";
 
 export function StagingBanner() {
   const env = resolveFrontendAppEnv();
-  if (!isNonProduction(env)) return null;
+  if (!isNonProduction(env)) {
+    return null;
+  }
 
   const label =
     env === "staging" ? "STAGING" : env === "preview" ? "PREVIEW" : "DEV";

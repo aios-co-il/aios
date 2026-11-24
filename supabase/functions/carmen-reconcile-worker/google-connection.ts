@@ -59,7 +59,7 @@ export async function findGoogleConnection(
 async function agencySourceTenants(
   db: Pick<DbClient, "from">,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data, error } = await db
     .from("agency_tenant_access")
     .select("source_tenant_id")

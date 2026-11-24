@@ -37,7 +37,7 @@ const FINDINGS_BATCH = 500;
 export async function saveReconcileRun(
   db: Pick<DbClient, "from">,
   run: StoredRun,
-  findings: ReconcileFinding[],
+  findings: Array<ReconcileFinding>,
 ): Promise<string> {
   const { data, error } = await db
     .from("reconcile_runs")
