@@ -109,3 +109,70 @@ Deno.test(
     assertStringIncludes(page, '"error":"missing_code"');
   },
 );
+
+/** A signed state with these values; `ageMs` back-dates it past the TTL. */
+function signedState(
+  origin: string,
+  tenantId: string | null,
+  ageMs = 0,
+): Promise<string> {
+  return signOAuthState(
+    {
+      userId: "11111111-1111-4111-8111-111111111111",
+      tenantId,
+      origin,
+      addNew: false,
+    },
+    oauthStateKey("test-secret"),
+    Date.now() - ageMs,
+  );
+}
+
+const STATE_AGE_PAST_TTL_MS = 20 * 60 * 1000;
+
+Deno.test(
+  "an expired state's error goes back to the app origin it started from",
+  async () => {
+    const state = await signedState(
+      "https://staging.aios.co.il",
+      "22222222-2222-4222-8222-222222222222",
+      STATE_AGE_PAST_TTL_MS,
+    );
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"error":"invalid_state"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
+
+Deno.test(
+  "an unverified state claiming another site's origin never gets the message",
+  async () => {
+    const state = await signedState(
+      "https://evil.example",
+      "22222222-2222-4222-8222-222222222222",
+      STATE_AGE_PAST_TTL_MS,
+    );
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertEquals(page.includes('evil.example")'), false);
+    assertStringIncludes(page, '"https://aios.co.il")');
+  },
+);
+
+Deno.test(
+  "a verified state without a tenant keeps its app origin",
+  async () => {
+    const state = await signedState("https://staging.aios.co.il", null);
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent(state)}`,
+    );
+
+    assertStringIncludes(page, '"error":"invalid_state"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);

@@ -11,8 +11,8 @@ import {
   type PopupMessage,
 } from "./handoff-contract.ts";
 import {
+  claimedStateOrigin,
   oauthStateSecret,
-  type OAuthState,
   verifyOAuthState,
 } from "./oauth-state.ts";
 
@@ -28,14 +28,24 @@ export async function popupCallbackResponse(
 ): Promise<Response> {
   const rawState = url.searchParams.get("state") ?? "";
   const state = await verifyOAuthState(rawState, oauthStateSecret());
-  if (!state || (requireTenant && !state.tenantId)) {
-    return popupErrorPage(provider, null, rawState, INVALID_STATE_ERROR);
+  if (!state) {
+    const claimed = claimedStateOrigin(rawState);
+    return popupErrorPage(provider, claimed, rawState, INVALID_STATE_ERROR);
+  }
+
+  if (requireTenant && !state.tenantId) {
+    return popupErrorPage(
+      provider,
+      state.origin,
+      rawState,
+      INVALID_STATE_ERROR,
+    );
   }
 
   const code = url.searchParams.get("code");
   if (!code) {
     const error = url.searchParams.get("error") || MISSING_CODE_ERROR;
-    return popupErrorPage(provider, state, rawState, error);
+    return popupErrorPage(provider, state.origin, rawState, error);
   }
 
   return popupPage(
@@ -46,19 +56,19 @@ export async function popupCallbackResponse(
 }
 
 /**
- * Posts the error code to the opener. Without a verified state its origin is
- * unknown, so the message goes to APP_URL (Production by default), never to
- * any opener: the state names the user and tenant.
+ * Posts the error code to the opener at the app origin the connect started
+ * from, when it is an AIOS app origin (else APP_URL), never to any opener:
+ * the state names the user and tenant.
  */
 function popupErrorPage(
   provider: GoogleConnectFunction,
-  state: OAuthState | null,
+  origin: string | null,
   rawState: string,
   error: string,
 ): Response {
   return popupPage(
     { type: CONNECT_ERROR_MESSAGE, provider, state: rawState, error },
-    appReturnOrigin(state?.origin ?? null),
+    appReturnOrigin(origin),
     FAILED_TEXT,
   );
 }
