@@ -28,10 +28,10 @@ export interface CreativeAgentBrief {
   visualPrompt?: string;
   directorNote?: string;
   kit: CreativeBrandKit;
-  refs?: StaticRef[];
-  talentUrls?: string[];
+  refs?: Array<StaticRef>;
+  talentUrls?: Array<string>;
   editTargetUrl?: string;
-  directorRefUrls?: string[];
+  directorRefUrls?: Array<string>;
   liveTextLayers?: boolean;
   concept?: Pick<
     CopyConcept,
@@ -55,13 +55,13 @@ const resolveLabeledRefs = ({
   directorRefUrls,
   logoUrl,
 }: {
-  refs: StaticRef[];
-  talentUrls: string[];
+  refs: Array<StaticRef>;
+  talentUrls: Array<string>;
   editTargetUrl?: string;
-  directorRefUrls: string[];
+  directorRefUrls: Array<string>;
   logoUrl?: string;
-}): StaticRef[] => {
-  const labeled: StaticRef[] =
+}): Array<StaticRef> => {
+  const labeled: Array<StaticRef> =
     refs.length > 0
       ? [...refs]
       : [
@@ -122,7 +122,7 @@ export const formatBrandColorJobBrief = (kit: CreativeBrandKit): string => {
     .join(" ");
 };
 
-export const formatReferenceJobBrief = (refs: StaticRef[]): string => {
+export const formatReferenceJobBrief = (refs: Array<StaticRef>): string => {
   if (refs.length === 0) {
     return "3. CRITICAL REFERENCE URLS — none on file.";
   }
@@ -167,8 +167,12 @@ export const resolvePreviousStyleId = (
   styleSource?: { visualStyle?: CreativeVisualStyleId },
   live: Array<{ rejected?: boolean; visualStyle?: CreativeVisualStyleId }> = [],
 ): CreativeVisualStyleId | undefined => {
-  if (replacing) return replacing.visualStyle;
-  if (styleSource) return styleSource.visualStyle;
+  if (replacing) {
+    return replacing.visualStyle;
+  }
+  if (styleSource) {
+    return styleSource.visualStyle;
+  }
   return [...live].reverse().find((item) => !item.rejected && item.visualStyle)
     ?.visualStyle;
 };
@@ -185,7 +189,7 @@ export const buildCreativeJobBrief = ({
   concept?: CreativeAgentBrief["concept"];
   visualPrompt?: string;
   kit: CreativeBrandKit;
-  refs: StaticRef[];
+  refs: Array<StaticRef>;
   styleId?: CreativeVisualStyleId;
   previousStyleId?: CreativeVisualStyleId;
 }): string =>

@@ -60,7 +60,7 @@ export function decidePulseRefreshRouting({
  */
 export function pulseRefreshToolChoice(
   route: PulseRefreshRoute,
-  cappedTools: readonly CappedTool[],
+  cappedTools: ReadonlyArray<CappedTool>,
 ): { type: "function"; function: { name: string } } | null {
   const offered = cappedTools.some(
     (tool) => tool.function?.name === REFRESH_PULSE_TOOL_NAME,

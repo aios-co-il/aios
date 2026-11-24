@@ -29,9 +29,13 @@ export function CommandCenterSidecarShell({
   const setOpen = embedded ? (onOpenChange ?? ignoreOpenChange) : ctx.setOpen;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) setOpen(false);
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        setOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

@@ -27,10 +27,13 @@ export function TemplatePreview({
   previewVars: TemplateVars;
 }) {
   const previewHtml = useMemo(() => {
-    if (channel !== "email") return "";
-    if (htmlMode)
+    if (channel !== "email") {
+      return "";
+    }
+    if (htmlMode) {
       return buildEmailContent({ bodyHtml, htmlMode: true, vars: previewVars })
         .html;
+    }
     const raw = bodyHtml
       ? wrapEmailHtml(renderTemplate(bodyHtml, previewVars, { html: true }))
       : textToEmailHtml(renderTemplate(bodyText, previewVars));

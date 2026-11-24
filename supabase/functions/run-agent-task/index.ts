@@ -7,9 +7,13 @@ import {
 } from "../_shared/carmen-session-identity.ts";
 
 function originatingNotifyIsValid(notify: any): boolean {
-  if (!notify || notify.surface !== "whatsapp") return false;
+  if (!notify || notify.surface !== "whatsapp") {
+    return false;
+  }
   const origin = requireOriginChatId(notify.chat_id);
-  if (!origin.ok) return false;
+  if (!origin.ok) {
+    return false;
+  }
   return replyDestinationIsConsistent({
     chatId: origin.chatId,
     isGroup: !!notify.is_group,
@@ -65,7 +69,9 @@ function buildBatchReport(batch: {
   );
   const sections = batch.tasks.map((t) => {
     const name = (t.title || "ללא כותרת").trim();
-    if (t.status === "failed") return `❌ ${name}: ${t.error || "נכשל"}`;
+    if (t.status === "failed") {
+      return `❌ ${name}: ${t.error || "נכשל"}`;
+    }
     const body = (t.output || "").trim() || "—";
     const clipped =
       body.length > perItemBudget
@@ -74,7 +80,9 @@ function buildBatchReport(batch: {
     return `• ${name}:\n${clipped}`;
   });
   let msg = [header, ...sections].join("\n\n");
-  if (msg.length > MAX) msg = msg.slice(0, MAX - 1) + "…";
+  if (msg.length > MAX) {
+    msg = msg.slice(0, MAX - 1) + "…";
+  }
   return msg;
 }
 
@@ -91,8 +99,9 @@ async function maybeSendBatchReport(
     !preservedNotify ||
     preservedNotify.surface !== "whatsapp" ||
     !task?.batch_id
-  )
+  ) {
     return;
+  }
   if (!originatingNotifyIsValid(preservedNotify)) {
     console.error(
       "[run-agent-task] refusing batch WA report — notify is not pinned to a valid originating chat",
@@ -109,7 +118,9 @@ async function maybeSendBatchReport(
       preservedNotify.tenant_id,
       task.batch_id,
     );
-    if (!batch.all_done) return; // not the finisher — the last subtask sends
+    if (!batch.all_done) {
+      return;
+    } // not the finisher — the last subtask sends
     const { error: claimErr } = await supabase
       .from("agent_batch_reports")
       .insert({ batch_id: task.batch_id });
@@ -192,7 +203,9 @@ Deno.serve(async (req) => {
 
   try {
     const { task_id } = await req.json();
-    if (!task_id) throw new Error("task_id is required");
+    if (!task_id) {
+      throw new Error("task_id is required");
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -213,7 +226,9 @@ Deno.serve(async (req) => {
       tenantId: task.tenant_id,
       agentId: task.agent_id,
     });
-    if (denied) return denied;
+    if (denied) {
+      return denied;
+    }
 
     if (task.status === "completed" || task.status === "failed") {
       return new Response(
@@ -638,7 +653,9 @@ Deno.serve(async (req) => {
       last_output: output,
       execution_time_ms: elapsed,
     };
-    if (preservedNotify) updatedCheckpoint.notify = preservedNotify;
+    if (preservedNotify) {
+      updatedCheckpoint.notify = preservedNotify;
+    }
 
     if (isIncomplete && runCount < 10) {
       // Save checkpoint and self-invoke to continue

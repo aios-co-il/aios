@@ -44,7 +44,9 @@ function firstPresent(data, fields) {
       data[field] !== ""
     ) {
       const value = Number(data[field]);
-      if (Number.isFinite(value)) return { value, field };
+      if (Number.isFinite(value)) {
+        return { value, field };
+      }
     }
   }
   return { value: null, field: null };
@@ -92,8 +94,12 @@ function numberValue(data, fields) {
  */
 function recordScore(data) {
   let score = 0;
-  if (data.campaign_id) score += 2;
-  if (data.campaign_objective || data.optimization_goal) score += 2;
+  if (data.campaign_id) {
+    score += 2;
+  }
+  if (data.campaign_objective || data.optimization_goal) {
+    score += 2;
+  }
   return score;
 }
 
@@ -123,11 +129,21 @@ function canonicalCampaignMergeKey(clientId, platform, goal, identity) {
 }
 
 function preferPulseCampaignRow(prev, row) {
-  if (!prev) return row;
-  if (row.campaign_id && !prev.campaign_id) return row;
-  if (prev.campaign_id && !row.campaign_id) return prev;
-  if ((row.spend_7d || 0) > (prev.spend_7d || 0)) return row;
-  if ((row.spend_7d || 0) < (prev.spend_7d || 0)) return prev;
+  if (!prev) {
+    return row;
+  }
+  if (row.campaign_id && !prev.campaign_id) {
+    return row;
+  }
+  if (prev.campaign_id && !row.campaign_id) {
+    return prev;
+  }
+  if ((row.spend_7d || 0) > (prev.spend_7d || 0)) {
+    return row;
+  }
+  if ((row.spend_7d || 0) < (prev.spend_7d || 0)) {
+    return prev;
+  }
   return row.campaign_id ? row : prev;
 }
 
@@ -152,9 +168,12 @@ export function dedupePulseCampaignRows(rows = []) {
 }
 
 function platformForIntegration(type) {
-  if (type === "google_ads") return "google";
-  if (type === "facebook_insights" || type === "facebook_ecommerce")
+  if (type === "google_ads") {
+    return "google";
+  }
+  if (type === "facebook_insights" || type === "facebook_ecommerce") {
     return "meta";
+  }
   return "unknown";
 }
 
@@ -198,8 +217,9 @@ function aggregate(rows, reportGoal) {
       frequencyWeighted += frequency * weight;
       frequencyWeight += weight;
     }
-    if (typeof data.date === "string" && (!freshest || data.date > freshest))
+    if (typeof data.date === "string" && (!freshest || data.date > freshest)) {
       freshest = data.date;
+    }
   }
 
   return {
@@ -218,7 +238,9 @@ function aggregate(rows, reportGoal) {
 }
 
 function normalizedBaseline(rows, reportGoal, currentDates) {
-  if (!rows.length) return aggregate([], reportGoal);
+  if (!rows.length) {
+    return aggregate([], reportGoal);
+  }
   const weekdays = new Set(
     currentDates.map((date) => utcDate(date).getUTCDay()),
   );
@@ -239,14 +261,17 @@ function normalizedBaseline(rows, reportGoal, currentDates) {
 }
 
 function pct(current, baseline, lowerIsBetter) {
-  if (current === null || baseline === null || baseline === 0) return null;
+  if (current === null || baseline === null || baseline === 0) {
+    return null;
+  }
   const raw = ((current - baseline) / Math.abs(baseline)) * 100;
   return lowerIsBetter ? raw : -raw;
 }
 
 function round(value, digits = 2) {
-  if (value === null || value === undefined || !Number.isFinite(value))
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return null;
+  }
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }
@@ -384,8 +409,13 @@ function classifyStatus({
 
 function datesBetween(start, end) {
   const dates = [];
-  for (let date = utcDate(start); date <= utcDate(end); date = addDays(date, 1))
+  for (
+    let date = utcDate(start);
+    date <= utcDate(end);
+    date = addDays(date, 1)
+  ) {
     dates.push(ymd(date));
+  }
   return dates;
 }
 
@@ -445,18 +475,24 @@ function usableCampaignRecords(records, tables, windows) {
   const usable = [];
   for (const record of records) {
     const data = record.data || {};
-    if (String(data.entity_level || "campaign").toLowerCase() !== "campaign")
+    if (String(data.entity_level || "campaign").toLowerCase() !== "campaign") {
       continue;
+    }
     if (
       typeof data.date !== "string" ||
       data.date < windows.queryStart ||
       data.date > windows.queryEnd
-    )
+    ) {
       continue;
+    }
     const table = tableMap.get(record.table_id);
-    if (!table) continue;
+    if (!table) {
+      continue;
+    }
     const platform = platformForIntegration(table.integration_type);
-    if (platform === "unknown") continue;
+    if (platform === "unknown") {
+      continue;
+    }
     usable.push({
       record,
       table,
@@ -479,7 +515,9 @@ function campaignDays(usable, verdictOf) {
   const byDay = new Map();
   for (const item of usable) {
     const verdict = goalOf.get(campaignIdentityKey(item));
-    if (!verdict) continue;
+    if (!verdict) {
+      continue;
+    }
     const goal = pulseGoalName(verdict.goal);
     const campaignKey = canonicalCampaignMergeKey(
       item.table.client_id,
@@ -542,7 +580,9 @@ function campaignGoals(usable, verdictOf) {
   const votes = [];
   for (const item of usable) {
     const verdict = verdictOf(item.record);
-    if (!verdict) continue;
+    if (!verdict) {
+      continue;
+    }
     votes.push({
       key: campaignIdentityKey(item),
       goal: verdict.goal,
@@ -572,7 +612,9 @@ function campaignDeliveryStatus(items) {
     items.map((item) => item.record),
     () => "campaign",
   ).get("campaign");
-  if (latest) return latest;
+  if (latest) {
+    return latest;
+  }
   // Only the id on the latest dated row: a relaunch under the same name (old
   // id PAUSED, new id ENABLED or not stored yet) must not borrow the old id's
   // state, whatever order rows arrive in.

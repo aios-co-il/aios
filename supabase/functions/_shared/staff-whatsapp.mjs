@@ -11,10 +11,18 @@ export function digitsOnly(value) {
 /** Normalize Israeli mobiles to E.164-ish digits (9725…). */
 export function normalizeStaffPhone(raw) {
   let d = digitsOnly(raw);
-  if (!d) return null;
-  if (d.startsWith("0") && d.length === 10) d = `972${d.slice(1)}`;
-  if (d.length === 9 && /^[5-9]/.test(d)) d = `972${d}`;
-  if (d.length < 9 || d.length > 15) return null;
+  if (!d) {
+    return null;
+  }
+  if (d.startsWith("0") && d.length === 10) {
+    d = `972${d.slice(1)}`;
+  }
+  if (d.length === 9 && /^[5-9]/.test(d)) {
+    d = `972${d}`;
+  }
+  if (d.length < 9 || d.length > 15) {
+    return null;
+  }
   return d;
 }
 
@@ -29,12 +37,22 @@ export function scoreNameMatch(fullName, query) {
   const q = String(query || "")
     .trim()
     .toLowerCase();
-  if (!name || !q) return 0;
-  if (name === q) return 100;
-  if (name.startsWith(q)) return 90;
-  if (name.includes(q)) return 75;
+  if (!name || !q) {
+    return 0;
+  }
+  if (name === q) {
+    return 100;
+  }
+  if (name.startsWith(q)) {
+    return 90;
+  }
+  if (name.includes(q)) {
+    return 75;
+  }
   const parts = q.split(/\s+/).filter(Boolean);
-  if (parts.length > 1 && parts.every((p) => name.includes(p))) return 70;
+  if (parts.length > 1 && parts.every((p) => name.includes(p))) {
+    return 70;
+  }
   return 0;
 }
 
@@ -56,15 +74,18 @@ export function selectStaffMatch(
       ? byId.filter((r) => r.entity_type === wantedType)
       : byId;
     const pool = typed.length ? typed : byId;
-    if (pool.length === 1)
+    if (pool.length === 1) {
       return { match: pool[0], ambiguous: null, reason: "id" };
-    if (pool.length > 1)
+    }
+    if (pool.length > 1) {
       return { match: null, ambiguous: pool, reason: "ambiguous_id" };
+    }
     return { match: null, ambiguous: null, reason: "not_found_id" };
   }
 
-  if (!name)
+  if (!name) {
     return { match: null, ambiguous: null, reason: "missing_selector" };
+  }
 
   let scored = rows
     .map((r) => ({ row: r, score: scoreNameMatch(r.full_name, name) }))
@@ -73,11 +94,14 @@ export function selectStaffMatch(
 
   if (wantedType) {
     const typed = scored.filter((x) => x.row.entity_type === wantedType);
-    if (typed.length) scored = typed;
+    if (typed.length) {
+      scored = typed;
+    }
   }
 
-  if (!scored.length)
+  if (!scored.length) {
     return { match: null, ambiguous: null, reason: "not_found_name" };
+  }
   if (scored.length === 1 || scored[0].score > scored[1].score) {
     return { match: scored[0].row, ambiguous: null, reason: "name" };
   }
@@ -87,7 +111,9 @@ export function selectStaffMatch(
 }
 
 export function formatStaffContact(row) {
-  if (!row) return null;
+  if (!row) {
+    return null;
+  }
   const phone = normalizeStaffPhone(row.phone);
   return {
     entity_type: row.entity_type,

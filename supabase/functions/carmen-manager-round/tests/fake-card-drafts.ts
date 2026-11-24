@@ -3,7 +3,7 @@ import type { CardDraftWritePorts } from "../../_shared/manager-round/card-draft
 import { FINDING_LIVE_STATUSES } from "../../_shared/manager-round/kinds.ts";
 import { TENANT, type World } from "./fake-world.ts";
 
-const LIVE: readonly string[] = FINDING_LIVE_STATUSES;
+const LIVE: ReadonlyArray<string> = FINDING_LIVE_STATUSES;
 
 /**
  * The ports over `w`: an entry is deduplicated on client, source and

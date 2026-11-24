@@ -132,7 +132,7 @@ export default function Signatures() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [documentUrl, setDocumentUrl] = useState("");
-  const [recipients, setRecipients] = useState<Recipient[]>([
+  const [recipients, setRecipients] = useState<Array<Recipient>>([
     { name: "", email: "", signaturePosition: null },
   ]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -142,7 +142,9 @@ export default function Signatures() {
   const [showPlacement, setShowPlacement] = useState(false);
   const [isTemplate, setIsTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
-  const [documentFields, setDocumentFields] = useState<DocumentField[]>([]);
+  const [documentFields, setDocumentFields] = useState<Array<DocumentField>>(
+    [],
+  );
   const [lastSentLinks, setLastSentLinks] = useState<
     Array<{ name: string; email: string; url: string }>
   >([]);
@@ -202,13 +204,17 @@ export default function Signatures() {
   const { data: documents, isLoading } = useQuery({
     queryKey: ["signature-documents", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("signature_documents")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -222,7 +228,9 @@ export default function Signatures() {
         .select("*")
         .eq("id", selectedDoc.id)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: isViewOpen && !!selectedDoc?.id,
@@ -238,13 +246,17 @@ export default function Signatures() {
   const { data: docRecipients } = useQuery({
     queryKey: ["signature-recipients", selectedDoc?.id],
     queryFn: async () => {
-      if (!selectedDoc?.id) return [];
+      if (!selectedDoc?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("signature_recipients")
         .select("*")
         .eq("document_id", selectedDoc.id)
         .order("sign_order");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!selectedDoc?.id,
@@ -254,13 +266,17 @@ export default function Signatures() {
   const { data: docEvents } = useQuery({
     queryKey: ["signature-events", selectedDoc?.id],
     queryFn: async () => {
-      if (!selectedDoc?.id) return [];
+      if (!selectedDoc?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("signature_events")
         .select("*, signature_recipients(name, email)")
         .eq("document_id", selectedDoc.id)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!selectedDoc?.id,
@@ -288,7 +304,9 @@ export default function Signatures() {
   // Create document mutation
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !userId) throw new Error("Missing tenant or user");
+      if (!tenantId || !userId) {
+        throw new Error("Missing tenant or user");
+      }
 
       let fileUrl: string | null = null;
       let docType = "created";
@@ -300,7 +318,9 @@ export default function Signatures() {
         const { error: uploadError } = await supabase.storage
           .from("signature-documents")
           .upload(filePath, uploadFile);
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
         fileUrl = filePath;
       } else if (createTab === "url" && documentUrl) {
         docType = "uploaded";
@@ -358,7 +378,9 @@ export default function Signatures() {
               .insert(rows.map(({ field_values: _fv, ...rest }) => rest))
           ).error;
         }
-        if (recError) throw recError;
+        if (recError) {
+          throw recError;
+        }
       }
 
       return { doc, isTemplate };
@@ -449,7 +471,9 @@ export default function Signatures() {
         .from("signature_documents")
         .delete()
         .eq("id", docId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -461,8 +485,9 @@ export default function Signatures() {
 
   const renameTemplateMutation = useMutation({
     mutationFn: async () => {
-      if (!renameDoc || !renameTitle.trim())
+      if (!renameDoc || !renameTitle.trim()) {
         throw new Error("נא למלא שם לתבנית");
+      }
       const patch = {
         title: renameTitle.trim(),
         template_name: renameTitle.trim(),
@@ -480,7 +505,9 @@ export default function Signatures() {
           .update(withoutName)
           .eq("id", renameDoc.id));
       }
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -500,7 +527,9 @@ export default function Signatures() {
       document_type?: string | null;
       document_fields?: unknown;
     }) => {
-      if (!tenantId || !userId) throw new Error("Missing tenant or user");
+      if (!tenantId || !userId) {
+        throw new Error("Missing tenant or user");
+      }
       return insertSignatureDocument({
         tenant_id: tenantId,
         title: doc.title,
@@ -539,7 +568,7 @@ export default function Signatures() {
       thenSend,
     }: {
       doc: { id: string; title: string; is_template?: boolean };
-      fields: DocumentField[];
+      fields: Array<DocumentField>;
       thenSend?: boolean;
     }) => {
       const result = await updateSignatureDocumentFields(doc.id, fields, {
@@ -582,10 +611,12 @@ export default function Signatures() {
   });
 
   const handleEditSaveOnly = async (
-    fields: DocumentField[],
+    fields: Array<DocumentField>,
     nextTitle: string,
   ) => {
-    if (!editingDoc || !nextTitle.trim()) return;
+    if (!editingDoc || !nextTitle.trim()) {
+      return;
+    }
     try {
       await updateFieldsMutation.mutateAsync({
         doc: {
@@ -602,10 +633,12 @@ export default function Signatures() {
   };
 
   const handleEditSaveOrSend = async (
-    fields: DocumentField[],
+    fields: Array<DocumentField>,
     nextTitle: string,
   ) => {
-    if (!editingDoc || !nextTitle.trim()) return;
+    if (!editingDoc || !nextTitle.trim()) {
+      return;
+    }
     try {
       await updateFieldsMutation.mutateAsync({
         doc: {
@@ -623,7 +656,9 @@ export default function Signatures() {
 
   useEffect(() => {
     const editId = searchParams.get("edit");
-    if (!editId || !documents?.length) return;
+    if (!editId || !documents?.length) {
+      return;
+    }
     const doc = documents.find((d) => d.id === editId);
     if (doc && canEditDocFields(doc)) {
       setEditingDoc(doc);
@@ -697,8 +732,12 @@ export default function Signatures() {
 
   // Get preview URL for placement
   const getPreviewUrl = (): string | null => {
-    if (createTab === "upload" && uploadPreviewUrl) return uploadPreviewUrl;
-    if (createTab === "url" && documentUrl) return documentUrl;
+    if (createTab === "upload" && uploadPreviewUrl) {
+      return uploadPreviewUrl;
+    }
+    if (createTab === "url" && documentUrl) {
+      return documentUrl;
+    }
     return null;
   };
 
@@ -1259,8 +1298,12 @@ export default function Signatures() {
         <CardContent>
           {(() => {
             const visibleDocs = (documents ?? []).filter((doc) => {
-              if (listFilter === "templates") return !!doc.is_template;
-              if (listFilter === "documents") return !doc.is_template;
+              if (listFilter === "templates") {
+                return !!doc.is_template;
+              }
+              if (listFilter === "documents") {
+                return !doc.is_template;
+              }
               return true;
             });
             if (isLoading) {
@@ -1435,7 +1478,9 @@ export default function Signatures() {
         open={isViewOpen}
         onOpenChange={(open) => {
           setIsViewOpen(open);
-          if (!open) setLastSentLinks([]);
+          if (!open) {
+            setLastSentLinks([]);
+          }
         }}
       >
         <DialogContent
@@ -1727,7 +1772,9 @@ export default function Signatures() {
       <Dialog
         open={!!renameDoc}
         onOpenChange={(open) => {
-          if (!open) setRenameDoc(null);
+          if (!open) {
+            setRenameDoc(null);
+          }
         }}
       >
         <DialogContent dir="rtl">

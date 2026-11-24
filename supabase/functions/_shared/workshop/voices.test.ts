@@ -16,8 +16,9 @@ Deno.test(
   "the menu lists every voice with buttons per gender, at most six each",
   () => {
     const menu = voiceMenu();
-    for (const voice of HEBREW_VOICES)
+    for (const voice of HEBREW_VOICES) {
       assertMatch(menu, new RegExp(voice.name));
+    }
     assertMatch(menu, /\[\[בחירה: קריינית \| יעל \| תמר \| זינה\]\]/);
     const male = menu.match(/\[\[בחירה: קריין \|([^\]]*)\]\]/)?.[1] ?? "";
     assertStrictEquals(male.split("|").length, 5);

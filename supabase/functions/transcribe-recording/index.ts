@@ -21,11 +21,21 @@ const MAX_INLINE_FILE_SIZE = 150 * 1024 * 1024;
 // Map content-type -> Gemini audio format name
 function geminiAudioFormat(mime: string): string {
   const m = mime.split(";")[0].trim().toLowerCase();
-  if (m.includes("mp3") || m === "audio/mpeg") return "mp3";
-  if (m.includes("wav")) return "wav";
-  if (m.includes("flac")) return "flac";
-  if (m.includes("ogg")) return "ogg";
-  if (m.includes("webm")) return "webm";
+  if (m.includes("mp3") || m === "audio/mpeg") {
+    return "mp3";
+  }
+  if (m.includes("wav")) {
+    return "wav";
+  }
+  if (m.includes("flac")) {
+    return "flac";
+  }
+  if (m.includes("ogg")) {
+    return "ogg";
+  }
+  if (m.includes("webm")) {
+    return "webm";
+  }
   // mp4/m4a/aac and video/mp4 all decode as mp4 for Gemini
   return "mp4";
 }
@@ -47,16 +57,21 @@ async function setTranscriptionStatus(
   error?: string,
 ) {
   const update: any = { transcription_status: status };
-  if (transcription !== undefined) update.transcription = transcription;
-  if (error !== undefined) update.transcription_error = error;
+  if (transcription !== undefined) {
+    update.transcription = transcription;
+  }
+  if (error !== undefined) {
+    update.transcription_error = error;
+  }
 
   const { error: dbError } = await supabase
     .from("zoom_recordings")
     .update(update)
     .eq("id", recordingId);
 
-  if (dbError)
+  if (dbError) {
     console.error("⚠️ Failed to update transcription status:", dbError.message);
+  }
 }
 
 // ── Main handler ──────────────────────────────────────────────
@@ -101,7 +116,7 @@ serve(async (req) => {
     // part is a standalone file under the Whisper cap. Mic and system audio are
     // separate channels (…_mic_partN / …_sys_partN), so speaker attribution is
     // a physical fact, not a guess: mic = the recording user, sys = everyone else.
-    const audioParts: string[] = Array.isArray(recording.audio_file_paths)
+    const audioParts: Array<string> = Array.isArray(recording.audio_file_paths)
       ? recording.audio_file_paths.filter(Boolean)
       : [];
     if (audioParts.length > 0) {
@@ -296,7 +311,9 @@ async function whisperTranscribe(
     language: "he",
     filename: `recording.${ext}`,
   });
-  if (!text) throw new Error("Whisper returned empty transcription");
+  if (!text) {
+    throw new Error("Whisper returned empty transcription");
+  }
   return text;
 }
 
@@ -312,9 +329,13 @@ async function whisperTranscribe(
 const CHANNEL_LABELS: Record<string, string> = { mic: "מקליט", sys: "משתתפים" };
 
 function channelLabel(channel: string): string {
-  if (CHANNEL_LABELS[channel]) return CHANNEL_LABELS[channel];
+  if (CHANNEL_LABELS[channel]) {
+    return CHANNEL_LABELS[channel];
+  }
   const guest = channel.match(/^guest(\d+)$/);
-  if (guest) return `משתתף ${guest[1]}`;
+  if (guest) {
+    return `משתתף ${guest[1]}`;
+  }
   return channel;
 }
 
@@ -323,7 +344,9 @@ function partChannel(path: string): {
   part: number;
 } {
   const m = path.match(/_(mic|sys|audio)_part(\d+)\.\w+$/);
-  if (!m) return { channel: "mixed", part: 0 };
+  if (!m) {
+    return { channel: "mixed", part: 0 };
+  }
   return {
     channel: m[1] === "audio" ? "mixed" : (m[1] as "mic" | "sys"),
     part: parseInt(m[2], 10),
@@ -343,7 +366,7 @@ function formatClock(totalSeconds: number): string {
 async function transcribeChannelParts(
   supabase: any,
   recordingId: string,
-  paths: string[],
+  paths: Array<string>,
 ): Promise<string> {
   // Full-length system channel ({ts}_sys_full.webm): diarize it as ONE file so
   // speaker identities stay consistent across the whole meeting ("משתתף 2" in
@@ -352,7 +375,7 @@ async function transcribeChannelParts(
   type TimedSegment = { at: number; channel: string; text: string };
   const sysFullPath = paths.find((p) => /_sys_full\.\w+$/.test(p));
   const labelOverrides = new Map<string, string>();
-  let diarized: TimedSegment[] | null = null;
+  let diarized: Array<TimedSegment> | null = null;
   if (sysFullPath) {
     const { data: fullBlob, error: fullErr } = await supabase.storage
       .from("recordings")
@@ -367,8 +390,9 @@ async function transcribeChannelParts(
       if (segs) {
         const speakerOrder = new Map<string, number>();
         diarized = segs.map((s) => {
-          if (!speakerOrder.has(s.speaker))
+          if (!speakerOrder.has(s.speaker)) {
             speakerOrder.set(s.speaker, speakerOrder.size + 1);
+          }
           return {
             at: s.start,
             channel: `guest${speakerOrder.get(s.speaker)}`,
@@ -401,25 +425,29 @@ async function transcribeChannelParts(
   }
 
   // Group parts per channel, ordered by part number (fallback: array order).
-  const channels = new Map<string, { path: string; part: number }[]>();
+  const channels = new Map<string, Array<{ path: string; part: number }>>();
   paths
     .filter((path) => path !== sysFullPath)
     .filter((path) => !(diarized && partChannel(path).channel === "sys"))
     .forEach((path, i) => {
       const { channel, part } = partChannel(path);
-      if (!channels.has(channel)) channels.set(channel, []);
+      if (!channels.has(channel)) {
+        channels.set(channel, []);
+      }
       channels.get(channel)!.push({ path, part: part || i + 1 });
     });
-  for (const list of channels.values()) list.sort((a, b) => a.part - b.part);
+  for (const list of channels.values()) {
+    list.sort((a, b) => a.part - b.part);
+  }
 
   // Download + transcribe every part in parallel (each is a few MB).
   type PartResult = {
     channel: string;
     part: number;
-    segments: { start: number; end: number; text: string }[];
+    segments: Array<{ start: number; end: number; text: string }>;
     duration: number;
   };
-  const jobs: Promise<PartResult>[] = [];
+  const jobs: Array<Promise<PartResult>> = [];
   for (const [channel, list] of channels.entries()) {
     for (const { path, part } of list) {
       jobs.push(
@@ -427,12 +455,14 @@ async function transcribeChannelParts(
           const { data: blob, error } = await supabase.storage
             .from("recordings")
             .download(path);
-          if (error || !blob)
+          if (error || !blob) {
             throw new Error(
               `Failed to download segment ${path}: ${error?.message || "unknown"}`,
             );
-          if (blob.size > WHISPER_MAX_BYTES)
+          }
+          if (blob.size > WHISPER_MAX_BYTES) {
             throw new Error(`Segment ${path} exceeds 25MB`);
+          }
           console.log(
             `🎙️ Transcribing ${channel} part ${part} (${(blob.size / 1024 / 1024).toFixed(1)}MB)`,
           );
@@ -440,7 +470,9 @@ async function transcribeChannelParts(
             language: "he",
             filename: `part.webm`,
           });
-          if (!verbose) throw new Error(`Whisper failed on segment ${path}`);
+          if (!verbose) {
+            throw new Error(`Whisper failed on segment ${path}`);
+          }
           return {
             channel,
             part,
@@ -455,7 +487,7 @@ async function transcribeChannelParts(
   await touchProcessing(supabase, recordingId);
 
   // Shift each part's segments by the cumulative duration of earlier parts.
-  const timeline: TimedSegment[] = diarized ? [...diarized] : [];
+  const timeline: Array<TimedSegment> = diarized ? [...diarized] : [];
   for (const channel of channels.keys()) {
     const parts = results
       .filter((r) => r.channel === channel)
@@ -469,8 +501,9 @@ async function transcribeChannelParts(
     }
   }
 
-  if (timeline.length === 0)
+  if (timeline.length === 0) {
     throw new Error("Whisper returned empty transcription");
+  }
   timeline.sort((a, b) => a.at - b.at);
 
   // Single mixed channel → plain transcript (legacy behavior, no fake speakers).
@@ -480,8 +513,9 @@ async function transcribeChannelParts(
   }
 
   // Coalesce consecutive same-speaker segments into one line.
-  const lines: string[] = [];
-  let current: { at: number; channel: string; texts: string[] } | null = null;
+  const lines: Array<string> = [];
+  let current: { at: number; channel: string; texts: Array<string> } | null =
+    null;
   for (const seg of timeline) {
     if (current && current.channel === seg.channel) {
       current.texts.push(seg.text);
@@ -511,12 +545,14 @@ async function transcribeChannelParts(
 async function resolveSpeakerNames(
   supabase: any,
   sysFullPath: string,
-  segs: { start: number; end: number; speaker: string; text: string }[],
+  segs: Array<{ start: number; end: number; speaker: string; text: string }>,
   speakerOrder: Map<string, number>,
   overrides: Map<string, string>,
 ): Promise<void> {
   const pathMatch = sysFullPath.match(/^(.+)\/(\d+)_sys_full\.\w+$/);
-  if (!pathMatch) return;
+  if (!pathMatch) {
+    return;
+  }
   const [, folder, ts] = pathMatch;
 
   const { data: files } = await supabase.storage
@@ -529,7 +565,7 @@ async function resolveSpeakerNames(
         ? { path: `${folder}/${f.name}`, sec: parseInt(fm[1], 10) }
         : null;
     })
-    .filter(Boolean) as { path: string; sec: number }[];
+    .filter(Boolean) as Array<{ path: string; sec: number }>;
   if (frames.length === 0) {
     console.log(
       "🖼️ No sampled frames for this recording — keeping numeric speaker labels",
@@ -544,7 +580,7 @@ async function resolveSpeakerNames(
       .sort((a, b) => b.end - b.start - (a.end - a.start))
       .slice(0, 8);
 
-    const chosen: { path: string; sec: number }[] = [];
+    const chosen: Array<{ path: string; sec: number }> = [];
     for (const seg of candidates) {
       const inWindow = frames
         .filter((f) => f.sec >= seg.start - 3 && f.sec <= seg.end + 3)
@@ -554,19 +590,29 @@ async function resolveSpeakerNames(
             Math.abs(b.sec - (seg.start + seg.end) / 2),
         );
       const best = inWindow.find((f) => !chosen.some((c) => c.path === f.path));
-      if (best) chosen.push(best);
-      if (chosen.length >= 3) break;
+      if (best) {
+        chosen.push(best);
+      }
+      if (chosen.length >= 3) {
+        break;
+      }
     }
-    if (chosen.length === 0) continue;
+    if (chosen.length === 0) {
+      continue;
+    }
 
-    const blobs: Blob[] = [];
+    const blobs: Array<Blob> = [];
     for (const frame of chosen) {
       const { data: blob } = await supabase.storage
         .from("recordings")
         .download(frame.path);
-      if (blob) blobs.push(blob);
+      if (blob) {
+        blobs.push(blob);
+      }
     }
-    if (blobs.length === 0) continue;
+    if (blobs.length === 0) {
+      continue;
+    }
 
     const result = await aiVisionJSON(
       `בצילומי המסך האלה מפגישת וידאו (Zoom/Google Meet/Teams), אותו משתתף מדבר בכל התמונות — הוא מסומן כדובר הפעיל (מסגרת צבעונית סביב האריח שלו, או אינדיקציית קול לצד שמו). קרא את תווית השם המוצגת על האריח של הדובר הפעיל. אם לא רואים רשת משתתפים, או שאי אפשר לקבוע בוודאות מי הדובר, החזר null. החזר JSON בלבד: {"name": string | null}`,
@@ -616,7 +662,7 @@ async function transcribeBlob(
   console.log(
     `✂️ Split ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB ${contentType} into ${chunks.length} chunks`,
   );
-  const pieces: string[] = [];
+  const pieces: Array<string> = [];
   for (let i = 0; i < chunks.length; i++) {
     console.log(
       `🎙️ Transcribing chunk ${i + 1}/${chunks.length} (${(chunks[i].size / 1024 / 1024).toFixed(1)}MB)`,
@@ -638,11 +684,11 @@ async function transcribeBlob(
 async function splitOversizedBlob(
   blob: Blob,
   contentType: string,
-): Promise<Blob[] | null> {
+): Promise<Array<Blob> | null> {
   const format = geminiAudioFormat(contentType);
 
   if (format === "mp3") {
-    const chunks: Blob[] = [];
+    const chunks: Array<Blob> = [];
     for (let off = 0; off < blob.size; off += CHUNK_TARGET_BYTES) {
       chunks.push(
         blob.slice(
@@ -662,14 +708,16 @@ async function splitOversizedBlob(
   return null;
 }
 
-async function splitWav(blob: Blob): Promise<Blob[] | null> {
+async function splitWav(blob: Blob): Promise<Array<Blob> | null> {
   const headLen = Math.min(blob.size, 4096);
   const head = new Uint8Array(await blob.slice(0, headLen).arrayBuffer());
   const dv = new DataView(head.buffer);
   const tag = (off: number) =>
     String.fromCharCode(head[off], head[off + 1], head[off + 2], head[off + 3]);
 
-  if (blob.size < 44 || tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  if (blob.size < 44 || tag(0) !== "RIFF" || tag(8) !== "WAVE") {
+    return null;
+  }
 
   let off = 12;
   let blockAlign = 0;
@@ -677,7 +725,9 @@ async function splitWav(blob: Blob): Promise<Blob[] | null> {
   while (off + 8 <= headLen) {
     const id = tag(off);
     const size = dv.getUint32(off + 4, true);
-    if (id === "fmt ") blockAlign = dv.getUint16(off + 8 + 12, true) || 0;
+    if (id === "fmt ") {
+      blockAlign = dv.getUint16(off + 8 + 12, true) || 0;
+    }
     if (id === "data") {
       dataOff = off + 8;
       break;
@@ -685,14 +735,18 @@ async function splitWav(blob: Blob): Promise<Blob[] | null> {
     off += 8 + size + (size % 2);
   }
   // 'data' chunk not found within the first 4KB — unusual layout, bail out.
-  if (dataOff < 0 || blockAlign <= 0) return null;
+  if (dataOff < 0 || blockAlign <= 0) {
+    return null;
+  }
 
   const dataLen = blob.size - dataOff;
   const payloadPerChunk =
     Math.floor((CHUNK_TARGET_BYTES - dataOff) / blockAlign) * blockAlign;
-  if (payloadPerChunk <= 0) return null;
+  if (payloadPerChunk <= 0) {
+    return null;
+  }
 
-  const chunks: Blob[] = [];
+  const chunks: Array<Blob> = [];
   for (let start = 0; start < dataLen; start += payloadPerChunk) {
     const segLen = Math.min(payloadPerChunk, dataLen - start);
     const header = head.slice(0, dataOff);

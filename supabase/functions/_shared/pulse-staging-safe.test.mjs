@@ -69,7 +69,9 @@ Deno.test(
     ]) {
       const dir = new URL(path, import.meta.url);
       for await (const entry of Deno.readDir(dir)) {
-        if (!entry.isFile || entry.name.includes(".test.")) continue;
+        if (!entry.isFile || entry.name.includes(".test.")) {
+          continue;
+        }
         const source = await readFile(new URL(entry.name, dir), "utf8");
         assertNotMatch(source, /cpl_spike/);
         assertNotMatch(source, /כרמן נתחי/);

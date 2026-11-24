@@ -22,8 +22,8 @@ export function ReportRecipientList({
   removing,
   onRemove,
 }: {
-  rows: ReportRecipientRow[];
-  staff: ReportStaffMember[];
+  rows: Array<ReportRecipientRow>;
+  staff: Array<ReportStaffMember>;
   resolved: CarmenReportRecipients;
   removing: boolean;
   onRemove: (id: string) => void;

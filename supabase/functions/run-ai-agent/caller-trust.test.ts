@@ -40,8 +40,9 @@ Deno.test("bindRunAgentCaller", async (t) => {
         userId: USER,
       });
       assertStrictEquals(body.user_id, USER);
-      for (const field of SERVICE_ONLY_RUN_FIELDS)
+      for (const field of SERVICE_ONLY_RUN_FIELDS) {
         assertStrictEquals(field in body, false, `${field} must be stripped`);
+      }
       assertStrictEquals(body.lead_data, undefined);
       assertStrictEquals(body.wa_notify, undefined);
       assertStrictEquals(body.persona_user_id, undefined);
@@ -105,11 +106,12 @@ Deno.test("service-only fields: source guards", async (t) => {
         "const surface: Surface",
         "resolveWorkshopAwareEngine(",
         "handleRunAgent(",
-      ])
+      ]) {
         assert(
           bindAt < serve.indexOf(later),
           `bindRunAgentCaller must run before ${later}`,
         );
+      }
       assertMatch(
         agent,
         /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\/caller-trust\.ts";/,
@@ -136,11 +138,12 @@ Deno.test("service-only fields: source guards", async (t) => {
       );
       const calls = automation.split("fetch(agentUrl, {").slice(1);
       assert(calls.length >= 1);
-      for (const call of calls)
+      for (const call of calls) {
         assertMatch(
           call.slice(0, 300),
           /Authorization: `Bearer \$\{Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)\}`/,
         );
+      }
     },
   );
 
@@ -249,7 +252,7 @@ Deno.test("automation and task runs: source guards", async (t) => {
 });
 
 /** Every .ts/.tsx file under `dir`, recursively. */
-function walk(dir: URL, out: URL[] = []): URL[] {
+function walk(dir: URL, out: Array<URL> = []): Array<URL> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
     if (entry.isDirectory()) {

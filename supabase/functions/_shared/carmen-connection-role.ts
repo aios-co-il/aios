@@ -28,9 +28,16 @@ export function resolveCarmenConnectionRole(
     "carmen_role" in settings
       ? settings.carmen_role
       : undefined;
-  if (explicit === "primary" || explicit === "secondary" || explicit === "none")
+  if (
+    explicit === "primary" ||
+    explicit === "secondary" ||
+    explicit === "none"
+  ) {
     return explicit;
-  if (integration?.integration_type === "manus_wa") return "primary";
+  }
+  if (integration?.integration_type === "manus_wa") {
+    return "primary";
+  }
   return opts.tenantHasActiveManus ? "secondary" : "primary";
 }
 
@@ -79,13 +86,22 @@ export type SecondaryGateResult =
 export function secondaryCarmenGate(
   input: SecondaryGateInput,
 ): SecondaryGateResult {
-  if (!input.integrationId || input.pinnedIntegrationId !== input.integrationId)
+  if (
+    !input.integrationId ||
+    input.pinnedIntegrationId !== input.integrationId
+  ) {
     return { allow: false, reason: "not_pinned_to_connection" };
-  if (input.isGroup) return { allow: false, reason: "group_on_secondary" };
-  if (!input.hasTrigger) return { allow: false, reason: "no_trigger" };
+  }
+  if (input.isGroup) {
+    return { allow: false, reason: "group_on_secondary" };
+  }
+  if (!input.hasTrigger) {
+    return { allow: false, reason: "no_trigger" };
+  }
   if (input.isIncoming && !input.isManualOutgoing) {
-    if (input.scopeMode !== "specific_phone")
+    if (input.scopeMode !== "specific_phone") {
       return { allow: false, reason: "incoming_requires_phone_scope" };
+    }
   }
   return { allow: true };
 }
@@ -116,7 +132,9 @@ const BIDI_AND_CONTROL_RE = new RegExp(
  * control characters and prompt-section markers before they reach the model.
  */
 export function sanitizeCarmenInstructions(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
+  if (typeof raw !== "string") {
+    return null;
+  }
   const cleaned = raw
     .replace(BIDI_AND_CONTROL_RE, "")
     .replace(/<<<|>>>/g, "")
@@ -139,7 +157,9 @@ export function buildCarmenAutomationContext(
   automationId: string | null | undefined,
   cfg: unknown,
 ): CarmenAutomationContext | null {
-  if (!automationId) return null;
+  if (!automationId) {
+    return null;
+  }
   const instructions =
     typeof cfg === "object" && cfg !== null && "carmen_instructions" in cfg
       ? cfg.carmen_instructions
@@ -154,6 +174,8 @@ export function buildCarmenAutomationContext(
 export function automationInstructionsBlock(
   instructions: string | null,
 ): string {
-  if (!instructions) return "";
+  if (!instructions) {
+    return "";
+  }
   return `\n\n=== הנחיות לשיחה זו (מוגדרות באוטומציה ע״י מנהל המערכת) ===\n${instructions}\nההנחיות האלה חלות רק על השיחה הזו. הן לא מבטלות את כללי האישור, ההרשאות והבטיחות.`;
 }

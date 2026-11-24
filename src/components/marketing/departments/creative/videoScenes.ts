@@ -71,10 +71,10 @@ const generationCostOf = (meta: unknown): ImageGenerationCost | undefined => {
 
 /** Scene rows (any order) → editor frames ordered by position, with the current still and clip attached. */
 export function scenesToFrames(
-  rows: VideoSceneRecord[],
+  rows: Array<VideoSceneRecord>,
   assetsById: Map<string, SceneStillRecord>,
   defaultX: (order: number) => number,
-): StoryboardFrame[] {
+): Array<StoryboardFrame> {
   return [...rows]
     .sort((a, b) => finiteOr(a.position, 0) - finiteOr(b.position, 0))
     .map((row, index) => {
@@ -99,29 +99,47 @@ export function scenesToFrames(
         x: finiteOr(canvas.x, defaultX(order)),
         y: finiteOr(canvas.y, 100),
       };
-      if (row.status) frame.status = row.status;
+      if (row.status) {
+        frame.status = row.status;
+      }
       frame.locked = row.locked === true;
       frame.hasCharacter = asRecord(row.meta).has_character !== false;
-      if (row.still_asset_id) frame.stillAssetId = row.still_asset_id;
-      if (still?.url) frame.imageUrl = still.url;
-      if (row.clip_asset_id) frame.clipAssetId = row.clip_asset_id;
-      if (clip?.url) frame.clipPath = clip.url;
-      if (row.clip_stale) frame.clipStale = true;
+      if (row.still_asset_id) {
+        frame.stillAssetId = row.still_asset_id;
+      }
+      if (still?.url) {
+        frame.imageUrl = still.url;
+      }
+      if (row.clip_asset_id) {
+        frame.clipAssetId = row.clip_asset_id;
+      }
+      if (clip?.url) {
+        frame.clipPath = clip.url;
+      }
+      if (row.clip_stale) {
+        frame.clipStale = true;
+      }
       if (row.voice_asset_id) {
         frame.voiceAssetId = row.voice_asset_id;
         const voiceMeta = asRecord(assetsById.get(row.voice_asset_id)?.meta);
         const line = asRecord(voiceMeta.lines)[row.id];
         const spoken = typeof line === "string" ? line : voiceMeta.text;
-        if (typeof spoken === "string") frame.voiceText = spoken;
+        if (typeof spoken === "string") {
+          frame.voiceText = spoken;
+        }
       }
       const cost = generationCostOf(still?.meta);
-      if (cost) frame.generationCost = cost;
+      if (cost) {
+        frame.generationCost = cost;
+      }
       return frame;
     });
 }
 
 /** Editor frames → save_video_storyboard payload; position follows the frame order. */
-export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
+export function framesToScenes(
+  frames: Array<StoryboardFrame>,
+): Array<VideoSceneInput> {
   return [...frames]
     .sort((a, b) => a.order - b.order)
     .map((frame, index) => ({
@@ -146,8 +164,8 @@ export function framesToScenes(frames: StoryboardFrame[]): VideoSceneInput[] {
  */
 export function stillsToAttach(
   persistedStills: Map<string, string | undefined>,
-  frames: StoryboardFrame[],
-): { sceneId: string; imageUrl: string; cost?: ImageGenerationCost }[] {
+  frames: Array<StoryboardFrame>,
+): Array<{ sceneId: string; imageUrl: string; cost?: ImageGenerationCost }> {
   return frames
     .filter(
       (frame): frame is StoryboardFrame & { imageUrl: string } =>
@@ -163,8 +181,8 @@ export function stillsToAttach(
 /** Scenes the editor loaded that are no longer in the draft; only these are deleted on save. */
 export function removedSceneIds(
   loadedIds: Iterable<string>,
-  frames: StoryboardFrame[],
-): string[] {
+  frames: Array<StoryboardFrame>,
+): Array<string> {
   const kept = new Set(frames.map((frame) => frame.id));
   return [...new Set(loadedIds)].filter((id) => !kept.has(id));
 }

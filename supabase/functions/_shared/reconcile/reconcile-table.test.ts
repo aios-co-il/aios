@@ -120,7 +120,7 @@ describe("reconcileTable", () => {
   });
 
   it("caps the findings and keeps the full count in the summary", async () => {
-    const platformRows: CampaignDayRow[] = [];
+    const platformRows: Array<CampaignDayRow> = [];
     for (let i = 0; i < 150; i++) {
       platformRows.push(row(String(i), "2026-10-20", { spend: 1000 }));
     }

@@ -75,20 +75,22 @@ export async function chooseVoice(
       ? args.gender
       : undefined;
   const voices = HEBREW_VOICES.filter((v) => !gender || v.gender === gender);
-  const missing: string[] = [];
+  const missing: Array<string> = [];
   const heard = new Set<string>();
   for (const voice of voices) {
     const sample = helpers.voiceSample
       ? await helpers.voiceSample(voice.id)
       : { error: "no samples" };
-    if (sample.path) heard.add(voice.id);
-    if (sample.path)
+    if (sample.path) {
+      heard.add(voice.id);
+    }
+    if (sample.path) {
       await helpers.addSamplePage(
         `קול: ${voice.name} · ${voice.character}`,
         sample.path,
         voice.id,
       );
-    else {
+    } else {
       missing.push(voice.name);
       console.warn(
         `[workshop voice] no sample for ${voice.name}: ${sample.error ?? ""}`,

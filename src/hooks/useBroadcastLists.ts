@@ -51,14 +51,18 @@ export interface ListPreview {
   withPhone: number;
   withEmail: number;
   added?: number;
-  sample: { name: string | null; phone: string | null; email: string | null }[];
+  sample: Array<{
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  }>;
 }
 
 export interface ListRule {
   id: string;
   list_id: string;
   trigger: string;
-  filter: { statusKeys?: string[]; sources?: string[] };
+  filter: { statusKeys?: Array<string>; sources?: Array<string> };
   enabled: boolean;
 }
 
@@ -70,14 +74,16 @@ export function useBroadcastLists() {
   const lists = useQuery({
     queryKey: ["broadcast-lists", tenantId],
     enabled: !!tenantId,
-    queryFn: async (): Promise<BroadcastList[]> => {
+    queryFn: async (): Promise<Array<BroadcastList>> => {
       const { data, error } = await supabase
         .from("broadcast_lists")
         .select("*")
         .filter("tenant_id", "eq", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as unknown as BroadcastList[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as unknown as Array<BroadcastList>;
     },
   });
 
@@ -96,7 +102,9 @@ export function useBroadcastLists() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as BroadcastList;
     },
     onSuccess: () =>
@@ -109,7 +117,9 @@ export function useBroadcastLists() {
         .from("broadcast_lists")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] }),
@@ -124,7 +134,9 @@ export function useBroadcastLists() {
         .from("broadcast_lists")
         .update(patch as any)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] }),
@@ -134,15 +146,17 @@ export function useBroadcastLists() {
     useQuery({
       queryKey: ["broadcast-list-members", tenantId, listId],
       enabled: !!listId,
-      queryFn: async (): Promise<ListMember[]> => {
+      queryFn: async (): Promise<Array<ListMember>> => {
         const { data, error } = await supabase
           .from("broadcast_list_members")
           .select("*")
           .filter("list_id", "eq", listId)
           .order("created_at", { ascending: false })
           .limit(1000);
-        if (error) throw error;
-        return (data || []) as unknown as ListMember[];
+        if (error) {
+          throw error;
+        }
+        return (data || []) as unknown as Array<ListMember>;
       },
     });
 
@@ -154,7 +168,7 @@ export function useBroadcastLists() {
       via,
     }: {
       listId: string;
-      rows: NewMemberRow[];
+      rows: Array<NewMemberRow>;
       via: string;
     }) => {
       const payload = rows
@@ -176,7 +190,9 @@ export function useBroadcastLists() {
             p_added_via: via,
           },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         added += Number(data || 0);
       }
       return added;
@@ -195,7 +211,9 @@ export function useBroadcastLists() {
         .from("broadcast_list_members")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({
@@ -213,10 +231,12 @@ export function useBroadcastLists() {
         body: { sheetId, fetchHeadersOnly: true, tenantId },
       },
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as {
-      headers: string[];
-      previewRows: string[][];
+      headers: Array<string>;
+      previewRows: Array<Array<string>>;
       suggestedMap: Record<string, string>;
     };
   };
@@ -241,7 +261,9 @@ export function useBroadcastLists() {
           body: { listId, sheetId, range, fieldMap, tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await supabase
         .from("broadcast_lists")
         .update({
@@ -264,13 +286,15 @@ export function useBroadcastLists() {
     useQuery({
       queryKey: ["broadcast-list-rules", tenantId, listId],
       enabled: !!listId,
-      queryFn: async (): Promise<ListRule[]> => {
+      queryFn: async (): Promise<Array<ListRule>> => {
         const { data, error } = await supabase
           .from("broadcast_list_rules")
           .select("*")
           .filter("list_id", "eq", listId);
-        if (error) throw error;
-        return (data || []) as unknown as ListRule[];
+        if (error) {
+          throw error;
+        }
+        return (data || []) as unknown as Array<ListRule>;
       },
     });
 
@@ -284,7 +308,9 @@ export function useBroadcastLists() {
         enabled: true,
         created_by: userId,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) =>
       qc.invalidateQueries({
@@ -298,7 +324,9 @@ export function useBroadcastLists() {
         .from("broadcast_list_rules")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_d, v) =>
       qc.invalidateQueries({

@@ -40,7 +40,9 @@ export function ReportEmailSenderSelect({ value, onChange }: Props) {
     }
   }, [domains, value, onChange]);
 
-  if (domains.length === 0) return null;
+  if (domains.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-1" dir="rtl">
@@ -51,7 +53,9 @@ export function ReportEmailSenderSelect({ value, onChange }: Props) {
           const d = domains.find(
             (x) => `${x.default_local}@${x.domain}` === email,
           );
-          if (d) onChange({ fromEmail: email, fromName: d.from_name || "" });
+          if (d) {
+            onChange({ fromEmail: email, fromName: d.from_name || "" });
+          }
         }}
       >
         <SelectTrigger className="h-8 text-xs">

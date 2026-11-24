@@ -27,14 +27,14 @@ export interface WorkshopDeps {
   generateImage?: (
     prompt: string,
     format: Format,
-    references?: string[],
+    references?: Array<string>,
     engine?: ImageProvider,
   ) => Promise<{ image_url?: string; error?: string }>;
   /** Image engines the tenant has keys for; more than one means the user chooses. */
-  imageEngines?: () => Promise<ImageProvider[]>;
+  imageEngines?: () => Promise<Array<ImageProvider>>;
   defaultEngine?: () => Promise<SceneEngine>;
   /** Scene engines the tenant can run; a pinned engine outside them is dropped. */
-  sceneEngines?: () => Promise<SceneEngine[]>;
+  sceneEngines?: () => Promise<Array<SceneEngine>>;
   /** Video engines connected outside the LLM settings (an OpenRouter brain connection). */
   videoConnections?: () => Promise<VideoConnections>;
   envOpenAiKey?: string;
@@ -103,7 +103,9 @@ export async function gatePaid(
     userText: deps.userText ?? null,
     approvedOutOfBand: deps.approvedOutOfBand === true,
   });
-  if (check.ok) return { payload: check.payload };
+  if (check.ok) {
+    return { payload: check.payload };
+  }
   const budget = budgetOf(payload);
   const open = budget.request;
   const keep =
@@ -155,7 +157,9 @@ export async function refundMissing(
   tool: PaidTool,
   missing: number,
 ) {
-  if (missing <= 0) return;
+  if (missing <= 0) {
+    return;
+  }
   try {
     const { data } = await supabase
       .from("marketing_work_items")
@@ -165,8 +169,9 @@ export async function refundMissing(
       .maybeSingle();
     const payload = asRecord(data?.payload);
     const refunded = refundBudget(payload, tool, missing);
-    if (refunded !== payload)
+    if (refunded !== payload) {
       await savePayload(supabase, tenantId, itemId, refunded);
+    }
   } catch {
     // Keeping the reservation is the safe side of a refund that could not be written.
   }

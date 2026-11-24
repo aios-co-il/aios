@@ -16,9 +16,9 @@ const WORDPRESS_POST: PostToPublish = {
 
 /** A service-role client whose social_media_wordpress_sites query returns
  * `sites`, recording its filters. */
-function fakeDb(sites: unknown[], error: unknown = null) {
+function fakeDb(sites: Array<unknown>, error: unknown = null) {
   const filters: Array<[string, unknown]> = [];
-  const tables: string[] = [];
+  const tables: Array<string> = [];
   const query = {
     select: () => query,
     eq: (column: string, value: unknown) => {
@@ -42,8 +42,8 @@ function fakeDb(sites: unknown[], error: unknown = null) {
 }
 
 /** Tenant-a members, of whom only "with-access" can access client-1. */
-function fakeLookups(): PublishAccessLookups & { clientChecks: string[] } {
-  const clientChecks: string[] = [];
+function fakeLookups(): PublishAccessLookups & { clientChecks: Array<string> } {
+  const clientChecks: Array<string> = [];
   return {
     clientChecks,
     isTenantMember: (_userId, tenantId) => Promise.resolve(tenantId === TENANT),

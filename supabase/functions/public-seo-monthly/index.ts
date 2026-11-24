@@ -38,10 +38,14 @@ function parseWork(raw: unknown, legacyNotes?: string | null): Work {
   const onsite = Array.isArray(obj.onsite)
     ? (obj.onsite
         .map((item, i) => {
-          if (!item || typeof item !== "object") return null;
+          if (!item || typeof item !== "object") {
+            return null;
+          }
           const row = item as Record<string, unknown>;
           const title = asString(row.title).trim();
-          if (!title) return null;
+          if (!title) {
+            return null;
+          }
           return {
             id: asString(row.id) || `onsite-${i}`,
             kind: asString(row.kind) || "other",
@@ -55,10 +59,14 @@ function parseWork(raw: unknown, legacyNotes?: string | null): Work {
   const articles = Array.isArray(obj.articles)
     ? (obj.articles
         .map((item, i) => {
-          if (!item || typeof item !== "object") return null;
+          if (!item || typeof item !== "object") {
+            return null;
+          }
           const row = item as Record<string, unknown>;
           const title = asString(row.title).trim();
-          if (!title) return null;
+          if (!title) {
+            return null;
+          }
           return {
             id: asString(row.id) || `article-${i}`,
             title,
@@ -72,10 +80,14 @@ function parseWork(raw: unknown, legacyNotes?: string | null): Work {
   const links = Array.isArray(obj.links)
     ? (obj.links
         .map((item, i) => {
-          if (!item || typeof item !== "object") return null;
+          if (!item || typeof item !== "object") {
+            return null;
+          }
           const row = item as Record<string, unknown>;
           const url = asString(row.url).trim();
-          if (!url) return null;
+          if (!url) {
+            return null;
+          }
           return {
             id: asString(row.id) || `link-${i}`,
             url,
@@ -209,7 +221,9 @@ Deno.serve(async (req) => {
         rowMonth === month ? liveWork : parseWork(row.work, row.notes);
       for (const link of work.links) {
         const key = link.url.trim().toLowerCase();
-        if (!key || seen.has(key)) continue;
+        if (!key || seen.has(key)) {
+          continue;
+        }
         seen.add(key);
         recentLinks.push({
           id: link.id,

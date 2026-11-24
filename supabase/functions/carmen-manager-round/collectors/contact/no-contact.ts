@@ -14,10 +14,10 @@ import { noContactSummary } from "./text.ts";
 
 /** Clients nobody contacted or logged for no_contact_days, at `now`. */
 export function noContactFindings(
-  evidence: ContactEvidence[],
+  evidence: Array<ContactEvidence>,
   rules: ContactRules,
   now: Date,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   return evidence.flatMap((client) => {
     const contact = latest([client.lastLogAt, client.lastContactAt]);
     const crossedAt = silenceCrossedAt(client, contact, rules, now);
@@ -72,7 +72,7 @@ function finding(
 }
 
 /** The latest of some ISO times, or null when none is set. */
-function latest(times: (string | null | undefined)[]): Date | null {
+function latest(times: Array<string | null | undefined>): Date | null {
   const valid = times
     .map((time) => (time ? Date.parse(time) : Number.NaN))
     .filter((ms) => !Number.isNaN(ms));

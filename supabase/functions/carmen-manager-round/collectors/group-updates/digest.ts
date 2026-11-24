@@ -29,7 +29,7 @@ export type DigestItem = { type: DigestItemType; text: string };
 export type Digest = {
   material: boolean;
   update_text: string;
-  items: DigestItem[];
+  items: Array<DigestItem>;
 };
 
 /** A card line and an item stay within this many characters (a group quote's limit). */

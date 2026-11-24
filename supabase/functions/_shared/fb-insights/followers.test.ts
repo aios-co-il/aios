@@ -3,7 +3,7 @@ import { countNewFollowers } from "./followers.ts";
 
 /** A row's deduplicated action counts, the way buildInsightRecord sums them. */
 function countOfRow(counts: Record<string, number>) {
-  return (types: string[]) =>
+  return (types: Array<string>) =>
     types.reduce((sum, type) => sum + (counts[type] ?? 0), 0);
 }
 

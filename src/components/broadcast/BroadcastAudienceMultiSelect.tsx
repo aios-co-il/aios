@@ -27,9 +27,9 @@ interface Option {
 
 interface BroadcastAudienceMultiSelectProps {
   label: string;
-  options: Option[];
-  selected: string[];
-  onSelectedChange: (values: string[]) => void;
+  options: Array<Option>;
+  selected: Array<string>;
+  onSelectedChange: (values: Array<string>) => void;
   mode?: AudienceFilterMode;
   /** Omit to hide the include / exclude toggle (include only). */
   onModeChange?: (mode: AudienceFilterMode) => void;
@@ -49,17 +49,23 @@ export function BroadcastAudienceMultiSelect({
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return options;
+    if (!search.trim()) {
+      return options;
+    }
     const q = search.toLowerCase();
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, search]);
 
   const summary = useMemo(() => {
-    if (selected.length === 0) return emptyLabel;
+    if (selected.length === 0) {
+      return emptyLabel;
+    }
     const labels = selected
       .map((v) => options.find((o) => o.value === v)?.label || v)
       .filter(Boolean);
-    if (labels.length <= 2) return labels.join(", ");
+    if (labels.length <= 2) {
+      return labels.join(", ");
+    }
     return `${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
   }, [selected, options, emptyLabel]);
 

@@ -1,7 +1,7 @@
 // Telephony providers the call dialog can dial through, and the edge
 // function plus setup hint for each.
 export type Provider = "paycall" | "maskyoo" | "pbx";
-export const PROVIDERS: Provider[] = ["paycall", "maskyoo", "pbx"];
+export const PROVIDERS: Array<Provider> = ["paycall", "maskyoo", "pbx"];
 export const CALL_FUNCTIONS: Record<
   Provider,
   { fn: string; notConfiguredError: string; setupHint: string }

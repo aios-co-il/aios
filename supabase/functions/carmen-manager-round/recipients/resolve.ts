@@ -21,8 +21,8 @@ import type {
 
 export type ClientRecipients = {
   client: ClientInfo | null;
-  campaigners: Recipient[];
-  managers: Recipient[];
+  campaigners: Array<Recipient>;
+  managers: Array<Recipient>;
 };
 
 /** The client's campaigners and managers in the routing tenant (none when it is not reachable). */
@@ -32,7 +32,7 @@ export async function resolveClientRecipients(
     tenantId: string;
     clientId: string | null;
     today: string;
-    staff: StaffMember[];
+    staff: Array<StaffMember>;
   },
 ): Promise<ClientRecipients> {
   const client = input.clientId
@@ -63,9 +63,9 @@ export async function resolveClientRecipients(
  * david_only always has someone to reach when the tenant has an owner.
  */
 export function resolveBriefRecipients(
-  staff: StaffMember[],
+  staff: Array<StaffMember>,
   settings: Pick<ManagerSettings, "brief_recipients">,
-): Recipient[] {
+): Array<Recipient> {
   const chosen = staff.filter((member) =>
     settings.brief_recipients.includes(member.user_id),
   );
@@ -78,10 +78,10 @@ export function resolveBriefRecipients(
 
 /** Staff holding one of `roles`, as recipients of `as`. */
 function staffWith(
-  staff: StaffMember[],
-  roles: string[],
+  staff: Array<StaffMember>,
+  roles: Array<string>,
   as: RecipientRole,
-): Recipient[] {
+): Array<Recipient> {
   const matching = staff.filter((member) =>
     member.roles.some((role) => roles.includes(role)),
   );
@@ -125,8 +125,8 @@ function isActiveOn(assignment: CampaignerAssignment, today: string): boolean {
 
 /** Campaign-role assignments first, otherwise in their stored order. */
 function sortCampaignRoleFirst(
-  assignments: CampaignerAssignment[],
-): CampaignerAssignment[] {
+  assignments: Array<CampaignerAssignment>,
+): Array<CampaignerAssignment> {
   return [...assignments].sort(
     (a, b) => Number(b.campaign_role) - Number(a.campaign_role),
   );

@@ -23,7 +23,7 @@ import {
  */
 export async function deliverReportDigest(input: {
   tenantId: string;
-  recipients: CarmenReportRecipient[];
+  recipients: Array<CarmenReportRecipient>;
   digest: string;
   queue: Queue;
   previewOnly: boolean;
@@ -58,8 +58,8 @@ export async function deliverReportDigest(input: {
 
 /** Asks the report recipients to add the phones of campaigners who have none. */
 export async function deliverMissingPhoneAlert(input: {
-  recipients: CarmenReportRecipient[];
-  campaigners: PulseCampaignerMissingPhone[];
+  recipients: Array<CarmenReportRecipient>;
+  campaigners: Array<PulseCampaignerMissingPhone>;
   tenantLabel: string;
   queue: Queue;
 }): Promise<{ sent: boolean; entry: MissingPhoneAlertEntry } | null> {
@@ -90,13 +90,13 @@ export type ReportDigestEntry = ReportDelivery & { type: "report_digest" };
 
 export type ReportDigestResult = {
   sent: boolean;
-  entries: ReportDigestEntry[];
+  entries: Array<ReportDigestEntry>;
   /** Normalised phones the scoped step skips (see deliverReportDigest). */
   getsDigest: Set<string>;
 };
 
 export type MissingPhoneAlertEntry = {
   type: "missing_phone_alert";
-  campaigners: string[];
-  recipients: ReportDelivery[];
+  campaigners: Array<string>;
+  recipients: Array<ReportDelivery>;
 };

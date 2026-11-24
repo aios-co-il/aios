@@ -1,3 +1,32 @@
+import { executeRecallRecentAction } from "./executors/recall-recent-action.ts";
+import { executeRecordActionEpisode } from "./executors/record-action-episode.ts";
+import { executeSendMessage } from "./executors/send-message.ts";
+import { executeSaveMemory } from "./executors/save-memory.ts";
+import { executeRecallMemory } from "./executors/recall-memory.ts";
+import { executeRecallMemoryFts } from "./executors/recall-memory-fts.ts";
+import { executeDeleteMemory } from "./executors/delete-memory.ts";
+import { executeKbListFolder } from "./executors/kb-list-folder.ts";
+import { executeKbSearch } from "./executors/kb-search.ts";
+import { executeKbOpen } from "./executors/kb-open.ts";
+import { executeKbRecallConversation } from "./executors/kb-recall-conversation.ts";
+import { executeKbLearn } from "./executors/kb-learn.ts";
+import { executeSearchConversationHistory } from "./executors/search-conversation-history.ts";
+import { executeListBroadcasts } from "./executors/list-broadcasts.ts";
+import { executeCreateBroadcast } from "./executors/create-broadcast.ts";
+import { executeSendBroadcastNow } from "./executors/send-broadcast-now.ts";
+import { executeScheduleBroadcast } from "./executors/schedule-broadcast.ts";
+import { executeCancelBroadcast } from "./executors/cancel-broadcast.ts";
+import { executeListWaGroups } from "./executors/list-wa-groups.ts";
+import { executeSendCalendarInvite } from "./executors/send-calendar-invite.ts";
+import { executeListCalendarEvents } from "./executors/list-calendar-events.ts";
+import { executeUpdateCalendarInvite } from "./executors/update-calendar-invite.ts";
+import { executeCancelCalendarInvite } from "./executors/cancel-calendar-invite.ts";
+import { executeJoinMeetingForClient } from "./executors/join-meeting-for-client.ts";
+import { executeGetMeetingBotStatus } from "./executors/get-meeting-bot-status.ts";
+import { executeLookupStaffWhatsapp } from "./executors/lookup-staff-whatsapp.ts";
+import { executeSendMessageToCampaigner } from "./executors/send-message-to-campaigner.ts";
+import { executeGetMaskyooCallsReport } from "./executors/get-maskyoo-calls-report.ts";
+import { executeSyncMaskyooCdr } from "./executors/sync-maskyoo-cdr.ts";
 import { executeListSocialPages } from "./executors/list-social-pages.ts";
 import { executeSyncSocialPages } from "./executors/sync-social-pages.ts";
 import { executePublishSocialPost } from "./executors/publish-social-post.ts";
@@ -68,7 +97,6 @@ import { executeScheduleCampaignToggle } from "./executors/schedule-campaign-tog
 import { executeListCampaignSchedules } from "./executors/list-campaign-schedules.ts";
 import { executeCancelCampaignSchedule } from "./executors/cancel-campaign-schedule.ts";
 
-import { scoreNameMatchSafe } from "./executors/name-match.ts";
 import { FB_GRAPH_VERSION } from "./executors/meta-api-version.ts";
 
 import { executeCreateTask } from "./executors/create-task.ts";
@@ -189,15 +217,12 @@ import {
 } from "../_shared/carmen-direct-tools.mjs";
 import { MANAGER_ROLES } from "../_shared/carmen/manager-roles.ts";
 import { assertCallerCanAccessClient } from "../_shared/auth-helpers.ts";
-import { withChatScopeColumns } from "./chat-scope/filters.ts";
+
 import {
   getChatHistory,
   getRecentInboundMessages,
 } from "./chat-scope/readers.ts";
-import { chatScopeMeta } from "./chat-scope/responses.ts";
-import { readScopedChatRows } from "./chat-scope/rows.ts";
-import { scopedChatRead } from "./chat-scope/scoped-read.ts";
-import { sendTargetFor } from "./chat-scope/send-target.ts";
+
 import { asUuidOrNull } from "../_shared/uuid.ts";
 
 import { resolveHumanRequesterUserId } from "./client-card-contact-policy.ts";
@@ -287,10 +312,7 @@ import {
 } from "../_shared/carmen-prompt-v2.ts";
 import { agentMoodPrompt } from "../_shared/carmen/agent-mood.ts";
 import { isCarmenAgentRow } from "../_shared/carmen/carmen-agent.ts";
-import {
-  loadCarmenAgent,
-  loadOrgAssistantName,
-} from "../_shared/carmen/load-carmen-agent.ts";
+import { loadCarmenAgent } from "../_shared/carmen/load-carmen-agent.ts";
 import { orgAssistantName } from "../_shared/carmen/assistant-name.ts";
 import { loadMcpTools } from "../_shared/mcp-tools.ts";
 import {
@@ -326,24 +348,9 @@ import {
   shouldLoadMcpConnection,
   shouldUseTokenOptimize,
 } from "../_shared/carmen-token-optimizer.ts";
-import { aiEmbed, aiEmbedBatch, resolveOpenAIKey } from "../_shared/ai.ts";
 
 import { loadDevEscalationTierFromDb } from "../_shared/carmen-access-policy.ts";
-import {
-  applyZoomLinkToEvent,
-  buildMeetConferenceData,
-  collectExtraAttendeeEmails,
-  createZoomMeeting,
-  eventDurationMinutes,
-  extractConferenceUrl,
-  fetchZoomAccessToken,
-  conferenceKindFromUrl,
-  mergeNamedPrimaryAttendee,
-  resolveCarmenAttendeeEmail,
-  resolveRequestedConference,
-  summarizeEventResult,
-  updateExistingCalendarEvent,
-} from "../_shared/calendar-conference.ts";
+
 import {
   buildDevEscalationPromptRule,
   DEV_ESCALATION_REFUSAL_HE,
@@ -384,12 +391,6 @@ import type { ApprovalPick } from "./approvals/types.ts";
 import { approvalPickToolResult } from "./approvals/tool-result.ts";
 import { buildVoiceCapabilityPromptRule } from "../_shared/wa-voice-resolve.ts";
 import { extractMeetingUrl } from "../_shared/meeting-url.ts";
-import {
-  formatStaffContact,
-  normalizeStaffPhone,
-  selectStaffMatch,
-} from "../_shared/staff-whatsapp.ts";
-import { sendStaffWhatsappMessage } from "./staff-alert-tool.ts";
 
 import {
   isExplicitDevTaskApproval,
@@ -431,128 +432,16 @@ import { readMetaResponse } from "./meta-response.ts";
 import { readMetaLeadQuestionInput } from "./tool-contracts-marketing.ts";
 import type {
   AutomationFlowStepRow,
-  ChatHistorySearchRow,
   MetaLeadQuestion,
 } from "./tool-contracts-marketing.ts";
 import type { AgentDatabaseClient, AgentRow } from "./database-contracts.ts";
-import type { CalendarEventLike } from "../_shared/calendar-recording-match.ts";
-import {
-  automationStepArg,
-  parallelTaskArgs,
-  providerErrorMessage,
-  readGoogleCalendarEvents,
-} from "./tool-contracts-admin.ts";
+
+import { automationStepArg, parallelTaskArgs } from "./tool-contracts-admin.ts";
 
 import { readAutomationStepSummary } from "./tool-storage-contracts.ts";
 
-import type { TablesInsert, TablesUpdate } from "../_shared/database.types.ts";
+import type { TablesUpdate } from "../_shared/database.types.ts";
 import type { MetaNode } from "./meta-response.ts";
-
-/** Load campaigners / sales_people / tenant profiles as a unified staff roster. */
-async function loadStaffWhatsappRoster(
-  supabase: AgentDatabaseClient,
-  accessibleTenantIds: string[],
-  tenantId: string,
-  entityType: string = "auto",
-): Promise<
-  Array<{
-    id: string;
-    full_name: string;
-    phone: string | null;
-    entity_type: string;
-    role?: AgentRow<"campaigners">["role"];
-    email?: string | null;
-  }>
-> {
-  const want = entityType || "auto";
-  const out: Array<{
-    id: string;
-    full_name: string;
-    phone: string | null;
-    entity_type: string;
-    role?: AgentRow<"campaigners">["role"];
-    email?: string | null;
-  }> = [];
-
-  if (want === "auto" || want === "campaigner") {
-    const { data } = await supabase
-      .from("campaigners")
-      .select("id, full_name, phone, email, role")
-      .in("tenant_id", accessibleTenantIds)
-      .order("full_name")
-      .limit(200);
-    for (const r of data || []) {
-      out.push({
-        id: r.id,
-        full_name: r.full_name,
-        phone: r.phone,
-        email: r.email,
-        role: r.role,
-        entity_type: "campaigner",
-      });
-    }
-  }
-
-  if (want === "auto" || want === "sales_person") {
-    const { data } = await supabase
-      .from("sales_people")
-      .select("id, full_name, phone, email")
-      .in("tenant_id", accessibleTenantIds)
-      .order("full_name")
-      .limit(200);
-    for (const r of data || []) {
-      out.push({
-        id: r.id,
-        full_name: r.full_name,
-        phone: r.phone,
-        email: r.email,
-        entity_type: "sales_person",
-      });
-    }
-  }
-
-  if (want === "auto" || want === "team_member") {
-    // Profiles linked to this tenant (team logins). Prefer profile.phone; else linked campaigner/sales phone.
-    const { data: tus } = await supabase
-      .from("tenant_users")
-      .select("user_id")
-      .eq("tenant_id", tenantId)
-      .limit(200);
-    const userIds = (tus || []).map((t) => t.user_id).filter(Boolean);
-    if (userIds.length) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, full_name, phone, campaigner_id, sales_person_id, email")
-        .in("id", userIds)
-        .limit(200);
-      for (const p of profiles || []) {
-        let phone = p.phone;
-        if (!normalizeStaffPhone(phone) && p.campaigner_id) {
-          const hit = out.find(
-            (x) => x.entity_type === "campaigner" && x.id === p.campaigner_id,
-          );
-          phone = hit?.phone || phone;
-        }
-        if (!normalizeStaffPhone(phone) && p.sales_person_id) {
-          const hit = out.find(
-            (x) =>
-              x.entity_type === "sales_person" && x.id === p.sales_person_id,
-          );
-          phone = hit?.phone || phone;
-        }
-        out.push({
-          id: p.id,
-          full_name: p.full_name || "Team member",
-          phone,
-          email: p.email,
-          entity_type: "team_member",
-        });
-      }
-    }
-  }
-
-  return out;
-}
 
 /** Resolve OpenAI Admin API key (org costs/usage). Never log the value. */
 async function resolveOpenAiAdminKey(
@@ -700,7 +589,9 @@ async function resolveLLMTarget(
   const s = (data?.settings || {}) as Record<string, string>;
   const endpoint = llmEndpoint(model);
   const key = s[endpoint.keyField];
-  if (!key) throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
+  if (!key) {
+    throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
+  }
   return {
     url: endpoint.url,
     key,
@@ -750,14 +641,18 @@ async function buildLLMChain(
   supabase: AgentDatabaseClient,
   tenantId: string,
   primaryFullId: string,
-): Promise<LLMTarget[]> {
-  const ordered: string[] = [];
+): Promise<Array<LLMTarget>> {
+  const ordered: Array<string> = [];
   const add = (id: string) => {
     const full = resolveModelId(id);
-    if (!ordered.includes(full)) ordered.push(full);
+    if (!ordered.includes(full)) {
+      ordered.push(full);
+    }
   };
   add(primaryFullId);
-  for (const m of LLM_FALLBACK_ORDER) add(m);
+  for (const m of LLM_FALLBACK_ORDER) {
+    add(m);
+  }
   // All models at once (each resolve is a key lookup); the order is kept, and a model whose
   // provider key is missing is skipped (resolveLLMTarget throws for it).
   const resolved = await Promise.all(
@@ -787,13 +682,18 @@ function connectedBrainHint(status: number, body: string): string {
     /request too large|tokens per minute|context length|maximum context/i.test(
       body,
     );
-  if (tooLarge)
+  if (tooLarge) {
     return "הבקשה של כרמן (כלים, ידע והיסטוריה) גדולה מהמכסה של המוח הזה. מכסה חינמית קטנה מדי לכרמן; נסו מודל או חשבון עם מכסה גדולה יותר.";
-  if (status === 429) return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
-  if (status === 401 || status === 403)
+  }
+  if (status === 429) {
+    return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
+  }
+  if (status === 401 || status === 403) {
     return "המפתח של המוח נדחה. בדקו אותו בהגדרות המוחות.";
-  if (status >= 300 && status < 400)
+  }
+  if (status >= 300 && status < 400) {
     return "כתובת המוח מפנה למקום אחר, וזה לא מותר.";
+  }
   return body.replace(/\s+/g, " ").slice(0, 200);
 }
 
@@ -817,7 +717,9 @@ const LOW_PRIORITY_TOOLS = new Set([
   "save_media_from_chat",
 ]);
 function isEscalationMcpTool(name: string | undefined): boolean {
-  if (!name) return false;
+  if (!name) {
+    return false;
+  }
   return (
     name.startsWith("mcp_Cursor__") ||
     name.startsWith("mcp_Claude__") ||
@@ -868,10 +770,11 @@ const PRIORITY_TOOLS = new Set([
 
 function capToolsForTarget<T extends { function?: { name?: string } }>(
   target: LLMTarget,
-  tools: T[],
-): T[] {
-  if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS)
+  tools: Array<T>,
+): Array<T> {
+  if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS) {
     return tools;
+  }
   // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
   const mustKeepEscalation = tools.filter((t) =>
     isEscalationMcpTool(t?.function?.name),
@@ -882,7 +785,9 @@ function capToolsForTarget<T extends { function?: { name?: string } }>(
   });
   const kept = tools.filter((t) => {
     const n = t?.function?.name;
-    if (!n || isEscalationMcpTool(n) || PRIORITY_TOOLS.has(n)) return false;
+    if (!n || isEscalationMcpTool(n) || PRIORITY_TOOLS.has(n)) {
+      return false;
+    }
     return !LOW_PRIORITY_TOOLS.has(n);
   });
   const reserved = mustKeepEscalation.length + mustKeepPriority.length;
@@ -915,7 +820,9 @@ async function recordProviderFailover(
       .eq("alert_type", "provider_failover")
       .gte("fired_at", since)
       .limit(1);
-    if (recent?.length) return;
+    if (recent?.length) {
+      return;
+    }
     await supabase.from("integration_alerts_log").insert({
       tenant_id: tenantId,
       provider: providerOf(toLabel),
@@ -995,7 +902,9 @@ function estimateLLMCostUSD(
   tokensIn: number,
   tokensOut: number,
 ): number | null {
-  if (!tokensIn && !tokensOut) return null;
+  if (!tokensIn && !tokensOut) {
+    return null;
+  }
   const m = (model || "").toLowerCase();
   const price: [number, number] | null = m.includes("gpt-4o-mini")
     ? [0.15, 0.6]
@@ -1012,176 +921,10 @@ function estimateLLMCostUSD(
               : m.includes("gemini")
                 ? [0.1, 0.4]
                 : null;
-  if (!price) return null;
+  if (!price) {
+    return null;
+  }
   return +((tokensIn * price[0] + tokensOut * price[1]) / 1e6).toFixed(6);
-}
-
-// Resolve a usable Google Calendar access token for the tenant: caller's user →
-// explicit user → any campaigner with tokens → tenant owner/admin. Refreshes if
-// expired. Returns { accessToken } or { error } (Hebrew, user-facing).
-async function resolveCalendarAccessToken(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  callerCampaignerId: string | null,
-  userId: string | null,
-): Promise<{ accessToken?: string; error?: string }> {
-  let calTokenUserId: string | null = null;
-  if (callerCampaignerId) {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("campaigner_id", callerCampaignerId)
-      .maybeSingle();
-    if (prof?.id) calTokenUserId = prof.id;
-  }
-  if (!calTokenUserId && userId && userId !== "system") calTokenUserId = userId;
-  if (!calTokenUserId) {
-    const { data: tenantCampaigners } = await supabase
-      .from("campaigners")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .limit(20);
-    for (const c of tenantCampaigners || []) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("campaigner_id", c.id)
-        .maybeSingle();
-      if (!prof?.id) continue;
-      const { data: tok } = await supabase
-        .from("calendar_tokens")
-        .select("user_id")
-        .eq("user_id", prof.id)
-        .maybeSingle();
-      if (tok?.user_id) {
-        calTokenUserId = tok.user_id;
-        break;
-      }
-    }
-  }
-  if (!calTokenUserId) {
-    // Owners (e.g. a second-tenant owner) are tenant_users without a campaigner row.
-    const { data: owners } = await supabase
-      .from("tenant_users")
-      .select("user_id")
-      .eq("tenant_id", tenantId)
-      .in("role", ["owner", "admin"])
-      .limit(10);
-    for (const o of owners || []) {
-      const { data: tok } = await supabase
-        .from("calendar_tokens")
-        .select("user_id")
-        .eq("user_id", o.user_id)
-        .maybeSingle();
-      if (tok?.user_id) {
-        calTokenUserId = o.user_id;
-        break;
-      }
-    }
-  }
-  if (!calTokenUserId)
-    return {
-      error:
-        "לא נמצא חיבור Google Calendar פעיל בטננט. חבר יומן תחת הגדרות אינטגרציות.",
-    };
-
-  const { data: tokenData } = await supabase
-    .from("calendar_tokens")
-    .select("access_token, refresh_token, expires_at")
-    .eq("user_id", calTokenUserId)
-    .maybeSingle();
-  if (!tokenData)
-    return {
-      error: "לא נמצא חיבור Google Calendar. חבר יומן תחת הגדרות אינטגרציות.",
-    };
-  let accessToken: string = tokenData.access_token;
-  if (new Date(tokenData.expires_at) <= new Date()) {
-    const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    if (!clientId || !clientSecret)
-      return { error: "חסרות הגדרות GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET" };
-    const r = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: tokenData.refresh_token,
-        grant_type: "refresh_token",
-      }),
-    });
-    const rd = await r.json();
-    if (!rd.access_token)
-      return { error: `רענון טוקן נכשל: ${rd.error || "unknown"}` };
-    accessToken = rd.access_token;
-    await supabase
-      .from("calendar_tokens")
-      .update({
-        access_token: accessToken,
-        expires_at: new Date(Date.now() + rd.expires_in * 1000).toISOString(),
-      })
-      .eq("user_id", calTokenUserId);
-  }
-  return { accessToken };
-}
-
-async function resolveCalendarConferenceExtras(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  args: Record<string, unknown>,
-) {
-  const extraEmails = collectExtraAttendeeEmails(args);
-  const extraNamed: Array<{ email: string; displayName?: string }> = [];
-  let carmen_attendee: Record<string, unknown> | null = null;
-  if (args.add_carmen === true) {
-    const assistantName = await loadOrgAssistantName(supabase, tenantId);
-    const resolved = await resolveCarmenAttendeeEmail(
-      supabase,
-      tenantId,
-      args.carmen_email,
-      assistantName,
-    );
-    if (resolved.email) {
-      extraEmails.push(resolved.email);
-      extraNamed.push({ email: resolved.email, displayName: assistantName });
-      carmen_attendee = {
-        added: true,
-        email: resolved.email,
-        source: resolved.source,
-      };
-    } else {
-      carmen_attendee = { added: false, error: resolved.error };
-    }
-  }
-  const conferenceType = resolveRequestedConference(args);
-  return {
-    extraEmails: [...new Set(extraEmails)],
-    extraNamed,
-    carmen_attendee,
-    conferenceType,
-  };
-}
-
-async function makeZoomMeetingCreator(
-  supabase: AgentDatabaseClient,
-  tenantId: string,
-  titleHint?: string,
-) {
-  return async (existing: CalendarEventLike) => {
-    const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
-    if (!zoomAuth.accessToken) {
-      return {
-        error: zoomAuth.error,
-        configured: zoomAuth.configured === true,
-      };
-    }
-    return createZoomMeeting({
-      accessToken: zoomAuth.accessToken,
-      topic: titleHint || existing?.summary || "Meeting",
-      startDateTime: existing?.start?.dateTime || new Date().toISOString(),
-      durationMinutes: eventDurationMinutes(existing),
-    });
-  };
 }
 
 type MetaLeadPage = {
@@ -1209,17 +952,18 @@ function assertHttpsUrl(value: unknown, field: string): string {
   } catch {
     throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
   }
-  if (url.protocol !== "https:")
+  if (url.protocol !== "https:") {
     throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
+  }
   return url.toString();
 }
 
 async function metaLeadPages(
   supabase: AgentDatabaseClient,
   tenantId: string,
-): Promise<MetaLeadPage[]> {
+): Promise<Array<MetaLeadPage>> {
   const integrations = await metaLeadIntegrations(supabase, tenantId);
-  const pages: MetaLeadPage[] = [];
+  const pages: Array<MetaLeadPage> = [];
   for (const integration of integrations) {
     let sourcePages: Array<MetaNode> = configuredPages(integration.settings);
     if (sourcePages.length === 0) {
@@ -1228,13 +972,15 @@ async function metaLeadPages(
       while (next) {
         const response = await fetch(next);
         const result = await readMetaResponse(response);
-        if (!result.ok)
+        if (!result.ok) {
           throw new Error(
             String(result.error.message ?? "Meta pages request failed"),
           );
+        }
         const json = result.value;
-        if (!response.ok || json?.error)
+        if (!response.ok || json?.error) {
           throw new Error(json?.error?.message || "Meta pages request failed");
+        }
         sourcePages = sourcePages.concat(json.data || []);
         next = json.paging?.next || null;
       }
@@ -1255,24 +1001,26 @@ async function metaLeadPages(
 
 async function metaLeadFormsForPage(
   page: MetaLeadPage,
-): Promise<MetaLeadForm[]> {
-  const forms: MetaLeadForm[] = [];
+): Promise<Array<MetaLeadForm>> {
+  const forms: Array<MetaLeadForm> = [];
   let next: string | null =
     `https://graph.facebook.com/${FB_GRAPH_VERSION}/${page.id}/leadgen_forms?fields=id,name,status,questions&limit=100&access_token=${encodeURIComponent(page.access_token)}`;
   while (next) {
     const response = await fetch(next);
     const result = await readMetaResponse(response);
-    if (!result.ok)
+    if (!result.ok) {
       throw new Error(
         String(
           result.error.message ?? `Meta forms request failed for ${page.name}`,
         ),
       );
+    }
     const json = result.value;
-    if (!response.ok || json.error)
+    if (!response.ok || json.error) {
       throw new Error(
         json.error?.message || `Meta forms request failed for ${page.name}`,
       );
+    }
     for (const form of json.data || []) {
       forms.push({
         id: String(form.id),
@@ -1295,7 +1043,7 @@ async function metaLeadFormsForPage(
 
 async function findAutomationForMetaForm(
   supabase: AgentDatabaseClient,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   automationId?: unknown,
   automationName?: unknown,
 ) {
@@ -1304,7 +1052,9 @@ async function findAutomationForMetaForm(
     .select("id, name, active, tenant_id")
     .in("tenant_id", tenantIds)
     .eq("is_flow", true);
-  if (automationId) query = query.eq("id", String(automationId));
+  if (automationId) {
+    query = query.eq("id", String(automationId));
+  }
   const { data, error } = await query.order("name").limit(100).returns<
     Array<
       Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
@@ -1312,25 +1062,32 @@ async function findAutomationForMetaForm(
       }
     >
   >();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   let matches = data || [];
-  if (automationName)
+  if (automationName) {
     matches = matches.filter((a) => metaNameMatches(a.name, automationName));
-  if (matches.length === 0) throw new Error("לא נמצאה אוטומציה תואמת בארגון");
+  }
+  if (matches.length === 0) {
+    throw new Error("לא נמצאה אוטומציה תואמת בארגון");
+  }
   if (matches.length > 1) {
     throw new Error(
       `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
     );
   }
   const match = matches[0];
-  if (!match.tenant_id) throw new Error("Automation has no tenant");
+  if (!match.tenant_id) {
+    throw new Error("Automation has no tenant");
+  }
   return { ...match, tenant_id: match.tenant_id };
 }
 
 async function getAccessibleTenantIds(
   supabase: AgentDatabaseClient,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   try {
     const { data } = await supabase
       .from("agency_tenant_access")
@@ -1356,7 +1113,7 @@ async function executeTool(
   callerCampaignerId?: string | null,
   agentId?: string | null,
   callerRole?: string | null,
-  callerManagedAgencyIds?: string[] | null,
+  callerManagedAgencyIds?: Array<string> | null,
   callerPhone?: string | null,
   waNotify?: any,
   surface?: string | null,
@@ -1468,7 +1225,9 @@ async function executeTool(
               engine,
             },
           );
-          if (!("missing" in remote && remote.missing)) return remote;
+          if (!("missing" in remote && remote.missing)) {
+            return remote;
+          }
           const made = await executeTool(
             "generate_ad_image",
             {
@@ -1651,15 +1410,21 @@ async function executeTool(
   // Preserve legacy argument acceptance; domain modules expose named input contracts.
   switch (name) {
     case "query_system_graph": {
-      if (!isManagerRole) throw new Error("אין הרשאה לעיין בגרף המערכת");
+      if (!isManagerRole) {
+        throw new Error("אין הרשאה לעיין בגרף המערכת");
+      }
       const query = String(args.query || "").trim();
-      if (!query) throw new Error("query is required");
+      if (!query) {
+        throw new Error("query is required");
+      }
       const { data, error } = await supabase.rpc("carmen_query_system_graph", {
         p_query: query,
         p_depth: Math.min(3, Math.max(0, Number(args.depth ?? 2))),
         p_limit: Math.min(80, Math.max(1, Number(args.limit ?? 40))),
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data?.length || 0, nodes: data || [], read_only: true };
     }
     case "create_lead":
@@ -1688,89 +1453,16 @@ async function executeTool(
         args as Parameters<typeof executeListMyAgentTasks>[0],
         toolContext,
       );
-    case "recall_recent_action": {
-      // Check if Carmen already performed an action recently — used before heavy
-      // operations (pulse_check, campaign_analysis, lead_review) so she doesn't
-      // re-run the same work and can answer "I already did it at HH:MM".
-      const action = String(args.action_type || "").trim();
-      const maxHours = Math.max(
-        1,
-        Math.min(168, Number(args.max_age_hours) || 8),
+    case "recall_recent_action":
+      return executeRecallRecentAction(
+        args as Parameters<typeof executeRecallRecentAction>[0],
+        toolContext,
       );
-      const since = new Date(
-        Date.now() - maxHours * 60 * 60 * 1000,
-      ).toISOString();
-      let q = supabase
-        .from("carmen_memory_episodes")
-        .select(
-          "id, topic, topic_tags, summary, importance, ref_date, created_at",
-        )
-        .eq("tenant_id", tenantId)
-        .gte("ref_date", since)
-        .order("ref_date", { ascending: false })
-        .limit(3);
-      if (action) q = q.or(`topic.ilike.%${action}%,topic_tags.cs.{${action}}`);
-      const { data, error } = await q;
-      if (error) throw error;
-      const fmtIl = (iso: string | null) =>
-        iso
-          ? new Date(iso).toLocaleString("he-IL", {
-              weekday: "short",
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "Asia/Jerusalem",
-            })
-          : null;
-      return {
-        found: data.length > 0,
-        recent_episodes: data.map((e: any) => ({
-          id: e.id,
-          topic: e.topic,
-          topic_tags: e.topic_tags,
-          summary: e.summary,
-          when_israel: fmtIl(e.ref_date || e.created_at),
-          importance: e.importance,
-        })),
-        guidance:
-          data.length > 0
-            ? 'יש פעולה דומה שנעשתה לאחרונה. אסור לחזור עליה מחדש אלא אם המשתמש ביקש "רענני" / "עכשיו" / "בזמן אמת". ענו עם הסיכום הקיים, ציינו את הזמן, ושאלו אם לרענן.'
-            : "אין רישום מ-N השעות האחרונות. אפשר להריץ את הפעולה.",
-      };
-    }
-    case "record_action_episode": {
-      // Persist a heavy-action result into long-term memory so future calls
-      // hit recall_recent_action instead of re-running.
-      const topic = String(args.action_type || args.topic || "").trim();
-      if (!topic) throw new Error("action_type required");
-      const summary = String(args.summary || "").slice(0, 4000);
-      if (!summary) throw new Error("summary required");
-      const tags =
-        Array.isArray(args.topic_tags) && args.topic_tags.length > 0
-          ? args.topic_tags
-          : [topic];
-      const importance = Math.max(
-        1,
-        Math.min(100, Number(args.importance) || 50),
+    case "record_action_episode":
+      return executeRecordActionEpisode(
+        args as Parameters<typeof executeRecordActionEpisode>[0],
+        toolContext,
       );
-      const { data, error } = await supabase
-        .from("carmen_memory_episodes")
-        .insert({
-          tenant_id: tenantId,
-          topic,
-          topic_tags: tags,
-          summary,
-          importance,
-          ref_date: new Date().toISOString(),
-          source_table: "agent_runs",
-          participants: callerPhone ? { caller_phone: callerPhone } : {},
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { episode_id: data.id, recorded: true };
-    }
     case "search_tasks":
       return executeSearchTasks(
         args as Parameters<typeof executeSearchTasks>[0],
@@ -1810,33 +1502,11 @@ async function executeTool(
         },
       );
 
-    case "send_message": {
-      const { phone, contactName } = await sendTargetFor(
-        supabase,
-        args.contact_type,
-        args.contact_id,
-        accessibleTenantIds,
+    case "send_message":
+      return executeSendMessage(
+        args as Parameters<typeof executeSendMessage>[0],
+        toolContext,
       );
-      if (!phone) return { success: false, error: "לא נמצא מספר טלפון" };
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/send-green-api-message`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            phone,
-            message: args.message_text,
-            tenantId,
-            [`${args.contact_type}_id`]: args.contact_id,
-          }),
-        },
-      );
-      if (!res.ok) throw new Error(await res.text());
-      return { sent_to: contactName, phone };
-    }
     case "search_entities": {
       const tableMap: Record<string, string> = {
         agency: "agencies",
@@ -1857,19 +1527,20 @@ async function executeTool(
 
       // Clients: broad alias + ad-account + inactive/ended search (Kernelios/Cornelius/קרנליוס…).
       if (args.entity_type === "client") {
-        let clientIdsFilter: string[] | null = null;
+        let clientIdsFilter: Array<string> | null = null;
         if (callerCampaignerId && !args.all_scopes && !bypassCampaignerScope) {
           const { data: links } = await supabase
             .from("client_team")
             .select("client_id")
             .eq("campaigner_id", callerCampaignerId);
           clientIdsFilter = (links || []).map((l: any) => l.client_id);
-          if (clientIdsFilter.length === 0)
+          if (clientIdsFilter.length === 0) {
             return {
               count: 0,
               results: [],
               note: "no clients assigned to you",
             };
+          }
         }
         const agencyFilter =
           args.agency_id ||
@@ -1926,7 +1597,9 @@ async function executeTool(
         q = q.eq("agency_id", args.agency_id);
       }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data.length, results: data };
     }
     case "delegate_to_manus": {
@@ -1991,7 +1664,9 @@ async function executeTool(
         tenantId,
         message: args.message,
       };
-      if (args.task_id) msgBody.task_id = args.task_id;
+      if (args.task_id) {
+        msgBody.task_id = args.task_id;
+      }
       const msgRes = await fetch(manusApiUrl, {
         method: "POST",
         headers: {
@@ -2306,10 +1981,16 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .order("name")
         .limit(args.limit || 50);
-      if (args.active_only === true) q = q.eq("active", true);
-      if (args.name_search) q = q.ilike("name", `%${args.name_search}%`);
+      if (args.active_only === true) {
+        q = q.eq("active", true);
+      }
+      if (args.name_search) {
+        q = q.ilike("name", `%${args.name_search}%`);
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data.length, automations: data };
     }
     case "get_automation_details": {
@@ -2324,7 +2005,9 @@ async function executeTool(
           .maybeSingle();
         automationId = found?.id;
       }
-      if (!automationId) return { error: "automation_id או name_search נדרש" };
+      if (!automationId) {
+        return { error: "automation_id או name_search נדרש" };
+      }
       const { data: auto, error } = await supabase
         .from("automations")
         .select(
@@ -2333,7 +2016,9 @@ async function executeTool(
         .eq("id", automationId)
         .in("tenant_id", accessibleTenantIds)
         .maybeSingle();
-      if (error || !auto) return { error: "אוטומציה לא נמצאה" };
+      if (error || !auto) {
+        return { error: "אוטומציה לא נמצאה" };
+      }
       const { data: steps } = await supabase
         .from("automation_flow_steps")
         .select(
@@ -2341,7 +2026,7 @@ async function executeTool(
         )
         .eq("automation_id", automationId)
         .order("sort_order", { ascending: true });
-      const stepRows: AutomationFlowStepRow[] = steps || [];
+      const stepRows: Array<AutomationFlowStepRow> = steps || [];
       return {
         automation: auto,
         steps: stepRows.map((s) => {
@@ -2367,14 +2052,18 @@ async function executeTool(
     case "toggle_automation":
     case "delete_automation":
     case "propose_automation_edit": {
-      if (!args.automation_id) return { error: "automation_id נדרש" };
+      if (!args.automation_id) {
+        return { error: "automation_id נדרש" };
+      }
       const { data: auto } = await supabase
         .from("automations")
         .select("id, name, active")
         .eq("id", args.automation_id)
         .in("tenant_id", accessibleTenantIds)
         .maybeSingle();
-      if (!auto) return { error: "אוטומציה לא נמצאה" };
+      if (!auto) {
+        return { error: "אוטומציה לא נמצאה" };
+      }
       const autoTitles: Record<string, string> = {
         toggle_automation: `${args.active ? "הפעלת" : "כיבוי"} אוטומציה: ${auto.name}`,
         delete_automation: `מחיקת אוטומציה: ${auto.name}`,
@@ -2403,7 +2092,9 @@ async function executeTool(
         })
         .select("id")
         .single();
-      if (aqErr) throw aqErr;
+      if (aqErr) {
+        throw aqErr;
+      }
       return {
         pending_approval: true,
         approval_id: aqRow.id,
@@ -2420,11 +2111,12 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .eq("is_flow", true)
         .order("name");
-      if (automationError) throw automationError;
-      let matchingAutomations: Pick<
-        AgentRow<"automations">,
-        "id" | "name" | "active" | "tenant_id"
-      >[] = automations || [];
+      if (automationError) {
+        throw automationError;
+      }
+      let matchingAutomations: Array<
+        Pick<AgentRow<"automations">, "id" | "name" | "active" | "tenant_id">
+      > = automations || [];
       if (args.automation_name) {
         matchingAutomations = matchingAutomations.filter((a) =>
           metaNameMatches(a.name, args.automation_name),
@@ -2438,11 +2130,15 @@ async function executeTool(
             .in("automation_id", automationIds)
             .eq("step_type", "trigger")
         : { data: [], error: null };
-      if (triggerError) throw triggerError;
-      const triggerRows: Pick<
-        AgentRow<"automation_flow_steps">,
-        "automation_id" | "configuration"
-      >[] = triggerSteps || [];
+      if (triggerError) {
+        throw triggerError;
+      }
+      const triggerRows: Array<
+        Pick<
+          AgentRow<"automation_flow_steps">,
+          "automation_id" | "configuration"
+        >
+      > = triggerSteps || [];
       const currentByAutomation = new Map(
         triggerRows
           .map(
@@ -2456,14 +2152,16 @@ async function executeTool(
       );
 
       let pages = await metaLeadPages(supabase, tenantId);
-      if (args.page_name)
+      if (args.page_name) {
         pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
+      }
       const formsNested = await Promise.all(
         pages.map((page) => metaLeadFormsForPage(page)),
       );
       let forms = formsNested.flat();
-      if (args.form_name)
+      if (args.form_name) {
         forms = forms.filter((f) => metaNameMatches(f.name, args.form_name));
+      }
       return {
         automations: matchingAutomations.map((automation) => {
           const current = currentByAutomation.get(automation.id);
@@ -2489,12 +2187,14 @@ async function executeTool(
       };
     }
     case "set_automation_meta_lead_form": {
-      if (!args.confirmed)
+      if (!args.confirmed) {
         throw new Error("נדרש אישור מפורש לפני החלפת טופס באוטומציה");
-      if (!canManageAutomations)
+      }
+      if (!canManageAutomations) {
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים לשנות טופס באוטומציה",
         );
+      }
       const automation = await findAutomationForMetaForm(
         supabase,
         accessibleTenantIds,
@@ -2502,15 +2202,17 @@ async function executeTool(
         args.automation_name,
       );
       let pages = await metaLeadPages(supabase, automation.tenant_id);
-      if (args.page_name)
+      if (args.page_name) {
         pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
+      }
       const forms = (
         await Promise.all(pages.map((page) => metaLeadFormsForPage(page)))
       )
         .flat()
         .filter((form) => metaNameMatches(form.name, args.form_name));
-      if (forms.length === 0)
+      if (forms.length === 0) {
         throw new Error(`לא נמצא ב-Meta טופס בשם "${args.form_name}"`);
+      }
       if (forms.length > 1) {
         throw new Error(
           `נמצאו כמה טפסים תואמים: ${forms.map((f) => `${f.name} — ${f.page_name} (${f.id})`).join(", ")}. יש לציין גם את שם העמוד`,
@@ -2525,17 +2227,20 @@ async function executeTool(
       return { success: true, ...connected, form, sync_registered: true };
     }
     case "create_meta_lead_form": {
-      if (!args.confirmed)
+      if (!args.confirmed) {
         throw new Error("נדרש אישור מפורש לפני יצירת טופס חדש ב-Meta");
-      if (!canManageAutomations)
+      }
+      if (!canManageAutomations) {
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים ליצור טופס Meta",
         );
-      const questions: unknown[] = Array.isArray(args.questions)
+      }
+      const questions: Array<unknown> = Array.isArray(args.questions)
         ? args.questions.slice(0, 30)
         : [];
-      if (questions.length === 0)
+      if (questions.length === 0) {
         throw new Error("יש להגדיר לפחות שדה אחד בטופס");
+      }
       const allowedQuestionTypes = new Set([
         "FULL_NAME",
         "FIRST_NAME",
@@ -2561,8 +2266,9 @@ async function executeTool(
       const normalizedQuestions = questions.map((input): MetaLeadQuestion => {
         const question = readMetaLeadQuestionInput(input);
         const type = (question.type || "").trim().toUpperCase();
-        if (!allowedQuestionTypes.has(type))
+        if (!allowedQuestionTypes.has(type)) {
           throw new Error(`סוג שדה Meta אינו נתמך: ${type || "ריק"}`);
+        }
         if (type === "CUSTOM" && !(question.label || "").trim()) {
           throw new Error("שדה CUSTOM חייב לכלול label");
         }
@@ -2581,8 +2287,9 @@ async function executeTool(
       const pages = (await metaLeadPages(supabase, tenantId)).filter((page) =>
         metaNameMatches(page.name, args.page_name),
       );
-      if (pages.length === 0)
+      if (pages.length === 0) {
         throw new Error(`לא נמצא עמוד Meta בשם "${args.page_name}"`);
+      }
       if (pages.length > 1) {
         throw new Error(
           `נמצאו כמה עמודים תואמים: ${pages.map((p) => `${p.name} (${p.id})`).join(", ")}. יש לציין שם מדויק יותר`,
@@ -2667,360 +2374,61 @@ async function executeTool(
         toolContext,
       );
     // MEMORY
-    case "save_memory": {
-      const cat = args.category || "general";
-      const { data, error } = await supabase
-        .from("ai_memory")
-        .upsert(
-          {
-            tenant_id: tenantId,
-            user_id: userId && userId !== "system" ? userId : null,
-            key: args.key,
-            content: args.content,
-            category: cat,
-          },
-          {
-            onConflict: "user_id,tenant_id,category,key",
-            ignoreDuplicates: false,
-          },
-        )
-        .select("key, category")
-        .single();
-      if (error) throw error;
-      // Mirror to agent_memory (Hermes FTS layer) for cross-conversation recall
-      const importanceMap: Record<string, number> = {
-        instructions: 95,
-        preferences: 85,
-        personal: 80,
-        projects: 70,
-        clients: 70,
-        workflows: 65,
-        general: 50,
-      };
-      // executeTool param is agentId — bare `agent_id` was a ReferenceError ("agent_id is not defined").
-      saveAgentMemory({
-        supabase,
-        tenant_id: tenantId,
-        agent_id: agentId || null,
-        category: cat,
-        title: args.key,
-        summary: args.content,
-        importance: importanceMap[cat] ?? 60,
-        metadata: {
-          source: "save_memory",
-          key: args.key,
-          user_id: userId || "system",
-        },
-      }).catch(() => {});
-      return { saved: true, key: data.key, category: data.category };
-    }
-    case "recall_memory": {
-      let query = supabase
-        .from("ai_memory")
-        .select("key, content, category, updated_at")
-        .in("tenant_id", accessibleTenantIds);
-      if (args.category) query = query.eq("category", args.category);
-      if (args.search) query = query.ilike("content", `%${args.search}%`);
-      const { data, error } = await query
-        .order("updated_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return { count: data.length, memories: data };
-    }
-    case "recall_memory_fts": {
-      // Hermes-style FTS recall across agent_memory (cross-session, importance-aware)
-      const items = await recallAgentMemoryFTS(supabase, {
-        tenant_id: tenantId,
-        agent_id: agentId || null,
-        query_text: args.query || "",
-        limit: args.limit || 5,
-        min_importance: args.min_importance || 0,
-      });
-      return { count: items.length, memories: items };
-    }
-    case "delete_memory": {
-      const { error } = await supabase
-        .from("ai_memory")
-        .delete()
-        .in("tenant_id", accessibleTenantIds)
-        .eq("key", args.key);
-      if (error) throw error;
-      return { deleted: true, key: args.key };
-    }
+    case "save_memory":
+      return executeSaveMemory(
+        args as Parameters<typeof executeSaveMemory>[0],
+        toolContext,
+      );
+    case "recall_memory":
+      return executeRecallMemory(
+        args as Parameters<typeof executeRecallMemory>[0],
+        toolContext,
+      );
+    case "recall_memory_fts":
+      return executeRecallMemoryFts(
+        args as Parameters<typeof executeRecallMemoryFts>[0],
+        toolContext,
+      );
+    case "delete_memory":
+      return executeDeleteMemory(
+        args as Parameters<typeof executeDeleteMemory>[0],
+        toolContext,
+      );
     // KNOWLEDGE BASE
-    case "kb_list_folder": {
-      let q = supabase
-        .from("carmen_memory_pointers")
-        .select(
-          "id, category, subcategory, path, entity_type, entity_id, title, summary, ref_date, importance",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (args.category) q = q.eq("category", args.category);
-      if (args.subcategory) q = q.eq("subcategory", args.subcategory);
-      if (args.path_prefix) q = q.like("path", `${args.path_prefix}%`);
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 50);
-      if (error) throw error;
-      return { count: data.length, pointers: data };
-    }
-    case "kb_search": {
-      // Try semantic via embedding; fall back to text ILIKE on title/summary
-      try {
-        const vec = await aiEmbed(args.query);
-        if (vec) {
-          const { data, error } = await supabase.rpc("kb_match_pointers", {
-            p_tenant_id: tenantId,
-            p_query_embedding: vec,
-            p_category: args.category || null,
-            p_since_days: args.since_days || null,
-            p_limit: args.limit || 20,
-          });
-          if (!error && data)
-            return { count: data.length, results: data, mode: "semantic" };
-        }
-      } catch (_) {
-        /* fall through */
-      }
-      // Fallback text search
-      let q = supabase
-        .from("carmen_memory_pointers")
-        .select(
-          "id, category, subcategory, path, entity_type, entity_id, title, summary, ref_date",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .or(`title.ilike.%${args.query}%,summary.ilike.%${args.query}%`);
-      if (args.category) q = q.eq("category", args.category);
-      if (args.since_days)
-        q = q.gte(
-          "ref_date",
-          new Date(Date.now() - args.since_days * 86400000).toISOString(),
-        );
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 20);
-      if (error) throw error;
-      return { count: data.length, results: data, mode: "text" };
-    }
-    case "kb_open": {
-      const { data: ptr, error: pErr } = await supabase
-        .from("carmen_memory_pointers")
-        .select("*")
-        .eq("id", args.pointer_id)
-        .in("tenant_id", accessibleTenantIds)
-        .maybeSingle();
-      if (pErr) throw pErr;
-      if (!ptr) return { error: "pointer not found" };
-      // Fetch live row from source
-      let live: unknown = null;
-      try {
-        const tableMap: Record<string, string> = {
-          client: "clients",
-          campaigner: "campaigners",
-          task: "tasks",
-          message: "chat_messages",
-          lead: "leads",
-          report: "seo_reports",
-          system: "",
-        };
-        const table = tableMap[ptr.entity_type] ?? ptr.entity_type;
-        if (table) {
-          const { data } = await supabase
-            .from(table)
-            .select("*")
-            .eq("id", ptr.entity_id)
-            .maybeSingle();
-          live = data;
-        }
-      } catch (_) {
-        /* ignore */
-      }
-      // Bump access count async
-      supabase
-        .from("carmen_memory_pointers")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", ptr.id)
-        .then(() => {});
-      return { pointer: ptr, live };
-    }
-    case "kb_recall_conversation": {
-      let q = supabase
-        .from("carmen_memory_episodes")
-        .select(
-          "id, topic, topic_tags, summary, source_table, source_ids, ref_date, importance, retention_score",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (args.topic) q = q.ilike("topic", `%${args.topic}%`);
-      if (args.query)
-        q = q.or(`topic.ilike.%${args.query}%,summary.ilike.%${args.query}%`);
-      if (args.since_days)
-        q = q.gte(
-          "ref_date",
-          new Date(Date.now() - args.since_days * 86400000).toISOString(),
-        );
-      const { data, error } = await q
-        .order("ref_date", { ascending: false, nullsFirst: false })
-        .limit(args.limit || 10);
-      if (error) throw error;
-      // Bump access count on returned episodes (non-blocking)
-      if (data?.length) {
-        supabase
-          .from("carmen_memory_episodes")
-          .update({ last_accessed_at: new Date().toISOString() })
-          .in(
-            "id",
-            data.map(
-              (d: Pick<AgentRow<"carmen_memory_episodes">, "id">) => d.id,
-            ),
-          )
-          .then(() => {});
-      }
-      return { count: data.length, episodes: data };
-    }
-    case "kb_learn": {
-      // Generate embedding (best-effort)
-      let embedding: number[] | null = null;
-      try {
-        embedding = await aiEmbed(`${args.topic}\n\n${args.summary}`);
-      } catch (_) {
-        /* ignore */
-      }
-      const { data, error } = await supabase
-        .from("carmen_memory_episodes")
-        .insert({
-          tenant_id: tenantId,
-          topic: args.topic,
-          topic_tags: args.topic_tags || [],
-          summary: args.summary,
-          summary_embedding: embedding,
-          source_table: args.source_table || null,
-          source_ids: args.source_ids || [],
-          importance: Math.max(1, Math.min(10, args.importance || 5)),
-          retention_score: 1.0,
-          ref_date: new Date().toISOString(),
-        })
-        .select("id, topic")
-        .single();
-      if (error) throw error;
-      return { learned: true, episode_id: data.id, topic: data.topic };
-    }
+    case "kb_list_folder":
+      return executeKbListFolder(
+        args as Parameters<typeof executeKbListFolder>[0],
+        toolContext,
+      );
+    case "kb_search":
+      return executeKbSearch(
+        args as Parameters<typeof executeKbSearch>[0],
+        toolContext,
+      );
+    case "kb_open":
+      return executeKbOpen(
+        args as Parameters<typeof executeKbOpen>[0],
+        toolContext,
+      );
+    case "kb_recall_conversation":
+      return executeKbRecallConversation(
+        args as Parameters<typeof executeKbRecallConversation>[0],
+        toolContext,
+      );
+    case "kb_learn":
+      return executeKbLearn(
+        args as Parameters<typeof executeKbLearn>[0],
+        toolContext,
+      );
     // CHAT HISTORY
     case "get_chat_history":
       return getChatHistory(chatRead, args);
-    case "search_conversation_history": {
-      const { scope: chatScope, refusal } = await scopedChatRead(
+    case "search_conversation_history":
+      return executeSearchConversationHistory(
+        args as Parameters<typeof executeSearchConversationHistory>[0],
+        toolContext,
         chatRead,
-        null,
       );
-      if (refusal) {
-        return refusal;
-      }
-
-      const rawQuery = String(args.query || "").trim();
-      // AND semantics: every token must appear in the message. Up to 4 tokens.
-      // No query = browse mode: chronological slice of the window, which then
-      // MUST be narrowed (Carmen channel / specific phone) or the whole tenant's
-      // WhatsApp traffic floods the result.
-      const tokens = rawQuery.split(/\s+/).filter(Boolean).slice(0, 4);
-      const browseMode = tokens.length === 0;
-      const daysBack = Math.min(
-        Number(args.days_back) > 0 ? Number(args.days_back) : 180,
-        730,
-      );
-      const since = new Date(
-        Date.now() - daysBack * 24 * 60 * 60 * 1000,
-      ).toISOString();
-      const defaultLimit = browseMode ? 40 : 20;
-      let withPhone = String(args.with_phone || "").replace(/\D/g, "");
-      const onlyCarmen =
-        args.only_carmen_chats === true ||
-        (browseMode && args.only_carmen_chats !== false);
-      const browseAll = args.browse_all_chats === true;
-      // Default: stay inside the active WhatsApp chat_id (private or group).
-      let scopeGroupId: string | null = null;
-      let scopeNote = "current_chat";
-      if (!browseAll && waNotify?.chat_id) {
-        const chatId = String(waNotify.chat_id);
-        if (isGroupChat(waNotify)) {
-          const { data: g } = await supabase
-            .from("whatsapp_groups")
-            .select("id")
-            .eq("tenant_id", tenantId)
-            .eq("group_chat_id", chatId)
-            .maybeSingle();
-          scopeGroupId = g?.id || null;
-          if (!scopeGroupId) {
-            return {
-              count: 0,
-              mode: browseMode ? "browse" : "keyword_search",
-              note: "הקבוצה הנוכחית לא נמצאה — נסי browse_all_chats=true אם צריך חיפוש ארגוני.",
-            };
-          }
-        } else if (!withPhone) {
-          withPhone = chatId.split("@")[0].replace(/\D/g, "");
-        }
-      } else if (browseAll) {
-        scopeNote = "all_chats";
-      }
-      let q = supabase
-        .from("chat_messages")
-        .select(
-          withChatScopeColumns(
-            "message_text, direction, sender_name, sender_phone, created_at, group_id, provider, clients(name)",
-          ),
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .gte("created_at", since)
-        .not("message_text", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(
-          Math.min(
-            Number(args.limit) > 0 ? Number(args.limit) : defaultLimit,
-            60,
-          ),
-        );
-      for (const t of tokens) q = q.ilike("message_text", `%${t}%`);
-      if (onlyCarmen) q = q.eq("provider", "manus_wa");
-      if (scopeGroupId) q = q.eq("group_id", scopeGroupId);
-      else if (withPhone && !browseAll)
-        q = q
-          .is("group_id", null)
-          .ilike("sender_phone", `%${withPhone.slice(-9)}%`);
-      else if (withPhone) q = q.ilike("sender_phone", `%${withPhone}%`);
-      const data: ChatHistorySearchRow[] = await readScopedChatRows(
-        supabase,
-        q,
-        chatScope,
-        accessibleTenantIds,
-      );
-      const fmt = (iso: string | null) =>
-        new Date(iso === null ? 0 : iso).toLocaleString("he-IL", {
-          timeZone: "Asia/Jerusalem",
-          dateStyle: "short",
-          timeStyle: "short",
-        });
-      return {
-        count: data.length,
-        mode: browseMode ? "browse" : "keyword_search",
-        scope: scopeNote,
-        chat_id: waNotify?.chat_id || null,
-        note:
-          data.length === 0
-            ? browseMode
-              ? "אין הודעות בחלון הזמן בצ׳אט הנוכחי — נסי days_back גדול יותר או browse_all_chats=true."
-              : "אין תוצאות בצ׳אט הנוכחי — נסי מילת תוכן אחרת או browse_all_chats=true."
-            : undefined,
-        messages: data.reverse().map((m) => ({
-          when_israel: fmt(m.created_at),
-          direction: m.direction,
-          from: m.sender_name || m.sender_phone || "",
-          client: m.clients?.name || null,
-          in_group: !!m.group_id,
-          text: String(m.message_text).slice(0, 400),
-        })),
-        ...chatScopeMeta(chatScope),
-      };
-    }
     case "get_recent_inbound_messages":
       return getRecentInboundMessages(chatRead, args);
     // FINANCE
@@ -3220,11 +2628,16 @@ async function executeTool(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
         )
         .in("tenant_id", accessibleTenantIds);
-      if (args.type)
+      if (args.type) {
         q = q.in("integration_type", integrationTypesFor(args.type));
-      if (args.only_active) q = q.eq("is_active", true);
+      }
+      if (args.only_active) {
+        q = q.eq("is_active", true);
+      }
       const { data, error } = await q.order("integration_type");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         count: data?.length || 0,
         integrations: (data || []).map((i) => ({
@@ -3243,7 +2656,9 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .select("id, integration_type, is_active")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     }
     case "list_agents": {
@@ -3251,9 +2666,13 @@ async function executeTool(
         .from("ai_agents")
         .select("id, name, talent, engine, active")
         .in("tenant_id", accessibleTenantIds);
-      if (args.only_active) q = q.eq("active", true);
+      if (args.only_active) {
+        q = q.eq("active", true);
+      }
       const { data, error } = await q.order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data?.length || 0, agents: data };
     }
     case "create_agent": {
@@ -3270,7 +2689,9 @@ async function executeTool(
         })
         .select("id, name")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         agent_id: data.id,
         name: data.name,
@@ -3287,7 +2708,9 @@ async function executeTool(
         "engine",
         "active",
       ] as const) {
-        if (args[k] !== undefined) updates[k] = args[k];
+        if (args[k] !== undefined) {
+          updates[k] = args[k];
+        }
       }
       const { data, error } = await supabase
         .from("ai_agents")
@@ -3296,7 +2719,9 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .select("id, name, active")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     }
     case "delegate_to_github_agent": {
@@ -3313,8 +2738,9 @@ async function executeTool(
         }),
       });
       const txt = await res.text();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: `github-agent failed [${res.status}]: ${txt}` };
+      }
       try {
         return JSON.parse(txt);
       } catch {
@@ -3336,10 +2762,11 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return {
           error: data.error || `create_instance failed [${res.status}]`,
         };
+      }
       return data;
     }
     case "get_whatsapp_qr_link": {
@@ -3355,8 +2782,9 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: data.error || `get_qr_link failed [${res.status}]` };
+      }
       return data;
     }
     case "get_whatsapp_status": {
@@ -3372,8 +2800,9 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: data.error || `get_status failed [${res.status}]` };
+      }
       return data;
     }
     case "send_whatsapp_via_gateway": {
@@ -3399,11 +2828,12 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return {
           error:
             data.error || `send_whatsapp_via_gateway failed [${res.status}]`,
         };
+      }
       return data;
     }
     // ===========================
@@ -3421,7 +2851,9 @@ async function executeTool(
           const { data, error } = await supabase.storage
             .from("entity-attachments")
             .createSignedUrl(path, 3600);
-          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+          if (!error && data?.signedUrl) {
+            signed[path] = data.signedUrl;
+          }
         }),
       );
       return carmenSkinsResult(
@@ -3481,7 +2913,9 @@ async function executeTool(
         })
         .select("id, name, version")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       console.log(
         `[Hermes] Skill created by Carmen: ${data.name} (id=${data.id})`,
       );
@@ -3499,13 +2933,17 @@ async function executeTool(
         .eq("id", args.skill_id)
         .eq("tenant_id", tenantId)
         .single();
-      if (!current) return { error: "Skill not found" };
+      if (!current) {
+        return { error: "Skill not found" };
+      }
       const updates: TablesUpdate<"ai_skills"> = {
         steps: args.body,
         version: (current.version || 1) + 1,
         updated_at: new Date().toISOString(),
       };
-      if (args.description) updates.description = args.description;
+      if (args.description) {
+        updates.description = args.description;
+      }
       const { data, error } = await supabase
         .from("ai_skills")
         .update(updates)
@@ -3513,7 +2951,9 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .select("id, name, version")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       console.log(
         `[Hermes] Skill updated: ${data.name} v${data.version} - ${args.change_note || ""}`,
       );
@@ -3525,8 +2965,9 @@ async function executeTool(
       };
     }
     case "delegate_to_subagent": {
-      if (!args.title || !args.prompt)
+      if (!args.title || !args.prompt) {
         throw new Error("title and prompt are required");
+      }
       return await spawnSubagent(supabase, {
         parentAgentId: agentId || null,
         tenantId,
@@ -3546,15 +2987,20 @@ async function executeTool(
     }
 
     case "get_subagent_result": {
-      if (!args.sub_task_id) throw new Error("sub_task_id is required");
+      if (!args.sub_task_id) {
+        throw new Error("sub_task_id is required");
+      }
       return await getSubagentResult(supabase, tenantId, args.sub_task_id);
     }
 
     case "delegate_parallel": {
-      const items: unknown[] = Array.isArray(args.tasks) ? args.tasks : [];
-      if (items.length === 0)
+      const items: Array<unknown> = Array.isArray(args.tasks) ? args.tasks : [];
+      if (items.length === 0) {
         throw new Error("tasks (array of {title, prompt}) is required");
-      if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
+      }
+      if (items.length > 8) {
+        throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
+      }
       const cleaned = parallelTaskArgs(items).map((it) => ({
         title: it.title,
         prompt: it.prompt,
@@ -3564,8 +3010,9 @@ async function executeTool(
         sideEffects:
           typeof it.side_effects === "boolean" ? it.side_effects : undefined,
       }));
-      if (cleaned.length === 0)
+      if (cleaned.length === 0) {
         throw new Error("כל תת-משימה חייבת title ו-prompt");
+      }
       const batchId = crypto.randomUUID();
       return await spawnSubagentBatch(
         supabase,
@@ -3582,7 +3029,9 @@ async function executeTool(
     }
 
     case "get_batch_results": {
-      if (!args.batch_id) throw new Error("batch_id is required");
+      if (!args.batch_id) {
+        throw new Error("batch_id is required");
+      }
       return await getBatchResults(supabase, tenantId, args.batch_id);
     }
 
@@ -3595,7 +3044,7 @@ async function executeTool(
       ) {
         throw new Error("name, trigger_type ו-steps (מערך לא ריק) נדרשים");
       }
-      const stepArgs: unknown[] = args.steps;
+      const stepArgs: Array<unknown> = args.steps;
       const spec = {
         name: String(args.name),
         description: args.description ? String(args.description) : null,
@@ -3639,7 +3088,9 @@ async function executeTool(
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         pending_approval: true,
         approval_id: data.id,
@@ -3826,576 +3277,74 @@ async function executeTool(
     // ===========================
     // BROADCAST (דיוור)
     // ===========================
-    case "list_broadcasts": {
-      let q = supabase
-        .from("broadcasts")
-        .select(
-          "id, name, channel, status, scheduled_at, stats, created_at, body_text",
-        )
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(args.limit || 20);
-      if (args.status) q = q.eq("status", args.status);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, broadcasts: data };
-    }
-    case "create_broadcast": {
-      // Build audience_filter from source + extra filter
-      const audience_filter: TablesInsert<"broadcasts">["audience_filter"] = {
-        source: args.audience_source,
-        ...(args.audience_filter || {}),
-      };
-      // Determine provider from tenant's default WA integration
-      let provider = "green_api";
-      let integration_id = args.integration_id || null;
-      if (!integration_id) {
-        const { data: integ } = await supabase
-          .from("tenant_integrations")
-          .select("id, integration_type")
-          .eq("tenant_id", tenantId)
-          .in("integration_type", ["green_api", "manus_wa"])
-          .eq("is_active", true)
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (integ) {
-          integration_id = integ.id;
-          provider = integ.integration_type;
-        }
-      } else {
-        const { data: integ } = await supabase
-          .from("tenant_integrations")
-          .select("integration_type")
-          .eq("id", integration_id)
-          .maybeSingle();
-        if (integ) provider = integ.integration_type;
-      }
-      const insertData: TablesInsert<"broadcasts"> = {
-        tenant_id: tenantId,
-        created_by: userId && userId !== "system" ? userId : null,
-        name: args.name,
-        channel: "whatsapp",
-        provider,
-        integration_id,
-        body_text: args.body_text,
-        audience_filter,
-        status: "draft",
-      };
-      if (args.scheduled_at) {
-        insertData.scheduled_at = args.scheduled_at;
-        insertData.status = "scheduled";
-      }
-      const { data: bc, error } = await supabase
-        .from("broadcasts")
-        .insert(insertData)
-        .select("id, name, status, scheduled_at")
-        .single();
-      if (error) throw error;
-      return {
-        pending_approval: true,
-        approval_id: null,
-        broadcast_id: bc.id,
-        summary: `דיוור חדש "${bc.name}" נוצר (${bc.status}). קהל: ${args.audience_source}. ${args.scheduled_at ? "מתוזמן ל-" + args.scheduled_at : "טרם נשלח — שאל את המשתמש לאישור ושליחה."}`,
-        instruction_for_carmen:
-          'הצג סיכום של הדיוור (שם, קהל, תוכן) ושאל "לשלוח עכשיו או לתזמן למועד מסוים?". אסור לשלוח בלי אישור מפורש.',
-      };
-    }
-    case "send_broadcast_now": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status, tenant_id")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      if (!["draft", "scheduled"].includes(bc.status))
-        throw new Error(`אי אפשר לשלוח דיוור בסטטוס ${bc.status}`);
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "send_broadcast_now",
-          title: `שליחת דיוור: ${bc.name}`,
-          description: "שליחת דיוור WhatsApp מיידית",
-          tool_name: "send_broadcast_now",
-          tool_input: { broadcast_id: bc.id },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `שליחת דיוור "${bc.name}" מיידית לכל הנמענים.`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "schedule_broadcast": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "schedule_broadcast",
-          title: `תזמון דיוור: ${bc.name}`,
-          description: `תזמון ל-${args.scheduled_at}`,
-          tool_name: "schedule_broadcast",
-          tool_input: { broadcast_id: bc.id, scheduled_at: args.scheduled_at },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `תזמון דיוור "${bc.name}" ל-${args.scheduled_at}.`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "cancel_broadcast": {
-      const { data: bc, error: bcErr } = await supabase
-        .from("broadcasts")
-        .select("id, name, status")
-        .eq("id", args.broadcast_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (bcErr || !bc) throw new Error("דיוור לא נמצא");
-      const { data: aq, error: aqErr } = await supabase
-        .from("agent_approval_queue")
-        .insert({
-          tenant_id: tenantId,
-          agent_id: agentId || null,
-          requested_by: actorUserId,
-          action_type: "cancel_broadcast",
-          title: `ביטול דיוור: ${bc.name}`,
-          description: `ביטול דיוור בסטטוס ${bc.status}`,
-          tool_name: "cancel_broadcast",
-          tool_input: { broadcast_id: bc.id },
-          status: "pending",
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .select("id")
-        .single();
-      if (aqErr) throw aqErr;
-      return {
-        pending_approval: true,
-        approval_id: aq.id,
-        summary: `ביטול דיוור "${bc.name}" (${bc.status}).`,
-        instruction_for_carmen:
-          "הצג סיכום ובקש אישור. אחרי אישור — קרא ל-execute_pending_approval.",
-      };
-    }
-    case "list_wa_groups": {
-      let q = supabase
-        .from("whatsapp_groups")
-        .select("id, group_name, group_chat_id, created_at")
-        .eq("tenant_id", tenantId)
-        .eq("is_blocked", false)
-        .order("group_name", { ascending: true })
-        .limit(args.limit || 50);
-      if (args.name_search) q = q.ilike("group_name", `%${args.name_search}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return { count: data.length, groups: data };
-    }
+    case "list_broadcasts":
+      return executeListBroadcasts(
+        args as Parameters<typeof executeListBroadcasts>[0],
+        toolContext,
+      );
+    case "create_broadcast":
+      return executeCreateBroadcast(
+        args as Parameters<typeof executeCreateBroadcast>[0],
+        toolContext,
+      );
+    case "send_broadcast_now":
+      return executeSendBroadcastNow(
+        args as Parameters<typeof executeSendBroadcastNow>[0],
+        toolContext,
+      );
+    case "schedule_broadcast":
+      return executeScheduleBroadcast(
+        args as Parameters<typeof executeScheduleBroadcast>[0],
+        toolContext,
+      );
+    case "cancel_broadcast":
+      return executeCancelBroadcast(
+        args as Parameters<typeof executeCancelBroadcast>[0],
+        toolContext,
+      );
+    case "list_wa_groups":
+      return executeListWaGroups(
+        args as Parameters<typeof executeListWaGroups>[0],
+        toolContext,
+      );
 
     // ============ CALENDAR INVITES ============
-    case "send_calendar_invite": {
-      const {
-        attendee_email,
-        attendee_name,
-        title,
-        date,
-        time,
-        duration_minutes,
-        notes,
-      } = args;
-      if (!attendee_email || !title || !date || !time)
-        return { error: "attendee_email, title, date, time נדרשים" };
-
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const accessToken = cal.accessToken;
-      const extras = await resolveCalendarConferenceExtras(
-        supabase,
-        tenantId,
-        args,
+    case "send_calendar_invite":
+      return executeSendCalendarInvite(
+        args as Parameters<typeof executeSendCalendarInvite>[0],
+        toolContext,
       );
 
-      // Send naive wall-clock times with an explicit timeZone — Google interprets
-      // them in Asia/Jerusalem. toISOString() ('Z') marked Israel wall times as
-      // UTC, landing every event 3 hours late (08:00 request → 11:00 invite).
-      const startNaive = `${date}T${time}:00`;
-      const endNaive = new Date(
-        Date.parse(`${startNaive}Z`) + (duration_minutes || 60) * 60_000,
-      )
-        .toISOString()
-        .slice(0, 19);
-      const attendees = mergeNamedPrimaryAttendee(
-        attendee_email,
-        attendee_name,
-        extras.extraEmails,
-        extras.extraNamed,
+    case "list_calendar_events":
+      return executeListCalendarEvents(
+        args as Parameters<typeof executeListCalendarEvents>[0],
+        toolContext,
       );
 
-      const body: Record<string, unknown> = {
-        summary: title,
-        description: notes || "",
-        start: { dateTime: startNaive, timeZone: "Asia/Jerusalem" },
-        end: { dateTime: endNaive, timeZone: "Asia/Jerusalem" },
-        attendees,
-        guestsCanModify: false,
-      };
-      let zoom_available: boolean | null = null;
-      let zoom_status: string | null | undefined = null;
-      let conference_applied = "none";
-      const qp = new URLSearchParams({
-        sendUpdates: "all",
-        sendNotifications: "true",
-      });
-      if (extras.conferenceType === "zoom") {
-        const zoomAuth = await fetchZoomAccessToken(supabase, tenantId);
-        if (zoomAuth.accessToken) {
-          const zoom = await createZoomMeeting({
-            accessToken: zoomAuth.accessToken,
-            topic: title,
-            startDateTime: `${startNaive}+03:00`,
-            durationMinutes: duration_minutes || 60,
-          });
-          if (zoom.join_url) {
-            zoom_available = true;
-            conference_applied = "zoom";
-            Object.assign(
-              body,
-              applyZoomLinkToEvent({ description: notes || "" }, zoom.join_url),
-            );
-          } else {
-            zoom_available = zoomAuth.configured === false ? false : true;
-            zoom_status = zoom.error;
-            body.conferenceData = buildMeetConferenceData();
-            qp.set("conferenceDataVersion", "1");
-            conference_applied = "meet";
-          }
-        } else {
-          zoom_available = false;
-          zoom_status = zoomAuth.error;
-          body.conferenceData = buildMeetConferenceData();
-          qp.set("conferenceDataVersion", "1");
-          conference_applied = "meet";
-        }
-      } else if (extras.conferenceType === "meet") {
-        body.conferenceData = buildMeetConferenceData();
-        qp.set("conferenceDataVersion", "1");
-        conference_applied = "meet";
-      }
-
-      const calResp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${qp}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-        },
-      );
-      const evData = await calResp.json();
-      if (!calResp.ok)
-        return {
-          error: `שגיאת Google Calendar: ${evData?.error?.message || calResp.status}`,
-        };
-      const summary = summarizeEventResult(evData, {
-        attendee_email,
-        attendee_name: attendee_name || null,
-        start_israel: startNaive,
-        duration_minutes: duration_minutes || 60,
-        zoom_available,
-        zoom_status,
-        conference_applied,
-        carmen_attendee: extras.carmen_attendee,
-        carmen_meeting_bot: extractConferenceUrl(evData)
-          ? {
-              tool: "join_meeting_for_client",
-              meeting_url: extractConferenceUrl(evData),
-              note: "לצירוף כרמן כבוט תמלול בזמן הפגישה — קראי ל-join_meeting_for_client עם conference_url.",
-            }
-          : null,
-        message: `זימון נשלח למייל ${attendee_email}${conference_applied !== "none" ? ` — נוסף ${conference_applied === "zoom" ? "Zoom" : "Google Meet"}` : ""}.`,
-      });
-      return summary;
-    }
-
-    case "list_calendar_events": {
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const fromDate = String(
-        args.date_from || new Date().toISOString().slice(0, 10),
-      );
-      const toDate = String(
-        args.date_to ||
-          new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-      );
-      const qp = new URLSearchParams({
-        timeMin: `${fromDate}T00:00:00+03:00`,
-        timeMax: `${toDate}T23:59:59+03:00`,
-        singleEvents: "true",
-        orderBy: "startTime",
-        maxResults: "30",
-      });
-      if (args.search) qp.set("q", String(args.search));
-      const resp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${qp}`,
-        {
-          headers: { Authorization: `Bearer ${cal.accessToken}` },
-        },
-      );
-      const data: unknown = await resp.json();
-      if (!resp.ok)
-        return {
-          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
-        };
-      const calendarItems = readGoogleCalendarEvents(data);
-      return {
-        count: calendarItems.length,
-        events: calendarItems.map((e) => ({
-          event_id: e.id,
-          title: e.summary,
-          start: e.start.dateTime || e.start.date,
-          end: e.end.dateTime || e.end.date,
-          attendees: (e.attendees || []).map((a) => a.email),
-          link: e.htmlLink,
-          conference_url: extractConferenceUrl(e),
-          conference_type: conferenceKindFromUrl(extractConferenceUrl(e)),
-        })),
-      };
-    }
-
-    case "update_calendar_invite": {
-      const { event_id, date, time, duration_minutes, title, notes } = args;
-      if (!event_id)
-        return {
-          error: "event_id נדרש — מצאי אותו קודם עם list_calendar_events",
-        };
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
-      );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const extras = await resolveCalendarConferenceExtras(
-        supabase,
-        tenantId,
-        args,
+    case "update_calendar_invite":
+      return executeUpdateCalendarInvite(
+        args as Parameters<typeof executeUpdateCalendarInvite>[0],
+        toolContext,
       );
 
-      const fieldPatch: Record<string, unknown> = {};
-      if (title) fieldPatch.summary = title;
-      if (notes) fieldPatch.description = notes;
-      if (date || time) {
-        if (!date || !time)
-          return { error: "לעדכון מועד יש לספק גם date וגם time" };
-        const startNaive = `${date}T${time}:00`;
-        const endNaive = new Date(
-          Date.parse(`${startNaive}Z`) +
-            (Number(duration_minutes) > 0 ? Number(duration_minutes) : 60) *
-              60_000,
-        )
-          .toISOString()
-          .slice(0, 19);
-        fieldPatch.start = {
-          dateTime: startNaive,
-          timeZone: "Asia/Jerusalem",
-        };
-        fieldPatch.end = { dateTime: endNaive, timeZone: "Asia/Jerusalem" };
-      }
-
-      const result = await updateExistingCalendarEvent({
-        accessToken: cal.accessToken,
-        eventId: String(event_id),
-        fieldPatch,
-        conferenceType: extras.conferenceType,
-        extraEmails: extras.extraEmails,
-        extraNamed: extras.extraNamed,
-        createZoomMeetingFn:
-          extras.conferenceType === "zoom"
-            ? await makeZoomMeetingCreator(supabase, tenantId, title)
-            : null,
-      });
-      if (result.error) return result;
-      const conferenceUrl = result.conference_url;
-      return {
-        ...result,
-        carmen_attendee: extras.carmen_attendee,
-        carmen_meeting_bot: conferenceUrl
-          ? {
-              tool: "join_meeting_for_client",
-              meeting_url: conferenceUrl,
-              note: "לצירוף כרמן כבוט תמלול בזמן הפגישה — קראי ל-join_meeting_for_client עם conference_url.",
-            }
-          : null,
-      };
-    }
-
-    case "cancel_calendar_invite": {
-      if (args.confirmed !== true) {
-        return {
-          error: "not_confirmed",
-          message:
-            "אישור משתמש מפורש נדרש. שאלי לפני ביטול ושלחי confirmed=true רק אחרי שהוא אישר.",
-        };
-      }
-      const { event_id } = args;
-      if (!event_id)
-        return {
-          error: "event_id נדרש — מצאי אותו קודם עם list_calendar_events",
-        };
-      const cal = await resolveCalendarAccessToken(
-        supabase,
-        tenantId,
-        callerCampaignerId ?? null,
-        userId,
+    case "cancel_calendar_invite":
+      return executeCancelCalendarInvite(
+        args as Parameters<typeof executeCancelCalendarInvite>[0],
+        toolContext,
       );
-      if (cal.error || !cal.accessToken) return { error: cal.error };
-      const resp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(String(event_id))}?sendUpdates=all`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${cal.accessToken}` },
-        },
-      );
-      if (!resp.ok && resp.status !== 204 && resp.status !== 410) {
-        const data: unknown = await resp.json().catch(() => ({}));
-        return {
-          error: `שגיאת Google Calendar: ${providerErrorMessage(data) || resp.status}`,
-        };
-      }
-      return {
-        success: true,
-        message: "האירוע בוטל — המשתתפים קיבלו הודעת ביטול.",
-      };
-    }
 
     // ============ MEETING BOT ============
-    case "join_meeting_for_client": {
-      const {
-        meeting_url,
-        client_id,
-        lead_id,
-        campaigner_ids,
-        agency_id,
-        summary_scope,
-        meeting_topic,
-      } = args;
-      if (!meeting_url?.trim())
-        return { error: "meeting_url נדרש — קישור Zoom / Google Meet / Teams" };
-
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/dispatch-meeting-bot`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            meeting_url: String(meeting_url).trim(),
-            client_id: client_id || null,
-            lead_id: lead_id || null,
-            campaigner_ids: Array.isArray(campaigner_ids) ? campaigner_ids : [],
-            agency_id: agency_id || null,
-            summary_scope: summary_scope || "auto",
-            meeting_topic: meeting_topic || null,
-            tenant_id: tenantId,
-            created_by: userId,
-          }),
-        },
+    case "join_meeting_for_client":
+      return executeJoinMeetingForClient(
+        args as Parameters<typeof executeJoinMeetingForClient>[0],
+        toolContext,
       );
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `שגיאה בשליחת הבוט (${res.status})` };
-      return {
-        success: true,
-        session_id: data.session_id,
-        bot_id: data.bot_id,
-        platform: data.platform_label,
-        message:
-          data.message || "הבוט מצטרף לפגישה. אשרו אותו בחדר ההמתנה אם נדרש.",
-      };
-    }
 
-    case "get_meeting_bot_status": {
-      const { session_id, bot_id } = args;
-      if (!session_id && !bot_id) return { error: "session_id או bot_id נדרש" };
-
-      let q = supabase
-        .from("meeting_bot_sessions")
-        .select(
-          "id, status, status_detail, platform, meeting_topic, meeting_url, client_id, zoom_recording_id, error, joined_at, ended_at, created_at, external_bot_id",
-        )
-        .in("tenant_id", accessibleTenantIds);
-      if (session_id) q = q.eq("id", session_id);
-      else q = q.eq("external_bot_id", bot_id);
-
-      const { data: session, error } = await q.maybeSingle();
-      if (error) return { error: error.message };
-      if (!session) return { error: "לא נמצאה פגישת בוט" };
-
-      const statusLabels: Record<string, string> = {
-        scheduled: "מתוזמנת",
-        joining: "מצטרפת",
-        waiting_room: "בחדר המתנה — אשרו את הבוט",
-        in_meeting: "בפגישה ומקליטה",
-        processing: "מעבדת תמלול וסיכום",
-        done: "הסתיימה — סיכום מוכן",
-        failed: "נכשלה",
-        cancelled: "בוטלה",
-      };
-
-      return {
-        session_id: session.id,
-        bot_id: session.external_bot_id,
-        status: session.status,
-        status_label: statusLabels[session.status] || session.status,
-        platform: session.platform,
-        meeting_topic: session.meeting_topic,
-        client_id: session.client_id,
-        recording_id: session.zoom_recording_id,
-        error: session.error,
-        joined_at: session.joined_at,
-        ended_at: session.ended_at,
-      };
-    }
+    case "get_meeting_bot_status":
+      return executeGetMeetingBotStatus(
+        args as Parameters<typeof executeGetMeetingBotStatus>[0],
+        toolContext,
+      );
 
     // ============ OPENAI BILLING (super_admin) ============
     case "get_openai_billing_status": {
@@ -4422,251 +3371,31 @@ async function executeTool(
     }
 
     // ============ STAFF / CAMPAIGNER WHATSAPP ============
-    case "lookup_staff_whatsapp": {
-      const entityType = args.entity_type || "auto";
-      const onlyWithPhone = args.only_with_phone !== false;
-      const limit = Math.min(Math.max(Number(args.limit) || 40, 1), 100);
-      const search = String(args.search || "").trim();
-      const roster = await loadStaffWhatsappRoster(
-        supabase,
-        accessibleTenantIds,
-        tenantId,
-        entityType,
+    case "lookup_staff_whatsapp":
+      return executeLookupStaffWhatsapp(
+        args as Parameters<typeof executeLookupStaffWhatsapp>[0],
+        toolContext,
       );
-      let rows = roster
-        .map(formatStaffContact)
-        .filter((contact) => contact !== null);
-      if (onlyWithPhone) rows = rows.filter((r) => r.has_phone);
-      if (search) {
-        rows = rows
-          .filter((r) => scoreNameMatchSafe(r.full_name, search) > 0)
-          .sort(
-            (a, b) =>
-              scoreNameMatchSafe(b.full_name, search) -
-              scoreNameMatchSafe(a.full_name, search),
-          );
-      }
-      rows = rows.slice(0, limit);
-      return {
-        count: rows.length,
-        staff: rows,
-        note: "השתמשי ב-send_whatsapp_to_staff עם staff_id או name מהרשימה. הטלפון נמשך מה-DB בלבד.",
-      };
-    }
 
     case "send_whatsapp_to_staff":
-    case "send_message_to_campaigner": {
-      const message = String(args.message || args.message_text || "").trim();
-      if (!message) return { error: "message / message_text נדרש" };
-
-      const entityType =
-        name === "send_message_to_campaigner"
-          ? "campaigner"
-          : args.entity_type || "auto";
-      const staffId = args.staff_id || args.campaigner_id || null;
-      const staffName = args.name || null;
-      if (!staffId && !staffName) {
-        return {
-          error:
-            "נדרש staff_id/campaigner_id או name. אפשר קודם lookup_staff_whatsapp / list_campaigners.",
-        };
-      }
-
-      const roster = await loadStaffWhatsappRoster(
-        supabase,
-        accessibleTenantIds,
-        tenantId,
-        entityType,
+    case "send_message_to_campaigner":
+      return executeSendMessageToCampaigner(
+        args as Parameters<typeof executeSendMessageToCampaigner>[0],
+        toolContext,
       );
-      const picked = selectStaffMatch(roster, {
-        id: staffId,
-        name: staffName,
-        entityType,
-      });
-      if (picked.ambiguous?.length) {
-        return {
-          ambiguous: true,
-          matches: picked.ambiguous.map(formatStaffContact),
-          message: "נמצאו כמה אנשי צוות — צייני staff_id או entity_type מדויק",
-        };
-      }
-      if (!picked.match) {
-        return {
-          error: staffId
-            ? "איש צוות לא נמצא לפי id"
-            : `לא נמצא איש צוות בשם "${staffName}"`,
-        };
-      }
-      const contact = formatStaffContact(picked.match);
-      if (!contact?.phone) {
-        return {
-          error: `לא נמצא מספר טלפון עבור ${contact?.full_name || "איש הצוות"} במערכת`,
-        };
-      }
-
-      const sendResult = await sendStaffWhatsappMessage({
-        supabase,
-        supabaseUrl: SUPABASE_URL,
-        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY,
-        tenantId,
-        phone: contact.phone,
-        message,
-        requesterUserId: actorUserId,
-        agentId: agentId || null,
-        conversationId: conversationId || null,
-        recipient: contact,
-      });
-      if (sendResult.error) return sendResult;
-      return {
-        success: true,
-        entity_type: contact.entity_type,
-        staff_id: contact.id,
-        staff_name: contact.full_name,
-        phone: contact.phone,
-        ...sendResult,
-      };
-    }
 
     // ============ MASKYOO CALLS REPORTING ============
-    case "get_maskyoo_calls_report": {
-      const {
-        client_id: argClientId,
-        client_name,
-        period_start,
-        period_end,
-        category,
-        period_compare,
-      } = args;
-
-      // Resolve period — default to current month
-      const now = new Date();
-      const defaultStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-      const defaultEnd = now.toISOString().split("T")[0];
-      const pStart = period_start || defaultStart;
-      const pEnd = period_end || defaultEnd;
-
-      // Resolve client_id by name if not given
-      const db: AgentDatabaseClient = supabase;
-      let resolvedClientId = argClientId;
-      if (!resolvedClientId && client_name) {
-        const { data: found } = await db
-          .from("clients")
-          .select("id, name")
-          .in("tenant_id", accessibleTenantIds)
-          .ilike("name", `%${client_name}%`)
-          .limit(5);
-        if (!found?.length)
-          return { error: `לא נמצא לקוח בשם "${client_name}"` };
-        if (found.length > 1)
-          return {
-            ambiguous: true,
-            matches: found.map((c) => ({ id: c.id, name: c.name })),
-            message: "נמצאו מספר לקוחות — ציין client_id",
-          };
-        resolvedClientId = found[0].id;
-      }
-
-      // Query seo_call_snapshots for given period
-      const snapshotQuery = db
-        .from("seo_call_snapshots")
-        .select(
-          "client_id, category, period_start, period_end, incoming_count, is_manual, note, synced_at",
-        )
-        .in("tenant_id", accessibleTenantIds)
-        .gte("period_start", pStart)
-        .lte("period_end", pEnd);
-      if (resolvedClientId) snapshotQuery.eq("client_id", resolvedClientId);
-      if (category && category !== "all")
-        snapshotQuery.eq("category", category);
-
-      const { data: snapshots, error: snapErr } = await snapshotQuery.order(
-        "period_start",
-        { ascending: false },
+    case "get_maskyoo_calls_report":
+      return executeGetMaskyooCallsReport(
+        args as Parameters<typeof executeGetMaskyooCallsReport>[0],
+        toolContext,
       );
-      if (snapErr) return { error: snapErr.message };
 
-      // Enrich with client names
-      const clientIds = [...new Set((snapshots || []).map((s) => s.client_id))];
-      const clientNames: Record<string, string> = {};
-      if (clientIds.length) {
-        const { data: clients } = await db
-          .from("clients")
-          .select("id, name")
-          .in("id", clientIds);
-        clients?.forEach((c) => {
-          clientNames[c.id] = c.name;
-        });
-      }
-
-      const rows = (snapshots || []).map((s) => ({
-        client_id: s.client_id,
-        client_name: clientNames[s.client_id] || s.client_id,
-        category: s.category,
-        period: `${s.period_start} → ${s.period_end}`,
-        incoming_calls: s.incoming_count,
-        is_manual: s.is_manual,
-        note: s.note,
-        last_sync: s.synced_at,
-      }));
-
-      // Optional: compare with previous period of same length
-      let prevRows: Array<{
-        client_id: string;
-        category: string;
-        incoming_calls: number;
-        period: string;
-      }> = [];
-      if (period_compare) {
-        const startDate = new Date(pStart);
-        const endDate = new Date(pEnd);
-        const diffMs = endDate.getTime() - startDate.getTime();
-        const prevEnd = new Date(startDate.getTime() - 86400000)
-          .toISOString()
-          .split("T")[0];
-        const prevStart = new Date(startDate.getTime() - diffMs - 86400000)
-          .toISOString()
-          .split("T")[0];
-
-        const prevQuery = db
-          .from("seo_call_snapshots")
-          .select("client_id, category, incoming_count")
-          .in("tenant_id", accessibleTenantIds)
-          .gte("period_start", prevStart)
-          .lte("period_end", prevEnd);
-        if (resolvedClientId) prevQuery.eq("client_id", resolvedClientId);
-        if (category && category !== "all") prevQuery.eq("category", category);
-        const { data: prev } = await prevQuery;
-        prevRows = (prev || []).map((p) => ({
-          client_id: p.client_id,
-          category: p.category,
-          incoming_calls: p.incoming_count,
-          period: `${prevStart} → ${prevEnd}`,
-        }));
-      }
-
-      return {
-        period: `${pStart} → ${pEnd}`,
-        total_snapshots: rows.length,
-        results: rows,
-        previous_period: prevRows.length ? prevRows : undefined,
-      };
-    }
-
-    case "sync_maskyoo_cdr": {
-      const { from_date } = args;
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/sync-maskyoo-cdr`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({ tenant_id: tenantId, from_date }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        return { error: data.error || `סנכרון נכשל [${res.status}]` };
-      return { success: true, ...data };
-    }
+    case "sync_maskyoo_cdr":
+      return executeSyncMaskyooCdr(
+        args as Parameters<typeof executeSyncMaskyooCdr>[0],
+        toolContext,
+      );
 
     default:
       throw new Error(`Unknown tool: ${name}`);
@@ -4710,7 +3439,7 @@ async function handleRunAgent(
     origin?: string | null;
   } = {},
   /** The tenant's OpenRouter brain, the last link of Carmen's own engine when allowed. */
-  internalTail?: () => Promise<BrainEngineTarget[]>,
+  internalTail?: () => Promise<Array<BrainEngineTarget>>,
 ): Promise<Response> {
   try {
     const {
@@ -4747,7 +3476,9 @@ async function handleRunAgent(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
 
-    if (!command_text) throw new Error("Missing command_text");
+    if (!command_text) {
+      throw new Error("Missing command_text");
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -4771,7 +3502,9 @@ async function handleRunAgent(
         };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
-      if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+      if (emit) {
+        emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+      }
     }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
@@ -4783,20 +3516,24 @@ async function handleRunAgent(
         .select("*")
         .eq("id", agent_id)
         .single();
-      if (agentError || !data) throw new Error(`Agent not found: ${agent_id}`);
+      if (agentError || !data) {
+        throw new Error(`Agent not found: ${agent_id}`);
+      }
       agent = data;
     } else {
       // No agent_id provided — look up the active Carmen agent for the tenant.
       // This lets AIOS / other surfaces invoke the unified brain without preloading the id.
-      if (!tenant_id)
+      if (!tenant_id) {
         throw new Error(
           "Missing agent_id or tenant_id (one is required to resolve the agent)",
         );
+      }
       const carmen = await loadCarmenAgent(supabase, tenant_id, {
         activeOnly: true,
       });
-      if (!carmen)
+      if (!carmen) {
         throw new Error(`No active Carmen agent found for tenant ${tenant_id}`);
+      }
       agent = carmen;
       agent_id = carmen.id;
       console.log(
@@ -4835,7 +3572,9 @@ async function handleRunAgent(
 
         if (matchedCampaigners) {
           const match = matchedCampaigners.find((c: any) => {
-            if (!c.phone) return false;
+            if (!c.phone) {
+              return false;
+            }
             const cNorm = c.phone.replace(/[^0-9]/g, "").slice(-9);
             return cNorm === normalizedPhone;
           });
@@ -4853,7 +3592,7 @@ async function handleRunAgent(
     // 2.6. Resolve caller role + managed agencies (drives role-based scoping)
     let callerRole: string | null = null;
     let callerUserId: string | null = null;
-    let callerManagedAgencyIds: string[] = [];
+    let callerManagedAgencyIds: Array<string> = [];
     if (callerCampaignerId) {
       const { data: prof } = await supabase
         .from("profiles")
@@ -5002,8 +3741,9 @@ async function handleRunAgent(
           });
         }
       }
-      if (serverConversationId && emit)
+      if (serverConversationId && emit) {
         emit({ type: "conversation_id", id: serverConversationId });
+      }
     }
 
     // A quick model answers small talk and what the org brief already covers before the full
@@ -5094,8 +3834,9 @@ async function handleRunAgent(
           (before + after).trim().slice(0, 400) || cmdRaw.slice(0, 400);
         // Build a stable snake_case key from a short hash of the content.
         let h = 0;
-        for (let i = 0; i < sentence.length; i++)
+        for (let i = 0; i < sentence.length; i++) {
           h = ((h << 5) - h + sentence.charCodeAt(i)) | 0;
+        }
         const keyBase = `instr_${Math.abs(h).toString(36)}`;
         await supabase.from("ai_memory").upsert(
           {
@@ -5189,7 +3930,7 @@ async function handleRunAgent(
               .order("updated_at", { ascending: false })
               .limit(30),
         tokenOptimize
-          ? Promise.resolve({ data: [] as any[] })
+          ? Promise.resolve({ data: [] as Array<any> })
           : supabase
               .from("campaigners")
               .select("id, full_name, phone, email, role")
@@ -5292,7 +4033,7 @@ async function handleRunAgent(
       full_name: string;
       phone?: string | null;
       email?: string | null;
-      role?: string[] | null;
+      role?: Array<string> | null;
     }>;
     const teamRosterLine =
       teamRoster.length > 0
@@ -5393,7 +4134,9 @@ async function handleRunAgent(
       const leadDataObj: Record<string, string> = {};
       if (lead_data) {
         Object.entries(lead_data).forEach(([k, v]) => {
-          if (v) leadDataObj[k] = String(v);
+          if (v) {
+            leadDataObj[k] = String(v);
+          }
         });
       }
 
@@ -5557,7 +4300,7 @@ async function handleRunAgent(
 5. אם אין התאמה ברורה — צרי משימה לקמפיינר עם create_task שמפרטת את שם הלקוח ורשימת החשבונות האפשריים.
 6. דווחי סיכום: כמה חוברו אוטומטית, כמה דורשים חיבור ידני.`,
         };
-        const taskSkillPrompts = (task_skills as string[])
+        const taskSkillPrompts = (task_skills as Array<string>)
           .map((s: string) => TASK_SKILLS_PROMPTS[s])
           .filter(Boolean);
         if (taskSkillPrompts.length > 0) {
@@ -5565,7 +4308,7 @@ async function handleRunAgent(
         }
       }
       // Inject active modes
-      const activeModes: string[] = (agent as any).active_modes || [];
+      const activeModes: Array<string> = (agent as any).active_modes || [];
       if (activeModes.length > 0) {
         const MODES_PROMPTS: Record<string, string> = {
           sales:
@@ -5589,7 +4332,7 @@ async function handleRunAgent(
         }
       }
       // Inject active skills
-      const activeSkills: string[] = (agent as any).active_skills || [];
+      const activeSkills: Array<string> = (agent as any).active_skills || [];
       if (activeSkills.length > 0) {
         const SKILLS_PROMPTS: Record<string, string> = {
           "lead-qualifier":
@@ -5698,7 +4441,7 @@ async function handleRunAgent(
             .split(/\s+/)
             .filter((t: string) => t.length > 1)
             .slice(0, 8);
-          let relevantSkills: any[] = [];
+          let relevantSkills: Array<any> = [];
           if (tokens.length > 0) {
             const tsQuery = tokens.join(" | ");
             const { data: ftsHits } = await supabase
@@ -5742,8 +4485,9 @@ async function handleRunAgent(
           casual: "כתוב בסגנון קזואלי ונגיש.",
           empathetic: "כתוב בסגנון אמפתי ומבין.",
         };
-        if (styleMap[writingStyle])
+        if (styleMap[writingStyle]) {
           systemPrompt += `\n${styleMap[writingStyle]}`;
+        }
       }
       // Inject response length
       const responseLength = (agent as any).response_length;
@@ -5752,8 +4496,9 @@ async function handleRunAgent(
           short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
           detailed: "תן תשובות מפורטות ומקיפות.",
         };
-        if (lengthMap[responseLength])
+        if (lengthMap[responseLength]) {
           systemPrompt += `\n${lengthMap[responseLength]}`;
+        }
       }
       // Always inject current date and tenant context
       const now = new Date();
@@ -5829,8 +4574,9 @@ async function handleRunAgent(
         const leadParts = Object.entries(lead_data)
           .filter(([, v]) => v)
           .map(([k, v]) => `${k}: ${v}`);
-        if (leadParts.length)
+        if (leadParts.length) {
           systemPrompt += `\n\nפרטי ליד:\n${leadParts.join("\n")}`;
+        }
       }
 
       // WhatsApp context
@@ -5896,8 +4642,8 @@ async function handleRunAgent(
       try {
         const pinnedTenantId = (agent as any)?.tenant_id || tenant_id || null;
         const disabledForPin = ((agent as any)?.disabled_skins ||
-          []) as string[];
-        const pinnableSlugs = (task_skills as string[]).filter(
+          []) as Array<string>;
+        const pinnableSlugs = (task_skills as Array<string>).filter(
           (s) => !disabledForPin.includes(s),
         );
         const pinnedBlock = await buildSkillsBlockBySlug(
@@ -5907,7 +4653,7 @@ async function handleRunAgent(
         if (pinnedBlock) {
           systemPrompt += pinnedBlock;
           console.log(
-            `[AGENT] Pinned skins by slug: ${(task_skills as string[]).join(", ")}`,
+            `[AGENT] Pinned skins by slug: ${(task_skills as Array<string>).join(", ")}`,
           );
         }
       } catch (e) {
@@ -5925,7 +4671,9 @@ async function handleRunAgent(
           pinned: task_skills,
         });
       }
-      if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
+      if (workshopNote) {
+        systemPrompt += `\n\n${workshopNote}`;
+      }
     }
     // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
     // The profile name wins over user_name, which some screens set to a department label.
@@ -6048,7 +4796,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 4. Filter tools
-    const allowedTools = (agent.allowed_tools || []) as string[];
+    const allowedTools = (agent.allowed_tools || []) as Array<string>;
     // Carmen can always answer about herself (her personas and their portraits), whatever
     // the agent's allowlist; the settings denylist below still applies.
     let filteredTools =
@@ -6063,7 +4811,8 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Access control (denylist): subtract tools turned OFF in settings. Default
     // (empty) = no change, so Carmen keeps access to everything by default.
-    const disabledTools = ((agent as any).disabled_tools || []) as string[];
+    const disabledTools = ((agent as any).disabled_tools ||
+      []) as Array<string>;
     if (disabledTools.length > 0) {
       filteredTools = filteredTools.filter(
         (t) => !disabledTools.includes(t.name),
@@ -6234,10 +4983,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       extra: Array<{ name: string; description?: string; parameters?: any }>,
     ) => {
       for (const t of extra) {
-        if (!t?.name) continue;
+        if (!t?.name) {
+          continue;
+        }
         promotedToolNames.add(t.name);
-        if (!filteredTools.some((ft) => ft.name === t.name))
+        if (!filteredTools.some((ft) => ft.name === t.name)) {
           filteredTools.push(t as any);
+        }
       }
       rebuildToolsForApi();
     };
@@ -6270,7 +5022,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // the board. isBlockedInWorkshop also refuses any mcp_ call made there.
       if (!pinSkillsOnly && !inWorkshop) {
         const disabledIntegrations = ((agent as any).disabled_integrations ||
-          []) as string[];
+          []) as Array<string>;
         const mcp = await loadMcpTools(
           supabase,
           resolvedTenantId,
@@ -6306,51 +5058,64 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 String(t.name || "")
                   .replace(/^mcp_/, "")
                   .split("__")[0] || "";
-              if (!shouldLoadMcpConnection(connSlug, cmd, false)) continue;
+              if (!shouldLoadMcpConnection(connSlug, cmd, false)) {
+                continue;
+              }
             }
             // Grok Bot is calling Carmen — do not expose Grok MCP back (ping-pong loop).
-            if (surface === "grok_bot" && t.name.startsWith("mcp_Grok__"))
+            if (surface === "grok_bot" && t.name.startsWith("mcp_Grok__")) {
               continue;
+            }
             if (
               escalationAgent === "cursor" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Manus__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "claude" &&
               (t.name.startsWith("mcp_Manus__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "manus" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "grok" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Manus__"))
-            )
+            ) {
               continue;
-            if (escalationAgent === "none" && isEscalationMcp(t.name)) continue;
+            }
+            if (escalationAgent === "none" && isEscalationMcp(t.name)) {
+              continue;
+            }
             // 4b-ii. Hard auth: only allowlisted tiers may see/call coding-agent MCP tools.
             if (
               isDevEscalationTool(t.name) &&
               !isDevEscalationToolAllowed(t.name, devEscalationTier)
-            )
+            ) {
               continue;
+            }
             exposedMcpTools.push(t as any);
-            if (!tokenOptimize || isEscalationMcp(t.name))
+            if (!tokenOptimize || isEscalationMcp(t.name)) {
               promotedToolNames.add(t.name);
+            }
             const exec = mcp.executors.get(t.name);
-            if (exec) mcpExecutors.set(t.name, exec);
+            if (exec) {
+              mcpExecutors.set(t.name, exec);
+            }
           }
           rebuildToolsForApi();
           console.log(
@@ -6380,8 +5145,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
       // Only the workshop has workshop_check_connections; other chats get no such rule.
       const connections = connectionsStanding(inWorkshop);
-      if (connections)
+      if (connections) {
         systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${connections}`;
+      }
       systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
         {
           tier: devEscalationTier,
@@ -6403,10 +5169,11 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const skillTenantId = (agent as any).tenant_id || tenant_id || null;
     // Access control: skins turned OFF in settings are excluded even if their
     // trigger matches. Default (empty) = no change.
-    const disabledSkins = ((agent as any).disabled_skins || []) as string[];
+    const disabledSkins = ((agent as any).disabled_skins ||
+      []) as Array<string>;
     const _matchedSkills = pinSkillsOnly
       ? (
-          await resolveSkillsBySlug(task_skills as string[], skillTenantId)
+          await resolveSkillsBySlug(task_skills as Array<string>, skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id))
       : (await resolveActiveSkills(String(command_text || ""), skillTenantId))
           .filter((s) => !disabledSkins.includes(s.id))
@@ -6448,7 +5215,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         );
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
-          for (const t of missing) promotedToolNames.add(t.name);
+          for (const t of missing) {
+            promotedToolNames.add(t.name);
+          }
           rebuildToolsForApi();
           console.log(
             `[AGENT] Skill tools added: ${missing.map((t) => t.name).join(", ")}`,
@@ -6476,7 +5245,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     ) {
       try {
         const pinned = (
-          await resolveSkillsBySlug(task_skills as string[], skillTenantId)
+          await resolveSkillsBySlug(task_skills as Array<string>, skillTenantId)
         ).filter((s) => !disabledSkins.includes(s.id));
         const missing = missingEnabledTools(
           filteredTools,
@@ -6490,7 +5259,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         );
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
-          for (const t of missing) promotedToolNames.add(t.name);
+          for (const t of missing) {
+            promotedToolNames.add(t.name);
+          }
           rebuildToolsForApi();
           console.log(
             `[AGENT] Pinned skin tools added: ${missing.map((t) => t.name).join(", ")}`,
@@ -6543,17 +5314,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         turnStartedAt,
       });
       devTaskOfferAnswered = Boolean(offeredTask);
-      if (offeredTask && devTaskYes)
+      if (offeredTask && devTaskYes) {
         systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
-      else if (
+      } else if (
         offeredTask &&
         (await declineOfferedDevTask(supabase, {
           tenantId: resolvedTenantId,
           taskId: offeredTask.id,
           actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
         }))
-      )
+      ) {
         systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
+      }
     }
 
     // ─── Chat approval flow (AIO-230): ./approvals/resolve.ts ───
@@ -6629,7 +5401,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       try {
         await supabase.from("agent_action_log").insert({
           tenant_id: resolvedTenantId,
@@ -6732,7 +5506,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       return new Response(
         JSON.stringify({
           success: !!execResult?.success,
@@ -6805,7 +5581,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       return new Response(
         JSON.stringify({
           success: !!digest,
@@ -6830,7 +5608,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // Build messages with conversation history
-    const messages: any[] = [{ role: "system", content: systemPrompt }];
+    const messages: Array<any> = [{ role: "system", content: systemPrompt }];
 
     // Add conversation history from Carmen WhatsApp sessions
     const history = serverConversationId
@@ -6848,7 +5626,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     messages.push({ role: "user", content: command_text });
 
     let finalOutput = "";
-    const toolLog: any[] = [];
+    const toolLog: Array<any> = [];
     const startTime = Date.now();
 
     // If the agent's engine is Manus — delegate the entire conversation to Manus AI
@@ -6888,7 +5666,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusData = await manusRes.json();
       const taskUrl = manusData.task_url || manusData.share_url || "";
       finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
-      if (emit) emit({ type: "token", content: finalOutput });
+      if (emit) {
+        emit({ type: "token", content: finalOutput });
+      }
       return finalOutput;
     }
 
@@ -6907,7 +5687,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     // A picked model brain runs this same loop on its own endpoint and key;
     // "נתב חכם" may continue on Carmen's own engine when its brains fail.
     const runsInternal = !brainEngine || brainEngine.fallbackInternal;
-    const llmChain: LLMTarget[] = brainEngine
+    const llmChain: Array<LLMTarget> = brainEngine
       ? [
           ...brainEngine.targets,
           ...(brainEngine.fallbackInternal
@@ -6921,9 +5701,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       llmChain,
       runsInternal ? internalTail : undefined,
     );
-    if (llmChain.length === 0) await extendChain();
-    if (llmChain.length === 0)
+    if (llmChain.length === 0) {
+      await extendChain();
+    }
+    if (llmChain.length === 0) {
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
+    }
     let activeIdx = 0;
     let llm = llmChain[activeIdx];
     console.log(
@@ -6932,17 +5715,23 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
 
     // Models often repeat their mid-loop text ("creating the image…") in the
     // final answer; the client joins tokens, so send each text once, apart.
-    const emittedTexts: string[] = [];
+    const emittedTexts: Array<string> = [];
     const emitText = (text: string) => {
       const key = text.trim();
-      if (!emit || !key || emittedTexts.includes(key)) return;
+      if (!emit || !key || emittedTexts.includes(key)) {
+        return;
+      }
       // A final answer that opens with texts already sent adds only the rest.
       let fresh = key;
       for (const sent of emittedTexts) {
-        if (fresh.startsWith(sent)) fresh = fresh.slice(sent.length).trim();
+        if (fresh.startsWith(sent)) {
+          fresh = fresh.slice(sent.length).trim();
+        }
       }
       emittedTexts.push(key);
-      if (!fresh) return;
+      if (!fresh) {
+        return;
+      }
       emit({
         type: "token",
         content: emittedTexts.length > 1 ? `\n\n${fresh}` : fresh,
@@ -6980,9 +5769,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           messages: messagesForProvider(messages, llm.provider),
         };
         const temp = safeTemp ?? llm.temperature;
-        if (temp !== undefined) payload.temperature = temp;
-        if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
-        if (cappedTools.length > 0) payload.tools = cappedTools;
+        if (temp !== undefined) {
+          payload.temperature = temp;
+        }
+        if (llm.maxTokens) {
+          payload.max_tokens = llm.maxTokens;
+        }
+        if (cappedTools.length > 0) {
+          payload.tools = cappedTools;
+        }
         // A chat that shows the reply live gets the text as the model writes it (AIO-509).
         const streamThisRound = !!emit && canStreamCompletion(llm);
         if (streamThisRound) {
@@ -7044,7 +5839,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 .then((d: any) => !d?.choices?.[0]?.message)
                 .catch(() => true)
             : false;
-        if (res.ok && !malformed) break;
+        if (res.ok && !malformed) {
+          break;
+        }
 
         const err = malformed
           ? "המוח החזיר תשובה לא תקינה (בלי הודעה)."
@@ -7073,11 +5870,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
-        if (llm.connectionId)
+        if (llm.connectionId) {
           throw new Error(
             `${llm.label}: ${res.status} ${connectedBrainHint(res.status, err)}`,
           );
-        if (res.status === 429) throw new Error("מגבלת קצב. נסה שוב.");
+        }
+        if (res.status === 429) {
+          throw new Error("מגבלת קצב. נסה שוב.");
+        }
         throw new Error(`AI error: ${res.status} ${err}`);
       }
 
@@ -7097,7 +5897,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             }))
           : await res.json();
       // Text already streamed counts as sent, so emitText does not send it again.
-      if (streamedText.trim()) emittedTexts.push(streamedText.trim());
+      if (streamedText.trim()) {
+        emittedTexts.push(streamedText.trim());
+      }
       if (data?.usage) {
         usageTokensIn +=
           data.usage.prompt_tokens ?? data.usage.input_tokens ?? 0;
@@ -7107,7 +5909,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const choice = data.choices?.[0];
       const msg = choice?.message;
 
-      if (!msg) break;
+      if (!msg) {
+        break;
+      }
 
       messages.push(msg);
 
@@ -7130,7 +5934,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
         );
         // Stream the final assistant text in one chunk so AIOS frontends can render progressively.
-        if (emit && finalOutput) emitText(finalOutput);
+        if (emit && finalOutput) {
+          emitText(finalOutput);
+        }
         break;
       }
 
@@ -7140,15 +5946,16 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       }
 
       // Execute tool calls — promote any called tool to full schema for the next round.
-      const toolResults: any[] = [];
+      const toolResults: Array<any> = [];
       let pulseDigestShortcut: string | null = null;
       // Every workshop say_to_user of this round, once each, so a voice menu cannot hide a budget request.
-      const sayToUser: string[] = [];
+      const sayToUser: Array<string> = [];
       // Only the last budget request of a round: an earlier one's code is no longer valid.
       let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
-        for (const tc of msg.tool_calls)
+        for (const tc of msg.tool_calls) {
           promotedToolNames.add(tc.function.name);
+        }
         rebuildToolsForApi();
       }
       for (const tc of msg.tool_calls) {
@@ -7165,7 +5972,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
 
         console.log(`[AGENT] Tool call: ${toolName}`);
-        if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
+        if (emit) {
+          emit({ type: "tool_call", tool: toolName, args: toolArgs });
+        }
 
         let result: any;
         // A workshop tap is never an approval, and nothing leaves the board from the workshop;
@@ -7302,20 +6111,24 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             result && typeof result === "object"
               ? (result as any).ui_action
               : undefined;
-          if (uiAction && typeof uiAction === "object")
+          if (uiAction && typeof uiAction === "object") {
             emit({ type: "ui_action", tool: toolName, action: uiAction });
+          }
           // Workshop tools tell the board what appeared and which skin is doing the work.
           const workshopEvent =
             result && typeof result === "object"
               ? (result as any).workshop
               : undefined;
-          if (workshopEvent && typeof workshopEvent === "object")
+          if (workshopEvent && typeof workshopEvent === "object") {
             emit({ type: "workshop", tool: toolName, ...workshopEvent });
+          }
           const skinSlug =
             workshopRoleForRun && isWorkshopTool(toolName)
               ? ROLE_PERSONA[workshopRoleForRun]
               : skinForTool(toolName);
-          if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
+          if (skinSlug) {
+            emit({ type: "skin", slug: skinSlug, tool: toolName });
+          }
         }
 
         if (
@@ -7343,14 +6156,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           result.say_to_user.trim()
         ) {
           const say = result.say_to_user.trim();
-          if (result.needs_budget === true) budgetSay = say;
-          else if (!sayToUser.includes(say)) sayToUser.push(say);
+          if (result.needs_budget === true) {
+            budgetSay = say;
+          } else if (!sayToUser.includes(say)) {
+            sayToUser.push(say);
+          }
         }
       }
 
       messages.push(...toolResults);
-      if (budgetSay) sayToUser.push(budgetSay);
-      if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
+      if (budgetSay) {
+        sayToUser.push(budgetSay);
+      }
+      if (sayToUser.length) {
+        pulseDigestShortcut = sayToUser.join("\n\n");
+      }
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;
         // emitText puts it apart from any text the model already sent this turn.
@@ -7364,7 +6184,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       finalOutput = [String(finalOutput || "").trim(), stopped]
         .filter(Boolean)
         .join("\n\n");
-      if (emit) emit({ type: "token", content: `\n\n${stopped}` });
+      if (emit) {
+        emit({ type: "token", content: `\n\n${stopped}` });
+      }
     }
 
     if (!String(finalOutput || "").trim()) {
@@ -7377,7 +6199,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       });
       if (fallback) {
         finalOutput = fallback;
-        if (emit) emit({ type: "token", content: fallback });
+        if (emit) {
+          emit({ type: "token", content: fallback });
+        }
       }
     }
 
@@ -7689,10 +6513,12 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       .select("*")
       .eq("id", req.approval_id)
       .maybeSingle();
-    if (!row || row.action_type !== "agent_direct_tool")
+    if (!row || row.action_type !== "agent_direct_tool") {
       return json({ error: "approval_not_found" }, 404);
-    if (row.status === "executed" || row.status === "rejected")
+    }
+    if (row.status === "executed" || row.status === "rejected") {
       return json({ error: `approval_${row.status}` }, 409);
+    }
     const scope = await resolveDirectCaller(
       supabase,
       row.tenant_id,
@@ -7737,17 +6563,20 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
 
   const tenantId = String(bodyJson.tenant_id || "");
   const userId = asUuidOrNull(bodyJson.user_id);
-  if (!tenantId || !userId)
+  if (!tenantId || !userId) {
     return json({ error: "tenant_id and user_id are required" }, 400);
+  }
   const agent = await loadCarmenAgent(supabase, tenantId, {
     activeOnly: true,
   });
-  if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
+  if (!agent) {
+    return json({ error: "No active Carmen agent for tenant" }, 404);
+  }
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
-  const disabledTools: string[] = agent.disabled_tools || [];
+  const disabledTools: Array<string> = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
   const pool = keepCarmenPulseTools(
-    directToolPool(ALL_TOOLS as any[], {
+    directToolPool(ALL_TOOLS as Array<any>, {
       allowedTools: agent.allowed_tools || [],
       disabledTools,
       isManager: !!scope.role && MANAGER_ROLES.includes(scope.role),
@@ -7764,13 +6593,15 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       })),
     });
   }
-  if (req.action !== "call")
+  if (req.action !== "call") {
     return json({ error: "unknown direct_tool action" }, 400);
+  }
 
   const name = String(req.name || "");
   const args = req.args && typeof req.args === "object" ? req.args : {};
-  if (!pool.some((t: any) => t.name === name))
+  if (!pool.some((t: any) => t.name === name)) {
     return json({ error: `tool_not_available: ${name}` }, 403);
+  }
 
   if (classifyDirectTool(name) === "approval") {
     const { data: aq, error: aqErr } = await supabase
@@ -7790,7 +6621,9 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       })
       .select("id")
       .single();
-    if (aqErr) return json({ error: aqErr.message }, 500);
+    if (aqErr) {
+      return json({ error: aqErr.message }, 500);
+    }
     return json({
       result: {
         pending_approval: true,
@@ -7828,13 +6661,14 @@ async function resolveDirectCaller(
   tenantId: string,
   userId: string | null,
 ) {
-  if (!userId)
+  if (!userId) {
     return {
       userId: null,
       role: null,
       campaignerId: null,
-      managedAgencyIds: [] as string[],
+      managedAgencyIds: [] as Array<string>,
     };
+  }
   const [{ data: roles }, { data: prof }] = await Promise.all([
     // Roles in this tenant plus global (tenant_id null) roles only — never another tenant's.
     supabase
@@ -7861,7 +6695,7 @@ async function resolveDirectCaller(
     "viewer",
   ];
   const role = order.find((r) => roleList.includes(r)) || null;
-  let managedAgencyIds: string[] = [];
+  let managedAgencyIds: Array<string> = [];
   if (role === "team_manager" || role === "agency_manager") {
     const { data: mng } = await supabase
       .from("user_managed_agencies")
@@ -7882,11 +6716,12 @@ async function resolveDirectCaller(
  * client data, or not set up): Carmen says why, instead of a bare error.
  */
 function refusedBrainResponse(message: string, wantStream: boolean): Response {
-  if (!wantStream)
+  if (!wantStream) {
     return new Response(
       JSON.stringify({ success: false, output: message, error: message }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+  }
   const sse = [
     { type: "token", content: message },
     { type: "done", success: false, output: message, error: message },
@@ -7899,8 +6734,9 @@ function refusedBrainResponse(message: string, wantStream: boolean): Response {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const auth = await requireAuth(req);
   if (!auth) {
@@ -7970,9 +6806,12 @@ Deno.serve(async (req) => {
         agentId: bodyJson.agent_id,
       })),
   );
-  if (engine.kind === "denied") return brainDenied("brain");
-  if (engine.kind === "refused")
+  if (engine.kind === "denied") {
+    return brainDenied("brain");
+  }
+  if (engine.kind === "refused") {
     return refusedBrainResponse(engine.message, wantStream);
+  }
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
   // A picked model brain was checked against its own grant above.
   if (engine.kind === "internal") {
@@ -7980,7 +6819,9 @@ Deno.serve(async (req) => {
       tenantId: bodyJson.tenant_id,
       agentId: bodyJson.agent_id,
     });
-    if (denied) return denied;
+    if (denied) {
+      return denied;
+    }
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
   // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
@@ -8072,7 +6913,9 @@ Deno.serve(async (req) => {
           ).catch((e) => console.error("[carmen] reply save failed:", e));
         }
       })();
-      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(turn);
+      if (typeof EdgeRuntime !== "undefined") {
+        EdgeRuntime.waitUntil(turn);
+      }
       await turn;
     },
   });

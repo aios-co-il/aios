@@ -13,7 +13,9 @@ export const SkinFlash: React.FC<{ frames: number; accent: string }> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const { flash } = skinEnter(frame, frames, fps);
-  if (flash <= 0.005) return null;
+  if (flash <= 0.005) {
+    return null;
+  }
   return (
     <AbsoluteFill
       style={{

@@ -8,12 +8,18 @@ const corsHeaders = {
 
 // Check if phone is international (non-Israeli)
 function isInternationalPhone(phone: string): boolean {
-  if (!phone) return false;
+  if (!phone) {
+    return false;
+  }
   const trimmed = phone.trim();
   // Starts with + and NOT +972
-  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) return true;
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) {
+    return true;
+  }
   // Starts with 00 and NOT 00972
-  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) return true;
+  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) {
+    return true;
+  }
   // Check for common international country codes
   const digits = trimmed.replace(/\D/g, "");
   if (
@@ -38,18 +44,23 @@ function isInternationalPhone(phone: string): boolean {
       "91",
     ];
     for (const prefix of intlPrefixes) {
-      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8)
+      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8) {
         return true;
+      }
     }
   }
   return false;
 }
 
 function normalizePhoneIsraelToE164(phoneRaw: string): string | null {
-  if (!phoneRaw) return null;
+  if (!phoneRaw) {
+    return null;
+  }
 
   const trimmed = phoneRaw.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
 
   // Check if international - keep original country code
   if (isInternationalPhone(trimmed)) {
@@ -82,7 +93,9 @@ function normalizePhoneIsraelToE164(phoneRaw: string): string | null {
 
   // Israel heuristics for local numbers
   let digits = trimmed.replace(/\D/g, "");
-  if (!digits) return null;
+  if (!digits) {
+    return null;
+  }
 
   // Remove leading country code 972 if present
   if (digits.startsWith("972")) {
@@ -185,8 +198,12 @@ Deno.serve(async (req) => {
       const normalized = normalizePhoneIsraelToE164(original);
       const changed = normalized !== null && normalized !== original;
 
-      if (changed) changedCount++;
-      if (!normalized) invalidCount++;
+      if (changed) {
+        changedCount++;
+      }
+      if (!normalized) {
+        invalidCount++;
+      }
 
       updates.push({
         id: lead.id,
@@ -200,7 +217,9 @@ Deno.serve(async (req) => {
 
     if (!dryRun) {
       for (const u of updates) {
-        if (!u.changed) continue;
+        if (!u.changed) {
+          continue;
+        }
         const { error: updateError } = await supabase
           .from("leads")
           .update({ phone: u.phone })

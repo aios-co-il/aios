@@ -91,17 +91,24 @@ async function gatewayRest(
 
 function normalizePhone(input: string, defaultCc = "972"): string {
   let d = (input || "").replace(/[^0-9]/g, "");
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith(defaultCc)) return d;
-  if (d.startsWith("0")) return defaultCc + d.slice(1);
+  if (d.startsWith("00")) {
+    d = d.slice(2);
+  }
+  if (d.startsWith(defaultCc)) {
+    return d;
+  }
+  if (d.startsWith("0")) {
+    return defaultCc + d.slice(1);
+  }
   return defaultCc + d;
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -176,7 +183,7 @@ Deno.serve(async (req) => {
         displayName?: string;
         countryCode?: string;
       };
-      if (!displayName)
+      if (!displayName) {
         return new Response(
           JSON.stringify({ error: "displayName is required" }),
           {
@@ -184,11 +191,13 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
-      if (!tenantId)
+      }
+      if (!tenantId) {
         return new Response(JSON.stringify({ error: "tenantId is required" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
 
       // Generate a unique webhook secret for this instance
       const webhookSecret = crypto.randomUUID().replace(/-/g, "");
@@ -220,8 +229,9 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      if (insertErr)
+      if (insertErr) {
         throw new Error(`Failed to save integration: ${insertErr.message}`);
+      }
 
       return new Response(
         JSON.stringify({
@@ -237,7 +247,7 @@ Deno.serve(async (req) => {
 
     // ── get_qr_link ───────────────────────────────────────────────────────────
     if (action === "get_qr_link") {
-      if (!resolvedInstanceId)
+      if (!resolvedInstanceId) {
         return new Response(
           JSON.stringify({ error: "instanceId or integrationId is required" }),
           {
@@ -245,6 +255,7 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
 
       // Create QR share token via Admin API and trigger connect
       const tokenRow = await gatewayAdmin(
@@ -268,7 +279,7 @@ Deno.serve(async (req) => {
 
     // ── get_status ────────────────────────────────────────────────────────────
     if (action === "get_status") {
-      if (!resolvedInstanceId)
+      if (!resolvedInstanceId) {
         return new Response(
           JSON.stringify({ error: "instanceId or integrationId is required" }),
           {
@@ -276,6 +287,7 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
 
       const statusData = await gatewayAdmin(
         `/api/admin/instances/${resolvedInstanceId}/status`,
@@ -309,10 +321,14 @@ Deno.serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("integration_type", "manus_wa")
         .eq("is_active", true);
-      if (integrationId) query = query.eq("id", integrationId);
+      if (integrationId) {
+        query = query.eq("id", integrationId);
+      }
 
       const { data: integrations, error: integErr } = await query;
-      if (integErr) throw integErr;
+      if (integErr) {
+        throw integErr;
+      }
       if (!integrations?.length) {
         return new Response(
           JSON.stringify({
@@ -354,7 +370,7 @@ Deno.serve(async (req) => {
         message?: string;
         countryCode?: string;
       };
-      if (!resolvedInstanceId || !resolvedApiKey)
+      if (!resolvedInstanceId || !resolvedApiKey) {
         return new Response(
           JSON.stringify({ error: "integrationId (with api_key) is required" }),
           {
@@ -362,7 +378,8 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
-      if (!phone || !message)
+      }
+      if (!phone || !message) {
         return new Response(
           JSON.stringify({ error: "phone and message are required" }),
           {
@@ -370,6 +387,7 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
+      }
 
       const cc =
         ((integration?.settings as Record<string, unknown>)

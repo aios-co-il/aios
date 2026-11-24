@@ -25,7 +25,7 @@ export function groupFacebookRowsByGoal(
   records: Array<{ data?: RecordData | null }>,
   level: AdsEntityLevel,
   options: { leadsOnly: boolean },
-): Record<ReportCampaignGoal, FacebookCampaignRow[]> & {
+): Record<ReportCampaignGoal, Array<FacebookCampaignRow>> & {
   goalOf: FacebookRecordGoalOf;
 } {
   const goalOf = facebookRecordGoalOf(records, level, options);

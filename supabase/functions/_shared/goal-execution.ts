@@ -16,7 +16,7 @@ export const EXECUTION_GOAL_STATUSES = [
 
 export type ExecutionGoalStatus = (typeof EXECUTION_GOAL_STATUSES)[number];
 
-export const OPEN_GOAL_STATUSES: ExecutionGoalStatus[] = [
+export const OPEN_GOAL_STATUSES: Array<ExecutionGoalStatus> = [
   "active",
   "in_progress",
   "blocked",
@@ -108,7 +108,9 @@ export async function findDuplicateGoals(
     .in("status", OPEN_GOAL_STATUSES)
     .order("updated_at", { ascending: false })
     .limit(40);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || [])
     .map((row: ExecutionGoalRow) => ({
       goal: row,
@@ -153,7 +155,9 @@ function buildExecutionGoalRow(
     execution_mode: true,
     progress_percent: 0,
   };
-  if (!autonomous) return row;
+  if (!autonomous) {
+    return row;
+  }
   return {
     ...row,
     autonomous_mode: true,
@@ -174,7 +178,7 @@ export async function createUnifiedGoal(
   args: UnifiedGoalCreateArgs,
 ): Promise<{
   goal: ExecutionGoalRow;
-  criteria?: unknown[];
+  criteria?: Array<unknown>;
   autonomous_deferred?: boolean;
   notice?: string;
 }> {
@@ -189,7 +193,7 @@ export async function createUnifiedGoal(
       .single();
 
     if (!error) {
-      let criteriaRows: unknown[] = [];
+      let criteriaRows: Array<unknown> = [];
       try {
         const { seedSuccessCriteria } =
           await import("./autonomous-goal-engine.ts");
@@ -201,7 +205,9 @@ export async function createUnifiedGoal(
           successCriteria: args.successCriteria,
         });
       } catch (criteriaError) {
-        if (!isAutonomousSchemaError(criteriaError)) throw criteriaError;
+        if (!isAutonomousSchemaError(criteriaError)) {
+          throw criteriaError;
+        }
         await supabase.from("goals").delete().eq("id", data.id);
         return await createUnifiedGoal(supabase, {
           ...args,
@@ -222,7 +228,9 @@ export async function createUnifiedGoal(
       return { goal: data as ExecutionGoalRow, criteria: criteriaRows };
     }
 
-    if (!isAutonomousSchemaError(error)) throw error;
+    if (!isAutonomousSchemaError(error)) {
+      throw error;
+    }
   }
 
   const { data, error } = await supabase
@@ -230,7 +238,9 @@ export async function createUnifiedGoal(
     .insert(buildExecutionGoalRow(args, false, now))
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   await logGoalEvent(supabase, {
     goalId: data.id,
@@ -288,7 +298,9 @@ export async function addGoalMilestone(
     })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   await logGoalEvent(supabase, {
     goalId: args.goalId,
     tenantId: args.tenantId,
@@ -320,7 +332,9 @@ export async function addGoalBlocker(
     })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   await supabase
     .from("goals")
     .update({ status: "blocked", updated_at: new Date().toISOString() })
@@ -352,7 +366,9 @@ export async function linkTaskToGoal(
     .eq("tenant_id", args.tenantId)
     .select("id, title, goal_id")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   await logGoalEvent(supabase, {
     goalId: args.goalId,
     tenantId: args.tenantId,
@@ -429,17 +445,23 @@ export async function getGoalExecutionReport(
     ? Math.round((doneMilestones / totalMilestones) * 100)
     : Number(goal?.progress_percent || 0);
 
-  const nextActions: string[] = [];
-  if (goal?.next_action) nextActions.push(goal.next_action);
+  const nextActions: Array<string> = [];
+  if (goal?.next_action) {
+    nextActions.push(goal.next_action);
+  }
   const pendingMilestone = (milestones || []).find(
     (m: { status: string }) =>
       m.status === "pending" || m.status === "in_progress",
   );
-  if (pendingMilestone) nextActions.push(`אבן דרך: ${pendingMilestone.title}`);
+  if (pendingMilestone) {
+    nextActions.push(`אבן דרך: ${pendingMilestone.title}`);
+  }
   const openTask = (tasks || []).find(
     (t: { status: string }) => t.status !== "done",
   );
-  if (openTask) nextActions.push(`משימה: ${openTask.title}`);
+  if (openTask) {
+    nextActions.push(`משימה: ${openTask.title}`);
+  }
 
   const report: Record<string, unknown> = {
     goal,

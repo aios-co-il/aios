@@ -19,7 +19,7 @@ export interface Department {
   screen: DepartmentScreen | null;
 }
 
-export const DEPARTMENTS: readonly Department[] = [
+export const DEPARTMENTS: ReadonlyArray<Department> = [
   { id: "creative", label: "קריאייטיב", screen: "creative" },
   { id: "copy", label: "קופי", screen: "copy" },
   { id: "seo", label: "SEO / GEO", screen: "seo" },
@@ -31,7 +31,7 @@ export const DEPARTMENTS: readonly Department[] = [
 const BY_ID = new Map(DEPARTMENTS.map((dept) => [dept.id, dept]));
 
 /** Departments with no screen of their own whose projects still start in the workshop. */
-const WORKSHOP_ONLY: readonly DepartmentId[] = ["creative", "web"];
+const WORKSHOP_ONLY: ReadonlyArray<DepartmentId> = ["creative", "web"];
 
 /** A new project of this department can start in the workshop chat: Carmen has tools for it. */
 export function startsInWorkshop(dept: Department): boolean {
@@ -88,15 +88,29 @@ const STAGE_DEPARTMENT: Record<string, DepartmentId> = {
  * supabase/tests/workshop_assign_client.sql with departments.test.ts.
  */
 export function projectDepartment(row: ProjectDepartmentInput): DepartmentId {
-  if (isDepartmentId(row.department_hint)) return row.department_hint;
-  if (row.has_board) return "creative";
+  if (isDepartmentId(row.department_hint)) {
+    return row.department_hint;
+  }
+  if (row.has_board) {
+    return "creative";
+  }
   const byTrack = row.track ? TRACK_DEPARTMENT[row.track] : undefined;
-  if (byTrack) return byTrack;
+  if (byTrack) {
+    return byTrack;
+  }
   const byStage = row.stage_type ? STAGE_DEPARTMENT[row.stage_type] : undefined;
-  if (byStage === "copy" && row.has_creative) return "creative";
-  if (byStage) return byStage;
-  if (row.has_seo_plan) return "seo";
-  if (row.has_copy && !row.has_creative) return "copy";
+  if (byStage === "copy" && row.has_creative) {
+    return "creative";
+  }
+  if (byStage) {
+    return byStage;
+  }
+  if (row.has_seo_plan) {
+    return "seo";
+  }
+  if (row.has_copy && !row.has_creative) {
+    return "copy";
+  }
   return "creative";
 }
 
@@ -112,12 +126,14 @@ export function assignClientErrorMessage(
   withDetail = false,
 ): string {
   const message = error?.message?.trim() ?? "";
-  if (/[א-ת]/.test(message)) return message;
+  if (/[א-ת]/.test(message)) {
+    return message;
+  }
   return withDetail && message ? `${ASSIGN_FAILED}: ${message}` : ASSIGN_FAILED;
 }
 
 /** Departments whose projects stay with their client once assigned (workshop_assign_client). */
-export const CLIENT_LOCKED_DEPARTMENTS: readonly DepartmentId[] = [
+export const CLIENT_LOCKED_DEPARTMENTS: ReadonlyArray<DepartmentId> = [
   "seo",
   "social",
 ];

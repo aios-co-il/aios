@@ -13,14 +13,18 @@ import {
 import { FILM_CHOICES, STYLE_CHOICES } from "./briefing-choices.ts";
 
 Deno.test("a question counts as answered under any of its names", () => {
-  for (const name of ["סיום", "סגיר", "סגירה", "קריאה לפעולה"])
+  for (const name of ["סיום", "סגיר", "סגירה", "קריאה לפעולה"]) {
     assertStrictEquals(topicOf(name), "סיום", name);
-  for (const name of ["קול", "קריינות"])
+  }
+  for (const name of ["קול", "קריינות"]) {
     assertStrictEquals(topicOf(name), "קול", name);
-  for (const name of ["מראה", "סגנון", "סגנון חזותי"])
+  }
+  for (const name of ["מראה", "סגנון", "סגנון חזותי"]) {
     assertStrictEquals(topicOf(name), "מראה", name);
-  for (const name of ["דמות", "דמויות"])
+  }
+  for (const name of ["דמות", "דמויות"]) {
     assertStrictEquals(topicOf(name), "דמות", name);
+  }
   assertStrictEquals(topicOf("אווירה"), "אווירה");
   const answers = {
     סגיר: "לוגו בלבד",

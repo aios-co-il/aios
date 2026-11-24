@@ -28,7 +28,9 @@ export function MagicShimmer({
     const el = box.current;
     const cv = canvas.current;
     const ctx = cv?.getContext("2d");
-    if (!el || !cv || !ctx) return;
+    if (!el || !cv || !ctx) {
+      return;
+    }
     const still = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -64,7 +66,9 @@ export function MagicShimmer({
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
-      if (now - last < FRAME_MS) return;
+      if (now - last < FRAME_MS) {
+        return;
+      }
       last = now;
       draw(now);
     };
@@ -82,7 +86,9 @@ export function MagicShimmer({
     const observer = new ResizeObserver(resize);
     observer.observe(el);
     resize();
-    if (!still) raf = requestAnimationFrame(loop);
+    if (!still) {
+      raf = requestAnimationFrame(loop);
+    }
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();

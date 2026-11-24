@@ -28,7 +28,9 @@ export function CarmenSkinSwitcher({
     isLoading,
   } = useCarmenSkins();
   const { style } = useCarmenAvatarStyle();
-  if (!canEdit || (!isLoading && skins.length === 0)) return null;
+  if (!canEdit || (!isLoading && skins.length === 0)) {
+    return null;
+  }
   const active = skins.find(
     (s) => s.slug === (getCarmenRole(activeSlug)?.slug ?? BASE),
   );

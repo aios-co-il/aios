@@ -49,13 +49,17 @@ export function CRMAlerts() {
   const { data: clients = [] } = useQuery({
     queryKey: ["crm-alerts-clients", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("id, name, tier, services")
         .eq("tenant_id", tenantId)
         .in("status", ["active", "onboarding"]);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!tenantId,
@@ -67,14 +71,18 @@ export function CRMAlerts() {
   const { data: commLogs = [] } = useQuery({
     queryKey: ["crm-alerts-comm", clientIds.join(","), tenantId],
     queryFn: async () => {
-      if (!clientIds.length || !tenantId) return [];
+      if (!clientIds.length || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("communication_logs")
         .select("client_id, status, created_at")
         .in("client_id", clientIds)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: clientIds.length > 0 && !!tenantId,
@@ -84,14 +92,18 @@ export function CRMAlerts() {
   const { data: seoUpdates = [] } = useQuery({
     queryKey: ["crm-alerts-seo", clientIds.join(","), tenantId],
     queryFn: async () => {
-      if (!clientIds.length || !tenantId) return [];
+      if (!clientIds.length || !tenantId) {
+        return [];
+      }
       const { data, error } = await (supabase as any)
         .from("seo_monthly_updates")
         .select("client_id, month, status")
         .in("client_id", clientIds)
         .eq("tenant_id", tenantId)
         .order("month", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: clientIds.length > 0 && !!tenantId,
@@ -132,7 +144,9 @@ export function CRMAlerts() {
       .sort((a: any, b: any) => a.score - b.score);
   }, [clients, commLogs, seoUpdates]);
 
-  if (alertRows.length === 0) return null;
+  if (alertRows.length === 0) {
+    return null;
+  }
 
   const redCount = alertRows.filter(
     (r: any) => r.overallStatus === "red",
@@ -216,7 +230,7 @@ export function CRMAlerts() {
                       </Badge>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {(client.flags as FlagKey[])
+                      {(client.flags as Array<FlagKey>)
                         .slice(0, 3)
                         .map((flag: FlagKey) => (
                           <Badge

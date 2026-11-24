@@ -99,7 +99,7 @@ Deno.test(
         c.op === "insert" &&
         Array.isArray(c.value),
     );
-    const rows = opened?.value as Record<string, any>[];
+    const rows = opened?.value as Array<Record<string, any>>;
     assertStrictEquals(rows.length, 2);
     assert(rows.every((row) => row.status === "pending"));
     assert(rows.every((row) => row.meta.placeholder === true));
@@ -147,7 +147,7 @@ Deno.test(
     );
     const rows = db.calls.find(
       (c) => c.table === "workshop_assets" && c.op === "insert",
-    )?.value as Record<string, any>[];
+    )?.value as Array<Record<string, any>>;
     assertEquals(
       rows.map((r) => r.url),
       ["https://x/new.png"],
@@ -162,7 +162,7 @@ Deno.test(
     const db = fakeDb(project);
     let release!: () => void;
     const gate = new Promise<void>((resolve) => (release = resolve));
-    const background: Promise<unknown>[] = [];
+    const background: Array<Promise<unknown>> = [];
     const result = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",

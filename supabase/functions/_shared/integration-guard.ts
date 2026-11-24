@@ -12,7 +12,7 @@ function digits(value: string | undefined | null): string {
   return (value || "").replace(/\D/g, "");
 }
 
-export function parseAllowlist(raw: string | undefined | null): string[] {
+export function parseAllowlist(raw: string | undefined | null): Array<string> {
   return (raw || "")
     .split(/[\s,]+/)
     .map((item) => digits(item))
@@ -23,9 +23,13 @@ export function isSafeModeEnabled(
   appEnv: AppEnv,
   stagingSafeMode: string | undefined | null,
 ): boolean {
-  if (appEnv === "production") return false;
+  if (appEnv === "production") {
+    return false;
+  }
   const raw = (stagingSafeMode || "").trim().toLowerCase();
-  if (raw === "false" || raw === "0" || raw === "off") return false;
+  if (raw === "false" || raw === "0" || raw === "off") {
+    return false;
+  }
   return true;
 }
 

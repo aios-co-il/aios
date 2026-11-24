@@ -25,7 +25,9 @@ export function scrollToAnswerStart(
   list: HTMLElement | null,
   answer: HTMLElement | null,
 ) {
-  if (!list) return;
+  if (!list) {
+    return;
+  }
   const answerTop = answer
     ? answer.getBoundingClientRect().top -
       list.getBoundingClientRect().top +
@@ -37,5 +39,7 @@ export function scrollToAnswerStart(
     clientHeight: list.clientHeight,
     answerTop,
   });
-  if (target !== null) list.scrollTo({ top: target });
+  if (target !== null) {
+    list.scrollTo({ top: target });
+  }
 }

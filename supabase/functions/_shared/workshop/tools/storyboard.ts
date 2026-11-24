@@ -23,25 +23,32 @@ import { type ToolContext } from "../tool-context.ts";
 export async function workshopStoryboard(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   // A running production's paid runs belong to the scenes it has (save_video_storyboard refuses
   // too, for a production that starts meanwhile).
-  if (productionRunning(asRecord(asRecord(project.payload.video).production)))
+  if (productionRunning(asRecord(asRecord(project.payload.video).production))) {
     return { ...PRODUCTION_LOCKED };
+  }
   const brief = await briefProject(deps, project.payload, args, {
     kind: "video",
     save: (next) => savePayload(supabase, tenantId, itemId, next),
     needsEngine: false,
   });
-  if ("gate" in brief) return brief.gate;
+  if ("gate" in brief) {
+    return brief.gate;
+  }
   await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
   const old = await loadScenes(supabase, tenantId, itemId);
   // Briefing first (it shapes the concepts), then the concept the user chose, then the scenes.
@@ -66,19 +73,23 @@ export async function workshopStoryboard(ctx: ToolContext) {
   if ("error" in source) {
     return source;
   }
-  if (old.length > 0 && args.replace !== true)
+  if (old.length > 0 && args.replace !== true) {
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
+  }
   const keepsPaid = await paidReplaceRefusal(supabase, tenantId, old, deps);
-  if (keepsPaid) return keepsPaid;
+  if (keepsPaid) {
+    return keepsPaid;
+  }
   const rows = sceneRows(input.scenes, source.url);
   const saved = await supabase.rpc("save_video_storyboard", {
     p_item_id: itemId,
     p_scenes: rows,
   });
-  if (saved.error)
+  if (saved.error) {
     return productionLockError(saved.error)
       ? { ...PRODUCTION_LOCKED }
       : { error: saved.error.message };
+  }
   if (old.length > 0) {
     const removed = await supabase
       .from("marketing_video_scenes")
@@ -89,7 +100,9 @@ export async function workshopStoryboard(ctx: ToolContext) {
         "id",
         old.map((scene) => scene.id),
       );
-    if (removed.error) return { error: removed.error.message };
+    if (removed.error) {
+      return { error: removed.error.message };
+    }
   }
   const folded = withLook(project.payload, {}, { anchorUrl: null });
   await savePayload(supabase, tenantId, itemId, {

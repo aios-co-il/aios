@@ -67,7 +67,9 @@ serve(async (req) => {
       .eq("integration_type", "ahrefs")
       .order("id");
 
-    if (tablesError) throw tablesError;
+    if (tablesError) {
+      throw tablesError;
+    }
 
     const seoTables = (allTables || []).filter((t) =>
       isSeoReportTable(
@@ -77,7 +79,9 @@ serve(async (req) => {
 
     const clientIds = Array.from(
       new Set(
-        seoTables.map((t) => clientIdFromTable(t)).filter(Boolean) as string[],
+        seoTables
+          .map((t) => clientIdFromTable(t))
+          .filter(Boolean) as Array<string>,
       ),
     );
 
@@ -108,7 +112,9 @@ serve(async (req) => {
         .select("id, name, website, ahrefs_domain")
         .in("id", clientIds);
       for (const c of clients || []) {
-        if (c.id) clientRows.set(c.id, c);
+        if (c.id) {
+          clientRows.set(c.id, c);
+        }
       }
     }
 

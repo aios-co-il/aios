@@ -85,9 +85,9 @@ type DueEntry = { id: string; tenant_id: string; client_id: string | null };
  * and client pair is decided once. */
 export async function splitByClientAccess<E extends DueEntry>(
   caller: PublishCaller,
-  entries: E[],
+  entries: Array<E>,
   lookups: PublishAccessLookups,
-): Promise<{ publishable: E[]; refused: EntryResult[] }> {
+): Promise<{ publishable: Array<E>; refused: Array<EntryResult> }> {
   const decisions = new Map<string, Promise<PublishDecision>>();
   const decide = (entry: E) => {
     const key = `${entry.tenant_id}:${entry.client_id ?? ""}`;
@@ -103,8 +103,8 @@ export async function splitByClientAccess<E extends DueEntry>(
     }
     return decision;
   };
-  const publishable: E[] = [];
-  const refused: EntryResult[] = [];
+  const publishable: Array<E> = [];
+  const refused: Array<EntryResult> = [];
   for (const entry of entries) {
     const decision = await decide(entry);
     if (decision.allowed) {

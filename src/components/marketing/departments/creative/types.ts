@@ -71,8 +71,8 @@ export interface CreativeAssetRow {
     source?: string;
     variation_id?: string;
     variation_name?: string;
-    comments?: CreativeComment[];
-    layers?: CreativeLayer[];
+    comments?: Array<CreativeComment>;
+    layers?: Array<CreativeLayer>;
     format?: CreativeFormat;
   } | null;
   created_at: string;
@@ -91,5 +91,5 @@ export interface CreativeProjectDraft {
   clientWebsite?: string;
   logoUrl?: string;
   brandBook?: BrandBook;
-  styleReferences: StyleReference[];
+  styleReferences: Array<StyleReference>;
 }

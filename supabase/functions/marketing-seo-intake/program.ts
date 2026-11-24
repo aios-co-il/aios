@@ -22,7 +22,9 @@ export async function findSeoProgram(
     .select("client_id, wordpress_site_id")
     .eq("work_item_id", workItemId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
   return (data as SeoProgram | null) ?? null;
 }
 
@@ -40,16 +42,22 @@ export async function ensureSeoProgram(
 ): Promise<SeoProgram | null> {
   const own = (program: SeoProgram) =>
     program.client_id === item.client_id ? program : null;
-  if (existing) return own(existing);
+  if (existing) {
+    return own(existing);
+  }
   const { error } = await db.from("seo_geo_programs").insert({
     tenant_id: item.tenant_id,
     client_id: item.client_id,
     work_item_id: item.id,
     wordpress_site_id: siteId,
   });
-  if (!error) return { client_id: item.client_id, wordpress_site_id: siteId };
+  if (!error) {
+    return { client_id: item.client_id, wordpress_site_id: siteId };
+  }
   const raced =
     error.code === "23505" ? await findSeoProgram(db, item.id) : null;
-  if (raced) return own(raced);
+  if (raced) {
+    return own(raced);
+  }
   throw new Error(error.message);
 }

@@ -24,7 +24,9 @@ export function useSkinAvatars() {
 
   const changeAvatar = (slug: string, file: File | null) => {
     const invalid = file && validateAvatarFile(file);
-    if (invalid) return toast.error(invalid);
+    if (invalid) {
+      return toast.error(invalid);
+    }
     upload.mutate({ slug, file });
   };
 

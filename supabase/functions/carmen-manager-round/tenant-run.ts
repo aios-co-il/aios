@@ -25,7 +25,7 @@ export type TenantReport = {
   mode: ManagerMode;
   skipped?: "off" | "locked" | "budget";
   error?: string;
-  collectors?: CollectorReport[];
+  collectors?: Array<CollectorReport>;
   /** Drafts Carmen wrote to the card herself (null: no kind writes). */
   card_writes?: CardWriteReport | null;
   routed?: number;
@@ -35,9 +35,9 @@ export type TenantReport = {
   brief?: BriefReport | null;
   dispatch?: DispatchReport | null;
   preview?: {
-    candidates: FindingCandidate[];
-    decisions: RouteDecision[];
-    messages: PreviewMessage[];
+    candidates: Array<FindingCandidate>;
+    decisions: Array<RouteDecision>;
+    messages: Array<PreviewMessage>;
   };
 };
 

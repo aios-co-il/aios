@@ -46,7 +46,9 @@ Deno.test(
       CURSOR_TASK,
     );
     assertEquals(outsider.ok ? 200 : outsider.status, 403);
-    if (!outsider.ok) assertMatch(outsider.error, /דיוויד/);
+    if (!outsider.ok) {
+      assertMatch(outsider.error, /דיוויד/);
+    }
     // A member of the tenant who may not escalate to coding agents.
     assertEquals(
       status(person({ userId: "member", tier: null }), CURSOR_TASK),
@@ -65,11 +67,15 @@ Deno.test("a bug-fix caller sends only Cursor tasks they asked for", () => {
     requested_by_user_id: "ana",
   });
   assertEquals(claude.ok ? 200 : claude.status, 403);
-  if (!claude.ok) assertEquals(claude.code, "bugfix_cursor_only");
+  if (!claude.ok) {
+    assertEquals(claude.code, "bugfix_cursor_only");
+  }
   const davids = devTaskSendAuthorization(ana, {
     ...CURSOR_TASK,
     requested_by_user_id: "david",
   });
   assertEquals(davids.ok ? 200 : davids.status, 403);
-  if (!davids.ok) assertEquals(davids.code, "not_requester");
+  if (!davids.ok) {
+    assertEquals(davids.code, "not_requester");
+  }
 });

@@ -63,7 +63,9 @@ export async function mintGoalBrainToken(args: {
   goalId: string;
 }): Promise<string> {
   const secret = brainCallbackSecret();
-  if (!secret) throw new Error("Goal brain callback secret is not configured");
+  if (!secret) {
+    throw new Error("Goal brain callback secret is not configured");
+  }
   return hmacSha256Hex(
     secret,
     `${TOKEN_VERSION}:${args.requestId}:${args.tenantId}:${args.goalId}`,
@@ -84,7 +86,9 @@ export function extractJsonFromBrainResponse(
   content: string,
 ): Record<string, unknown> | null {
   const text = String(content || "").trim();
-  if (!text) return null;
+  if (!text) {
+    return null;
+  }
 
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced?.[1] || text).trim();
@@ -101,7 +105,9 @@ export function extractJsonFromBrainResponse(
   };
 
   const direct = tryParse(candidate);
-  if (direct) return direct;
+  if (direct) {
+    return direct;
+  }
 
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
@@ -167,7 +173,9 @@ export async function resolveGoalOrchestratorSession(
       CURSOR_STICKY_AGENT_ID: Deno.env.get("CURSOR_STICKY_AGENT_ID"),
     },
   });
-  if (!direct) return null;
+  if (!direct) {
+    return null;
+  }
 
   await supabase.from("goal_orchestrator_brain").upsert(
     {
@@ -195,7 +203,9 @@ export async function getInFlightBrainRequest(
     .in("status", ["pending", "sent", "busy"])
     .order("created_at", { ascending: false })
     .limit(1);
-  if (requestType) q = q.eq("request_type", requestType);
+  if (requestType) {
+    q = q.eq("request_type", requestType);
+  }
   const { data } = await q.maybeSingle();
   return data || null;
 }
@@ -228,7 +238,9 @@ export async function createBrainRequest(
     })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const token = await mintGoalBrainToken({
     requestId: request.id,
@@ -258,10 +270,14 @@ export async function dispatchBrainToCursorDirect(
   },
 ): Promise<{ delivered: boolean; sessionUrl: string }> {
   const apiKey = cursorApiKey();
-  if (!apiKey) throw new Error("CURSOR_API_KEY is not configured");
+  if (!apiKey) {
+    throw new Error("CURSOR_API_KEY is not configured");
+  }
 
   const sessionId = asCursorSessionId(args.request.cursor_session_id || "");
-  if (!sessionId) throw new Error("brain_request missing cursor_session_id");
+  if (!sessionId) {
+    throw new Error("brain_request missing cursor_session_id");
+  }
 
   const callbackBlock = buildGoalBrainCallbackBlock({
     requestId: args.request.id,

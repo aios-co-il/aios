@@ -20,7 +20,7 @@ export type HttpCall = { method: string; url: URL; body: unknown };
 
 export type FakeSupabaseHttpOptions = {
   supabaseUrl: string;
-  tables?: Record<string, Row[]>;
+  tables?: Record<string, Array<Row>>;
   rpc?: Record<string, (args: Row) => unknown>;
   users?: Record<string, string>;
   failing?: Record<string, string>;
@@ -31,7 +31,7 @@ const CONTROL_PARAMS = ["select", "order", "limit", "offset", "columns"];
 
 /** The fake fetch and every request it received. */
 export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
-  const calls: HttpCall[] = [];
+  const calls: Array<HttpCall> = [];
   const tables = opts.tables ?? {};
   const impl = async (
     input: string | URL | Request,
@@ -77,7 +77,7 @@ export function fakeSupabaseHttp(opts: FakeSupabaseHttpOptions) {
 }
 
 /** Rows matching every filter param, cut to `limit`. */
-function selectRows(rows: Row[], params: URLSearchParams): Row[] {
+function selectRows(rows: Array<Row>, params: URLSearchParams): Array<Row> {
   const filters = [...params].filter(([key]) => !CONTROL_PARAMS.includes(key));
   const out = rows.filter((row) =>
     filters.every(([col, expr]) => matches(row[col], expr)),

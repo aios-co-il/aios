@@ -18,7 +18,7 @@ import type { Thread, Turn } from "./threads.ts";
 export function unreviewedTurns(
   thread: Thread,
   reviewedId: string | undefined,
-): Turn[] {
+): Array<Turn> {
   const at = reviewedId
     ? thread.turns.findIndex((turn) => turn.id === reviewedId)
     : -1;
@@ -48,7 +48,7 @@ export type ReadScope = {
  */
 export function needsModel(
   thread: Thread,
-  unread: Turn[],
+  unread: Array<Turn>,
   scope: ReadScope,
 ): boolean {
   if (thread.kind !== "group" || !thread.openToTeam) {

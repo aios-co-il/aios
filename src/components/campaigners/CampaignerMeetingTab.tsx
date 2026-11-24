@@ -37,7 +37,9 @@ export function CampaignerMeetingTab({
   const queryClient = useQueryClient();
   const meetingScheduler = useMeetingScheduler(tenantId);
   const [includeCampaignerEmail, setIncludeCampaignerEmail] = useState(true);
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
+    [],
+  );
 
   // Reset selection when campaigner changes
   useEffect(() => {

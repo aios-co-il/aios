@@ -28,7 +28,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        '[{ role: "system", content: systemPrompt }];',
       );
       assert(runAiAgent.indexOf("if (shouldUseV2Prompt(agent)) {") < v1Start);
       assert(append > v1Start && append < systemMessage);
@@ -92,7 +92,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         "systemPrompt = appendCarmenPulseRules(systemPrompt, {",
       );
       const systemMessage = runAiAgent.indexOf(
-        'const messages: any[] = [{ role: "system", content: systemPrompt }];',
+        '[{ role: "system", content: systemPrompt }];',
       );
       // Every place a skin's text joins the prompt. Tenant pulse_check and
       // ecommerce_pulse overrides (DMM, MarketingCaptain) that say not to
@@ -162,7 +162,7 @@ Deno.test("run-ai-agent index.ts", async (t) => {
       );
       assertMatch(
         runAiAgent,
-        /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS(?: as any\[\])?, \{/,
+        /const pool = keepCarmenPulseTools\(\s*directToolPool\(ALL_TOOLS(?: as Array<any>)?, \{/,
       );
       // Nor do matched or pinned skins hand that caller the pulse tools.
       assertMatch(

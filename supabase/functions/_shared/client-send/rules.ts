@@ -92,13 +92,13 @@ export function isClientSide(recipient: SendRecipient): boolean {
   );
 }
 
-const LEAD_ALERT_TRIGGERS: readonly AutomationTrigger[] = [
+const LEAD_ALERT_TRIGGERS: ReadonlyArray<AutomationTrigger> = [
   "lead_created",
   "lead_status_changed",
   "inbound_webhook_lead",
 ];
 
-const CAMPAIGN_ALERT_TRIGGERS: readonly AutomationTrigger[] = [
+const CAMPAIGN_ALERT_TRIGGERS: ReadonlyArray<AutomationTrigger> = [
   "ad_account_blocked",
   "ad_account_billing_issue",
   "account_stopped_spending",

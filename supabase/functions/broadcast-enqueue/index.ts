@@ -3,7 +3,8 @@
 // and commit mode (insert broadcast_recipients with per-recipient merge vars).
 //
 // Audience filter shape: see _shared/broadcast/audience/resolve.ts.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { serviceClient, userClient } from "../_shared/supabase-clients.ts";
+import { writeEnqueueStats } from "./stats.ts";
 import { isServiceKey } from "../_shared/timing-safe-equal.ts";
 import type { Recipient } from "../_shared/broadcast/audience/types.ts";
 import { filterReachable } from "../_shared/broadcast/audience/reachability.ts";
@@ -16,8 +17,6 @@ const corsHeaders = {
   "Content-Type": "application/json",
 };
 
-const SB_URL = Deno.env.get("SUPABASE_URL")!;
-const SB_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const json = (body: unknown, status = 200) =>
@@ -33,8 +32,9 @@ const BAD_REQUEST = new Set([
 ]);
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -42,16 +42,12 @@ Deno.serve(async (req) => {
     const isServiceRole = isServiceKey(token, SB_SERVICE);
 
     // User-scoped client respects RLS so a user can only enqueue their own tenant's data.
-    const db = isServiceRole
-      ? createClient(SB_URL, SB_SERVICE, { auth: { persistSession: false } })
-      : createClient(SB_URL, SB_ANON, {
-          global: { headers: { Authorization: authHeader } },
-          auth: { persistSession: false },
-        });
+    const db = isServiceRole ? serviceClient() : userClient(authHeader);
 
     const {
       broadcastId,
       dryRun,
+      claimRevision,
       filter: inlineFilter,
       channel: inlineChannel,
       tenantId: inlineTenant,
@@ -61,28 +57,47 @@ Deno.serve(async (req) => {
     let channel: string = inlineChannel || "whatsapp";
     let tenantId: string | undefined = inlineTenant;
 
+    if (
+      claimRevision !== undefined &&
+      (!isServiceRole ||
+        typeof claimRevision !== "string" ||
+        !claimRevision ||
+        !broadcastId)
+    ) {
+      return json({ error: "invalid_claim" }, 403);
+    }
     if (broadcastId) {
-      const { data: b, error } = await db
+      let query = db
         .from("broadcasts")
         .select("id, tenant_id, channel, audience_filter, status")
-        .eq("id", broadcastId)
-        .single();
-      if (error || !b) return json({ error: "broadcast_not_found" }, 404);
+        .eq("id", broadcastId);
+      if (claimRevision) {
+        query = query.eq("status", "paused").eq("updated_at", claimRevision);
+      }
+      const { data: b, error } = await query.single();
+      if (error || !b) {
+        return json({ error: "broadcast_not_found" }, 404);
+      }
       filter = b.audience_filter || {};
       channel = b.channel;
       tenantId = b.tenant_id;
     }
 
-    if (!filter || !filter.source)
+    if (!filter || !filter.source) {
       return json({ error: "missing_filter_source" }, 400);
-    if (!tenantId) return json({ error: "missing_tenant" }, 400);
+    }
+    if (!tenantId) {
+      return json({ error: "missing_tenant" }, 400);
+    }
 
-    let recipients: Recipient[];
+    let recipients: Array<Recipient>;
     try {
       recipients = await resolveAudience(db, tenantId, filter);
     } catch (e) {
       const msg = String((e as Error)?.message || e);
-      if (BAD_REQUEST.has(msg)) return json({ error: msg }, 400);
+      if (BAD_REQUEST.has(msg)) {
+        return json({ error: msg }, 400);
+      }
       throw e;
     }
     const finalRecipients = await filterReachable(
@@ -104,7 +119,9 @@ Deno.serve(async (req) => {
           },
     );
 
-    if (dryRun || !broadcastId) return json({ success: true, total, sample });
+    if (dryRun || !broadcastId) {
+      return json({ success: true, total, sample });
+    }
 
     // Commit: clear any previous snapshot for re-enqueue, then insert fresh.
     await db
@@ -128,17 +145,19 @@ Deno.serve(async (req) => {
       const { error } = await db
         .from("broadcast_recipients")
         .insert(rows.slice(i, i + 500));
-      if (error && !String(error.message).includes("duplicate")) throw error;
+      if (error && !String(error.message).includes("duplicate")) {
+        throw error;
+      }
     }
 
-    await db
-      .from("broadcasts")
-      .update({
-        stats: { total, sent: 0, delivered: 0, failed: 0, opted_out: 0 },
-      })
-      .eq("id", broadcastId);
-
-    return json({ success: true, total, sample });
+    const revision = await writeEnqueueStats(
+      db,
+      tenantId,
+      broadcastId,
+      total,
+      claimRevision,
+    );
+    return json({ success: true, total, sample, revision });
   } catch (e) {
     console.error("[broadcast-enqueue]", e);
     return json({ error: String((e as Error)?.message || e) }, 500);

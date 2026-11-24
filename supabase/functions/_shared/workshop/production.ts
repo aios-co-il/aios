@@ -26,7 +26,9 @@ export function productionRunning(
   production: Record<string, unknown> | null,
   now = Date.now(),
 ) {
-  if (production?.status !== "running") return false;
+  if (production?.status !== "running") {
+    return false;
+  }
   const started = Date.parse(String(production.started_at ?? ""));
   return !Number.isFinite(started) || started > now - 60 * 60_000;
 }
@@ -48,10 +50,12 @@ export const productionLockError = (
 
 /** Clips of this production that the free preview made because the paid engine refused them. */
 function previewFallbacks(
-  runs: RunRow[],
+  runs: Array<RunRow>,
   production: Record<string, unknown> | null,
 ) {
-  if (!production?.provider || production.provider === "mock") return [];
+  if (!production?.provider || production.provider === "mock") {
+    return [];
+  }
   const started = Date.parse(String(production.started_at ?? ""));
   return runs.filter(
     (run) =>
@@ -65,7 +69,7 @@ function previewFallbacks(
 }
 
 export function productionReport(
-  runs: RunRow[],
+  runs: Array<RunRow>,
   production: Record<string, unknown> | null,
   now = Date.now(),
 ) {

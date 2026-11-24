@@ -52,8 +52,9 @@ export function placeScenes(
   let cursor = 0;
   let framed: Array<FramedWord> = wordsToFrames(narrationWords, fps);
   const spans: Array<Span> = [];
-  if (narration && !narrationWords.length && narrationFrames)
+  if (narration && !narrationWords.length && narrationFrames) {
     spans.push([0, narrationFrames - TAIL_FRAMES]);
+  }
   const scenes = picked.map((p, order): ManifestScene => {
     const frameCount = counts[order];
     const startFrame = cursor;
@@ -61,8 +62,9 @@ export function placeScenes(
     if (p.voice) {
       const words = wordsToFrames(p.voiceWords, fps, startFrame);
       framed = framed.concat(words);
-      if (!words.length && p.voiceS)
+      if (!words.length && p.voiceS) {
         spans.push([startFrame, startFrame + Math.ceil(p.voiceS * fps)]);
+      }
     }
     // The same character in another picture: a skin switch (flash, pop, sweep on the whoosh).
     const { transition, transitionFrames } = sceneTransitionFor(
@@ -84,7 +86,7 @@ export function placeScenes(
       // starts with the scene's transition (workshop-film.tsx). Without them the words share
       // the clip's speech by length.
       const spoken = wordsFromAlignment(p.scene.spokenAlignment);
-      if (spoken.length)
+      if (spoken.length) {
         framed = framed.concat(
           wordsToFrames(
             spoken,
@@ -92,7 +94,7 @@ export function placeScenes(
             startFrame - Math.min(startFrame, transitionFrames || 0),
           ),
         );
-      else if (p.scene.spokenText)
+      } else if (p.scene.spokenText) {
         framed = framed.concat(
           spreadWords(
             p.scene.spokenText,
@@ -101,6 +103,7 @@ export function placeScenes(
             startFrame + talkFrames - TAIL_FRAMES,
           ),
         );
+      }
     }
     return {
       id: String(p.scene.id),

@@ -33,22 +33,22 @@ const GUARD_CALL = /\b(authorizeClientSend|refuseClientSend)\(/;
 
 export type CallSiteReport = {
   /** Provider files in none of the lists. */
-  unlisted: string[];
+  unlisted: Array<string>;
   /** In-file senders whose guard call is missing or after the first send. */
-  guardNotFirst: string[];
+  guardNotFirst: Array<string>;
   /** Folder senders whose folder never calls the guard. */
-  folderUnguarded: string[];
+  folderUnguarded: Array<string>;
   /** Listed files that no longer call a provider: drop them. */
-  staleListed: string[];
+  staleListed: Array<string>;
   /** Calls of a guarded sender that name no sendKind, as path:line. */
-  unstampedCallers: string[];
+  unstampedCallers: Array<string>;
   /** Listed unstamped callers whose every call now stamps: drop them. */
-  staleUnstamped: string[];
+  staleUnstamped: Array<string>;
 };
 
 /** Checks every file against the lists. */
 export function checkCallSites(
-  files: SourceFile[],
+  files: Array<SourceFile>,
   lists: CallSiteLists,
 ): CallSiteReport {
   const senders = files.filter((file) => providerLines(file.text).length > 0);
@@ -86,7 +86,7 @@ export function checkCallSites(
 }
 
 /** The 0-based lines that call a provider, comments left out. */
-export function providerLines(text: string): number[] {
+export function providerLines(text: string): Array<number> {
   return codeLines(text)
     .filter(([, line]) =>
       Object.values(PROVIDER_SEND_PATTERNS).some((re) => re.test(line)),
@@ -95,8 +95,8 @@ export function providerLines(text: string): number[] {
 }
 
 /** Every .ts, .mjs and .js file under root that the scan reads. */
-export async function readEdgeSources(root: URL): Promise<SourceFile[]> {
-  const files: SourceFile[] = [];
+export async function readEdgeSources(root: URL): Promise<Array<SourceFile>> {
+  const files: Array<SourceFile> = [];
   for await (const path of walk(root, "")) {
     if (isScanned(path)) {
       files.push({ path, text: await Deno.readTextFile(new URL(path, root)) });
@@ -113,7 +113,7 @@ function guardComesFirst(text: string): boolean {
 }
 
 /** Some file of the folder, tests and comments aside, calls the guard. */
-function folderCallsGuard(files: SourceFile[], folder: string): boolean {
+function folderCallsGuard(files: Array<SourceFile>, folder: string): boolean {
   return files.some(
     (file) =>
       folderOf(file.path) === folder &&
@@ -125,7 +125,7 @@ function folderCallsGuard(files: SourceFile[], folder: string): boolean {
  * The lines of the file's calls of a guarded sender (call-site-stamps.ts)
  * that name no sendKind. A sender's own folder is not a caller.
  */
-function unstampedLines(file: SourceFile, lists: CallSiteLists): number[] {
+function unstampedLines(file: SourceFile, lists: CallSiteLists): Array<number> {
   const senders = [...new Set(Object.keys(lists.guarded).map(folderOf))].filter(
     (name) => name !== folderOf(file.path),
   );
@@ -135,7 +135,7 @@ function unstampedLines(file: SourceFile, lists: CallSiteLists): number[] {
 }
 
 /** Lines with their 0-based index, without comment-only lines. */
-function codeLines(text: string): [number, string][] {
+function codeLines(text: string): Array<[number, string]> {
   return text
     .split("\n")
     .map((line, index): [number, string] => [index, line])

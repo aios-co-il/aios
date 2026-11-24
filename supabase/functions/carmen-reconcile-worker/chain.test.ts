@@ -85,7 +85,7 @@ describe("nextAfterChunk", () => {
   it("carries deferred tables until the retry pass", () => {
     const chunk = (
       done: boolean,
-      rate_limited_tables: string[],
+      rate_limited_tables: Array<string>,
       next_cursor: string | null = done ? null : "c",
     ) => ({ done, next_cursor, rate_limited_tables });
     // Mid-walk: the cursor moves on, the passed-over tables ride along (once each).

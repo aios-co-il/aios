@@ -8,8 +8,8 @@ import { ChatTopicRenameInput } from "./ChatTopicRenameInput";
 import { DeleteChatDialog } from "./DeleteChatDialog";
 
 interface ChatTopicRailProps {
-  items: TopicChat[];
-  routes: BrainRoute[];
+  items: Array<TopicChat>;
+  routes: Array<BrainRoute>;
   activeId: string | null;
   onSelect: (chat: TopicChat) => void;
   onNew: () => void;
@@ -38,7 +38,9 @@ export function ChatTopicRail({
   const commitRename = async (conv: TopicChat) => {
     const title = draft.replace(/\s+/g, " ").trim();
     setRenamingId(null);
-    if (title && title !== (conv.title ?? "")) await onRename?.(conv, title);
+    if (title && title !== (conv.title ?? "")) {
+      await onRename?.(conv, title);
+    }
   };
 
   return (

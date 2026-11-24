@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { replaceTenantPermissions } from "../_shared/user-admin/tenant-permissions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -224,19 +225,14 @@ serve(async (req: Request) => {
         .insert({ user_id: user.id, role, tenant_id: invitation.tenant_id });
     }
 
-    // Set module permissions
+    // Set the module permissions of the invited tenant; other tenants keep theirs
     if (modulePermissions && modulePermissions.length > 0) {
-      // Delete existing permissions
-      await supabase.from("user_permissions").delete().eq("user_id", user.id);
-
-      // Insert new permissions
-      const permissionsToInsert = modulePermissions.map((module: string) => ({
-        user_id: user.id,
-        module: module,
-        can_access: true,
-      }));
-
-      await supabase.from("user_permissions").insert(permissionsToInsert);
+      await replaceTenantPermissions(
+        supabase,
+        user.id,
+        invitation.tenant_id,
+        modulePermissions,
+      );
     }
 
     // Link campaigner to agencies

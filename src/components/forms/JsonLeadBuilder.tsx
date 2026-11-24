@@ -22,7 +22,7 @@ import {
 export default function JsonLeadBuilder() {
   const { toast } = useToast();
   const { tenant } = useCurrentTenant();
-  const [selectedFields, setSelectedFields] = useState<string[]>([
+  const [selectedFields, setSelectedFields] = useState<Array<string>>([
     "tenant_slug",
     "company_name",
   ]);
@@ -35,14 +35,18 @@ export default function JsonLeadBuilder() {
   const { data: customFields } = useQuery({
     queryKey: ["custom-fields-leads", tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return [];
+      if (!tenant?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("custom_fields")
         .select("field_key, field_label, is_visible")
         .eq("tenant_id", tenant.id)
         .eq("entity_type", "lead");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenant?.id,
@@ -62,8 +66,9 @@ export default function JsonLeadBuilder() {
   const availableFields = useMemo(() => {
     return baseFields
       .filter((field) => {
-        if (LEAD_JSON_INTAKE_ALWAYS_SHOWN.has(field.key) || field.required)
+        if (LEAD_JSON_INTAKE_ALWAYS_SHOWN.has(field.key) || field.required) {
           return true;
+        }
         const override = customByKey[field.key];
         return override ? override.visible : true;
       })
@@ -74,7 +79,9 @@ export default function JsonLeadBuilder() {
   }, [baseFields, customByKey]);
 
   const toggleField = (fieldKey: string) => {
-    if (fieldKey === "tenant_slug") return;
+    if (fieldKey === "tenant_slug") {
+      return;
+    }
     setSelectedFields((prev) =>
       prev.includes(fieldKey)
         ? prev.filter((k) => k !== fieldKey)

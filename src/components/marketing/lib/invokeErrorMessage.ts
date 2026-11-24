@@ -5,7 +5,9 @@ export async function invokeErrorMessage(
   fallback: string,
   response?: Response,
 ): Promise<string> {
-  if (data?.error) return data.error;
+  if (data?.error) {
+    return data.error;
+  }
 
   const res =
     response ??
@@ -16,7 +18,9 @@ export async function invokeErrorMessage(
   if (res) {
     try {
       const body = (await res.clone().json()) as { error?: string };
-      if (body?.error) return body.error;
+      if (body?.error) {
+        return body.error;
+      }
     } catch {
       /* not JSON */
     }
@@ -25,7 +29,9 @@ export async function invokeErrorMessage(
       if (text) {
         try {
           const parsed = JSON.parse(text) as { error?: string };
-          if (parsed?.error) return parsed.error;
+          if (parsed?.error) {
+            return parsed.error;
+          }
         } catch {
           return text.length > 280 ? `${text.slice(0, 280)}…` : text;
         }

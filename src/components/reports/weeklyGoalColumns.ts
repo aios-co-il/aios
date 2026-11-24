@@ -72,7 +72,10 @@ const costPerResult = (label: string, digits = 1): WeeklyGoalColumn => ({
 });
 
 /** Each goal shows only its own metrics: no revenue or ROAS outside sales. */
-const WEEKLY_GOAL_COLUMNS: Record<ReportCampaignGoal, WeeklyGoalColumn[]> = {
+const WEEKLY_GOAL_COLUMNS: Record<
+  ReportCampaignGoal,
+  Array<WeeklyGoalColumn>
+> = {
   ecommerce: [
     impressions,
     clicks,

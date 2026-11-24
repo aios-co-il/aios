@@ -214,7 +214,7 @@ test("disabled weekly observer does not request records until enabled", async ()
     defaultOptions: { queries: { retry: false } },
   });
   const options = reportRecordsQueryOptions(client, "table-a", "last_365_days");
-  const observer = new QueryObserver<CrmRecord[]>(cache, {
+  const observer = new QueryObserver<Array<CrmRecord>>(cache, {
     ...options,
     enabled: false,
   });

@@ -116,7 +116,7 @@ Deno.test("prepareGreenFileSend refuses", async (t) => {
   });
 
   await t.step("a recipient Staging may not send to", async () => {
-    const destinations: string[] = [];
+    const destinations: Array<string> = [];
     const result = await prepareGreenFileSend(
       deps({
         guard: (destination) => {
@@ -171,7 +171,7 @@ Deno.test("prepareGreenFileSend resolves the line and chat", async (t) => {
 
 Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
   await t.step("a person's report to a client, without a lookup", async () => {
-    const requests: ClientSendRequest[] = [];
+    const requests: Array<ClientSendRequest> = [];
     const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
     const result = await prepareGreenFileSend(
       deps({
@@ -200,7 +200,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
   });
 
   await t.step("the group row only when the file goes there", async () => {
-    const requests: ClientSendRequest[] = [];
+    const requests: Array<ClientSendRequest> = [];
     const recording = deps({
       clientSendGuard: (request) => {
         requests.push(request);
@@ -223,7 +223,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
   });
 
   await t.step("a service-role send, as the auth step says", async () => {
-    const requests: ClientSendRequest[] = [];
+    const requests: Array<ClientSendRequest> = [];
     await prepareGreenFileSend(
       deps({
         clientSendGuard: (request) => {
@@ -240,7 +240,7 @@ Deno.test("prepareGreenFileSend asks the client send guard", async (t) => {
   });
 
   await t.step("a refusal stops the send before Green API", async () => {
-    const destinations: string[] = [];
+    const destinations: Array<string> = [];
     const result = await prepareGreenFileSend(
       deps({
         clientSendGuard: async () => ({

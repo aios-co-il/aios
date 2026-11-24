@@ -15,7 +15,7 @@ interface Group {
 }
 
 interface WhatsAppGroupSelectProps {
-  groups: Group[] | undefined;
+  groups: Array<Group> | undefined;
   value: string;
   onValueChange: (value: string) => void;
   triggerClassName?: string;
@@ -35,7 +35,9 @@ export function WhatsAppGroupSelect({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return groups || [];
+    if (!q) {
+      return groups || [];
+    }
     return (groups || []).filter((g) =>
       g.group_name?.toLowerCase().includes(q),
     );

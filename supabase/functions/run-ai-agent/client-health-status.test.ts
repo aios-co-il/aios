@@ -108,7 +108,7 @@ Deno.test("setClientMoodStatus", async (t) => {
  * of CLIENT_TENANT whose agency may be shared with another tenant.
  */
 function moodUpdate(tenantId: string, opts: FakeOptions = {}) {
-  const clients: Row[] = [
+  const clients: Array<Row> = [
     { id: CLIENT, tenant_id: CLIENT_TENANT, mood_status: "happy" },
   ];
   const { supabase, log } = fakeDb(clients, opts);
@@ -127,8 +127,8 @@ function moodUpdate(tenantId: string, opts: FakeOptions = {}) {
  * from("clients").update(...).match({ id }).select("id"), which updates the
  * row with that id.
  */
-function fakeDb(rows: Row[], opts: FakeOptions) {
-  const log: Array<{ op: string; args: unknown[] }> = [];
+function fakeDb(rows: Array<Row>, opts: FakeOptions) {
+  const log: Array<{ op: string; args: Array<unknown> }> = [];
   const update = (values: Partial<Row>) => {
     log.push({ op: "update", args: [values] });
     return {

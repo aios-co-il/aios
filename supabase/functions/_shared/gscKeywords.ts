@@ -21,7 +21,7 @@ export type GscPeriodDefinition = {
   maxRows: number;
 };
 
-export const GSC_PERIOD_DEFINITIONS: GscPeriodDefinition[] = [
+export const GSC_PERIOD_DEFINITIONS: Array<GscPeriodDefinition> = [
   { key: "current_90d", startOffset: 90, endOffset: 0, maxRows: 5000 },
   { key: "prev_month", startOffset: 58, endOffset: 30, maxRows: 1000 },
   { key: "three_month", startOffset: 118, endOffset: 90, maxRows: 1000 },
@@ -45,7 +45,7 @@ export function gscPeriodBounds(def: GscPeriodDefinition): {
 }
 
 export function mapGscApiRow(row: {
-  keys?: string[];
+  keys?: Array<string>;
   clicks?: number;
   impressions?: number;
   ctr?: number;
@@ -66,10 +66,10 @@ export async function fetchGscKeywordsFromApi(
   startDate: string,
   endDate: string,
   maxRows = 5000,
-): Promise<GscKeywordRow[]> {
+): Promise<Array<GscKeywordRow>> {
   const encodedSiteUrl = encodeURIComponent(siteUrl);
   const gscApiUrl = `https://www.googleapis.com/webmasters/v3/sites/${encodedSiteUrl}/searchAnalytics/query`;
-  const collected: GscKeywordRow[] = [];
+  const collected: Array<GscKeywordRow> = [];
   const pageSize = 1000;
   const maxPages = Math.ceil(maxRows / pageSize);
 
@@ -101,14 +101,16 @@ export async function fetchGscKeywordsFromApi(
     const json = await resp.json();
     const pageRows = Array.isArray(json.rows) ? json.rows : [];
     collected.push(...pageRows.map(mapGscApiRow));
-    if (pageRows.length < pageSize) break;
+    if (pageRows.length < pageSize) {
+      break;
+    }
   }
   return collected;
 }
 
 export async function resolveGscAccessToken(
   supabase: SupabaseClient,
-  tenantIdList: string[],
+  tenantIdList: Array<string>,
 ): Promise<string | null> {
   const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID") || "";
   const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
@@ -159,7 +161,9 @@ export async function resolveGscAccessToken(
             .eq("id", integration.id);
         }
       }
-      if (tok) return tok;
+      if (tok) {
+        return tok;
+      }
     } catch (e) {
       console.error("Error preparing GSC token:", e);
     }
@@ -168,16 +172,16 @@ export async function resolveGscAccessToken(
 }
 
 export type GscSnapshotBundle = {
-  current_90d: GscKeywordRow[];
-  prev_month: GscKeywordRow[];
-  three_month: GscKeywordRow[];
-  yearly: GscKeywordRow[];
+  current_90d: Array<GscKeywordRow>;
+  prev_month: Array<GscKeywordRow>;
+  three_month: Array<GscKeywordRow>;
+  yearly: Array<GscKeywordRow>;
   synced_at: string | null;
 };
 
 export async function readGscSnapshots(
   supabase: SupabaseClient,
-  tenantIdList: string[],
+  tenantIdList: Array<string>,
   siteUrl: string,
   clientId?: string | null,
 ): Promise<GscSnapshotBundle | null> {
@@ -196,7 +200,9 @@ export async function readGscSnapshots(
     console.error("readGscSnapshots error:", error);
     return null;
   }
-  if (!data?.length) return null;
+  if (!data?.length) {
+    return null;
+  }
 
   const bundle: GscSnapshotBundle = {
     current_90d: [],
@@ -208,9 +214,11 @@ export async function readGscSnapshots(
 
   for (const row of data) {
     const key = row.period_key as GscPeriodKey;
-    if (!(key in bundle)) continue;
+    if (!(key in bundle)) {
+      continue;
+    }
     const keywords = Array.isArray(row.keywords)
-      ? (row.keywords as GscKeywordRow[])
+      ? (row.keywords as Array<GscKeywordRow>)
       : [];
     bundle[key] = keywords;
     if (
@@ -241,7 +249,7 @@ export async function upsertGscSnapshot(
     periodKey: GscPeriodKey;
     startDate: string;
     endDate: string;
-    keywords: GscKeywordRow[];
+    keywords: Array<GscKeywordRow>;
   },
 ): Promise<void> {
   const { error } = await supabase.from("gsc_keyword_snapshots").upsert(
@@ -258,10 +266,12 @@ export async function upsertGscSnapshot(
     },
     { onConflict: "tenant_id,site_url,period_key" },
   );
-  if (error) console.error("upsertGscSnapshot error:", error);
+  if (error) {
+    console.error("upsertGscSnapshot error:", error);
+  }
 }
 
-export function mapGscRowsToCrmRecords(rows: GscKeywordRow[]) {
+export function mapGscRowsToCrmRecords(rows: Array<GscKeywordRow>) {
   return rows.map((row) => ({
     data: {
       query: row.keyword,
@@ -293,7 +303,9 @@ export async function readSeoShareCacheFromDb(
     .select("payload, expires_at")
     .eq("share_token", shareToken)
     .maybeSingle();
-  if (error || !data) return null;
+  if (error || !data) {
+    return null;
+  }
   if (new Date(data.expires_at) < new Date()) {
     await supabase
       .from("seo_share_response_cache")
@@ -323,5 +335,7 @@ export async function writeSeoShareCacheToDb(
       { share_token: shareToken, payload, expires_at: expiresAt },
       { onConflict: "share_token" },
     );
-  if (error) console.error("writeSeoShareCacheToDb error:", error);
+  if (error) {
+    console.error("writeSeoShareCacheToDb error:", error);
+  }
 }

@@ -42,7 +42,7 @@ export function isAutomationStatusKind(
 ): value is AutomationStatusKind {
   return (
     typeof value === "string" &&
-    (AUTOMATION_STATUS_KINDS as readonly string[]).includes(value)
+    (AUTOMATION_STATUS_KINDS as ReadonlyArray<string>).includes(value)
   );
 }
 
@@ -73,7 +73,9 @@ export function resolveStoredStatusSelection(
   options: Array<{ kind: AutomationStatusKind; value: string }>,
 ): string {
   const decoded = decodeStatusSelection(stored);
-  if (decoded.kind) return encodeStatusSelection(decoded.kind, decoded.value);
+  if (decoded.kind) {
+    return encodeStatusSelection(decoded.kind, decoded.value);
+  }
   const matches = options.filter((option) => option.value === stored);
   if (matches.length === 1) {
     return encodeStatusSelection(matches[0].kind, matches[0].value);
@@ -89,20 +91,30 @@ export type StatusFilter = {
 export function triggerScope(
   triggerType: string | null | undefined,
 ): StatusStageScope | null {
-  if (triggerType === "lead_status_changed") return "lead";
-  if (triggerType === "task_status_changed") return "task";
-  if (triggerType === "client_status_changed") return "client";
-  if (triggerType === "onboarding_status_changed") return "onboarding";
+  if (triggerType === "lead_status_changed") {
+    return "lead";
+  }
+  if (triggerType === "task_status_changed") {
+    return "task";
+  }
+  if (triggerType === "client_status_changed") {
+    return "client";
+  }
+  if (triggerType === "onboarding_status_changed") {
+    return "onboarding";
+  }
   return null;
 }
 
 export function scopesForTriggers(
   triggerTypes: Array<string | null | undefined>,
-): StatusStageScope[] {
-  const scopes: StatusStageScope[] = [];
+): Array<StatusStageScope> {
+  const scopes: Array<StatusStageScope> = [];
   for (const triggerType of triggerTypes) {
     const scope = triggerScope(triggerType);
-    if (scope && !scopes.includes(scope)) scopes.push(scope);
+    if (scope && !scopes.includes(scope)) {
+      scopes.push(scope);
+    }
   }
   return scopes;
 }
@@ -110,22 +122,30 @@ export function scopesForTriggers(
 export function impliedStatusKind(
   triggerType: string | null | undefined,
 ): AutomationStatusKind | null {
-  if (triggerType === "task_status_changed") return "task_status";
-  if (triggerType === "client_status_changed") return "client_status";
-  if (triggerType === "onboarding_status_changed") return "onboarding_status";
+  if (triggerType === "task_status_changed") {
+    return "task_status";
+  }
+  if (triggerType === "client_status_changed") {
+    return "client_status";
+  }
+  if (triggerType === "onboarding_status_changed") {
+    return "onboarding_status";
+  }
   return null;
 }
 
 export function readTriggerTypes(automation: {
   trigger_type?: string | null;
   configuration?: { trigger_types?: unknown } | null;
-}): string[] {
+}): Array<string> {
   const configured = automation.configuration?.trigger_types;
   if (Array.isArray(configured)) {
     const types = configured
       .map((value) => String(value || ""))
       .filter(Boolean);
-    if (types.length > 0) return types;
+    if (types.length > 0) {
+      return types;
+    }
   }
   return automation.trigger_type ? [automation.trigger_type] : [];
 }
@@ -150,7 +170,7 @@ export function readStatusFilters(
       }
     | null
     | undefined,
-): StatusFilter[] {
+): Array<StatusFilter> {
   const listed = source?.filter_statuses ?? source?.new_statuses;
   if (Array.isArray(listed)) {
     return listed
@@ -179,9 +199,13 @@ export function statusFilterMatches(
     status_kind?: string | null;
   },
 ): boolean {
-  if (!filterStatus || filterStatus === "any") return true;
+  if (!filterStatus || filterStatus === "any") {
+    return true;
+  }
   const dataStatus = data.new_status || data.status || "";
-  if (dataStatus !== filterStatus) return false;
+  if (dataStatus !== filterStatus) {
+    return false;
+  }
   if (filterKind && data.status_kind && filterKind !== data.status_kind) {
     return false;
   }
@@ -189,7 +213,7 @@ export function statusFilterMatches(
 }
 
 export function statusFiltersMatch(
-  filters: StatusFilter[] | null | undefined,
+  filters: Array<StatusFilter> | null | undefined,
   data: {
     status?: string | null;
     new_status?: string | null;
@@ -199,7 +223,9 @@ export function statusFiltersMatch(
   const active = (filters || []).filter(
     (filter) => filter.value && filter.value !== "any",
   );
-  if (active.length === 0) return true;
+  if (active.length === 0) {
+    return true;
+  }
   return active.some((filter) =>
     statusFilterMatches(filter.value, filter.kind, data),
   );
@@ -207,7 +233,7 @@ export function statusFiltersMatch(
 
 export function applyTriggerStatusFilters(
   conditions: Record<string, unknown>,
-  encodedValues: string[] | null | undefined,
+  encodedValues: Array<string> | null | undefined,
 ): void {
   const parsed = (encodedValues || [])
     .map((encoded) => decodeStatusSelection(encoded))
@@ -223,8 +249,11 @@ export function applyTriggerStatusFilters(
     kind: item.kind,
   }));
   conditions.new_status = parsed[0].value;
-  if (parsed[0].kind) conditions.status_kind = parsed[0].kind;
-  else delete conditions.status_kind;
+  if (parsed[0].kind) {
+    conditions.status_kind = parsed[0].kind;
+  } else {
+    delete conditions.status_kind;
+  }
 }
 
 export function encodeStoredTriggerFilters(
@@ -239,7 +268,7 @@ export function encodeStoredTriggerFilters(
       }
     | null
     | undefined,
-): string[] {
+): Array<string> {
   return readStatusFilters(source).map((filter) =>
     isAutomationStatusKind(filter.kind)
       ? encodeStatusSelection(filter.kind, filter.value)
@@ -257,10 +286,15 @@ export function applyTriggerStatusCondition(
     return;
   }
   const { kind, value } = decodeStatusSelection(encoded);
-  if (!value) return;
+  if (!value) {
+    return;
+  }
   conditions.new_status = value;
-  if (kind) conditions.status_kind = kind;
-  else delete conditions.status_kind;
+  if (kind) {
+    conditions.status_kind = kind;
+  } else {
+    delete conditions.status_kind;
+  }
 }
 
 export function applyStatusActionFields(
@@ -285,7 +319,9 @@ export function encodeStoredTriggerStatus(
     | null
     | undefined,
 ): string {
-  if (!conditions?.new_status || conditions.new_status === "any") return "any";
+  if (!conditions?.new_status || conditions.new_status === "any") {
+    return "any";
+  }
   if (isAutomationStatusKind(conditions.status_kind)) {
     return encodeStatusSelection(conditions.status_kind, conditions.new_status);
   }
@@ -303,7 +339,9 @@ export function encodeStoredActionStatus(
     | undefined,
 ): string {
   const status = configuration?.status || "";
-  if (!status) return "";
+  if (!status) {
+    return "";
+  }
   if (
     configuration?.status_field === "response_status" ||
     configuration?.status_field === "pipeline_stage"
@@ -323,7 +361,9 @@ export function leadStatusUpdateColumns(
   statusField: string | null | undefined,
   status: string,
 ): Record<string, string> {
-  if (statusField === "response_status") return { response_status: status };
+  if (statusField === "response_status") {
+    return { response_status: status };
+  }
   return { status };
 }
 
@@ -332,23 +372,33 @@ export function resolveStatusRecordId(
   data: Record<string, unknown> | null | undefined,
 ): string | null {
   const record = data || {};
-  const pick = (...keys: string[]) => {
+  const pick = (...keys: Array<string>) => {
     for (const key of keys) {
       const value = record[key];
-      if (typeof value === "string" && value) return value;
+      if (typeof value === "string" && value) {
+        return value;
+      }
     }
     return null;
   };
-  if (entity === "task") return pick("id", "task_id");
-  if (entity === "client") return pick("id", "client_id");
+  if (entity === "task") {
+    return pick("id", "task_id");
+  }
+  if (entity === "client") {
+    return pick("id", "client_id");
+  }
   return pick("id", "lead_id");
 }
 
 export function statusUpdateTable(
   entity: string | undefined,
 ): "leads" | "tasks" | "clients" {
-  if (entity === "task") return "tasks";
-  if (entity === "client") return "clients";
+  if (entity === "task") {
+    return "tasks";
+  }
+  if (entity === "client") {
+    return "clients";
+  }
   return "leads";
 }
 

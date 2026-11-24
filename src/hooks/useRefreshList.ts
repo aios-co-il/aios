@@ -21,8 +21,12 @@ export async function refreshList(
     "broadcast-list-materialize",
     { body: { ...opts, tenantId } },
   );
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
+  if (error) {
+    throw error;
+  }
+  if (data?.error) {
+    throw new Error(data.error);
+  }
   return data as ListPreview;
 }
 
@@ -35,12 +39,15 @@ export function useRefreshList() {
       refreshList(requireTenantId(tenantId), opts),
     onSuccess: (_data, opts) => {
       // A saved list's preview can update a dynamic list's count.
-      if (opts.mode !== "refresh" && !opts.listId) return;
+      if (opts.mode !== "refresh" && !opts.listId) {
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["broadcast-lists", tenantId] });
-      if (opts.listId)
+      if (opts.listId) {
         qc.invalidateQueries({
           queryKey: ["broadcast-list-members", tenantId, opts.listId],
         });
+      }
     },
   });
 }

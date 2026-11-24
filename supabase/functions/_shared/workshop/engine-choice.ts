@@ -34,7 +34,7 @@ export function connectedSceneEngines(
   settings: Record<string, unknown>,
   connections: VideoConnections = {},
   workerHasKling = false,
-): SceneEngine[] {
+): Array<SceneEngine> {
   const kling =
     workerHasKling ||
     (filled(settings, "kling_access_key") &&
@@ -65,17 +65,23 @@ export async function settleEngine(
   deps: WorkshopDeps,
 ): Promise<{ args: Record<string, unknown>; note?: string }> {
   const raw = typeof args.engine === "string" ? args.engine.trim() : "";
-  if (!raw) return { args };
+  if (!raw) {
+    return { args };
+  }
   if (IMAGE_ENGINE_TOOLS.has(name)) {
     const id = normalizeEngine(raw);
     const connected = deps.imageEngines ? await deps.imageEngines() : null;
-    if (id && (!connected || connected.includes(id)))
+    if (id && (!connected || connected.includes(id))) {
       return { args: { ...args, engine: id } };
+    }
   } else if (SCENE_ENGINE_TOOLS.has(name)) {
     const connected = deps.sceneEngines ? await deps.sceneEngines() : null;
-    if (isSceneEngine(raw) && (!connected || connected.includes(raw)))
+    if (isSceneEngine(raw) && (!connected || connected.includes(raw))) {
       return { args };
-  } else return { args };
+    }
+  } else {
+    return { args };
+  }
   const { engine: _dropped, ...rest } = args;
   return { args: rest, note: engineNote(raw) };
 }

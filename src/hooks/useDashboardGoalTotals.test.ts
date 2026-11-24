@@ -52,7 +52,7 @@ const sharedShape = (record: FixtureRecord) => ({
 
 const noWoo = { revenue: 0, orders: 0 };
 
-function totalsOf(records: DashboardTotalsRecord[], woo = noWoo) {
+function totalsOf(records: Array<DashboardTotalsRecord>, woo = noWoo) {
   return dashboardGoalTotals({
     showAll: true,
     facebook: groupFacebookRowsByGoal(
@@ -67,7 +67,7 @@ function totalsOf(records: DashboardTotalsRecord[], woo = noWoo) {
 }
 
 /** The totals each page would show for the same records. */
-const bothPages = (records: FixtureRecord[], woo = noWoo) => [
+const bothPages = (records: Array<FixtureRecord>, woo = noWoo) => [
   totalsOf(records.map(internalShape), woo),
   totalsOf(records.map(sharedShape), woo),
 ];

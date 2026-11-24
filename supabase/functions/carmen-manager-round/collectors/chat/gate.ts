@@ -40,13 +40,13 @@ export type ThreadReview = {
 
 /** The waits to review now, with their markers and business-hours age. */
 export function gateThreads(
-  threads: Thread[],
-  live: LiveChatFinding[],
+  threads: Array<Thread>,
+  live: Array<LiveChatFinding>,
   settings: ManagerSettings,
   now: Date,
-): ThreadReview[] {
+): Array<ThreadReview> {
   const requests = live.filter((f) => f.kind === "unanswered_request");
-  return threads.flatMap((thread): ThreadReview[] => {
+  return threads.flatMap((thread): Array<ThreadReview> => {
     const [first] = thread.pending;
     if (!first) {
       return [];
@@ -85,7 +85,7 @@ export function threadPrefix(threadKey: string): string {
  */
 export function waitFingerprint(
   thread: Thread,
-  requests: LiveChatFinding[],
+  requests: Array<LiveChatFinding>,
 ): string {
   const prefix = threadPrefix(thread.key);
   const unanchored = !thread.turns.some((turn) => turn.by === "staff");

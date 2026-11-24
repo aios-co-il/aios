@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
       roas: number;
     }
 
-    const records: MetaAdsRecord[] = [];
+    const records: Array<MetaAdsRecord> = [];
 
     if (Array.isArray(reports)) {
       for (const report of reports) {

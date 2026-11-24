@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface UpdateUserAgenciesRequest {
   userId: string;
-  agencyIds: string[];
+  agencyIds: Array<string>;
 }
 
 serve(async (req: Request) => {

@@ -51,7 +51,9 @@ export function ConvertTenantTypeDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("לא מחובר למערכת");
+      if (!session) {
+        throw new Error("לא מחובר למערכת");
+      }
 
       const response = await supabase.functions.invoke("convert-tenant-type", {
         body: data,
@@ -60,8 +62,12 @@ export function ConvertTenantTypeDialog({
         },
       });
 
-      if (response.error) throw response.error;
-      if (response.data?.error) throw new Error(response.data.error);
+      if (response.error) {
+        throw response.error;
+      }
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
 
       return response.data;
     },
@@ -84,7 +90,9 @@ export function ConvertTenantTypeDialog({
   });
 
   const handleConvert = () => {
-    if (!tenant) return;
+    if (!tenant) {
+      return;
+    }
 
     const data: any = {
       tenant_id: tenant.id,

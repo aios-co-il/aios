@@ -7,7 +7,7 @@ import type { ReportSender } from "../../../supabase/functions/_shared/report-se
 import { ClientReportScheduleSettings } from "./ClientReportScheduleSettings";
 
 type Backend = {
-  senders: ReportSender[];
+  senders: Array<ReportSender>;
   tenantDefault: string | null;
   schedule: Record<string, unknown> | null;
   update: ReturnType<typeof vi.fn>;

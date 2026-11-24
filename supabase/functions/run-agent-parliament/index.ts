@@ -32,13 +32,17 @@ function json(status: number, body: unknown) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
 
   const auth = await requireAuth(req);
-  if (!auth || auth.kind !== "user" || !auth.userId)
+  if (!auth || auth.kind !== "user" || !auth.userId) {
     return json(401, { error: "Unauthorized" });
+  }
 
   let body: any;
   try {
@@ -48,16 +52,20 @@ Deno.serve(async (req) => {
   }
 
   const tenantId = String(body.tenant_id || "").trim();
-  if (!tenantId) return json(400, { error: "tenant_id is required" });
+  if (!tenantId) {
+    return json(400, { error: "tenant_id is required" });
+  }
   const sb = serviceClient();
-  if (!(await userHasTenantAccess(sb, auth.userId, tenantId)))
+  if (!(await userHasTenantAccess(sb, auth.userId, tenantId))) {
     return json(403, { error: "Forbidden" });
+  }
 
   const action = String(body.action || "start");
   const conversationId = String(body.conversation_id || "");
   if (action === "cancel") {
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     await cancelParliament(conversationId);
     return json(200, { ok: true, status: "idle" });
   }
@@ -65,31 +73,39 @@ Deno.serve(async (req) => {
   // Per-user Carmen permissions: every other action needs the parliament
   // grant, the same check agent-channel-send applies.
   const carmen = await resolveCarmenAgent(sb, tenantId);
-  if (!carmen) return json(400, { error: "No Carmen agent" });
+  if (!carmen) {
+    return json(400, { error: "No Carmen agent" });
+  }
   const level = brainLevel(
     await loadCarmenAccessRow(sb, tenantId, carmen.id, auth.userId),
     BRAIN.parliament,
   );
-  if (!level) return brainDenied("parliament");
+  if (!level) {
+    return brainDenied("parliament");
+  }
   const limit = (text: string) => applyBrainLimit(level, text);
 
   if (action === "continue") {
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     return json(200, await forceContinueParliament(conversationId));
   }
   if (action === "synthesize") {
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     return json(200, await forceSynthesizeParliament(conversationId));
   }
   if (action === "clarify") {
     const provider = String(body.provider || "");
     const question = String(body.content || body.question || "").trim();
-    if (!conversationId || !question)
+    if (!conversationId || !question) {
       return json(400, { error: "conversation_id and content are required" });
-    if (provider !== "cursor" && provider !== "grok")
+    }
+    if (provider !== "cursor" && provider !== "grok") {
       return json(400, { error: "clarify only supports cursor or grok" });
+    }
     return json(
       200,
       await clarifyParliamentSeat(conversationId, provider, limit(question)),
@@ -97,12 +113,16 @@ Deno.serve(async (req) => {
   }
 
   const content = String(body.content || body.goal || "").trim();
-  if (!content) return json(400, { error: "content is required" });
+  if (!content) {
+    return json(400, { error: "content is required" });
+  }
   const route = await loadRoute(sb, tenantId, {
     slug: "parliament",
     routeId: body.brain_route_id,
   });
-  if (!route) return json(400, { error: "parliament route missing" });
+  if (!route) {
+    return json(400, { error: "parliament route missing" });
+  }
   const conv = await ensureConversation(sb, {
     conversationId: body.conversation_id || null,
     tenantId,

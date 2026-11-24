@@ -18,7 +18,7 @@ export type SceneOverlay = (typeof SCENE_OVERLAYS)[number];
 
 export const isSceneOverlay = (value: unknown): value is SceneOverlay =>
   typeof value === "string" &&
-  (SCENE_OVERLAYS as readonly string[]).includes(value);
+  (SCENE_OVERLAYS as ReadonlyArray<string>).includes(value);
 
 /** What each overlay is and when to use it, for Carmen's tools. */
 export const SCENE_OVERLAY_HELP =

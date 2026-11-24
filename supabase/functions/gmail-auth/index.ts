@@ -41,7 +41,9 @@ Deno.serve(async (req) => {
     // OAuth callback
     if (queryAction === "callback" || (hasOAuthCode && hasOAuthState)) {
       const code = url.searchParams.get("code");
-      if (!code) throw new Error("No authorization code provided");
+      if (!code) {
+        throw new Error("No authorization code provided");
+      }
 
       const state = await verifyOAuthState(
         url.searchParams.get("state"),
@@ -64,7 +66,9 @@ Deno.serve(async (req) => {
     // Authenticated actions
     const authHeader =
       req.headers.get("Authorization") || req.headers.get("authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
 
     const anonClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -76,7 +80,9 @@ Deno.serve(async (req) => {
       data: { user },
       error: userError,
     } = await anonClient.auth.getUser();
-    if (userError || !user) throw new Error("Unauthorized");
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
 
     const requestBody = await req.json();
     const action = requestBody.action;
@@ -114,11 +120,15 @@ Deno.serve(async (req) => {
 
     if (action === "init") {
       const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      if (!clientId) throw new Error("Missing GOOGLE_CLIENT_ID");
+      if (!clientId) {
+        throw new Error("Missing GOOGLE_CLIENT_ID");
+      }
 
       const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
       const tenantId = requestBody.tenantId;
-      if (!tenantId) throw new Error("Missing tenantId");
+      if (!tenantId) {
+        throw new Error("Missing tenantId");
+      }
 
       const access = await tenantUserAccess(serviceClient(), tenantId, user.id);
       if (!access.member && !access.superAdmin) {
@@ -183,7 +193,9 @@ Deno.serve(async (req) => {
         .delete()
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

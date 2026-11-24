@@ -98,8 +98,11 @@ test("a track shorter than the film is looped with a crossfade at its musical en
   expect((lastOfMany?.startFrame ?? 0) + (lastOfMany?.frameCount ?? 0)).toBe(
     2000,
   );
-  for (const [i, loop] of many.entries())
-    if (i) expect(loop.startFrame).toBe(many[i - 1].startFrame + 300 - 45);
+  for (const [i, loop] of many.entries()) {
+    if (i) {
+      expect(loop.startFrame).toBe(many[i - 1].startFrame + 300 - 45);
+    }
+  }
 });
 
 test("a track that covers the film is one copy unless its music dies away before the film's fade", () => {
@@ -189,7 +192,9 @@ test("the trailer bed holds down through short pauses and comes up in long ones"
   });
   const at = (frame: number) => {
     let i = 0;
-    while (i < env.frames.length - 1 && env.frames[i + 1] <= frame) i += 1;
+    while (i < env.frames.length - 1 && env.frames[i + 1] <= frame) {
+      i += 1;
+    }
     return env.volumes[i];
   };
   // A half-second breath (15 frames) stays under; a 3 s gap and the ending come up.

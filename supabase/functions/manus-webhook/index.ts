@@ -149,10 +149,18 @@ serve(async (req) => {
     if (taskId) {
       // Update our local task record
       const updateData: any = { updated_at: new Date().toISOString() };
-      if (status) updateData.status = status;
-      if (output) updateData.output = output;
-      if (creditUsage !== undefined) updateData.credit_usage = creditUsage;
-      if (taskTitle) updateData.title = taskTitle;
+      if (status) {
+        updateData.status = status;
+      }
+      if (output) {
+        updateData.output = output;
+      }
+      if (creditUsage !== undefined) {
+        updateData.credit_usage = creditUsage;
+      }
+      if (taskTitle) {
+        updateData.title = taskTitle;
+      }
 
       const { error: updateError } = await supabaseClient
         .from("manus_tasks")

@@ -4,14 +4,18 @@ export type LeadValueFilterMode = "show" | "hide";
 export const NO_MATCHING_STAGE_ID = "__no_matching_stage__";
 
 /** Empty selection means every pipeline stage. "all" is the legacy single-select value. */
-export function normalizeLeadStageIds(value: unknown): string[] {
+export function normalizeLeadStageIds(value: unknown): Array<string> {
   const raw = Array.isArray(value) ? value : value == null ? [] : [value];
   const seen = new Set<string>();
-  const ids: string[] = [];
+  const ids: Array<string> = [];
   for (const item of raw) {
-    if (typeof item !== "string") continue;
+    if (typeof item !== "string") {
+      continue;
+    }
     const id = item.trim();
-    if (!id || id === "all" || seen.has(id)) continue;
+    if (!id || id === "all" || seen.has(id)) {
+      continue;
+    }
     seen.add(id);
     ids.push(id);
   }
@@ -27,10 +31,12 @@ export function normalizeLeadValueFilterMode(
 
 export function leadMatchesStageFilter(
   status: string | null | undefined,
-  stageIds: readonly string[],
+  stageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (stageIds.length === 0) return true;
+  if (stageIds.length === 0) {
+    return true;
+  }
   const listed = typeof status === "string" && stageIds.includes(status);
   return normalizeLeadValueFilterMode(mode) === "hide" ? !listed : listed;
 }
@@ -38,10 +44,12 @@ export function leadMatchesStageFilter(
 /** Null and empty response status count as the "none" choice. */
 export function leadMatchesResponseStatusFilter(
   status: string | null | undefined,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (selected.length === 0) return true;
+  if (selected.length === 0) {
+    return true;
+  }
   const key = status == null || status === "" ? "none" : status;
   const listed = selected.includes(key);
   return normalizeLeadValueFilterMode(mode) === "hide" ? !listed : listed;
@@ -52,26 +60,34 @@ export function leadMatchesResponseStatusFilter(
  * Hide returns the complement; an empty complement matches nothing.
  */
 export function includedStageIds(
-  selected: readonly string[],
-  allStageIds: readonly string[],
+  selected: ReadonlyArray<string>,
+  allStageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] | null {
+): Array<string> | null {
   const ids = normalizeLeadStageIds(selected);
-  if (ids.length === 0) return null;
-  if (normalizeLeadValueFilterMode(mode) === "show") return ids;
+  if (ids.length === 0) {
+    return null;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "show") {
+    return ids;
+  }
   const hidden = new Set(ids);
   return allStageIds.filter((id) => !hidden.has(id));
 }
 
 /** Kanban RPC is include-only. An empty complement must not be sent as "all stages". */
 export function stagesForKanbanQuery(
-  selected: readonly string[],
-  allStageIds: readonly string[],
+  selected: ReadonlyArray<string>,
+  allStageIds: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] {
+): Array<string> {
   const included = includedStageIds(selected, allStageIds, mode);
-  if (included == null) return [...allStageIds];
-  if (included.length === 0) return [NO_MATCHING_STAGE_ID];
+  if (included == null) {
+    return [...allStageIds];
+  }
+  if (included.length === 0) {
+    return [NO_MATCHING_STAGE_ID];
+  }
   return included;
 }
 
@@ -80,32 +96,44 @@ export function stagesForKanbanQuery(
  * Those cases return null and are filtered on the client.
  */
 export function kanbanResponseStatuses(
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-): string[] | null {
-  if (selected.length === 0) return null;
-  if (normalizeLeadValueFilterMode(mode) === "hide") return null;
-  if (selected.includes("none")) return null;
+): Array<string> | null {
+  if (selected.length === 0) {
+    return null;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "hide") {
+    return null;
+  }
+  if (selected.includes("none")) {
+    return null;
+  }
   return [...selected];
 }
 
 export function responseFilterNeedsClient(
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): boolean {
-  if (selected.length === 0) return false;
-  if (normalizeLeadValueFilterMode(mode) === "hide") return true;
+  if (selected.length === 0) {
+    return false;
+  }
+  if (normalizeLeadValueFilterMode(mode) === "hide") {
+    return true;
+  }
   return selected.includes("none");
 }
 
 export function applyLeadStageQuery(
   query: any,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
-  allStageIds?: readonly string[],
+  allStageIds?: ReadonlyArray<string>,
 ): any {
   const ids = normalizeLeadStageIds(selected);
-  if (ids.length === 0) return query;
+  if (ids.length === 0) {
+    return query;
+  }
   if (normalizeLeadValueFilterMode(mode) === "show") {
     return query.in("status", ids);
   }
@@ -126,18 +154,26 @@ export function applyLeadStageQuery(
  */
 export function applyResponseStatusFilter(
   query: any,
-  selected: readonly string[],
+  selected: ReadonlyArray<string>,
   mode: LeadValueFilterMode = "show",
 ): any {
-  if (selected.length === 0) return query;
+  if (selected.length === 0) {
+    return query;
+  }
   const keys = selected.filter((status) => status && status !== "none");
   const hasNone = selected.includes("none");
-  if (!hasNone && keys.length === 0) return query;
+  if (!hasNone && keys.length === 0) {
+    return query;
+  }
   const hide = normalizeLeadValueFilterMode(mode) === "hide";
 
   if (!hide) {
-    if (hasNone && keys.length === 0) return query.is("response_status", null);
-    if (!hasNone) return query.in("response_status", keys);
+    if (hasNone && keys.length === 0) {
+      return query.is("response_status", null);
+    }
+    if (!hasNone) {
+      return query.in("response_status", keys);
+    }
     return query;
   }
 
@@ -157,10 +193,13 @@ export function applyResponseStatusFilter(
 /** Prefer `stageIds`. Fall back to a legacy single `stageId`. */
 export function leadStageIdsFromPreset(
   filters: { stageIds?: unknown; stageId?: unknown } | null | undefined,
-): string[] {
-  if (!filters) return [];
-  if (Array.isArray(filters.stageIds))
+): Array<string> {
+  if (!filters) {
+    return [];
+  }
+  if (Array.isArray(filters.stageIds)) {
     return normalizeLeadStageIds(filters.stageIds);
+  }
   return normalizeLeadStageIds(filters.stageId);
 }
 
@@ -168,8 +207,8 @@ export function leadStageIdsFromPreset(
  * Persist the array, and a single `stageId` when exactly one stage is chosen
  * so an older client still opens that preset on the right stage.
  */
-export function leadStagePresetFields(stageIds: readonly string[]): {
-  stageIds: string[];
+export function leadStagePresetFields(stageIds: ReadonlyArray<string>): {
+  stageIds: Array<string>;
   stageId: string;
 } {
   const ids = normalizeLeadStageIds(stageIds);

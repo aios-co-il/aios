@@ -18,7 +18,7 @@ export type TitleStyle = (typeof TITLE_STYLES)[number];
 
 export const isTitleStyle = (value: unknown): value is TitleStyle =>
   typeof value === "string" &&
-  (TITLE_STYLES as readonly string[]).includes(value);
+  (TITLE_STYLES as ReadonlyArray<string>).includes(value);
 
 /** One word's look at a frame: offsets in ems, blur in px, `shown` the revealed share (0–1). */
 export type WordLook = {
@@ -112,7 +112,7 @@ export type TitleSize = (typeof TITLE_SIZES)[number];
 
 export const isTitleSize = (value: unknown): value is TitleSize =>
   typeof value === "string" &&
-  (TITLE_SIZES as readonly string[]).includes(value);
+  (TITLE_SIZES as ReadonlyArray<string>).includes(value);
 
 /** The font size factor of each size; "medium" is the captions' own size. */
 export const SIZE_SCALE: Record<TitleSize, number> = {

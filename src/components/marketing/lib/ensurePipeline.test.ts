@@ -4,13 +4,13 @@ import { ensurePipelineForClient } from "./ensurePipeline";
 const state = vi.hoisted(() => ({
   pipelines: [] as Array<{ id: string; created_at: string }>,
   lookupError: null as { message: string } | null,
-  calls: [] as Array<{ table: string; method: string; args: unknown[] }>,
+  calls: [] as Array<{ table: string; method: string; args: Array<unknown> }>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const query = (table: string) => {
     const chain: Record<string, unknown> = {};
-    const methods: string[] = [];
+    const methods: Array<string> = [];
     for (const method of [
       "select",
       "eq",
@@ -19,17 +19,19 @@ vi.mock("@/integrations/supabase/client", () => {
       "insert",
       "single",
     ]) {
-      chain[method] = (...args: unknown[]) => {
+      chain[method] = (...args: Array<unknown>) => {
         state.calls.push({ table, method, args });
         methods.push(method);
         return chain;
       };
     }
     chain.then = (resolve: (value: unknown) => unknown) => {
-      if (table === "marketing_pipeline_stages")
+      if (table === "marketing_pipeline_stages") {
         return resolve({ count: 5, data: null, error: null });
-      if (state.lookupError && !methods.includes("insert"))
+      }
+      if (state.lookupError && !methods.includes("insert")) {
         return resolve({ data: null, error: state.lookupError });
+      }
       // Like PostgREST: ordered by created_at, then limited.
       const sorted = [...state.pipelines].sort((a, b) =>
         a.created_at.localeCompare(b.created_at),

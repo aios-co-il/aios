@@ -60,10 +60,13 @@ export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
         NonNullable<typeof data>[number] & { slug: string }
       >();
       for (const r of data || []) {
-        if (!r.slug) continue;
+        if (!r.slug) {
+          continue;
+        }
         const ex = bySlug.get(r.slug);
-        if (!ex || r.scope === "tenant")
+        if (!ex || r.scope === "tenant") {
           bySlug.set(r.slug, { ...r, slug: r.slug });
+        }
       }
       return Array.from(bySlug.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "he"),
@@ -90,7 +93,9 @@ export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
 
   const toolGroups = useMemo(() => {
     const g: Record<string, typeof AGENT_TOOLS_CATALOG> = {};
-    for (const t of AGENT_TOOLS_CATALOG) (g[t.group] ||= []).push(t);
+    for (const t of AGENT_TOOLS_CATALOG) {
+      (g[t.group] ||= []).push(t);
+    }
     return g;
   }, []);
 
@@ -104,7 +109,9 @@ export function AgentAccessTab({ agent }: { agent: Tables<"ai_agents"> }) {
           disabled_integrations: Array.from(offIntegrations),
         })
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הגישות נשמרו");

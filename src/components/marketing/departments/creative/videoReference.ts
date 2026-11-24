@@ -31,10 +31,10 @@ export interface ReferenceRun {
   error: string | null;
   created_at: string;
   output: {
-    shots?: ReferenceShot[];
+    shots?: Array<ReferenceShot>;
     proposal?: {
       concept?: { name?: string; bigIdea?: string };
-      frames?: ReferenceProposalFrame[];
+      frames?: Array<ReferenceProposalFrame>;
     };
     video?: { duration?: number };
     seconds?: number;
@@ -68,10 +68,10 @@ export const referenceVideoPath = ({
 
 /** Proposed frames → new storyboard frames (fresh ids, in order). */
 export function proposalToFrames(
-  frames: ReferenceProposalFrame[],
+  frames: Array<ReferenceProposalFrame>,
   frameX: (order: number) => number,
   newId: () => string = () => crypto.randomUUID(),
-): StoryboardFrame[] {
+): Array<StoryboardFrame> {
   return frames.map((frame, index) => ({
     id: newId(),
     order: index + 1,

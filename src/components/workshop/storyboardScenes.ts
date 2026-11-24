@@ -81,18 +81,23 @@ const numberOr = (value: unknown, fallback: number) => {
 };
 
 export function sceneState(row: SceneRow): SceneState {
-  if (row.status === "failed") return "failed";
-  if (row.status === "still_generating" || row.status === "clip_generating")
+  if (row.status === "failed") {
+    return "failed";
+  }
+  if (row.status === "still_generating" || row.status === "clip_generating") {
     return "working";
-  if (row.clip_asset_id) return row.clip_stale ? "clip_stale" : "clip_ready";
+  }
+  if (row.clip_asset_id) {
+    return row.clip_stale ? "clip_stale" : "clip_ready";
+  }
   return row.still_asset_id ? "picture" : "no_picture";
 }
 
 /** Scene rows (any order) and their assets → the board's cards, numbered by position. */
 export function storyboardScenes(
-  rows: SceneRow[],
+  rows: Array<SceneRow>,
   assets: Map<string, SceneAsset>,
-): StoryboardScene[] {
+): Array<StoryboardScene> {
   return [...rows]
     .sort((a, b) => numberOr(a.position, 0) - numberOr(b.position, 0))
     .map((row, index) => {
@@ -141,21 +146,24 @@ export function changedText(
 ): SceneTextPatch | null {
   const start = sceneDraft(scene);
   const patch: SceneTextPatch = {};
-  if (draft.overlay_text.trim() !== start.overlay_text.trim())
+  if (draft.overlay_text.trim() !== start.overlay_text.trim()) {
     patch.overlay_text = draft.overlay_text.trim();
-  if (draft.voiceover_text.trim() !== start.voiceover_text.trim())
+  }
+  if (draft.voiceover_text.trim() !== start.voiceover_text.trim()) {
     patch.voiceover_text = draft.voiceover_text.trim();
-  if (scene.lipsync && draft.dialogue.trim() !== start.dialogue.trim())
+  }
+  if (scene.lipsync && draft.dialogue.trim() !== start.dialogue.trim()) {
     patch.dialogue = draft.dialogue.trim();
+  }
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
 /** The board's copy of the storyboard with one scene's new texts, shown before the save returns. */
 export function applySceneEdit(
-  scenes: StoryboardScene[],
+  scenes: Array<StoryboardScene>,
   sceneId: string,
   patch: SceneTextPatch,
-): StoryboardScene[] {
+): Array<StoryboardScene> {
   return scenes.map((scene) =>
     scene.id === sceneId
       ? {
@@ -184,5 +192,5 @@ export const aspectRatioCss = (format: string) => {
   return match ? `${match[1]} / ${match[2]}` : "9 / 16";
 };
 
-export const totalSeconds = (scenes: StoryboardScene[]) =>
+export const totalSeconds = (scenes: Array<StoryboardScene>) =>
   Math.round(scenes.reduce((sum, scene) => sum + scene.durationS, 0) * 10) / 10;

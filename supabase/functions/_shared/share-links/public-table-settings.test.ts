@@ -135,7 +135,7 @@ Deno.test("public settings keep exactly the keys the shared pages read", () => {
 
 Deno.test("sharedTabs goes out only when shared_tabs is not stored", () => {
   const hideGa = { ga: false };
-  const cases: [Record<string, unknown>, Record<string, unknown>][] = [
+  const cases: Array<[Record<string, unknown>, Record<string, unknown>]> = [
     [{ sharedTabs: hideGa }, { sharedTabs: hideGa }],
     [{ shared_tabs: null, sharedTabs: hideGa }, { sharedTabs: hideGa }],
     [

@@ -34,7 +34,7 @@ export type AdImageResult =
     }
   | { success: false; error: string; suggestion?: string };
 
-const ENGINES: string[] = ["google", "elevenlabs", "higgsfield", "openai"];
+const ENGINES: Array<string> = ["google", "elevenlabs", "higgsfield", "openai"];
 export async function makeAdImage(
   supabase: Db,
   tenantId: string,
@@ -49,13 +49,14 @@ export async function makeAdImage(
   const openRouterKey = await tenantOpenRouterKey(supabase, tenantId).catch(
     () => "",
   );
-  if (imageProvidersFor(connected).length === 0 && !openRouterKey)
+  if (imageProvidersFor(connected).length === 0 && !openRouterKey) {
     return {
       success: false,
       error:
         "אין מפתח ליצירת תמונות. מספיק מוח OpenRouter מחובר, או אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
       suggestion: "פנה למנהל המערכת להגדרת המפתח.",
     };
+  }
   const loadedReferences = await loadReferences(
     await readableReferenceUrls(supabase, tenantId, referenceUrls),
     publicFetchAsFetch,
@@ -94,8 +95,9 @@ export async function makeAdImage(
   const { error: uploadError } = await supabase.storage
     .from("social-media")
     .upload(fileName, made.bytes, { contentType: made.mime, upsert: true });
-  if (uploadError)
+  if (uploadError) {
     return { success: false, error: `Upload failed: ${uploadError.message}` };
+  }
   const { data: urlData } = supabase.storage
     .from("social-media")
     .getPublicUrl(fileName);

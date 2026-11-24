@@ -20,15 +20,21 @@ import { type ToolContext } from "../tool-context.ts";
 export async function workshopMakeCreative(ctx: ToolContext) {
   const { supabase, tenantId, args, assertClientAccess, deps } = ctx;
   const itemId = String(args.item_id ?? "").trim();
-  if (!itemId) return { error: "item_id נדרש" };
-  if (!deps.generateImage) return { error: "יצירת תמונות לא זמינה כאן" };
+  if (!itemId) {
+    return { error: "item_id נדרש" };
+  }
+  if (!deps.generateImage) {
+    return { error: "יצירת תמונות לא זמינה כאן" };
+  }
   const loaded = await loadProject(
     supabase,
     tenantId,
     itemId,
     assertClientAccess,
   );
-  if ("error" in loaded) return loaded;
+  if ("error" in loaded) {
+    return loaded;
+  }
   const { project } = loaded;
   const prompt = (
     String(args.prompt ?? "").trim() ||
@@ -40,24 +46,28 @@ export async function workshopMakeCreative(ctx: ToolContext) {
       .join(". ")
       .trim()
   ).slice(0, 2000);
-  if (!prompt)
+  if (!prompt) {
     return {
       error: "prompt נדרש: תיאור הוויזואל באנגלית (נושא, סגנון, תאורה)",
     };
+  }
   if (project.payload.project_type === "video" && args.formats === undefined) {
     const scenes = await loadScenes(supabase, tenantId, itemId);
-    if (scenes.some((scene) => !scene.still_asset_id))
+    if (scenes.some((scene) => !scene.still_asset_id)) {
       return {
         error:
           "זה פרויקט סרט עם סצנות שעוד אין להן תמונה. תמונות לסצנות נוצרות עם workshop_make_stills, לא עם workshop_make_creative. אם המשתמש ביקש במפורש תמונת מודעה נפרדת, קראי שוב עם formats.",
       };
+    }
   }
   const brief = await briefProject(deps, project.payload, args, {
     kind: "static",
     save: (next) => savePayload(supabase, tenantId, itemId, next),
     needsEngine: true,
   });
-  if ("gate" in brief) return brief.gate;
+  if ("gate" in brief) {
+    return brief.gate;
+  }
   await mirrorReferences(supabase, tenantId, itemId, args.reference_urls);
   if (
     brief.payload !== project.payload ||
@@ -96,7 +106,9 @@ export async function workshopMakeCreative(ctx: ToolContext) {
       message: `הפקה של ${estimate.images} תמונות (${formats.join(", ")}) תעלה עד כ-$${estimate.usd}. מאשרים ומתחילים?`,
     },
   );
-  if ("stop" in gate) return gate.stop;
+  if ("stop" in gate) {
+    return gate.stop;
+  }
   const running = await supabase
     .from("workshop_artifacts")
     .select("id")
@@ -106,13 +118,14 @@ export async function workshopMakeCreative(ctx: ToolContext) {
     .eq("kind", "image")
     .eq("meta->>placeholder", "true")
     .gte("created_at", new Date(Date.now() - RUNNING_WINDOW_MS).toISOString());
-  if (Array.isArray(running.data) && running.data.length > 0)
+  if (Array.isArray(running.data) && running.data.length > 0) {
     return {
       success: true,
       already_running: true,
       message:
         "התמונות כבר בהכנה והן מופיעות בלוח לבד. אל תקראי שוב. לעדכון קראי ל-workshop_get_state.",
     };
+  }
   project.payload = spendBudget(
     gate.payload,
     "workshop_make_creative",
@@ -129,7 +142,7 @@ export async function workshopMakeCreative(ctx: ToolContext) {
       meta: { format },
     })),
   );
-  const artifacts: Record<string, any>[] = [];
+  const artifacts: Array<Record<string, any>> = [];
   const generateAll = () =>
     Promise.all(
       formats.map(async (format, index) => {

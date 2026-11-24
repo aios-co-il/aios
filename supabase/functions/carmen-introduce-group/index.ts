@@ -43,11 +43,15 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-  if (req.method !== "POST") return json({ error: "method" }, 405);
+  if (req.method !== "POST") {
+    return json({ error: "method" }, 405);
+  }
 
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return json({ error: "unauthorized" }, 401);
+  if (!token) {
+    return json({ error: "unauthorized" }, 401);
+  }
 
   const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: authHeader } },
@@ -57,13 +61,16 @@ Deno.serve(async (req) => {
     data: { user },
     error: userError,
   } = await userClient.auth.getUser(token);
-  if (userError || !user) return json({ error: "unauthorized" }, 401);
+  if (userError || !user) {
+    return json({ error: "unauthorized" }, 401);
+  }
 
   const body = await req.json().catch(() => ({}));
   const tenantId = String(body.tenantId || "");
   const agentId = String(body.agentId || "");
-  if (!tenantId || !agentId)
+  if (!tenantId || !agentId) {
     return json({ error: "missing tenant or agent" }, 400);
+  }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -73,13 +80,17 @@ Deno.serve(async (req) => {
     .from("user_roles")
     .select("role, tenant_id")
     .eq("user_id", user.id);
-  if (rolesError) return json({ error: "role check failed" }, 500);
+  if (rolesError) {
+    return json({ error: "role check failed" }, 500);
+  }
   const allowed = (roles || []).some(
     (role) =>
       (role.role === "super_admin" && role.tenant_id == null) ||
       (role.tenant_id === tenantId && MANAGER_ROLES.has(role.role)),
   );
-  if (!allowed) return json({ error: "forbidden" }, 403);
+  if (!allowed) {
+    return json({ error: "forbidden" }, 403);
+  }
 
   const { data: policy, error: policyError } = await admin
     .from("carmen_access_policies")
@@ -87,7 +98,9 @@ Deno.serve(async (req) => {
     .eq("tenant_id", tenantId)
     .eq("agent_id", agentId)
     .maybeSingle();
-  if (policyError) return json({ error: policyError.message }, 500);
+  if (policyError) {
+    return json({ error: policyError.message }, 500);
+  }
 
   const phones = selectRoundPhones(policy?.private_phones);
   const { data: integrations, error: integError } = await admin
@@ -97,10 +110,13 @@ Deno.serve(async (req) => {
     .eq("integration_type", "manus_wa")
     .eq("is_active", true)
     .order("updated_at", { ascending: false });
-  if (integError) return json({ error: integError.message }, 500);
+  if (integError) {
+    return json({ error: integError.message }, 500);
+  }
   const integ = integrations?.[0];
-  if (!integ?.user_id)
+  if (!integ?.user_id) {
     return json({ error: "no active manus connection" }, 404);
+  }
 
   const catalog = (integrations || []).flatMap((row) => {
     const groups = row.settings?.manus_groups_sync?.groups;
@@ -118,7 +134,9 @@ Deno.serve(async (req) => {
     .select("id, group_name, group_chat_id, description, is_blocked")
     .eq("tenant_id", tenantId)
     .eq("description", "manus_wa_sync");
-  if (taggedError) return json({ error: taggedError.message }, 500);
+  if (taggedError) {
+    return json({ error: taggedError.message }, 500);
+  }
   let catalogRows: Array<Record<string, unknown>> = [];
   if (chatIds.length > 0) {
     const { data, error } = await admin
@@ -126,7 +144,9 @@ Deno.serve(async (req) => {
       .select("id, group_name, group_chat_id, description, is_blocked")
       .eq("tenant_id", tenantId)
       .in("group_chat_id", chatIds);
-    if (error) return json({ error: error.message }, 500);
+    if (error) {
+      return json({ error: error.message }, 500);
+    }
     catalogRows = data || [];
   }
   const dbRows = [...(tagged || []), ...catalogRows].filter(
@@ -150,7 +170,9 @@ Deno.serve(async (req) => {
       .from("carmen_client_group_access")
       .select("whatsapp_group_id, client_id")
       .eq("tenant_id", tenantId);
-    if (fallback.error) return json({ error: fallback.error.message }, 500);
+    if (fallback.error) {
+      return json({ error: fallback.error.message }, 500);
+    }
     links = fallback.data || [];
   } else if (linkQuery.error) {
     return json({ error: linkQuery.error.message }, 500);

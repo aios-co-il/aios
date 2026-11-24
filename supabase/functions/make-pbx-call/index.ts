@@ -17,7 +17,9 @@ import { resolveCaller } from "./outbound.ts";
 import { isAllowedOutboundUrl } from "./url-guard.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return preflight();
+  if (req.method === "OPTIONS") {
+    return preflight();
+  }
   try {
     return await handle(req);
   } catch (error) {
@@ -28,22 +30,26 @@ Deno.serve(async (req) => {
 async function handle(req: Request): Promise<Response> {
   const auth = await requireAuth(req);
   const userId = auth?.kind === "user" ? auth.userId : null;
-  if (!userId) return json({ error: "Unauthorized" }, 401);
+  if (!userId) {
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   const { to_number, lead_id, client_id, tenant_id } = await req.json();
-  if (!to_number || !tenant_id)
+  if (!to_number || !tenant_id) {
     return json(
       { error: "Missing required fields: to_number, tenant_id" },
       400,
     );
+  }
 
   const sb = serviceClient();
-  if (!(await userHasTenantAccess(sb, userId, tenant_id)))
+  if (!(await userHasTenantAccess(sb, userId, tenant_id))) {
     return json({ error: "Forbidden" }, 403);
+  }
 
   const integration = await loadPbxIntegration(sb, tenant_id);
   const settings = integration?.settings;
-  if (!integration?.isActive || !settings?.outbound_url)
+  if (!integration?.isActive || !settings?.outbound_url) {
     return json(
       {
         error: "PBX not configured",
@@ -51,8 +57,10 @@ async function handle(req: Request): Promise<Response> {
       },
       422,
     );
-  if (!isAllowedOutboundUrl(settings.outbound_url))
+  }
+  if (!isAllowedOutboundUrl(settings.outbound_url)) {
     return json({ error: "PBX outbound URL is not allowed" }, 422);
+  }
 
   const { extension, callerNumber } = resolveCaller(settings, userId);
   const callId = crypto.randomUUID();

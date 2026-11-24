@@ -33,7 +33,7 @@ export const ENGINE_NOTES: Record<ImageProvider, string> = {
     "OpenAI (gpt-image-2.5): איכות גבוהה ופרשנות טובה לתיאורים, פחות עקבי בדמות בין סצנות",
 };
 
-export const engineOptions = (connected: ImageProvider[]) =>
+export const engineOptions = (connected: Array<ImageProvider>) =>
   connected.map((id) => ({
     id,
     label: PROVIDER_LABEL[id],
@@ -43,7 +43,7 @@ export const engineOptions = (connected: ImageProvider[]) =>
 export interface BriefingInput {
   look: Pick<ProjectLook, "bible" | "references" | "film">;
   styleApproved: boolean;
-  connected: ImageProvider[] | null;
+  connected: Array<ImageProvider> | null;
   engine: ImageProvider | null;
   kind: "video" | "static";
   needsEngine: boolean;
@@ -68,7 +68,7 @@ export interface BriefingInput {
 
 export interface BriefingGate {
   needs_input: true;
-  missing: ("style" | "film" | "engine")[];
+  missing: Array<"style" | "film" | "engine">;
   /** The message for the user, with the questions as buttons. Shown as is. */
   say_to_user: string;
   /** For Carmen only: what to do with the answers. Never shown to the user. */
@@ -91,7 +91,7 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   // about the style, Carmen writes the style bible from it (brief-reading.ts).
   const namedReference = answerFor(answers, REFERENCE);
   const hasBible = input.look.bible.trim().length > 0;
-  const answered = (choices: Choice[]) =>
+  const answered = (choices: Array<Choice>) =>
     choices.some((choice) => Boolean(answerFor(answers, choice.label)));
   const userStyle = answered(STYLE_CHOICES[input.kind]);
   const styleOk =
@@ -107,12 +107,20 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   // The engine is never a question for the user: the best connected one is used.
   const askEngine = false;
   const missing: BriefingGate["missing"] = [];
-  if (!styleOk) missing.push("style");
-  if (!filmOk) missing.push("film");
-  if (askEngine) missing.push("engine");
-  if (missing.length === 0) return null;
+  if (!styleOk) {
+    missing.push("style");
+  }
+  if (!filmOk) {
+    missing.push("film");
+  }
+  if (askEngine) {
+    missing.push("engine");
+  }
+  if (missing.length === 0) {
+    return null;
+  }
 
-  const choices: Choice[] = unanswered(
+  const choices: Array<Choice> = unanswered(
     [
       ...(missing.includes("style") && !namedReference
         ? STYLE_CHOICES[input.kind]
@@ -142,13 +150,14 @@ export function briefingGate(input: BriefingInput): BriefingGate | null {
   if (input.auto) {
     return autoBriefingGate(missing, fromAnswers);
   }
-  if (choices.length === 0)
+  if (choices.length === 0) {
     return {
       needs_input: true,
       missing,
       say_to_user: "",
       carmen_next: fromAnswers,
     };
+  }
   if (input.asked !== true && input.read !== true) {
     return {
       needs_input: true,

@@ -127,7 +127,7 @@ serve(async (req: Request) => {
       console.warn("Ownership check failed:", e);
     }
 
-    let tenants: any[] = [];
+    let tenants: Array<any> = [];
 
     if (isSuperAdmin) {
       // Super admins see ALL tenants

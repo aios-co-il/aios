@@ -10,9 +10,12 @@ const UUID_RE =
  * which must not be written into uuid columns (requested_by, approved_by, …).
  */
 export function asUuidOrNull(value) {
-  if (value == null) return null;
-  const s = String(value).trim();
-  if (!s || s.toLowerCase() === "system" || s === "null" || s === "undefined")
+  if (value == null) {
     return null;
+  }
+  const s = String(value).trim();
+  if (!s || s.toLowerCase() === "system" || s === "null" || s === "undefined") {
+    return null;
+  }
   return UUID_RE.test(s) ? s : null;
 }

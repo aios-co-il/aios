@@ -26,6 +26,8 @@ export type FacebookContinentSection = {
   totals: FacebookTabTotals;
   /** Spend on lead and sales campaigns: what their results are set against. */
   resultSpend: number;
+  /** Leads and purchases of those same lead and sales campaigns. */
+  results: number;
 };
 
 /**
@@ -47,14 +49,18 @@ export function facebookContinentSections(
   for (const row of campaigns.all) {
     sectionOf(byContinent, campaignContinent(row.name)).campaigns.all.push(row);
   }
-  const sections = [...byContinent.values()].map((section) => ({
-    ...section,
-    totals: facebookTabTotals(section.campaigns.all),
-    resultSpend: spendOf([
+  const sections = [...byContinent.values()].map((section) => {
+    const resultRows = [
       ...section.campaigns.leads,
       ...section.campaigns.ecommerce,
-    ]),
-  }));
+    ];
+    return {
+      ...section,
+      totals: facebookTabTotals(section.campaigns.all),
+      resultSpend: spendOf(resultRows),
+      results: resultsOf(resultRows),
+    };
+  });
   return sections.sort(
     (a, b) =>
       generalLast(a.continent, b.continent) || b.totals.spend - a.totals.spend,
@@ -72,10 +78,9 @@ export const FACEBOOK_SUMMARY_HEADERS = [
 
 /** A continent's Meta summary cells, under FACEBOOK_SUMMARY_HEADERS. */
 export function facebookSummaryCells(
-  { campaigns, totals, resultSpend }: FacebookContinentSection,
+  { campaigns, totals, resultSpend, results }: FacebookContinentSection,
   { formatCurrency, formatNumber }: FacebookTabFormatters,
 ): Array<string> {
-  const results = totals.leads + totals.purchases;
   return [
     formatNumber(campaigns.all.length),
     formatCurrency(totals.spend),
@@ -117,6 +122,7 @@ function sectionOf(
     campaigns: { ecommerce: [], leads: [], traffic: [], all: [] },
     totals: facebookTabTotals([]),
     resultSpend: 0,
+    results: 0,
   };
   byContinent.set(continent, section);
   return section;
@@ -125,4 +131,9 @@ function sectionOf(
 /** The campaigns' spend added up. */
 function spendOf(rows: Array<FacebookCampaignRow>): number {
   return rows.reduce((sum, row) => sum + row.spend, 0);
+}
+
+/** The campaigns' leads and purchases added up. */
+function resultsOf(rows: Array<FacebookCampaignRow>): number {
+  return rows.reduce((sum, row) => sum + row.leads + row.purchases, 0);
 }

@@ -43,7 +43,7 @@ import {
 } from "../_shared/agent-channel/store.ts";
 
 function parseAttachments(raw: unknown) {
-  if (!Array.isArray(raw))
+  if (!Array.isArray(raw)) {
     return [] as Array<{
       name: string;
       url: string;
@@ -51,13 +51,18 @@ function parseAttachments(raw: unknown) {
       size?: number;
       path?: string;
     }>;
+  }
   return raw
     .map((item) => {
-      if (!item || typeof item !== "object") return null;
+      if (!item || typeof item !== "object") {
+        return null;
+      }
       const name = String((item as any).name || "").trim();
       const url = String((item as any).url || "").trim();
       const type = (item as any).type === "image" ? "image" : "file";
-      if (!name || !url.startsWith("http")) return null;
+      if (!name || !url.startsWith("http")) {
+        return null;
+      }
       return {
         name,
         url,
@@ -94,13 +99,17 @@ function json(status: number, body: unknown) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
 
   const auth = await requireAuth(req);
-  if (!auth || auth.kind !== "user" || !auth.userId)
+  if (!auth || auth.kind !== "user" || !auth.userId) {
     return json(401, { error: "Unauthorized" });
+  }
 
   let body: any;
   try {
@@ -110,11 +119,15 @@ Deno.serve(async (req) => {
   }
 
   const tenantId = String(body.tenant_id || "").trim();
-  if (!tenantId) return json(400, { error: "tenant_id is required" });
+  if (!tenantId) {
+    return json(400, { error: "tenant_id is required" });
+  }
 
   const sb = serviceClient();
   const allowed = await userHasTenantAccess(sb, auth.userId, tenantId);
-  if (!allowed) return json(403, { error: "Not a member of this tenant" });
+  if (!allowed) {
+    return json(403, { error: "Not a member of this tenant" });
+  }
 
   const action = String(body.action || "send");
   const carmen = await resolveCarmenAgent(sb, tenantId);
@@ -128,8 +141,9 @@ Deno.serve(async (req) => {
   }
   // Brain routes and permissions belong to the tenant's Carmen; another agent
   // id would sidestep the user's permission row.
-  if (body.agent_id && String(body.agent_id) !== agentId)
+  if (body.agent_id && String(body.agent_id) !== agentId) {
     return json(400, { error: "agent_id must be this tenant's Carmen agent" });
+  }
   await ensureDefaultRoutes(sb, tenantId, agentId);
 
   // Per-user brain permissions (Carmen settings → הרשאות).
@@ -199,27 +213,32 @@ Deno.serve(async (req) => {
   }
 
   const denied = channelActionDenied(action, accessRow);
-  if (denied) return denied;
+  if (denied) {
+    return denied;
+  }
 
   if (action === "cancel_parliament") {
     const conversationId = String(body.conversation_id || "");
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     await cancelParliament(conversationId);
     return json(200, { ok: true, status: "idle" });
   }
 
   if (action === "parliament_continue") {
     const conversationId = String(body.conversation_id || "");
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     return json(200, await forceContinueParliament(conversationId));
   }
 
   if (action === "parliament_synthesize") {
     const conversationId = String(body.conversation_id || "");
-    if (!conversationId)
+    if (!conversationId) {
       return json(400, { error: "conversation_id is required" });
+    }
     return json(200, await forceSynthesizeParliament(conversationId));
   }
 
@@ -227,8 +246,9 @@ Deno.serve(async (req) => {
     const conversationId = String(body.conversation_id || "");
     const provider = String(body.provider || "");
     const question = String(body.content || body.question || "").trim();
-    if (!conversationId || !question)
+    if (!conversationId || !question) {
       return json(400, { error: "conversation_id and content are required" });
+    }
     if (provider !== "cursor" && provider !== "grok" && provider !== "codex") {
       return json(400, {
         error: "clarify only supports cursor, grok, or codex",
@@ -247,8 +267,9 @@ Deno.serve(async (req) => {
   if (action === "persist_assistant") {
     const conversationId = String(body.conversation_id || "");
     const content = String(body.content || "").trim();
-    if (!conversationId || !content)
+    if (!conversationId || !content) {
       return json(400, { error: "conversation_id and content are required" });
+    }
     const channel = await persistChannel(sb, tenantId, body.brain_slug);
     const { row, duplicate } = await insertMessage(sb, {
       tenant_id: tenantId,
@@ -280,13 +301,17 @@ Deno.serve(async (req) => {
     routeId: body.brain_route_id ? String(body.brain_route_id) : null,
     slug: body.brain_slug ? String(body.brain_slug) : null,
   });
-  if (!route) return json(400, { error: "brain route not found" });
+  if (!route) {
+    return json(400, { error: "brain route not found" });
+  }
 
   // Each route is its own grant. Parliament included: its seats (Cursor,
   // Claude, …) only answer a read-only round, so a "parliament" grant does not
   // need the seat brains' own grants.
   const level = brainLevel(accessRow, route.slug);
-  if (!level) return brainDenied("brain");
+  if (!level) {
+    return brainDenied("brain");
+  }
 
   if (action === "select_route") {
     if (body.conversation_id) {
@@ -324,7 +349,9 @@ Deno.serve(async (req) => {
   const existing = await findMessageByIdempotency(sb, tenantId, idempotencyKey);
   if (existing) {
     const reused = duplicateSendResult(existing);
-    if (reused) return json(200, { ...reused, duplicate: true });
+    if (reused) {
+      return json(200, { ...reused, duplicate: true });
+    }
   }
 
   if (conv.status === "debating" && route.route_type !== "parliament") {
@@ -355,7 +382,9 @@ Deno.serve(async (req) => {
   if (duplicate) {
     const prev = await findMessageByIdempotency(sb, tenantId, idempotencyKey);
     const reused = prev ? duplicateSendResult(prev) : null;
-    if (reused) return json(200, { ...reused, duplicate: true });
+    if (reused) {
+      return json(200, { ...reused, duplicate: true });
+    }
   }
 
   const provider = String(route.provider || route.slug || "internal");
@@ -441,7 +470,9 @@ async function persistChannel(
   tenantId: string,
   brainSlug: unknown,
 ): Promise<string> {
-  if (typeof brainSlug !== "string" || !brainSlug) return "internal";
+  if (typeof brainSlug !== "string" || !brainSlug) {
+    return "internal";
+  }
   const route = await loadRoute(sb, tenantId, { slug: brainSlug });
   return route && route.slug === brainSlug && route.route_type === "model"
     ? route.slug

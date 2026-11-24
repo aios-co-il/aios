@@ -13,7 +13,7 @@ export type Loaded = {
   /** builtin slug → the tenant sharing it into this tenant. */
   shares: Map<string, string>;
   homes: Set<string>;
-  rows: BuiltinRow[];
+  rows: Array<BuiltinRow>;
 };
 
 /** Shares into this tenant, the home tenants among the sources, their rows. */

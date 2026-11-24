@@ -138,7 +138,7 @@ test.skipIf(!hasFfmpeg)(
       const stats = String(grab.stdout);
       const max = Number(stats.match(/signalstats\.YMAX=(\d+)/)?.[1] ?? 0);
       expect(max).toBeGreaterThan(150);
-      if (process.env.END_CARD_SAMPLE)
+      if (process.env.END_CARD_SAMPLE) {
         spawnSync("ffmpeg", [
           "-y",
           "-ss",
@@ -149,6 +149,7 @@ test.skipIf(!hasFfmpeg)(
           "1",
           process.env.END_CARD_SAMPLE,
         ]);
+      }
       expect(frame).toBeTruthy();
     } finally {
       await rm(dir, { recursive: true, force: true });

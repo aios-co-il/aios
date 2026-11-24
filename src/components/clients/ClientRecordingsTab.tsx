@@ -54,7 +54,7 @@ interface RecordingRow {
   summary_file_url: string | null;
   summary_md: string | null;
   client_id: string | null;
-  _ids?: string[];
+  _ids?: Array<string>;
 }
 
 interface WorkItemRow {
@@ -64,8 +64,8 @@ interface WorkItemRow {
   payload: { source_recording_id?: string | null } | null;
 }
 
-function groupClientRecordings(rows: RecordingRow[]): RecordingRow[] {
-  const groups = new Map<string, RecordingRow[]>();
+function groupClientRecordings(rows: Array<RecordingRow>): Array<RecordingRow> {
+  const groups = new Map<string, Array<RecordingRow>>();
   for (const rec of rows) {
     const key = rec.meeting_id || rec.id;
     const list = groups.get(key) ?? [];
@@ -127,8 +127,10 @@ export function ClientRecordingsTab({
         .eq("tenant_id", tenantId!)
         .eq("client_id", clientId)
         .order("start_time", { ascending: false, nullsFirst: false });
-      if (error) throw error;
-      return (data ?? []) as RecordingRow[];
+      if (error) {
+        throw error;
+      }
+      return (data ?? []) as Array<RecordingRow>;
     },
     enabled: !!tenantId && !!clientId,
     refetchInterval: (query) =>
@@ -153,8 +155,10 @@ export function ClientRecordingsTab({
         .select("id, title, status, payload")
         .eq("tenant_id", tenantId!)
         .eq("client_id", clientId);
-      if (error) throw error;
-      return ((data ?? []) as WorkItemRow[]).filter(
+      if (error) {
+        throw error;
+      }
+      return ((data ?? []) as Array<WorkItemRow>).filter(
         (wi) => wi.payload?.source_recording_id,
       );
     },
@@ -179,7 +183,9 @@ export function ClientRecordingsTab({
         const url = recordingNeedsRecallRefresh(rec)
           ? await resolveExternalRecordingUrl(rec)
           : rec.recording_url;
-        if (!url) throw new Error("אין קובץ זמין להפעלה");
+        if (!url) {
+          throw new Error("אין קובץ זמין להפעלה");
+        }
         finishExternalOpen(url, pending);
       } catch (error) {
         cancelExternalOpen(pending);
@@ -226,7 +232,9 @@ export function ClientRecordingsTab({
     const pending = beginExternalOpen();
     try {
       const url = await resolveExternalRecordingUrl(rec);
-      if (!url) throw new Error("אין קובץ זמין להורדה");
+      if (!url) {
+        throw new Error("אין קובץ זמין להורדה");
+      }
       finishExternalOpen(url, pending);
     } catch (error) {
       cancelExternalOpen(pending);

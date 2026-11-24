@@ -47,17 +47,25 @@ export function enterStyle(
   frames: number,
 ): CSSProperties {
   // A skin switch draws itself (skinEnter): no fade or move of the whole scene.
-  if (type === "cut" || type === "skin" || frames <= 0) return {};
+  if (type === "cut" || type === "skin" || frames <= 0) {
+    return {};
+  }
   const p = inOutCubic(clamp01(frame / frames));
-  if (p >= 1) return {};
-  if (type === "slide")
+  if (p >= 1) {
+    return {};
+  }
+  if (type === "slide") {
     return {
       transform: `translateX(${(p - 1) * 100}%)`,
       boxShadow: "0 0 60px rgba(0,0,0,0.55)",
     };
-  if (type === "wipe") return { clipPath: `inset(0 0 0 ${(1 - p) * 100}%)` };
-  if (type === "zoom")
+  }
+  if (type === "wipe") {
+    return { clipPath: `inset(0 0 0 ${(1 - p) * 100}%)` };
+  }
+  if (type === "zoom") {
     return { opacity: p, transform: `scale(${1.25 - 0.25 * p})` };
+  }
   return { opacity: p };
 }
 

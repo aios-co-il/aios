@@ -27,9 +27,9 @@ export type CardDraftsLink = (
 export type BriefInput = {
   recipientName: string;
   now: Date;
-  decisions: BriefItem[];
+  decisions: Array<BriefItem>;
   pendingDrafts: PendingDrafts;
-  team: { name: string; open: number }[];
+  team: Array<{ name: string; open: number }>;
   activity: { autoCleared: number; messages: number };
 };
 
@@ -80,7 +80,7 @@ function draftLines({ count, link }: PendingDrafts): Array<string> {
 }
 
 /** The busiest people first, at most BRIEF_MAX_TEAM_LINES. */
-function teamLines(team: BriefInput["team"]): string[] {
+function teamLines(team: BriefInput["team"]): Array<string> {
   const busy = team
     .filter((member) => member.open > 0)
     .sort((a, b) => b.open - a.open);
@@ -99,7 +99,7 @@ function teamLines(team: BriefInput["team"]): string[] {
 }
 
 /** What Carmen did in the last day; nothing when she did nothing. */
-function activityLines(activity: BriefInput["activity"]): string[] {
+function activityLines(activity: BriefInput["activity"]): Array<string> {
   const lines = [
     activity.autoCleared === 1
       ? "• ממצא אחד נסגר מעצמו"

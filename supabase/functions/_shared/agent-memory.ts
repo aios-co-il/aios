@@ -9,10 +9,12 @@ export async function summarizeAndStoreAgentMemory(opts: {
   agent_id: string;
   user_message: string;
   assistant_output: string;
-  tools_used: string[];
+  tools_used: Array<string>;
 }) {
   try {
-    if (!(await hasAiKey())) return;
+    if (!(await hasAiKey())) {
+      return;
+    }
     const {
       supabase,
       tenant_id,
@@ -21,7 +23,9 @@ export async function summarizeAndStoreAgentMemory(opts: {
       assistant_output,
       tools_used,
     } = opts;
-    if (!user_message?.trim() || !assistant_output?.trim()) return;
+    if (!user_message?.trim() || !assistant_output?.trim()) {
+      return;
+    }
 
     const prompt = `סכם את האינטראקציה הבאה בין משתמש לסוכן AI ב-2-3 משפטים. החזר JSON תקין בלבד עם השדות: title (כותרת קצרה), summary (סיכום), category (אחד מ: conversation, instruction, fact, task, preference), importance (1-100).
 משתמש: ${user_message.slice(0, 2000)}
@@ -29,7 +33,9 @@ export async function summarizeAndStoreAgentMemory(opts: {
 כלים: ${tools_used.join(", ") || "ללא"}`;
 
     const parsed: any = await aiChatJSON(prompt);
-    if (!parsed || !parsed.title || !parsed.summary) return;
+    if (!parsed || !parsed.title || !parsed.summary) {
+      return;
+    }
 
     const emb = await embed(`${parsed.title}\n${parsed.summary}`);
 
@@ -53,10 +59,12 @@ export async function recallAgentMemory(
   agent_id: string,
   query_text: string,
   limit = 6,
-): Promise<{ title: string; summary: string; category: string }[]> {
+): Promise<Array<{ title: string; summary: string; category: string }>> {
   try {
     const emb = await embed(query_text);
-    if (!emb) return [];
+    if (!emb) {
+      return [];
+    }
     const { data } = await supabase.rpc("match_agent_memory", {
       p_agent_id: agent_id,
       p_query_embedding: emb,
@@ -110,14 +118,18 @@ export async function recallAgentMemoryFTS(
       .order("created_at", { ascending: false })
       .limit(limit * 3);
 
-    if (opts.agent_id) query = query.eq("agent_id", opts.agent_id);
+    if (opts.agent_id) {
+      query = query.eq("agent_id", opts.agent_id);
+    }
     if (tokens.length > 0) {
       const tsQuery = tokens.map((t: string) => `${t}:*`).join(" | ");
       query = query.textSearch("fts", tsQuery, { config: "simple" });
     }
 
     const { data, error } = await query;
-    if (error || !data) return [];
+    if (error || !data) {
+      return [];
+    }
     return data.slice(0, limit).map((m: any) => ({
       id: m.id,
       title: m.title,
@@ -146,7 +158,9 @@ export async function saveAgentMemory(opts: {
   metadata?: any;
 }) {
   try {
-    if (!opts.summary?.trim() || !opts.agent_id) return;
+    if (!opts.summary?.trim() || !opts.agent_id) {
+      return;
+    }
     const category = opts.category || "fact";
     const title = String(opts.title || opts.category).slice(0, 200);
     const summary = String(opts.summary).slice(0, 2000);
@@ -178,10 +192,14 @@ export async function saveAgentMemory(opts: {
           .from("agent_memory")
           .update(row)
           .eq("id", existing.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await opts.supabase.from("agent_memory").insert(row);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
       return;
     }

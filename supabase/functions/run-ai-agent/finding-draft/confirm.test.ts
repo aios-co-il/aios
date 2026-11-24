@@ -25,7 +25,7 @@ const LOGGED: ConfirmOutcome = {
 
 /** Ports over one finding; the database's answer is `outcome`. */
 function ports(
-  requests: ConfirmRequest[],
+  requests: Array<ConfirmRequest>,
   fields: { finding?: DraftFinding | null; outcome?: ConfirmOutcome } = {},
 ): FindingDraftPorts {
   const finding = fields.finding === undefined ? FINDING : fields.finding;
@@ -52,7 +52,7 @@ function input(fields: Partial<ConfirmInput> = {}): ConfirmInput {
 
 Deno.test("confirmFindingDraft", async (t) => {
   await t.step("logs the draft in the person's name", async () => {
-    const requests: ConfirmRequest[] = [];
+    const requests: Array<ConfirmRequest> = [];
     const result = await confirmFindingDraft(ports(requests), input());
     assertEquals(requests, [
       {
@@ -70,7 +70,7 @@ Deno.test("confirmFindingDraft", async (t) => {
   });
 
   await t.step("logs the person's own wording", async () => {
-    const requests: ConfirmRequest[] = [];
+    const requests: Array<ConfirmRequest> = [];
     await confirmFindingDraft(
       ports(requests),
       input({ args: { short_code: "#123", content: "דיברנו על התקציב" } }),
@@ -81,8 +81,8 @@ Deno.test("confirmFindingDraft", async (t) => {
   await t.step(
     "only the code the person wrote, in a private chat, by a person",
     async () => {
-      const requests: ConfirmRequest[] = [];
-      const cases: [Partial<ConfirmInput>, string][] = [
+      const requests: Array<ConfirmRequest> = [];
+      const cases: Array<[Partial<ConfirmInput>, string]> = [
         [{ args: { short_code: 124 } }, "reply_required"],
         [{ reply: { shortCode: null, inGroup: false } }, "reply_required"],
         [{ reply: null }, "reply_required"],
@@ -130,7 +130,7 @@ Deno.test("confirmFindingDraft", async (t) => {
   });
 
   await t.step("a finding without a draft is not confirmable", async () => {
-    const requests: ConfirmRequest[] = [];
+    const requests: Array<ConfirmRequest> = [];
     const plain = { ...FINDING, kind: "no_contact", evidence: {} };
     const result = await confirmFindingDraft(
       ports(requests, { finding: plain }),

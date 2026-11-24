@@ -17,14 +17,14 @@ import { useWeeklyGoogleCampaignGoals } from "./useWeeklyGoogleCampaignGoals";
 import { WeeklyGoalTable } from "./WeeklyGoalTable";
 
 type Props = {
-  records: WeeklyAdsRecord[];
+  records: Array<WeeklyAdsRecord>;
   currency?: string;
   /** A platform's currency symbol when it differs by platform; else `currency`. */
   currencyOf?: (source: WeeklyAdsSource) => string;
   defaultSource?: WeeklyAdsSource;
   sourceModes?: WeeklySourceModes;
   /** The report's tables: Google campaigns then show by their own goal. */
-  tables?: GoogleReportTable[];
+  tables?: Array<GoogleReportTable>;
   isLoading?: boolean;
 };
 

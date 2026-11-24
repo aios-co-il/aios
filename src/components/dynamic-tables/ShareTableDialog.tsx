@@ -47,13 +47,17 @@ export function ShareTableDialog({
   const { data: clientWebsite } = useQuery({
     queryKey: ["client-website", clientId],
     queryFn: async () => {
-      if (!clientId) return null;
+      if (!clientId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("website")
         .eq("id", clientId)
         .maybeSingle();
-      if (error) return null;
+      if (error) {
+        return null;
+      }
       return data?.website ?? null;
     },
     enabled: open && !!clientId,
@@ -69,7 +73,9 @@ export function ShareTableDialog({
         .select("id, integration_type, integration_settings")
         .eq("id", tableId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open,
@@ -95,7 +101,9 @@ export function ShareTableDialog({
         .from("crm_tables")
         .update({ integration_settings: nextSettings as never })
         .eq("id", tableId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -117,7 +125,9 @@ export function ShareTableDialog({
         .select("*")
         .eq("table_id", tableId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open,
@@ -128,7 +138,9 @@ export function ShareTableDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
 
       const readableToken = buildDefaultShareToken({
         website: clientWebsite,
@@ -145,7 +157,9 @@ export function ShareTableDialog({
         } as any)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -180,7 +194,9 @@ export function ShareTableDialog({
           updated_at: new Date().toISOString(),
         } as any)
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["table-shares", tableId] });
@@ -203,7 +219,9 @@ export function ShareTableDialog({
           updated_at: new Date().toISOString(),
         } as any)
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["table-shares", tableId] });
@@ -226,7 +244,9 @@ export function ShareTableDialog({
         .from("table_shares" as any)
         .delete()
         .eq("id", shareId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["table-shares", tableId] });
@@ -353,8 +373,12 @@ export function ShareTableDialog({
                       className="text-left font-mono text-sm"
                       autoFocus
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") saveSlug(share.id);
-                        if (e.key === "Escape") cancelEditing();
+                        if (e.key === "Enter") {
+                          saveSlug(share.id);
+                        }
+                        if (e.key === "Escape") {
+                          cancelEditing();
+                        }
                       }}
                     />
                     <Button

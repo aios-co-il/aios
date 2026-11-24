@@ -15,7 +15,7 @@ import {
 Deno.test(
   "Carmen adds a site picture as a stored reference, a link and a brief; a bad picture is reported",
   async () => {
-    const imported: string[] = [];
+    const imported: Array<string> = [];
     const db = fakeDb(project);
     const result = (await executeApprovedWorkshopTool(
       db,
@@ -122,7 +122,8 @@ Deno.test(
 
 /** Storage that records uploads and answers public links as Supabase does. */
 function fakeStorage() {
-  const uploads: { bucket: string; path: string; contentType?: string }[] = [];
+  const uploads: Array<{ bucket: string; path: string; contentType?: string }> =
+    [];
   return {
     uploads,
     storage: {

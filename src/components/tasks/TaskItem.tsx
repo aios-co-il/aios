@@ -41,8 +41,8 @@ interface TaskItemProps {
   };
   onToggleComplete: (taskId: string, completed: boolean) => void;
   onClick: () => void;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   onUpdateClient?: (taskId: string, clientId: string | null) => void;
   onUpdateCampaigner?: (taskId: string, campaignerId: string | null) => void;
 }
@@ -62,16 +62,24 @@ export function TaskItem({
   const [campaignerOpen, setCampaignerOpen] = useState(false);
 
   const filteredClients = useMemo(() => {
-    if (!clientsList) return [];
-    if (!clientSearch) return clientsList;
+    if (!clientsList) {
+      return [];
+    }
+    if (!clientSearch) {
+      return clientsList;
+    }
     return clientsList.filter((c) =>
       c.name.toLowerCase().includes(clientSearch.toLowerCase()),
     );
   }, [clientsList, clientSearch]);
 
   const filteredCampaigners = useMemo(() => {
-    if (!campaignersList) return [];
-    if (!campaignerSearch) return campaignersList;
+    if (!campaignersList) {
+      return [];
+    }
+    if (!campaignerSearch) {
+      return campaignersList;
+    }
     return campaignersList.filter((c) =>
       c.full_name.toLowerCase().includes(campaignerSearch.toLowerCase()),
     );
@@ -152,7 +160,9 @@ export function TaskItem({
                 open={clientOpen}
                 onOpenChange={(open) => {
                   setClientOpen(open);
-                  if (!open) setClientSearch("");
+                  if (!open) {
+                    setClientSearch("");
+                  }
                 }}
               >
                 <PopoverTrigger asChild>
@@ -214,7 +224,9 @@ export function TaskItem({
                 open={campaignerOpen}
                 onOpenChange={(open) => {
                   setCampaignerOpen(open);
-                  if (!open) setCampaignerSearch("");
+                  if (!open) {
+                    setCampaignerSearch("");
+                  }
                 }}
               >
                 <PopoverTrigger asChild>

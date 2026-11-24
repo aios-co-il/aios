@@ -17,9 +17,9 @@ import {
 
 export type MissingScope = {
   kind: string;
-  seen: string[];
-  clientIds: string[] | null;
-  fingerprints: string[] | null;
+  seen: Array<string>;
+  clientIds: Array<string> | null;
+  fingerprints: Array<string> | null;
   afterMisses: number;
 };
 
@@ -28,8 +28,8 @@ export type FindingsStore = {
     tenantId: string,
     roundId: string,
     collector: { id: string; detectorVersion: string },
-    candidates: FindingCandidate[],
-  ): Promise<UpsertOutcome[]>;
+    candidates: Array<FindingCandidate>,
+  ): Promise<Array<UpsertOutcome>>;
   resolve: ResolveFindings;
   /** Counts a miss for live findings in scope; returns how many were auto-cleared. */
   markMissing(
@@ -42,7 +42,7 @@ export type FindingsStore = {
     tenantId: string,
     now: Date,
     limit: number,
-  ): Promise<FindingRow[]>;
+  ): Promise<Array<FindingRow>>;
   /**
    * Live findings, newest first (for the brief), optionally of some kinds
    * only; `eventSince` skips findings about older events, and
@@ -53,15 +53,15 @@ export type FindingsStore = {
   listLive(
     tenantId: string,
     limit: number,
-    kinds?: readonly string[],
+    kinds?: ReadonlyArray<string>,
     eventSince?: string,
     carmenWritable?: boolean,
-  ): Promise<FindingRow[]>;
-  byIds(tenantId: string, ids: string[]): Promise<FindingRow[]>;
+  ): Promise<Array<FindingRow>>;
+  byIds(tenantId: string, ids: Array<string>): Promise<Array<FindingRow>>;
   applyRoute(
     tenantId: string,
     roundId: string,
-    decisions: RouteDecision[],
+    decisions: Array<RouteDecision>,
   ): Promise<number>;
 };
 

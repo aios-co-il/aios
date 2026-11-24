@@ -32,7 +32,9 @@ export function SeoGeoArticlePreviewDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
     setTitle(entry.title_draft || entry.title);
     setExcerpt(entry.excerpt || "");
     setMeta(entry.meta_description || "");
@@ -40,7 +42,9 @@ export function SeoGeoArticlePreviewDialog({
   }, [entry]);
 
   const save = async () => {
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await seoGeoDb
@@ -53,7 +57,9 @@ export function SeoGeoArticlePreviewDialog({
           generation_status: html.trim() ? "draft" : entry.generation_status,
         })
         .eq("id", entry.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("המאמר נשמר");
       onSaved();
       onClose();

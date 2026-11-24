@@ -15,14 +15,17 @@ export async function entityMatchesFilter(
   entityType: "lead" | "client",
   entityId: string,
 ): Promise<boolean> {
-  if (filter.source !== (entityType === "lead" ? "leads" : "clients"))
+  if (filter.source !== (entityType === "lead" ? "leads" : "clients")) {
     return false;
+  }
   const { data, error } = await db.rpc("broadcast_entity_matches", {
     p_tenant_id: tenantId,
     p_entity_type: entityType,
     p_entity_id: entityId,
     p_filter: filter,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data === true;
 }

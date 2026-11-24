@@ -374,8 +374,9 @@ Deno.serve(async (req) => {
       "sync-facebook-insights",
     );
     const campaignObjectives: Record<string, string | null | undefined> = {};
-    for (const c of Object.values(campaignStatuses))
+    for (const c of Object.values(campaignStatuses)) {
       campaignObjectives[c.id] = c.objective;
+    }
     const resultLeadTypes = buildResultLeadTypeMap(adsets, campaignObjectives);
     const optimizationGoals = buildCampaignOptimizationGoalMap(adsets);
     const resultMetrics = buildResultMetricMaps(adsets);

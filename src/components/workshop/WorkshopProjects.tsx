@@ -60,7 +60,7 @@ export function WorkshopProjects({
   onCreate,
   onSelect,
 }: {
-  groups: ClientGroup[];
+  groups: Array<ClientGroup>;
   /** Every client is in view: the list is grouped by client first. */
   byClient: boolean;
   selectedId: string | null;

@@ -45,7 +45,7 @@ export interface SendSignatureOptions {
 
 export interface SendSignatureResult {
   documentId: string;
-  signingLinks: SigningLinkResult[];
+  signingLinks: Array<SigningLinkResult>;
   emailSent: boolean;
   partial?: boolean;
 }
@@ -60,10 +60,13 @@ const SIGNATURE_ERROR_MESSAGES: Record<string, string> = {
 };
 
 function humanizeSignatureError(raw: string | null): string | null {
-  if (!raw) return null;
+  if (!raw) {
+    return null;
+  }
   const trimmed = raw.trim();
-  if (SIGNATURE_ERROR_MESSAGES[trimmed])
+  if (SIGNATURE_ERROR_MESSAGES[trimmed]) {
     return SIGNATURE_ERROR_MESSAGES[trimmed];
+  }
   if (
     trimmed.includes("row-level security") ||
     trimmed.includes("violates row-level security")
@@ -169,7 +172,7 @@ export async function sendSignatureDocument(
 }
 
 export function openWhatsAppForLinks(
-  links: SigningLinkResult[],
+  links: Array<SigningLinkResult>,
   documentTitle?: string,
 ): { opened: number; skipped: number } {
   let opened = 0;
@@ -192,9 +195,11 @@ export function openWhatsAppForLinks(
 }
 
 export async function copyFirstSigningLink(
-  links: SigningLinkResult[],
+  links: Array<SigningLinkResult>,
 ): Promise<boolean> {
-  if (!links[0]?.url) throw new Error("לא נוצר קישור לחתימה");
+  if (!links[0]?.url) {
+    throw new Error("לא נוצר קישור לחתימה");
+  }
   await copySigningUrl(links[0].url);
   return true;
 }

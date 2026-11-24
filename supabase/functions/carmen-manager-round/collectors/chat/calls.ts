@@ -16,20 +16,20 @@ import { MAX_PAGES, PAGE_ROWS } from "./paging.ts";
 export type CompletedCall = { client_id: string; created_at: string };
 
 /** The calls read, and whether every call was (false past the page cap). */
-export type CallsRead = { calls: CompletedCall[]; complete: boolean };
+export type CallsRead = { calls: Array<CompletedCall>; complete: boolean };
 
 /** Completed calls of these tenants to these clients since `since`. */
 export async function loadCompletedCalls(
   db: DbClient,
-  tenantIds: string[],
-  clientIds: string[],
+  tenantIds: Array<string>,
+  clientIds: Array<string>,
   since: Date,
 ): Promise<CallsRead> {
   const wanted = new Set(clientIds);
   if (!wanted.size) {
     return { calls: [], complete: true };
   }
-  const calls: CompletedCall[] = [];
+  const calls: Array<CompletedCall> = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const from = page * PAGE_ROWS;
     const { data, error } = await db

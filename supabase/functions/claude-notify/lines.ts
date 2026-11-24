@@ -74,7 +74,7 @@ export function isGreenIntegration(
 /** Whether the tenant has an active Manus line of its own (decides Green's role). */
 export function tenantHasActiveManus(
   tenantId: string,
-  integrations: NotifyIntegrationRow[],
+  integrations: Array<NotifyIntegrationRow>,
 ): boolean {
   return integrations.some(
     (r) => r.tenant_id === tenantId && isManusIntegration(r) && r.is_active,

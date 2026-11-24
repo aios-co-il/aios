@@ -14,7 +14,7 @@ const INTEGRATION_COLS =
 export async function loadTenantLines(
   sb: Pick<DbClient, "from">,
   tenantId: string,
-): Promise<NotifyIntegrationRow[]> {
+): Promise<Array<NotifyIntegrationRow>> {
   const { data, error } = await sb
     .from("tenant_integrations")
     .select(INTEGRATION_COLS)
@@ -29,7 +29,10 @@ export async function loadTenantLines(
 }
 
 /** Lines a step or trigger names that are not the tenant's own, and which of them are shared with the tenant. */
-export type NamedLines = { rows: NotifyIntegrationRow[]; sharedIds: string[] };
+export type NamedLines = {
+  rows: Array<NotifyIntegrationRow>;
+  sharedIds: Array<string>;
+};
 
 /**
  * Lines a step or trigger names that are not the tenant's own, and which of
@@ -43,7 +46,7 @@ export type NamedLines = { rows: NotifyIntegrationRow[]; sharedIds: string[] };
 export async function loadNamedLines(
   sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
-  ids: string[],
+  ids: Array<string>,
 ): Promise<NamedLines> {
   const uuids = ids.filter((id) => asUuidOrNull(id) === id);
   if (!uuids.length) {
@@ -59,8 +62,8 @@ export async function loadNamedLines(
 /** The tenant_integrations rows with these ids. */
 async function readLines(
   sb: Pick<DbClient, "from">,
-  ids: string[],
-): Promise<NotifyIntegrationRow[]> {
+  ids: Array<string>,
+): Promise<Array<NotifyIntegrationRow>> {
   const { data, error } = await sb
     .from("tenant_integrations")
     .select(INTEGRATION_COLS)
@@ -75,8 +78,8 @@ async function readLines(
 async function sharedLineIds(
   sb: Pick<DbClient, "rpc">,
   tenantId: string,
-  ids: string[],
-): Promise<string[]> {
+  ids: Array<string>,
+): Promise<Array<string>> {
   const usable = await Promise.all(
     ids.map((id) => tenantCanUseIntegration(sb, tenantId, id)),
   );

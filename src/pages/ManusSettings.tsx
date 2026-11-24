@@ -36,7 +36,9 @@ export default function ManusSettings() {
   const { data: integration, isLoading } = useQuery({
     queryKey: ["manus-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -53,7 +55,9 @@ export default function ManusSettings() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId || !apiKey.trim()) throw new Error("Missing data");
+      if (!currentTenantId || !apiKey.trim()) {
+        throw new Error("Missing data");
+      }
 
       if (integration) {
         const { error } = await supabase
@@ -63,7 +67,9 @@ export default function ManusSettings() {
             is_active: true,
           })
           .eq("id", integration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("tenant_integrations").insert({
           tenant_id: currentTenantId,
@@ -71,7 +77,9 @@ export default function ManusSettings() {
           settings: { api_key: apiKey.trim() },
           is_active: true,
         });
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -87,14 +95,20 @@ export default function ManusSettings() {
   });
 
   const testConnection = async () => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
     setTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke("manus-api", {
         body: { action: "test_connection", tenantId: currentTenantId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       toast.success("החיבור ל-Manus תקין!");
     } catch (err: any) {
       toast.error(`שגיאת חיבור: ${err.message}`);
@@ -104,13 +118,19 @@ export default function ManusSettings() {
   };
 
   const registerWebhook = async () => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("manus-api", {
         body: { action: "register_webhook", tenantId: currentTenantId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       queryClient.invalidateQueries({
         queryKey: ["manus-integration", currentTenantId],
       });
@@ -121,7 +141,9 @@ export default function ManusSettings() {
   };
 
   const disconnect = async () => {
-    if (!integration) return;
+    if (!integration) {
+      return;
+    }
     const { error } = await supabase
       .from("tenant_integrations")
       .update({ is_active: false })

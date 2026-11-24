@@ -16,9 +16,9 @@ interface GaOrganicMonth {
 }
 
 interface SeoTrafficChartProps {
-  trafficHistory: any[];
+  trafficHistory: Array<any>;
   /** Monthly organic sessions derived from Google Analytics (optional) */
-  gaOrganicByMonth?: GaOrganicMonth[];
+  gaOrganicByMonth?: Array<GaOrganicMonth>;
 }
 
 export function SeoTrafficChart({
@@ -46,7 +46,9 @@ export function SeoTrafficChart({
 
   const isGaData = gaOrganicByMonth.length > 0;
 
-  if (chartData.length === 0) return null;
+  if (chartData.length === 0) {
+    return null;
+  }
 
   return (
     <Card>

@@ -93,17 +93,19 @@ export async function submitLipsync({
         !/\b40[13]\b|invalid credentials|model_access_denied/i.test(
           String(messageOf(error)),
         )
-      )
+      ) {
         throw error;
+      }
       log(
         `[lipsync] ${run.id} ${name} unavailable: ${error instanceof Error ? error.message : error}`,
       );
     }
   }
-  if (!job)
+  if (!job) {
     throw finalError(
       `lipsync run: ${messageOf(lastError) ?? NO_LIPSYNC_PROVIDER}`,
     );
+  }
   const { provider, jobId, source } = job;
   try {
     await db.update("marketing_runs", `id=eq.${run.id}`, {

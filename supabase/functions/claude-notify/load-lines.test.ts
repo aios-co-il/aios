@@ -27,7 +27,7 @@ const foreignLine = { ...manusLine(FOREIGN), tenant_id: OTHER_TENANT };
  * Carmen's first step names another tenant's line; a later step names none,
  * so it falls back to the tenant's own primary line when there is one.
  */
-const tables = (ownLines: Row[] = [manusLine("manus-own")]) =>
+const tables = (ownLines: Array<Row> = [manusLine("manus-own")]) =>
   tenantTables({
     steps: [
       manusStep("auto-1", FOREIGN, "2026-01-01"),
@@ -51,7 +51,7 @@ const access = ({
 
 /** The handler's notify reply, the sends it posted and the errors it logged. */
 async function notify(
-  tables: Record<string, Row[]>,
+  tables: Record<string, Array<Row>>,
   rpc: ReturnType<typeof access>,
 ) {
   const { handle, fetch, errors } = handler({ tables, rpc });

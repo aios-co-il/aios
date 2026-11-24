@@ -18,7 +18,7 @@ const KEYS_PER_READ = 100;
 
 export type ReviewCache = {
   /** Stored verdicts by thread key. */
-  load(threadKeys: string[]): Promise<Map<string, CachedReview>>;
+  load(threadKeys: Array<string>): Promise<Map<string, CachedReview>>;
   save(
     threadKey: string,
     review: CachedReview & { costUsd: number },

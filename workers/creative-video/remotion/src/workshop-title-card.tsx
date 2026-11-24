@@ -28,7 +28,9 @@ export const TitleCard: React.FC<{
   const { durationInFrames, fps, width, height } = useVideoConfig();
   const layout = captionLayout(width, height);
   const t = frame - enter - 2;
-  if (t < 0) return null;
+  if (t < 0) {
+    return null;
+  }
   const fontSize = Math.round(
     Math.min(
       layout.titleFontSize,

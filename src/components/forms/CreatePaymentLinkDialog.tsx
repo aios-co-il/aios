@@ -69,8 +69,12 @@ export const CreatePaymentLinkDialog: React.FC<
 
   const createPaymentLink = useMutation({
     mutationFn: async () => {
-      if (!client) throw new Error("No client selected");
-      if (!amount || parseFloat(amount) <= 0) throw new Error("Invalid amount");
+      if (!client) {
+        throw new Error("No client selected");
+      }
+      if (!amount || parseFloat(amount) <= 0) {
+        throw new Error("Invalid amount");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "create-sumit-payment",
@@ -85,8 +89,12 @@ export const CreatePaymentLinkDialog: React.FC<
         },
       );
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
       return data;
     },
@@ -121,7 +129,9 @@ export const CreatePaymentLinkDialog: React.FC<
     onOpenChange(false);
   };
 
-  if (!client) return null;
+  if (!client) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

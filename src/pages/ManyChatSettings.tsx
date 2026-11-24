@@ -63,7 +63,7 @@ interface SyncProgress {
   remaining: number;
   conflicts: number;
   total: number;
-  results: SyncResult[];
+  results: Array<SyncResult>;
 }
 
 interface SyncJob {
@@ -101,7 +101,9 @@ export default function ManyChatSettings() {
   const { data: integration, isLoading } = useQuery({
     queryKey: ["manychat-integration", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_integrations")
@@ -110,7 +112,9 @@ export default function ManyChatSettings() {
         .eq("integration_type", "manychat")
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
 
       if (data) {
         setApiKey(data.api_key || "");
@@ -134,7 +138,9 @@ export default function ManyChatSettings() {
   const { data: activeJob, refetch: refetchJob } = useQuery({
     queryKey: ["sync-job", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("sync_jobs")
@@ -145,8 +151,12 @@ export default function ManyChatSettings() {
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data) return null;
+      if (error) {
+        throw error;
+      }
+      if (!data) {
+        return null;
+      }
 
       // Parse JSON fields with proper typing
       const progressData = data.progress as unknown as SyncProgress | null;
@@ -174,7 +184,9 @@ export default function ManyChatSettings() {
 
   // Subscribe to realtime updates on sync_jobs
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
 
     const channel = supabase
       .channel(`sync-jobs-${tenantId}`)
@@ -214,7 +226,9 @@ export default function ManyChatSettings() {
   const { data: leadsToSync, refetch: refetchLeadsCount } = useQuery({
     queryKey: ["leads-to-sync", tenantId],
     queryFn: async () => {
-      if (!tenantId) return { count: 0, conflicts: 0 };
+      if (!tenantId) {
+        return { count: 0, conflicts: 0 };
+      }
 
       const { count, error } = await supabase
         .from("leads")
@@ -229,7 +243,9 @@ export default function ManyChatSettings() {
         .eq("tenant_id", tenantId)
         .eq("manychat_subscriber_id", "SYNC_CONFLICT");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: count || 0, conflicts: conflictCount || 0 };
     },
     enabled: !!tenantId && !!integration?.is_active,
@@ -239,19 +255,25 @@ export default function ManyChatSettings() {
   const { data: tags } = useQuery({
     queryKey: ["manychat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return [];
+      if (!session) {
+        return [];
+      }
 
       const response = await supabase.functions.invoke("get-manychat-tags", {
         body: { tenantId },
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data?.tags || [];
     },
     enabled: !!tenantId && !!integration?.is_active,
@@ -260,7 +282,9 @@ export default function ManyChatSettings() {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const integrationData = {
         tenant_id: tenantId,
@@ -284,12 +308,16 @@ export default function ManyChatSettings() {
           .from("tenant_integrations")
           .update(integrationData)
           .eq("id", integration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase
           .from("tenant_integrations")
           .insert(integrationData);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onSuccess: () => {
@@ -308,12 +336,16 @@ export default function ManyChatSettings() {
   // Start sync mutation
   const startSyncMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke("start-sync-job", {
         body: {
@@ -324,8 +356,12 @@ export default function ManyChatSettings() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      if (response.error) throw response.error;
-      if (response.data?.error) throw new Error(response.data.error);
+      if (response.error) {
+        throw response.error;
+      }
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
 
       return response.data;
     },
@@ -346,12 +382,16 @@ export default function ManyChatSettings() {
   // Stop sync mutation - uses edge function to properly stop the job
   const stopSyncMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke("stop-sync-job", {
         body: {
@@ -361,8 +401,12 @@ export default function ManyChatSettings() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      if (response.error) throw response.error;
-      if (response.data?.error) throw new Error(response.data.error);
+      if (response.error) {
+        throw response.error;
+      }
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
 
       return response.data;
     },

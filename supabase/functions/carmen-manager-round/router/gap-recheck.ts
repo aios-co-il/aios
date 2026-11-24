@@ -18,18 +18,18 @@ import type { PeopleDirectory, StaffMember } from "../recipients/directory.ts";
 /** Live gaps re-checked per tenant per round. */
 const GAP_RECHECK_LIMIT = 100;
 
-const ROLES: readonly RecipientRole[] = ["campaigner", "manager", "owner"];
+const ROLES: ReadonlyArray<RecipientRole> = ["campaigner", "manager", "owner"];
 
 /** The tenant's live no_campaigner and missing_phone findings. */
 export function listOpenGaps(
   findings: FindingsStore,
   tenantId: string,
-): Promise<FindingRow[]> {
+): Promise<Array<FindingRow>> {
   return findings.listLive(tenantId, GAP_RECHECK_LIMIT, ROUTER_KINDS);
 }
 
 /** Clients of the open no_campaigner gaps. */
-export function gapClientIds(gaps: FindingRow[]): string[] {
+export function gapClientIds(gaps: Array<FindingRow>): Array<string> {
   return gaps.flatMap((gap) =>
     gap.kind === "no_campaigner" && gap.client_id ? [gap.client_id] : [],
   );
@@ -43,9 +43,9 @@ export function gapClientIds(gaps: FindingRow[]): string[] {
 export async function recheckPeople(
   directory: PeopleDirectory,
   tenantId: string,
-  staff: StaffMember[],
-  gaps: FindingRow[],
-): Promise<{ people: Recipient[]; gone: string[] }> {
+  staff: Array<StaffMember>,
+  gaps: Array<FindingRow>,
+): Promise<{ people: Array<Recipient>; gone: Array<string> }> {
   const named = gaps.flatMap((gap) => {
     const key = evidenceText(gap.evidence, "recipient_key");
     return gap.kind === "missing_phone" && key
@@ -57,8 +57,8 @@ export async function recheckPeople(
   const contacts = others.length
     ? await directory.contacts(tenantId, others)
     : new Map<string, Contact>();
-  const people: Recipient[] = [];
-  const gone: string[] = [];
+  const people: Array<Recipient> = [];
+  const gone: Array<string> = [];
   for (const { key, role } of named) {
     const contact = members.get(key) ?? contacts.get(key);
     if (!contact) {
