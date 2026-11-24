@@ -17,7 +17,7 @@ import {
   useTestBrainConnection,
 } from "./useBrainConnections";
 
-const GROUP_ORDER: BrainRouteType[] = [
+const GROUP_ORDER: Array<BrainRouteType> = [
   "model",
   "internal",
   "direct_channel",

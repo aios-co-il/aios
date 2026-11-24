@@ -27,7 +27,7 @@ export function ShareTelegramConnectionSection({
 }: ShareTelegramConnectionSectionProps) {
   const { user } = useCurrentUser();
   const queryClient = useQueryClient();
-  const [selectedTenants, setSelectedTenants] = useState<string[]>([]);
+  const [selectedTenants, setSelectedTenants] = useState<Array<string>>([]);
 
   const { data: userTenants, isLoading: loadingTenants } = useQuery({
     queryKey: ["user-all-tenants-for-telegram-sharing", user?.id],

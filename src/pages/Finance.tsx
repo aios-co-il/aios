@@ -102,7 +102,7 @@ export default function Finance() {
 
       if (error) throw error;
 
-      const rows: any[] = [];
+      const rows: Array<any> = [];
       data?.forEach((s: any) => {
         [1, 2, 3].forEach((i) => {
           const amount = Number(s[`payment_${i}`] || 0);

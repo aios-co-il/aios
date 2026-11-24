@@ -32,7 +32,7 @@ export function useLeadPipelineStages() {
         .order("sort_order");
 
       if (error) throw error;
-      return data as LeadPipelineStage[];
+      return data as Array<LeadPipelineStage>;
     },
     enabled: !!tenantId,
   });
@@ -133,7 +133,7 @@ export function useLeadPipelineStageMutations() {
   });
 
   const updateSortOrders = useMutation({
-    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+    mutationFn: async (updates: Array<{ id: string; sort_order: number }>) => {
       const results = await Promise.all(
         updates.map((update) =>
           supabase

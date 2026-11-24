@@ -49,7 +49,7 @@ serve(async (req) => {
     }
 
     const text = String(message).trim().toLowerCase();
-    const actions: string[] = [];
+    const actions: Array<string> = [];
 
     if (/אשר\s*(ה)?כול|אישור\s*אוטומטי|כרמן\s*תאשר/.test(text)) {
       if (item.client_id) {

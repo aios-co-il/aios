@@ -158,7 +158,7 @@ Deno.test("trigger accepts 202 with an empty body", async () => {
 Deno.test(
   "trigger retries a hung request once with the same Idempotency-Key",
   async () => {
-    const keys: string[] = [];
+    const keys: Array<string> = [];
     const result = await triggerWorkspaceAgentRun({
       triggerId: "agtch_demo",
       accessToken: "wstok_abc",

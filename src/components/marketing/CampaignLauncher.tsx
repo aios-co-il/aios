@@ -108,7 +108,7 @@ export function CampaignLauncher({
         .eq("is_active", true)
         .in("integration_type", ["facebook_ads", "google_ads", "meta_ads"]);
 
-      const accounts: AdAccount[] = [];
+      const accounts: Array<AdAccount> = [];
       (data ?? []).forEach((row: any) => {
         const isMeta =
           row.integration_type === "facebook_ads" ||
@@ -320,7 +320,7 @@ export function CampaignLauncher({
 
       {/* Platform toggle */}
       <div className="flex gap-2">
-        {(["meta", "google"] as Platform[]).map((p) => (
+        {(["meta", "google"] as Array<Platform>).map((p) => (
           <button
             key={p}
             onClick={() => {

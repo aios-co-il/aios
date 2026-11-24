@@ -12,8 +12,8 @@ const OTHER_TENANT = "tenant-other";
 const AUTH = "Bearer owner-jwt";
 
 type Calls = {
-  fetched: string[];
-  saved: { authHeader: string; row: BotRow }[];
+  fetched: Array<string>;
+  saved: Array<{ authHeader: string; row: BotRow }>;
 };
 
 /**

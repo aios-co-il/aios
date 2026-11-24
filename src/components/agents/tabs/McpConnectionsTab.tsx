@@ -277,11 +277,13 @@ export function McpConnectionsTab({ agent }: { agent: any }) {
             </div>
             {c.state === "ready" && (c.available_tools ?? []).length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1 ps-8">
-                {(c.available_tools as any[]).slice(0, 12).map((t: any) => (
-                  <Badge key={t.name} variant="secondary" className="text-xs">
-                    {t.name}
-                  </Badge>
-                ))}
+                {(c.available_tools as Array<any>)
+                  .slice(0, 12)
+                  .map((t: any) => (
+                    <Badge key={t.name} variant="secondary" className="text-xs">
+                      {t.name}
+                    </Badge>
+                  ))}
               </div>
             )}
           </Card>

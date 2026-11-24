@@ -48,7 +48,7 @@ export function useBroadcastDomains() {
   const list = useQuery({
     queryKey: key,
     enabled: !!tenantId,
-    queryFn: async (): Promise<SenderDomain[]> => {
+    queryFn: async (): Promise<Array<SenderDomain>> => {
       const { data, error } = await supabase
         .from("broadcast_email_domains")
         .select("*")
@@ -56,7 +56,7 @@ export function useBroadcastDomains() {
         .order("is_default", { ascending: false })
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []) as unknown as SenderDomain[];
+      return (data || []) as unknown as Array<SenderDomain>;
     },
   });
 

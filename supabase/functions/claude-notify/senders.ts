@@ -13,14 +13,14 @@ import type { CarmenSendSetup } from "./send-setup.ts";
 export type NotifySenders = {
   connectionUserIds: Record<string, string>;
   senderUserIds: Record<string, string | null>;
-  superAdminUserIds: string[];
+  superAdminUserIds: Array<string>;
 };
 
 /** The connection users, step senders and super-admin senders of the tenant's Carmen automations. */
 export async function loadNotifySenders(
   sb: Pick<DbClient, "rpc">,
   tenantId: string,
-  sessions: NotifyBridgeSession[],
+  sessions: Array<NotifyBridgeSession>,
   bridge: NotifyBridgeSession | null,
   setup: CarmenSendSetup,
 ): Promise<NotifySenders> {
@@ -42,7 +42,7 @@ export async function loadNotifySenders(
  * bridge automation, else that automation's latest session.
  */
 function connectionUsersByAutomation(
-  sessions: NotifyBridgeSession[],
+  sessions: Array<NotifyBridgeSession>,
   bridge: NotifyBridgeSession | null,
 ): Record<string, string> {
   const ids: Record<string, string> = {};
@@ -59,7 +59,7 @@ function connectionUsersByAutomation(
 
 /** Who each step automation's send goes out as: its latest session's connection user, else the bridge session's. */
 function sendersByAutomation(
-  sessions: NotifyBridgeSession[],
+  sessions: Array<NotifyBridgeSession>,
   bridge: NotifyBridgeSession | null,
   setup: CarmenSendSetup,
 ): Record<string, string | null> {
@@ -85,7 +85,7 @@ async function superAdminSenders(
   tenantId: string,
   setup: CarmenSendSetup,
   senderUserIds: Record<string, string | null>,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const unshared = setup.integrations.some(
     (r) => r.tenant_id !== tenantId && !setup.sharedLineIds.includes(r.id),
   );

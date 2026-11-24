@@ -161,7 +161,7 @@ Deno.test(
         c.op === "insert" &&
         Array.isArray(c.value),
     );
-    const row = (pending?.value as Record<string, any>[])[0];
+    const row = (pending?.value as Array<Record<string, any>>)[0];
     assertStrictEquals(row.kind, "scene_still");
     assertStrictEquals(row.meta.scene_id, "s-1");
     const failedUpdate = db.calls.find(
@@ -178,7 +178,7 @@ Deno.test(
 Deno.test(
   "a redo of the pictures keeps the user's own video scenes",
   async () => {
-    const generatedFor: string[] = [];
+    const generatedFor: Array<string> = [];
     const db = fakeDb({
       ...videoProject(),
       "marketing_video_scenes:select": [

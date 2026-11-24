@@ -17,7 +17,7 @@ export type PulseDeliveryPlan = {
   role: PulseDeliveryRole;
   name: string;
   phone: string;
-  clientIds: string[];
+  clientIds: Array<string>;
 };
 
 export type PulseCampaignerMissingPhone = {
@@ -40,7 +40,7 @@ type TeamManagerLike = {
   user_id: string;
   full_name: string | null;
   phone: string | null;
-  agency_ids: string[];
+  agency_ids: Array<string>;
 };
 
 /** Message David reviews before a scoped digest goes to a campaigner / manager. */
@@ -58,11 +58,11 @@ export function buildPulsePreviewMessage(
 
 /** Campaigners assigned pulse clients but missing a WhatsApp phone. */
 export function findCampaignersMissingPulsePhone(
-  snapshots: SnapshotLike[],
-  links: ClientTeamLink[],
-  campaigners: CampaignerLike[],
+  snapshots: Array<SnapshotLike>,
+  links: Array<ClientTeamLink>,
+  campaigners: Array<CampaignerLike>,
   tenantSlug?: string | null,
-): PulseCampaignerMissingPhone[] {
+): Array<PulseCampaignerMissingPhone> {
   const snapshotClientIds = new Set(snapshots.map((row) => row.client_id));
   const clientsByCampaigner = new Map<string, Set<string>>();
   for (const link of links) {
@@ -73,7 +73,7 @@ export function findCampaignersMissingPulsePhone(
     clientsByCampaigner.set(link.campaigner_id, set);
   }
 
-  const missing: PulseCampaignerMissingPhone[] = [];
+  const missing: Array<PulseCampaignerMissingPhone> = [];
   for (const campaigner of campaigners) {
     if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) continue;
     const clientIds = clientsByCampaigner.get(campaigner.id);
@@ -92,7 +92,7 @@ export function findCampaignersMissingPulsePhone(
 
 /** Alert the tenant pulse manager (Felix on DMM) to add missing campaigner phones. */
 export function buildPulseMissingPhoneAlert(
-  campaigners: PulseCampaignerMissingPhone[],
+  campaigners: Array<PulseCampaignerMissingPhone>,
   options?: { tenantLabel?: string | null },
 ): string {
   if (!campaigners.length) return "";
@@ -111,11 +111,11 @@ export function buildPulseMissingPhoneAlert(
 }
 
 export function planCampaignerPulseDeliveries(
-  snapshots: SnapshotLike[],
-  links: ClientTeamLink[],
-  campaigners: CampaignerLike[],
+  snapshots: Array<SnapshotLike>,
+  links: Array<ClientTeamLink>,
+  campaigners: Array<CampaignerLike>,
   tenantSlug?: string | null,
-): PulseDeliveryPlan[] {
+): Array<PulseDeliveryPlan> {
   const snapshotClientIds = new Set(snapshots.map((row) => row.client_id));
   const clientsByCampaigner = new Map<string, Set<string>>();
   for (const link of links) {
@@ -126,7 +126,7 @@ export function planCampaignerPulseDeliveries(
     clientsByCampaigner.set(link.campaigner_id, set);
   }
 
-  const plans: PulseDeliveryPlan[] = [];
+  const plans: Array<PulseDeliveryPlan> = [];
   for (const campaigner of campaigners) {
     if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) continue;
     const phone = normalizeNotifyPhone(campaigner.phone);
@@ -145,11 +145,11 @@ export function planCampaignerPulseDeliveries(
 }
 
 export function planTeamManagerPulseDeliveries(
-  snapshots: SnapshotLike[],
-  managers: TeamManagerLike[],
+  snapshots: Array<SnapshotLike>,
+  managers: Array<TeamManagerLike>,
   tenantSlug?: string | null,
-): PulseDeliveryPlan[] {
-  const plans: PulseDeliveryPlan[] = [];
+): Array<PulseDeliveryPlan> {
+  const plans: Array<PulseDeliveryPlan> = [];
   for (const manager of managers) {
     if (isPulseDeliveryExcludedRecipient(manager.full_name)) continue;
     const phone = normalizeNotifyPhone(manager.phone);
@@ -173,8 +173,8 @@ export function planTeamManagerPulseDeliveries(
 
 /** Merge plans that share a phone (union client ids). Team-manager scope wins on role label. */
 export function mergePulseDeliveryPlans(
-  plans: PulseDeliveryPlan[],
-): PulseDeliveryPlan[] {
+  plans: Array<PulseDeliveryPlan>,
+): Array<PulseDeliveryPlan> {
   const byPhone = new Map<string, PulseDeliveryPlan>();
   for (const plan of plans) {
     const phone = normalizeNotifyPhone(plan.phone);
@@ -197,9 +197,9 @@ export function mergePulseDeliveryPlans(
 
 /** Manual trial: deliver scoped pulse only to campaigners whose name matches. */
 export function filterPulsePlansByCampaignerName(
-  plans: PulseDeliveryPlan[],
+  plans: Array<PulseDeliveryPlan>,
   nameFilter: string,
-): PulseDeliveryPlan[] {
+): Array<PulseDeliveryPlan> {
   const needle = String(nameFilter || "").trim();
   if (!needle) return plans;
   return plans.filter((plan) => {
@@ -210,9 +210,9 @@ export function filterPulsePlansByCampaignerName(
 }
 
 export function filterMissingPhoneCampaignersByName<T extends { name: string }>(
-  campaigners: T[],
+  campaigners: Array<T>,
   nameFilter: string | null | undefined,
-): T[] {
+): Array<T> {
   const needle = String(nameFilter || "").trim();
   if (!needle) return campaigners;
   return campaigners.filter((row) => {
@@ -222,8 +222,8 @@ export function filterMissingPhoneCampaignersByName<T extends { name: string }>(
 }
 
 export function scopeSnapshotsForPlan<T extends { client_id: string }>(
-  snapshots: T[],
+  snapshots: Array<T>,
   plan: PulseDeliveryPlan,
-): T[] {
+): Array<T> {
   return filterPulseRowsByClientIds(snapshots, plan.clientIds);
 }

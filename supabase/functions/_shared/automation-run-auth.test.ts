@@ -85,7 +85,7 @@ Deno.test("bearerToken strips the scheme", () => {
 
 // authorizeTenantCaller: the caller client answers user_is_tenant_member for
 // the user whose JWT it carries.
-const callerHeaders: string[] = [];
+const callerHeaders: Array<string> = [];
 const asCaller = (authHeader: string) => {
   callerHeaders.push(authHeader);
   const u = users[bearerToken(authHeader)];

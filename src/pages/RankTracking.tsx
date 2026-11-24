@@ -162,7 +162,7 @@ export default function RankTracking() {
         }),
       );
 
-      return projectsWithStats as RankProject[];
+      return projectsWithStats as Array<RankProject>;
     },
     enabled: !!tenantId,
   });

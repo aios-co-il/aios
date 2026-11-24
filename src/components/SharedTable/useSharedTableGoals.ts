@@ -22,7 +22,7 @@ export type SharedTableGoals = GoogleGoalPresence & {
  * table shows its own mode.
  */
 export function useSharedTableGoals(
-  records: GoogleReportRecord[] | undefined,
+  records: Array<GoogleReportRecord> | undefined,
   googleTable: GoogleReportTable | null | undefined,
   tableMode: GoogleCampaignGoal,
 ): SharedTableGoals {

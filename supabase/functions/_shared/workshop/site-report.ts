@@ -14,15 +14,15 @@ export interface SiteReport {
   title: string;
   description: string;
   lang: string;
-  colors: string[];
-  fonts: string[];
-  headings: string[];
-  copy: string[];
-  buttons: string[];
-  images: SiteImage[];
+  colors: Array<string>;
+  fonts: Array<string>;
+  headings: Array<string>;
+  copy: Array<string>;
+  buttons: Array<string>;
+  images: Array<SiteImage>;
   logo: string | null;
-  social: string[];
-  stylesheets: string[];
+  social: Array<string>;
+  stylesheets: Array<string>;
 }
 
 const ENTITIES: Record<string, string> = {
@@ -77,7 +77,7 @@ const absolute = (value: string, base: string): string | null => {
   }
 };
 
-const unique = <T>(values: T[]) => [...new Set(values)];
+const unique = <T>(values: Array<T>) => [...new Set(values)];
 
 function hexToRgb(hex: string): [number, number, number] {
   return [
@@ -96,7 +96,7 @@ function isChromatic(hex: string): boolean {
 }
 
 /** The brand colors in a stretch of CSS or markup, most used first. */
-export function colorsFrom(text: string, limit = 6): string[] {
+export function colorsFrom(text: string, limit = 6): Array<string> {
   const counts = new Map<string, number>();
   for (const match of text.matchAll(
     /#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/gi,
@@ -155,8 +155,8 @@ const GENERIC_FONTS = new Set([
 ]);
 
 /** The fonts a page names, skipping the system fallbacks every page lists. */
-export function fontsFrom(text: string, limit = 4): string[] {
-  const found: string[] = [];
+export function fontsFrom(text: string, limit = 4): Array<string> {
+  const found: Array<string> = [];
   for (const match of text.matchAll(/font-family\s*:\s*([^;}{]+)/gi)) {
     for (const part of match[1].split(",")) {
       const name = part
@@ -238,7 +238,7 @@ export function siteReport(html: string, pageUrl: string): SiteReport {
     ].filter((t) => t.length >= 2 && t.length <= 40),
   ).slice(0, 6);
 
-  const images: SiteImage[] = [];
+  const images: Array<SiteImage> = [];
   const seen = new Set<string>();
   const push = (raw: string, alt: string, role: SiteImage["role"]) => {
     const url = absolute(raw, pageUrl);
@@ -334,7 +334,10 @@ export function describeSite(report: SiteReport): string {
 }
 
 /** Merges the colors and fonts of the page's stylesheets into its report. */
-export function withStylesheets(report: SiteReport, css: string[]): SiteReport {
+export function withStylesheets(
+  report: SiteReport,
+  css: Array<string>,
+): SiteReport {
   if (css.length === 0) return report;
   const blob = css.join("\n");
   return {

@@ -7,7 +7,7 @@ import type { CompareTotals } from "./run-summary.ts";
 import type { FindingKind, ReconcileFinding } from "./types.ts";
 
 /** Sorts in place: missing days, then one-sided campaigns, then mismatches, biggest gap first. */
-export function sortFindings(findings: ReconcileFinding[]): void {
+export function sortFindings(findings: Array<ReconcileFinding>): void {
   findings.sort((x, y) => {
     const order = FINDING_ORDER[x.kind] - FINDING_ORDER[y.kind];
     if (order) {
@@ -21,7 +21,7 @@ export function sortFindings(findings: ReconcileFinding[]): void {
 
 /** How many findings of each kind, zero included. */
 export function countFindings(
-  findings: ReconcileFinding[],
+  findings: Array<ReconcileFinding>,
 ): Record<FindingKind, number> {
   const counts: Record<FindingKind, number> = {
     mismatch: 0,

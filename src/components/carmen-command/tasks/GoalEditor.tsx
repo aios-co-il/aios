@@ -20,7 +20,7 @@ import { carmenTasksKey } from "../useCarmenTasks";
 
 const db = supabase as any;
 
-const STATUSES: { value: string; label: string }[] = [
+const STATUSES: Array<{ value: string; label: string }> = [
   { value: "active", label: "פעיל" },
   { value: "in_progress", label: "בעבודה" },
   { value: "blocked", label: "חסום" },
@@ -29,7 +29,7 @@ const STATUSES: { value: string; label: string }[] = [
   { value: "cancelled", label: "בוטל" },
 ];
 
-const PRIORITIES: { value: string; label: string }[] = [
+const PRIORITIES: Array<{ value: string; label: string }> = [
   { value: "urgent", label: "דחוף" },
   { value: "high", label: "גבוה" },
   { value: "normal", label: "רגיל" },

@@ -33,8 +33,8 @@ modeSelect.addEventListener("change", () => {
   cameraRow.classList.toggle("hidden", modeSelect.value !== "screen");
 });
 
-let tenants: TenantOption[] = [];
-let clients: ClientOption[] = [];
+let tenants: Array<TenantOption> = [];
+let clients: Array<ClientOption> = [];
 let selectedTenantId: string | null = null;
 
 function show(state: "loading" | "login" | "main") {
@@ -48,7 +48,7 @@ function showError(target: HTMLElement, message: string | null) {
   target.textContent = message ?? "";
 }
 
-function fillDatalist(list: HTMLDataListElement, names: string[]) {
+function fillDatalist(list: HTMLDataListElement, names: Array<string>) {
   list.innerHTML = "";
   for (const name of names) {
     const opt = document.createElement("option");
@@ -58,7 +58,7 @@ function fillDatalist(list: HTMLDataListElement, names: string[]) {
 }
 
 const findByName = <T extends { name: string }>(
-  items: T[],
+  items: Array<T>,
   typed: string,
 ): T | null => {
   const q = typed.trim();
@@ -70,13 +70,13 @@ const findByName = <T extends { name: string }>(
   );
 };
 
-async function loadTenants(): Promise<TenantOption[]> {
+async function loadTenants(): Promise<Array<TenantOption>> {
   const { data, error } = await supabase
     .from("tenant_users")
     .select("tenant_id, tenants(id, name, slug)");
   if (error) throw error;
   const seen = new Set<string>();
-  const result: TenantOption[] = [];
+  const result: Array<TenantOption> = [];
   for (const row of data ?? []) {
     const t = row.tenants as unknown as TenantOption | null;
     if (t && !seen.has(t.id)) {

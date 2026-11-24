@@ -130,7 +130,7 @@ export function CreativeBriefEditor({
       const uploaded: Array<
         Awaited<ReturnType<typeof uploadCreativeAsset>> & { file: File }
       > = [];
-      let logoColors: string[] = [];
+      let logoColors: Array<string> = [];
       for (const file of Array.from(files)) {
         const asset = await uploadCreativeAsset({
           supabase,

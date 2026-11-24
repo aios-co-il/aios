@@ -17,7 +17,7 @@ export { buildMineAssignmentOrFilter, buildMineQueueOrFilter };
 export async function fetchMineTaskIdentity(input: {
   userId: string;
   tenantId: string;
-  crossTenantAgencyIds?: string[];
+  crossTenantAgencyIds?: Array<string>;
 }): Promise<MineTaskIdentity> {
   const { userId, tenantId, crossTenantAgencyIds = [] } = input;
 

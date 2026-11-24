@@ -22,8 +22,8 @@ import { getProduction, type VideoProduction } from "./videoProduction";
 
 const ID_CHUNK = 100;
 
-function chunks<T>(values: T[], size: number): T[][] {
-  const out: T[][] = [];
+function chunks<T>(values: Array<T>, size: number): Array<Array<T>> {
+  const out: Array<Array<T>> = [];
   for (let index = 0; index < values.length; index += size)
     out.push(values.slice(index, index + size));
   return out;
@@ -32,10 +32,10 @@ function chunks<T>(values: T[], size: number): T[][] {
 /** Storyboards of the given video projects, keyed by work item id, read from marketing_video_scenes. */
 export async function fetchVideoStoryboards(
   tenantId: string,
-  itemIds: string[],
-): Promise<Record<string, StoryboardFrame[]>> {
+  itemIds: Array<string>,
+): Promise<Record<string, Array<StoryboardFrame>>> {
   if (itemIds.length === 0) return {};
-  const rows: VideoSceneRecord[] = [];
+  const rows: Array<VideoSceneRecord> = [];
   for (const ids of chunks(itemIds, ID_CHUNK)) {
     const { data, error } = await supabase
       .from("marketing_video_scenes")
@@ -44,7 +44,7 @@ export async function fetchVideoStoryboards(
       .in("item_id", ids)
       .order("position");
     if (error) throw error;
-    rows.push(...((data ?? []) as VideoSceneRecord[]));
+    rows.push(...((data ?? []) as Array<VideoSceneRecord>));
   }
 
   const stillIds = [
@@ -66,13 +66,13 @@ export async function fetchVideoStoryboards(
       .eq("tenant_id", tenantId)
       .in("id", ids);
     if (error) throw error;
-    for (const still of (data ?? []) as SceneStillRecord[])
+    for (const still of (data ?? []) as Array<SceneStillRecord>)
       stills.set(still.id, still);
   }
 
-  const byItem: Record<string, VideoSceneRecord[]> = {};
+  const byItem: Record<string, Array<VideoSceneRecord>> = {};
   for (const row of rows) (byItem[row.item_id] ??= []).push(row);
-  const storyboards: Record<string, StoryboardFrame[]> = {};
+  const storyboards: Record<string, Array<StoryboardFrame>> = {};
   for (const itemId of itemIds) {
     storyboards[itemId] = layoutStoryboardRtl(
       scenesToFrames(byItem[itemId] ?? [], stills, storyboardFrameX),
@@ -95,7 +95,7 @@ export async function saveVideoStoryboard({
 }: {
   tenantId: string;
   itemId: string;
-  frames: StoryboardFrame[];
+  frames: Array<StoryboardFrame>;
   persistedStills: Map<string, string | undefined>;
 }) {
   const { error } = await supabase.rpc("save_video_storyboard", {
@@ -123,7 +123,7 @@ export async function saveVideoStoryboard({
 }
 
 /** What the scene table holds after a save of these frames. */
-export const persistedStillsOf = (frames: StoryboardFrame[]) =>
+export const persistedStillsOf = (frames: Array<StoryboardFrame>) =>
   new Map(frames.map((frame) => [frame.id, frame.imageUrl] as const));
 
 /** Records a new still version for a scene and makes it the scene's current still. */
@@ -152,7 +152,7 @@ export async function attachSceneStill({
 export async function fetchSceneStillVersions(
   tenantId: string,
   sceneId: string,
-): Promise<{ id: string; url: string; version: number }[]> {
+): Promise<Array<{ id: string; url: string; version: number }>> {
   const { data, error } = await supabase
     .from("marketing_assets")
     .select("id,url,meta")
@@ -271,7 +271,7 @@ export async function fetchLatestReferenceRun(
 
 /** Short-lived URLs for files in the private creative-video bucket. */
 export async function signCreativeVideoPaths(
-  paths: string[],
+  paths: Array<string>,
 ): Promise<Record<string, string>> {
   if (paths.length === 0) return {};
   const { data, error } = await supabase.storage
@@ -297,7 +297,7 @@ export async function queueSceneClips({
 }: {
   itemId: string;
   stageId: string;
-  sceneIds: string[];
+  sceneIds: Array<string>;
   aspect: string;
   estimate: { usd: number; credits: number };
   provider: string;
@@ -329,7 +329,7 @@ export async function queueSceneSound({
   itemId: string;
   stageId: string;
   kind: "voice" | "music";
-  sceneIds: string[];
+  sceneIds: Array<string>;
   estimate: { usd: number; credits: number };
   prompt?: string;
   voiceId?: string | null;

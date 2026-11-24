@@ -13,11 +13,11 @@ const REFERENCE_MAX_BYTES = 12 * 1024 * 1024;
  * a result that ignores the reference is the failure this exists to prevent.
  */
 export async function loadReferences(
-  urls: string[],
+  urls: Array<string>,
   fetchImpl: typeof fetch = fetch,
-): Promise<{ references: ImageReference[]; failed: string[] }> {
-  const references: ImageReference[] = [];
-  const failed: string[] = [];
+): Promise<{ references: Array<ImageReference>; failed: Array<string> }> {
+  const references: Array<ImageReference> = [];
+  const failed: Array<string> = [];
   await Promise.all(
     urls.map(async (url, index) => {
       try {

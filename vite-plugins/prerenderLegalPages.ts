@@ -23,7 +23,7 @@ type RenderLegalPage = z.infer<typeof prerenderEntrySchema>["renderLegalPage"];
 
 interface RendererConfig {
   root: string;
-  alias: Alias[];
+  alias: Array<Alias>;
   define: Record<string, unknown>;
 }
 

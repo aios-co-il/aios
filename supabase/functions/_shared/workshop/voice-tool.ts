@@ -75,7 +75,7 @@ export async function chooseVoice(
       ? args.gender
       : undefined;
   const voices = HEBREW_VOICES.filter((v) => !gender || v.gender === gender);
-  const missing: string[] = [];
+  const missing: Array<string> = [];
   const heard = new Set<string>();
   for (const voice of voices) {
     const sample = helpers.voiceSample

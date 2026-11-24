@@ -18,7 +18,7 @@ export async function viaElevenLabs(
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   const headers = { "xi-api-key": key, "Content-Type": "application/json" };
   const base = "https://api.elevenlabs.io/v1/flows/image";

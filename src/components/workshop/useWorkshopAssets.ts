@@ -64,7 +64,7 @@ export function useWorkshopAssets(
     queryKey: workshopAssetsKey(tenantId, projectId),
     queryFn:
       tenantId && projectId
-        ? async (): Promise<WorkshopAsset[]> => {
+        ? async (): Promise<Array<WorkshopAsset>> => {
             const { data, error } = await supabase
               .from("workshop_assets")
               .select(COLUMNS)
@@ -72,7 +72,9 @@ export function useWorkshopAssets(
               .eq("item_id", projectId)
               .order("created_at", { ascending: true });
             if (error) throw error;
-            return Promise.all(((data ?? []) as WorkshopAsset[]).map(viewable));
+            return Promise.all(
+              ((data ?? []) as Array<WorkshopAsset>).map(viewable),
+            );
           }
         : skipToken,
   });

@@ -90,7 +90,7 @@ export function ClientTablesTab({
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!clientId,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
     // Bust empty linked lists after permission grants; keep warm cache otherwise.
     refetchOnMount: refetchOnMountIfEmpty,
   });
@@ -107,7 +107,7 @@ export function ClientTablesTab({
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && showLinkSection,
-    ...reportQueryOptions<any[]>(),
+    ...reportQueryOptions<Array<any>>(),
   });
 
   // Available tables not linked to this client

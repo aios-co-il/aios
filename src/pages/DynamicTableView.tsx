@@ -374,7 +374,7 @@ export default function DynamicTableView({
         throw response.error;
       }
       const rows = Array.isArray(response.data)
-        ? (response.data as CrmTable[])
+        ? (response.data as Array<CrmTable>)
         : [];
       return rows[0] ?? null;
     },
@@ -519,7 +519,9 @@ export default function DynamicTableView({
       );
       if (response.error) throw response.error;
       const fields = (response.data as any)?.fields || [];
-      return (fields as CrmField[]).sort((a, b) => a.position - b.position);
+      return (fields as Array<CrmField>).sort(
+        (a, b) => a.position - b.position,
+      );
     },
     enabled: !!table?.id,
   });
@@ -1297,7 +1299,7 @@ export default function DynamicTableView({
           throw new Error("לא נמצאו דוחות SEO עבור לקוח זה");
 
         // Build records from ALL reports, each tagged with report_date
-        const allRecordsToInsert: any[] = [];
+        const allRecordsToInsert: Array<any> = [];
 
         for (const report of reports) {
           const rd = ((report as any).report_data as any) || {};
@@ -1364,7 +1366,7 @@ export default function DynamicTableView({
 
         const { error: insertError } = await supabase
           .from("crm_records")
-          .insert(recordsToInsert as any[]);
+          .insert(recordsToInsert as Array<any>);
         if (insertError) throw insertError;
 
         // Auto-create fields if none exist
@@ -1519,7 +1521,7 @@ export default function DynamicTableView({
 
   // Fetch Google Ads accounts for settings dialog
   const { data: googleAdsAccounts, isLoading: googleAccountsLoading } =
-    useQuery<GoogleAdsAccount[]>({
+    useQuery<Array<GoogleAdsAccount>>({
       queryKey: ["google-ads-accounts"],
       queryFn: async () => {
         const {

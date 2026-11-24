@@ -97,7 +97,7 @@ async function requestArticleJson(
   }
 }
 
-function wordCountOf(parts: string[]) {
+function wordCountOf(parts: Array<string>) {
   return parts.join(" ").split(/\s+/).filter(Boolean).length;
 }
 

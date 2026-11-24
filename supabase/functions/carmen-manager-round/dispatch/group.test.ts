@@ -14,7 +14,7 @@ const settings = resolveManagerSettings({
 function batch(count: number, slot: "now" | "list", critical = false) {
   const w = world();
   const findings = new Map<string, FindingRow>();
-  const group: DeliveryRow[] = [];
+  const group: Array<DeliveryRow> = [];
   for (let i = 0; i < count; i++) {
     const f = finding({
       short_code: 10 + i,
@@ -82,7 +82,7 @@ Deno.test("dispatchGroup", async (t) => {
       const b = batch(8, "list");
       const ports = deps(b.w);
       const send = ports.send;
-      let markedAtSend: boolean[] = [];
+      let markedAtSend: Array<boolean> = [];
       ports.send = (input) => {
         markedAtSend = b.group.map((row) => row.attempted_at !== null);
         return send(input);

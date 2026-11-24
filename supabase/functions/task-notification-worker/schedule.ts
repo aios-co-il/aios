@@ -123,7 +123,7 @@ export function taskNotificationScope(input: {
   taskSalesPersonId: string | null;
   creatorCampaignerId: string | null;
   creatorSalesPersonId: string | null;
-  creatorRoles: string[];
+  creatorRoles: Array<string>;
   hasCreator: boolean;
 }) {
   const hasAssignee = Boolean(

@@ -23,7 +23,7 @@ interface DefaultStage {
   sort_order: number;
 }
 
-function buildDefaultStages(track: MarketingTrack): DefaultStage[] {
+function buildDefaultStages(track: MarketingTrack): Array<DefaultStage> {
   const targetByTrack: Record<MarketingTrack, DefaultStage> = {
     campaigns: {
       stage_type: "target_paid",

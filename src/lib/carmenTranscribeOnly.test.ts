@@ -34,9 +34,9 @@ test("loadMicCaptureMode defaults to realtime_voice", () => {
 });
 
 test("logTranscribeOnlyEvent prefixes structured pipeline steps", () => {
-  const lines: unknown[][] = [];
+  const lines: Array<Array<unknown>> = [];
   const orig = console.info;
-  console.info = (...args: unknown[]) => lines.push(args);
+  console.info = (...args: Array<unknown>) => lines.push(args);
   try {
     logTranscribeOnlyEvent("send_text", { chars: 12 });
     expect(lines.length).toBe(1);

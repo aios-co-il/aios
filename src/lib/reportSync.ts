@@ -101,10 +101,10 @@ export async function syncReportTable(
 }
 
 export async function syncReportTables(
-  tables: SyncableReportTable[],
+  tables: Array<SyncableReportTable>,
   concurrency = 2,
-): Promise<ReportSyncResult[]> {
-  const results: ReportSyncResult[] = new Array(tables.length);
+): Promise<Array<ReportSyncResult>> {
+  const results: Array<ReportSyncResult> = new Array(tables.length);
   let cursor = 0;
   const workers = Array.from(
     { length: Math.min(Math.max(concurrency, 1), Math.max(tables.length, 1)) },

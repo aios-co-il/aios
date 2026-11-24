@@ -92,8 +92,8 @@ export function artifactRow(input: ArtifactInput) {
 
 /** The folder tree of a project: the folders that hold something, with counts. */
 export function folderTree(
-  artifacts: { folder: string }[],
-): { folder: string; label: string; count: number }[] {
+  artifacts: Array<{ folder: string }>,
+): Array<{ folder: string; label: string; count: number }> {
   const counts = new Map<string, number>();
   for (const artifact of artifacts)
     counts.set(artifact.folder, (counts.get(artifact.folder) ?? 0) + 1);

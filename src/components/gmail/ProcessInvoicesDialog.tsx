@@ -63,7 +63,7 @@ interface InvoiceResult {
 interface ProcessInvoicesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  messageIds: string[];
+  messageIds: Array<string>;
 }
 
 export function ProcessInvoicesDialog({
@@ -72,7 +72,7 @@ export function ProcessInvoicesDialog({
   messageIds,
 }: ProcessInvoicesDialogProps) {
   const { tenantId } = useCurrentTenant();
-  const [results, setResults] = useState<InvoiceResult[]>([]);
+  const [results, setResults] = useState<Array<InvoiceResult>>([]);
   const [processing, setProcessing] = useState(false);
   const [saving, setSaving] = useState(false);
 

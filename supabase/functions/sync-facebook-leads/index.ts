@@ -108,7 +108,7 @@ serve(async (req) => {
 
     let totalSynced = 0;
     let totalSkipped = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     // Compute since timestamp (unix seconds)
     let sinceSec: number;
@@ -260,7 +260,7 @@ serve(async (req) => {
             const fieldMappings = formMapping.fields || {};
 
             // Support both legacy single and new multi-select salesperson
-            const salesPersonIds: string[] =
+            const salesPersonIds: Array<string> =
               formMapping.sales_person_ids ||
               (formMapping.sales_person_id
                 ? [formMapping.sales_person_id]

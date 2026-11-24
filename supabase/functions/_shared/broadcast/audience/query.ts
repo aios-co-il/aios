@@ -3,14 +3,14 @@
 const PAGE = 1000;
 const IN_CHUNK = 200;
 
-type Result<T> = PromiseLike<{ data: T[] | null; error: unknown }>;
+type Result<T> = PromiseLike<{ data: Array<T> | null; error: unknown }>;
 
 /** A query builder that can be paged with `.range()`. */
 export type Pageable<T> = { range(from: number, to: number): Result<T> };
 
 /** Page through a PostgREST query builder factory (default max_rows is 1000). */
-export async function fetchAll<T>(build: () => Pageable<T>): Promise<T[]> {
-  const out: T[] = [];
+export async function fetchAll<T>(build: () => Pageable<T>): Promise<Array<T>> {
+  const out: Array<T> = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await build().range(from, from + PAGE - 1);
     if (error) throw error;
@@ -22,11 +22,11 @@ export async function fetchAll<T>(build: () => Pageable<T>): Promise<T[]> {
 
 /** Run `query` over de-duplicated ids in chunks small enough for `.in()`. */
 export async function fetchByIds<T>(
-  ids: (string | null | undefined)[],
-  query: (chunk: string[]) => Result<T>,
-): Promise<T[]> {
+  ids: Array<string | null | undefined>,
+  query: (chunk: Array<string>) => Result<T>,
+): Promise<Array<T>> {
   const unique = [...new Set(ids.filter((id): id is string => !!id))];
-  const out: T[] = [];
+  const out: Array<T> = [];
   for (let i = 0; i < unique.length; i += IN_CHUNK) {
     const { data, error } = await query(unique.slice(i, i + IN_CHUNK));
     if (error) throw error;
@@ -35,7 +35,7 @@ export async function fetchByIds<T>(
   return out;
 }
 
-export const hasItems = (a: unknown): a is string[] =>
+export const hasItems = (a: unknown): a is Array<string> =>
   Array.isArray(a) && a.length > 0;
 
 export function flatObject(v: unknown): Record<string, unknown> {

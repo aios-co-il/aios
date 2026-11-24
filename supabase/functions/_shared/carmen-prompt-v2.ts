@@ -31,9 +31,9 @@ interface AgentConfig {
   talent?: string | null;
   system_prompt?: string | null;
   engine?: string | null;
-  allowed_tools?: string[];
-  active_modes?: string[];
-  active_skills?: string[];
+  allowed_tools?: Array<string>;
+  active_modes?: Array<string>;
+  active_skills?: Array<string>;
   writing_style?: string | null;
   response_length?: string | null;
   max_tool_rounds?: number | null;
@@ -58,7 +58,7 @@ interface CallerContext {
   callerRole?: string;
   isManagerRole?: boolean;
   isTeamManager?: boolean;
-  managedAgencyIds?: string[];
+  managedAgencyIds?: Array<string>;
 }
 
 interface MemoryContext {
@@ -73,7 +73,7 @@ interface PromptBuildContext {
   memory: MemoryContext;
   leadData?: Record<string, string>;
   taskMode?: string;
-  taskSkills?: string[];
+  taskSkills?: Array<string>;
   isWhatsApp: boolean;
   currentDate: string;
   currentTime: string;
@@ -724,9 +724,9 @@ const SKILLS_PROMPTS: Record<string, string> = {
 
 function buildModesAndSkills(
   taskMode?: string,
-  taskSkills?: string[],
-  activeModes?: string[],
-  activeSkills?: string[],
+  taskSkills?: Array<string>,
+  activeModes?: Array<string>,
+  activeSkills?: Array<string>,
 ): string {
   let section = "";
 
@@ -806,7 +806,7 @@ export function buildWritingStyle(
  * 4. Same behavior as V1 for all existing features — modes, skills, memory, roles
  */
 export function buildCarmenV2SystemPrompt(ctx: PromptBuildContext): string {
-  const sections: string[] = [];
+  const sections: Array<string> = [];
   const assistantName = orgAssistantName(ctx.agent);
 
   // 1. Identity

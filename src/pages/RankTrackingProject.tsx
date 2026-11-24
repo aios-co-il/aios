@@ -114,10 +114,12 @@ export default function RankTrackingProject() {
 
   // File import states
   const [inputMode, setInputMode] = useState<"manual" | "file">("manual");
-  const [parsedKeywords, setParsedKeywords] = useState<string[]>([]);
-  const [csvColumns, setCsvColumns] = useState<string[]>([]);
+  const [parsedKeywords, setParsedKeywords] = useState<Array<string>>([]);
+  const [csvColumns, setCsvColumns] = useState<Array<string>>([]);
   const [selectedColumn, setSelectedColumn] = useState<string>("");
-  const [allCsvData, setAllCsvData] = useState<Record<string, string>[]>([]);
+  const [allCsvData, setAllCsvData] = useState<Array<Record<string, string>>>(
+    [],
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Scan progress state for batching
@@ -155,7 +157,7 @@ export default function RankTrackingProject() {
         .eq("project_id", projectId)
         .order("current_position", { ascending: true, nullsFirst: false });
       if (error) throw error;
-      return data as Keyword[];
+      return data as Array<Keyword>;
     },
     enabled: !!projectId,
   });
@@ -172,14 +174,14 @@ export default function RankTrackingProject() {
         .order("checked_at", { ascending: true })
         .limit(60);
       if (error) throw error;
-      return data as HistoryRecord[];
+      return data as Array<HistoryRecord>;
     },
     enabled: !!selectedKeywordId,
   });
 
   // Add keywords mutation
   const addKeywordsMutation = useMutation({
-    mutationFn: async (keywordsList: string[]) => {
+    mutationFn: async (keywordsList: Array<string>) => {
       if (!projectId) throw new Error("No project");
 
       const keywordsToInsert = keywordsList.map((keyword) => ({
@@ -239,13 +241,13 @@ export default function RankTrackingProject() {
   const BATCH_SIZE = 5;
 
   const scanMutation = useMutation({
-    mutationFn: async (keywordIds?: string[]) => {
+    mutationFn: async (keywordIds?: Array<string>) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      let idsToScan: string[] = [];
+      let idsToScan: Array<string> = [];
       let skippedCount = 0;
 
       // If scanning all (no specific keywordIds provided), filter out keywords already scanned today
@@ -268,7 +270,7 @@ export default function RankTrackingProject() {
       }
 
       // Split into batches
-      const batches: string[][] = [];
+      const batches: Array<Array<string>> = [];
       for (let i = 0; i < idsToScan.length; i += BATCH_SIZE) {
         batches.push(idsToScan.slice(i, i + BATCH_SIZE));
       }
@@ -342,7 +344,7 @@ export default function RankTrackingProject() {
   });
 
   const handleAddKeywords = () => {
-    let keywordsList: string[] = [];
+    let keywordsList: Array<string> = [];
 
     if (inputMode === "manual") {
       keywordsList = newKeywords
@@ -388,7 +390,7 @@ export default function RankTrackingProject() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          const data = results.data as Record<string, string>[];
+          const data = results.data as Array<Record<string, string>>;
           if (data.length === 0) {
             toast.error("הקובץ ריק");
             return;

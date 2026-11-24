@@ -11,8 +11,8 @@ const GROUP = /\[\[\s*(?:בחירה|choice)\s*:([^\]]*)\]\]/gi;
 const MAX_ANSWER = 200;
 
 /** The tap-to-answer questions in a message. */
-export function askedChoices(message: string): Choice[] {
-  const asked: Choice[] = [];
+export function askedChoices(message: string): Array<Choice> {
+  const asked: Array<Choice> = [];
   for (const match of String(message ?? "").matchAll(GROUP)) {
     const [label, ...options] = match[1].split("|").map((part) => part.trim());
     if (label && options.some(Boolean))

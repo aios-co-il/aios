@@ -156,9 +156,9 @@ export function ChatTagsManager({
   const [internalOpen, setInternalOpen] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#3b82f6");
-  const [localTags, setLocalTags] = useState<ChatTag[] | null>(null);
+  const [localTags, setLocalTags] = useState<Array<ChatTag> | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -182,7 +182,7 @@ export function ChatTagsManager({
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
-      return data as ChatTag[];
+      return data as Array<ChatTag>;
     },
     enabled: !!tenantId && open,
   });
@@ -265,7 +265,7 @@ export function ChatTagsManager({
   });
 
   const bulkDeleteTagsMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async (ids: Array<string>) => {
       const { error } = await supabase.from("chat_tags").delete().in("id", ids);
       if (error) throw error;
       return ids.length;
@@ -281,7 +281,7 @@ export function ChatTagsManager({
   });
 
   const updateSortOrdersMutation = useMutation({
-    mutationFn: async (orderedTags: ChatTag[]) => {
+    mutationFn: async (orderedTags: Array<ChatTag>) => {
       for (let i = 0; i < orderedTags.length; i++) {
         const { error } = await supabase
           .from("chat_tags")

@@ -10,7 +10,7 @@ export function isNumericId(id: unknown): boolean {
 }
 
 /** "123" / "act_123" → both spellings, as stored in clients and crm_tables. */
-export function metaAccountVariants(id: unknown): string[] | null {
+export function metaAccountVariants(id: unknown): Array<string> | null {
   const digits = String(id ?? "")
     .trim()
     .replace(/^act_/, "");
@@ -18,7 +18,7 @@ export function metaAccountVariants(id: unknown): string[] | null {
 }
 
 /** "1234567890" / "123-456-7890" → both spellings. */
-export function googleCustomerVariants(id: unknown): string[] | null {
+export function googleCustomerVariants(id: unknown): Array<string> | null {
   const digits = String(id ?? "")
     .trim()
     .replace(/-/g, "");

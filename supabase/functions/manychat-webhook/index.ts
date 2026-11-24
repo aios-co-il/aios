@@ -13,7 +13,7 @@ function normalizePhone(phone: string): string {
 }
 
 // Generate phone variations for matching
-function getPhoneVariations(phone: string): string[] {
+function getPhoneVariations(phone: string): Array<string> {
   const normalized = normalizePhone(phone);
   const variations = new Set<string>();
 

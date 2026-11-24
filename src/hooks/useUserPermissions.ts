@@ -85,7 +85,7 @@ export function useUserPermissions() {
     };
 
     // ── מודולים שדורשים הרשאה מפורשת (גם לבעלים) ─────────────────────
-    const restrictedModules: ModulePermission[] = [
+    const restrictedModules: Array<ModulePermission> = [
       "sales_dashboard",
       "leads",
       "sales_people",
@@ -131,7 +131,7 @@ export function useUserPermissions() {
     if (isCampaigner && module === "crm_dashboard") return true;
 
     // ── מודולים נגישים לכל המשתמשים המאומתים ─────────────────────────
-    const alwaysAccessibleModules: ModulePermission[] = [
+    const alwaysAccessibleModules: Array<ModulePermission> = [
       "team_chat",
       "settings",
       "reports",

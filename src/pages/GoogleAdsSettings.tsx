@@ -87,7 +87,7 @@ interface MakeConnection {
 }
 
 type MakeConnectionsResult = {
-  connections: MakeConnection[];
+  connections: Array<MakeConnection>;
   error?: string | null;
 };
 
@@ -112,8 +112,8 @@ export default function GoogleAdsSettings() {
   // connections + sharing, exactly like the Google Analytics settings page.
   const { data: adsConnections = [], isLoading: loadingAdsConnections } =
     useUserIntegrations(currentTenant?.id, "google_ads");
-  const hasAnyDirectConnection = (adsConnections as any[]).length > 0;
-  const hasOwnDirectConnection = (adsConnections as any[]).some(
+  const hasAnyDirectConnection = (adsConnections as Array<any>).length > 0;
+  const hasOwnDirectConnection = (adsConnections as Array<any>).some(
     (i: any) => i._isOwn,
   );
 
@@ -282,9 +282,9 @@ export default function GoogleAdsSettings() {
         throw new Error("Missing required data");
       }
 
-      const selectedConn = (googleAdsConnections as MakeConnection[])?.find(
-        (c) => c.id.toString() === selectedConnection,
-      );
+      const selectedConn = (
+        googleAdsConnections as Array<MakeConnection>
+      )?.find((c) => c.id.toString() === selectedConnection);
 
       const settings = {
         connection_id: selectedConnection,
@@ -734,19 +734,19 @@ export default function GoogleAdsSettings() {
                             <SelectValue placeholder="בחר חשבון..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {(googleAdsConnections as MakeConnection[]).map(
-                              (conn) => (
-                                <SelectItem
-                                  key={conn.id}
-                                  value={conn.id.toString()}
-                                >
-                                  {conn.name ||
-                                    conn.accountName ||
-                                    `חיבור ${conn.id}`}
-                                  {conn.valid === false && " (לא פעיל)"}
-                                </SelectItem>
-                              ),
-                            )}
+                            {(
+                              googleAdsConnections as Array<MakeConnection>
+                            ).map((conn) => (
+                              <SelectItem
+                                key={conn.id}
+                                value={conn.id.toString()}
+                              >
+                                {conn.name ||
+                                  conn.accountName ||
+                                  `חיבור ${conn.id}`}
+                                {conn.valid === false && " (לא פעיל)"}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1012,7 +1012,7 @@ export default function GoogleAdsSettings() {
                   className={hasAnyDirectConnection ? "bg-green-500" : ""}
                 >
                   {hasAnyDirectConnection
-                    ? `${(adsConnections as any[]).length} חשבונות מחוברים`
+                    ? `${(adsConnections as Array<any>).length} חשבונות מחוברים`
                     : "לא מחובר"}
                 </Badge>
                 <span className="text-right">Google Ads API</span>
@@ -1029,7 +1029,7 @@ export default function GoogleAdsSettings() {
                 </div>
               ) : hasAnyDirectConnection ? (
                 <div className="space-y-4">
-                  {(adsConnections as any[]).map((integ: any) => {
+                  {(adsConnections as Array<any>).map((integ: any) => {
                     const s = integ.settings as Record<string, any> | null;
                     const email =
                       (s?.google_email as string) ||

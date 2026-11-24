@@ -72,7 +72,7 @@ function generateSlug(name: string): string {
   return slug;
 }
 
-function asStringArray(value: unknown): string[] {
+function asStringArray(value: unknown): Array<string> {
   if (!Array.isArray(value)) return [];
   return value.filter(
     (v): v is string => typeof v === "string" && v.length > 0,
@@ -168,7 +168,7 @@ serve(async (req: Request) => {
       orgType = "sub_organization";
     else if (isSuperAdmin) orgType = "organization";
 
-    const warnings: string[] = [];
+    const warnings: Array<string> = [];
     if (orgType === "sub_organization") {
       warnings.push(
         "ארגון היעד יהיה תת-ארגון (ארגון המקור עצמו הוא תת-ארגון). לא ניתן ליצור רמה נוספת בהיררכיה.",
@@ -539,7 +539,7 @@ serve(async (req: Request) => {
     }
 
     // ── Clone Carmen + selected automations ───────────────────────────────────
-    const cloneResults: any[] = [];
+    const cloneResults: Array<any> = [];
     if (clone_carmen) {
       const sourceAgent = await loadCarmenAgent(
         serviceClient(),

@@ -114,7 +114,7 @@ export async function dispatchDue(
 async function putBack(
   deps: DispatchDeps,
   input: DispatchInput,
-  rows: DeliveryRow[],
+  rows: Array<DeliveryRow>,
   report: DispatchReport,
 ): Promise<void> {
   await deps.deliveries.recordSend(

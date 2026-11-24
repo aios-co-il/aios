@@ -26,7 +26,7 @@ export function useAssignableCampaigners(options?: {
     queryFn: async () => {
       if (!tenantId) return [];
 
-      let sharedCampaignerIds: string[] = [];
+      let sharedCampaignerIds: Array<string> = [];
       if (crossTenantAgencyIds.length > 0) {
         const { data: agencyRows, error: agencyError } = await supabase
           .from("campaigner_agencies")

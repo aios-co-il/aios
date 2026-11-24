@@ -17,7 +17,7 @@ export async function insertSignatureDocument(
   payload: InsertPayload,
 ): Promise<{ id: string }> {
   const wantsTemplate = payload.is_template === true;
-  const attempts: InsertPayload[] = [payload];
+  const attempts: Array<InsertPayload> = [payload];
 
   if ("document_fields" in payload) {
     attempts.push(stripKeys(payload, ["document_fields"]));

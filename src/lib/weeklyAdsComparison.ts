@@ -61,9 +61,9 @@ export type WeeklyCampaignSection = {
   endDate: string;
   isCurrentWeek: boolean;
   /** Every campaign of the week, highest spend first. */
-  rows: WeeklyCampaignRow[];
+  rows: Array<WeeklyCampaignRow>;
   /** Campaigns by goal (sales, leads, traffic); empty goals are left out. */
-  groups: WeeklyGoalGroup[];
+  groups: Array<WeeklyGoalGroup>;
   /** Delivery and spend across goals. Results are only totalled per goal. */
   totals: { impressions: number; clicks: number; spend: number };
 };
@@ -84,7 +84,7 @@ const DAY_MS = 86_400_000;
 
 const numberFrom = (
   data: Record<string, unknown>,
-  ...keys: string[]
+  ...keys: Array<string>
 ): number => {
   for (const key of keys) {
     const value = Number(data[key]);
@@ -179,7 +179,7 @@ function campaignKind(
  * Sunday–Saturday; the first section may be the current partial week.
  */
 export function buildWeeklyCampaignSections(
-  records: WeeklyAdsRecord[],
+  records: Array<WeeklyAdsRecord>,
   options: {
     now?: Date;
     maxWeeks?: number;
@@ -190,7 +190,7 @@ export function buildWeeklyCampaignSections(
     /** Whether a record's report is switched off (`reportOffLookup`). */
     isReportOff?: (record: WeeklyAdsRecord) => boolean;
   } = {},
-): WeeklyCampaignSection[] {
+): Array<WeeklyCampaignSection> {
   const now = options.now ?? new Date();
   const maxWeeks = options.maxWeeks ?? 53;
   // Match crm-records' APP_TIME_ZONE so Saturday night in Israel does not remain
@@ -338,7 +338,7 @@ export function buildWeeklyCampaignSections(
           costPerFollower: costPerFollower([campaign]),
         };
       });
-      const rows: WeeklyCampaignRow[] = applyCampaignOffRule(weekRows, {
+      const rows: Array<WeeklyCampaignRow> = applyCampaignOffRule(weekRows, {
         keyOf: (row) => row.key,
         spendOf: (row) => row.spend,
         offKeys,

@@ -7,7 +7,7 @@ export interface MatchResult {
   matchType: "client" | "internal" | "unknown";
   clientId: string | null;
   autoAssign: boolean; // true only on high confidence
-  campaignerIds: string[];
+  campaignerIds: Array<string>;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -118,7 +118,7 @@ ${transcriptHead}`,
     }
 
     if (parsed.match_type === "internal") {
-      const ids: string[] = Array.isArray(parsed.campaigner_ids)
+      const ids: Array<string> = Array.isArray(parsed.campaigner_ids)
         ? parsed.campaigner_ids.filter((id: string) => campaignerIdSet.has(id))
         : [];
       // Deterministic extra signal: the host's email matched to a campaigner.

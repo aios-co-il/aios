@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status });
 
 Deno.test("ElevenLabs is polled until the picture is ready", async () => {
-  const calls: string[] = [];
+  const calls: Array<string> = [];
   let polls = 0;
   const made = await generateStill({ elevenlabs: "e" }, "a cat", "4:5", {
     sleep: async () => {},
@@ -90,7 +90,7 @@ const acceptedByElevenLabs = (
   poll: (attempt: number) => Response,
   download = () => new Response(png),
 ) => {
-  const hosts: string[] = [];
+  const hosts: Array<string> = [];
   let attempt = 0;
   const fetchImpl = (async (url: string, init?: RequestInit) => {
     hosts.push(new URL(url).host);

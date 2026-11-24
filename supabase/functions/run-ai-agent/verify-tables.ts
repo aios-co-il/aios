@@ -13,12 +13,12 @@ const PAGE_SIZE = 500;
 export async function listVerifyTables(
   db: Pick<DbClient, "from">,
   opts: {
-    tenantIds: string[];
+    tenantIds: Array<string>;
     clientId?: string | null;
     agencyName?: string | null;
   },
-): Promise<ListedTable[]> {
-  const out: ListedTable[] = [];
+): Promise<Array<ListedTable>> {
+  const out: Array<ListedTable> = [];
   let afterId: string | null = null;
   for (;;) {
     const page = await listReconcileTables(db, {

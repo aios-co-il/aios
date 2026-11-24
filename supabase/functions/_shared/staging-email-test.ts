@@ -7,7 +7,7 @@
 type FetchInput = string | URL | Request;
 
 /** Lower-cased addresses from a comma/space separated list. */
-export function parseTestEmails(raw: string | undefined | null): string[] {
+export function parseTestEmails(raw: string | undefined | null): Array<string> {
   return (raw || "")
     .split(/[\s,;]+/)
     .map((item) => item.trim().toLowerCase())
@@ -17,7 +17,7 @@ export function parseTestEmails(raw: string | undefined | null): string[] {
 /** STAGING_ALLOWED_EMAILS from the edge runtime. Reads Deno through
  * globalThis (same as envTestNumbers) so the module also loads under
  * Vitest or other Node runners, where Deno does not exist and the list is simply empty. */
-export function envTestEmails(): string[] {
+export function envTestEmails(): Array<string> {
   const deno = (
     globalThis as { Deno?: { env: { get(key: string): string | undefined } } }
   ).Deno;
@@ -44,7 +44,7 @@ function addressOf(value: unknown): string | null {
   return /^[^@\s<>,]+@[^@\s<>,]+$/.test(addr) ? addr : null;
 }
 
-function listOf(value: unknown): unknown[] | null {
+function listOf(value: unknown): Array<unknown> | null {
   if (value === undefined || value === null) return [];
   if (typeof value === "string") return [value];
   return Array.isArray(value) ? value : null;
@@ -53,7 +53,7 @@ function listOf(value: unknown): unknown[] | null {
 export async function emailTestSendAllowed(
   input: FetchInput,
   init: RequestInit | undefined,
-  testEmails: string[],
+  testEmails: Array<string>,
 ): Promise<boolean> {
   if (testEmails.length === 0) return false;
   const url =
@@ -73,7 +73,7 @@ export async function emailTestSendAllowed(
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return false;
     }
-    const recipients: unknown[] = [];
+    const recipients: Array<unknown> = [];
     for (const field of ["to", "cc", "bcc"]) {
       const values = listOf((parsed as Record<string, unknown>)[field]);
       if (values === null) return false;

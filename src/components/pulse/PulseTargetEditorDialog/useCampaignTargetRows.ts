@@ -22,14 +22,14 @@ export type CampaignTargetRow = {
   /** Where the shown target comes from when it is not the campaign's own. */
   inherited: string | null;
   /** Save over the entry the shown target came from. */
-  saveTo: { tableIds: string[]; campaignId: string | null };
+  saveTo: { tableIds: Array<string>; campaignId: string | null };
 };
 
 /** The editor's lead and ecommerce campaigns, biggest 7-day spend first. */
 export function useCampaignTargetRows(
-  campaigns: PulseCampaignGoalRow[],
+  campaigns: Array<PulseCampaignGoalRow>,
   tableSettingsById: Map<string, Record<string, unknown>>,
-): CampaignTargetRow[] {
+): Array<CampaignTargetRow> {
   return useMemo(
     () =>
       [...campaigns]

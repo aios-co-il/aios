@@ -237,7 +237,7 @@ export function TestFlowWithLeadDialog({
   const facebookIntegrationId = triggerConfig?.facebook_integration_id || null;
   const [isSyncingFb, setIsSyncingFb] = useState(false);
   // Leads read straight from Facebook (not from the CRM); null until pulled.
-  const [fbLeads, setFbLeads] = useState<any[] | null>(null);
+  const [fbLeads, setFbLeads] = useState<Array<any> | null>(null);
   // A pull covers one date range; changing the range drops it.
   useEffect(() => {
     setFbLeads(null);
@@ -317,7 +317,7 @@ export function TestFlowWithLeadDialog({
 
       // Filter by facebook form ID or form name if configured in the flow trigger
       if (facebookFormId || facebookFormName) {
-        const orParts: string[] = [];
+        const orParts: Array<string> = [];
         if (facebookFormId) orParts.push(`notes.ilike.%${facebookFormId}%`);
         if (facebookFormName)
           orParts.push(`notes.ilike.%Facebook Form: ${facebookFormName}%`);
@@ -331,7 +331,7 @@ export function TestFlowWithLeadDialog({
     enabled: open && !!tenantId,
   });
 
-  const listLeads: any[] = fbLeads ?? leads;
+  const listLeads: Array<any> = fbLeads ?? leads;
 
   // Filtered leads by search
   const filteredLeads = listLeads.filter((l: any) => {

@@ -2,8 +2,8 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Attachment } from "@/components/forms/AttachmentsField";
 import { buildSeoMonthlyPdfArchivePath } from "@/lib/seoMonthlyPdfPath";
 
-function parseAttachments(value: unknown): Attachment[] {
-  if (Array.isArray(value)) return value as Attachment[];
+function parseAttachments(value: unknown): Array<Attachment> {
+  if (Array.isArray(value)) return value as Array<Attachment>;
   if (typeof value !== "string") return [];
   try {
     const parsed = JSON.parse(value);

@@ -316,7 +316,7 @@ async function fireGrokWebhook(
     throw new Error("Grok Bot webhook requires a non-empty task.");
   }
 
-  const contextParts: string[] = [];
+  const contextParts: Array<string> = [];
   if (opts?.tool) contextParts.push(`tool: ${opts.tool}`);
   if (opts?.tenantId) contextParts.push(`tenant_id: ${opts.tenantId}`);
   contextParts.push(
@@ -612,7 +612,7 @@ async function fireGrokAgent(
 ): Promise<FireResult> {
   if (webhookConfig()) {
     const task = String(opts?.task || promptText).trim();
-    const contextParts: string[] = [];
+    const contextParts: Array<string> = [];
     if (opts?.startingRef) contextParts.push(`branch: ${opts.startingRef}`);
     if (opts?.context) contextParts.push(opts.context);
     if (opts?.name) contextParts.push(`label: ${opts.name}`);

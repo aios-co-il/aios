@@ -10,7 +10,7 @@ import {
 const LINK = "https://app.test/t/acme/chat/c1";
 
 /** A group the team writes in, then the client's `texts` from 09:00 on. */
-const teamGroup = (...texts: string[]) =>
+const teamGroup = (...texts: Array<string>) =>
   thread([
     staffRow({ message_id: "hi", created_at: il("08:00") }),
     ...texts.map((text, index) =>

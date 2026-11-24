@@ -9,7 +9,7 @@ export function isEmailAddress(value: string): boolean {
 }
 
 /** Split typed contacts on commas, semicolons, spaces and new lines; trimmed and deduped. */
-export function splitContacts(text: string): string[] {
+export function splitContacts(text: string): Array<string> {
   return [
     ...new Set(
       text

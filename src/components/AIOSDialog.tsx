@@ -76,7 +76,7 @@ interface Conversation {
   id: string;
   title: string;
   created_at: string;
-  messages: Message[];
+  messages: Array<Message>;
 }
 
 interface AIOSDialogProps {
@@ -95,7 +95,7 @@ export function AIOSDialog({
   const [currentConversationId, setCurrentConversationId] = useState<
     string | null
   >(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Array<Message>>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -108,7 +108,7 @@ export function AIOSDialog({
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Array<Blob>>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
@@ -116,7 +116,9 @@ export function AIOSDialog({
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
+  const [backgroundTasks, setBackgroundTasks] = useState<Array<BackgroundTask>>(
+    [],
+  );
 
   const { data: conversations = [], isLoading: conversationsLoading } =
     useQuery({
@@ -135,7 +137,7 @@ export function AIOSDialog({
           created_at: conv.created_at,
           messages: (Array.isArray(conv.messages)
             ? conv.messages
-            : []) as unknown as Message[],
+            : []) as unknown as Array<Message>,
         }));
       },
       enabled: !!userId && open,
@@ -161,7 +163,7 @@ export function AIOSDialog({
         .in("status", ["pending", "running", "completed", "failed"])
         .order("created_at", { ascending: false })
         .limit(5);
-      if (data) setBackgroundTasks(data as BackgroundTask[]);
+      if (data) setBackgroundTasks(data as Array<BackgroundTask>);
     };
     loadTasks();
 
@@ -1124,7 +1126,9 @@ export function AIOSDialog({
                   disabled={isRecording || isTranscribing || isStreaming}
                 >
                   {(
-                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
+                    Object.keys(
+                      MIC_CAPTURE_MODE_LABELS,
+                    ) as Array<MicCaptureMode>
                   ).map((mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}

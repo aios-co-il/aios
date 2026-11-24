@@ -30,7 +30,7 @@ interface GenerateCreativeImageArgs {
   itemId: string;
   stageId: string;
   prompt: string;
-  referenceImageUrls?: string[];
+  referenceImageUrls?: Array<string>;
   referenceRole?: CreativeReferenceRole;
   size?: ImageSize;
   quality?: ImageQuality;
@@ -50,7 +50,7 @@ async function invokeSocialImage(
   tenantId: string,
   itemId: string,
   prompt: string,
-  referenceImageUrls?: string[],
+  referenceImageUrls?: Array<string>,
   size?: GenerateCreativeImageArgs["size"],
   quality?: GenerateCreativeImageArgs["quality"],
   referenceRole?: CreativeReferenceRole,

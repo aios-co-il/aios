@@ -37,10 +37,10 @@ const style = (
   label: string,
   hint: string,
   group: CreativeVisualStyleGroup,
-  lock: string[],
+  lock: Array<string>,
 ): CreativeVisualStyle => ({ id, label, hint, group, lock: lock.join(" ") });
 
-export const CREATIVE_VISUAL_STYLES: CreativeVisualStyle[] = [
+export const CREATIVE_VISUAL_STYLES: Array<CreativeVisualStyle> = [
   style(
     "adaptive",
     "מותאם לקופי",

@@ -15,7 +15,7 @@ export function RecipientsTable({
   rows,
   isEmail,
 }: {
-  rows: RecipientStatsRow[];
+  rows: Array<RecipientStatsRow>;
   isEmail: boolean;
 }) {
   return (

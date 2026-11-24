@@ -52,7 +52,7 @@ interface FacebookForm {
   id: string;
   name: string;
   status: string;
-  fields: FormField[];
+  fields: Array<FormField>;
 }
 
 interface FormMapping {
@@ -61,7 +61,7 @@ interface FormMapping {
   client_id?: string | null;
   create_crm_lead?: boolean;
   sales_person_id: string | null; // legacy single
-  sales_person_ids?: string[]; // new multi-select
+  sales_person_ids?: Array<string>; // new multi-select
   tag_id: string | null;
 }
 
@@ -123,7 +123,7 @@ export function FacebookFormMappingSection({
   const [selectedClient, setSelectedClient] = useState<string>("none");
   const [createCrmLead, setCreateCrmLead] = useState(true);
   const [selectedSalesPersonIds, setSelectedSalesPersonIds] = useState<
-    string[]
+    Array<string>
   >([]);
   const [selectedTag, setSelectedTag] = useState<string>("");
   const [pageTokens, setPageTokens] = useState<Record<string, string>>({});

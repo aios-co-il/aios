@@ -7,8 +7,8 @@ export async function openPlaceholders(
   supabase: Db,
   tenantId: string,
   itemId: string,
-  rows: { kind: "image" | "scene_still"; title: string; meta?: object }[],
-): Promise<(string | undefined)[]> {
+  rows: Array<{ kind: "image" | "scene_still"; title: string; meta?: object }>,
+): Promise<Array<string | undefined>> {
   const none = rows.map(() => undefined);
   try {
     await supabase

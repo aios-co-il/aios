@@ -16,7 +16,7 @@ interface Agent {
 
 interface Props {
   form: PbxSettingsData;
-  agents: Agent[];
+  agents: Array<Agent>;
   setExtension: (
     userId: string,
     patch: Partial<Omit<PbxExtension, "user_id">>,

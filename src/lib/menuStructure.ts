@@ -73,17 +73,17 @@ export type MenuModule = {
 
 export type MenuSection = {
   label: string;
-  items: MenuModule[];
+  items: Array<MenuModule>;
 };
 
 export type MenuTab = {
   id: MenuTabId;
   label: string;
   icon: LucideIcon;
-  sections: MenuSection[];
+  sections: Array<MenuSection>;
 };
 
-export const MENU_TABS: MenuTab[] = [
+export const MENU_TABS: Array<MenuTab> = [
   {
     id: "daily",
     label: "ניהול שוטף",
@@ -560,7 +560,7 @@ export const INTEGRATION_SETTINGS: Array<MenuModule & { parentKey: string }> = [
 /** Routes that exist in App.tsx but have no clear path from the sidebar.
  *  Surfaced under "אין דרך ישירה" in the visual workspace.
  */
-export const ORPHAN_MODULES: MenuModule[] = [
+export const ORPHAN_MODULES: Array<MenuModule> = [
   { key: "home", label: "בית", route: "/home", icon: Home },
   {
     key: "landing-page-submissions",
@@ -592,7 +592,7 @@ let explicitPermissionByKey: Map<string, string> | null = null;
 
 function buildExplicitPermissionMap(): Map<string, string> {
   const map = new Map<string, string>(Object.entries(PERMISSION_KEY_OVERRIDES));
-  const collect = (modules: MenuModule[]) => {
+  const collect = (modules: Array<MenuModule>) => {
     for (const m of modules) {
       if (m.permission) map.set(m.key, m.permission);
     }

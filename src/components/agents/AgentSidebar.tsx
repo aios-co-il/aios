@@ -15,7 +15,7 @@ export interface AgentListItem {
 }
 
 interface Props {
-  agents: AgentListItem[];
+  agents: Array<AgentListItem>;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;

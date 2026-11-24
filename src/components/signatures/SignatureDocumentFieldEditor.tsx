@@ -12,12 +12,12 @@ import { detectMediaKind } from "@/components/signatures/signatureDocumentMedia"
 interface SignatureDocumentFieldEditorProps {
   title: string;
   fileUrl: string;
-  initialFields: DocumentField[];
+  initialFields: Array<DocumentField>;
   saving?: boolean;
   isTemplate?: boolean;
-  onSave: (fields: DocumentField[], title: string) => void | Promise<void>;
+  onSave: (fields: Array<DocumentField>, title: string) => void | Promise<void>;
   onSaveAndSend?: (
-    fields: DocumentField[],
+    fields: Array<DocumentField>,
     title: string,
   ) => void | Promise<void>;
   onClose: () => void;
@@ -33,7 +33,7 @@ export function SignatureDocumentFieldEditor({
   onSaveAndSend,
   onClose,
 }: SignatureDocumentFieldEditorProps) {
-  const [fields, setFields] = useState<DocumentField[]>(initialFields);
+  const [fields, setFields] = useState<Array<DocumentField>>(initialFields);
   const [name, setName] = useState(title);
   const canSave = !!name.trim() && !saving;
   const { resolvedUrl, loading, error } = useSignatureDocumentUrl(fileUrl);

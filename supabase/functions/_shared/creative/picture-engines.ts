@@ -35,7 +35,7 @@ export async function pictureFromEngines(
     prompt: string;
     aspectRatio: unknown;
     engine?: ImageProvider;
-    references: ImageReference[];
+    references: Array<ImageReference>;
   },
   deps: PictureDeps = {},
 ): Promise<{ bytes: Uint8Array; mime: string; provider: string }> {
@@ -44,7 +44,7 @@ export async function pictureFromEngines(
   const aspect =
     typeof input.aspectRatio === "string" ? input.aspectRatio : "1:1";
   const refs = input.references;
-  const failures: string[] = [];
+  const failures: Array<string> = [];
   let openRouterTried = false;
   let openRouterSentRefs = false;
   let openRouterRefused = false;

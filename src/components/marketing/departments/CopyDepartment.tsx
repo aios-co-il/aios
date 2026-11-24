@@ -141,7 +141,7 @@ interface ClientRow {
   name: string;
   agency_id: string | null;
   website: string | null;
-  attachments: BriefFile[] | null;
+  attachments: Array<BriefFile> | null;
 }
 
 interface AgencyRow {
@@ -277,7 +277,9 @@ export function CopyDepartment({
     null,
   );
   const [handoffOpen, setHandoffOpen] = useState(false);
-  const [handoffProjects, setHandoffProjects] = useState<HandoffWorkItem[]>([]);
+  const [handoffProjects, setHandoffProjects] = useState<
+    Array<HandoffWorkItem>
+  >([]);
   const [handoffTargetId, setHandoffTargetId] = useState(
     COPY_HANDOFF_NEW_TARGET,
   );
@@ -358,7 +360,7 @@ export function CopyDepartment({
         .eq("status", "active")
         .order("name");
       if (error) throw error;
-      return (data ?? []) as ClientRow[];
+      return (data ?? []) as Array<ClientRow>;
     },
   });
 
@@ -371,7 +373,7 @@ export function CopyDepartment({
         .eq("tenant_id", tenantId)
         .order("name");
       if (error) throw error;
-      return (data ?? []) as AgencyRow[];
+      return (data ?? []) as Array<AgencyRow>;
     },
   });
 
@@ -604,7 +606,9 @@ export function CopyDepartment({
     });
   };
 
-  const saveCopyVariations = async (nextVariations: StoredCopyVariation[]) => {
+  const saveCopyVariations = async (
+    nextVariations: Array<StoredCopyVariation>,
+  ) => {
     await persistPayload({
       copy_variations: nextVariations,
       copy_text: joinCopyVariations(nextVariations),
@@ -1931,7 +1935,7 @@ function NewProjectDialog({
       let pipelineId: string | null = null;
       let stageId: string | null = null;
       let website: string | null = null;
-      let files: BriefFile[] = [];
+      let files: Array<BriefFile> = [];
       if (defaultClientId) {
         const pipeline = await ensurePipelineForClient({
           clientId: defaultClientId,
@@ -2036,7 +2040,7 @@ function ProjectSettings({
   onOpenChange: (open: boolean) => void;
   item: CopyItem;
   tenantId: string;
-  clients: ClientRow[];
+  clients: Array<ClientRow>;
   onClientChange: (id: string | null) => void;
   onSaved: () => Promise<void>;
 }) {
@@ -2087,7 +2091,7 @@ function ProjectSettings({
       if (assignedClientId) query = query.eq("client_id", assignedClientId);
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []) as RecordingRow[];
+      return (data ?? []) as Array<RecordingRow>;
     },
   });
 
@@ -2098,7 +2102,7 @@ function ProjectSettings({
     let pipelineId: string | null = null;
     let stageId: string | null = null;
     let website: string | null = null;
-    let files: BriefFile[] = [];
+    let files: Array<BriefFile> = [];
     if (nextClientId) {
       const pipeline = await ensurePipelineForClient({
         clientId: nextClientId,
@@ -2174,7 +2178,7 @@ function ProjectSettings({
     if (!files?.length) return;
     setUploading(true);
     try {
-      const uploaded: BriefFile[] = [];
+      const uploaded: Array<BriefFile> = [];
       for (const file of Array.from(files)) {
         const path = `${tenantId}/copy/${item.id}/${Date.now()}_${sanitizeFileName(file.name)}`;
         const { error } = await supabase.storage

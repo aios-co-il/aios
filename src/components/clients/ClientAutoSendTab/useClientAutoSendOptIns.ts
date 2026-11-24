@@ -34,7 +34,7 @@ export function useClientAutoSendOptIns(clientId: string | null | undefined) {
 
 /** Whether the row for this kind and target is on. */
 export function isAutoSendOn(
-  optIns: ClientAutoSendOptIn[],
+  optIns: Array<ClientAutoSendOptIn>,
   kind: ClientAutoSendKind,
   target: ClientAutoSendTarget,
 ): boolean {
@@ -44,7 +44,9 @@ export function isAutoSendOn(
 }
 
 /** Reads the client's switch rows. */
-async function fetchOptIns(clientId: string): Promise<ClientAutoSendOptIn[]> {
+async function fetchOptIns(
+  clientId: string,
+): Promise<Array<ClientAutoSendOptIn>> {
   const { data, error } = await supabase
     .from("client_auto_send_opt_ins")
     .select("send_kind, target, enabled")

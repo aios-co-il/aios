@@ -4,7 +4,7 @@
 export type TemplateVars = Record<string, string>;
 
 /** Merge fields every recipient can have. Custom list/file columns come on top. */
-export const STANDARD_TEMPLATE_FIELDS: { key: string; label: string }[] = [
+export const STANDARD_TEMPLATE_FIELDS: Array<{ key: string; label: string }> = [
   { key: "contact_name", label: "שם איש קשר" },
   { key: "first_name", label: "שם פרטי" },
   { key: "company_name", label: "שם חברה / לקוח" },
@@ -125,7 +125,7 @@ export function renderTemplate(
 /** Field keys a template references (for the editor's "missing field" hint). */
 export function templateFieldKeys(
   template: string | null | undefined,
-): string[] {
+): Array<string> {
   if (!template) return [];
   const keys = new Set<string>();
   for (const m of template.matchAll(FIELD_RE))

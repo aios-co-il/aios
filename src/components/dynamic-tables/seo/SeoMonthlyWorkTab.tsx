@@ -275,8 +275,8 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
    * External links over a three-month window. The current month comes from the
    * live editor state so unsaved rows show up in the preview too.
    */
-  const recentLinks = useMemo<SeoShareRecentLink[]>(() => {
-    const out: SeoShareRecentLink[] = [];
+  const recentLinks = useMemo<Array<SeoShareRecentLink>>(() => {
+    const out: Array<SeoShareRecentLink> = [];
     const seen = new Set<string>();
     const push = (
       month: string,
@@ -483,7 +483,7 @@ export function SeoMonthlyWorkTab({ clientId, tenantId: tenantIdProp }: Props) {
     if (!tenantId || !user?.id) throw new Error("חסר משתמש או טננט");
     const workForShare = overrides?.work ?? work;
     // Rebuild recent links from the work we're publishing so the public deck matches.
-    const linksForShare: SeoShareRecentLink[] = [];
+    const linksForShare: Array<SeoShareRecentLink> = [];
     const seenUrls = new Set<string>();
     const pushLink = (
       month: string,
@@ -839,8 +839,8 @@ function OnsiteSection({
   items,
   onChange,
 }: {
-  items: SeoOnsiteItem[];
-  onChange: (next: SeoOnsiteItem[]) => void;
+  items: Array<SeoOnsiteItem>;
+  onChange: (next: Array<SeoOnsiteItem>) => void;
 }) {
   return (
     <Card>
@@ -891,13 +891,13 @@ function OnsiteSection({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(ONSITE_KIND_LABELS) as SeoOnsiteKind[]).map(
-                    (k) => (
-                      <SelectItem key={k} value={k}>
-                        {ONSITE_KIND_LABELS[k]}
-                      </SelectItem>
-                    ),
-                  )}
+                  {(
+                    Object.keys(ONSITE_KIND_LABELS) as Array<SeoOnsiteKind>
+                  ).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {ONSITE_KIND_LABELS[k]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Input
@@ -942,8 +942,8 @@ function ArticlesSection({
   items,
   onChange,
 }: {
-  items: SeoArticleItem[];
-  onChange: (next: SeoArticleItem[]) => void;
+  items: Array<SeoArticleItem>;
+  onChange: (next: Array<SeoArticleItem>) => void;
 }) {
   return (
     <Card>
@@ -1032,8 +1032,8 @@ function LinksSection({
   items,
   onChange,
 }: {
-  items: SeoLinkItem[];
-  onChange: (next: SeoLinkItem[]) => void;
+  items: Array<SeoLinkItem>;
+  onChange: (next: Array<SeoLinkItem>) => void;
 }) {
   return (
     <Card>

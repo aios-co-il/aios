@@ -202,7 +202,7 @@ Deno.test(
 
 /** Records dev_tasks updates; reads return this row. */
 function recordingDb(row: Record<string, unknown>) {
-  const updates: Record<string, unknown>[] = [];
+  const updates: Array<Record<string, unknown>> = [];
   const builder: Record<string, unknown> = {
     select: () => builder,
     eq: () => builder,

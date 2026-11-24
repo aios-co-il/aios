@@ -77,7 +77,7 @@ function formatPhoneForManyChat(phone: string): string {
 }
 
 // Generate phone variations for lookup
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   if (isInternationalPhone(phone)) {
     const formatted = formatInternationalPhone(phone);
     const withoutPlus = formatted.startsWith("+")
@@ -177,7 +177,7 @@ async function getPhoneNumberFieldId(
 // Find subscriber by phone in ManyChat (SEQUENTIAL to avoid rate limits)
 async function findSubscriberByPhone(
   apiKey: string,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     try {
@@ -240,7 +240,7 @@ async function findSubscriberByEmail(
 async function findSubscriberByCustomField(
   apiKey: string,
   fieldId: number,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     try {

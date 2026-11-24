@@ -38,7 +38,7 @@ serve(async (req) => {
       .eq("pipeline_id", item.pipeline_id)
       .order("sort_order", { ascending: true });
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     const auth = req.headers.get("Authorization");
 
     for (const s of stages ?? []) {

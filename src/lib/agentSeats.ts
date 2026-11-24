@@ -44,7 +44,7 @@ export const AGENT_SPRITES: Record<AgentSeatKey, string> = {
 };
 
 /** Top rail order: shared space, then direct agents. */
-export const RAIL_SEAT_ORDER: AgentSeatKey[] = [
+export const RAIL_SEAT_ORDER: Array<AgentSeatKey> = [
   "shared",
   "carmen",
   "cursor",
@@ -66,7 +66,7 @@ export function seatKeyFromRoute(
 }
 
 export function routeForSeatKey(
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
   key: AgentSeatKey,
 ): BrainRoute | undefined {
   if (key === "shared")
@@ -110,7 +110,7 @@ type ChatLike = {
 /** Ghost sprite for the agent that opened a Command Center chat topic. */
 export function topicAgentSprite(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
 ): string {
   const route = routeForRestoredChat(routes, conv);
   const key = seatKeyFromRoute(route);
@@ -119,7 +119,7 @@ export function topicAgentSprite(
 
 export function topicAgentLabel(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
-  routes: BrainRoute[],
+  routes: Array<BrainRoute>,
 ): string {
   return routeForRestoredChat(routes, conv).label;
 }
@@ -158,9 +158,9 @@ function messageBelongsToRoute(msg: ChatLike, route: BrainRoute): boolean {
  * Direct seats (and Carmen) show only that seat's thread — including user lines.
  */
 export function filterMessagesForRoute<T extends ChatLike>(
-  messages: T[],
+  messages: Array<T>,
   route: BrainRoute | null,
-): T[] {
+): Array<T> {
   if (
     !route ||
     route.route_type === "parliament" ||
@@ -181,7 +181,7 @@ export function lastConversationStorageKeyForSeat(
 export function conversationMatchesRoute(
   conv: Pick<TopicChat, "brain_route_id" | "routing_mode">,
   route: BrainRoute,
-  routes: BrainRoute[] = [],
+  routes: Array<BrainRoute> = [],
 ): boolean {
   if (conv.brain_route_id) {
     if (conv.brain_route_id === route.id) return true;
@@ -212,10 +212,10 @@ export function conversationMatchesRoute(
 }
 
 export function conversationsForRoute(
-  items: TopicChat[],
+  items: Array<TopicChat>,
   route: BrainRoute | null,
-  routes: BrainRoute[] = [],
-): TopicChat[] {
+  routes: Array<BrainRoute> = [],
+): Array<TopicChat> {
   if (!route) return items;
   return items.filter((c) => conversationMatchesRoute(c, route, routes));
 }

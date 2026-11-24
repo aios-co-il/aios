@@ -23,7 +23,7 @@ export const DEV_TASK_STATUSES = [
 
 export type DevTaskStatus = (typeof DEV_TASK_STATUSES)[number];
 
-export const OPEN_DEV_STATUSES: DevTaskStatus[] = [
+export const OPEN_DEV_STATUSES: Array<DevTaskStatus> = [
   "draft",
   "approved",
   "sent_to_cursor",
@@ -809,7 +809,7 @@ export async function dispatchDevTask(
   };
 }
 
-export const COMPLETABLE_DEV_STATUSES: DevTaskStatus[] = [
+export const COMPLETABLE_DEV_STATUSES: Array<DevTaskStatus> = [
   "approved",
   "sent_to_cursor",
   "in_progress",

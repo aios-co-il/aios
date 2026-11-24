@@ -9,7 +9,10 @@ import type {
   WorkspaceProvider,
 } from "./types.ts";
 
-export const CLOUD_DIRECT_PROVIDERS: CloudDirectProvider[] = ["cursor", "grok"];
+export const CLOUD_DIRECT_PROVIDERS: Array<CloudDirectProvider> = [
+  "cursor",
+  "grok",
+];
 
 export function isCloudDirect(
   provider: string,
@@ -139,7 +142,7 @@ export function statusForKind(kind: ChannelProvider): ConversationStatus {
 
 export function parliamentSeatsFromConfig(
   config: Record<string, unknown> | null | undefined,
-): ChannelProvider[] {
+): Array<ChannelProvider> {
   const raw = Array.isArray(config?.seats)
     ? config!.seats
     : ["cursor", "grok", "codex"];
@@ -220,7 +223,9 @@ export function markParliamentFailed(
   };
 }
 
-export function livingSeats(state: ParliamentState): ParliamentSeatState[] {
+export function livingSeats(
+  state: ParliamentState,
+): Array<ParliamentSeatState> {
   return Object.values(state.seats).filter((s) => !s.failed);
 }
 

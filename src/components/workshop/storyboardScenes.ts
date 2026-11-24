@@ -90,9 +90,9 @@ export function sceneState(row: SceneRow): SceneState {
 
 /** Scene rows (any order) and their assets → the board's cards, numbered by position. */
 export function storyboardScenes(
-  rows: SceneRow[],
+  rows: Array<SceneRow>,
   assets: Map<string, SceneAsset>,
-): StoryboardScene[] {
+): Array<StoryboardScene> {
   return [...rows]
     .sort((a, b) => numberOr(a.position, 0) - numberOr(b.position, 0))
     .map((row, index) => {
@@ -152,10 +152,10 @@ export function changedText(
 
 /** The board's copy of the storyboard with one scene's new texts, shown before the save returns. */
 export function applySceneEdit(
-  scenes: StoryboardScene[],
+  scenes: Array<StoryboardScene>,
   sceneId: string,
   patch: SceneTextPatch,
-): StoryboardScene[] {
+): Array<StoryboardScene> {
   return scenes.map((scene) =>
     scene.id === sceneId
       ? {
@@ -184,5 +184,5 @@ export const aspectRatioCss = (format: string) => {
   return match ? `${match[1]} / ${match[2]}` : "9 / 16";
 };
 
-export const totalSeconds = (scenes: StoryboardScene[]) =>
+export const totalSeconds = (scenes: Array<StoryboardScene>) =>
   Math.round(scenes.reduce((sum, scene) => sum + scene.durationS, 0) * 10) / 10;

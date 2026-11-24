@@ -27,7 +27,7 @@ type Call = { url: string; body: Record<string, unknown> };
 
 /** A fetch that answers each call with the next scripted reply. */
 function scriptedFetch(replies: Array<Response | Error>) {
-  const calls: Call[] = [];
+  const calls: Array<Call> = [];
   const fetcher = (url: string, init: RequestInit) => {
     calls.push({ url, body: JSON.parse(String(init.body)) });
     const reply = replies.shift();

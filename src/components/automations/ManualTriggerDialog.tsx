@@ -36,7 +36,7 @@ export function ManualTriggerDialog({
 }: ManualTriggerDialogProps) {
   const [commandText, setCommandText] = useState("");
   const [isRunning, setIsRunning] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Array<ChatMessage>>([]);
   const { toast } = useToast();
   const { tenantId } = useCurrentTenant();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,7 +50,7 @@ export function ManualTriggerDialog({
         .select("*")
         .eq("automation_id", automationId);
       if (error) throw error;
-      return data as any[];
+      return data as Array<any>;
     },
     enabled: open && !!automationId,
   });

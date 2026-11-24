@@ -78,7 +78,7 @@ export default function ManusWhatsAppSettings({
   const { data: integrations = [], isLoading } = useQuery({
     queryKey: ["manus-wa-integrations", tenantId, userId],
     queryFn: async () => {
-      if (!tenantId || !userId) return [] as Integration[];
+      if (!tenantId || !userId) return [] as Array<Integration>;
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -87,7 +87,7 @@ export default function ManusWhatsAppSettings({
         .eq("integration_type", "manus_wa")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data || []) as Integration[];
+      return (data || []) as Array<Integration>;
     },
     enabled: !!tenantId && !!userId,
   });

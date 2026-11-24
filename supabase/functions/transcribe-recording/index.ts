@@ -101,7 +101,7 @@ serve(async (req) => {
     // part is a standalone file under the Whisper cap. Mic and system audio are
     // separate channels (…_mic_partN / …_sys_partN), so speaker attribution is
     // a physical fact, not a guess: mic = the recording user, sys = everyone else.
-    const audioParts: string[] = Array.isArray(recording.audio_file_paths)
+    const audioParts: Array<string> = Array.isArray(recording.audio_file_paths)
       ? recording.audio_file_paths.filter(Boolean)
       : [];
     if (audioParts.length > 0) {
@@ -343,7 +343,7 @@ function formatClock(totalSeconds: number): string {
 async function transcribeChannelParts(
   supabase: any,
   recordingId: string,
-  paths: string[],
+  paths: Array<string>,
 ): Promise<string> {
   // Full-length system channel ({ts}_sys_full.webm): diarize it as ONE file so
   // speaker identities stay consistent across the whole meeting ("משתתף 2" in
@@ -352,7 +352,7 @@ async function transcribeChannelParts(
   type TimedSegment = { at: number; channel: string; text: string };
   const sysFullPath = paths.find((p) => /_sys_full\.\w+$/.test(p));
   const labelOverrides = new Map<string, string>();
-  let diarized: TimedSegment[] | null = null;
+  let diarized: Array<TimedSegment> | null = null;
   if (sysFullPath) {
     const { data: fullBlob, error: fullErr } = await supabase.storage
       .from("recordings")
@@ -401,7 +401,7 @@ async function transcribeChannelParts(
   }
 
   // Group parts per channel, ordered by part number (fallback: array order).
-  const channels = new Map<string, { path: string; part: number }[]>();
+  const channels = new Map<string, Array<{ path: string; part: number }>>();
   paths
     .filter((path) => path !== sysFullPath)
     .filter((path) => !(diarized && partChannel(path).channel === "sys"))
@@ -416,10 +416,10 @@ async function transcribeChannelParts(
   type PartResult = {
     channel: string;
     part: number;
-    segments: { start: number; end: number; text: string }[];
+    segments: Array<{ start: number; end: number; text: string }>;
     duration: number;
   };
-  const jobs: Promise<PartResult>[] = [];
+  const jobs: Array<Promise<PartResult>> = [];
   for (const [channel, list] of channels.entries()) {
     for (const { path, part } of list) {
       jobs.push(
@@ -455,7 +455,7 @@ async function transcribeChannelParts(
   await touchProcessing(supabase, recordingId);
 
   // Shift each part's segments by the cumulative duration of earlier parts.
-  const timeline: TimedSegment[] = diarized ? [...diarized] : [];
+  const timeline: Array<TimedSegment> = diarized ? [...diarized] : [];
   for (const channel of channels.keys()) {
     const parts = results
       .filter((r) => r.channel === channel)
@@ -480,8 +480,9 @@ async function transcribeChannelParts(
   }
 
   // Coalesce consecutive same-speaker segments into one line.
-  const lines: string[] = [];
-  let current: { at: number; channel: string; texts: string[] } | null = null;
+  const lines: Array<string> = [];
+  let current: { at: number; channel: string; texts: Array<string> } | null =
+    null;
   for (const seg of timeline) {
     if (current && current.channel === seg.channel) {
       current.texts.push(seg.text);
@@ -511,7 +512,7 @@ async function transcribeChannelParts(
 async function resolveSpeakerNames(
   supabase: any,
   sysFullPath: string,
-  segs: { start: number; end: number; speaker: string; text: string }[],
+  segs: Array<{ start: number; end: number; speaker: string; text: string }>,
   speakerOrder: Map<string, number>,
   overrides: Map<string, string>,
 ): Promise<void> {
@@ -529,7 +530,7 @@ async function resolveSpeakerNames(
         ? { path: `${folder}/${f.name}`, sec: parseInt(fm[1], 10) }
         : null;
     })
-    .filter(Boolean) as { path: string; sec: number }[];
+    .filter(Boolean) as Array<{ path: string; sec: number }>;
   if (frames.length === 0) {
     console.log(
       "🖼️ No sampled frames for this recording — keeping numeric speaker labels",
@@ -544,7 +545,7 @@ async function resolveSpeakerNames(
       .sort((a, b) => b.end - b.start - (a.end - a.start))
       .slice(0, 8);
 
-    const chosen: { path: string; sec: number }[] = [];
+    const chosen: Array<{ path: string; sec: number }> = [];
     for (const seg of candidates) {
       const inWindow = frames
         .filter((f) => f.sec >= seg.start - 3 && f.sec <= seg.end + 3)
@@ -559,7 +560,7 @@ async function resolveSpeakerNames(
     }
     if (chosen.length === 0) continue;
 
-    const blobs: Blob[] = [];
+    const blobs: Array<Blob> = [];
     for (const frame of chosen) {
       const { data: blob } = await supabase.storage
         .from("recordings")
@@ -616,7 +617,7 @@ async function transcribeBlob(
   console.log(
     `✂️ Split ${(audioBlob.size / 1024 / 1024).toFixed(1)}MB ${contentType} into ${chunks.length} chunks`,
   );
-  const pieces: string[] = [];
+  const pieces: Array<string> = [];
   for (let i = 0; i < chunks.length; i++) {
     console.log(
       `🎙️ Transcribing chunk ${i + 1}/${chunks.length} (${(chunks[i].size / 1024 / 1024).toFixed(1)}MB)`,
@@ -638,11 +639,11 @@ async function transcribeBlob(
 async function splitOversizedBlob(
   blob: Blob,
   contentType: string,
-): Promise<Blob[] | null> {
+): Promise<Array<Blob> | null> {
   const format = geminiAudioFormat(contentType);
 
   if (format === "mp3") {
-    const chunks: Blob[] = [];
+    const chunks: Array<Blob> = [];
     for (let off = 0; off < blob.size; off += CHUNK_TARGET_BYTES) {
       chunks.push(
         blob.slice(
@@ -662,7 +663,7 @@ async function splitOversizedBlob(
   return null;
 }
 
-async function splitWav(blob: Blob): Promise<Blob[] | null> {
+async function splitWav(blob: Blob): Promise<Array<Blob> | null> {
   const headLen = Math.min(blob.size, 4096);
   const head = new Uint8Array(await blob.slice(0, headLen).arrayBuffer());
   const dv = new DataView(head.buffer);
@@ -692,7 +693,7 @@ async function splitWav(blob: Blob): Promise<Blob[] | null> {
     Math.floor((CHUNK_TARGET_BYTES - dataOff) / blockAlign) * blockAlign;
   if (payloadPerChunk <= 0) return null;
 
-  const chunks: Blob[] = [];
+  const chunks: Array<Blob> = [];
   for (let start = 0; start < dataLen; start += payloadPerChunk) {
     const segLen = Math.min(payloadPerChunk, dataLen - start);
     const header = head.slice(0, dataOff);

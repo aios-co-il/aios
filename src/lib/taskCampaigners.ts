@@ -3,9 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 /** Active campaigners in this tenant, plus campaigners on shared agencies. */
 export async function fetchActiveCampaigners(
   tenantId: string,
-  crossTenantAgencyIds: string[] = [],
+  crossTenantAgencyIds: Array<string> = [],
 ) {
-  let crossTenantCampaignerIds: string[] = [];
+  let crossTenantCampaignerIds: Array<string> = [];
   if (crossTenantAgencyIds.length > 0) {
     const { data: caRows } = await supabase
       .from("campaigner_agencies")

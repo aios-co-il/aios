@@ -126,7 +126,7 @@ export async function dispatchCursorCreative({
   jobMeta?: {
     visual_style?: string;
     composition_id?: string;
-    brand_colors?: string[];
+    brand_colors?: Array<string>;
     live_text_layers?: boolean;
     title?: string;
     logo_url?: string;

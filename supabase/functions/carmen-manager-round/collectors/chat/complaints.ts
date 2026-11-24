@@ -31,11 +31,11 @@ type ModelComplaint = { turn: Turn; summary: string };
 
 /** The complaints the threads show, and the open ones still in the read window. */
 export function complaintCandidates(
-  threads: Thread[],
+  threads: Array<Thread>,
   verdicts: Verdicts,
-  live: LiveChatFinding[],
-  scope: { since: Date; clientIds: string[] | null; chatLink: ChatLink },
-): FindingCandidate[] {
+  live: Array<LiveChatFinding>,
+  scope: { since: Date; clientIds: Array<string> | null; chatLink: ChatLink },
+): Array<FindingCandidate> {
   const open = live.filter((finding) => finding.kind === "client_complaint");
   const cleared = new Set<string>();
   const found = threads.flatMap((thread) =>
@@ -115,7 +115,7 @@ function modelComplaint(
 function startedBeforeRead(
   thread: Thread,
   streak: ClientStreak,
-  open: LiveChatFinding[],
+  open: Array<LiveChatFinding>,
 ): boolean {
   const first = streak.turns[0].at.getTime();
   return (
@@ -167,7 +167,7 @@ function complaint(
 /** A stored complaint still in the read window and the run's clients. */
 function inScope(
   stored: FindingCandidate,
-  scope: { since: Date; clientIds: string[] | null },
+  scope: { since: Date; clientIds: Array<string> | null },
 ): boolean {
   return (
     Date.parse(stored.source_event_at) >= scope.since.getTime() &&

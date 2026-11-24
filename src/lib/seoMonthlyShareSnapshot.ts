@@ -68,12 +68,12 @@ export type SeoMonthlyShareSnapshot = {
   monthLabel: string;
   status: "up" | "stable" | "down";
   work: SeoMonthlyWork;
-  metrics: SeoShareMetric[];
-  keywords: SeoShareKeyword[];
+  metrics: Array<SeoShareMetric>;
+  keywords: Array<SeoShareKeyword>;
   /** Search Console performance for the month (absent when GSC isn't connected). */
   search?: SeoShareSearch;
   /** External links from the last three months, newest first. */
-  recentLinks?: SeoShareRecentLink[];
+  recentLinks?: Array<SeoShareRecentLink>;
   generatedAt: string;
 };
 
@@ -86,7 +86,7 @@ export const STATUS_LABELS: Record<SeoMonthlyShareSnapshot["status"], string> =
 
 function getNum(
   obj: Record<string, unknown>,
-  ...keys: string[]
+  ...keys: Array<string>
 ): number | undefined {
   for (const k of keys) {
     const v = obj[k];
@@ -125,7 +125,7 @@ function toMonthLabel(month: string): string {
   }
 }
 
-function gscTotals(rows: GscRow[]): SeoShareSearchTotals {
+function gscTotals(rows: Array<GscRow>): SeoShareSearchTotals {
   let clicks = 0;
   let impressions = 0;
   let weighted = 0;
@@ -191,21 +191,21 @@ export function buildSeoMonthlyShareSnapshot(opts: {
   keywordLimit?: number;
   /** Search Console rows for the month, the month before, and the campaign start. */
   gsc?: {
-    current?: GscRow[];
-    prev?: GscRow[];
-    baseline?: GscRow[];
+    current?: Array<GscRow>;
+    prev?: Array<GscRow>;
+    baseline?: Array<GscRow>;
     baselineMonth?: string | null;
   } | null;
   /** External links from the previous months, so the links slide can span a quarter. */
-  recentLinks?: SeoShareRecentLink[];
+  recentLinks?: Array<SeoShareRecentLink>;
   /**
    * Same relevance filter as the positions table ("סנן לא רלוונטיים").
    * Slideshow always excludes irrelevant keywords — never show a term the user
    * marked לא רלוונטי or that fails the tracked-keyword relevance check.
    */
   relevance?: {
-    forceRelevant?: string[];
-    forceIrrelevant?: string[];
+    forceRelevant?: Array<string>;
+    forceIrrelevant?: Array<string>;
     /** Defaults to true. Pass false only for debugging. */
     enabled?: boolean;
   };
@@ -270,7 +270,7 @@ export function buildSeoMonthlyShareSnapshot(opts: {
   const metricDefs: Array<{
     key: string;
     label: string;
-    keys: string[];
+    keys: Array<string>;
     value?: number;
   }> = [
     { key: "dr", label: "דירוג דומיין (DR)", keys: ["domain_rating", "dr"] },
@@ -307,7 +307,7 @@ export function buildSeoMonthlyShareSnapshot(opts: {
     },
   ];
 
-  const metrics: SeoShareMetric[] = [];
+  const metrics: Array<SeoShareMetric> = [];
   for (const def of metricDefs) {
     const value =
       def.value !== undefined ? def.value : getNum(snapshot, ...def.keys);
@@ -322,7 +322,7 @@ export function buildSeoMonthlyShareSnapshot(opts: {
   }
 
   // ── Search Console ────────────────────────────────────────────────────────
-  const filterGsc = (rows: GscRow[]) =>
+  const filterGsc = (rows: Array<GscRow>) =>
     filterRelevantKeywords(rows, tracked, relevanceOpts).relevant;
 
   const gscCurrent = filterGsc(opts.gsc?.current ?? []);
@@ -477,7 +477,7 @@ export function applyLiveWorkToShareSnapshot(
   opts: {
     work: SeoMonthlyWork;
     status?: SeoMonthlyShareSnapshot["status"];
-    recentLinks?: SeoShareRecentLink[];
+    recentLinks?: Array<SeoShareRecentLink>;
     clientName?: string;
     domain?: string | null;
     month?: string;
@@ -514,7 +514,7 @@ export function buildSeoPerformanceSummary(
   snapshot: SeoMonthlyShareSnapshot,
 ): string {
   const search = snapshot.search;
-  const sentences: string[] = [];
+  const sentences: Array<string> = [];
 
   const improved = snapshot.keywords.filter((kw) => {
     if (kw.position == null) return false;
@@ -570,7 +570,7 @@ export function buildSeoPerformanceSummary(
   }
 
   if (search) {
-    const bits: string[] = [];
+    const bits: Array<string> = [];
     if (search.totals.impressions > 0)
       bits.push(`${fmtHe(search.totals.impressions)} חשיפות`);
     if (search.totals.clicks > 0)
@@ -579,7 +579,7 @@ export function buildSeoPerformanceSummary(
       bits.push(`${fmtHe(search.totals.top20)} ב-Top 20`);
     if (bits.length) sentences.push(`החודש נמדדו ${bits.join(" · ")}.`);
 
-    const highlights: string[] = [];
+    const highlights: Array<string> = [];
     if (impressionDelta != null && impressionDelta > 0) {
       highlights.push(`+${fmtHe(impressionDelta)} חשיפות מול חודש קודם`);
     }
@@ -609,7 +609,7 @@ export function buildSeoPerformanceSummary(
   }
 
   // ── Forward plans (always the emphasis) ────────────────────────────────────
-  const planBits: string[] = [];
+  const planBits: Array<string> = [];
   if (snapshot.work.onsite.length > 0) {
     planBits.push("המשך חיזוק עמודים ותיקוני תוכן באתר");
   }

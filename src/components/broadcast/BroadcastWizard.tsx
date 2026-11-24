@@ -138,31 +138,31 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
   const [replyTo, setReplyTo] = useState("");
   const [integrationId, setIntegrationId] = useState<string | undefined>();
   const [source, setSource] = useState<AudienceFilter["source"]>("leads");
-  const [clientStatuses, setClientStatuses] = useState<string[]>([]);
+  const [clientStatuses, setClientStatuses] = useState<Array<string>>([]);
   const [clientStatusMode, setClientStatusMode] =
     useState<AudienceFilterMode>("include");
-  const [leadStageKeys, setLeadStageKeys] = useState<string[]>([]);
+  const [leadStageKeys, setLeadStageKeys] = useState<Array<string>>([]);
   const [leadStageMode, setLeadStageMode] =
     useState<AudienceFilterMode>("include");
-  const [leadStatusKeys, setLeadStatusKeys] = useState<string[]>([]);
+  const [leadStatusKeys, setLeadStatusKeys] = useState<Array<string>>([]);
   const [leadStatusMode, setLeadStatusMode] =
     useState<AudienceFilterMode>("include");
-  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [tagIds, setTagIds] = useState<Array<string>>([]);
   const [tagMode, setTagMode] = useState<AudienceFilterMode>("include");
   const [activeOnly, setActiveOnly] = useState(true);
   const [listId, setListId] = useState<string | undefined>();
   const [pickMode, setPickMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Array<string>>([]);
   const [candidateSearch, setCandidateSearch] = useState("");
   // WA Groups state
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Array<string>>([]);
   const [groupSearch, setGroupSearch] = useState("");
   const [manualText, setManualText] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [htmlMode, setHtmlMode] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<EmailAttachment[]>([]);
+  const [attachments, setAttachments] = useState<Array<EmailAttachment>>([]);
   const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [audienceCount, setAudienceCount] = useState<number | null>(null);
@@ -440,8 +440,11 @@ export function BroadcastWizard({ open, onOpenChange, onDone }: Props) {
     manualText,
   ]);
 
-  const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
-    set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
+  const toggle = (
+    arr: Array<string>,
+    v: string,
+    set: (x: Array<string>) => void,
+  ) => set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
   const sender =
     channel === "email"

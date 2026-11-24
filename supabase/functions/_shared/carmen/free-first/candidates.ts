@@ -18,8 +18,8 @@ export type RoutableConnection = {
  * Earlier connections come first within a tier.
  */
 export function candidatesFromConnections(
-  conns: RoutableConnection[],
-): ModelCandidate[] {
+  conns: Array<RoutableConnection>,
+): Array<ModelCandidate> {
   return conns
     .filter((c) => !!c.key_last4)
     .map((c, i) => ({
@@ -48,10 +48,10 @@ export type ModelRouteRow = {
  * (switch on) and the user holds a grant for its slug.
  */
 export function pickableConnections<T extends { id: string }>(
-  conns: T[],
-  routes: ModelRouteRow[],
+  conns: Array<T>,
+  routes: Array<ModelRouteRow>,
   allowed: (slug: string) => boolean,
-): T[] {
+): Array<T> {
   const ok = new Set(
     routes
       .filter((r) => r.connection_id && r.active === true && allowed(r.slug))

@@ -106,12 +106,12 @@ serve(async (req) => {
       ownerEmail: string | null;
       rank: number;
     };
-    const candidates: Candidate[] = [];
+    const candidates: Array<Candidate> = [];
 
     for (const i of integrations) {
       const s: any = i.settings || {};
       const clientSites = s.client_sites || {};
-      const availableSites: any[] = Array.isArray(s.available_sites)
+      const availableSites: Array<any> = Array.isArray(s.available_sites)
         ? s.available_sites
         : [];
       const ownerEmail: string | null = s.google_email || null;

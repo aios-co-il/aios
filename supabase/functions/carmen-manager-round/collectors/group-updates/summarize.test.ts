@@ -18,7 +18,7 @@ const answer = JSON.stringify({
 
 /** Ports with a scripted model. */
 function ports(text: string | null) {
-  const prompts: string[] = [];
+  const prompts: Array<string> = [];
   const ask: AskModel = (prompt) => {
     prompts.push(prompt);
     return Promise.resolve({ text, costUsd: 0.002 });

@@ -18,7 +18,7 @@ interface Integration {
 }
 
 interface Props {
-  integrations: Integration[] | undefined;
+  integrations: Array<Integration> | undefined;
   value: string | undefined;
   onChange: (id: string) => void;
 }

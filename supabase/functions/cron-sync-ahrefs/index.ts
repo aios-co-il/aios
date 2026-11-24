@@ -77,7 +77,9 @@ serve(async (req) => {
 
     const clientIds = Array.from(
       new Set(
-        seoTables.map((t) => clientIdFromTable(t)).filter(Boolean) as string[],
+        seoTables
+          .map((t) => clientIdFromTable(t))
+          .filter(Boolean) as Array<string>,
       ),
     );
 

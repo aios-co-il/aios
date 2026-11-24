@@ -86,8 +86,8 @@ export default function Tenants() {
 
   // Organize tenants into organizations and sub-organizations
   const organizeTenants = () => {
-    const orgs: any[] = [];
-    const subs: Record<string, any[]> = {};
+    const orgs: Array<any> = [];
+    const subs: Record<string, Array<any>> = {};
 
     (tenants || []).forEach((tenant: any) => {
       if (tenant.org_type === "organization" || tenant.org_type === "root") {

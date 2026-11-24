@@ -41,9 +41,9 @@ type MetaTemplateComponent = {
   format?: string;
   text?: string;
   example?: {
-    body_text?: string[][];
-    header_text?: string[];
-    header_handle?: string[];
+    body_text?: Array<Array<string>>;
+    header_text?: Array<string>;
+    header_handle?: Array<string>;
   };
 };
 
@@ -96,7 +96,7 @@ type MetaTemplate = {
   category: string;
   language: string;
   parameter_format?: string;
-  components: MetaTemplateComponent[];
+  components: Array<MetaTemplateComponent>;
   rejected_reason?: string | null;
   quality_score?: { score?: string } | null;
 };
@@ -250,9 +250,9 @@ export function MetaWhatsAppTemplates({
     withOptInButton: false,
   });
   const [headerFile, setHeaderFile] = useState<File | null>(null);
-  const [examples, setExamples] = useState<string[]>([]);
+  const [examples, setExamples] = useState<Array<string>>([]);
   const [recipientPhone, setRecipientPhone] = useState("");
-  const [sendValues, setSendValues] = useState<string[]>([]);
+  const [sendValues, setSendValues] = useState<Array<string>>([]);
 
   const queryKey = ["meta-whatsapp-templates", integrationId];
   const templatesQuery = useQuery({
@@ -264,7 +264,7 @@ export function MetaWhatsAppTemplates({
         integration_id: integrationId,
       });
       return {
-        templates: (data?.templates ?? []) as MetaTemplate[],
+        templates: (data?.templates ?? []) as Array<MetaTemplate>,
         canManage: data?.can_manage === true,
         truncated: data?.truncated === true,
       };

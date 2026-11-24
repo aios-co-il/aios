@@ -54,7 +54,7 @@ export function SystemJobEditor({
     queryFn: async () => {
       const { data, error } = await db.rpc("list_system_cron_jobs");
       if (error) throw error;
-      return (data ?? []) as Record<string, any>[];
+      return (data ?? []) as Array<Record<string, any>>;
     },
   });
   const job = jobs.find((j) => Number(j.jobid) === jobid) ?? null;
@@ -83,7 +83,7 @@ export function SystemJobEditor({
         p_limit: 10,
       });
       if (error) throw error;
-      return (data ?? []) as Record<string, any>[];
+      return (data ?? []) as Array<Record<string, any>>;
     },
   });
 

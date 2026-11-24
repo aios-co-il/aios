@@ -15,14 +15,14 @@ import { firstStaffTurnAfter, type Thread } from "./threads.ts";
 
 /** Resolutions for the open waits that staff answered. */
 export function answeredWaits(
-  threads: Thread[],
-  live: LiveChatFinding[],
-  reported: FindingCandidate[],
+  threads: Array<Thread>,
+  live: Array<LiveChatFinding>,
+  reported: Array<FindingCandidate>,
   calendar: BusinessCalendar,
-): FindingResolution[] {
+): Array<FindingResolution> {
   const still = new Set(reported.map((c) => `${c.kind}|${c.fingerprint}`));
   const requests = live.filter((f) => f.kind === "unanswered_request");
-  return requests.flatMap((finding): FindingResolution[] => {
+  return requests.flatMap((finding): Array<FindingResolution> => {
     const thread = threads.find((t) =>
       finding.fingerprint.startsWith(threadPrefix(t.key)),
     );

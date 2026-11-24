@@ -32,7 +32,7 @@ export function useLeadStatuses() {
         .order("sort_order");
 
       if (error) throw error;
-      return data as LeadStatus[];
+      return data as Array<LeadStatus>;
     },
     enabled: !!tenantId,
   });
@@ -128,7 +128,7 @@ export function useLeadStatusMutations() {
   });
 
   const updateSortOrders = useMutation({
-    mutationFn: async (updates: { id: string; sort_order: number }[]) => {
+    mutationFn: async (updates: Array<{ id: string; sort_order: number }>) => {
       for (const update of updates) {
         const { error } = await supabase
           .from("lead_statuses")
@@ -145,7 +145,7 @@ export function useLeadStatusMutations() {
       });
 
       // Save previous state for rollback
-      const previousStatuses = queryClient.getQueryData<LeadStatus[]>([
+      const previousStatuses = queryClient.getQueryData<Array<LeadStatus>>([
         "lead-statuses",
         tenantId,
       ]);

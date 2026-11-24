@@ -71,7 +71,7 @@ serve(async (req) => {
 
     let totalSynced = 0;
     let totalSkipped = 0;
-    const errors: string[] = [];
+    const errors: Array<string> = [];
 
     for (const integration of integrations) {
       // Get access token - check shared integration if needed

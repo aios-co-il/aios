@@ -8,10 +8,10 @@ import {
   toggleHeaderShortcut,
 } from "@/lib/headerShortcuts";
 
-export function useHeaderShortcuts(accessibleKeys: string[]) {
+export function useHeaderShortcuts(accessibleKeys: Array<string>) {
   const { userId } = useCurrentUser();
   const { currentTenantId } = useTenant();
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeys, setSelectedKeys] = useState<Array<string>>([]);
   const accessibleFingerprint = accessibleKeys.join("|");
 
   const storageKey = useMemo(

@@ -35,7 +35,7 @@ async function invokeNotification(
   client: ClientRow,
   triggerType: NotificationType,
   recipient: Recipient,
-  assigneeNames: string[],
+  assigneeNames: Array<string>,
 ) {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/trigger-automation`,
@@ -130,7 +130,7 @@ async function fetchClient(
 async function getActiveCampaigners(
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from("client_team")
@@ -140,7 +140,7 @@ async function getActiveCampaigners(
     .or(`end_date.is.null,end_date.gte.${today}`);
   if (error) throw error;
 
-  const recipients: Recipient[] = [];
+  const recipients: Array<Recipient> = [];
   const seenPhones = new Set<string>();
   for (const row of data || []) {
     const campaigner = (row as any).campaigners;
@@ -160,7 +160,7 @@ async function getActiveCampaigners(
 async function getManagers(
   supabase: ReturnType<typeof createClient>,
   client: ClientRow,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   if (!client.tenant_id) return [];
 
   const [
@@ -206,7 +206,7 @@ async function getManagers(
     .in("id", [...managerUserIds]);
   if (profilesError) throw profilesError;
 
-  const recipients: Recipient[] = [];
+  const recipients: Array<Recipient> = [];
   const seenPhones = new Set<string>();
   for (const profile of profiles || []) {
     const phone = String((profile as any).phone || "").trim();
@@ -226,8 +226,8 @@ async function notifyRecipients(
   client: ClientRow,
   triggerType: NotificationType,
   marker: "follow_up_campaigner_notified_at" | "follow_up_manager_notified_at",
-  recipients: Recipient[],
-  assigneeNames: string[],
+  recipients: Array<Recipient>,
+  assigneeNames: Array<string>,
 ) {
   if (!recipients.length) {
     const claimedAt = await claimMarker(supabase, client.id, marker);
@@ -252,7 +252,7 @@ async function notifyRecipients(
     ];
   }
 
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   let deliveredCount = 0;
   try {
     for (const recipient of recipients) {
@@ -296,7 +296,7 @@ async function processClient(
 
   const campaigners = await getActiveCampaigners(supabase, client.id);
   const assigneeNames = campaigners.map((c) => c.full_name).filter(Boolean);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
 
   if (!client.follow_up_campaigner_notified_at) {
     results.push(
@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const errors: Array<{ client_id: string; error: string }> = [];
 
   try {
@@ -349,7 +349,7 @@ Deno.serve(async (req) => {
     if (shabbatHold) {
       return shabbatHold;
     }
-    let clients: ClientRow[] = [];
+    let clients: Array<ClientRow> = [];
     const clientColumns =
       "id,tenant_id,agency_id,name,status,follow_up_date,follow_up_campaigner_notified_at,follow_up_manager_notified_at";
 
@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       for (const client of [
         ...(campaignerPending.data || []),
         ...(managerPending.data || []),
-      ] as ClientRow[])
+      ] as Array<ClientRow>)
         unique.set(client.id, client);
       clients = [...unique.values()];
     }

@@ -48,7 +48,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         .select("*")
         .eq("client_id", clientId);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: !!clientId,
   });
@@ -67,7 +67,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         .order("date_created", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });
@@ -83,7 +83,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         .order("total_sales", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });
@@ -99,7 +99,7 @@ export function ClientWordPressTab({ clientId }: ClientWordPressTabProps) {
         .order("total_spent", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return (data || []) as any[];
+      return (data || []) as Array<any>;
     },
     enabled: siteIds.length > 0,
   });

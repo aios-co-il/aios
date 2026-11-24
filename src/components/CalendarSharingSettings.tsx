@@ -180,7 +180,7 @@ export function CalendarSharingSettings() {
       return (profiles || []).map((p) => ({
         user_id: p.id,
         profiles: p,
-      })) as TenantUser[];
+      })) as Array<TenantUser>;
     },
     enabled: !!tenantId,
   });

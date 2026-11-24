@@ -62,7 +62,7 @@ export function DuplicateClientDialog({
       return data as { newClientId: string; stats: Record<string, number> };
     },
     onSuccess: (data) => {
-      const parts: string[] = [];
+      const parts: Array<string> = [];
       if (data.stats?.contacts) parts.push(`${data.stats.contacts} אנשי קשר`);
       if (data.stats?.team) parts.push(`${data.stats.team} חברי צוות`);
       if (data.stats?.credentials)

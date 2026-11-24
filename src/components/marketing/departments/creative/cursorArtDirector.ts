@@ -61,7 +61,7 @@ export const LOGO_PLACEMENT_LOCK = [
 const MAX_STATIC_REFS = 3;
 
 const pushRef = (
-  refs: StaticRef[],
+  refs: Array<StaticRef>,
   url: string | undefined,
   kind: StaticRefKind,
 ) => {
@@ -78,20 +78,24 @@ export const collectStaticReferencePlan = ({
   directorUrls = [],
   logoUrl,
 }: {
-  projectRefUrls?: string[];
+  projectRefUrls?: Array<string>;
   /** @deprecated alias of projectRefUrls */
-  talentUrls?: string[];
+  talentUrls?: Array<string>;
   techniqueUrl?: string;
   instructions?: string | null;
   editTargetUrl?: string;
-  directorUrls?: string[];
+  directorUrls?: Array<string>;
   logoUrl?: string;
-}): { urls: string[]; role?: CreativeReferenceRole; refs: StaticRef[] } => {
+}): {
+  urls: Array<string>;
+  role?: CreativeReferenceRole;
+  refs: Array<StaticRef>;
+} => {
   const project = (
     projectRefUrls.length > 0 ? projectRefUrls : (talentUrls ?? [])
   ).filter(Boolean);
   const talent = wantsTalentLock(instructions);
-  const refs: StaticRef[] = [];
+  const refs: Array<StaticRef> = [];
   pushRef(refs, editTargetUrl, "edit");
   for (const url of directorUrls) pushRef(refs, url, "director");
   for (const url of project) pushRef(refs, url, talent ? "talent" : "style");

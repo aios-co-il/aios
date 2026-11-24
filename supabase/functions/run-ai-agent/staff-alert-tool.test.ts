@@ -24,8 +24,8 @@ const line = (id: string, integration_type: string) => ({
 
 /** The staff tool over a fake DB holding these lines and a fake send-manus-wa-message giving these responses; REQUESTER is a member of TENANT. */
 async function runTool(
-  integrations: Record<string, unknown>[],
-  responses?: { status?: number; body?: unknown }[],
+  integrations: Array<Record<string, unknown>>,
+  responses?: Array<{ status?: number; body?: unknown }>,
 ) {
   const sb = fakeSupabase({
     tenant_integrations: integrations,

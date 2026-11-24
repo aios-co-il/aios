@@ -67,7 +67,7 @@ export async function ensureDefaultRoutes(
   sb: SupabaseClient,
   tenantId: string,
   agentId: string | null,
-): Promise<BrainRouteRow[]> {
+): Promise<Array<BrainRouteRow>> {
   // Seed only slugs the tenant never had: a route hidden from the picker
   // (active = false, Carmen settings → מוחות) must stay hidden.
   const { data: existing } = await sb
@@ -127,7 +127,7 @@ export async function ensureDefaultRoutes(
     .eq("active", true);
   return (all ||
     (existing || []).filter((r: { active: boolean }) => r.active) ||
-    []) as BrainRouteRow[];
+    []) as Array<BrainRouteRow>;
 }
 
 export async function loadRoute(
@@ -451,7 +451,11 @@ export async function resolveCallbackSessionForTenant(
 ): Promise<ChannelSessionRow | null> {
   const hint = String(conversationIdHint || "").trim();
   if (hint) {
-    for (const provider of ["cursor", "grok", "codex"] as ChannelProvider[]) {
+    for (const provider of [
+      "cursor",
+      "grok",
+      "codex",
+    ] as Array<ChannelProvider>) {
       const running = await getRunningSession(sb, hint, provider);
       if (running) return running;
       const latest = await getLatestSession(sb, hint, provider);

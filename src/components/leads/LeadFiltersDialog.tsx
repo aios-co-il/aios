@@ -34,12 +34,12 @@ import {
 
 export interface FilterState {
   searchQuery: string;
-  salesPersonIds: string[]; // Changed to array for multi-select
-  stageIds: string[];
+  salesPersonIds: Array<string>; // Changed to array for multi-select
+  stageIds: Array<string>;
   stageFilterMode: LeadValueFilterMode;
-  responseStatus: string[]; // Changed to array for multi-select
+  responseStatus: Array<string>; // Changed to array for multi-select
   responseStatusFilterMode: LeadValueFilterMode;
-  tagIds: string[]; // Changed from tagId to tagIds for multi-select
+  tagIds: Array<string>; // Changed from tagId to tagIds for multi-select
   startDate: Date | undefined;
   endDate: Date | undefined;
   followUpToday: boolean; // Filter for leads with follow-up date today
@@ -342,14 +342,14 @@ export function LeadFiltersDialog({
     if (filters.responseStatus.length === 0) return "כל הסטטוסים";
     const prefix = filters.responseStatusFilterMode === "hide" ? "הסתר: " : "";
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.responseStatus.includes("none")) {
       labels.push("ללא סטטוס");
     }
     const otherLabels = filters.responseStatus
       .filter((s) => s !== "none")
       .map((s) => leadStatuses.find((ls) => ls.status_key === s)?.label)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -362,14 +362,14 @@ export function LeadFiltersDialog({
   const selectedTagLabels = useMemo(() => {
     if (filters.tagIds.length === 0) return "כל התגיות";
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.tagIds.includes("none")) {
       labels.push("ללא תגית");
     }
     const otherLabels = filters.tagIds
       .filter((t) => t !== "none")
       .map((t) => allTags.find((at) => at.id === t)?.name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -382,14 +382,14 @@ export function LeadFiltersDialog({
   const selectedSalesPersonLabels = useMemo(() => {
     if (filters.salesPersonIds.length === 0) return "כל אנשי המכירות";
 
-    const labels: string[] = [];
+    const labels: Array<string> = [];
     if (filters.salesPersonIds.includes("none")) {
       labels.push("ללא שיוך");
     }
     const otherLabels = filters.salesPersonIds
       .filter((sp) => sp !== "none")
       .map((sp) => salesPeople.find((p) => p.id === sp)?.full_name)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     labels.push(...otherLabels);
 
     if (labels.length <= 2) {
@@ -403,7 +403,7 @@ export function LeadFiltersDialog({
     const prefix = filters.stageFilterMode === "hide" ? "הסתר: " : "";
     const labels = filters.stageIds
       .map((id) => pipelineStages.find((stage) => stage.id === id)?.label)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     if (labels.length <= 2) return `${prefix}${labels.join(", ")}`;
     return `${prefix}${labels.slice(0, 2).join(", ")} +${labels.length - 2}`;
   }, [filters.stageIds, filters.stageFilterMode, pipelineStages]);

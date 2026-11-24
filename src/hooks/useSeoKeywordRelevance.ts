@@ -18,8 +18,8 @@ import {
 
 type Options = {
   /** Server-provided lists (e.g. public share payload). */
-  initialForceRelevant?: string[];
-  initialForceIrrelevant?: string[];
+  initialForceRelevant?: Array<string>;
+  initialForceIrrelevant?: Array<string>;
   /** Public share: apply lists but never write. */
   readOnly?: boolean;
 };
@@ -42,13 +42,13 @@ export function useSeoKeywordRelevance(
     options?.initialForceRelevant !== undefined ||
     options?.initialForceIrrelevant !== undefined;
 
-  const [forceRelevant, setForceRelevant] = useState<string[]>(() => {
+  const [forceRelevant, setForceRelevant] = useState<Array<string>>(() => {
     if (options?.initialForceRelevant !== undefined)
       return options.initialForceRelevant;
     if (readOnly) return [];
     return loadSeoForceRelevant(persistKey);
   });
-  const [forceIrrelevant, setForceIrrelevant] = useState<string[]>(() => {
+  const [forceIrrelevant, setForceIrrelevant] = useState<Array<string>>(() => {
     if (options?.initialForceIrrelevant !== undefined)
       return options.initialForceIrrelevant;
     if (readOnly) return [];

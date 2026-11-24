@@ -218,7 +218,7 @@ function WorkItemCard({
 }
 
 // ─── Status bar ───────────────────────────────────────────────────────────────
-function StatusBar({ items }: { items: any[] }) {
+function StatusBar({ items }: { items: Array<any> }) {
   const running = items.filter((i) => i.status === "in_progress").length;
   const waiting = items.filter((i) => i.status === "awaiting_approval").length;
   const done = items.filter((i) => i.status === "completed").length;
@@ -285,7 +285,7 @@ function DepartmentCard({
   onRun,
 }: {
   stage: any;
-  items: any[];
+  items: Array<any>;
   onOpenConfig: (stage: any) => void;
   onOpenWorkspace: (stage: any) => void;
   onNewItem: (stageId: string) => void;
@@ -450,7 +450,7 @@ export function MarketingPipelineBoard({
   });
 
   // Group items by current_stage_id
-  const itemsByStage: Record<string, any[]> = {};
+  const itemsByStage: Record<string, Array<any>> = {};
   (items ?? []).forEach((item: any) => {
     const sid = item.current_stage_id ?? "__unassigned__";
     (itemsByStage[sid] ??= []).push(item);

@@ -46,8 +46,8 @@ const pendingSend = (teamForward: "pending" | "done") => ({
  * team_forward alias is read from raw_provider_data.
  */
 function echoDeliveries(seed: {
-  chats: Record<string, unknown>[];
-  claims?: Record<string, unknown>[];
+  chats: Array<Record<string, unknown>>;
+  claims?: Array<Record<string, unknown>>;
 }) {
   const chats = fakeChatMessages(seed.chats);
   const claims = fakeClaimTables({ claims: seed.claims });
@@ -55,7 +55,7 @@ function echoDeliveries(seed: {
     from: (table: string) =>
       table === "chat_messages" ? chats.from(table) : claims.from(table),
   };
-  const mirrors: unknown[][] = [];
+  const mirrors: Array<Array<unknown>> = [];
   const deliver = async (): Promise<"duplicate" | "stored" | "new"> => {
     const claim = await claimWebhookMessage(KEY, db);
     if (claim.duplicate) {

@@ -252,7 +252,7 @@ const PRODUCT_LABELS: Record<string, string> = {
 };
 
 // Helper function to get style for a status
-function getStatusStyle(statusKey: string | null, statuses: LeadStatus[]) {
+function getStatusStyle(statusKey: string | null, statuses: Array<LeadStatus>) {
   if (!statusKey) return "";
   const status = statuses.find((s) => s.status_key === statusKey);
   if (!status) return "";
@@ -282,7 +282,7 @@ function LeadCardContent({
     responseStatus: string | null,
   ) => void;
   productsLookup?: Record<string, { name: string; price: number }>;
-  leadStatuses?: LeadStatus[];
+  leadStatuses?: Array<LeadStatus>;
   pipelineStages?: Array<{
     id: string;
     label: string;
@@ -293,7 +293,7 @@ function LeadCardContent({
   }>;
   isCompanyNameVisible?: boolean;
   allTags?: Array<{ id: string; name: string; color: string }>;
-  leadTagIds?: string[];
+  leadTagIds?: Array<string>;
   onFollowUpDateUpdate?: (leadId: string, newDate: string | null) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
   style?: React.CSSProperties;
@@ -505,7 +505,7 @@ function SortableLeadCard({
     responseStatus: string | null,
   ) => void;
   productsLookup?: Record<string, { name: string; price: number }>;
-  leadStatuses?: LeadStatus[];
+  leadStatuses?: Array<LeadStatus>;
   pipelineStages?: Array<{
     id: string;
     label: string;
@@ -516,7 +516,7 @@ function SortableLeadCard({
   }>;
   isCompanyNameVisible?: boolean;
   allTags?: Array<{ id: string; name: string; color: string }>;
-  leadTagIds?: string[];
+  leadTagIds?: Array<string>;
   onFollowUpDateUpdate?: (leadId: string, newDate: string | null) => void;
 }) {
   const {
@@ -657,18 +657,18 @@ export default function Leads() {
   const [autoOpenLeadId, setAutoOpenLeadId] = useState<string | null>(null);
 
   // Filter states
-  const [filterSalesPersonIds, setFilterSalesPersonIds] = useState<string[]>(
-    [],
-  );
-  const [filterStageIds, setFilterStageIds] = useState<string[]>([]);
+  const [filterSalesPersonIds, setFilterSalesPersonIds] = useState<
+    Array<string>
+  >([]);
+  const [filterStageIds, setFilterStageIds] = useState<Array<string>>([]);
   const [stageFilterMode, setStageFilterMode] =
     useState<LeadValueFilterMode>("show");
-  const [filterResponseStatus, setFilterResponseStatus] = useState<string[]>(
-    [],
-  );
+  const [filterResponseStatus, setFilterResponseStatus] = useState<
+    Array<string>
+  >([]);
   const [responseStatusFilterMode, setResponseStatusFilterMode] =
     useState<LeadValueFilterMode>("show");
-  const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
+  const [filterTagIds, setFilterTagIds] = useState<Array<string>>([]);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [filterFollowUpToday, setFilterFollowUpToday] =
@@ -864,13 +864,13 @@ export default function Leads() {
 
   // Stage-based data for Kanban view
   const [stageLeadsData, setStageLeadsData] = useState<
-    Record<string, { leads: any[]; totalCount: number }>
+    Record<string, { leads: Array<any>; totalCount: number }>
   >({});
 
   // Load More state - tracks additional leads fetched beyond initial 50 per stage
   const [stageOffsets, setStageOffsets] = useState<Record<string, number>>({});
   const [accumulatedLeads, setAccumulatedLeads] = useState<
-    Record<string, any[]>
+    Record<string, Array<any>>
   >({});
   const [loadingMoreStage, setLoadingMoreStage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -1155,12 +1155,15 @@ export default function Leads() {
       if (error) throw error;
 
       // Transform RPC result to map: { [stageId]: { leads: [...], totalCount: number } }
-      const stageMap: Record<string, { leads: any[]; totalCount: number }> = {};
+      const stageMap: Record<
+        string,
+        { leads: Array<any>; totalCount: number }
+      > = {};
 
       if (data) {
         if (Array.isArray(data)) {
           // TABLE format: array of { stage, leads, total_count }
-          for (const stageData of data as any[]) {
+          for (const stageData of data as Array<any>) {
             stageMap[stageData.stage] = {
               leads: stageData.leads || [],
               totalCount: stageData.total_count || 0,
@@ -1180,7 +1183,7 @@ export default function Leads() {
       }
 
       // Now fetch relations (agencies, sales_people) for all leads
-      const allLeadIds: string[] = [];
+      const allLeadIds: Array<string> = [];
       for (const stageId of Object.keys(stageMap)) {
         for (const lead of stageMap[stageId].leads) {
           allLeadIds.push(lead.id);
@@ -1297,7 +1300,7 @@ export default function Leads() {
 
       const counts: Record<string, number> = {};
       if (Array.isArray(data)) {
-        for (const stageData of data as any[]) {
+        for (const stageData of data as Array<any>) {
           counts[stageData.stage] = stageData.total_count || 0;
         }
       } else if (data && typeof data === "object") {
@@ -1348,7 +1351,7 @@ export default function Leads() {
       isOwner,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
 
       const from = (effectivePage - 1) * effectiveLimit;
 
@@ -1562,7 +1565,7 @@ export default function Leads() {
     }
     if (!kanbanStageData) return [];
 
-    const allLeads: any[] = [];
+    const allLeads: Array<any> = [];
     const seen = new Set<string>();
     for (const stageId of Object.keys(kanbanStageData)) {
       const combined = [
@@ -1632,7 +1635,7 @@ export default function Leads() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people-filter", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as SurfaceSalesPerson[];
+      if (!tenantId) return [] as Array<SurfaceSalesPerson>;
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name, agency_id, sales_person_agencies(agency_id)")
@@ -1647,7 +1650,7 @@ export default function Leads() {
         agencyIds: (person.sales_person_agencies || [])
           .map((row: { agency_id?: string | null }) => row.agency_id)
           .filter(Boolean),
-      })) as SurfaceSalesPerson[];
+      })) as Array<SurfaceSalesPerson>;
     },
     enabled: !!tenantId,
     staleTime: 1000 * 60 * 10, // 10 minutes - sales people rarely change
@@ -1657,7 +1660,7 @@ export default function Leads() {
   const { data: allProducts } = useQuery({
     queryKey: ["products-lookup", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("products")
         .select("id, name, price")
@@ -1707,7 +1710,7 @@ export default function Leads() {
       secureFilteredLeads.forEach((lead: any) => ids.add(lead.id));
     }
     // Add IDs from accumulated (Load More) leads across all stages
-    Object.values(accumulatedLeads).forEach((stageLeads: any[]) => {
+    Object.values(accumulatedLeads).forEach((stageLeads: Array<any>) => {
       stageLeads.forEach((lead: any) => ids.add(lead.id));
     });
     return Array.from(ids);
@@ -1728,7 +1731,7 @@ export default function Leads() {
       if (error) throw error;
 
       // Group by lead_id
-      const map: Record<string, string[]> = {};
+      const map: Record<string, Array<string>> = {};
       data.forEach((item) => {
         if (item.lead_id) {
           if (!map[item.lead_id]) map[item.lead_id] = [];
@@ -1751,7 +1754,7 @@ export default function Leads() {
   // Debug: log how many leads are missing phone/email to verify visibility
   useEffect(() => {
     if (leads) {
-      const arr = leads as any[];
+      const arr = leads as Array<any>;
       const missingPhone = arr.filter((l: any) => !l.phone).length;
       const missingEmail = arr.filter((l: any) => !l.email).length;
       console.info("Leads fetched", {
@@ -1768,8 +1771,8 @@ export default function Leads() {
     Error,
     { leadId: string; newStatus: string },
     {
-      previousKanbanEntries: [readonly unknown[], unknown][];
-      previousTableEntries: [readonly unknown[], unknown][];
+      previousKanbanEntries: Array<[ReadonlyArray<unknown>, unknown]>;
+      previousTableEntries: Array<[ReadonlyArray<unknown>, unknown]>;
       leadId: string;
     }
   >({
@@ -2303,7 +2306,7 @@ export default function Leads() {
   );
 
   const tableUserGroups = useMemo(() => {
-    const people = (salesPeople || []) as SurfaceSalesPerson[];
+    const people = (salesPeople || []) as Array<SurfaceSalesPerson>;
     const surfacePeople =
       isViewingAs && viewAsSalesPersonId
         ? people.filter((person) => person.id === viewAsSalesPersonId)
@@ -2589,11 +2592,13 @@ export default function Leads() {
       // Extract leads from the response.
       // NOTE: get_leads_by_stages RETURNS jsonb (object keyed by stage_key), not an array.
       const newLeads = (() => {
-        if (!data) return [] as any[];
+        if (!data) return [] as Array<any>;
 
         // Defensive: support legacy/alternate array format too
         if (Array.isArray(data)) {
-          const hit = (data as any[]).find((item) => item?.stage === stageId);
+          const hit = (data as Array<any>).find(
+            (item) => item?.stage === stageId,
+          );
           return Array.isArray(hit?.leads) ? hit.leads : [];
         }
 
@@ -3787,7 +3792,7 @@ function TableWithStickyScroll({
   overallTotalCount,
   fillHeight = false,
 }: {
-  stageLeads: any[];
+  stageLeads: Array<any>;
   totalLeadsCount?: number;
   overallTotalCount?: number;
   fillHeight?: boolean;
@@ -3795,14 +3800,16 @@ function TableWithStickyScroll({
   const { toast } = useToast();
   const openLeadInChat = useContext(LeadEditContext);
   const queryClient = useQueryClient();
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [selectedLeads, setSelectedLeads] = useState<Array<string>>([]);
   const [selectAllMode, setSelectAllMode] = useState<"page" | "all" | null>(
     null,
   );
-  const [allLeadIds, setAllLeadIds] = useState<string[] | null>(null);
+  const [allLeadIds, setAllLeadIds] = useState<Array<string> | null>(null);
   const [isLoadingAllIds, setIsLoadingAllIds] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedSalesPeople, setSelectedSalesPeople] = useState<string[]>([]);
+  const [selectedSalesPeople, setSelectedSalesPeople] = useState<Array<string>>(
+    [],
+  );
   const { selectedAgency } = useAgency();
   const { activeStatuses: leadStatuses, isLoading: isStatusesLoading } =
     useLeadStatuses();
@@ -3937,8 +3944,8 @@ function TableWithStickyScroll({
     queryFn: async () => {
       if (!tenantId || visibleLeadIds.length === 0) {
         return {
-          calls: [] as StoredCallRecording[],
-          files: [] as StoredFileRecording[],
+          calls: [] as Array<StoredCallRecording>,
+          files: [] as Array<StoredFileRecording>,
         };
       }
       const [callsResult, filesResult] = await Promise.all([
@@ -3961,8 +3968,8 @@ function TableWithStickyScroll({
       if (callsResult.error) throw callsResult.error;
       if (filesResult.error) throw filesResult.error;
       return {
-        calls: (callsResult.data || []) as StoredCallRecording[],
-        files: (filesResult.data || []) as StoredFileRecording[],
+        calls: (callsResult.data || []) as Array<StoredCallRecording>,
+        files: (filesResult.data || []) as Array<StoredFileRecording>,
       };
     },
     enabled: !!tenantId && showCallRecording && visibleLeadIds.length > 0,
@@ -3991,7 +3998,7 @@ function TableWithStickyScroll({
       if (error) throw error;
 
       // Group by lead_id
-      const map: Record<string, string[]> = {};
+      const map: Record<string, Array<string>> = {};
       data.forEach((item) => {
         if (item.lead_id) {
           if (!map[item.lead_id]) map[item.lead_id] = [];
@@ -4194,7 +4201,7 @@ function TableWithStickyScroll({
       leadIds,
       status,
     }: {
-      leadIds: string[];
+      leadIds: Array<string>;
       status: string;
     }) => {
       const { error } = await supabase
@@ -4226,7 +4233,7 @@ function TableWithStickyScroll({
   });
 
   const bulkDelete = useMutation({
-    mutationFn: async (leadIds: string[]) => {
+    mutationFn: async (leadIds: Array<string>) => {
       await archiveLeads(leadIds);
     },
     onSuccess: () => {
@@ -4257,8 +4264,8 @@ function TableWithStickyScroll({
       leadIds,
       salesPersonIds,
     }: {
-      leadIds: string[];
-      salesPersonIds: string[];
+      leadIds: Array<string>;
+      salesPersonIds: Array<string>;
     }) => {
       // Get tenant_id for all leads to create proper assignments
       const { data: leadsData, error: leadsError } = await supabase

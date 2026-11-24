@@ -98,7 +98,7 @@ function MetricCells({
   currency,
 }: {
   metrics: WeeklyGoalTotals;
-  columns: WeeklyGoalColumn[];
+  columns: Array<WeeklyGoalColumn>;
   currency: string;
 }) {
   return (

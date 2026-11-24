@@ -19,7 +19,7 @@ export type AttemptState = {
   completedToolCalls: number;
   /** True when the LLM's current request is known to have no side effects. */
   inferenceOnly: boolean;
-  attemptedModelIds: string[];
+  attemptedModelIds: Array<string>;
   nextRound?: number;
   maxRetries?: number;
 };

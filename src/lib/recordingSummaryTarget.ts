@@ -7,7 +7,7 @@ export interface SummaryTargetRow {
   transcription?: string | null;
   client_id?: string | null;
   lead_id?: string | null;
-  campaigner_ids?: string[] | null;
+  campaigner_ids?: Array<string> | null;
   agency_id?: string | null;
   summary_scope?: string | null;
 }
@@ -51,7 +51,7 @@ export function resolveSummaryTarget(
 
 /** The longest transcript in a grouped meeting — Zoom splits one meeting across rows. */
 export function pickTranscriptRow<T extends SummaryTargetRow>(
-  rows: T[],
+  rows: Array<T>,
 ): T | null {
   let best: T | null = null;
   let bestLength = 0;

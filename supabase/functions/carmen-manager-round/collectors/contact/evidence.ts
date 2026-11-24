@@ -56,10 +56,10 @@ export async function loadContactEvidence(
     since: Date;
     contactSince: Date;
     minCallSeconds: number;
-    clientIds: string[] | null;
+    clientIds: Array<string> | null;
   },
-): Promise<ContactEvidence[]> {
-  const evidence: ContactEvidence[] = [];
+): Promise<Array<ContactEvidence>> {
+  const evidence: Array<ContactEvidence> = [];
   for (let from = 0; ; from += PAGE_ROWS) {
     const { data, error } = await db
       .rpc("get_client_contact_evidence", {
@@ -82,7 +82,7 @@ export async function loadContactEvidence(
 /** fixtures.contact rows in the function's shape, or null when there are none. */
 export function fixtureEvidence(
   fixtures: Json | null,
-): ContactEvidence[] | null {
+): Array<ContactEvidence> | null {
   const rows =
     fixtures && typeof fixtures === "object" && !Array.isArray(fixtures)
       ? fixtures.contact

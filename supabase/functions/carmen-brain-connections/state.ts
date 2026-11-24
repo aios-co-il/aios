@@ -102,7 +102,7 @@ function toConnection(row: ConnectionRow): BrainConnection {
   };
 }
 
-const ROUTE_TYPES: BrainRouteType[] = [
+const ROUTE_TYPES: Array<BrainRouteType> = [
   "internal",
   "direct_channel",
   "parliament",

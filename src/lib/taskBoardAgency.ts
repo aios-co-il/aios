@@ -52,9 +52,9 @@ export function resolveBoardTaskAgency(
  * effective agency matches may render. "all" (or empty) leaves the list alone.
  */
 export function filterTasksBySelectedAgency<T extends AgencyScopedTask>(
-  tasks: T[],
+  tasks: Array<T>,
   selectedAgency: string | null | undefined,
-): T[] {
+): Array<T> {
   if (!selectedAgency || selectedAgency === "all") return tasks;
   return tasks.filter(
     (task) => resolveTaskEffectiveAgency(task) === selectedAgency,
@@ -85,7 +85,7 @@ export type OwnedAgencyShare = { agencyId: string; tenantId: string };
 export function taskBelongsToBoardTenantScope(
   task: BoardTenantScopedTask,
   tenantId: string,
-  sharedAgencyIds: string[],
+  sharedAgencyIds: Array<string>,
   ownedAgencyShares: Array<OwnedAgencyShare> = [],
 ): boolean {
   if (!tenantId) return true;
@@ -105,11 +105,11 @@ export function taskBelongsToBoardTenantScope(
 }
 
 export function filterTasksByBoardTenantScope<T extends BoardTenantScopedTask>(
-  tasks: T[],
+  tasks: Array<T>,
   tenantId: string,
-  sharedAgencyIds: string[],
+  sharedAgencyIds: Array<string>,
   ownedAgencyShares: Array<OwnedAgencyShare> = [],
-): T[] {
+): Array<T> {
   if (!tenantId) return tasks;
   return tasks.filter((task) =>
     taskBelongsToBoardTenantScope(
@@ -161,14 +161,14 @@ export type TasksBoardScope =
   | {
       type: "tenant_or_shared";
       tenantId: string;
-      crossTenantAgencyIds: string[];
+      crossTenantAgencyIds: Array<string>;
       ownedAgencyShares: Array<OwnedAgencyShare>;
     }
   | { type: "tenant"; tenantId: string };
 
 export function resolveTasksBoardScope(input: {
   tenantId: string;
-  crossTenantAgencyIds?: string[];
+  crossTenantAgencyIds?: Array<string>;
   ownedAgencyShares?: Array<OwnedAgencyShare>;
 }): TasksBoardScope {
   const { tenantId, crossTenantAgencyIds = [], ownedAgencyShares = [] } = input;
@@ -199,12 +199,12 @@ export function syncLocalTasksForAgencyFilter<
   T extends CampaignerScopedTask,
 >(input: {
   isFetching: boolean;
-  fetchedTasks: T[] | undefined | null;
-  previousLocal: T[];
+  fetchedTasks: Array<T> | undefined | null;
+  previousLocal: Array<T>;
   selectedAgency: string | null | undefined;
   /** Client-side guard while refetching after a campaigner filter change. */
-  applyCampaignerFilter?: (tasks: T[]) => T[];
-}): T[] {
+  applyCampaignerFilter?: (tasks: Array<T>) => Array<T>;
+}): Array<T> {
   const {
     isFetching,
     fetchedTasks,

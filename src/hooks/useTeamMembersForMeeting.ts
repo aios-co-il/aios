@@ -18,7 +18,7 @@ export function useTeamMembersForMeeting(
 ) {
   return useQuery({
     queryKey: ["team-members-for-meeting", tenantId],
-    queryFn: async (): Promise<MeetingTeamMember[]> => {
+    queryFn: async (): Promise<Array<MeetingTeamMember>> => {
       if (!tenantId) return [];
 
       const { data: sessionData } = await supabase.auth.getSession();
@@ -68,7 +68,7 @@ export function useTeamMembersForMeeting(
           (row) => row.campaigner_id,
         );
         const salesIds = (salesLinks || []).map((row) => row.sales_person_id);
-        const orParts: string[] = [];
+        const orParts: Array<string> = [];
         if (campaignerIds.length > 0) {
           orParts.push(`campaigner_id.in.(${campaignerIds.join(",")})`);
         }

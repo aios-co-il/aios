@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 interface GoogleAnalyticsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 interface GAProperty {
@@ -111,7 +111,7 @@ export function GoogleAnalyticsTableDialog({
 
       if (error) throw error;
       return data as {
-        properties?: GAProperty[];
+        properties?: Array<GAProperty>;
         needs_reconnect?: boolean;
         owner_email?: string | null;
         reason?: string;
@@ -122,7 +122,7 @@ export function GoogleAnalyticsTableDialog({
   });
 
   const properties = useMemo(
-    () => (propertiesResponse?.properties || []) as GAProperty[],
+    () => (propertiesResponse?.properties || []) as Array<GAProperty>,
     [propertiesResponse?.properties],
   );
   const integrationSettings = integration?.settings as Record<

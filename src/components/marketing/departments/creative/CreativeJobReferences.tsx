@@ -12,8 +12,8 @@ import { toast } from "sonner";
 interface Props {
   tenantId: string;
   itemId: string;
-  references: StyleReference[];
-  onChange: (next: StyleReference[]) => void;
+  references: Array<StyleReference>;
+  onChange: (next: Array<StyleReference>) => void;
   disabled?: boolean;
 }
 
@@ -31,7 +31,7 @@ export function CreativeJobReferences({
     if (!files?.length) return;
     setUploading(true);
     try {
-      const uploaded: StyleReference[] = [];
+      const uploaded: Array<StyleReference> = [];
       for (const file of Array.from(files)) {
         const asset = await uploadCreativeAsset({
           supabase,

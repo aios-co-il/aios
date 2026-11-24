@@ -39,15 +39,15 @@ async function processTenantReminders(opts: {
   supabaseUrl: string;
   serviceKey: string;
   tenantId: string;
-  leads: ReminderLead[];
+  leads: Array<ReminderLead>;
   triggerType: "meeting_same_day" | "meeting_day_after";
   sentColumn:
     "meeting_reminder_same_day_sent_at" | "meeting_reminder_day_after_sent_at";
   messageFor: (lead: ReminderLead) => string;
-  results: { lead_id: string; company_name: string | null; via: string }[];
-  errors: string[];
+  results: Array<{ lead_id: string; company_name: string | null; via: string }>;
+  errors: Array<string>;
 }) {
-  const fallbackLeads: ReminderLead[] = [];
+  const fallbackLeads: Array<ReminderLead> = [];
 
   for (const lead of opts.leads) {
     const wa = await sendCrmWhatsappToLeadAdmin({
@@ -148,17 +148,17 @@ Deno.serve(async (req) => {
     yesterdayEnd.setHours(23, 59, 59, 999);
 
     const results = {
-      dayAfterReminders: [] as {
+      dayAfterReminders: [] as Array<{
         lead_id: string;
         company_name: string | null;
         via: string;
-      }[],
-      sameDayReminders: [] as {
+      }>,
+      sameDayReminders: [] as Array<{
         lead_id: string;
         company_name: string | null;
         via: string;
-      }[],
-      errors: [] as string[],
+      }>,
+      errors: [] as Array<string>,
     };
 
     const { data: dayAfterLeads, error: dayAfterError } = await supabase
@@ -174,8 +174,8 @@ Deno.serve(async (req) => {
     if (dayAfterError) {
       results.errors.push(`Day-after query error: ${dayAfterError.message}`);
     } else if (dayAfterLeads && dayAfterLeads.length > 0) {
-      const leadsByTenant: Record<string, ReminderLead[]> = {};
-      for (const lead of dayAfterLeads as ReminderLead[]) {
+      const leadsByTenant: Record<string, Array<ReminderLead>> = {};
+      for (const lead of dayAfterLeads as Array<ReminderLead>) {
         if (!lead.tenant_id) continue;
         if (!leadsByTenant[lead.tenant_id]) leadsByTenant[lead.tenant_id] = [];
         leadsByTenant[lead.tenant_id].push(lead);
@@ -213,8 +213,8 @@ Deno.serve(async (req) => {
     if (sameDayError) {
       results.errors.push(`Same-day query error: ${sameDayError.message}`);
     } else if (sameDayLeads && sameDayLeads.length > 0) {
-      const leadsByTenant: Record<string, ReminderLead[]> = {};
-      for (const lead of sameDayLeads as ReminderLead[]) {
+      const leadsByTenant: Record<string, Array<ReminderLead>> = {};
+      for (const lead of sameDayLeads as Array<ReminderLead>) {
         if (!lead.tenant_id) continue;
         if (!leadsByTenant[lead.tenant_id]) leadsByTenant[lead.tenant_id] = [];
         leadsByTenant[lead.tenant_id].push(lead);

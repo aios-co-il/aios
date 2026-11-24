@@ -67,7 +67,7 @@ export function filterTasksForChatSearch<
     campaigners?: { full_name?: string | null } | null;
     creator_name?: string | null;
   },
->(tasks: T[], search: string): T[] {
+>(tasks: Array<T>, search: string): Array<T> {
   const q = search.trim().toLowerCase();
   if (!q) return tasks;
   return tasks.filter(
@@ -91,7 +91,7 @@ export function sortTasksForChatList<
     target_date?: string | null;
     created_at?: string;
   },
->(tasks: T[], today: Date): T[] {
+>(tasks: Array<T>, today: Date): Array<T> {
   const rank = (task: T) => {
     if (task.status === "done") return 3;
     if (isTaskOverdue(task, today)) return 0;

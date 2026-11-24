@@ -54,7 +54,7 @@ function ChangeIndicator({
 // Helper to get a value from snapshot trying multiple key variants
 function getVal(
   obj: Record<string, any>,
-  ...keys: string[]
+  ...keys: Array<string>
 ): number | undefined {
   for (const k of keys) {
     if (obj[k] !== undefined && obj[k] !== null) return obj[k];

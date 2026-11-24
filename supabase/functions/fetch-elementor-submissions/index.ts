@@ -234,7 +234,7 @@ serve(async (req) => {
     }
 
     // 2) Fetch submissions with pagination
-    const allSubmissions: any[] = [];
+    const allSubmissions: Array<any> = [];
     let page = 1;
     const perPage = 100;
     const maxPages = 10;
@@ -294,7 +294,7 @@ serve(async (req) => {
       );
     }
 
-    const parsed: ParsedSubmission[] = [];
+    const parsed: Array<ParsedSubmission> = [];
     for (const s of allSubmissions) {
       const createdAt =
         s.created_at || s.date || s.created || new Date().toISOString();

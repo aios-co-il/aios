@@ -333,7 +333,7 @@ function rpcError(
   );
 }
 
-function acceptedBearers(): string[] {
+function acceptedBearers(): Array<string> {
   return [
     Deno.env.get("CURSOR_MCP_BEARER") || "",
     Deno.env.get("GROK_CURSOR_MCP_BEARER") || "",

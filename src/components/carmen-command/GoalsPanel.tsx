@@ -381,7 +381,7 @@ function GoalDetailView({
   const milestones =
     (detail.milestones as Array<{ title: string; status: string }>) || [];
   const blockers = (detail.open_blockers as Array<{ title: string }>) || [];
-  const next = (detail.next_three_actions as string[]) || [];
+  const next = (detail.next_three_actions as Array<string>) || [];
   const tasks =
     (detail.linked_tasks as Array<{
       id: string;

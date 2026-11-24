@@ -41,13 +41,13 @@ export interface SeoScope {
    * Includes the client's home tenant + every tenant that shares the agency
    * via agency_tenant_access (both directions).
    */
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   /** The SEO/Ahrefs crm_table for this client, looked up across all accessible tenants. */
   seoTable: any | null;
   /** GA crm_tables for this client, across all accessible tenants. */
-  gaTables: any[];
+  gaTables: Array<any>;
   /** GSC crm_tables for this client, across all accessible tenants. */
-  gscTables: any[];
+  gscTables: Array<any>;
 }
 
 export function useSeoScope(clientId: string | undefined) {
@@ -111,8 +111,8 @@ export function useSeoScope(clientId: string | undefined) {
       //    own domain wins — a stray table for another site must never become
       //    the source of truth for this client's SEO report.
       let seoTable: any = null;
-      let gaTables: any[] = [];
-      let gscTables: any[] = [];
+      let gaTables: Array<any> = [];
+      let gscTables: Array<any> = [];
 
       if (accessibleTenantIds.length > 0) {
         const { data: seoCandidates } = await supabase

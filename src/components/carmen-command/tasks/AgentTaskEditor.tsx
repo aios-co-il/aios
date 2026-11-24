@@ -39,7 +39,7 @@ const db = supabase as any;
 
 type When = "now" | "at" | "recurring";
 
-const MODES: { value: string; label: string }[] = [
+const MODES: Array<{ value: string; label: string }> = [
   { value: "none", label: "כללי" },
   { value: "analyst", label: "ניתוח נתונים" },
   { value: "sales", label: "מכירות" },
@@ -375,7 +375,7 @@ export function AgentTaskEditor({
               ["now", "עכשיו (פעם אחת)"],
               ["at", "במועד מסוים"],
               ["recurring", "חוזרת"],
-            ] as [When, string][]
+            ] as Array<[When, string]>
           ).map(([v, label]) => (
             <Button
               key={v}
@@ -409,7 +409,7 @@ export function AgentTaskEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="z-[120]">
-                  {(Object.keys(PRESET_LABELS) as RecurringPreset[]).map(
+                  {(Object.keys(PRESET_LABELS) as Array<RecurringPreset>).map(
                     (p) => (
                       <SelectItem key={p} value={p}>
                         {PRESET_LABELS[p]}

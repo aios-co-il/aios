@@ -19,7 +19,7 @@ const respond = (body: unknown, status = 200) =>
 type GeneratedArticle = {
   title?: string;
   excerpt?: string;
-  content?: string[];
+  content?: Array<string>;
   faq?: Array<{ question?: string; answer?: string }>;
   infographic?: {
     title?: string;

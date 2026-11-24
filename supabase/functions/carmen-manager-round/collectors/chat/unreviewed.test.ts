@@ -21,7 +21,7 @@ const thanked = thread([
   row({ message_id: "c2", created_at: il("14:25"), message_text: "תודה" }),
 ]);
 
-const ids = (turns: { id: string }[]) => turns.map((turn) => turn.id);
+const ids = (turns: Array<{ id: string }>) => turns.map((turn) => turn.id);
 
 /** Requests and complaints are read; requests only. No finding is open. */
 const ALL = { complaints: true, waitRaised: false };

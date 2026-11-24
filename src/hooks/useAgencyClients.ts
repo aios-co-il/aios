@@ -22,7 +22,7 @@ export function useAgencyClients(
 ) {
   return useQuery({
     queryKey: ["clients", "by-agency", agencyId],
-    queryFn: async (): Promise<ClientOption[]> => {
+    queryFn: async (): Promise<Array<ClientOption>> => {
       if (!agencyId) return [];
       const { data, error } = await supabase
         .from("clients")
@@ -52,7 +52,7 @@ export function useTableDialogAgencies(options?: {
 
   return useQuery({
     queryKey: ["agencies", tenantId, { shared: includeShared }],
-    queryFn: async (): Promise<AgencyOption[]> => {
+    queryFn: async (): Promise<Array<AgencyOption>> => {
       if (!tenantId) return [];
 
       const { data: ownedAgencies, error: ownedError } = await supabase

@@ -41,8 +41,8 @@ type TrackingConfig = Pick<
 };
 
 interface TrackingCodeGeneratorProps {
-  clients: Client[];
-  trackingConfigs: TrackingConfig[];
+  clients: Array<Client>;
+  trackingConfigs: Array<TrackingConfig>;
   onCreateConfig: (data: { clientId: string; domain: string }) => void;
   isCreating: boolean;
   onViewDashboard?: (clientId: TrackingConfig["client_id"]) => void;

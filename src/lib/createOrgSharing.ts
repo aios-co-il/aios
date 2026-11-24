@@ -13,11 +13,11 @@ export interface ShareableResource {
 }
 
 export interface CreateOrgShareSelection {
-  integration_ids: string[];
-  social_page_ids: string[];
-  wordpress_site_ids: string[];
-  crm_table_ids: string[];
-  automation_ids: string[];
+  integration_ids: Array<string>;
+  social_page_ids: Array<string>;
+  wordpress_site_ids: Array<string>;
+  crm_table_ids: Array<string>;
+  automation_ids: Array<string>;
 }
 
 const INTEGRATION_LABELS: Record<string, string> = {
@@ -84,7 +84,7 @@ function integrationTypesForClient(
 export async function loadShareableResourcesForClient(
   clientId: string,
   tenantId: string,
-): Promise<ShareableResource[]> {
+): Promise<Array<ShareableResource>> {
   const { data: client, error: clientErr } = await supabase
     .from("clients")
     .select(
@@ -176,7 +176,7 @@ export async function loadShareableResourcesForClient(
       .map((t) => t.integration_type as string),
   );
 
-  const resources: ShareableResource[] = [];
+  const resources: Array<ShareableResource> = [];
 
   for (const integ of integrationsRes.data || []) {
     if (integ.integration_type === "llm") continue;
@@ -237,7 +237,7 @@ export async function loadShareableResourcesForClient(
 }
 
 export function defaultSelectionFromResources(
-  resources: ShareableResource[],
+  resources: Array<ShareableResource>,
 ): CreateOrgShareSelection {
   const pick = (kind: ShareableResourceKind) =>
     resources

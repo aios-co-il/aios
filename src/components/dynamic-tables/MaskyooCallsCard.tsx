@@ -46,9 +46,9 @@ interface Props {
   /** Canonical tenant for seo_call_snapshots (client home tenant). */
   storageTenantId: string;
   /** Tenants that may host maskyoo_numbers / call_logs for this client. */
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   /** Maskyoo numbers assigned to this client (split by category). */
-  numbers: MaskyooLine[];
+  numbers: Array<MaskyooLine>;
   /** Hide edit + sync controls (share view). */
   readOnly?: boolean;
   /** Parent still resolving scope / numbers. */
@@ -73,7 +73,7 @@ const CATEGORIES: Array<{ key: "organic" | "paid"; label: string }> = [
 ];
 
 function pickSnapshotsPerCategory(
-  rows: Snapshot[],
+  rows: Array<Snapshot>,
   storageTenantId: string,
 ): Record<string, Snapshot> {
   const m: Record<string, Snapshot> = {};
@@ -130,7 +130,7 @@ export function MaskyooCallsCard({
     ],
     enabled: !!clientId && !!storageTenantId && !!periodStart && !!periodEnd,
     staleTime: 30_000,
-    queryFn: async (): Promise<Snapshot[]> => {
+    queryFn: async (): Promise<Array<Snapshot>> => {
       const { data, error } = await supabase
         .from("seo_call_snapshots")
         .select(
@@ -141,7 +141,7 @@ export function MaskyooCallsCard({
         .eq("period_end", periodEnd)
         .in("tenant_id", tenantScope);
       if (error) throw error;
-      return (data || []) as Snapshot[];
+      return (data || []) as Array<Snapshot>;
     },
   });
 
@@ -151,7 +151,10 @@ export function MaskyooCallsCard({
   );
 
   const numbersByCat = useMemo(() => {
-    const m: Record<"organic" | "paid", string[]> = { organic: [], paid: [] };
+    const m: Record<"organic" | "paid", Array<string>> = {
+      organic: [],
+      paid: [],
+    };
     for (const n of numbers || []) {
       const last9 = (n.number || "").replace(/\D/g, "").slice(-9);
       if (

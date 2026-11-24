@@ -44,9 +44,9 @@ export function isForbiddenSecretName(name: string): boolean {
 }
 
 export function selectSecretsToCopy(
-  requested: string[] | null | undefined,
-  allowlist: readonly string[] = AGENT_EDGE_SECRET_ALLOWLIST,
-): string[] {
+  requested: Array<string> | null | undefined,
+  allowlist: ReadonlyArray<string> = AGENT_EDGE_SECRET_ALLOWLIST,
+): Array<string> {
   const src = requested?.length ? requested : [...allowlist];
   const allow = new Set(allowlist);
   return [...new Set(src.map((n) => String(n).trim()).filter(Boolean))].filter(

@@ -20,7 +20,7 @@ export function parseActiveSkin(value: unknown): string | null {
 export async function activeSkinBlock(args: {
   slug: string | null;
   tenantId: string | null;
-  disabledSkins?: string[] | null;
+  disabledSkins?: Array<string> | null;
   pinned?: unknown;
 }): Promise<string> {
   const { slug } = args;

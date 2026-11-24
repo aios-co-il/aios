@@ -192,7 +192,7 @@ export function TaskDetailDialog({
   const [dueTime, setDueTime] = useState<string | null>(null);
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [newUpdate, setNewUpdate] = useState("");
-  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [attachments, setAttachments] = useState<Array<TaskAttachment>>([]);
   const [selectedCollaborator, setSelectedCollaborator] = useState("");
 
   // Search states for comboboxes
@@ -269,7 +269,7 @@ export function TaskDetailDialog({
         const rawDuration =
           Number((t as { duration_minutes?: number }).duration_minutes) || 30;
         setDurationMinutes(
-          (DURATION_OPTIONS as readonly number[]).includes(rawDuration)
+          (DURATION_OPTIONS as ReadonlyArray<number>).includes(rawDuration)
             ? rawDuration
             : 30,
         );
@@ -736,7 +736,7 @@ export function TaskDetailDialog({
     search: string,
     setSearch: (v: string) => void,
     placeholder: string,
-    options: { id: string; name: string }[],
+    options: Array<{ id: string; name: string }>,
     onPick: (id: string) => void,
   ) => (
     <div className="relative flex-1 min-w-0">
@@ -1323,7 +1323,7 @@ export function TaskDetailDialog({
               <Label className="text-xs text-muted-foreground">משך</Label>
               <Select
                 value={String(
-                  (DURATION_OPTIONS as readonly number[]).includes(
+                  (DURATION_OPTIONS as ReadonlyArray<number>).includes(
                     durationMinutes,
                   )
                     ? durationMinutes

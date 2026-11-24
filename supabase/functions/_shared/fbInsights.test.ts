@@ -27,8 +27,8 @@ const destinations = buildDestinationTypeMaps([
 
 /** One day of a profile-visit traffic campaign, shaped like a Graph insights row. */
 function profileTrafficRow(insight: {
-  actions?: Action[];
-  conversions?: Action[];
+  actions?: Array<Action>;
+  conversions?: Array<Action>;
 }) {
   return buildInsightRecord(
     {

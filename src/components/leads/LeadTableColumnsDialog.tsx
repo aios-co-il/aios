@@ -46,14 +46,14 @@ export function LeadTableColumnsDialog({ trigger }: { trigger?: ReactNode }) {
   const { data: existingFields = [] } = useQuery({
     queryKey: ["custom-fields", tenantId, "lead"],
     queryFn: async () => {
-      if (!tenantId) return [] as StoredField[];
+      if (!tenantId) return [] as Array<StoredField>;
       const { data, error } = await supabase
         .from("custom_fields")
         .select("id, field_key")
         .eq("tenant_id", tenantId)
         .eq("entity_type", "lead");
       if (error) throw error;
-      return (data || []) as StoredField[];
+      return (data || []) as Array<StoredField>;
     },
     enabled: !!tenantId && open,
   });

@@ -34,9 +34,9 @@ export type BriefRun = {
   settings: ManagerSettings;
   now: Date;
   /** Resolved only when the brief is due. */
-  recipients: () => Promise<Recipient[]>;
+  recipients: () => Promise<Array<Recipient>>;
   /** Round state read at the start of the run: a brief slot it shows as claimed is skipped before anything is read. */
-  state: RoundStateRow[];
+  state: Array<RoundStateRow>;
   floors: NotifyFloors;
   /** The call's send window (round.ts). */
   budget: RoundBudget;
@@ -48,7 +48,7 @@ export type BriefRun = {
 
 export type BriefReport = {
   slot: string;
-  sent: { key: string; status: string; text?: string }[];
+  sent: Array<{ key: string; status: string; text?: string }>;
   /**
    * Recipients not tried: no time left in the call, or the settings changed
    * during the run (claimUnlessChanged). The next call tries them.
@@ -99,7 +99,7 @@ export async function sendBriefIfDue(
  * it, so the call need not read the brief's content again.
  */
 function slotClaimed(
-  state: RoundStateRow[],
+  state: Array<RoundStateRow>,
   recipient: Recipient,
   slot: Date,
 ): boolean {

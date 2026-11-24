@@ -73,14 +73,14 @@ export async function postChannel(
 export async function fetchBrainRoutes(
   tenantId: string,
   viewAsUserId: string | null | undefined,
-): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+): Promise<{ list: Array<BrainRoute>; restricted: boolean }> {
   // "View as": the server would answer for the signed-in admin, so preview
   // from the tenant's full route list and the viewed user's own row.
   if (viewAsUserId) return previewBrainRoutes(tenantId, viewAsUserId);
   const res = await postChannel({ action: "list_routes", tenant_id: tenantId });
   if (!res.ok) throw new Error(String(res.status));
   const routes = Array.isArray(res.json.routes)
-    ? (res.json.routes as BrainRoute[])
+    ? (res.json.routes as Array<BrainRoute>)
     : [];
   const restricted = res.json.restricted === true;
   // A restricted user gets exactly the brains they may use, even none.
@@ -93,7 +93,7 @@ export async function fetchBrainRoutes(
 async function previewBrainRoutes(
   tenantId: string,
   userId: string,
-): Promise<{ list: BrainRoute[]; restricted: boolean }> {
+): Promise<{ list: Array<BrainRoute>; restricted: boolean }> {
   const [{ data }, row] = await Promise.all([
     supabase
       .from("agent_brain_routes")
@@ -102,7 +102,9 @@ async function previewBrainRoutes(
       .eq("active", true),
     fetchCarmenAccessRow(tenantId, userId),
   ]);
-  const all = data?.length ? (data as BrainRoute[]) : FALLBACK_BRAIN_ROUTES;
+  const all = data?.length
+    ? (data as Array<BrainRoute>)
+    : FALLBACK_BRAIN_ROUTES;
   return { list: allowedRoutes(all, row), restricted: !!row };
 }
 

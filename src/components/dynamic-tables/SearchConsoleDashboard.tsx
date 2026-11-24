@@ -51,7 +51,7 @@ interface SearchConsoleDashboardProps {
   initialLangFilter?: LangFilter;
   onLangFilterChange?: (lang: LangFilter) => void;
   /** Ahrefs (or other) tracked phrases — seed the GSC "במעקב" list. */
-  seedTrackedKeywords?: string[];
+  seedTrackedKeywords?: Array<string>;
   /** Ahrefs ranks stored on the SEO reports, including an earlier snapshot. */
   trackedAhrefsPositions?: Record<string, number>;
   /** Client id, so manual "לא רלוונטי" marks hide the same phrases as Top 20. */
@@ -113,7 +113,7 @@ export function SearchConsoleDashboard({
   const [sortBy, setSortBy] = useState<string>("position");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [searchFilter, setSearchFilter] = useState("");
-  const [trackedKeywords, setTrackedKeywords] = useState<string[]>([]);
+  const [trackedKeywords, setTrackedKeywords] = useState<Array<string>>([]);
   const [newKeyword, setNewKeyword] = useState("");
   const [dateFilter, setDateFilter] = useState<GscDateFilter>("last_7_days");
   const [langFilter, setLangFilterState] = useState<LangFilter>(
@@ -307,7 +307,7 @@ export function SearchConsoleDashboard({
 
     Papa.parse(file, {
       complete: (results) => {
-        const keywords: string[] = [];
+        const keywords: Array<string> = [];
         results.data.forEach((row: any) => {
           const keyword =
             row["keyword"] ||
@@ -457,11 +457,13 @@ export function SearchConsoleDashboard({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(DATE_FILTER_LABELS) as GscDateFilter[]).map((k) => (
-              <SelectItem key={k} value={k} className="text-xs">
-                {DATE_FILTER_LABELS[k]}
-              </SelectItem>
-            ))}
+            {(Object.keys(DATE_FILTER_LABELS) as Array<GscDateFilter>).map(
+              (k) => (
+                <SelectItem key={k} value={k} className="text-xs">
+                  {DATE_FILTER_LABELS[k]}
+                </SelectItem>
+              ),
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -828,7 +830,7 @@ function GscRankBadge({
   query: string;
   position: number;
   tracked?: Array<{ keyword?: string } | string>;
-  forceIrrelevant?: string[];
+  forceIrrelevant?: Array<string>;
   ahrefsPositions?: Record<string, number>;
 }) {
   const shown =

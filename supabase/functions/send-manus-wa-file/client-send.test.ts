@@ -42,7 +42,7 @@ async function block(
     target: { to: "972501234567", isGroup: false },
   },
 ) {
-  const asked: ClientSendRequest[] = [];
+  const asked: Array<ClientSendRequest> = [];
   const response = await clientSendBlock(
     async (guardRequest) => {
       asked.push(guardRequest);

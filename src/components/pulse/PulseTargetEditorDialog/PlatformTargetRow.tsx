@@ -17,7 +17,7 @@ import { inheritedFrom } from "./targetFormat";
 type PlatformTargetRowProps = {
   context: PulseTargetEditorContext;
   goal: PulseTargetGoal;
-  tableIds: string[];
+  tableIds: Array<string>;
   target: PulseTarget | null;
   savingKey: string | null;
   onSave: (input: PulseTargetSaveInput) => void;

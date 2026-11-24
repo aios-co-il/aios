@@ -68,7 +68,7 @@ export function captionLayout(width: number, height: number): CaptionLayout {
 }
 
 /** A line's width in ems of the caption size: its words, their padding and the gaps. */
-export const lineEm = (words: { text: string; key?: boolean }[]) =>
+export const lineEm = (words: Array<{ text: string; key?: boolean }>) =>
   words.reduce(
     (sum, word) =>
       sum +

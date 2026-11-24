@@ -8,11 +8,11 @@ import type { GscKeywordData } from "@/components/dynamic-tables/seo/GscIntegrat
 
 export type SeoMonthlyGscPeriods = {
   /** Search Console rows for the selected month. */
-  current: GscKeywordData[];
+  current: Array<GscKeywordData>;
   /** Rows for the month before the selected one. */
-  prev: GscKeywordData[];
+  prev: Array<GscKeywordData>;
   /** Rows for the first month of the campaign (the "since we started" baseline). */
-  baseline: GscKeywordData[];
+  baseline: Array<GscKeywordData>;
 };
 
 export type SeoMonthlyGscResult = SeoMonthlyGscPeriods & {
@@ -57,7 +57,7 @@ function shiftMonth(month: string, delta: number): string {
  */
 export function useSeoMonthlyGsc(params: {
   clientId: string | undefined;
-  tenantIds: string[] | undefined;
+  tenantIds: Array<string> | undefined;
   /** Selected month, first day (YYYY-MM-01). */
   month: string;
   /** First month the campaign has data for — used as the baseline period. */
@@ -90,7 +90,7 @@ export function useSeoMonthlyGsc(params: {
 
   const personal = useMemo(() => {
     if (!clientId) return null;
-    for (const integration of personalIntegrations as any[]) {
+    for (const integration of personalIntegrations as Array<any>) {
       const mapped: string | undefined =
         integration?.settings?.client_sites?.[clientId];
       if (!mapped) continue;
@@ -173,7 +173,9 @@ export function useSeoMonthlyGsc(params: {
       };
       windows.forEach((w, i) => {
         const rows = responses[i]?.data?.rows;
-        result[w.key] = Array.isArray(rows) ? (rows as GscKeywordData[]) : [];
+        result[w.key] = Array.isArray(rows)
+          ? (rows as Array<GscKeywordData>)
+          : [];
       });
       return result;
     },

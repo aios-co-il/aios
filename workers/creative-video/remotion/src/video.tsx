@@ -24,7 +24,7 @@ export type Scene = {
 };
 export type CarmenVideoProps = {
   title: string;
-  scenes: Scene[];
+  scenes: Array<Scene>;
   music?: string;
 };
 const green = "#08F467";

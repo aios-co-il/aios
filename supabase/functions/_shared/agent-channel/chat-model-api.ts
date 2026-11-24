@@ -29,7 +29,7 @@ export async function callChatModel(args: {
   baseUrl: string;
   apiKey: string;
   model: string;
-  messages: ChatMessage[];
+  messages: Array<ChatMessage>;
   profile: BrainProfile;
 }): Promise<string> {
   const url = chatCompletionsUrl(args.baseUrl);
@@ -85,13 +85,13 @@ export async function assertPublicTarget(url: string): Promise<void> {
     throw new ModelApiError(400, "Base URL must be a public host");
   if (/^[\d.]+$/.test(host) || host.includes(":")) return;
   const resolveDns = (
-    Deno as { resolveDns?: (q: string, t: string) => Promise<string[]> }
+    Deno as { resolveDns?: (q: string, t: string) => Promise<Array<string>> }
   ).resolveDns;
   if (typeof resolveDns !== "function") return;
   const addrs = (
     await Promise.all([
-      resolveDns(host, "A").catch(() => [] as string[]),
-      resolveDns(host, "AAAA").catch(() => [] as string[]),
+      resolveDns(host, "A").catch(() => [] as Array<string>),
+      resolveDns(host, "AAAA").catch(() => [] as Array<string>),
     ])
   ).flat();
   if (addrs.some(isPrivateHost))
@@ -101,7 +101,7 @@ export async function assertPublicTarget(url: string): Promise<void> {
 /** Chat completions body; profile limits only when set. */
 function requestBody(args: {
   model: string;
-  messages: ChatMessage[];
+  messages: Array<ChatMessage>;
   profile: BrainProfile;
 }): Record<string, unknown> {
   return {

@@ -54,7 +54,7 @@ type CoreForm = Pick<
 // who Carmen is (Core + mood), what she can use (Access), and the roles she
 // wears (Skins). Deep-link routes /skins and /carmen-access still work.
 
-const MOODS: { value: string; label: string }[] = [
+const MOODS: Array<{ value: string; label: string }> = [
   { value: "none", label: "רגיל (ללא)" },
   { value: "fun", label: "כיפי" },
   { value: "focused", label: "ממוקד" },

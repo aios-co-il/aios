@@ -26,8 +26,8 @@ import { aspectRatioClass, isVariationLiveText } from "./utils";
 import { isLogoLayer, styleLabelForId } from "./designedLayers";
 
 interface Props {
-  variations: CreativeVariation[];
-  generatingIds?: string[];
+  variations: Array<CreativeVariation>;
+  generatingIds?: Array<string>;
   progressLabel?: string;
   agentUrl?: string | null;
   onLiveTextChange?: (variation: CreativeVariation, enabled: boolean) => void;

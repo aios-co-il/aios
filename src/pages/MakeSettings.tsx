@@ -69,7 +69,7 @@ interface MakeConnection {
   accountType?: string;
   type?: string;
   typeName?: string;
-  scopes?: string[];
+  scopes?: Array<string>;
   invalid?: boolean;
 }
 
@@ -140,7 +140,7 @@ export default function MakeSettings() {
           },
         });
         if (error) throw error;
-        return (data?.scenarios || data) as MakeScenario[];
+        return (data?.scenarios || data) as Array<MakeScenario>;
       },
       enabled: !!apiToken && !!teamId && !!region,
     });
@@ -360,7 +360,7 @@ export default function MakeSettings() {
         },
       });
       if (error) throw error;
-      return (data?.connections || data) as MakeConnection[];
+      return (data?.connections || data) as Array<MakeConnection>;
     },
     enabled: !!isConnected && activeTab === "connections",
   });
@@ -382,7 +382,7 @@ export default function MakeSettings() {
         },
       });
       if (error) throw error;
-      return (data?.scenarios || data) as MakeScenario[];
+      return (data?.scenarios || data) as Array<MakeScenario>;
     },
     enabled: !!isConnected && activeTab === "scenarios",
   });

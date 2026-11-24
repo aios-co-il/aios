@@ -67,7 +67,7 @@ interface PlatformConfig {
   settingsRoute: string;
 }
 
-const PLATFORMS: PlatformConfig[] = [
+const PLATFORMS: Array<PlatformConfig> = [
   {
     type: "facebook_insights",
     name: "Facebook Insights",
@@ -272,7 +272,7 @@ export function AddIntegrationDialog({
 
       if (fetchError) throw fetchError;
 
-      const currentIntegrations = (table?.integrations as any[]) || [];
+      const currentIntegrations = (table?.integrations as Array<any>) || [];
       const resource = resources?.find((r: any) => r.id === selectedResource);
 
       const newIntegration = {

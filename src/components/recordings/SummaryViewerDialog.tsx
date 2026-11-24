@@ -35,7 +35,7 @@ interface SummaryViewerDialogProps {
   recording: ShareableRecording;
   tenantId: string;
   /** All recording rows in the same meeting — keeps grouped Zoom files in sync. */
-  recordingIds?: string[];
+  recordingIds?: Array<string>;
   onSaved?: (summaryMd: string) => void;
 }
 

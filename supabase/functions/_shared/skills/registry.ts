@@ -25,9 +25,9 @@ import {
 
 export interface CarmenSkill {
   id: string;
-  triggers: RegExp[];
+  triggers: Array<RegExp>;
   prompt: string;
-  tools: string[];
+  tools: Array<string>;
   version?: number;
   source?: "db" | "fallback";
 }
@@ -36,12 +36,12 @@ interface DbSkillRow {
   slug: string;
   system_prompt: string | null;
   output_template: string | null;
-  allowed_tools: string[] | null;
-  triggers: string[] | null;
-  trigger_phrases: string[] | null;
+  allowed_tools: Array<string> | null;
+  triggers: Array<string> | null;
+  trigger_phrases: Array<string> | null;
   goal: string | null;
   constraints: string | null;
-  handoff_slugs: string[] | null;
+  handoff_slugs: Array<string> | null;
   steps: string | null;
   version: number;
   scope: string;
@@ -137,7 +137,7 @@ export const SKILLS_REGISTRY = [
 // ────────── DB Loader with cache ──────────
 
 interface CacheEntry {
-  skills: CarmenSkill[];
+  skills: Array<CarmenSkill>;
   fetchedAt: number;
 }
 
@@ -166,7 +166,7 @@ function rowToSkill(row: DbSkillRow): CarmenSkill {
       .replace(/\s+/g, "\\s*");
     return new RegExp(escaped, "i");
   });
-  const promptParts: string[] = [];
+  const promptParts: Array<string> = [];
   if (row.goal) promptParts.push("מטרה: " + row.goal);
   if (row.system_prompt) promptParts.push(row.system_prompt);
   if (row.constraints)
@@ -201,7 +201,7 @@ function rowToSkill(row: DbSkillRow): CarmenSkill {
 
 async function loadSkillsForTenant(
   tenantId: string | null,
-): Promise<CarmenSkill[]> {
+): Promise<Array<CarmenSkill>> {
   const cacheKey = tenantId || "global";
   const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
@@ -225,7 +225,7 @@ async function loadSkillsForTenant(
     if (error) throw error;
 
     const bySlug = new Map<string, DbSkillRow>();
-    for (const row of (data || []) as DbSkillRow[]) {
+    for (const row of (data || []) as Array<DbSkillRow>) {
       if (!row.slug) continue;
       const existing = bySlug.get(row.slug);
       // Tenant scope wins over global
@@ -259,10 +259,10 @@ async function loadSkillsForTenant(
 export async function resolveActiveSkills(
   commandText: string,
   tenantId: string | null = null,
-): Promise<CarmenSkill[]> {
+): Promise<Array<CarmenSkill>> {
   const all = await loadSkillsForTenant(tenantId);
   const text = String(commandText || "").toLowerCase();
-  const matches: CarmenSkill[] = [];
+  const matches: Array<CarmenSkill> = [];
   for (const skill of all) {
     if (
       ALWAYS_ON_SKILL_SLUGS.has(skill.id) ||
@@ -291,9 +291,9 @@ export async function buildSkillsBlock(
  * alter the trigger-based path above.
  */
 export async function resolveSkillsBySlug(
-  slugs: string[],
+  slugs: Array<string>,
   tenantId: string | null = null,
-): Promise<CarmenSkill[]> {
+): Promise<Array<CarmenSkill>> {
   if (!slugs || slugs.length === 0) return [];
   const wanted = new Set(slugs.map((s) => String(s).trim()).filter(Boolean));
   if (wanted.size === 0) return [];
@@ -302,7 +302,7 @@ export async function resolveSkillsBySlug(
 }
 
 export async function buildSkillsBlockBySlug(
-  slugs: string[],
+  slugs: Array<string>,
   tenantId: string | null = null,
 ): Promise<string> {
   const matches = await resolveSkillsBySlug(slugs, tenantId);

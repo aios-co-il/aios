@@ -23,7 +23,7 @@ export function leadTableColumnVisibilityKey(field: {
   return field.visibilityKey ?? field.key;
 }
 
-export const LEAD_TABLE_COLUMN_FIELDS: LeadTableColumnField[] = [
+export const LEAD_TABLE_COLUMN_FIELDS: Array<LeadTableColumnField> = [
   { key: "contact_name", label: "שם", type: "text", required: true },
   { key: "created_at", label: "תאריך", type: "date", required: false },
   { key: "sales_person", label: "משתמש", type: "text", required: false },
@@ -194,7 +194,7 @@ export function writeLeadTableColumnWidths(
 
 export function applyLeadTableColumnWidths<
   T extends { id: string; width: number },
->(columns: T[], saved: Record<string, number>): T[] {
+>(columns: Array<T>, saved: Record<string, number>): Array<T> {
   return columns.map((column) => {
     const width = saved[column.id];
     return width ? { ...column, width } : column;
@@ -209,7 +209,7 @@ export function getLeadTableCustomColumns<
     sort_order?: number;
   },
 >(
-  fields: T[],
+  fields: Array<T>,
   systemFieldKeys: ReadonlySet<string>,
 ): Array<T & { visibilityKey: string }> {
   return fields

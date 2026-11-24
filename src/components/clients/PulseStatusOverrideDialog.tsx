@@ -32,14 +32,14 @@ import {
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-const OVERRIDE_OPTIONS: OverallStatus[] = ["green", "yellow", "red"];
+const OVERRIDE_OPTIONS: Array<OverallStatus> = ["green", "yellow", "red"];
 
 export type PulseStatusOverrideTarget = {
   clientId: string;
   clientName: string;
   algorithmOverall: OverallStatus;
   pulse: PulseSnapshotRow | null;
-  flags: string[];
+  flags: Array<string>;
   activeOverride: PulseOverrideRow | null;
 };
 

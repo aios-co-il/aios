@@ -23,7 +23,7 @@ export interface VideoRenderManifest {
   width: number;
   height: number;
   totalFrames: number;
-  scenes: VideoRenderScene[];
+  scenes: Array<VideoRenderScene>;
 }
 
 const DIMENSIONS: Record<CreativeFormat, { width: number; height: number }> = {
@@ -42,7 +42,7 @@ export class VideoRenderValidationError extends Error {
 
 /** Deterministic conversion from approved storyboard to a timed render contract. */
 export function buildVideoRenderManifest(
-  frames: readonly StoryboardFrame[],
+  frames: ReadonlyArray<StoryboardFrame>,
   format: CreativeFormat,
 ): VideoRenderManifest {
   if (!DIMENSIONS[format])

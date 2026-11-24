@@ -23,7 +23,7 @@ import type {
 export function routeCarmenTask(
   task: TaskDescriptor,
   settings: RouterSettings,
-  candidates: ModelCandidate[],
+  candidates: Array<ModelCandidate>,
 ): RoutingDecision {
   const approval = task.requiresActionApproval === true;
   const result = (
@@ -31,7 +31,7 @@ export function routeCarmenTask(
     reason: RoutingDecision["reason"],
     modelId: string | null = null,
     tier: BrainTier | null = null,
-    fallbackIds: string[] = [],
+    fallbackIds: Array<string> = [],
   ): RoutingDecision => ({
     status,
     reason,

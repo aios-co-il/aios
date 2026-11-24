@@ -149,9 +149,9 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   // Mapping state
-  const [sheetHeaders, setSheetHeaders] = useState<string[]>([]);
-  const [sheetData, setSheetData] = useState<any[]>([]);
-  const [mappings, setMappings] = useState<FieldMapping[]>([]);
+  const [sheetHeaders, setSheetHeaders] = useState<Array<string>>([]);
+  const [sheetData, setSheetData] = useState<Array<any>>([]);
+  const [mappings, setMappings] = useState<Array<FieldMapping>>([]);
   const [importResult, setImportResult] = useState<{
     imported: number;
     updated: number;
@@ -238,7 +238,7 @@ export function ImportLeadsSheet({ trigger }: ImportLeadsSheetProps) {
       }
 
       // Auto-detect mappings
-      const autoMappings: FieldMapping[] = headers.map((col: string) => {
+      const autoMappings: Array<FieldMapping> = headers.map((col: string) => {
         const normalizedCol = col.trim().toLowerCase();
         const detectedField =
           AUTO_DETECT_MAPPINGS[col] ||

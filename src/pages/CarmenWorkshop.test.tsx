@@ -29,10 +29,10 @@ const workshopProject = {
 
 const state = vi.hoisted(() => ({
   setOpen: vi.fn(),
-  scenes: [] as unknown[],
+  scenes: [] as Array<unknown>,
   /** marketing_work_items, newest first, as the query orders them. */
-  items: [] as Record<string, unknown>[],
-  clients: [] as Record<string, unknown>[],
+  items: [] as Array<Record<string, unknown>>,
+  clients: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -200,7 +200,7 @@ test("the scene picked on the board is the one Carmen is told about", async () =
 
 test("asking for a change picks the scene, opens Carmen and writes the scene in her composer", async () => {
   const user = userEvent.setup();
-  const heard: string[] = [];
+  const heard: Array<string> = [];
   const stop = subscribeComposerPrefill((text) => heard.push(text));
   renderPage();
   const card = (

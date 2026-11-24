@@ -206,7 +206,7 @@ serve(async (req) => {
     const skinBlock = await buildSkillsBlockBySlug([skinSlug], item.tenant_id);
 
     // Build messages from Carmen Core + the pinned existing Skin + stage context.
-    const systemParts: string[] = [];
+    const systemParts: Array<string> = [];
     if (agent?.system_prompt) systemParts.push(agent.system_prompt);
     if (skinBlock) systemParts.push(skinBlock);
     if (agent?.personality) systemParts.push(`אישיות: ${agent.personality}`);
@@ -220,7 +220,7 @@ serve(async (req) => {
     }
     const systemPrompt = systemParts.join("\n\n");
 
-    const userParts: string[] = [];
+    const userParts: Array<string> = [];
     const approvedConcepts = formatApprovedConceptsFromPayload(
       (item.payload ?? {}) as Record<string, unknown>,
     );

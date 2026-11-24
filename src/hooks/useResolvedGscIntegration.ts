@@ -35,7 +35,7 @@ const siteMatches = seoDomainsMatch;
  */
 export function useResolvedGscIntegration(params: {
   clientId: string | undefined;
-  tenantIds: string[] | undefined;
+  tenantIds: Array<string> | undefined;
   savedSiteUrl?: string;
   /** Report domain — used as a secondary match target when no savedSiteUrl is set. */
   expectedDomain?: string;
@@ -62,7 +62,9 @@ export function useResolvedGscIntegration(params: {
     return personalIntegrations.some((i: any) => {
       const settings = i?.settings || {};
       const mapped: string | null = settings?.client_sites?.[clientId] || null;
-      const availableSites: any[] = Array.isArray(settings?.available_sites)
+      const availableSites: Array<any> = Array.isArray(
+        settings?.available_sites,
+      )
         ? settings.available_sites
         : [];
 

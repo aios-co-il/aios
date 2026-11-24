@@ -9,9 +9,9 @@ export type AgencyStamp = {
 };
 
 export function mergeAgencyLists<T extends AgencyStamp>(
-  owned: readonly T[] | null | undefined,
-  shared: readonly T[] | null | undefined,
-): T[] {
+  owned: ReadonlyArray<T> | null | undefined,
+  shared: ReadonlyArray<T> | null | undefined,
+): Array<T> {
   const unique = new Map<string, T>();
   for (const agency of [...(owned || []), ...(shared || [])]) {
     if (agency?.id && !unique.has(agency.id)) unique.set(agency.id, agency);
@@ -19,7 +19,7 @@ export function mergeAgencyLists<T extends AgencyStamp>(
   return Array.from(unique.values());
 }
 
-export function agenciesFromJoin(value: unknown): AgencyStamp[] {
+export function agenciesFromJoin(value: unknown): Array<AgencyStamp> {
   if (!value) return [];
   if (Array.isArray(value)) {
     return value.flatMap((item) => agenciesFromJoin(item));
@@ -37,7 +37,7 @@ export function agenciesFromJoin(value: unknown): AgencyStamp[] {
  */
 export function pickTenantHomeAgencyId(
   tenantId: string | null | undefined,
-  agencies: readonly AgencyStamp[] | null | undefined,
+  agencies: ReadonlyArray<AgencyStamp> | null | undefined,
 ): string | null {
   if (!tenantId || !agencies?.length) return null;
   const owned = agencies.filter((agency) => agency.tenant_id === tenantId);

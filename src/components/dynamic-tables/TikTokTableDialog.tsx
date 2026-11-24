@@ -33,7 +33,7 @@ import { Loader2, AlertCircle, Music2 } from "lucide-react";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 const MAX_VIDEOS_OPTIONS = [

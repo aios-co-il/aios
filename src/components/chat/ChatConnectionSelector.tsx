@@ -21,7 +21,7 @@ export type ChatFilter =
 interface Props {
   value: ChatFilter;
   onChange: (v: ChatFilter) => void;
-  connections: ChatConnection[];
+  connections: Array<ChatConnection>;
   triggerClassName?: string;
 }
 

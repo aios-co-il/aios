@@ -25,7 +25,7 @@ interface OptionData {
 }
 
 interface OptionRowProps {
-  options: OptionData[];
+  options: Array<OptionData>;
   activeOption: number | null;
   onOptionClick: (id: number) => void;
 }
@@ -149,7 +149,7 @@ const OptionRow: React.FC<OptionRowProps> = ({
 };
 
 interface MobileViewProps {
-  allOptions: OptionData[];
+  allOptions: Array<OptionData>;
   activeOption: number;
   onOptionClick: (id: number) => void;
 }
@@ -267,7 +267,7 @@ const MobileView: React.FC<MobileViewProps> = ({
 const OptionsSelector: React.FC = () => {
   const [activeOption, setActiveOption] = useState<number>(0);
 
-  const optionsDataRow1: OptionData[] = [
+  const optionsDataRow1: Array<OptionData> = [
     {
       id: 0,
       icon: Target,
@@ -318,7 +318,7 @@ const OptionsSelector: React.FC = () => {
     },
   ];
 
-  const optionsDataRow2: OptionData[] = [
+  const optionsDataRow2: Array<OptionData> = [
     {
       id: 6,
       icon: CalendarClock,

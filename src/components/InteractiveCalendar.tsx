@@ -183,7 +183,7 @@ export function InteractiveCalendar() {
   });
 
   // Transform Google Calendar events to react-big-calendar format
-  const events: CalendarEvent[] = useMemo(() => {
+  const events: Array<CalendarEvent> = useMemo(() => {
     if (!eventsData?.events) return [];
     return eventsData.events
       .map((event: any) => {
@@ -208,7 +208,7 @@ export function InteractiveCalendar() {
           calendarColor: event.calendarColor,
         } as CalendarEvent;
       })
-      .filter(Boolean) as CalendarEvent[];
+      .filter(Boolean) as Array<CalendarEvent>;
   }, [eventsData]);
 
   const calendars = useMemo(() => {

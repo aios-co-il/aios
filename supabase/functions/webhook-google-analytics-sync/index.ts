@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { table_id, records, tenant_id, clear_existing } = body as {
       table_id: string;
-      records: GoogleAnalyticsRecord[];
+      records: Array<GoogleAnalyticsRecord>;
       tenant_id?: string;
       clear_existing?: boolean;
     };

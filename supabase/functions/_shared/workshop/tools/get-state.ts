@@ -54,7 +54,9 @@ export async function workshopGetState(ctx: ToolContext) {
           .maybeSingle()
       ).data
     : null;
-  const runs = (Array.isArray(running.data) ? running.data : []) as RunRow[];
+  const runs = (
+    Array.isArray(running.data) ? running.data : []
+  ) as Array<RunRow>;
   const itemPayload = asRecord(item.data?.payload);
   return {
     ...studio,

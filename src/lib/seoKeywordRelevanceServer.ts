@@ -8,8 +8,8 @@ import {
 } from "@/lib/seoKeywordRelevance";
 
 export type SeoKeywordRelevanceLists = {
-  forceRelevant: string[];
-  forceIrrelevant: string[];
+  forceRelevant: Array<string>;
+  forceIrrelevant: Array<string>;
 };
 
 const UUID_RE =
@@ -30,9 +30,9 @@ export function parseSeoKeywordRelevance(
   };
   if (!raw || typeof raw !== "object") return empty;
   const obj = raw as Record<string, unknown>;
-  const normalizeList = (v: unknown): string[] => {
+  const normalizeList = (v: unknown): Array<string> => {
     if (!Array.isArray(v)) return [];
-    const out: string[] = [];
+    const out: Array<string> = [];
     const seen = new Set<string>();
     for (const item of v) {
       const phrase = normalizeKeywordPhrase(String(item || ""));

@@ -19,9 +19,9 @@ export type WorkerRequest = {
   apiCallBudget: number;
   tenantId: string | null;
   clientId: string | null;
-  tableIds: string[] | null;
+  tableIds: Array<string> | null;
   /** Table ids passed over for a rate limit (chained calls only). */
-  deferred: string[];
+  deferred: Array<string>;
   /** On demand (tenant_id, client_id or table_ids): never chained past its tables. */
   scoped: boolean;
   useFixture: boolean;

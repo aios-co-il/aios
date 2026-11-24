@@ -102,11 +102,11 @@ export const EDIT_TOOL = {
 };
 
 export interface EditHelpers {
-  loadAssets: (itemId: string) => Promise<AssetView[]>;
-  loadScenes: (itemId: string) => Promise<Record<string, any>[]>;
+  loadAssets: (itemId: string) => Promise<Array<AssetView>>;
+  loadScenes: (itemId: string) => Promise<Array<Record<string, any>>>;
   /** Why the old scenes may not be replaced (they hold paid stills or clips), or null. */
   replaceRefusal: (
-    old: Record<string, any>[],
+    old: Array<Record<string, any>>,
   ) => Promise<{ error: string } | null>;
 }
 
@@ -184,7 +184,7 @@ export async function buildEditScenes(
       .eq("item_id", itemId);
     if (marked.error) return { error: marked.error.message };
   }
-  const failed: string[] = [];
+  const failed: Array<string> = [];
   // The upload's own address in the private bucket, as the assets tab keeps it: it never expires.
   // The worker reads it with its own key (render-worker/src/guard.ts readMedia) and the board
   // signs it to show it.

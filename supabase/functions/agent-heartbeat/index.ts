@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
     for (const setting of settings) {
       const tenantId = setting.tenant_id;
-      const allowedActions = (setting.allowed_actions || []) as string[];
+      const allowedActions = (setting.allowed_actions || []) as Array<string>;
 
       // Check active hours
       const now = new Date();
@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const actionsLog: any[] = [];
+      const actionsLog: Array<any> = [];
       let tasksReviewed = 0;
 
       // 1. Find overdue tasks

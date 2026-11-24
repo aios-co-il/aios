@@ -54,7 +54,7 @@ export function streamAppliesToActive(
 /** Only the in-flight stream of THIS chat locks send. Debating/waiting must stay typable. */
 export function composerLockedForChat(args: {
   conversationId: string | null;
-  liveStreamIds: string[];
+  liveStreamIds: Array<string>;
   status?: string | null;
   /** The turn has been "streaming" too long to be real (carmenResumeChat). */
   stale?: boolean;

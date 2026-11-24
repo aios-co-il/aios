@@ -63,7 +63,7 @@ export function TasksChatSearchInput({
 }
 
 interface TasksChatViewProps {
-  tasks: ChatTask[];
+  tasks: Array<ChatTask>;
   selectedTaskId: string | null;
   onSelectTask: (task: ChatTask | null) => void;
   onToggleComplete: (taskId: string, completed: boolean) => void;
@@ -71,8 +71,8 @@ interface TasksChatViewProps {
   onMoveToBacklog?: (taskId: string) => void;
   onAddTask?: (payload: QuickTaskPayload) => void;
   isLoading?: boolean;
-  clientsList?: { id: string; name: string }[];
-  campaignersList?: { id: string; full_name: string }[];
+  clientsList?: Array<{ id: string; name: string }>;
+  campaignersList?: Array<{ id: string; full_name: string }>;
   defaultCampaignerId?: string | null;
   openClosedFilter?: OpenClosedFilter;
   onOpenClosedFilterChange?: (value: OpenClosedFilter) => void;

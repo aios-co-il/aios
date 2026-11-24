@@ -19,7 +19,7 @@ export type CursorTaskSession = {
 
 export async function fetchActiveCursorSessions(
   tenantId: string,
-): Promise<CursorTaskSession[]> {
+): Promise<Array<CursorTaskSession>> {
   const { data, error } = await supabase
     .from("cursor_task_sessions")
     .select("*")
@@ -28,7 +28,7 @@ export async function fetchActiveCursorSessions(
     .order("updated_at", { ascending: false })
     .limit(12);
   if (error) throw error;
-  return (data || []) as CursorTaskSession[];
+  return (data || []) as Array<CursorTaskSession>;
 }
 
 export function useActiveCursorSessions(tenantId: string | null) {

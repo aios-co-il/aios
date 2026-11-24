@@ -15,8 +15,8 @@ const cleared = new Set<string>();
 
 async function clearFailures(
   tenantId: string,
-  rows: WorkshopArtifact[],
-): Promise<WorkshopArtifact[]> {
+  rows: Array<WorkshopArtifact>,
+): Promise<Array<WorkshopArtifact>> {
   const { kept, failedIds } = splitFailures(rows);
   const fresh = failedIds.filter((id) => !cleared.has(id));
   if (fresh.length === 0) return kept;
@@ -36,7 +36,7 @@ const COLUMNS =
   "id,item_id,kind,folder,title,status,url,thumb_url,meta,created_at";
 
 /** A page of the user's own upload links to the private entity-attachments bucket: signed to show. */
-const withViewableUploads = (rows: WorkshopArtifact[]) =>
+const withViewableUploads = (rows: Array<WorkshopArtifact>) =>
   Promise.all(
     rows.map(async (row) => ({
       ...row,
@@ -78,7 +78,7 @@ export function useWorkshopArtifacts(
     queryKey,
     queryFn:
       tenantId && projectId
-        ? async (): Promise<WorkshopArtifact[]> => {
+        ? async (): Promise<Array<WorkshopArtifact>> => {
             const { data, error } = await supabase
               .from("workshop_artifacts")
               .select(COLUMNS)
@@ -88,7 +88,7 @@ export function useWorkshopArtifacts(
             if (error) throw error;
             const rows = await clearFailures(
               tenantId,
-              (data ?? []) as WorkshopArtifact[],
+              (data ?? []) as Array<WorkshopArtifact>,
             );
             const paths = storagePathsIn(rows);
             if (paths.length === 0) return withViewableUploads(rows);

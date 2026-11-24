@@ -16,7 +16,7 @@ export const GRID_CLASSES =
   "grid grid-cols-1 gap-4 [@container(min-width:22rem)]:grid-cols-2 [@container(min-width:36rem)]:grid-cols-3 [@container(min-width:46rem)]:grid-cols-4";
 
 export interface StoryboardGridProps {
-  scenes: StoryboardScene[];
+  scenes: Array<StoryboardScene>;
   /** The film's frame, e.g. "9:16". */
   aspect: string;
   loading?: boolean;

@@ -12,7 +12,7 @@ export interface Voice {
   fits: string;
 }
 
-export const HEBREW_VOICES: Voice[] = [
+export const HEBREW_VOICES: Array<Voice> = [
   {
     id: "d4eLZ8u5dfBCsjp4YPyz",
     name: "יעל",
@@ -127,7 +127,7 @@ export function voiceMenu(
   const lines = voices.map(
     (voice) => `• ${voice.name}: ${voice.character}. מתאים ל${voice.fits}.`,
   );
-  const row = (label: string, list: Voice[]) =>
+  const row = (label: string, list: Array<Voice>) =>
     list.length > 0
       ? [`[[בחירה: ${label} | ${list.map((v) => v.name).join(" | ")}]]`]
       : [];

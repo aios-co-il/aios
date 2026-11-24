@@ -15,8 +15,8 @@ const TAGS = [
  * named in `fail` resolves to an error, every other one succeeds.
  */
 function fakeDb(fail?: Failure) {
-  const calls: unknown[][] = [];
-  const answer = <T>(table: string, op: Failure["op"], data: T[]) =>
+  const calls: Array<Array<unknown>> = [];
+  const answer = <T>(table: string, op: Failure["op"], data: Array<T>) =>
     Promise.resolve(
       fail?.table === table && fail.op === op
         ? { data: null, error: { message: `${table} ${op} failed` } }
@@ -95,7 +95,7 @@ Deno.test(
   },
 );
 
-const failures: Failure[] = [
+const failures: Array<Failure> = [
   { table: "chat_contact_tags", op: "select" },
   { table: "chat_contact_tags", op: "upsert" },
   { table: "lead_updates", op: "update" },

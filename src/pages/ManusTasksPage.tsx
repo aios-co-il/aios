@@ -118,7 +118,7 @@ export default function ManusTasksPage() {
 
   const getOutputText = (output: any) => {
     if (!output || !Array.isArray(output)) return null;
-    const texts: string[] = [];
+    const texts: Array<string> = [];
     for (const item of output) {
       if (item.content && Array.isArray(item.content)) {
         for (const c of item.content) {

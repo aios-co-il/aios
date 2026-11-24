@@ -331,7 +331,7 @@ export function CampaignPulseDashboard({
       selectedAgency,
     ],
     queryFn: async () => {
-      if (!tenantId || !clientIds.length) return [] as PulseSnapshotRow[];
+      if (!tenantId || !clientIds.length) return [] as Array<PulseSnapshotRow>;
       const baseColumns =
         "client_id, agency_id, status, campaign_goal_mode, is_ecommerce, spend_7d, lead_spend_7d, ecommerce_spend_7d, leads_7d, cpl_7d, cpl_change_pct, purchases_7d, revenue_7d, roas_7d, roas_change_pct, lead_goal_status, ecommerce_goal_status, campaign_breakdown, flags, data_fresh_through, calculated_at, last_meta_change_at, last_meta_change_type, last_meta_change_actor, last_meta_change_object, meta_change_availability";
       const legacyBaseColumns = baseColumns.replace(", campaign_breakdown", "");
@@ -350,7 +350,7 @@ export function CampaignPulseDashboard({
         ({ data, error } = await load(legacyBaseColumns));
       }
       if (error) throw error;
-      return (data ?? []) as PulseSnapshotRow[];
+      return (data ?? []) as Array<PulseSnapshotRow>;
     },
     enabled: !!tenantId && clientIds.length > 0,
     staleTime: 30_000,
@@ -362,7 +362,8 @@ export function CampaignPulseDashboard({
     useQuery({
       queryKey: ["pulse-dash-tables", tenantId, clientIds.join(",")],
       queryFn: async () => {
-        if (!tenantId || !clientIds.length) return [] as PulseCampaignTable[];
+        if (!tenantId || !clientIds.length)
+          return [] as Array<PulseCampaignTable>;
         const { data: tables, error } = await supabase
           .from("crm_tables")
           .select(
@@ -377,7 +378,7 @@ export function CampaignPulseDashboard({
         if (error) throw error;
         // Keep both Meta sources here. The campaign classifier deduplicates the
         // same campaign/day after choosing the richer objective/outcome record.
-        return (tables ?? []) as PulseCampaignTable[];
+        return (tables ?? []) as Array<PulseCampaignTable>;
       },
       enabled: !!tenantId && clientIds.length > 0,
       staleTime: 60_000,
@@ -521,7 +522,7 @@ export function CampaignPulseDashboard({
   };
 
   const tablesByClient = useMemo(() => {
-    const map = new Map<string, PulseCampaignTable[]>();
+    const map = new Map<string, Array<PulseCampaignTable>>();
     for (const table of campaignData?.tables ?? []) {
       const list = map.get(table.client_id) || [];
       list.push(table);
@@ -551,19 +552,19 @@ export function CampaignPulseDashboard({
         name: string;
         campaignerName: string;
         agencyName: string;
-        services: string[];
+        services: Array<string>;
         moodStatus: string | null;
       }
     >();
     for (const c of filteredByRole as Array<{
       id: string;
       name: string;
-      services?: string[];
+      services?: Array<string>;
       mood_status?: string | null;
       client_team?: Array<{ campaigners?: { full_name?: string } }>;
       agencies?: { name?: string };
     }>) {
-      const services: string[] = Array.isArray(c.services)
+      const services: Array<string> = Array.isArray(c.services)
         ? [...c.services]
         : [];
       map.set(c.id, {
@@ -659,7 +660,7 @@ export function CampaignPulseDashboard({
   ]);
 
   const clientRawViews = useMemo(() => {
-    const byClient = new Map<string, PulseCampaignGoalRow[]>();
+    const byClient = new Map<string, Array<PulseCampaignGoalRow>>();
     for (const row of visibleCampaignRows) {
       const list = byClient.get(row.client_id) ?? [];
       list.push(row);
@@ -676,7 +677,7 @@ export function CampaignPulseDashboard({
       .map((client: { id: string }) => {
         const rowsForClient = byClient.get(client.id) ?? [];
         const campaignsByGoal: Partial<
-          Record<PulseCampaignGoal, PulseCampaignGoalRow[]>
+          Record<PulseCampaignGoal, Array<PulseCampaignGoalRow>>
         > = {};
         for (const row of rowsForClient) {
           const bucket = campaignsByGoal[row.goal] ?? [];
@@ -743,7 +744,7 @@ export function CampaignPulseDashboard({
       updatesByClient.set(update.client_id, list);
     }
 
-    const contexts: PulseAttentionClientContext[] = [];
+    const contexts: Array<PulseAttentionClientContext> = [];
     for (const [clientId, meta] of clientMetaById) {
       const pulse = pulseByClient.get(clientId);
       const logs = logsByClient.get(clientId) ?? [];
@@ -836,7 +837,7 @@ export function CampaignPulseDashboard({
   const freshness = useMemo(() => {
     const times = pulseRows
       .map((r) => r.calculated_at)
-      .filter(Boolean) as string[];
+      .filter(Boolean) as Array<string>;
     if (!times.length) return null;
     const latest = times.sort().reverse()[0];
     return new Date(latest).toLocaleString("he-IL", {
@@ -855,7 +856,7 @@ export function CampaignPulseDashboard({
   }, [period, filterService, filterCampaigner, showCampaignerPicker]);
 
   const mobileFilterSummary = useMemo(() => {
-    const parts: string[] = [];
+    const parts: Array<string> = [];
     if (period !== "last_7_days") {
       parts.push(
         PULSE_PERIOD_OPTIONS.find((o) => o.value === period)?.label ?? period,
@@ -1310,18 +1311,21 @@ export function CampaignPulseDashboard({
             clientIds.join(","),
             selectedAgency,
           ] as const;
-          queryClient.setQueryData<PulseSnapshotRow[]>(pulseQueryKey, (old) => {
-            if (!old) return old;
-            return old.map((row) =>
-              row.client_id === clientId
-                ? applyClientCallToPulseSnapshot(
-                    row,
-                    lastClientCallAt,
-                    lastClientCallBy,
-                  )
-                : row,
-            );
-          });
+          queryClient.setQueryData<Array<PulseSnapshotRow>>(
+            pulseQueryKey,
+            (old) => {
+              if (!old) return old;
+              return old.map((row) =>
+                row.client_id === clientId
+                  ? applyClientCallToPulseSnapshot(
+                      row,
+                      lastClientCallAt,
+                      lastClientCallBy,
+                    )
+                  : row,
+              );
+            },
+          );
           queryClient.invalidateQueries({
             queryKey: ["client-updates", clientId],
           });

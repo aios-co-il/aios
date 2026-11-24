@@ -32,7 +32,7 @@ export function argsStamped(code: string, call: Span): boolean {
 }
 
 /** The identifiers a call passes on as its body. */
-export function bodyNames(code: string, call: Span): string[] {
+export function bodyNames(code: string, call: Span): Array<string> {
   const args = code.slice(call.open, call.close);
   const passed = [
     new RegExp(`JSON\\.stringify\\(\\s*(${IDENT})\\s*\\)`, "g"),
@@ -100,7 +100,11 @@ function hasStamp(code: string, span: Span): boolean {
  * Matches (their first group, else the match) inside an object literal of
  * the span that is not one branch of a condition.
  */
-function unconditional(code: string, span: Span, pattern: RegExp): string[] {
+function unconditional(
+  code: string,
+  span: Span,
+  pattern: RegExp,
+): Array<string> {
   const text = code.slice(span.open, span.close);
   return [...text.matchAll(pattern)]
     .filter((match) => {
@@ -113,7 +117,7 @@ function unconditional(code: string, span: Span, pattern: RegExp): string[] {
 }
 
 /** `cond ? a : b` at the top level of the span: a and b. */
-function ternaryBranches(code: string, span: Span): Span[] | null {
+function ternaryBranches(code: string, span: Span): Array<Span> | null {
   let question = -1;
   let nested = 0;
   for (let i = span.open; i < span.close; i++) {

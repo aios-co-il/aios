@@ -71,7 +71,7 @@ export function LinkTableToClientDialog({
         .map((s: any) => s.agency_id)
         .filter(Boolean);
 
-      let sharedClients: any[] = [];
+      let sharedClients: Array<any> = [];
       if (sharedAgencyIds.length > 0) {
         const { data: sc } = await supabase
           .from("clients")

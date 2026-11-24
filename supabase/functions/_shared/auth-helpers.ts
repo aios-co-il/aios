@@ -11,8 +11,8 @@ export interface CallerScope {
   callerCampaignerId?: string | null;
   isManagerRole: boolean;
   isTeamManager: boolean;
-  managedAgencyIds: string[];
-  accessibleTenantIds: string[];
+  managedAgencyIds: Array<string>;
+  accessibleTenantIds: Array<string>;
 }
 
 export class AccessDeniedError extends Error {
@@ -77,7 +77,7 @@ async function clientIdFrom(
   supabase: any,
   table: string,
   id: string,
-  accessibleTenantIds: string[],
+  accessibleTenantIds: Array<string>,
 ): Promise<string | null> {
   if (!id) return null;
   const { data } = await supabase
@@ -89,14 +89,17 @@ async function clientIdFrom(
   return data?.client_id ?? null;
 }
 
-export const clientIdForSocialPage = (sb: any, pageId: string, t: string[]) =>
-  clientIdFrom(sb, "social_pages", pageId, t);
+export const clientIdForSocialPage = (
+  sb: any,
+  pageId: string,
+  t: Array<string>,
+) => clientIdFrom(sb, "social_pages", pageId, t);
 export const clientIdForSocialComment = (
   sb: any,
   commentId: string,
-  t: string[],
+  t: Array<string>,
 ) => clientIdFrom(sb, "social_comments", commentId, t);
-export const clientIdForTask = (sb: any, taskId: string, t: string[]) =>
+export const clientIdForTask = (sb: any, taskId: string, t: Array<string>) =>
   clientIdFrom(sb, "tasks", taskId, t);
 
 /**

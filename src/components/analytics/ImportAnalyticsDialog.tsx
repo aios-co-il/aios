@@ -51,7 +51,7 @@ interface ParsedRow {
 interface ImportResult {
   success: boolean;
   imported: number;
-  errors: string[];
+  errors: Array<string>;
 }
 
 interface TrackingConfig {
@@ -64,7 +64,7 @@ export function ImportAnalyticsDialog({
   tenantId,
 }: ImportAnalyticsDialogProps) {
   const [open, setOpen] = useState(false);
-  const [parsedData, setParsedData] = useState<ParsedRow[]>([]);
+  const [parsedData, setParsedData] = useState<Array<ParsedRow>>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -75,12 +75,12 @@ export function ImportAnalyticsDialog({
   const clientsQuery = useQuery({
     queryKey: ["clients-import", tenantId, open],
     queryFn: async () => {
-      if (!tenantId) return [] as { id: string; name: string }[];
+      if (!tenantId) return [] as Array<{ id: string; name: string }>;
       const { data } = await supabase
         .from("clients")
         .select("id, name")
         .match({ tenant_id: tenantId, is_active: true });
-      return (data ?? []) as { id: string; name: string }[];
+      return (data ?? []) as Array<{ id: string; name: string }>;
     },
     enabled: !!tenantId && open,
   });
@@ -90,12 +90,12 @@ export function ImportAnalyticsDialog({
   const trackingConfigsQuery = useQuery({
     queryKey: ["tracking_configs_import", tenantId, open],
     queryFn: async () => {
-      if (!tenantId) return [] as TrackingConfig[];
+      if (!tenantId) return [] as Array<TrackingConfig>;
       const { data } = await supabase
         .from("site_tracking_configs")
         .select("id, client_id, website_domain")
         .match({ tenant_id: tenantId, is_active: true });
-      return (data ?? []) as TrackingConfig[];
+      return (data ?? []) as Array<TrackingConfig>;
     },
     enabled: !!tenantId && open,
   });
@@ -111,7 +111,7 @@ export function ImportAnalyticsDialog({
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const rows: ParsedRow[] = [];
+        const rows: Array<ParsedRow> = [];
 
         results.data.forEach((row: Record<string, string>) => {
           // Try to find date column (flexible mapping)
@@ -230,7 +230,7 @@ export function ImportAnalyticsDialog({
         throw new Error("No tracking configuration found");
       }
 
-      const errors: string[] = [];
+      const errors: Array<string> = [];
       let imported = 0;
 
       for (const row of parsedData) {

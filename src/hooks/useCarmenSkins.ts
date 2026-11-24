@@ -44,7 +44,7 @@ export function useCarmenSkins() {
       JSON.stringify(readSkinAvatars(agentQuery.data?.metadata)),
     ],
     enabled: !!tenantId && agentQuery.isSuccess,
-    queryFn: async (): Promise<CarmenSkinOption[]> => {
+    queryFn: async (): Promise<Array<CarmenSkinOption>> => {
       const { data, error } = await supabase
         .from("ai_skills")
         .select("slug,name,description,scope")

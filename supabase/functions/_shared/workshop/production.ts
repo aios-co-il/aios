@@ -48,7 +48,7 @@ export const productionLockError = (
 
 /** Clips of this production that the free preview made because the paid engine refused them. */
 function previewFallbacks(
-  runs: RunRow[],
+  runs: Array<RunRow>,
   production: Record<string, unknown> | null,
 ) {
   if (!production?.provider || production.provider === "mock") return [];
@@ -65,7 +65,7 @@ function previewFallbacks(
 }
 
 export function productionReport(
-  runs: RunRow[],
+  runs: Array<RunRow>,
   production: Record<string, unknown> | null,
   now = Date.now(),
 ) {

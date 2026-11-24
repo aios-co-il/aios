@@ -65,10 +65,14 @@ const SMB_COEXISTENCE_REGISTER_GUIDANCE =
   "(3) יצירת תבניות ב-WhatsApp Manager, " +
   "(4) פנייה לתמיכת Meta אם platform_type נשאר ON_PREMISE.";
 
-const unique = (values: string[]) =>
+const unique = (values: Array<string>) =>
   values.filter((value, index) => value && values.indexOf(value) === index);
 
-type TokenDebug = { type: string; scopes: string[]; wabaIds: string[] };
+type TokenDebug = {
+  type: string;
+  scopes: Array<string>;
+  wabaIds: Array<string>;
+};
 
 /** Reads the token metadata Meta exposes, including the assets it was granted. */
 const inspectToken = async (
@@ -108,7 +112,7 @@ const WABA_EDGES = [
   "client_whatsapp_business_accounts",
 ];
 
-type DiscoveryStep = { source: string; found?: string[]; error?: string };
+type DiscoveryStep = { source: string; found?: Array<string>; error?: string };
 
 /**
  * Finds the WhatsApp accounts a token can act on when Meta did not scope the
@@ -121,8 +125,8 @@ const discoverWabas = async (
   graphVersion: string,
   explicitBusinessId: string,
 ) => {
-  const found: string[] = [];
-  const steps: DiscoveryStep[] = [];
+  const found: Array<string> = [];
+  const steps: Array<DiscoveryStep> = [];
 
   const readBusiness = async (businessId: string, source: string) => {
     for (const edge of WABA_EDGES) {
@@ -234,7 +238,7 @@ const listPhoneNumbers = async (
     undefined,
     graphVersion,
   );
-  return (payload.data ?? []) as any[];
+  return (payload.data ?? []) as Array<any>;
 };
 
 Deno.serve(async (request) => {
@@ -567,7 +571,7 @@ Deno.serve(async (request) => {
               )
             : []),
           ...(typeof body.redirect_uri === "string" ? [body.redirect_uri] : []),
-        ].filter(Boolean) as string[];
+        ].filter(Boolean) as Array<string>;
         const redirectCandidates: Array<string | null> = [
           null,
           "",
@@ -687,7 +691,7 @@ Deno.serve(async (request) => {
     ]);
     if (!wabaIds.length) wabaIds = debug.wabaIds;
 
-    let discoverySteps: DiscoveryStep[] = [];
+    let discoverySteps: Array<DiscoveryStep> = [];
     // Manual token management is intentionally broader than Embedded Signup:
     // every refresh should look for newly assigned accounts, while retaining
     // WABAs already known to AIOS if Meta's discovery edge is temporarily
@@ -849,11 +853,11 @@ Deno.serve(async (request) => {
         ...(action === "complete" && sessionInfo.phone_number_id
           ? [sessionInfo.phone_number_id]
           : []),
-      ].filter(Boolean) as string[],
+      ].filter(Boolean) as Array<string>,
     );
 
     const connected: Array<Record<string, unknown>> = [];
-    const warnings: string[] = [];
+    const warnings: Array<string> = [];
 
     for (const wabaId of wabaIds) {
       await graphJson(

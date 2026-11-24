@@ -32,7 +32,7 @@ export default function LeadsArchive() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
+  const [deleteIds, setDeleteIds] = useState<Array<string> | null>(null);
 
   const {
     data: leads = [],
@@ -77,7 +77,7 @@ export default function LeadsArchive() {
     queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
   };
 
-  const restore = async (ids: string[]) => {
+  const restore = async (ids: Array<string>) => {
     setBusy(true);
     try {
       const n = await restoreArchivedLeads(ids);
@@ -94,7 +94,7 @@ export default function LeadsArchive() {
     }
   };
 
-  const permanentlyDelete = async (ids: string[]) => {
+  const permanentlyDelete = async (ids: Array<string>) => {
     setBusy(true);
     try {
       const n = await permanentlyDeleteArchivedLeads(ids);

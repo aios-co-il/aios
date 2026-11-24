@@ -7,7 +7,7 @@ interface ParliamentBoardProps {
   round?: number;
   maxRounds?: number;
   topic?: string;
-  seats?: ParliamentSeatView[];
+  seats?: Array<ParliamentSeatView>;
   carmenSummary?: string | null;
   selectedProvider?: string | null;
   debating?: boolean;

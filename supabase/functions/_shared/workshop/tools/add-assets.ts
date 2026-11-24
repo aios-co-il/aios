@@ -56,8 +56,8 @@ export async function workshopAddAssets(ctx: ToolContext) {
   if ("error" in loaded) return loaded;
   const existing = await loadAssets(supabase, tenantId, itemId);
   const byUrl = new Map(existing.map((a) => [a.url, a]));
-  const added: { title: string; type: string }[] = [];
-  const failed: { url?: string; reason: string }[] = [];
+  const added: Array<{ title: string; type: string }> = [];
+  const failed: Array<{ url?: string; reason: string }> = [];
   let referenceCount = existing.filter(
     (a) => a.asset_type === "image" && a.use_as_reference,
   ).length;

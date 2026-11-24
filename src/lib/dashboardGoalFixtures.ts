@@ -47,7 +47,7 @@ const tables = [
  * The dashboard's goals from the same groupings its platform tabs show: a
  * mixed Facebook table and a Google Ads table without a set type.
  */
-export function dashboardGoalsOf(records: DashboardRecord[]) {
+export function dashboardGoalsOf(records: Array<DashboardRecord>) {
   const of = (source: string) => records.filter((r) => r._source === source);
   return summarizeDashboardGoals({
     facebook: groupFacebookRowsByGoal(of("facebook_insights"), "campaign", {

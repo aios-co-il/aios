@@ -254,7 +254,7 @@ async function forwardToTeamChannels(
     }
 
     // Extract file attachments from message data
-    const attachments: any[] = [];
+    const attachments: Array<any> = [];
     const fileData = messageData?.fileMessageData;
     if (fileData?.downloadUrl) {
       const isImage = messageData?.typeMessage === "imageMessage";
@@ -1384,7 +1384,7 @@ Deno.serve(async (req) => {
       if (isIncoming || isManualOutgoing) {
         try {
           // Fetch group tags
-          let groupTags: string[] = [];
+          let groupTags: Array<string> = [];
           const { data: groupTagsData } = await supabaseClient
             .from("chat_contact_tags")
             .select("tag_id")
@@ -1905,7 +1905,7 @@ Deno.serve(async (req) => {
     if (!carmenOutcome && (isIncoming || isManualOutgoing)) {
       try {
         // Fetch contact tags for the sender
-        let contactTags: string[] = [];
+        let contactTags: Array<string> = [];
         const tagQuery = supabaseClient
           .from("chat_contact_tags")
           .select("tag_id")

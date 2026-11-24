@@ -45,7 +45,7 @@ export function AssetsPanel({
   tenantId: string | undefined;
   projectId: string;
   clientName?: string | null;
-  assets: WorkshopAsset[];
+  assets: Array<WorkshopAsset>;
   loading: boolean;
 }) {
   const queryClient = useQueryClient();

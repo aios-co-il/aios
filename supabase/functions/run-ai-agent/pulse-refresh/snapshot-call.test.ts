@@ -22,9 +22,9 @@ Deno.test("postSnapshot", async (t) => {
   await t.step(
     "a 200 answer that is not JSON is logged and read as a failed refresh",
     async () => {
-      const warnings: unknown[] = [];
+      const warnings: Array<unknown> = [];
       const original = console.warn;
-      console.warn = (...args: unknown[]) => warnings.push(args);
+      console.warn = (...args: Array<unknown>) => warnings.push(args);
       try {
         const response = await postSnapshot(
           endpoint(async () => new Response("<html>gateway</html>")),

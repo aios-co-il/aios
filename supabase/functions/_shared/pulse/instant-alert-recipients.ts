@@ -16,7 +16,7 @@ export async function resolveInstantAlertRecipients(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
   agencyId: string | null | undefined,
-  reportRecipients: CarmenReportRecipient[],
+  reportRecipients: Array<CarmenReportRecipient>,
   tenantSlug?: string | null,
 ): Promise<Array<{ phone: string; label: string }>> {
   const staff = await ownerAndManagerPhones(supabase, tenantId, agencyId);
@@ -44,7 +44,7 @@ async function ownerAndManagerPhones(
   supabase: Pick<DbClient, "from">,
   tenantId: string,
   agencyId: string | null | undefined,
-): Promise<StaffPhone[]> {
+): Promise<Array<StaffPhone>> {
   const { data: roles, error } = await supabase
     .from("user_roles")
     .select("user_id, role")
@@ -78,8 +78,8 @@ async function ownerAndManagerPhones(
 async function managersOfAgency(
   supabase: Pick<DbClient, "from">,
   agencyId: string | null | undefined,
-  managerIds: string[],
-): Promise<string[]> {
+  managerIds: Array<string>,
+): Promise<Array<string>> {
   if (!agencyId || !managerIds.length) {
     return managerIds;
   }
@@ -107,8 +107,8 @@ async function managersOfAgency(
  */
 async function staffPhones(
   supabase: Pick<DbClient, "from">,
-  userIds: string[],
-): Promise<StaffPhone[]> {
+  userIds: Array<string>,
+): Promise<Array<StaffPhone>> {
   if (!userIds.length) {
     return [];
   }

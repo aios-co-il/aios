@@ -47,9 +47,9 @@ type Answer = { data: boolean | null; error: { message: string } | null };
 
 const db = vi.hoisted(() => {
   const state = {
-    rpcCalls: [] as { name: string; args: unknown }[],
+    rpcCalls: [] as Array<{ name: string; args: unknown }>,
     filters: [] as Array<[string, unknown]>,
-    pending: [] as ((answer: Answer) => void)[],
+    pending: [] as Array<(answer: Answer) => void>,
     answer(access: { read: boolean; write: boolean }) {
       state.rpcCalls.forEach((call, index) => {
         const allowed =

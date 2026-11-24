@@ -83,7 +83,7 @@ serve(async (req) => {
     const DAVID_GREEN_API_USER = "bcd21d1c-3b39-4a7c-9dbf-4c89679110b9";
     let waSend: any = null;
     if (body?.notify === true) {
-      const lines: string[] = [];
+      const lines: Array<string> = [];
       lines.push("🧪 *בדיקת ניטור קמפיינים*");
       lines.push("");
       lines.push(

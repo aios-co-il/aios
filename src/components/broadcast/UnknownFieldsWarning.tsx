@@ -10,7 +10,7 @@ export function UnknownFieldsWarning({
   customKeys,
 }: {
   text: string;
-  customKeys: string[];
+  customKeys: Array<string>;
 }) {
   const unknownKeys = useMemo(() => {
     const known = new Set([

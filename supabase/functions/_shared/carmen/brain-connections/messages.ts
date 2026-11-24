@@ -8,8 +8,8 @@ export function buildModelMessages(args: {
   profile: BrainProfile;
   history: Array<{ role: string; content: string }>;
   content: string;
-}): ChatMessage[] {
-  const messages: ChatMessage[] = [];
+}): Array<ChatMessage> {
+  const messages: Array<ChatMessage> = [];
   if (args.profile.system_prompt)
     messages.push({ role: "system", content: args.profile.system_prompt });
   const recent = (args.history || [])

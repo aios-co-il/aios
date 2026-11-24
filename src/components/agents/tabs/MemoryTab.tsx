@@ -83,7 +83,7 @@ function CarmenMemoryLibrary() {
   const tree = data?.tree ?? [];
   const episodesCount = data?.episodesCount ?? 0;
 
-  const fullTree: MemoryTreeNode[] = useMemo(
+  const fullTree: Array<MemoryTreeNode> = useMemo(
     () => [
       ...tree,
       ...(episodesCount > 0
@@ -112,7 +112,7 @@ function useCarmenItems(cat: string | null, sub: string | null | undefined) {
   const episodes = useCarmenMemoryEpisodes(cat === "episodes");
   const pointers = useCarmenMemoryPointers(cat ?? undefined, sub);
   if (cat === "episodes") {
-    const items: MemoryItem[] = (episodes.data ?? []).map((e: any) => ({
+    const items: Array<MemoryItem> = (episodes.data ?? []).map((e: any) => ({
       id: e.id,
       category: "episodes",
       subcategory: e.source_table,
@@ -166,13 +166,13 @@ function AgentMemoryLibrary({ agentId }: { agentId: string }) {
 interface LibraryProps {
   title: string;
   titleIcon: React.ReactNode;
-  tree: MemoryTreeNode[];
+  tree: Array<MemoryTreeNode>;
   totalItems: number;
   isLoading: boolean;
   useItems: (
     cat: string | null,
     sub: string | null | undefined,
-  ) => { data: MemoryItem[]; isLoading: boolean };
+  ) => { data: Array<MemoryItem>; isLoading: boolean };
   canDelete: boolean;
   agentId?: string;
   emptyHint?: string;
@@ -370,7 +370,7 @@ function OverviewPanel({
   totalItems,
   hint,
 }: {
-  tree: MemoryTreeNode[];
+  tree: Array<MemoryTreeNode>;
   totalItems: number;
   hint?: string;
 }) {

@@ -41,7 +41,7 @@ interface CloneResult {
   error?: string;
   new_id?: string;
   already_exists?: boolean;
-  missing_integrations?: string[];
+  missing_integrations?: Array<string>;
 }
 
 const TITLES: Record<CloneEntityType, string> = {
@@ -73,7 +73,7 @@ export function CloneToOrgDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [results, setResults] = useState<CloneResult[] | null>(null);
+  const [results, setResults] = useState<Array<CloneResult> | null>(null);
 
   const tenantName = (id: string) =>
     (userTenants || []).find((t: any) => t.id === id)?.name || id;
@@ -123,7 +123,7 @@ export function CloneToOrgDialog({
         },
       );
       if (error) throw error;
-      const res: CloneResult[] = (data as any)?.results || [];
+      const res: Array<CloneResult> = (data as any)?.results || [];
       setResults(res);
       const ok = res.filter((r) => r.success).length;
       const failed = res.filter((r) => !r.success);

@@ -70,7 +70,9 @@ serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const entityType: string = body?.entity_type;
     const entityId: string = body?.entity_id;
-    const targetTenantIds: string[] = Array.isArray(body?.target_tenant_ids)
+    const targetTenantIds: Array<string> = Array.isArray(
+      body?.target_tenant_ids,
+    )
       ? body.target_tenant_ids
       : [];
 
@@ -137,7 +139,7 @@ serve(async (req: Request) => {
     );
 
     // Pre-load children once (same for every target).
-    let childSteps: any[] = [];
+    let childSteps: Array<any> = [];
     if (entityType === "automation") {
       const { data } = await admin
         .from("automation_flow_steps")
@@ -163,7 +165,7 @@ serve(async (req: Request) => {
       for (const t of sourceActiveTypes) referencedTypes.add(t as string);
     }
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     for (const targetTenantId of targetTenantIds) {
       try {
         if (targetTenantId === sourceTenantId) {

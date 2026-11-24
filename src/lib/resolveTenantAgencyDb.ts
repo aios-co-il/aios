@@ -41,7 +41,7 @@ export async function fetchTenantHomeAgencyId(
  */
 export async function ensureLeadHomeAgency(
   lead: { id: string; agency_id?: string | null; tenant_id?: string | null },
-  agencies?: readonly AgencyStamp[] | null,
+  agencies?: ReadonlyArray<AgencyStamp> | null,
 ): Promise<string | null> {
   if (lead.agency_id) return lead.agency_id;
   const tenantId = lead.tenant_id;

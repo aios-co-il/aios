@@ -549,7 +549,7 @@ serve(async (req) => {
               };
 
               // Support both legacy single and new multi-select
-              const salesPersonIds: string[] =
+              const salesPersonIds: Array<string> =
                 formMappings.sales_person_ids ||
                 (formMappings.sales_person_id
                   ? [formMappings.sales_person_id]
@@ -882,7 +882,7 @@ serve(async (req) => {
               }
 
               // Append all custom form fields to notes
-              const customFieldLines: string[] = [];
+              const customFieldLines: Array<string> = [];
               for (const [fbFieldName, fbFieldValue] of Object.entries(
                 fieldData,
               )) {

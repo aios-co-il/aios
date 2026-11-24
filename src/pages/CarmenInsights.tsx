@@ -212,7 +212,7 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   };
 
   const pointersByCategory = useMemo(() => {
-    const map: Record<string, any[]> = {};
+    const map: Record<string, Array<any>> = {};
     for (const p of pointers) (map[p.category] ??= []).push(p);
     return map;
   }, [pointers]);
@@ -554,7 +554,7 @@ function InsightColumn({
   onDelete,
 }: {
   title: string;
-  items: any[];
+  items: Array<any>;
   color: string;
   onDelete: (id: string) => void;
 }) {

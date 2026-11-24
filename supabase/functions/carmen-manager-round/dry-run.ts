@@ -14,7 +14,9 @@ export type PreviewMessage = {
 };
 
 /** Candidates as unrouted findings (short code 0: not stored). */
-export function virtualFindings(candidates: FindingCandidate[]): FindingRow[] {
+export function virtualFindings(
+  candidates: Array<FindingCandidate>,
+): Array<FindingRow> {
   return candidates.map((candidate, index) => ({
     id: `dry-run:${index}`,
     client_id: candidate.client_id,
@@ -35,13 +37,18 @@ export function virtualFindings(candidates: FindingCandidate[]): FindingRow[] {
 
 /** One message per recipient over every planned delivery, whatever its time. */
 export function previewMessages(
-  decisions: RouteDecision[],
-  findings: FindingRow[],
-): PreviewMessage[] {
+  decisions: Array<RouteDecision>,
+  findings: Array<FindingRow>,
+): Array<PreviewMessage> {
   const byId = new Map(findings.map((finding) => [finding.id, finding]));
   const groups = new Map<
     string,
-    { to: string; has_phone: boolean; not_before: string; items: FindingRow[] }
+    {
+      to: string;
+      has_phone: boolean;
+      not_before: string;
+      items: Array<FindingRow>;
+    }
   >();
   for (const decision of decisions) {
     const finding = byId.get(decision.finding_id);

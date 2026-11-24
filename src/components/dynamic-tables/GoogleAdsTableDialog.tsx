@@ -58,7 +58,7 @@ import { runInitialGoogleAdsSync } from "./initialGoogleAdsSync";
 interface GoogleAdsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 const dateRangeOptions = ADS_TABLE_CREATE_DATE_RANGE_OPTIONS;
@@ -138,7 +138,7 @@ export function GoogleAdsTableDialog({
       open && dataSource === "direct_api" && googleAdsStatus?.is_connected,
   });
 
-  const accounts: GoogleAdsAccount[] = accountsData?.accounts || [];
+  const accounts: Array<GoogleAdsAccount> = accountsData?.accounts || [];
 
   const createMutation = useMutation({
     mutationFn: async () => {

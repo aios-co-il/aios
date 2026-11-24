@@ -34,7 +34,7 @@ export function patchLeadNotesInCache(
       typeof value === "object" &&
       Array.isArray((value as { leads?: unknown }).leads)
     ) {
-      const stage = value as { leads: unknown[] };
+      const stage = value as { leads: Array<unknown> };
       updated[key] = {
         ...stage,
         leads: patchLeadNotesInCache(stage.leads, leadId, notes),

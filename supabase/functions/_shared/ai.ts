@@ -65,7 +65,7 @@ export async function hasAiKey(): Promise<boolean> {
 }
 
 /** Embed text → 1536-dim vector, or null on any failure (best-effort). */
-export async function aiEmbed(text: string): Promise<number[] | null> {
+export async function aiEmbed(text: string): Promise<Array<number> | null> {
   const key = await resolveOpenAIKey();
   if (!key || !text?.trim()) return null;
   try {
@@ -102,8 +102,8 @@ export async function aiEmbed(text: string): Promise<number[] | null> {
 /** Embed many texts in one call (order preserved). Used by the tool router to
  *  populate tool embeddings cheaply. Returns null on any failure. */
 export async function aiEmbedBatch(
-  texts: string[],
-): Promise<number[][] | null> {
+  texts: Array<string>,
+): Promise<Array<Array<number>> | null> {
   const key = await resolveOpenAIKey();
   if (!key || !texts?.length) return null;
   try {
@@ -131,7 +131,7 @@ export async function aiEmbedBatch(
         0,
       ),
     });
-    const out: number[][] = (j?.data ?? [])
+    const out: Array<Array<number>> = (j?.data ?? [])
       .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
       .map((d: any) => d.embedding);
     return out.length === texts.length ? out : null;
@@ -274,7 +274,7 @@ export async function aiChatJSON<T = any>(
 // real entity. Best-effort: returns the original text on any failure.
 export async function aiCleanTranscript(
   text: string,
-  opts?: { knownNames?: string[] },
+  opts?: { knownNames?: Array<string> },
 ): Promise<string> {
   const raw = (text || "").trim();
   if (raw.length < 2) return raw;
@@ -350,7 +350,7 @@ export async function aiTranscribeVerbose(
   opts?: { language?: string; filename?: string },
 ): Promise<{
   text: string;
-  segments: TranscriptSegment[];
+  segments: Array<TranscriptSegment>;
   duration: number;
 } | null> {
   const key = await resolveOpenAIKey();
@@ -369,7 +369,7 @@ export async function aiTranscribeVerbose(
     if (!r.ok) return null;
     const j = await r.json();
     // deno-lint-ignore no-explicit-any
-    const segments: TranscriptSegment[] = (
+    const segments: Array<TranscriptSegment> = (
       Array.isArray(j?.segments) ? j.segments : []
     )
       // deno-lint-ignore no-explicit-any
@@ -399,7 +399,7 @@ export async function aiTranscribeVerbose(
 // screenshots. Returns null on any failure.
 export async function aiVisionJSON(
   prompt: string,
-  images: Blob[],
+  images: Array<Blob>,
   opts?: { model?: string },
   // deno-lint-ignore no-explicit-any
 ): Promise<any | null> {
@@ -407,7 +407,7 @@ export async function aiVisionJSON(
   if (!key || images.length === 0) return null;
   try {
     // deno-lint-ignore no-explicit-any
-    const content: any[] = [{ type: "text", text: prompt }];
+    const content: Array<any> = [{ type: "text", text: prompt }];
     for (const img of images) {
       const bytes = new Uint8Array(await img.arrayBuffer());
       let binary = "";
@@ -471,7 +471,7 @@ export interface DiarizedSegment {
 export async function aiDiarizeTranscribe(
   audio: Blob,
   opts?: { filename?: string },
-): Promise<DiarizedSegment[] | null> {
+): Promise<Array<DiarizedSegment> | null> {
   const key = Deno.env.get("ELEVENLABS_API_KEY");
   if (!key) return null;
   try {
@@ -490,8 +490,8 @@ export async function aiDiarizeTranscribe(
     }
     const j = await r.json();
     // deno-lint-ignore no-explicit-any
-    const words: any[] = Array.isArray(j?.words) ? j.words : [];
-    const segments: DiarizedSegment[] = [];
+    const words: Array<any> = Array.isArray(j?.words) ? j.words : [];
+    const segments: Array<DiarizedSegment> = [];
     let current: DiarizedSegment | null = null;
     for (const w of words) {
       if (w?.type === "audio_event") continue;

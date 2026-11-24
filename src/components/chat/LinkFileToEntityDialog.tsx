@@ -30,7 +30,7 @@ interface LinkFileToEntityDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tenantId: string;
-  files: UploadedFile[];
+  files: Array<UploadedFile>;
   onLinked: () => void;
 }
 

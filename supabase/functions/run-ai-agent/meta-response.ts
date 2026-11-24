@@ -34,9 +34,9 @@ type MetaNodeFields = {
   cpm?: string | number;
   frequency?: string | number;
   reach?: string | number;
-  actions?: MetaAction[];
-  cost_per_action_type?: MetaAction[];
-  questions?: MetaQuestion[];
+  actions?: Array<MetaAction>;
+  cost_per_action_type?: Array<MetaAction>;
+  questions?: Array<MetaQuestion>;
 };
 
 export type MetaNode = {
@@ -44,7 +44,7 @@ export type MetaNode = {
 };
 
 interface MetaResponse extends MetaNode {
-  data?: MetaNode[] | null;
+  data?: Array<MetaNode> | null;
   error?: {
     message?: string | null;
     code?: number | null;

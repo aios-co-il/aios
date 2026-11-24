@@ -196,8 +196,8 @@ const asRecord = (value: unknown): Record<string, unknown> =>
     ? (value as Record<string, unknown>)
     : {};
 
-const pick = <T extends readonly string[]>(list: T, value: unknown) =>
-  typeof value === "string" && (list as readonly string[]).includes(value)
+const pick = <T extends ReadonlyArray<string>>(list: T, value: unknown) =>
+  typeof value === "string" && (list as ReadonlyArray<string>).includes(value)
     ? (value as T[number])
     : undefined;
 
@@ -226,10 +226,10 @@ async function loadScenes(supabase: Db, tenantId: string, itemId: string) {
     .eq("tenant_id", tenantId)
     .order("position");
   if (error) throw new Error(error.message);
-  return (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+  return (Array.isArray(data) ? data : []) as Array<Record<string, unknown>>;
 }
 
-const sceneAt = (scenes: Record<string, unknown>[], number: unknown) => {
+const sceneAt = (scenes: Array<Record<string, unknown>>, number: unknown) => {
   const index = Math.round(Number(number)) - 1;
   return Number.isInteger(index) && index >= 0 && index < scenes.length
     ? scenes[index]
@@ -258,7 +258,7 @@ export function missingForStudio(
   payload: Record<string, unknown>,
   counts: { scenes: number; copy: number },
 ) {
-  const missing: string[] = [];
+  const missing: Array<string> = [];
   if (!payload.logo_url) missing.push("לוגו");
   const refs = Array.isArray(payload.style_references)
     ? payload.style_references
@@ -312,7 +312,7 @@ export async function executeCreativeStudioTool(
       ? await loadScenes(supabase, tenantId, itemId)
       : [];
     const variations = Array.isArray(payload.variations)
-      ? (payload.variations as Record<string, unknown>[])
+      ? (payload.variations as Array<Record<string, unknown>>)
       : [];
     const copyCount = Array.isArray(payload.copy_variations)
       ? payload.copy_variations.length
@@ -386,7 +386,7 @@ export async function executeCreativeStudioTool(
   if (name === "update_studio_settings") {
     const nextVideo = { ...video };
     const next = { ...payload };
-    const changed: string[] = [];
+    const changed: Array<string> = [];
     const format = pick(FORMATS, args.format);
     if (format) {
       next.format = format;
@@ -436,7 +436,7 @@ export async function executeCreativeStudioTool(
     if (role === "logo") next.logo_url = url;
     if (role === "style_reference") {
       const refs = Array.isArray(payload.style_references)
-        ? [...(payload.style_references as unknown[])]
+        ? [...(payload.style_references as Array<unknown>)]
         : [];
       if (!refs.some((ref) => asRecord(ref).url === url))
         refs.push({ url, ...(fileName ? { name: fileName } : {}) });
@@ -568,13 +568,13 @@ export async function executeCreativeStudioTool(
   // studio_ui_action
   const action = pick(UI_ACTIONS, args.action) as UiAction | undefined;
   if (!action) return { error: "action לא תקין" };
-  const videoOnly: UiAction[] = [
+  const videoOnly: Array<UiAction> = [
     "produce_video",
     "regenerate_frame",
     "animate_scene",
     "focus_scene",
   ];
-  const staticOnly: UiAction[] = [
+  const staticOnly: Array<UiAction> = [
     "generate_variations",
     "single_variation",
     "revise_variation",
@@ -594,7 +594,7 @@ export async function executeCreativeStudioTool(
   }
   if (["revise_variation", "focus_variation"].includes(action)) {
     const variations = Array.isArray(payload.variations)
-      ? (payload.variations as Record<string, unknown>[])
+      ? (payload.variations as Array<Record<string, unknown>>)
       : [];
     const id = text(args.variation_id, 80);
     if (!id || !variations.some((variation) => variation.id === id))

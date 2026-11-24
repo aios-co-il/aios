@@ -73,7 +73,7 @@ Deno.test("handleFileSend refuses before anything is uploaded", async (t) => {
   });
 
   await t.step("Staging blocks the recipient", async () => {
-    const destinations: string[] = [];
+    const destinations: Array<string> = [];
     const { deps, calls } = fakeDeps({
       guard: (destination) => {
         destinations.push(destination);
@@ -175,7 +175,7 @@ Deno.test("handleFileSend sends from the resolved line", async (t) => {
 
 Deno.test("handleFileSend asks the client send guard first", async (t) => {
   await t.step("a staff alert to a client is refused, never sent", async () => {
-    const requests: ClientSendRequest[] = [];
+    const requests: Array<ClientSendRequest> = [];
     const guard = guardDb({ recipient: resolved("client", [CLIENT]) });
     const { deps, calls } = fakeDeps({
       authenticate: async () => ({ kind: "service", userId: null }),

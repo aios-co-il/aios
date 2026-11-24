@@ -23,7 +23,7 @@ Deno.test("a length mismatch does not match", () => {
 });
 
 Deno.test("uses subtle.timingSafeEqual when present", () => {
-  const calls: number[] = [];
+  const calls: Array<number> = [];
   const subtle = {
     timingSafeEqual: (a: Uint8Array, b: Uint8Array) => {
       calls.push(a.length);

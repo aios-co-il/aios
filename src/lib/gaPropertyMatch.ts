@@ -35,7 +35,7 @@ export function scoreGaProperty(
 
 /** Best GA4 property id for a domain, using the name, account, or site URL. */
 export function pickGaPropertyForDomain(
-  properties: GaPropertyRef[],
+  properties: Array<GaPropertyRef>,
   domain: string,
 ): string | null {
   const host = normalizeSeoDomain(domain);
@@ -55,13 +55,13 @@ export function pickGaPropertyForDomain(
 
 export type GaPropertyGroup = {
   integrationId: string;
-  properties: GaPropertyRef[];
+  properties: Array<GaPropertyRef>;
   /** The signed-in user's own Google login, not a shared one. */
   own?: boolean;
 };
 
 export function bestGaPropertyMatch(
-  groups: GaPropertyGroup[],
+  groups: Array<GaPropertyGroup>,
   domain: string,
   preferredIntegrationId?: string,
 ): {
@@ -120,7 +120,7 @@ export async function findGaIntegrationForDomain(
   loadProperties: (
     integrationId: string,
     matchDomain: string | null,
-  ) => Promise<GaPropertyRef[] | null>,
+  ) => Promise<Array<GaPropertyRef> | null>,
   preferredIntegrationId?: string,
 ): Promise<{
   integrationId: string;
@@ -143,14 +143,14 @@ export async function findGaIntegrationForDomain(
     ): group is {
       integrationId: string;
       own: boolean | undefined;
-      properties: GaPropertyRef[];
+      properties: Array<GaPropertyRef>;
     } => Array.isArray(group.properties),
   );
 
   const named = bestGaPropertyMatch(reachable, host, preferredIntegrationId);
   if (named && scoreGaProperty(named.property, host) >= 2) return named;
 
-  const withUrls: GaPropertyGroup[] = [];
+  const withUrls: Array<GaPropertyGroup> = [];
   for (const group of reachable) {
     if (group.properties.length === 0) continue;
     const properties = await loadProperties(group.integrationId, host);

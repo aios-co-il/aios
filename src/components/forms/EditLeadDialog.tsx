@@ -201,7 +201,9 @@ export function EditLeadDialog({
   const { tenantId } = useCurrentTenant();
 
   const meetingScheduler = useMeetingScheduler(tenantId ?? undefined);
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
+    [],
+  );
   const {
     data: teamMembers = [],
     isLoading: isLoadingTeamMembers,
@@ -209,7 +211,9 @@ export function EditLeadDialog({
   } = useTeamMembersForMeeting(tenantId);
 
   // State for multi-select sales people
-  const [selectedSalesPeople, setSelectedSalesPeople] = useState<string[]>([]);
+  const [selectedSalesPeople, setSelectedSalesPeople] = useState<Array<string>>(
+    [],
+  );
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -1872,8 +1876,8 @@ export function EditLeadDialog({
  */
 function sourceSelectOptions(
   current: string | null | undefined,
-): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [
+): Array<{ value: string; label: string }> {
+  const options: Array<{ value: string; label: string }> = [
     ...LEAD_SOURCE_SELECT_OPTIONS,
   ];
   if (current && !options.some((opt) => opt.value === current)) {

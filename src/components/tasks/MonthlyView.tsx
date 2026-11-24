@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 interface MonthlyViewProps {
   currentDate: Date;
-  tasks: Task[];
+  tasks: Array<Task>;
   onDayClick: (date: Date) => void;
   onTaskClick: (task: Task) => void;
 }
@@ -29,7 +29,7 @@ function DayCell({
   onTaskClick,
 }: {
   date: Date;
-  tasks: Task[];
+  tasks: Array<Task>;
   currentMonth: Date;
   onDayClick: (date: Date) => void;
   onTaskClick: (task: Task) => void;

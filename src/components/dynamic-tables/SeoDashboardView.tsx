@@ -47,7 +47,7 @@ import {
   sortSeoReportsByRecency,
 } from "@/lib/seoDomain";
 
-const NO_EXTRA_GSC: GscKeywordData[] = [];
+const NO_EXTRA_GSC: Array<GscKeywordData> = [];
 
 interface SeoDashboardViewProps {
   tenantId: string;
@@ -57,9 +57,9 @@ interface SeoDashboardViewProps {
    * agencies. When provided, ahrefs_reports are fetched across the full set
    * (matching what SeoReportTabs already resolves for shared-agency clients).
    */
-  accessibleTenantIds?: string[];
+  accessibleTenantIds?: Array<string>;
   /** CRM records from the linked Google Analytics table */
-  gaRecords?: any[];
+  gaRecords?: Array<any>;
   /** GSC site URL persisted on the SEO crm_table — used as source of truth on first load. */
   initialGscSiteUrl?: string;
   /** GSC OAuth connection persisted on the SEO crm_table. */
@@ -83,7 +83,7 @@ interface SeoDashboardViewProps {
    * Top-20 queries from the Search Console tab (synced table). Merged so a
    * phrase that tab shows with a position also appears in Top 20.
    */
-  extraGscRows?: GscKeywordData[];
+  extraGscRows?: Array<GscKeywordData>;
 }
 
 export function SeoDashboardView({
@@ -151,7 +151,7 @@ export function SeoDashboardView({
     ahrefsMode,
     ahrefsProtocol,
   ]);
-  const [gscData, setGscData] = useState<GscKeywordData[]>([]);
+  const [gscData, setGscData] = useState<Array<GscKeywordData>>([]);
   const [gscMultiPeriod, setGscMultiPeriod] =
     useState<GscMultiPeriodData | null>(null);
   const { comparisonData, resetComparisonData } = useAhrefsEnrichment();
@@ -172,7 +172,7 @@ export function SeoDashboardView({
     return comparisonData;
   }, [comparisonData, cachedComparison]);
 
-  const handleGscDataLoaded = useCallback((data: GscKeywordData[]) => {
+  const handleGscDataLoaded = useCallback((data: Array<GscKeywordData>) => {
     setGscData(data);
   }, []);
 
@@ -448,7 +448,9 @@ export function SeoDashboardView({
   }, [keywordGscRows]);
 
   // GSC historical period maps (for cross-period position comparisons)
-  function buildGscMap(rows: GscKeywordData[]): Map<string, GscKeywordData> {
+  function buildGscMap(
+    rows: Array<GscKeywordData>,
+  ): Map<string, GscKeywordData> {
     const map = new Map<string, GscKeywordData>();
     for (const row of rows || []) {
       if (!row?.keyword) continue;

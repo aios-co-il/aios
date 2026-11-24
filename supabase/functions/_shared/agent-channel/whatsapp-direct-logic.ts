@@ -47,7 +47,7 @@ function phoneTail(value: unknown): string {
 export function isOwnerSender(args: {
   senderPhone: string;
   ownerPhones: Array<string | null | undefined>;
-  roles: string[];
+  roles: Array<string>;
 }): boolean {
   const sender = phoneTail(args.senderPhone);
   return (

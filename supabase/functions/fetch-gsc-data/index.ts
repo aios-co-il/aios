@@ -189,7 +189,7 @@ serve(async (req) => {
     // Otherwise, fetch a single page (1,000 rows).
     const maxPages = aggregateAll ? 5 : 1;
     const pageSize = 1000;
-    const collectedRows: any[] = [];
+    const collectedRows: Array<any> = [];
 
     for (let page = 0; page < maxPages; page++) {
       const pagedBody = {

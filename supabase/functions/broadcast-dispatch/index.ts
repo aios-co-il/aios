@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
     );
     if (candidatesError) throw candidatesError;
 
-    const summary: any[] = [];
+    const summary: Array<any> = [];
     let worked = 0;
 
     for (const b of sending || []) {

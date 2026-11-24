@@ -12,10 +12,10 @@ type Pipeline = {
 // marketing_pipelines in memory: filters by eq, sorts by the order calls, takes the limit.
 // `lookupError` makes the select fail, as a statement timeout does.
 function fakeDb(
-  rows: Pipeline[],
+  rows: Array<Pipeline>,
   lookupError: { message: string } | null = null,
 ) {
-  const inserted: Record<string, unknown>[] = [];
+  const inserted: Array<Record<string, unknown>> = [];
   const db = {
     from: (table: string) => {
       if (table !== "marketing_pipelines")

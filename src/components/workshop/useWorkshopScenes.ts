@@ -40,7 +40,7 @@ const isStoragePath = (url: string | null): url is string =>
 async function loadScenes(
   tenantId: string,
   projectId: string,
-): Promise<StoryboardScene[]> {
+): Promise<Array<StoryboardScene>> {
   const { data, error } = await supabase
     .from("marketing_video_scenes")
     .select(BOARD_SCENE_COLUMNS)
@@ -48,7 +48,7 @@ async function loadScenes(
     .eq("item_id", projectId)
     .order("position");
   if (error) throw error;
-  const rows = (data ?? []) as SceneRow[];
+  const rows = (data ?? []) as Array<SceneRow>;
   const ids = [
     ...new Set(
       rows
@@ -64,7 +64,7 @@ async function loadScenes(
       .eq("tenant_id", tenantId)
       .in("id", ids);
     if (assetError) throw assetError;
-    const list = (found ?? []) as SceneAsset[];
+    const list = (found ?? []) as Array<SceneAsset>;
     // Clips live in the private creative-video bucket as paths; pictures are mostly links, and
     // the user's own uploads are links to the private entity-attachments bucket.
     const paths = [...new Set(list.map((a) => a.url).filter(isStoragePath))];
@@ -196,7 +196,7 @@ export function useEditSceneText(
     },
     onMutate: async ({ sceneId, patch }) => {
       await queryClient.cancelQueries({ queryKey });
-      const before = queryClient.getQueryData<StoryboardScene[]>(queryKey);
+      const before = queryClient.getQueryData<Array<StoryboardScene>>(queryKey);
       if (before)
         queryClient.setQueryData(
           queryKey,

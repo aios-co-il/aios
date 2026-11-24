@@ -177,7 +177,7 @@ export default function Chat() {
 
   // Get tags for a specific contact
   const getContactTagIds = useCallback(
-    (contact: Contact): string[] => {
+    (contact: Contact): Array<string> => {
       return allContactTags
         .filter((ct) => {
           if (contact.contact_type === "client" && ct.client_id === contact.id)

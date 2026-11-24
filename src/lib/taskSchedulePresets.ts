@@ -147,7 +147,7 @@ export type TaskTemplate = {
   mode?: string;
 };
 
-export const TASK_TEMPLATES: TaskTemplate[] = [
+export const TASK_TEMPLATES: Array<TaskTemplate> = [
   {
     key: "pulse",
     title: "בדיקת דופק לקמפיינים",

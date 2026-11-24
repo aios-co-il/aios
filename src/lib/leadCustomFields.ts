@@ -60,8 +60,8 @@ function isEditableValue(value: unknown): boolean {
 }
 
 export function getVisibleLeadCustomFields(
-  fields: LeadCustomFieldDefinition[],
-): LeadCustomFieldDefinition[] {
+  fields: Array<LeadCustomFieldDefinition>,
+): Array<LeadCustomFieldDefinition> {
   return fields
     .filter(
       (field) =>
@@ -73,7 +73,7 @@ export function getVisibleLeadCustomFields(
 }
 
 export function getLeadCustomFieldInitialValues(
-  fields: LeadCustomFieldDefinition[],
+  fields: Array<LeadCustomFieldDefinition>,
   formData: unknown,
 ): LeadCustomFieldValues {
   const stored = asRecord(formData);
@@ -91,9 +91,9 @@ export function getLeadCustomFieldInitialValues(
 }
 
 export function getMissingRequiredLeadCustomFields(
-  fields: LeadCustomFieldDefinition[],
+  fields: Array<LeadCustomFieldDefinition>,
   values: LeadCustomFieldValues,
-): LeadCustomFieldDefinition[] {
+): Array<LeadCustomFieldDefinition> {
   return fields.filter((field) => {
     if (!field.is_required) return false;
     const value = values[field.field_key];
@@ -105,7 +105,7 @@ export function getMissingRequiredLeadCustomFields(
 
 export function mergeLeadCustomFieldValues(
   formData: unknown,
-  fields: LeadCustomFieldDefinition[],
+  fields: Array<LeadCustomFieldDefinition>,
   values: LeadCustomFieldValues,
 ): Record<string, unknown> {
   const merged = { ...asRecord(formData) };

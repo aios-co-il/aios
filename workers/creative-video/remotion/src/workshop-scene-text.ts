@@ -14,7 +14,7 @@ const plainWords = (text: string) =>
     .split(" ")
     .filter(Boolean);
 
-const contains = (outer: string[], inner: string[]) =>
+const contains = (outer: Array<string>, inner: Array<string>) =>
   ` ${outer.join(" ")} `.includes(` ${inner.join(" ")} `);
 
 /**
@@ -25,7 +25,7 @@ const contains = (outer: string[], inner: string[]) =>
  */
 export function sceneHeadline(
   scene: Pick<WorkshopScene, "caption" | "kicker">,
-  captions: WorkshopCaption[],
+  captions: Array<WorkshopCaption>,
   from: number,
   to: number,
 ): string {

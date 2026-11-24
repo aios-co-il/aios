@@ -8,7 +8,7 @@
  * callerRole, the caller's highest role in any tenant, until AIO-275 scopes
  * that to this tenant too.
  */
-export const MANAGER_ROLES: readonly string[] = [
+export const MANAGER_ROLES: ReadonlyArray<string> = [
   "owner",
   "agency_owner",
   "agency_manager",

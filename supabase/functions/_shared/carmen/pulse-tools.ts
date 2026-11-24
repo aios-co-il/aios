@@ -9,7 +9,7 @@ export const REFRESH_PULSE_TOOL_NAME = "refresh_campaign_pulse";
  * allowed_tools, so the agent Tools tab shows them as always on; only
  * disabled_tools (Carmen Access) turns them off.
  */
-export const CARMEN_PULSE_TOOL_NAMES: readonly string[] = [
+export const CARMEN_PULSE_TOOL_NAMES: ReadonlyArray<string> = [
   LATEST_PULSE_TOOL_NAME,
   REFRESH_PULSE_TOOL_NAME,
 ];

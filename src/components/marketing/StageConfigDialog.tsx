@@ -44,7 +44,7 @@ interface Props {
   onSaved: () => void;
 }
 
-const TOOLS_BY_STAGE: Record<string, { id: string; label: string }[]> = {
+const TOOLS_BY_STAGE: Record<string, Array<{ id: string; label: string }>> = {
   strategy: [
     { id: "knowledge_base", label: "מאגר ידע" },
     { id: "web_search", label: "חיפוש אינטרנט" },
@@ -118,7 +118,7 @@ export function StageConfigDialog({
     "manual" | "auto" | "hybrid"
   >("manual");
   const [instructions, setInstructions] = useState("");
-  const [tools, setTools] = useState<string[]>([]);
+  const [tools, setTools] = useState<Array<string>>([]);
   const [target, setTarget] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
@@ -215,7 +215,7 @@ export function StageConfigDialog({
     setAgentId(template.default_agent_id ?? null);
     setApprovalMode((template.default_approval_mode as any) ?? "manual");
     setInstructions(template.default_instructions ?? "");
-    setTools((template.default_tools as string[]) ?? []);
+    setTools((template.default_tools as Array<string>) ?? []);
     setTarget(template.default_target ?? {});
     toast.success("נטען מתבנית כללית");
   };
@@ -467,7 +467,7 @@ function TargetSection({
 
   if (stageType === "target_organic") {
     const pages = connections.socialPages || [];
-    const selected: string[] = target.page_ids ?? [];
+    const selected: Array<string> = target.page_ids ?? [];
     const togglePage = (id: string) =>
       setTarget({
         ...target,

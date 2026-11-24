@@ -33,8 +33,8 @@ const EXIT = 4;
 type Item = { word: WorkshopWord; index: number };
 
 /** A line's words in reading order: consecutive LTR words as one left-to-right run. */
-function runsOf(items: Item[]) {
-  const runs: { ltr: boolean; items: Item[] }[] = [];
+function runsOf(items: Array<Item>) {
+  const runs: Array<{ ltr: boolean; items: Array<Item> }> = [];
   for (const item of items) {
     const ltr = item.word.ltr === true;
     const last = runs[runs.length - 1];
@@ -146,7 +146,7 @@ const Phrase: React.FC<{
  * phrases keeps them legible over a bright picture.
  */
 export const MotionCaptions: React.FC<{
-  captions: WorkshopCaption[];
+  captions: Array<WorkshopCaption>;
   accent: string;
   fontFamily: string;
 }> = ({ captions, accent, fontFamily }) => {

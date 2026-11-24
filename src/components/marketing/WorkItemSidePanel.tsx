@@ -63,7 +63,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
   const [item, setItem] = useState<any>(null);
-  const [stages, setStages] = useState<any[]>([]);
+  const [stages, setStages] = useState<Array<any>>([]);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
 
@@ -287,7 +287,7 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
   };
 
   // Group assets by type for tabbed preview
-  const assetsByType: Record<string, any[]> = {};
+  const assetsByType: Record<string, Array<any>> = {};
   for (const a of assets ?? []) {
     (assetsByType[a.type] ??= []).push(a);
   }

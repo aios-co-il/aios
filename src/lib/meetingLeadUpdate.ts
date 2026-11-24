@@ -6,7 +6,7 @@ export function formatMeetingLeadUpdate(input: {
   endTime?: string | null;
   location?: string | null;
   subject?: string | null;
-  inviteeLabels?: string[];
+  inviteeLabels?: Array<string>;
 }): string {
   const timeRange = input.endTime
     ? `${input.startTime}–${input.endTime}`

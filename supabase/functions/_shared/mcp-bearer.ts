@@ -13,7 +13,7 @@ export const PRESET_SECRETS: Record<string, string> = {
 };
 
 export interface McpProbeResult {
-  tools: any[];
+  tools: Array<any>;
   state: "ready" | "failed";
   lastError: string | null;
 }
@@ -132,7 +132,7 @@ export async function probeMcp(
   url: string,
   bearer: string | undefined,
 ): Promise<McpProbeResult> {
-  let tools: any[] = [];
+  let tools: Array<any> = [];
   let state: McpProbeResult["state"] = "ready";
   let lastError: string | null = null;
   try {
@@ -165,7 +165,7 @@ export async function resyncInternalMcpBearer(
   conn: { id: string; name: string; url: string; tenant_id?: string | null },
 ): Promise<{
   bearer: string;
-  tools: any[];
+  tools: Array<any>;
   state: McpProbeResult["state"];
   lastError: string | null;
   url?: string;

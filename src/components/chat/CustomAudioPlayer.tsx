@@ -48,7 +48,7 @@ export default function CustomAudioPlayer({
     setIsPlaying(!isPlaying);
   };
 
-  const handleSliderChange = (value: number[]) => {
+  const handleSliderChange = (value: Array<number>) => {
     const audio = audioRef.current;
     if (!audio) return;
 

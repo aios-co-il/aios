@@ -12,7 +12,7 @@ import { Check, Search, UserPlus } from "lucide-react";
 import { useAssignableCampaigners } from "@/hooks/useAssignableCampaigners";
 
 interface CampaignerAssignmentPickerProps {
-  assignedCampaignerIds?: string[];
+  assignedCampaignerIds?: Array<string>;
   onAssign: (campaignerId: string) => void | Promise<void>;
   disabled?: boolean;
   triggerLabel?: string;

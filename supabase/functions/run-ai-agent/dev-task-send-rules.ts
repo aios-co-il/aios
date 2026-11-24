@@ -102,8 +102,8 @@ function codingAgentStarted(
   if (asked) return asked as DevAgent;
   // The bare legacy request_dev_task is Cursor's; a connection is named after its agent.
   if (!connection) return "cursor";
-  const named = (Object.keys(AGENT_SPELLINGS) as DevAgent[]).filter((agent) =>
-    connection.toLowerCase().includes(agent),
+  const named = (Object.keys(AGENT_SPELLINGS) as Array<DevAgent>).filter(
+    (agent) => connection.toLowerCase().includes(agent),
   );
   return named.length === 1 ? named[0] : null;
 }

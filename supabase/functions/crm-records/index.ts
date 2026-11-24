@@ -301,7 +301,7 @@ Deno.serve(async (req) => {
       // Check if aggregated data is requested (for dashboards like Search Console)
       if (aggregated === "search_console") {
         const pageSize = 1000;
-        const allRecords: any[] = [];
+        const allRecords: Array<any> = [];
 
         for (let from = 0; ; from += pageSize) {
           let pageQuery = supabase
@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
       // Fetch records with pagination (PostgREST enforces a 1000-row cap per request)
       const pageSize = 1000;
       const maxRows = 100000;
-      const allRecords: any[] = [];
+      const allRecords: Array<any> = [];
       const rowsFilter = recordsFilter(resolvedDateRange, {
         level,
         integrationType: tableInfo.integration_type,

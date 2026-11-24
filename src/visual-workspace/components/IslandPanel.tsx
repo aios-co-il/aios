@@ -26,9 +26,9 @@ interface Props {
 export function IslandPanel({ island, onClose, onOpenSheet }: Props) {
   const { tenantId } = useCurrentTenant();
   const [loading, setLoading] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
+  const [items, setItems] = useState<Array<any>>([]);
+  const [tasks, setTasks] = useState<Array<any>>([]);
+  const [agents, setAgents] = useState<Array<any>>([]);
 
   useEffect(() => {
     if (!island || !tenantId) return;

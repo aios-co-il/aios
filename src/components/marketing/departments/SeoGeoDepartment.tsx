@@ -660,7 +660,7 @@ function ListCard({
   values = [],
 }: {
   title: string;
-  values?: string[];
+  values?: Array<string>;
 }) {
   return (
     <Card className="p-4">

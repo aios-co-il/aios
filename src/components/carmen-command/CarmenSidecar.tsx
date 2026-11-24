@@ -40,7 +40,7 @@ export function CarmenSidecar({
   const { userId, user } = useCurrentUser();
   const { toast } = useToast();
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<SidecarMessage[]>([]);
+  const [messages, setMessages] = useState<Array<SidecarMessage>>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);

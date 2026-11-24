@@ -33,7 +33,7 @@ export const selfTestCollector: Collector = {
 };
 
 /** The array under `key` in the fixtures, or an empty list. */
-function fixtureList(fixtures: Json | null, key: string): Json[] {
+function fixtureList(fixtures: Json | null, key: string): Array<Json> {
   if (!fixtures || typeof fixtures !== "object" || Array.isArray(fixtures)) {
     return [];
   }

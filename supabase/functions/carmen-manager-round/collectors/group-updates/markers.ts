@@ -6,7 +6,7 @@
  */
 import type { DigestItemType } from "./digest.ts";
 
-const MARKERS: readonly { type: DigestItemType; pattern: RegExp }[] = [
+const MARKERS: ReadonlyArray<{ type: DigestItemType; pattern: RegExp }> = [
   { type: "budget_change", pattern: /תקציב|₪|\d[\d,]*\s*(?:ש"ח|שח|שקל)/ },
   {
     type: "approval",
@@ -24,7 +24,7 @@ const MARKERS: readonly { type: DigestItemType; pattern: RegExp }[] = [
 ];
 
 /** The item types whose marker the text carries, in registry order. */
-export function markerTypes(text: string): DigestItemType[] {
+export function markerTypes(text: string): Array<DigestItemType> {
   return MARKERS.filter((marker) => marker.pattern.test(text)).map(
     (marker) => marker.type,
   );

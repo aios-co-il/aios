@@ -85,7 +85,7 @@ const EN_STOP = new Set([
   "why",
 ]);
 
-export function tokenizeKeyword(raw: string): string[] {
+export function tokenizeKeyword(raw: string): Array<string> {
   const text = String(raw || "")
     .toLowerCase()
     .replace(/[״"׳']/g, "")
@@ -94,7 +94,7 @@ export function tokenizeKeyword(raw: string): string[] {
     .trim();
   if (!text) return [];
 
-  const tokens: string[] = [];
+  const tokens: Array<string> = [];
   for (const part of text.split(/[\s-]+/)) {
     if (!part) continue;
     const isHe = /[\u0590-\u05FF]/.test(part);
@@ -164,7 +164,7 @@ export function notifySeoKeywordRelevanceChanged(
 export function loadSeoForceList(
   persistKey: string | undefined,
   kind: "relevant" | "irrelevant",
-): string[] {
+): Array<string> {
   if (!persistKey || typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(seoForceListStorageKey(persistKey, kind));
@@ -183,7 +183,7 @@ export function loadSeoForceList(
 export function saveSeoForceList(
   persistKey: string | undefined,
   kind: "relevant" | "irrelevant",
-  values: string[],
+  values: Array<string>,
 ) {
   if (!persistKey || typeof window === "undefined") return;
   try {
@@ -197,24 +197,24 @@ export function saveSeoForceList(
   }
 }
 
-export function loadSeoForceRelevant(persistKey?: string): string[] {
+export function loadSeoForceRelevant(persistKey?: string): Array<string> {
   return loadSeoForceList(persistKey, "relevant");
 }
 
-export function loadSeoForceIrrelevant(persistKey?: string): string[] {
+export function loadSeoForceIrrelevant(persistKey?: string): Array<string> {
   return loadSeoForceList(persistKey, "irrelevant");
 }
 
 export function saveSeoForceRelevant(
   persistKey: string | undefined,
-  values: string[],
+  values: Array<string>,
 ) {
   saveSeoForceList(persistKey, "relevant", values);
 }
 
 export function saveSeoForceIrrelevant(
   persistKey: string | undefined,
-  values: string[],
+  values: Array<string>,
 ) {
   saveSeoForceList(persistKey, "irrelevant", values);
 }
@@ -269,14 +269,14 @@ export function isKeywordRelevantToTracked(
 }
 
 export function filterRelevantKeywords<T extends { keyword?: string }>(
-  keywords: T[],
+  keywords: Array<T>,
   trackedKeywords: Array<{ keyword?: string } | string>,
   opts?: {
     enabled?: boolean;
-    forceRelevant?: string[];
-    forceIrrelevant?: string[];
+    forceRelevant?: Array<string>;
+    forceIrrelevant?: Array<string>;
   },
-): { relevant: T[]; irrelevant: T[] } {
+): { relevant: Array<T>; irrelevant: Array<T> } {
   if (opts?.enabled === false) {
     return { relevant: keywords, irrelevant: [] };
   }
@@ -288,8 +288,8 @@ export function filterRelevantKeywords<T extends { keyword?: string }>(
     (opts?.forceIrrelevant || []).map(normalizePhrase).filter(Boolean),
   );
 
-  const relevant: T[] = [];
-  const irrelevant: T[] = [];
+  const relevant: Array<T> = [];
+  const irrelevant: Array<T> = [];
   for (const kw of keywords) {
     if (
       isKeywordRelevantToTracked(String(kw.keyword || ""), index, {

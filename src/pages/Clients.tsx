@@ -125,7 +125,7 @@ export default function Clients() {
   const [showFiltersDialog, setShowFiltersDialog] = useState(false);
   const [showImportCSV, setShowImportCSV] = useState(false);
   const [showImportSheet, setShowImportSheet] = useState(false);
-  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<Array<string>>([]);
 
   // Bulk Meta page sync
   const [showBulkMetaSync, setShowBulkMetaSync] = useState(false);
@@ -198,7 +198,7 @@ export default function Clients() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -240,7 +240,7 @@ export default function Clients() {
   const { data: ownedAgencies } = useQuery({
     queryKey: ["owned-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("agencies")
         .select("id")
@@ -313,7 +313,7 @@ export default function Clients() {
       agencies?.length || 0,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const selectStr = CLIENT_LIST_SELECT;
 
       let query = supabase
@@ -371,7 +371,7 @@ export default function Clients() {
   const { data: clientTeam } = useQuery({
     queryKey: ["client-team", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) return [] as Array<any>;
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id, campaigner_id");

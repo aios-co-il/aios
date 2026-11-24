@@ -16,7 +16,7 @@ export const EXECUTION_GOAL_STATUSES = [
 
 export type ExecutionGoalStatus = (typeof EXECUTION_GOAL_STATUSES)[number];
 
-export const OPEN_GOAL_STATUSES: ExecutionGoalStatus[] = [
+export const OPEN_GOAL_STATUSES: Array<ExecutionGoalStatus> = [
   "active",
   "in_progress",
   "blocked",
@@ -174,7 +174,7 @@ export async function createUnifiedGoal(
   args: UnifiedGoalCreateArgs,
 ): Promise<{
   goal: ExecutionGoalRow;
-  criteria?: unknown[];
+  criteria?: Array<unknown>;
   autonomous_deferred?: boolean;
   notice?: string;
 }> {
@@ -189,7 +189,7 @@ export async function createUnifiedGoal(
       .single();
 
     if (!error) {
-      let criteriaRows: unknown[] = [];
+      let criteriaRows: Array<unknown> = [];
       try {
         const { seedSuccessCriteria } =
           await import("./autonomous-goal-engine.ts");
@@ -429,7 +429,7 @@ export async function getGoalExecutionReport(
     ? Math.round((doneMilestones / totalMilestones) * 100)
     : Number(goal?.progress_percent || 0);
 
-  const nextActions: string[] = [];
+  const nextActions: Array<string> = [];
   if (goal?.next_action) nextActions.push(goal.next_action);
   const pendingMilestone = (milestones || []).find(
     (m: { status: string }) =>

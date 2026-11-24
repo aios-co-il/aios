@@ -356,12 +356,12 @@ export function CarmenTasksView({
   );
 }
 
-const NEW_KINDS: {
+const NEW_KINDS: Array<{
   path: string;
   title: string;
   hint: string;
   icon: typeof Repeat;
-}[] = [
+}> = [
   {
     path: "new/task",
     title: "משימה חד-פעמית",

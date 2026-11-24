@@ -13,7 +13,12 @@ import { executeWorkshopTool, WORKSHOP_TOOLS } from "./workshop-tools.ts";
 import { REDO_KEY } from "./workshop/scene-helpers.ts";
 
 type Row = Record<string, any>;
-type Write = { table: string; op: string; value: unknown; filters: string[] };
+type Write = {
+  table: string;
+  op: string;
+  value: unknown;
+  filters: Array<string>;
+};
 
 const valueAt = (row: Row, column: string) => {
   const [base, key] = column.split("->>");
@@ -26,9 +31,9 @@ const valueAt = (row: Row, column: string) => {
 };
 
 /** Tables of rows; reads, updates and deletes keep only the rows every filter matches. */
-function memoryDb(tables: Record<string, Row[]>) {
-  const writes: Write[] = [];
-  const rpcs: { name: string; args: Row }[] = [];
+function memoryDb(tables: Record<string, Array<Row>>) {
+  const writes: Array<Write> = [];
+  const rpcs: Array<{ name: string; args: Row }> = [];
   let ids = 0;
   const rows = (table: string) => (tables[table] ??= []);
   const db = {
@@ -55,7 +60,7 @@ function memoryDb(tables: Record<string, Row[]>) {
         const item = rows("marketing_work_items").find(
           (row) => row.id === args.p_item_id,
         );
-        for (const scene of args.p_scenes as Row[]) {
+        for (const scene of args.p_scenes as Array<Row>) {
           const { lipsync, speaker, dialogue, reference_url, ...columns } =
             scene;
           rows("marketing_video_scenes").push({
@@ -104,8 +109,8 @@ function memoryDb(tables: Record<string, Row[]>) {
       return Promise.resolve({ data: null, error: null });
     },
     from(table: string) {
-      const filters: ((row: Row) => boolean)[] = [];
-      const labels: string[] = [];
+      const filters: Array<(row: Row) => boolean> = [];
+      const labels: Array<string> = [];
       let op = "select";
       let value: unknown;
       let order: string | null = null;
@@ -115,7 +120,7 @@ function memoryDb(tables: Record<string, Row[]>) {
         rows(table).filter((row) => filters.every((f) => f(row)));
       const run = () => {
         if (op === "insert") {
-          const list = (Array.isArray(value) ? value : [value]) as Row[];
+          const list = (Array.isArray(value) ? value : [value]) as Array<Row>;
           const made = list.map((row) => ({ id: `${table}-${++ids}`, ...row }));
           rows(table).push(...made);
           return Array.isArray(value) ? made : made[0];
@@ -161,7 +166,7 @@ function memoryDb(tables: Record<string, Row[]>) {
           );
           return builder;
         },
-        in(column: string, wanted: unknown[]) {
+        in(column: string, wanted: Array<unknown>) {
           labels.push(`${column} in ${wanted.join(",")}`);
           filters.push((row) =>
             wanted.map(String).includes(String(valueAt(row, column))),
@@ -240,7 +245,7 @@ const sceneRow = (id: string, position: number, over: Row = {}) => ({
   ...over,
 });
 
-const film = (over: Record<string, Row[]> = {}) =>
+const film = (over: Record<string, Array<Row>> = {}) =>
   memoryDb({
     marketing_work_items: [project()],
     marketing_video_scenes: [
@@ -767,7 +772,7 @@ Deno.test(
     // No voice chosen yet: Carmen is told to let the user choose one first.
     assertMatch(result.talking_note, /workshop_choose_voice/);
     const saved = db.rpcs.find((call) => call.name === "save_video_storyboard")!
-      .args.p_scenes as Row[];
+      .args.p_scenes as Array<Row>;
     assertEquals(
       saved.map((scene) => scene.motion_prompt),
       editArgs.motion,
@@ -1240,7 +1245,7 @@ Deno.test(
 
 // ── A film being produced keeps its storyboard ──────────────────────────────
 
-const newStoryboards: [string, Row][] = [
+const newStoryboards: Array<[string, Row]> = [
   ["workshop_storyboard", { scenes: [{ visual_prompt: "Carmen on a roof" }] }],
   ["workshop_edit_from_assets", editArgs],
 ];

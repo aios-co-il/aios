@@ -5,7 +5,7 @@ import type { EmailOption } from "@/components/clients/EmailRecipientsSelector";
  * by email (DMM ops distribution list). Always offered as selectable options
  * even when the client has no email and client_team is empty.
  */
-export const DEFAULT_REPORT_EMAIL_RECIPIENTS: EmailOption[] = [
+export const DEFAULT_REPORT_EMAIL_RECIPIENTS: Array<EmailOption> = [
   { email: "adamchik2301@gmail.com", label: "Anna Relin", icon: "👤" },
   { email: "david.castelnuovo@gmail.com", label: "David", icon: "👤" },
   { email: "dmm4business@gmail.com", label: "DMM", icon: "🏢" },
@@ -16,8 +16,8 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 /** Deduped default emails (+ optional client email) for initial selection. */
 export function buildDefaultReportRecipientEmails(
   clientEmail?: string | null,
-): string[] {
-  const out: string[] = [];
+): Array<string> {
+  const out: Array<string> = [];
   const seen = new Set<string>();
   for (const opt of DEFAULT_REPORT_EMAIL_RECIPIENTS) {
     const email = normalizeEmail(opt.email);
@@ -43,9 +43,9 @@ export function buildReportEmailOptions(args: {
     role_on_account?: string | null;
     campaigners?: { full_name?: string | null; email?: string | null } | null;
   }> | null;
-}): EmailOption[] {
+}): Array<EmailOption> {
   const seen = new Set<string>();
-  const out: EmailOption[] = [];
+  const out: Array<EmailOption> = [];
 
   const push = (opt: EmailOption) => {
     const email = normalizeEmail(opt.email || "");

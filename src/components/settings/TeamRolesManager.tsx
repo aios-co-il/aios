@@ -41,7 +41,7 @@ export function TeamRolesManager() {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenant();
 
-  const [customRoles, setCustomRoles] = useState<TeamRole[]>(teamRoles);
+  const [customRoles, setCustomRoles] = useState<Array<TeamRole>>(teamRoles);
   const [newRoleKey, setNewRoleKey] = useState("");
   const [newRoleLabel, setNewRoleLabel] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
@@ -52,7 +52,7 @@ export function TeamRolesManager() {
   }, [teamRoles]);
 
   const saveMutation = useMutation({
-    mutationFn: async (roles: TeamRole[]) => {
+    mutationFn: async (roles: Array<TeamRole>) => {
       await updateRoles(roles);
     },
     onSuccess: () => {

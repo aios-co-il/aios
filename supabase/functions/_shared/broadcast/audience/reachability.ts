@@ -12,10 +12,10 @@ export async function filterReachable(
   db: AudienceDb,
   tenantId: string,
   channel: string,
-  recipients: Recipient[],
-): Promise<Recipient[]> {
+  recipients: Array<Recipient>,
+): Promise<Array<Recipient>> {
   const seen = new Set<string>();
-  const deduped: Recipient[] = [];
+  const deduped: Array<Recipient> = [];
   for (const r of recipients) {
     if (r.entity_type === "wa_group") {
       const key = `g:${r.group_chat_id || r.entity_id}`;

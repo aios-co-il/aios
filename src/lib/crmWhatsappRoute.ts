@@ -7,7 +7,7 @@ export type CrmWhatsappIntegration = {
   user_id?: string | null;
 };
 
-const WA_ORDER: CrmWhatsappProvider[] = [
+const WA_ORDER: Array<CrmWhatsappProvider> = [
   "green_api",
   "manus_wa",
   "meta_whatsapp",
@@ -16,7 +16,7 @@ const WA_ORDER: CrmWhatsappProvider[] = [
 
 export function pickCrmWhatsappIntegration(
   preferred: string | null | undefined,
-  integrations: readonly CrmWhatsappIntegration[] | null | undefined,
+  integrations: ReadonlyArray<CrmWhatsappIntegration> | null | undefined,
 ): { id: string; type: CrmWhatsappProvider; user_id: string | null } | null {
   const list = integrations || [];
   if (list.length === 0) return null;

@@ -38,7 +38,7 @@ export type BrainEnginePlan =
   | {
       kind: "connections";
       slug: string;
-      connections: EngineConnection[];
+      connections: Array<EngineConnection>;
       fallbackInternal: boolean;
     }
   /** Nothing may run; the message says why and what to change. */
@@ -82,8 +82,8 @@ export function runsUnpicked(
  */
 export function planBrainEngine(
   route: EngineRoute | null,
-  conns: EngineConnection[],
-  modelRoutes: ModelRouteRow[],
+  conns: Array<EngineConnection>,
+  modelRoutes: Array<ModelRouteRow>,
   allowed: (slug: string) => boolean,
 ): BrainEnginePlan {
   if (!route || route.route_type !== "model") return { kind: "internal" };

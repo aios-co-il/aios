@@ -302,7 +302,7 @@ const SERVICE_ICON: Record<string, ReactNode> = {
   openai: <Brain className="h-4 w-4" />,
 };
 
-function UptimeStrip({ history }: { history: ("ok" | "warn" | "down")[] }) {
+function UptimeStrip({ history }: { history: Array<"ok" | "warn" | "down"> }) {
   return (
     <div
       className="mt-1 flex items-end gap-[2px]"

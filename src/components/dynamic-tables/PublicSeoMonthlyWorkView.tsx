@@ -47,12 +47,12 @@ type MonthlyRow = {
 type Props = {
   clientName?: string | null;
   domain?: string | null;
-  months: MonthlyRow[];
+  months: Array<MonthlyRow>;
   /** @deprecated Prefer per-month share_token on months[]. */
   shareToken?: string | null;
-  ahrefsReports?: any[];
-  forceRelevant?: string[];
-  forceIrrelevant?: string[];
+  ahrefsReports?: Array<any>;
+  forceRelevant?: Array<string>;
+  forceIrrelevant?: Array<string>;
   /** Render as a standalone page: the report fills the screen, controls move into its sticky header. */
   fullPage?: boolean;
   /** Shown as "back to dashboard" in the sticky header when in full-page mode. */
@@ -118,8 +118,8 @@ export function PublicSeoMonthlyWorkView({
     return parsed;
   }, [selected]);
 
-  const recentLinks = useMemo<SeoShareRecentLink[]>(() => {
-    const out: SeoShareRecentLink[] = [];
+  const recentLinks = useMemo<Array<SeoShareRecentLink>>(() => {
+    const out: Array<SeoShareRecentLink> = [];
     const seen = new Set<string>();
     const selectedKey = (selected?.month || selectedMonth).slice(0, 10);
     const windowStart = (() => {

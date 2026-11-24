@@ -8,7 +8,7 @@ const OTHER = "cccccccc-0000-0000-0000-000000000002";
 
 /** A storage stand-in that signs every path, or fails when `fails` is set; it records what it signed. */
 function storage(fails = false) {
-  const signed: string[] = [];
+  const signed: Array<string> = [];
   const supabase = {
     storage: {
       from: (bucket: string) => ({

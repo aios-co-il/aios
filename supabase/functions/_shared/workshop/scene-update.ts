@@ -43,7 +43,7 @@ export interface SceneRow {
 
 export interface SceneUpdate {
   patch: Record<string, unknown>;
-  changed: string[];
+  changed: Array<string>;
   /** Only this scene's clip is made again in the next production. */
   clipRedo: boolean;
   /** The clip stays; the next production records the new line and lip-syncs it again. */
@@ -94,7 +94,7 @@ export function planSceneUpdate(
   const meta = asRecord(scene.meta);
   const footage = isOwnFootage(scene);
   const patch: Record<string, unknown> = {};
-  const changed: string[] = [];
+  const changed: Array<string> = [];
   const setText = (key: keyof typeof LIMITS & string) => {
     if (!given(args, key)) return;
     const next = clean(args[key], LIMITS[key]);

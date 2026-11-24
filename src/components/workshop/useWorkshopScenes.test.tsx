@@ -13,18 +13,18 @@ import {
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   toastError: vi.fn(),
-  rows: [] as unknown[],
+  rows: [] as Array<unknown>,
   realtime: null as null | (() => void),
   /** The newest storyboard page of the project, and what was written to pages. */
   page: null as null | { id: string; meta: Record<string, unknown> },
-  pageWrites: [] as { meta: Record<string, unknown> }[],
+  pageWrites: [] as Array<{ meta: Record<string, unknown> }>,
   /** The scenes' still and clip assets. */
-  assets: [] as { id: string; url: string }[],
+  assets: [] as Array<{ id: string; url: string }>,
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
-  signCreativeVideoPaths: async (paths: string[]) =>
+  signCreativeVideoPaths: async (paths: Array<string>) =>
     Object.fromEntries(paths.map((path) => [path, `https://signed/${path}`])),
 }));
 vi.mock("@/integrations/supabase/client", () => {
@@ -162,9 +162,9 @@ test("a saved text shows at once; a failed save puts the old text back and says 
       .catch((error) => error);
   });
   await waitFor(() =>
-    expect(client.getQueryData<StoryboardScene[]>(key)?.[0].overlayText).toBe(
-      "חדש",
-    ),
+    expect(
+      client.getQueryData<Array<StoryboardScene>>(key)?.[0].overlayText,
+    ).toBe("חדש"),
   );
   // The texts left out are not sent: the function's null default keeps them.
   const [name, args] = mocks.rpc.mock.calls[0];
@@ -178,9 +178,9 @@ test("a saved text shows at once; a failed save puts the old text back and says 
     fail({ message: "permission denied" });
     await saving;
   });
-  expect(client.getQueryData<StoryboardScene[]>(key)?.[0].overlayText).toBe(
-    "ישן",
-  );
+  expect(
+    client.getQueryData<Array<StoryboardScene>>(key)?.[0].overlayText,
+  ).toBe("ישן");
   expect(mocks.toastError).toHaveBeenCalledWith(
     "לא הצלחנו לשמור את הטקסט של הסצנה",
   );

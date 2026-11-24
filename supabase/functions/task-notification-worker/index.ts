@@ -200,7 +200,7 @@ async function processTask(
   supabase: ReturnType<typeof createClient>,
   task: TaskRow,
 ) {
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const oneMinuteAgo = Date.now() - 60 * 1000;
   const reminderAt = taskReminderAt(task);
   const { isSelfAssigned, shouldNotifyAssignee, isManagedAssignment } =
@@ -392,7 +392,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const errors: Array<{ task_id: string; error: string }> = [];
 
   try {
@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
     if (shabbatHold) {
       return shabbatHold;
     }
-    let tasks: TaskRow[] = [];
+    let tasks: Array<TaskRow> = [];
 
     if (body?.task_id) {
       const task = await fetchTask(supabase, String(body.task_id));
@@ -492,7 +492,7 @@ Deno.serve(async (req) => {
         ...(completions.data || []),
         ...(selfReminders.data || []),
         ...(overdueTasks.data || []),
-      ] as TaskRow[])
+      ] as Array<TaskRow>)
         unique.set(task.id, task);
       tasks = [...unique.values()];
     }

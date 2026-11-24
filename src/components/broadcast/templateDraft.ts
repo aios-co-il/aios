@@ -11,7 +11,7 @@ export interface TemplateDraft {
   htmlMode: boolean;
   bodyText: string;
   mediaUrl: string;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
 }
 
 /** The editor's draft and its setter, passed to every editor section. */

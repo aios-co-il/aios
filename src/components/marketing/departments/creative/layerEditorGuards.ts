@@ -2,7 +2,7 @@ export const EDITOR_FONT_WEIGHTS = ["400", "600", "700", "800", "900"] as const;
 
 export function safeSelectValue(
   value: string | undefined,
-  options: readonly string[],
+  options: ReadonlyArray<string>,
   fallback: string,
 ): string {
   return value && options.includes(value) ? value : fallback;

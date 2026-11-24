@@ -29,14 +29,14 @@ export interface EngineEstimate {
   label: string;
 }
 
-const SCENE_ENGINES: SceneEngine[] = [
+const SCENE_ENGINES: Array<SceneEngine> = [
   "mock",
   "kling",
   "elevenlabs",
   "higgsfield",
   "openrouter",
 ];
-const SOUND_ENGINES: SoundEngine[] = ["elevenlabs", "higgsfield"];
+const SOUND_ENGINES: Array<SoundEngine> = ["elevenlabs", "higgsfield"];
 
 export const SCENE_ENGINE_LABEL: Record<SceneEngine, string> = {
   mock: "חינם — תצוגה",
@@ -115,7 +115,7 @@ export const elevenLabsAspect = (aspect: string) =>
 
 export function sceneEstimate(
   engine: SceneEngine,
-  frames: StoryboardFrame[],
+  frames: Array<StoryboardFrame>,
 ): EngineEstimate {
   const seconds = frames.reduce(
     (sum, frame) => sum + sceneClipSeconds(engine, frame.duration),
@@ -172,7 +172,7 @@ export function sceneEstimate(
  * Scenes that need a (new) voiceover: they have text, and no current voice or one spoken
  * from different text. Unchanged voiceovers are not paid for again.
  */
-export const framesToVoice = (frames: StoryboardFrame[]) => {
+export const framesToVoice = (frames: Array<StoryboardFrame>) => {
   const spoken = frames.filter((frame) => frame.voiceover.trim());
   const stale = spoken.some((frame) => {
     const text = frame.voiceover.trim();
@@ -182,7 +182,7 @@ export const framesToVoice = (frames: StoryboardFrame[]) => {
   return stale ? spoken : [];
 };
 
-export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
+export function voiceEstimate(frames: Array<StoryboardFrame>): EngineEstimate {
   const spoken = framesToVoice(frames);
   const characters = spoken.reduce(
     (sum, frame) => sum + voiceCharacters(frame.voiceover),
@@ -204,7 +204,7 @@ export function voiceEstimate(frames: StoryboardFrame[]): EngineEstimate {
  * The music bed: `seconds` is the storyboard, the price covers the film the bed is made for
  * (the narration's stretch, the end card and a tail; musicQuoteSeconds in clip-prices.ts).
  */
-export function musicEstimate(frames: StoryboardFrame[]): EngineEstimate {
+export function musicEstimate(frames: Array<StoryboardFrame>): EngineEstimate {
   const seconds = frames.reduce(
     (sum, frame) => sum + (Number(frame.duration) || 0),
     0,
