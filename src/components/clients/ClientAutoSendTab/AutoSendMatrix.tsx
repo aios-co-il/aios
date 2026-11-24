@@ -117,7 +117,7 @@ function KindRow({
   save,
 }: {
   kind: ClientAutoSendKind;
-  optIns: ClientAutoSendOptIn[];
+  optIns: Array<ClientAutoSendOptIn>;
   card: ClientCardTargets;
   editable: boolean;
   save: SaveSwitch;
@@ -153,7 +153,7 @@ function KindRow({
 /** The saved position, or the one being saved for this switch. */
 function switchPosition(
   save: SaveSwitch,
-  optIns: ClientAutoSendOptIn[],
+  optIns: Array<ClientAutoSendOptIn>,
   kind: ClientAutoSendKind,
   target: ClientAutoSendTarget,
 ): boolean {

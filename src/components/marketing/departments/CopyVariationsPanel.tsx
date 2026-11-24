@@ -7,7 +7,7 @@ import {
 } from "@/components/marketing/departments/creative/copyVariations";
 
 interface Props {
-  variations: StoredCopyVariation[];
+  variations: Array<StoredCopyVariation>;
   generating?: boolean;
   generatingConceptName?: string | null;
   onToggleApprove: (id: string) => void;

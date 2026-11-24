@@ -127,22 +127,36 @@ Deno.serve(async (req) => {
 
       // Build update object with only provided fields
       const updateData: Record<string, any> = {};
-      if (payload.status !== undefined) updateData.status = payload.status;
-      if (payload.title !== undefined) updateData.title = payload.title;
-      if (payload.notes !== undefined) updateData.notes = payload.notes;
-      if (payload.due_date !== undefined)
+      if (payload.status !== undefined) {
+        updateData.status = payload.status;
+      }
+      if (payload.title !== undefined) {
+        updateData.title = payload.title;
+      }
+      if (payload.notes !== undefined) {
+        updateData.notes = payload.notes;
+      }
+      if (payload.due_date !== undefined) {
         updateData.due_date = payload.due_date;
-      if (payload.due_time !== undefined)
+      }
+      if (payload.due_time !== undefined) {
         updateData.due_time = payload.due_time;
-      if (payload.priority !== undefined)
+      }
+      if (payload.priority !== undefined) {
         updateData.priority = payload.priority;
-      if (payload.campaigner_id !== undefined)
+      }
+      if (payload.campaigner_id !== undefined) {
         updateData.campaigner_id = payload.campaigner_id;
-      if (payload.client_id !== undefined)
+      }
+      if (payload.client_id !== undefined) {
         updateData.client_id = payload.client_id;
-      if (payload.lead_id !== undefined) updateData.lead_id = payload.lead_id;
-      if (payload.sales_person_id !== undefined)
+      }
+      if (payload.lead_id !== undefined) {
+        updateData.lead_id = payload.lead_id;
+      }
+      if (payload.sales_person_id !== undefined) {
         updateData.sales_person_id = payload.sales_person_id;
+      }
 
       if (Object.keys(updateData).length === 0) {
         return new Response(

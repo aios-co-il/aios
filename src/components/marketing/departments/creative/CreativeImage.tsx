@@ -17,9 +17,13 @@ export function CreativeImage({ src, alt, className }: Props) {
     let cancelled = false;
     setFailed(false);
     setResolved(null);
-    if (!src) return;
+    if (!src) {
+      return;
+    }
     void resolveCreativeImageUrl(src).then((url) => {
-      if (!cancelled) setResolved(url);
+      if (!cancelled) {
+        setResolved(url);
+      }
     });
     return () => {
       cancelled = true;

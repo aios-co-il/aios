@@ -52,13 +52,17 @@ function decodeBase64Png(dataUrl: string): Uint8Array {
   const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
   return bytes;
 }
 
 async function fetchFileBytes(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`failed_to_fetch_document: ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`failed_to_fetch_document: ${res.status}`);
+  }
   return new Uint8Array(await res.arrayBuffer());
 }
 
@@ -78,7 +82,9 @@ async function fetchDocumentBytes(
   const { data, error } = await supabase.storage
     .from("signature-documents")
     .download(storagePath!);
-  if (error || !data) throw error || new Error("failed_to_download_document");
+  if (error || !data) {
+    throw error || new Error("failed_to_download_document");
+  }
   return new Uint8Array(await data.arrayBuffer());
 }
 
@@ -94,7 +100,9 @@ async function embedFieldFont(pdfDoc: PDFDocument) {
   try {
     pdfDoc.registerFontkit(fontkit);
     const res = await fetch(UI_FONT_URL);
-    if (!res.ok) throw new Error(`font_fetch_${res.status}`);
+    if (!res.ok) {
+      throw new Error(`font_fetch_${res.status}`);
+    }
     const bytes = new Uint8Array(await res.arrayBuffer());
     return await pdfDoc.embedFont(bytes, { subset: true });
   } catch {
@@ -223,14 +231,14 @@ async function buildSignedPdf(
     content: string | null;
     file_url: string | null;
     document_type: string;
-    document_fields?: DocumentField[] | null;
+    document_fields?: Array<DocumentField> | null;
     client_id?: string | null;
     lead_id?: string | null;
     business_stamp_name?: string | null;
     business_stamp_company_id?: string | null;
     tenant_id?: string;
   },
-  recipients: RecipientRow[],
+  recipients: Array<RecipientRow>,
   supabase: ReturnType<typeof createClient>,
 ): Promise<Uint8Array> {
   const signedRecipients = recipients.filter((r) => r.status === "signed");
@@ -286,7 +294,7 @@ async function buildSignedPdf(
         await renderSignatureFieldPng(title, 495, 30, size),
       );
       page.drawImage(image, { x: 50, y: height - 70, width: 495, height: 30 });
-    } else
+    } else {
       page.drawText(title, {
         x: 50,
         y: height - 60,
@@ -294,6 +302,7 @@ async function buildSignedPdf(
         font,
         color: rgb(0, 0, 0),
       });
+    }
   }
 
   let fallbackIndex = 0;
@@ -332,11 +341,19 @@ async function buildSignedPdf(
     let recipientCompanyId = values.__stamp_company_id || companyId;
     let recipientCompanyName = values.__stamp_name || "";
     for (const field of docFields) {
-      if ((field.recipient_index ?? 0) !== recipientIndex) continue;
+      if ((field.recipient_index ?? 0) !== recipientIndex) {
+        continue;
+      }
       const filled = values[field.id]?.trim();
-      if (!filled) continue;
-      if (field.type === "id_number") recipientCompanyId = filled;
-      if (field.type === "company_name") recipientCompanyName = filled;
+      if (!filled) {
+        continue;
+      }
+      if (field.type === "id_number") {
+        recipientCompanyId = filled;
+      }
+      if (field.type === "company_name") {
+        recipientCompanyName = filled;
+      }
     }
 
     const stampName = (
@@ -347,9 +364,13 @@ async function buildSignedPdf(
 
     if (docFields.length > 0) {
       for (const field of docFields) {
-        if ((field.recipient_index ?? 0) !== recipientIndex) continue;
+        if ((field.recipient_index ?? 0) !== recipientIndex) {
+          continue;
+        }
         const value = values[field.id];
-        if (!value) continue;
+        if (!value) {
+          continue;
+        }
         const pageIndex = Math.max(0, (field.position?.page ?? 1) - 1);
 
         if (field.type === "signature" || field.type === "signature_stamp") {
@@ -486,8 +507,9 @@ const responseHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -545,7 +567,9 @@ Deno.serve(async (req) => {
       .eq("document_id", documentId)
       .order("sign_order");
 
-    if (recError) throw recError;
+    if (recError) {
+      throw recError;
+    }
     if (
       !recipients?.length ||
       recipients.some((recipient) => recipient.status !== "signed")
@@ -558,7 +582,7 @@ Deno.serve(async (req) => {
 
     const pdfBytes = await buildSignedPdf(
       doc,
-      recipients as RecipientRow[],
+      recipients as Array<RecipientRow>,
       supabase,
     );
     const storagePath = `${doc.tenant_id}/signed/${documentId}.pdf`;
@@ -570,7 +594,9 @@ Deno.serve(async (req) => {
         upsert: true,
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      throw uploadError;
+    }
 
     const { error: updateError } = await supabase
       .from("signature_documents")
@@ -580,7 +606,9 @@ Deno.serve(async (req) => {
       })
       .eq("id", documentId);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      throw updateError;
+    }
 
     await supabase.rpc("log_signature_event", {
       _document_id: documentId,

@@ -16,8 +16,12 @@ export function resolveAppEnv(raw: string | undefined | null): AppEnv {
 /** Vite frontend: explicit VITE_APP_ENV wins; local `pnpm dev` is development. */
 export function resolveFrontendAppEnv(): AppEnv {
   const explicit = import.meta.env.VITE_APP_ENV as string | undefined;
-  if (explicit && String(explicit).trim()) return resolveAppEnv(explicit);
-  if (import.meta.env.DEV) return "development";
+  if (explicit && String(explicit).trim()) {
+    return resolveAppEnv(explicit);
+  }
+  if (import.meta.env.DEV) {
+    return "development";
+  }
   return "production";
 }
 
@@ -29,7 +33,9 @@ export function isNonProduction(env: AppEnv): boolean {
 export function resolvePublicAppOrigin(): string {
   if (typeof window !== "undefined" && window.location?.origin) {
     const env = resolveFrontendAppEnv();
-    if (isNonProduction(env)) return window.location.origin;
+    if (isNonProduction(env)) {
+      return window.location.origin;
+    }
   }
   return "https://aios.co.il";
 }

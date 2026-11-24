@@ -17,8 +17,12 @@ export function shouldUseTokenOptimize(
   agent: { metadata?: Record<string, unknown> | null },
   isCarmen: boolean,
 ): boolean {
-  if (!isCarmen) return false;
-  if (agent?.metadata?.token_optimize === false) return false;
+  if (!isCarmen) {
+    return false;
+  }
+  if (agent?.metadata?.token_optimize === false) {
+    return false;
+  }
   return true;
 }
 
@@ -78,28 +82,33 @@ export const RRF_K = 60;
 export type ToolDef = { name: string; description?: string; parameters?: any };
 
 export interface RoutedToolsResult {
-  tools: ToolDef[];
+  tools: Array<ToolDef>;
   fullSchemaNames: Set<string>;
 }
 
 export function buildQuickAck(commandText: string): string {
   const t = String(commandText || "").trim();
-  if (!t) return "קיבלתי, עובדת על זה.";
-  if (t.length > 120) return "קיבלתי את המשימה, עובדת עליה.";
+  if (!t) {
+    return "קיבלתי, עובדת על זה.";
+  }
+  if (t.length > 120) {
+    return "קיבלתי את המשימה, עובדת עליה.";
+  }
   return `קיבלתי — "${t.slice(0, 80)}${t.length > 80 ? "…" : ""}"`;
 }
 
 export function toolSig(s: string): string {
   let h = 5381;
   const str = s || "";
-  for (let i = 0; i < str.length; i++)
+  for (let i = 0; i < str.length; i++) {
     h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  }
   return (h >>> 0).toString(36);
 }
 
 export async function ensureToolEmbeddings(
   supabase: any,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
 ): Promise<void> {
   const { data: existing } = await supabase
     .from("agent_tool_embeddings")
@@ -110,11 +119,15 @@ export async function ensureToolEmbeddings(
   const missing = toolDefs.filter(
     (t) => have.get(t.name) !== toolSig(t.description || ""),
   );
-  if (missing.length === 0) return;
+  if (missing.length === 0) {
+    return;
+  }
   const vectors = await aiEmbedBatch(
     missing.map((t) => `${t.name}: ${t.description || ""}`),
   );
-  if (!vectors) return;
+  if (!vectors) {
+    return;
+  }
   const rows = missing.map((t, i) => ({
     tool_name: t.name,
     sig: toolSig(t.description || ""),
@@ -126,7 +139,7 @@ export async function ensureToolEmbeddings(
     .upsert(rows, { onConflict: "tool_name" });
 }
 
-export function tokenizeForToolSearch(text: string): string[] {
+export function tokenizeForToolSearch(text: string): Array<string> {
   return String(text || "")
     .toLocaleLowerCase("he")
     .split(/[^\p{L}\p{N}_]+/u)
@@ -136,19 +149,24 @@ export function tokenizeForToolSearch(text: string): string[] {
 /** Lightweight BM25-style keyword rank — fast, no index build per request. */
 export function keywordRankToolNames(
   queryText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   limit = 40,
-): string[] {
+): Array<string> {
   const terms = tokenizeForToolSearch(queryText);
-  if (!terms.length) return [];
+  if (!terms.length) {
+    return [];
+  }
   const scored = toolDefs
     .map((t) => {
       const name = t.name.toLowerCase();
       const hay = `${name} ${(t.description || "").toLocaleLowerCase("he")}`;
       let score = 0;
       for (const term of terms) {
-        if (name === term || name.includes(term)) score += 4;
-        else if (hay.includes(term)) score += 1;
+        if (name === term || name.includes(term)) {
+          score += 4;
+        } else if (hay.includes(term)) {
+          score += 1;
+        }
       }
       return { name: t.name, score };
     })
@@ -158,7 +176,9 @@ export function keywordRankToolNames(
 }
 
 /** Reciprocal Rank Fusion across multiple ranked name lists. */
-export function fuseRankedToolNames(rankedLists: string[][]): string[] {
+export function fuseRankedToolNames(
+  rankedLists: Array<Array<string>>,
+): Array<string> {
   const scores = new Map<string, number>();
   for (const list of rankedLists) {
     list.forEach((name, idx) => {
@@ -174,9 +194,11 @@ export async function matchToolNamesSemantic(
   supabase: any,
   queryText: string,
   matchCount: number,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const qvec = await aiEmbed(queryText);
-  if (!qvec) return [];
+  if (!qvec) {
+    return [];
+  }
   const { data } = await supabase.rpc("match_agent_tools", {
     query_embedding: qvec,
     match_count: matchCount,
@@ -188,9 +210,9 @@ export async function matchToolNamesSemantic(
 export async function hybridMatchToolNames(
   supabase: any,
   queryText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   matchCount: number,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const pool = Math.max(matchCount * 2, 24);
   const keywordRanked = keywordRankToolNames(queryText, toolDefs, pool);
   await ensureToolEmbeddings(supabase, toolDefs);
@@ -199,7 +221,9 @@ export async function hybridMatchToolNames(
     queryText,
     pool,
   );
-  if (!keywordRanked.length && !semanticRanked.length) return [];
+  if (!keywordRanked.length && !semanticRanked.length) {
+    return [];
+  }
   const fused = fuseRankedToolNames([semanticRanked, keywordRanked]);
   return fused.slice(0, matchCount);
 }
@@ -221,7 +245,7 @@ export function applyToolForceIncludes(
   },
   fullSchemaNames?: Set<string>,
 ): void {
-  const promote = (names: string[]) => {
+  const promote = (names: Array<string>) => {
     for (const n of names) {
       picked.add(n);
       fullSchemaNames?.add(n);
@@ -323,13 +347,15 @@ function markFullSchema(
   fullSchemaNames: Set<string>,
   names: Iterable<string>,
 ): void {
-  for (const n of names) fullSchemaNames.add(n);
+  for (const n of names) {
+    fullSchemaNames.add(n);
+  }
 }
 
 export async function selectRelevantToolsForMessage(
   supabase: any,
   userText: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   opts: {
     lazy: boolean;
     priorityTools: Set<string>;
@@ -337,13 +363,14 @@ export async function selectRelevantToolsForMessage(
     forceInclude: ForceIncludeFn;
   },
 ): Promise<RoutedToolsResult> {
-  const allFull = (tools: ToolDef[]) => ({
+  const allFull = (tools: Array<ToolDef>) => ({
     tools,
     fullSchemaNames: new Set(tools.map((t) => t.name)),
   });
   try {
-    if (!userText?.trim() || toolDefs.length <= ROUTER_ACTIVATE_MIN)
+    if (!userText?.trim() || toolDefs.length <= ROUTER_ACTIVATE_MIN) {
       return allFull(toolDefs);
+    }
     const matchCount = opts.lazy
       ? LAZY_ROUTER_MATCH_COUNT
       : LEGACY_ROUTER_MATCH_COUNT;
@@ -353,7 +380,9 @@ export async function selectRelevantToolsForMessage(
       toolDefs,
       matchCount,
     );
-    if (!matched.length) return allFull(toolDefs);
+    if (!matched.length) {
+      return allFull(toolDefs);
+    }
 
     const picked = new Set<string>(matched);
     const fullSchemaNames = new Set<string>();
@@ -365,10 +394,16 @@ export async function selectRelevantToolsForMessage(
       markFullSchema(fullSchemaNames, opts.legacyCoreTools || []);
       markFullSchema(fullSchemaNames, matched.slice(0, FULL_SCHEMA_TOP_K * 2));
     }
-    for (const c of opts.lazy ? LAZY_BOOTSTRAP_TOOLS : []) picked.add(c);
-    for (const c of opts.lazy ? LAZY_ROUTED_CORE : []) picked.add(c);
+    for (const c of opts.lazy ? LAZY_BOOTSTRAP_TOOLS : []) {
+      picked.add(c);
+    }
+    for (const c of opts.lazy ? LAZY_ROUTED_CORE : []) {
+      picked.add(c);
+    }
     if (!opts.lazy) {
-      for (const c of opts.legacyCoreTools || []) picked.add(c);
+      for (const c of opts.legacyCoreTools || []) {
+        picked.add(c);
+      }
     }
     for (const p of opts.priorityTools) {
       picked.add(p);
@@ -378,12 +413,15 @@ export async function selectRelevantToolsForMessage(
 
     const result = toolDefs.filter((t) => picked.has(t.name));
     const minSize = opts.lazy ? 8 : 10;
-    if (result.length < minSize) return allFull(toolDefs);
-    if (!opts.lazy)
+    if (result.length < minSize) {
+      return allFull(toolDefs);
+    }
+    if (!opts.lazy) {
       markFullSchema(
         fullSchemaNames,
         result.map((t) => t.name),
       );
+    }
     console.log(
       `[AGENT] tool router${opts.lazy ? " (lazy+hybrid)" : " (hybrid)"}: ${toolDefs.length} → ${result.length} tools, ${fullSchemaNames.size} full schemas`,
     );
@@ -413,7 +451,9 @@ export function toolUsesFullSchema(
   promoted: Set<string>,
   compactMode: boolean,
 ): boolean {
-  if (!compactMode) return true;
+  if (!compactMode) {
+    return true;
+  }
   return promoted.has(name);
 }
 
@@ -429,7 +469,7 @@ export function buildToolApiEntry(
 }
 
 export function buildToolApiEntries(
-  tools: ToolDef[],
+  tools: Array<ToolDef>,
   promoted: Set<string>,
   compactMode: boolean,
 ): Array<{ type: "function"; function: ToolDef }> {
@@ -439,14 +479,18 @@ export function buildToolApiEntries(
 export async function searchToolsFromIndex(
   supabase: any,
   query: string,
-  toolDefs: ToolDef[],
+  toolDefs: Array<ToolDef>,
   limit = 12,
-): Promise<ToolDef[]> {
+): Promise<Array<ToolDef>> {
   const q = String(query || "").trim();
-  if (!q) return [];
+  if (!q) {
+    return [];
+  }
   const names = await hybridMatchToolNames(supabase, q, toolDefs, limit);
   const picked = new Set(names);
-  for (const c of LAZY_BOOTSTRAP_TOOLS) picked.add(c);
+  for (const c of LAZY_BOOTSTRAP_TOOLS) {
+    picked.add(c);
+  }
   return toolDefs.filter((t) => picked.has(t.name));
 }
 
@@ -458,15 +502,19 @@ export interface MemoryPointerHit {
 /** Semantic pointer recall — replaces bulk 80+50 row scans. */
 export async function fetchRelevantMemoryPointers(
   supabase: any,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   queryText: string,
   limit = 8,
-): Promise<MemoryPointerHit[]> {
+): Promise<Array<MemoryPointerHit>> {
   const q = String(queryText || "").trim();
-  if (!q || !tenantIds.length) return [];
+  if (!q || !tenantIds.length) {
+    return [];
+  }
   try {
     const vec = await aiEmbed(q);
-    if (!vec) return [];
+    if (!vec) {
+      return [];
+    }
     const primaryTenant = tenantIds[0];
     const { data, error } = await supabase.rpc("kb_match_pointers", {
       p_tenant_id: primaryTenant,
@@ -475,7 +523,9 @@ export async function fetchRelevantMemoryPointers(
       p_since_days: null,
       p_limit: limit,
     });
-    if (error || !data?.length) return [];
+    if (error || !data?.length) {
+      return [];
+    }
     return data
       .map((row: any) => ({
         label:
@@ -508,15 +558,21 @@ export function shouldLoadMcpConnection(
   userText: string,
   forceAll = false,
 ): boolean {
-  if (forceAll) return true;
+  if (forceAll) {
+    return true;
+  }
   const slug = String(connName || "").toLowerCase();
   for (const [key, re] of Object.entries(MCP_KEYWORD_HINTS)) {
     if (slug.includes(key.replace(/\s+/g, "")) || slug.includes(key)) {
-      if (re.test(userText)) return true;
+      if (re.test(userText)) {
+        return true;
+      }
     }
   }
   for (const [, re] of Object.entries(MCP_KEYWORD_HINTS)) {
-    if (re.test(userText)) return true;
+    if (re.test(userText)) {
+      return true;
+    }
   }
   return false;
 }

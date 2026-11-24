@@ -47,7 +47,7 @@ type Action =
     };
 
 interface State {
-  toasts: ToasterToast[];
+  toasts: Array<ToasterToast>;
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -153,7 +153,9 @@ function toast({ ...props }: Toast) {
       id,
       open: true,
       onOpenChange: (open) => {
-        if (!open) dismiss();
+        if (!open) {
+          dismiss();
+        }
       },
     },
   });

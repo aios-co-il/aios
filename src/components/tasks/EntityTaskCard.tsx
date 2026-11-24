@@ -28,8 +28,12 @@ type EntityTask = TaskAssignmentSource & {
 };
 
 function priorityBadge(priority: number) {
-  if (priority >= 8) return "גבוהה";
-  if (priority >= 4) return "בינונית";
+  if (priority >= 8) {
+    return "גבוהה";
+  }
+  if (priority >= 4) {
+    return "בינונית";
+  }
   return "נמוכה";
 }
 

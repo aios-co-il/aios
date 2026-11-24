@@ -16,7 +16,7 @@ export interface StaffScopeInput {
   callerCampaignerId: string | null;
   /** YYYY-MM-DD in Israel time; defaults to today. */
   today?: string;
-  tenantIds: string[];
+  tenantIds: Array<string>;
 }
 
 /** The clients, leads and linked WhatsApp groups a staff caller may read. */
@@ -48,7 +48,7 @@ export { isActiveAssignment };
 async function assignedScopeFor(
   supabase: Pick<DbClient, "from">,
   input: StaffScopeInput,
-): Promise<{ clientIds: string[]; leads: LeadScope }> {
+): Promise<{ clientIds: Array<string>; leads: LeadScope }> {
   const profile = input.userId
     ? await profileFor(supabase, input.userId)
     : null;

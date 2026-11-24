@@ -110,12 +110,12 @@ export type SettingsSection =
   | "approvals"
   | "costs";
 
-export const SETTINGS_SECTIONS: {
+export const SETTINGS_SECTIONS: Array<{
   value: SettingsSection;
   label: string;
   hint: string;
   icon: typeof Bot;
-}[] = [
+}> = [
   {
     value: "identity",
     label: "זהות ופרסונה",
@@ -218,7 +218,9 @@ export function useCarmenAgent(tenantId: string | null) {
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     select: pickCarmenAgent,
@@ -228,7 +230,7 @@ export function useCarmenAgent(tenantId: string | null) {
 function SubTabs({
   items,
 }: {
-  items: { value: string; label: string; node: React.ReactNode }[];
+  items: Array<{ value: string; label: string; node: React.ReactNode }>;
 }) {
   return (
     <Tabs defaultValue={items[0].value} dir="rtl">
@@ -296,7 +298,9 @@ function WhatsAppConnections({
         .select("id, integration_type, display_name, is_active, settings")
         .eq("tenant_id", tenantId!)
         .in("integration_type", Object.keys(WA_TYPES));
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -331,7 +335,9 @@ function WhatsAppConnections({
         .from("tenant_integrations")
         .update({ settings: { ...(row.settings || {}), carmen_role: role } })
         .eq("id", row.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["carmen-wa-connections", tenantId] });
@@ -451,13 +457,22 @@ function parsePath(path: string) {
 
 /** Parent path for the back button. */
 export function parentPath(path: string): string | null {
-  if (!path) return null;
+  if (!path) {
+    return null;
+  }
   const { head, parts } = parsePath(path);
-  if (head.startsWith("tasks")) return "";
-  if (head === "task") return "tasks";
-  if (head === "new") return parts.length > 1 ? "new" : "tasks";
-  if (head === "settings")
+  if (head.startsWith("tasks")) {
+    return "";
+  }
+  if (head === "task") {
+    return "tasks";
+  }
+  if (head === "new") {
+    return parts.length > 1 ? "new" : "tasks";
+  }
+  if (head === "settings") {
     return parts.length > 2 ? parts.slice(0, 2).join("/") : "";
+  }
   return "";
 }
 
@@ -484,7 +499,9 @@ export function CarmenPanel({
         .from("ai_agents")
         .update({ engine })
         .eq("id", agent!.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
@@ -503,12 +520,15 @@ export function CarmenPanel({
   );
 
   let title = "כרמן";
-  if (head.startsWith("tasks")) title = "משימות כרמן";
-  else if (head === "task")
+  if (head.startsWith("tasks")) {
+    title = "משימות כרמן";
+  } else if (head === "task") {
     title = parts[1] === "heartbeat" ? "דופק ובדיקות דופק" : "עריכת משימה";
-  else if (head === "new")
+  } else if (head === "new") {
     title = parts.length > 1 ? "משימה חדשה" : "מה ליצור?";
-  else if (sectionMeta) title = sectionMeta.label;
+  } else if (sectionMeta) {
+    title = sectionMeta.label;
+  }
 
   const wide =
     head === "settings" &&
@@ -516,7 +536,9 @@ export function CarmenPanel({
     parts[2] === "meta_whatsapp";
 
   function settingsBody() {
-    if (!agent) return null;
+    if (!agent) {
+      return null;
+    }
     switch (settingsSection) {
       case "identity":
         return <ProfileTab agent={agent} onManageKeys={manageKeys} />;
@@ -604,9 +626,15 @@ export function CarmenPanel({
         );
       case "whatsapp": {
         const type = parts[2];
-        if (type === "manus_wa") return <ManusWhatsAppSettings embedded />;
-        if (type === "green_api") return <GreenAPISettings embedded />;
-        if (type === "meta_whatsapp") return <MetaWhatsAppSettings embedded />;
+        if (type === "manus_wa") {
+          return <ManusWhatsAppSettings embedded />;
+        }
+        if (type === "green_api") {
+          return <GreenAPISettings embedded />;
+        }
+        if (type === "meta_whatsapp") {
+          return <MetaWhatsAppSettings embedded />;
+        }
         return (
           <WhatsAppConnections tenantId={tenantId} onNavigate={onNavigate} />
         );
@@ -620,7 +648,7 @@ export function CarmenPanel({
       case "permissions":
         return <CarmenPermissionsTab />;
       case "agents":
-        if (parts[2])
+        if (parts[2]) {
           return (
             <CarmenSubAgents
               tenantId={tenantId}
@@ -629,6 +657,7 @@ export function CarmenPanel({
               onManageKeys={manageKeys}
             />
           );
+        }
         return (
           <SubTabs
             items={[
@@ -700,8 +729,10 @@ export function CarmenPanel({
     if (head === "task") {
       const [, source, id] = parts;
       const done = () => onNavigate("tasks");
-      if (source === "heartbeat") return <HeartbeatSettingsPanel />;
-      if (source === "agent_tasks")
+      if (source === "heartbeat") {
+        return <HeartbeatSettingsPanel />;
+      }
+      if (source === "agent_tasks") {
         return (
           <AgentTaskEditor
             key={id}
@@ -710,11 +741,13 @@ export function CarmenPanel({
             onDone={done}
           />
         );
-      if (source === "goals")
+      }
+      if (source === "goals") {
         return (
           <GoalEditor key={id} tenantId={tenantId} goalId={id} onDone={done} />
         );
-      if (source === "dev_tasks")
+      }
+      if (source === "dev_tasks") {
         return (
           <DevTaskEditor
             key={id}
@@ -723,6 +756,7 @@ export function CarmenPanel({
             onDone={done}
           />
         );
+      }
       if (source === "automation") {
         return (
           <AutomationEditor
@@ -734,7 +768,7 @@ export function CarmenPanel({
           />
         );
       }
-      if (source === "cron_job")
+      if (source === "cron_job") {
         return (
           <SystemJobEditor
             key={id}
@@ -743,13 +777,16 @@ export function CarmenPanel({
             onDone={done}
           />
         );
+      }
       return null;
     }
     if (head === "new") {
       const done = () => onNavigate("tasks");
       const kind = parts[1];
-      if (!kind) return <NewTaskChooser onNavigate={onNavigate} />;
-      if (kind === "task")
+      if (!kind) {
+        return <NewTaskChooser onNavigate={onNavigate} />;
+      }
+      if (kind === "task") {
         return (
           <AgentTaskEditor
             key="new-task"
@@ -758,7 +795,8 @@ export function CarmenPanel({
             onDone={done}
           />
         );
-      if (kind === "recurring")
+      }
+      if (kind === "recurring") {
         return (
           <AgentTaskEditor
             key="new-rec"
@@ -768,7 +806,8 @@ export function CarmenPanel({
             onDone={done}
           />
         );
-      if (kind === "template")
+      }
+      if (kind === "template") {
         return (
           <AgentTaskEditor
             key={`tpl-${parts[2]}`}
@@ -778,7 +817,8 @@ export function CarmenPanel({
             onDone={done}
           />
         );
-      if (kind === "goal")
+      }
+      if (kind === "goal") {
         return (
           <GoalEditor
             key="new-goal"
@@ -787,7 +827,8 @@ export function CarmenPanel({
             onDone={done}
           />
         );
-      if (kind === "dev")
+      }
+      if (kind === "dev") {
         return (
           <DevTaskEditor
             key="new-dev"
@@ -796,17 +837,20 @@ export function CarmenPanel({
             onDone={done}
           />
         );
+      }
       return null;
     }
     if (head === "settings") {
-      if (isLoading)
+      if (isLoading) {
         return <p className="text-sm text-muted-foreground">טוען…</p>;
-      if (!agent)
+      }
+      if (!agent) {
         return (
           <p className="text-sm text-muted-foreground">
             לא נמצאה כרמן בארגון הזה.
           </p>
         );
+      }
       return settingsBody();
     }
     // Root menu: tasks first, then every setting.

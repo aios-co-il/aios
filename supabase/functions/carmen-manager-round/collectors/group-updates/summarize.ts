@@ -48,16 +48,16 @@ const CONCURRENCY = 4;
 
 /** A digest per window, and the LLM use of the run. */
 export async function digestWindows(
-  windows: GroupWindow[],
-  entries: CardEntry[],
+  windows: Array<GroupWindow>,
+  entries: Array<CardEntry>,
   ports: SummarizePorts,
   run: { budget: RoundBudget; now: Date },
 ): Promise<{
-  digests: WindowDigest[];
+  digests: Array<WindowDigest>;
   llm: { calls: number; costUsd: number };
 }> {
   const meter = createLlmMeter();
-  const digests: WindowDigest[] = [];
+  const digests: Array<WindowDigest> = [];
   for (let i = 0; i < windows.length; i += CONCURRENCY) {
     const batch = windows.slice(i, i + CONCURRENCY);
     digests.push(
@@ -77,7 +77,7 @@ export function markersOnlyPorts(): SummarizePorts {
 /** The model's digest unless it drops what the markers found; known items dropped. */
 async function digestOne(
   window: GroupWindow,
-  entries: CardEntry[],
+  entries: Array<CardEntry>,
   ports: SummarizePorts,
   meter: LlmMeter,
   run: { budget: RoundBudget; now: Date },

@@ -72,13 +72,13 @@ Deno.test(
   "with several image engines connected nobody is asked; a named engine is saved and forwarded",
   async () => {
     const connected = ["google", "elevenlabs", "higgsfield"] as const;
-    const seenEngines: (string | undefined)[] = [];
+    const seenEngines: Array<string | undefined> = [];
     const deps = {
       imageEngines: async () => [...connected],
       generateImage: async (
         _p: string,
         _f: string,
-        _r?: string[],
+        _r?: Array<string>,
         engine?: string,
       ) => {
         seenEngines.push(engine);
@@ -165,7 +165,7 @@ Deno.test(
 );
 
 Deno.test("a single connected engine is used without asking", async () => {
-  const seen: (string | undefined)[] = [];
+  const seen: Array<string | undefined> = [];
   await executeApprovedWorkshopTool(
     fakeDb({
       ...videoProject(),

@@ -13,7 +13,9 @@ export function useProcessPendingInvitation(userId: string | null | undefined) {
             .select("status")
             .eq("id", userId)
             .single();
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data;
         }
       : skipToken,
@@ -30,7 +32,9 @@ export function useProcessPendingInvitation(userId: string | null | undefined) {
           const { data, error } = await supabase.functions.invoke(
             "process-user-invitation",
           );
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data as { success?: boolean } | null;
         }
       : skipToken,
@@ -40,10 +44,14 @@ export function useProcessPendingInvitation(userId: string | null | undefined) {
   });
 
   useEffect(() => {
-    if (error) console.error("Error processing invitation:", error);
+    if (error) {
+      console.error("Error processing invitation:", error);
+    }
   }, [error]);
 
   useEffect(() => {
-    if (invitation?.success) window.location.reload();
+    if (invitation?.success) {
+      window.location.reload();
+    }
   }, [invitation]);
 }

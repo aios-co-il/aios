@@ -54,7 +54,9 @@ export const approvalCode = (token: string) =>
  */
 export function approvesRequest(userText: unknown, code: string): boolean {
   const wanted = code.replace(/[^a-z0-9]/gi, "").toUpperCase();
-  if (!wanted) return false;
+  if (!wanted) {
+    return false;
+  }
   return new RegExp(
     `(?<!לא\\s*)(?:^|[^\\p{L}\\p{N}])מאשרת?\\s+תקציב\\s+(?:\\$[\\d.,]+\\s*·?\\s*)?${wanted}(?![\\p{L}\\p{N}])`,
     "u",
@@ -109,7 +111,9 @@ export const remainingUsd = (budget: Budget) =>
 export function suggestCap(budget: Budget, quote: Quote, wantedUsd?: unknown) {
   const needed = budget.spent_usd + quote.usd;
   const wanted = money(wantedUsd);
-  if (wanted >= needed) return Math.ceil(wanted);
+  if (wanted >= needed) {
+    return Math.ceil(wanted);
+  }
   return Math.max(1, Math.ceil(needed * 1.25));
 }
 
@@ -151,23 +155,34 @@ export function checkBudget(
     ...budget,
     unit_usd: { ...budget.unit_usd, [quote.tool]: unit(quote) },
   };
-  if (quote.usd <= 0 || context.approvedOutOfBand)
+  if (quote.usd <= 0 || context.approvedOutOfBand) {
     return { ok: true, payload: withBudget(payload, priced) };
-  if (remainingUsd(budget) + 0.005 >= quote.usd)
+  }
+  if (remainingUsd(budget) + 0.005 >= quote.usd) {
     return { ok: true, payload: withBudget(payload, priced) };
+  }
   const short: BudgetRefusal = budget.cap_usd > 0 ? "over_budget" : "no_budget";
   // The user's own message carrying the request's code is the approval. The token is not
   // required: Carmen cannot carry a tool result into the next turn, only the conversation.
   const request = budget.request;
-  if (!request) return { ok: false, reason: short };
-  if (!context.turnId) return { ok: false, reason: "no_turn" };
-  if (request.turn_id === context.turnId)
+  if (!request) {
+    return { ok: false, reason: short };
+  }
+  if (!context.turnId) {
+    return { ok: false, reason: "no_turn" };
+  }
+  if (request.turn_id === context.turnId) {
     return { ok: false, reason: "same_turn" };
-  if (!requestFresh(request, now)) return { ok: false, reason: "expired" };
-  if (!approvesRequest(context.userText, request.code))
+  }
+  if (!requestFresh(request, now)) {
+    return { ok: false, reason: "expired" };
+  }
+  if (!approvesRequest(context.userText, request.code)) {
     return { ok: false, reason: "not_user" };
-  if (request.cap_usd - budget.spent_usd + 0.005 < quote.usd)
+  }
+  if (request.cap_usd - budget.spent_usd + 0.005 < quote.usd) {
     return { ok: false, reason: "over_budget" };
+  }
   return {
     ok: true,
     payload: withBudget(payload, {
@@ -208,7 +223,9 @@ export function refundBudget(
   const budget = budgetOf(payload);
   const price = Number(budget.unit_usd[tool]) || 0;
   const amount = Math.min(price * Math.max(0, units), budget.spent_usd);
-  if (amount <= 0) return payload;
+  if (amount <= 0) {
+    return payload;
+  }
   return withBudget(payload, {
     ...budget,
     spent_usd: Math.round((budget.spent_usd - amount) * 100) / 100,
@@ -238,8 +255,9 @@ export function settleProduction(
   const budget = budgetOf(payload);
   const quoted = Number(budget.quoted_usd?.workshop_produce_video ?? 0);
   // Nothing to settle: no film was quoted or settled, and nothing was charged.
-  if (quoted <= 0 && run.usd <= 0 && budget.production_usd === undefined)
+  if (quoted <= 0 && run.usd <= 0 && budget.production_usd === undefined) {
     return payload;
+  }
   const real = money(run.usd);
   // A budget settled before production_quoted_usd was kept had all its quotes settled.
   const settledQuote =

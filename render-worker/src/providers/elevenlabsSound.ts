@@ -32,7 +32,9 @@ export const musicBody = ({
 });
 
 const headers = (apiKey: string | null | undefined) => {
-  if (!apiKey) throw new Error("ELEVENLABS_API_KEY is required");
+  if (!apiKey) {
+    throw new Error("ELEVENLABS_API_KEY is required");
+  }
   return { "xi-api-key": apiKey, "Content-Type": "application/json" };
 };
 
@@ -41,16 +43,22 @@ export async function defaultVoiceId(
   apiKey: string | null | undefined,
   fetchImpl: FetchImpl = fetch,
 ): Promise<string> {
-  if (process.env.ELEVENLABS_VOICE_ID) return process.env.ELEVENLABS_VOICE_ID;
+  if (process.env.ELEVENLABS_VOICE_ID) {
+    return process.env.ELEVENLABS_VOICE_ID;
+  }
   const response = await fetchImpl(`${BASE()}/v1/voices`, {
     headers: headers(apiKey),
   });
   const data = await providerJson<ElevenLabsVoicesResponse>(response);
-  if (!response.ok) throw new Error(`elevenlabs voices ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`elevenlabs voices ${response.status}`);
+  }
   const voice =
     data.voices?.find((item) => item.category === "premade") ??
     data.voices?.[0];
-  if (!voice?.voice_id) throw new Error("ElevenLabs returned no voice");
+  if (!voice?.voice_id) {
+    throw new Error("ElevenLabs returned no voice");
+  }
   return voice.voice_id;
 }
 
@@ -70,10 +78,11 @@ export async function synthesizeSpeech({
     },
   );
   const data = await providerJson<ElevenLabsSpeechResponse>(response);
-  if (!response.ok || !data.audio_base64)
+  if (!response.ok || !data.audio_base64) {
     throw new Error(
       `elevenlabs speech ${response.status}: ${JSON.stringify(data).slice(0, 300)}`,
     );
+  }
   return {
     voiceId: id,
     bytes: Buffer.from(data.audio_base64, "base64"),
@@ -150,7 +159,9 @@ export async function generateSoundEffect({
     );
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.length === 0) throw new Error("elevenlabs sound effect: empty");
+  if (bytes.length === 0) {
+    throw new Error("elevenlabs sound effect: empty");
+  }
   return bytes;
 }
 

@@ -41,19 +41,21 @@ export function normalizeClientMoodStatus(
  * mood transitions, while retaining the first known status as the baseline.
  */
 export function getClientMoodChanges(
-  logs: CommunicationLogRow[],
-): ClientMoodChange[] {
+  logs: Array<CommunicationLogRow>,
+): Array<ClientMoodChange> {
   const chronological = [...logs].sort(
     (a, b) =>
       new Date(a.created_at ?? 0).getTime() -
       new Date(b.created_at ?? 0).getTime(),
   );
-  const changes: ClientMoodChange[] = [];
+  const changes: Array<ClientMoodChange> = [];
   let previousMoodStatus: ClientMoodStatus | null = null;
 
   for (const log of chronological) {
     const moodStatus = normalizeClientMoodStatus(log.status);
-    if (!moodStatus || moodStatus === previousMoodStatus) continue;
+    if (!moodStatus || moodStatus === previousMoodStatus) {
+      continue;
+    }
 
     changes.push({ ...log, moodStatus, previousMoodStatus });
     previousMoodStatus = moodStatus;

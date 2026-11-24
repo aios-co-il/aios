@@ -14,7 +14,7 @@ const MIGRATIONS = new URL("../../../migrations/", import.meta.url);
 const SOURCE_KEY_TS = new URL("./source-key.ts", import.meta.url);
 
 /** Characters of a regex bracket class; `\s` and `[:space:]` read as " ". */
-function classChars(cls: string): string[] {
+function classChars(cls: string): Array<string> {
   const text = cls
     .replace("[:space:]", " ")
     .replace("\\s", " ")
@@ -25,7 +25,7 @@ function classChars(cls: string): string[] {
 
 /** Body of the newest migration's `create or replace function public.<name>(`. */
 async function latestSqlFunction(name: string): Promise<string> {
-  const files: string[] = [];
+  const files: Array<string> = [];
   for await (const entry of Deno.readDir(MIGRATIONS)) {
     if (entry.isFile && entry.name.endsWith(".sql")) {
       files.push(entry.name);

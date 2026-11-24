@@ -23,7 +23,9 @@ const DEFAULT_MESSAGES = [
 ];
 
 function prefersReducedMotion() {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return false;
+  }
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
@@ -31,14 +33,16 @@ function prefersReducedMotion() {
 let lastMessageIndex = 0;
 
 function useRotatingMessage(
-  messages: string[],
+  messages: Array<string>,
   intervalMs: number,
   resume: boolean,
 ) {
   const [index, setIndex] = useState(() => (resume ? lastMessageIndex : 0));
 
   useEffect(() => {
-    if (messages.length < 2 || prefersReducedMotion()) return;
+    if (messages.length < 2 || prefersReducedMotion()) {
+      return;
+    }
     const timer = window.setInterval(
       () =>
         setIndex((current) => {
@@ -63,7 +67,9 @@ function useSceneVisible(delayMs: number) {
   const [visible, setVisible] = useState(() => continued || delayMs <= 0);
 
   useEffect(() => {
-    if (visible) return;
+    if (visible) {
+      return;
+    }
     const timer = window.setTimeout(() => setVisible(true), delayMs);
     return () => window.clearTimeout(timer);
   }, [visible, delayMs]);
@@ -89,13 +95,19 @@ function useFadeOutOnUnmount<T extends HTMLElement>(active: boolean) {
   const ref = useRef<T>(null);
 
   useLayoutEffect(() => {
-    if (!active) return;
+    if (!active) {
+      return;
+    }
     const element = ref.current;
     return () => {
-      if (!element?.isConnected || prefersReducedMotion()) return;
+      if (!element?.isConnected || prefersReducedMotion()) {
+        return;
+      }
 
       const rect = element.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
+      if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
 
       const ghost = element.cloneNode(true) as HTMLElement;
       Object.assign(ghost.style, {
@@ -113,7 +125,9 @@ function useFadeOutOnUnmount<T extends HTMLElement>(active: boolean) {
 
       let removed = false;
       const remove = () => {
-        if (removed) return;
+        if (removed) {
+          return;
+        }
         removed = true;
         ghost.remove();
         unsubscribe();
@@ -146,7 +160,7 @@ export interface CarmenLoadingScreenProps {
   variant?: "page" | "card" | "inline";
   title?: string;
   /** Rotating status lines; pass one item to keep it static. */
-  messages?: string[];
+  messages?: Array<string>;
   /** Wait this long before showing the scene; the thin route bar covers this gap. */
   delayMs?: number;
   className?: string;
@@ -163,7 +177,9 @@ export function CarmenLoadingScreen({
   const message = useRotatingMessage(messages, 3400, continued);
   const fadeOutRef = useFadeOutOnUnmount<HTMLDivElement>(visible);
 
-  if (!visible) return null;
+  if (!visible) {
+    return null;
+  }
 
   // A continued scene is already on screen from the previous step — no re-entry.
   const enter = continued

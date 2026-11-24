@@ -9,8 +9,9 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { item_id } = await req.json();
@@ -30,7 +31,9 @@ serve(async (req) => {
       .select("*")
       .eq("id", item_id)
       .single();
-    if (!item) throw new Error("Item not found");
+    if (!item) {
+      throw new Error("Item not found");
+    }
 
     const { data: stages } = await admin
       .from("marketing_pipeline_stages")
@@ -38,7 +41,7 @@ serve(async (req) => {
       .eq("pipeline_id", item.pipeline_id)
       .order("sort_order", { ascending: true });
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     const auth = req.headers.get("Authorization");
 
     for (const s of stages ?? []) {

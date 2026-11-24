@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 
 interface DataCardsProps {
-  data: Record<string, any>[];
+  data: Array<Record<string, any>>;
 }
 
 export function DataCards({ data }: DataCardsProps) {

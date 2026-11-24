@@ -8,7 +8,7 @@ import { OfferIconMark } from "./layerMarks";
 import { CREATIVE_SHAPES } from "./shapeLibrary";
 
 interface Props {
-  brandColors?: string[];
+  brandColors?: Array<string>;
   logoUrl?: string;
   currentCompositionId?: CompositionId;
   onAddIcon: (icon: string, color: string) => void;

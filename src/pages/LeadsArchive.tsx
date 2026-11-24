@@ -32,7 +32,7 @@ export default function LeadsArchive() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [deleteIds, setDeleteIds] = useState<string[] | null>(null);
+  const [deleteIds, setDeleteIds] = useState<Array<string> | null>(null);
 
   const {
     data: leads = [],
@@ -42,7 +42,9 @@ export default function LeadsArchive() {
     queryKey: ["leads-archive", tenantId, search],
     enabled: !!tenantId,
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("leads")
         .select(
@@ -57,8 +59,12 @@ export default function LeadsArchive() {
         query = query.or(leadSearchOrFilter(q));
       }
       const { data, error } = await query;
-      if (error) throw error;
-      if (!q) return data || [];
+      if (error) {
+        throw error;
+      }
+      if (!q) {
+        return data || [];
+      }
       return (data || []).filter(
         (lead) =>
           leadMatchesPhoneSearch(lead.phone, q) ||
@@ -77,7 +83,7 @@ export default function LeadsArchive() {
     queryClient.invalidateQueries({ queryKey: ["leads-count", tenantId] });
   };
 
-  const restore = async (ids: string[]) => {
+  const restore = async (ids: Array<string>) => {
     setBusy(true);
     try {
       const n = await restoreArchivedLeads(ids);
@@ -94,7 +100,7 @@ export default function LeadsArchive() {
     }
   };
 
-  const permanentlyDelete = async (ids: string[]) => {
+  const permanentlyDelete = async (ids: Array<string>) => {
     setBusy(true);
     try {
       const n = await permanentlyDeleteArchivedLeads(ids);
@@ -174,8 +180,11 @@ export default function LeadsArchive() {
                 <Checkbox
                   checked={allSelected}
                   onCheckedChange={(checked) => {
-                    if (checked) setSelected(new Set(leads.map((l) => l.id)));
-                    else setSelected(new Set());
+                    if (checked) {
+                      setSelected(new Set(leads.map((l) => l.id)));
+                    } else {
+                      setSelected(new Set());
+                    }
                   }}
                 />
               </TableHead>
@@ -214,8 +223,11 @@ export default function LeadsArchive() {
                       onCheckedChange={(checked) => {
                         setSelected((prev) => {
                           const next = new Set(prev);
-                          if (checked) next.add(lead.id);
-                          else next.delete(lead.id);
+                          if (checked) {
+                            next.add(lead.id);
+                          } else {
+                            next.delete(lead.id);
+                          }
                           return next;
                         });
                       }}
@@ -267,10 +279,14 @@ export default function LeadsArchive() {
         open={!!deleteIds}
         count={deleteIds?.length || 0}
         onOpenChange={(open) => {
-          if (!open) setDeleteIds(null);
+          if (!open) {
+            setDeleteIds(null);
+          }
         }}
         onConfirm={() => {
-          if (deleteIds) return permanentlyDelete(deleteIds);
+          if (deleteIds) {
+            return permanentlyDelete(deleteIds);
+          }
         }}
       />
     </div>

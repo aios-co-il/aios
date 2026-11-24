@@ -34,8 +34,8 @@ export type CardEntry = {
  */
 export async function loadCardEntries(
   db: DbClient,
-  query: { clientIds: string[]; since: Date },
-): Promise<CardEntry[]> {
+  query: { clientIds: Array<string>; since: Date },
+): Promise<Array<CardEntry>> {
   if (!query.clientIds.length) {
     return [];
   }
@@ -65,7 +65,7 @@ export async function loadCardEntries(
  * must not make the next window or another live draft look covered.
  */
 export function humanUpdateAfter(
-  entries: CardEntry[],
+  entries: Array<CardEntry>,
   clientId: string,
   at: string,
 ): boolean {
@@ -80,10 +80,10 @@ export function humanUpdateAfter(
 
 /** The client's entries of the Israel day of `now`. */
 export function todaysEntries(
-  entries: CardEntry[],
+  entries: Array<CardEntry>,
   clientId: string,
   now: Date,
-): CardEntry[] {
+): Array<CardEntry> {
   const start = Date.parse(jerusalemDayStartIso(jerusalemYmd(now)));
   return entries.filter(
     (entry) =>

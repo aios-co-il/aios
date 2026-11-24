@@ -32,7 +32,7 @@ export function requestSummary(
 /** "<client>: נראה שהלקוח מתלונן …", for the client turns `turns`. */
 export function complaintSummary(
   thread: Thread,
-  turns: Turn[],
+  turns: Array<Turn>,
   link: string | null,
 ): string {
   const where = place(
@@ -50,7 +50,7 @@ export function complaintSummary(
 /** The client message to quote (groups open to the team only), cut to QUOTE_MAX. */
 export function quoteOf(
   thread: Thread,
-  turns: Turn[],
+  turns: Array<Turn>,
   marker: Marker,
 ): string | null {
   if (!thread.openToTeam) {
@@ -63,14 +63,14 @@ export function quoteOf(
 }
 
 /** True when every turn came from an @lid sender wa_lid_map cannot resolve. */
-export function isLowConfidence(turns: Turn[]): boolean {
+export function isLowConfidence(turns: Array<Turn>): boolean {
   return turns.every((turn) => turn.unsure);
 }
 
 /** "בקבוצה <time>: "<quote>"" or "בהודעה פרטית <time>". */
 function place(
   thread: Thread,
-  turns: Turn[],
+  turns: Array<Turn>,
   marker: Marker,
   at: Date | undefined,
 ): string {
@@ -86,7 +86,7 @@ function place(
  * the latest turn that says more than thanks, since the client may have
  * thanked after the line the model read; else the latest turn.
  */
-function markedTurn(turns: Turn[], marker: Marker): Turn | undefined {
+function markedTurn(turns: Array<Turn>, marker: Marker): Turn | undefined {
   return (
     turns.findLast((turn) => readMarkers([turn.text])[marker]) ??
     turns.findLast((turn) => !onlyAcknowledgements([turn.text])) ??
@@ -106,7 +106,7 @@ function hoursText(hours: number): string {
 }
 
 /** A note when the writer may be staff on a number the system cannot read. */
-function unsureText(turns: Turn[]): string {
+function unsureText(turns: Array<Turn>): string {
   return isLowConfidence(turns) ? " (השולח לא זוהה בוודאות)" : "";
 }
 

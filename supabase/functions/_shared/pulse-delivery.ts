@@ -17,7 +17,7 @@ export type PulseDeliveryPlan = {
   role: PulseDeliveryRole;
   name: string;
   phone: string;
-  clientIds: string[];
+  clientIds: Array<string>;
 };
 
 export type PulseCampaignerMissingPhone = {
@@ -40,7 +40,7 @@ type TeamManagerLike = {
   user_id: string;
   full_name: string | null;
   phone: string | null;
-  agency_ids: string[];
+  agency_ids: Array<string>;
 };
 
 /** Message David reviews before a scoped digest goes to a campaigner / manager. */
@@ -58,29 +58,39 @@ export function buildPulsePreviewMessage(
 
 /** Campaigners assigned pulse clients but missing a WhatsApp phone. */
 export function findCampaignersMissingPulsePhone(
-  snapshots: SnapshotLike[],
-  links: ClientTeamLink[],
-  campaigners: CampaignerLike[],
+  snapshots: Array<SnapshotLike>,
+  links: Array<ClientTeamLink>,
+  campaigners: Array<CampaignerLike>,
   tenantSlug?: string | null,
-): PulseCampaignerMissingPhone[] {
+): Array<PulseCampaignerMissingPhone> {
   const snapshotClientIds = new Set(snapshots.map((row) => row.client_id));
   const clientsByCampaigner = new Map<string, Set<string>>();
   for (const link of links) {
-    if (!snapshotClientIds.has(link.client_id)) continue;
+    if (!snapshotClientIds.has(link.client_id)) {
+      continue;
+    }
     const set =
       clientsByCampaigner.get(link.campaigner_id) || new Set<string>();
     set.add(link.client_id);
     clientsByCampaigner.set(link.campaigner_id, set);
   }
 
-  const missing: PulseCampaignerMissingPhone[] = [];
+  const missing: Array<PulseCampaignerMissingPhone> = [];
   for (const campaigner of campaigners) {
-    if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) continue;
+    if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) {
+      continue;
+    }
     const clientIds = clientsByCampaigner.get(campaigner.id);
-    if (!clientIds?.size) continue;
+    if (!clientIds?.size) {
+      continue;
+    }
     const phone = normalizeNotifyPhone(campaigner.phone);
-    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) continue;
-    if (phone) continue;
+    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) {
+      continue;
+    }
+    if (phone) {
+      continue;
+    }
     missing.push({
       campaignerId: campaigner.id,
       name: campaigner.full_name || "קמפיינר",
@@ -92,10 +102,12 @@ export function findCampaignersMissingPulsePhone(
 
 /** Alert the tenant pulse manager (Felix on DMM) to add missing campaigner phones. */
 export function buildPulseMissingPhoneAlert(
-  campaigners: PulseCampaignerMissingPhone[],
+  campaigners: Array<PulseCampaignerMissingPhone>,
   options?: { tenantLabel?: string | null },
 ): string {
-  if (!campaigners.length) return "";
+  if (!campaigners.length) {
+    return "";
+  }
   const tenantLine = options?.tenantLabel ? `\n_${options.tenantLabel}_` : "";
   return [
     "*בדיקת דופק — חסר טלפון WhatsApp לקמפיינר*",
@@ -111,28 +123,36 @@ export function buildPulseMissingPhoneAlert(
 }
 
 export function planCampaignerPulseDeliveries(
-  snapshots: SnapshotLike[],
-  links: ClientTeamLink[],
-  campaigners: CampaignerLike[],
+  snapshots: Array<SnapshotLike>,
+  links: Array<ClientTeamLink>,
+  campaigners: Array<CampaignerLike>,
   tenantSlug?: string | null,
-): PulseDeliveryPlan[] {
+): Array<PulseDeliveryPlan> {
   const snapshotClientIds = new Set(snapshots.map((row) => row.client_id));
   const clientsByCampaigner = new Map<string, Set<string>>();
   for (const link of links) {
-    if (!snapshotClientIds.has(link.client_id)) continue;
+    if (!snapshotClientIds.has(link.client_id)) {
+      continue;
+    }
     const set =
       clientsByCampaigner.get(link.campaigner_id) || new Set<string>();
     set.add(link.client_id);
     clientsByCampaigner.set(link.campaigner_id, set);
   }
 
-  const plans: PulseDeliveryPlan[] = [];
+  const plans: Array<PulseDeliveryPlan> = [];
   for (const campaigner of campaigners) {
-    if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) continue;
+    if (isPulseDeliveryExcludedRecipient(campaigner.full_name)) {
+      continue;
+    }
     const phone = normalizeNotifyPhone(campaigner.phone);
-    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) continue;
+    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) {
+      continue;
+    }
     const clientIds = Array.from(clientsByCampaigner.get(campaigner.id) || []);
-    if (!phone || !clientIds.length) continue;
+    if (!phone || !clientIds.length) {
+      continue;
+    }
     plans.push({
       key: `campaigner:${campaigner.id}`,
       role: "campaigner",
@@ -145,21 +165,29 @@ export function planCampaignerPulseDeliveries(
 }
 
 export function planTeamManagerPulseDeliveries(
-  snapshots: SnapshotLike[],
-  managers: TeamManagerLike[],
+  snapshots: Array<SnapshotLike>,
+  managers: Array<TeamManagerLike>,
   tenantSlug?: string | null,
-): PulseDeliveryPlan[] {
-  const plans: PulseDeliveryPlan[] = [];
+): Array<PulseDeliveryPlan> {
+  const plans: Array<PulseDeliveryPlan> = [];
   for (const manager of managers) {
-    if (isPulseDeliveryExcludedRecipient(manager.full_name)) continue;
+    if (isPulseDeliveryExcludedRecipient(manager.full_name)) {
+      continue;
+    }
     const phone = normalizeNotifyPhone(manager.phone);
-    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) continue;
-    if (!phone || !manager.agency_ids.length) continue;
+    if (isPulseDeliveryExcludedPhone(phone, tenantSlug)) {
+      continue;
+    }
+    if (!phone || !manager.agency_ids.length) {
+      continue;
+    }
     const agencySet = new Set(manager.agency_ids);
     const clientIds = snapshots
       .filter((row) => row.agency_id && agencySet.has(row.agency_id))
       .map((row) => row.client_id);
-    if (!clientIds.length) continue;
+    if (!clientIds.length) {
+      continue;
+    }
     plans.push({
       key: `manager:${manager.user_id}`,
       role: "team_manager",
@@ -173,12 +201,14 @@ export function planTeamManagerPulseDeliveries(
 
 /** Merge plans that share a phone (union client ids). Team-manager scope wins on role label. */
 export function mergePulseDeliveryPlans(
-  plans: PulseDeliveryPlan[],
-): PulseDeliveryPlan[] {
+  plans: Array<PulseDeliveryPlan>,
+): Array<PulseDeliveryPlan> {
   const byPhone = new Map<string, PulseDeliveryPlan>();
   for (const plan of plans) {
     const phone = normalizeNotifyPhone(plan.phone);
-    if (!phone) continue;
+    if (!phone) {
+      continue;
+    }
     const prev = byPhone.get(phone);
     if (!prev) {
       byPhone.set(phone, {
@@ -189,32 +219,42 @@ export function mergePulseDeliveryPlans(
       continue;
     }
     prev.clientIds = [...new Set([...prev.clientIds, ...plan.clientIds])];
-    if (plan.role === "team_manager") prev.role = "team_manager";
-    if (!prev.name && plan.name) prev.name = plan.name;
+    if (plan.role === "team_manager") {
+      prev.role = "team_manager";
+    }
+    if (!prev.name && plan.name) {
+      prev.name = plan.name;
+    }
   }
   return Array.from(byPhone.values());
 }
 
 /** Manual trial: deliver scoped pulse only to campaigners whose name matches. */
 export function filterPulsePlansByCampaignerName(
-  plans: PulseDeliveryPlan[],
+  plans: Array<PulseDeliveryPlan>,
   nameFilter: string,
-): PulseDeliveryPlan[] {
+): Array<PulseDeliveryPlan> {
   const needle = String(nameFilter || "").trim();
-  if (!needle) return plans;
+  if (!needle) {
+    return plans;
+  }
   return plans.filter((plan) => {
-    if (plan.role !== "campaigner") return false;
+    if (plan.role !== "campaigner") {
+      return false;
+    }
     const name = String(plan.name || "").trim();
     return name === needle || name.includes(needle) || needle.includes(name);
   });
 }
 
 export function filterMissingPhoneCampaignersByName<T extends { name: string }>(
-  campaigners: T[],
+  campaigners: Array<T>,
   nameFilter: string | null | undefined,
-): T[] {
+): Array<T> {
   const needle = String(nameFilter || "").trim();
-  if (!needle) return campaigners;
+  if (!needle) {
+    return campaigners;
+  }
   return campaigners.filter((row) => {
     const name = String(row.name || "").trim();
     return name === needle || name.includes(needle) || needle.includes(name);
@@ -222,8 +262,8 @@ export function filterMissingPhoneCampaignersByName<T extends { name: string }>(
 }
 
 export function scopeSnapshotsForPlan<T extends { client_id: string }>(
-  snapshots: T[],
+  snapshots: Array<T>,
   plan: PulseDeliveryPlan,
-): T[] {
+): Array<T> {
   return filterPulseRowsByClientIds(snapshots, plan.clientIds);
 }

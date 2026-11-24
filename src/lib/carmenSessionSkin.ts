@@ -17,9 +17,14 @@ export function getSessionSkin(tenantId: string | null | undefined) {
 const lent = new Map<string, { before: string | null; slug: string }>();
 
 function apply(tenantId: string, slug: string | null) {
-  if (getSessionSkin(tenantId) === slug) return;
-  if (slug) skins.set(tenantId, slug);
-  else skins.delete(tenantId);
+  if (getSessionSkin(tenantId) === slug) {
+    return;
+  }
+  if (slug) {
+    skins.set(tenantId, slug);
+  } else {
+    skins.delete(tenantId);
+  }
   listeners.forEach((l) => l());
 }
 
@@ -28,7 +33,9 @@ export function setSessionSkin(
   tenantId: string | null | undefined,
   slug: string | null,
 ) {
-  if (!tenantId) return;
+  if (!tenantId) {
+    return;
+  }
   lent.delete(tenantId);
   apply(tenantId, slug);
 }
@@ -41,7 +48,9 @@ export function setWorkshopSkin(
   tenantId: string | null | undefined,
   slug: string,
 ) {
-  if (!tenantId) return;
+  if (!tenantId) {
+    return;
+  }
   const held = lent.get(tenantId);
   lent.set(tenantId, {
     before: held ? held.before : getSessionSkin(tenantId),
@@ -52,8 +61,11 @@ export function setWorkshopSkin(
 
 /** The workshop closed: a role skin it switched to gives way to the skin the session had. */
 export function releaseWorkshopSkins() {
-  for (const [tenantId, { before, slug }] of lent)
-    if (getSessionSkin(tenantId) === slug) apply(tenantId, before);
+  for (const [tenantId, { before, slug }] of lent) {
+    if (getSessionSkin(tenantId) === slug) {
+      apply(tenantId, before);
+    }
+  }
   lent.clear();
 }
 

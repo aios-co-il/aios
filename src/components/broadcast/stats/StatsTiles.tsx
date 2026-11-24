@@ -9,7 +9,7 @@ export function StatsTiles({
   rows,
   isEmail,
 }: {
-  rows: RecipientTimes[];
+  rows: Array<RecipientTimes>;
   isEmail: boolean;
 }) {
   const c = countRecipients(rows);

@@ -15,7 +15,7 @@ const PING_CONCURRENCY = 8;
 export async function pingTenants(
   sb: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
-): Promise<ReturnType<typeof pingReport>[]> {
+): Promise<Array<ReturnType<typeof pingReport>>> {
   const tenantIds = tenantId ? [tenantId] : await listNotifyTenants(sb);
   const reports = [];
   for (let i = 0; i < tenantIds.length; i += PING_CONCURRENCY) {
@@ -61,7 +61,7 @@ export function pingReport(plan: TenantNotifyPlan) {
  */
 async function listNotifyTenants(
   sb: Pick<DbClient, "from">,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const [triggers, pulse] = await Promise.all([
     sb
       .from("automation_flow_steps")

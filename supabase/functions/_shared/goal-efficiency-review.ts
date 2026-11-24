@@ -100,8 +100,8 @@ export async function collectGoalResourceMetrics(
 export type EfficiencyReviewResult = {
   efficient: boolean;
   score: number;
-  issues: string[];
-  optimizations: string[];
+  issues: Array<string>;
+  optimizations: Array<string>;
   send_to_cursor: boolean;
   cursor_instruction?: string;
 };

@@ -20,7 +20,7 @@ import { carmenTasksKey } from "../useCarmenTasks";
 
 const db = supabase as any;
 
-const STATUSES: { value: string; label: string }[] = [
+const STATUSES: Array<{ value: string; label: string }> = [
   { value: "active", label: "פעיל" },
   { value: "in_progress", label: "בעבודה" },
   { value: "blocked", label: "חסום" },
@@ -29,7 +29,7 @@ const STATUSES: { value: string; label: string }[] = [
   { value: "cancelled", label: "בוטל" },
 ];
 
-const PRIORITIES: { value: string; label: string }[] = [
+const PRIORITIES: Array<{ value: string; label: string }> = [
   { value: "urgent", label: "דחוף" },
   { value: "high", label: "גבוה" },
   { value: "normal", label: "רגיל" },
@@ -50,7 +50,9 @@ async function token() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session) throw new Error("לא מחובר");
+  if (!session) {
+    throw new Error("לא מחובר");
+  }
   return session.access_token;
 }
 
@@ -74,7 +76,9 @@ export function GoalEditor({
         .select("*")
         .eq("id", goalId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Record<string, any> | null;
     },
   });
@@ -87,7 +91,9 @@ export function GoalEditor({
   const [autonomous, setAutonomous] = useState(true);
 
   useEffect(() => {
-    if (!goal) return;
+    if (!goal) {
+      return;
+    }
     setTitle(goal.title ?? "");
     setBrief(goal.objective ?? goal.description ?? "");
     setCriteria(goal.completion_criteria ?? "");
@@ -103,8 +109,12 @@ export function GoalEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("אין ארגון פעיל");
-      if (!title.trim()) throw new Error("חסרה כותרת");
+      if (!tenantId) {
+        throw new Error("אין ארגון פעיל");
+      }
+      if (!title.trim()) {
+        throw new Error("חסרה כותרת");
+      }
       if (isNew) {
         const res = await createExecutionGoal(await token(), tenantId, {
           title,
@@ -122,15 +132,20 @@ export function GoalEditor({
         status,
         priority,
       };
-      if (goal && "objective" in goal) patch.objective = brief || null;
+      if (goal && "objective" in goal) {
+        patch.objective = brief || null;
+      }
       if (goal && "autonomous_mode" in goal) {
         patch.autonomous_mode = autonomous;
         // Turning the engine on schedules the next iteration from now.
-        if (autonomous && !goal.autonomous_mode)
+        if (autonomous && !goal.autonomous_mode) {
           patch.next_run_at = new Date().toISOString();
+        }
       }
       const { error } = await db.from("goals").update(patch).eq("id", goalId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return null;
     },
     onSuccess: (notice) => {
@@ -153,10 +168,12 @@ export function GoalEditor({
     onError: (e: any) => toast.error(e?.message ?? String(e)),
   });
 
-  if (goalId && isLoading)
+  if (goalId && isLoading) {
     return <p className="text-sm text-muted-foreground">טוען…</p>;
-  if (goalId && !goal)
+  }
+  if (goalId && !goal) {
     return <p className="text-sm text-muted-foreground">היעד לא נמצא.</p>;
+  }
 
   return (
     <div className="space-y-4" dir="rtl">

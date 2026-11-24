@@ -24,7 +24,7 @@ export async function chatReadRefusal(
   supabase: Pick<DbClient, "from">,
   scope: ChatScope,
   contact: { type: unknown; id: unknown } | null,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<Record<string, unknown> | null> {
   if (scope.mode === "none") {
     return chatScopeRefusal(scope);
@@ -72,7 +72,7 @@ export async function chatContactRefusal(
   scope: ChatScope,
   contactType: unknown,
   contactId: unknown,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<Record<string, unknown> | null> {
   if (scope.mode !== "staff") {
     return null;
@@ -117,7 +117,7 @@ function accessDenied(note: string) {
 async function leadOwnerFor(
   supabase: Pick<DbClient, "from">,
   leadId: string,
-  tenantIds: string[],
+  tenantIds: Array<string>,
 ): Promise<LeadOwner | null> {
   const { data, error } = await supabase
     .from("leads")

@@ -22,9 +22,15 @@ export function buildShots(
     Number.isFinite(duration) && duration > 0 ? duration : Math.max(0, ...cuts);
   const boundaries = [0];
   for (const cut of [...cuts].sort((a, b) => a - b)) {
-    if (cut <= 0 || cut >= end) continue;
-    if (cut - boundaries[boundaries.length - 1] < minShot) continue;
-    if (end - cut < minShot) continue;
+    if (cut <= 0 || cut >= end) {
+      continue;
+    }
+    if (cut - boundaries[boundaries.length - 1] < minShot) {
+      continue;
+    }
+    if (end - cut < minShot) {
+      continue;
+    }
     boundaries.push(cut);
   }
   boundaries.push(end);
@@ -38,7 +44,9 @@ export function buildShots(
   while (shots.length > maxShots) {
     let shortest = 0;
     for (let index = 1; index < shots.length; index += 1) {
-      if (shots[index].duration < shots[shortest].duration) shortest = index;
+      if (shots[index].duration < shots[shortest].duration) {
+        shortest = index;
+      }
     }
     const neighbour =
       shortest === shots.length - 1 ? shortest - 1 : shortest + 1;

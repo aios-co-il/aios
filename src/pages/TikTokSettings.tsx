@@ -34,7 +34,9 @@ export default function TikTokSettings() {
   const { data: integration, isLoading } = useQuery({
     queryKey: ["tiktok-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -55,8 +57,12 @@ export default function TikTokSettings() {
         "tiktok-connect",
         { method: "POST" },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       return data;
     },
     onSuccess: () => {
@@ -79,7 +85,9 @@ export default function TikTokSettings() {
         "tiktok-disconnect",
         { method: "POST" },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

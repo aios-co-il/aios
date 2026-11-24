@@ -67,7 +67,9 @@ export function useUserAgencies() {
             .eq("campaigner_id", profile.campaigner_id)
             .eq("agencies.tenant_id", currentTenantId);
 
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           agencyLinks?.forEach((l) => aggregated.add(l.agency_id));
         }
       }
@@ -80,7 +82,9 @@ export function useUserAgencies() {
           .eq("user_id", userId)
           .eq("agencies.tenant_id", currentTenantId);
 
-        if (managedErr) throw managedErr;
+        if (managedErr) {
+          throw managedErr;
+        }
         managed?.forEach((m) => aggregated.add(m.agency_id));
       }
 
@@ -90,7 +94,9 @@ export function useUserAgencies() {
         .select("agency_id")
         .eq("accessing_tenant_id", currentTenantId);
 
-      if (sharedErr) throw sharedErr;
+      if (sharedErr) {
+        throw sharedErr;
+      }
       sharedAgencies?.forEach((s) => aggregated.add(s.agency_id));
 
       return Array.from(aggregated);

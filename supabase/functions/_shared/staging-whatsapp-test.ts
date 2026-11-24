@@ -6,14 +6,16 @@
 type FetchInput = string | URL | Request;
 
 /** Digits-only numbers from a comma/space separated list. */
-export function parseTestNumbers(raw: string | undefined | null): string[] {
+export function parseTestNumbers(
+  raw: string | undefined | null,
+): Array<string> {
   return (raw || "")
     .split(/[\s,]+/)
     .map((item) => item.replace(/\D/g, ""))
     .filter((item) => item.length >= 8);
 }
 
-export function envTestNumbers(): string[] {
+export function envTestNumbers(): Array<string> {
   const deno = (
     globalThis as { Deno?: { env: { get(key: string): string | undefined } } }
   ).Deno;
@@ -68,7 +70,7 @@ export function whatsappSendRecipientField(
 /** Exact direct-chat match only: no groups, no suffix matching. */
 export function isTestRecipient(
   value: unknown,
-  testNumbers: string[],
+  testNumbers: Array<string>,
 ): boolean {
   if (typeof value !== "string") {
     return false;
@@ -110,7 +112,7 @@ async function readRecipient(
 export async function whatsappTestSendAllowed(
   input: FetchInput,
   init: RequestInit | undefined,
-  testNumbers: string[],
+  testNumbers: Array<string>,
 ): Promise<boolean> {
   if (testNumbers.length === 0) {
     return false;

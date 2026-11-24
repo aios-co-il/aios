@@ -120,7 +120,7 @@ class MirrorTests(unittest.TestCase):
     def test_legacy_source_key_ambiguity_prevents_every_target_write(self):
         class API:
             def query(self, sql, source=False):
-                if source: return [{'items':[{'id':'a','user_id':'u','module':'m'}, {'id':'b','user_id':'u','module':'m'}]}]
+                if source: return [{'items':[{'id':'a','user_id':'u','tenant_id':'t','module':'m'}, {'id':'b','user_id':'u','tenant_id':'t','module':'m'}]}]
                 raise AssertionError('Ambiguous identities must not be written')
         with self.assertRaisesRegex(RuntimeError, 'ambiguous source logical key'):
             mirror.reconcile_legacy_keys(API(), {'name':'user_permissions'})

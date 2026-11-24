@@ -17,12 +17,12 @@ import type { NotifyFloors } from "./route.ts";
  * it sets no floor.
  */
 export function notifyFloors(
-  collectors: readonly Collector[],
-  state: RoundStateRow[],
+  collectors: ReadonlyArray<Collector>,
+  state: Array<RoundStateRow>,
   now: Date,
 ): NotifyFloors {
   const floors: NotifyFloors = {};
-  const raise = (kinds: readonly (keyof NotifyFloors)[], at: string) => {
+  const raise = (kinds: ReadonlyArray<keyof NotifyFloors>, at: string) => {
     for (const kind of kinds) {
       const current = floors[kind];
       if (!current || Date.parse(at) > Date.parse(current)) {

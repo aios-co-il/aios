@@ -28,9 +28,9 @@ export type Thread = {
   /** Messages the activity read returned (calls not counted). */
   messageCount: number;
   /** Oldest first. */
-  turns: Turn[];
+  turns: Array<Turn>;
   /** Client turns after the last staff turn, oldest first. */
-  pending: Turn[];
+  pending: Array<Turn>;
   /**
    * A group where a team phone other than the monitored line wrote in the
    * read, so staff are members: its text may go to the model and be quoted.
@@ -44,10 +44,10 @@ export type Thread = {
  * between them) counts once.
  */
 export function buildThreads(
-  rows: ActivityRow[],
+  rows: Array<ActivityRow>,
   staffKeys: ReadonlySet<string>,
-  calls: CompletedCall[],
-): Thread[] {
+  calls: Array<CompletedCall>,
+): Array<Thread> {
   const byKey = new Map<string, Map<string, ActivityRow>>();
   for (const row of rows) {
     const thread = byKey.get(row.thread_key) ?? new Map();
@@ -67,9 +67,9 @@ export function firstStaffTurnAfter(thread: Thread, at: Date): Turn | null {
 
 /** A thread from its rows (one thread key) and the tenant's calls. */
 function toThread(
-  rows: ActivityRow[],
+  rows: Array<ActivityRow>,
   staffKeys: ReadonlySet<string>,
-  calls: CompletedCall[],
+  calls: Array<CompletedCall>,
 ): Thread {
   const [first] = rows;
   const messages = rows

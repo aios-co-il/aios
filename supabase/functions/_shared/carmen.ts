@@ -151,7 +151,9 @@ async function logCarmenAutomationRun(
   errorMessage?: string | null,
   startedAt?: number,
 ): Promise<void> {
-  if (!automationId) return;
+  if (!automationId) {
+    return;
+  }
   try {
     await supabase.from("automation_logs").insert({
       automation_id: automationId,
@@ -242,9 +244,12 @@ function messageRequestsEnd(
   configuredEndKeyword?: string | null,
 ): boolean {
   const m = normalize(msg);
-  if (!m) return false;
-  if (configuredEndKeyword && m.includes(configuredEndKeyword.toLowerCase()))
+  if (!m) {
+    return false;
+  }
+  if (configuredEndKeyword && m.includes(configuredEndKeyword.toLowerCase())) {
     return true;
+  }
   return END_KEYWORD_VARIANTS.some(
     (k) =>
       m === k ||
@@ -256,8 +261,12 @@ function messageRequestsEnd(
 
 function isShortAck(msg: string): boolean {
   const m = normalize(msg);
-  if (!m) return false;
-  if (m.length > 20) return false;
+  if (!m) {
+    return false;
+  }
+  if (m.length > 20) {
+    return false;
+  }
   return ACK_VARIANTS.some((k) => m === k || m === k + " כרמן");
 }
 
@@ -275,7 +284,7 @@ const CARMEN_NAME_VARIANT_RE = /[כק]א?רמן/;
 function resolveTriggerKeywords(
   cfg: CarmenAutomationConfig,
   persona?: PersonaTrigger,
-): string[] {
+): Array<string> {
   const list =
     Array.isArray(cfg?.trigger_keywords) && cfg.trigger_keywords.length
       ? cfg.trigger_keywords
@@ -293,7 +302,7 @@ function resolveTriggerKeywords(
 
 /** The line owner's call words, and Carmen's agent id to tell her automations apart. */
 interface PersonaTrigger {
-  words: string[];
+  words: Array<string>;
   carmenAgentId: string | null;
 }
 
@@ -302,9 +311,9 @@ interface PersonaTrigger {
 // name. An automation for another agent (Claude, Manus) keeps only its own keywords.
 function carmenPersonaWords(
   cfg: CarmenAutomationConfig,
-  ownKeywords: string[],
+  ownKeywords: Array<string>,
   persona?: PersonaTrigger,
-): string[] {
+): Array<string> {
   if (!persona?.words.length) {
     return [];
   }
@@ -337,7 +346,7 @@ async function loadPersonaTrigger(
 // end is an incidental mention ("...Carmen said that..."), not an invocation.
 function messageHasTrigger(
   normalizedMsg: string,
-  triggerKeywords: string[],
+  triggerKeywords: Array<string>,
   persona?: PersonaTrigger,
 ): boolean {
   const msgContent = normalizedMsg.replace(/^\s*🎤\s*/, "").trim();
@@ -431,7 +440,7 @@ const MEETING_URL_RE =
  */
 export function groupMessageInvokesCarmen(
   message: string,
-  callWords: string[] = [],
+  callWords: Array<string> = [],
 ): boolean {
   const content = asCarmenName(
     String(message || "")
@@ -439,16 +448,28 @@ export function groupMessageInvokesCarmen(
       .trim(),
     callWords,
   );
-  if (!content) return false;
-  if (!CARMEN_NAME_WORD_RE.test(content)) return false;
+  if (!content) {
+    return false;
+  }
+  if (!CARMEN_NAME_WORD_RE.test(content)) {
+    return false;
+  }
 
   // Reporting / third person — never wake.
-  if (CARMEN_THIRD_PERSON_RE.test(content)) return false;
-  if (CARMEN_ABOUT_RE.test(content)) return false;
-  if (CARMEN_WHY_WHEN_RE.test(content)) return false;
+  if (CARMEN_THIRD_PERSON_RE.test(content)) {
+    return false;
+  }
+  if (CARMEN_ABOUT_RE.test(content)) {
+    return false;
+  }
+  if (CARMEN_WHY_WHEN_RE.test(content)) {
+    return false;
+  }
 
   // Clear direct command / request: "כרמן תבדקי…", "כרמן תצטרפי", "כרמן תבקשי…"
-  if (CARMEN_DIRECT_AFTER_NAME_RE.test(content)) return true;
+  if (CARMEN_DIRECT_AFTER_NAME_RE.test(content)) {
+    return true;
+  }
 
   // Greeting aimed at her ("היי כרמן, …"): judge the rest like a vocative.
   const greeted = CARMEN_GREETING_PREFIX_RE.test(content);
@@ -459,22 +480,35 @@ export function groupMessageInvokesCarmen(
   // Vocative at start of message.
   if (/^\s*[כק]א?רמן(?:\s*[,:!?]|$|\s)/u.test(vocative)) {
     const after = vocative.replace(/^\s*[כק]א?רמן\s*[,:!]?\s*/u, "").trim();
-    if (!after) return true; // bare "כרמן" / "היי כרמן"
-    if (/^[?!]/.test(after)) return true;
+    if (!after) {
+      return true;
+    } // bare "כרמן" / "היי כרמן"
+    if (/^[?!]/.test(after)) {
+      return true;
+    }
     // Question directed at her: "כרמן מה מצב…?"
     if (
       /^(מה|איך|מתי|איפה|למה|האם|יש|אפשר|תוכלי|את)(?:$|[\s,.:;!?])/u.test(after)
-    )
+    ) {
       return true;
+    }
     // Meeting join link right after addressing her.
-    if (MEETING_URL_RE.test(after)) return true;
+    if (MEETING_URL_RE.test(after)) {
+      return true;
+    }
     // Reporting about her ("כרמן בדקה את הדוח?") never wakes her.
-    if (opensWithThirdPersonVerb(after)) return false;
+    if (opensWithThirdPersonVerb(after)) {
+      return false;
+    }
     // Short introduction after a greeting: "היי כרמן, זאת אנה".
-    if (greeted && after.split(/\s+/u).length <= 3) return true;
+    if (greeted && after.split(/\s+/u).length <= 3) {
+      return true;
+    }
     // Opens with her name and asks something / speaks to her in 2nd person:
     // "כרמן על כל שאלה את עונה פעמיים?"
-    if (/[?？]\s*$/u.test(after) || SECOND_PERSON_RE.test(after)) return true;
+    if (/[?？]\s*$/u.test(after) || SECOND_PERSON_RE.test(after)) {
+      return true;
+    }
     // Uncertain remainder after the name → stay silent.
     return false;
   }
@@ -503,8 +537,8 @@ function escapeRegExp(text: string): string {
 // Null when an own keyword (or nothing) came first.
 function invokingCallWord(
   content: string,
-  triggerKeywords: string[],
-  ownKeywords: string[],
+  triggerKeywords: Array<string>,
+  ownKeywords: Array<string>,
 ): string | null {
   const prefix = content.slice(0, 80).toLowerCase();
   let first: { word: string; index: number; own: boolean } | null = null;
@@ -530,7 +564,7 @@ function withoutInvokingCallWord(content: string, word: RegExp): string {
 }
 
 // Reads each call word, matched literally as a whole word, as Carmen's name.
-function asCarmenName(content: string, callWords: string[]): string {
+function asCarmenName(content: string, callWords: Array<string>): string {
   // Longer names first, so "AIOS Pro" is read before "AIOS" can split it.
   const longestFirst = [...callWords].sort(
     (a, b) => b.trim().length - a.trim().length,
@@ -548,9 +582,12 @@ function asCarmenName(content: string, callWords: string[]): string {
 // "answers" the instructions instead of the real question.
 function looksLikeMetaInstruction(content: string): boolean {
   const c = (content || "").trim();
-  if (!c) return false;
-  if (c.length > 300 && /(תעני|תשתמשי|חשוב לתת|הנחיות|הוראות)/.test(c))
+  if (!c) {
+    return false;
+  }
+  if (c.length > 300 && /(תעני|תשתמשי|חשוב לתת|הנחיות|הוראות)/.test(c)) {
     return true;
+  }
   const lines = c
     .split("\n")
     .map((l) => l.trim())
@@ -558,8 +595,9 @@ function looksLikeMetaInstruction(content: string): boolean {
   if (
     lines.length >= 3 &&
     /^(תעני|תשתמשי|תזכרי|אל ת|תמיד|חשוב|כללים)/.test(lines[0])
-  )
+  ) {
     return true;
+  }
   return false;
 }
 
@@ -567,7 +605,9 @@ function looksLikeMetaInstruction(content: string): boolean {
 // "ההנחיות נשמרו / הבנתי את ההוראות" back to the chat.
 function looksLikeInstructionReport(content: string): boolean {
   const c = (content || "").trim();
-  if (!c) return false;
+  if (!c) {
+    return false;
+  }
   return /(ההנחיות|ההוראות|הבנתי את ההנחיות|אפעל לפי ההנחיות|שמרתי הנחיה|הנחיותיך נשמרו|נכנסו לכספת|לכספת שלי|לא משחררת מידע|השומרת הכי|הסלקטורית הכי|מוכנה לפקודת|אני כאן לכל משימה|אני כאן ומחכה לפקודות|דרוכה ומוכנה|בסבלנות של נזירה|בלי דליפות מידע|רשמתי לפניי את עניין)/.test(
     c,
   );
@@ -620,7 +660,9 @@ export async function fetchRecentChatContext(
       .eq("tenant_id", tenantId)
       .eq("group_chat_id", chatId)
       .maybeSingle();
-    if (!groupRow?.id) return [];
+    if (!groupRow?.id) {
+      return [];
+    }
 
     const { data, error } = await supabase
       .from("chat_messages")
@@ -634,13 +676,17 @@ export async function fetchRecentChatContext(
       .order("created_at", { ascending: false })
       .limit(maxMessages);
 
-    if (error || !Array.isArray(data)) return [];
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
 
     return data
       .reverse() // oldest-first
       .map((m) => {
         const text = String(m.message_text || "").trim();
-        if (!text) return null;
+        if (!text) {
+          return null;
+        }
         const who =
           m.sender_name ||
           m.sender_phone ||
@@ -681,13 +727,17 @@ export function excludeCurrentTurnFromContext(
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
-  if (!needle) return recentContext;
+  if (!needle) {
+    return recentContext;
+  }
 
   let removed = false;
   return [...recentContext]
     .reverse()
     .filter((message) => {
-      if (removed) return true;
+      if (removed) {
+        return true;
+      }
       const content = String(message?.content || "")
         .replace(/\s+/g, " ")
         .trim()
@@ -719,7 +769,9 @@ export async function buildGroupRosterNote(
       .eq("tenant_id", tenantId)
       .eq("group_chat_id", groupChatId)
       .maybeSingle();
-    if (!g?.id) return "";
+    if (!g?.id) {
+      return "";
+    }
 
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const { data: msgs } = await supabase
@@ -738,12 +790,19 @@ export async function buildGroupRosterNote(
       const digits = String(m.sender_phone || "").replace(/\D/g, "");
       const name = m.sender_name ? String(m.sender_name).trim() : null;
       const key = digits ? digits.slice(-9) : name ? `name:${name}` : "";
-      if (!key) continue;
+      if (!key) {
+        continue;
+      }
       const existing = seen.get(key);
-      if (!existing) seen.set(key, { phone: digits, name });
-      else if (!existing.name && name) existing.name = name;
+      if (!existing) {
+        seen.set(key, { phone: digits, name });
+      } else if (!existing.name && name) {
+        existing.name = name;
+      }
     }
-    if (seen.size === 0) return "";
+    if (seen.size === 0) {
+      return "";
+    }
 
     const { data: team } = await supabase
       .from("campaigners")
@@ -754,10 +813,12 @@ export async function buildGroupRosterNote(
     for (const t of team || []) {
       const d = String(t.phone || "").replace(/\D/g, "");
       const n = String(t.full_name || "").trim();
-      if (d && n) teamByLast9.set(d.slice(-9), n);
+      if (d && n) {
+        teamByLast9.set(d.slice(-9), n);
+      }
     }
 
-    const entries: string[] = [];
+    const entries: Array<string> = [];
     for (const v of seen.values()) {
       const teamName = v.phone ? teamByLast9.get(v.phone.slice(-9)) : undefined;
       const label = teamName
@@ -767,10 +828,16 @@ export async function buildGroupRosterNote(
             ? `${v.name} (${v.phone})`
             : v.name
           : v.phone;
-      if (label) entries.push(label);
-      if (entries.length >= 15) break;
+      if (label) {
+        entries.push(label);
+      }
+      if (entries.length >= 15) {
+        break;
+      }
     }
-    if (entries.length === 0) return "";
+    if (entries.length === 0) {
+      return "";
+    }
 
     return `\n\n[הקשר קבוצה: ההודעות כאן נשלחות על-ידי חברי הקבוצה${g.group_name ? ` "${g.group_name}"` : ""}, לא מהמספר שלך. משתתפים מוכרים לפי היסטוריית הצ'אט: ${entries.join(" · ")}. פני לדובר הנוכחי לפי שמו; אם השולח לא מזוהה — אל תנחשי זהות.]`;
   } catch (e) {
@@ -798,7 +865,7 @@ export async function findCarmenAgent(
 export async function fetchKnownEntityNames(
   supabase: any,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   try {
     const [clientsRes, teamRes] = await Promise.all([
       supabase
@@ -814,10 +881,14 @@ export async function fetchKnownEntityNames(
     ]);
     const names = new Set<string>();
     for (const c of clientsRes.data || []) {
-      if (c?.name) names.add(String(c.name).trim());
+      if (c?.name) {
+        names.add(String(c.name).trim());
+      }
     }
     for (const t of teamRes.data || []) {
-      if (t?.full_name) names.add(String(t.full_name).trim());
+      if (t?.full_name) {
+        names.add(String(t.full_name).trim());
+      }
     }
     return [...names].filter(Boolean);
   } catch {
@@ -856,13 +927,15 @@ export async function findDualCarmenClaims(
       .eq("step_type", "trigger")
       .eq("action_type", "carmen_whatsapp_session")
       .neq("tenant_id", tenantId);
-    const claimIds: string[] = [];
-    const openCandidates: string[] = [];
+    const claimIds: Array<string> = [];
+    const openCandidates: Array<string> = [];
     for (const r of data || []) {
       const stepCfg = readCarmenConfig(r?.configuration);
       const g = stepCfg.carmen_allowed_group_ids;
       if (Array.isArray(g) && g.includes(groupChatId)) {
-        if (!claimIds.includes(r.tenant_id)) claimIds.push(r.tenant_id);
+        if (!claimIds.includes(r.tenant_id)) {
+          claimIds.push(r.tenant_id);
+        }
       } else if (
         stepCfg.carmen_open_member_groups === true &&
         !openCandidates.includes(r.tenant_id)
@@ -879,10 +952,15 @@ export async function findDualCarmenClaims(
         .select("tenant_id")
         .eq("group_chat_id", groupChatId)
         .in("tenant_id", openUnclaimed);
-      for (const w of wg || [])
-        if (!claimIds.includes(w.tenant_id)) claimIds.push(w.tenant_id);
+      for (const w of wg || []) {
+        if (!claimIds.includes(w.tenant_id)) {
+          claimIds.push(w.tenant_id);
+        }
+      }
     }
-    if (claimIds.length === 0) return { others: [], iAmPrimary: true };
+    if (claimIds.length === 0) {
+      return { others: [], iAmPrimary: true };
+    }
     const { data: tenants } = await supabase
       .from("tenants")
       .select("id, name")
@@ -906,7 +984,7 @@ export async function findDualCarmenClaims(
 // answers only org-relevant messages and emits the skip sentinel otherwise.
 export function buildDualCarmenNote(
   myTenantName: string,
-  otherNames: string[],
+  otherNames: Array<string>,
 ): string {
   return `\n\n[הנחיית מערכת — בקבוצה זו פעילה גם כרמן של ${otherNames.join(" ו-")} בנוסף אלייך (כרמן של ${myTenantName}). עני אך ורק אם ההודעה נוגעת לארגון שלך — לקוחות, קמפיינים, אנשים או נושאים של ${myTenantName}. אם ההודעה שייכת לארגון האחר, מופנית לכרמן שלו, או שאין דרך לדעת בוודאות ואת לא הנמענת הטבעית — השיבי בדיוק את המחרוזת ${DUAL_CARMEN_SKIP} ותו לא.]`;
 }
@@ -934,7 +1012,9 @@ export async function findCarmenSessionAutomation(
     .eq("step_type", "trigger")
     .eq("action_type", "carmen_whatsapp_session");
 
-  if (!flowStepRows || flowStepRows.length === 0) return null;
+  if (!flowStepRows || flowStepRows.length === 0) {
+    return null;
+  }
   const flowSteps: Array<CarmenTriggerStep> = flowStepRows.flatMap((s) => {
     if (!hasValidCarmenIntegrationPin(s.configuration)) {
       console.warn("[carmen] invalid automation integration pin", {
@@ -958,9 +1038,9 @@ export async function findCarmenSessionAutomation(
   // pinned to a Manus integration.
   const ctxIsGroup = !!ctx?.isGroup;
   const ctxPhoneDigits = (ctx?.phoneNumber || "").replace(/\D/g, "");
-  const pinnedMatches: CarmenTriggerStep[] = [];
-  const unpinned: CarmenTriggerStep[] = [];
-  const foreignPhoneAllowed: CarmenTriggerStep[] = [];
+  const pinnedMatches: Array<CarmenTriggerStep> = [];
+  const unpinned: Array<CarmenTriggerStep> = [];
+  const foreignPhoneAllowed: Array<CarmenTriggerStep> = [];
   for (const s of flowSteps) {
     const pinned = s.configuration?.carmen_integration_id;
     if (!pinned) {
@@ -972,7 +1052,7 @@ export async function findCarmenSessionAutomation(
       ctxPhoneDigits &&
       s.configuration?.carmen_scope_mode === "specific_phone"
     ) {
-      const allowed: string[] = Array.isArray(
+      const allowed: Array<string> = Array.isArray(
         s.configuration?.carmen_allowed_phones,
       )
         ? s.configuration.carmen_allowed_phones
@@ -985,13 +1065,17 @@ export async function findCarmenSessionAutomation(
           ctxPhoneDigits.endsWith(p) ||
           p.endsWith(ctxPhoneDigits),
       );
-      if (hit) foreignPhoneAllowed.push(s);
+      if (hit) {
+        foreignPhoneAllowed.push(s);
+      }
     }
   }
   const ranked = ctx?.pinnedOnly
     ? [...pinnedMatches]
     : [...pinnedMatches, ...unpinned, ...foreignPhoneAllowed];
-  if (ranked.length === 0) return null;
+  if (ranked.length === 0) {
+    return null;
+  }
 
   // Channel-aware ranking: when multiple Carmen automations are pinned to the same
   // integration, prefer the one whose scope actually matches the current message
@@ -1014,10 +1098,13 @@ export async function findCarmenSessionAutomation(
     .trim()
     .slice(0, 80);
   const stepKeywordHit = (cfg: CarmenAutomationConfig): boolean => {
-    if (!msgPrefix) return false;
+    if (!msgPrefix) {
+      return false;
+    }
     const kws = resolveTriggerKeywords(cfg, ctx?.personaTrigger);
-    if (kws.some((k) => keywordInPrefix(msgPrefix, k, ctx?.personaTrigger)))
+    if (kws.some((k) => keywordInPrefix(msgPrefix, k, ctx?.personaTrigger))) {
       return true;
+    }
     // The generic Carmen-name variants only count for default/Carmen automations.
     const hasCarmenDefault = kws.some((k) => /[כק]א?רמן/.test(k));
     return hasCarmenDefault && /[כק]א?רמן/.test(msgPrefix);
@@ -1035,7 +1122,9 @@ export async function findCarmenSessionAutomation(
           : Array.isArray(cfg.carmen_allowed_groups)
             ? cfg.carmen_allowed_groups
             : [];
-    const allowedPhones: string[] = Array.isArray(cfg.carmen_allowed_phones)
+    const allowedPhones: Array<string> = Array.isArray(
+      cfg.carmen_allowed_phones,
+    )
       ? cfg.carmen_allowed_phones.map((p) => String(p).replace(/\D/g, ""))
       : [];
 
@@ -1045,12 +1134,20 @@ export async function findCarmenSessionAutomation(
 
     const base = (() => {
       if (isGroup) {
-        if (mode === "specific_group" && groupMatch) return 100;
-        if (mode === "specific_group") return 40; // group-mode but this chat isn't listed
+        if (mode === "specific_group" && groupMatch) {
+          return 100;
+        }
+        if (mode === "specific_group") {
+          return 40;
+        } // group-mode but this chat isn't listed
         // Open-member-groups automation is usable in ANY group Carmen sits in —
         // above a generic 'all' automation, below an explicit group match.
-        if (cfg.carmen_open_member_groups === true) return 30;
-        if (mode === "all") return 20;
+        if (cfg.carmen_open_member_groups === true) {
+          return 30;
+        }
+        if (mode === "all") {
+          return 20;
+        }
         // specific_phone in a group context → unusable
         return -50;
       }
@@ -1064,10 +1161,15 @@ export async function findCarmenSessionAutomation(
               phoneDigits.endsWith(p) ||
               p.endsWith(phoneDigits)),
         )
-      )
+      ) {
         return 100;
-      if (mode === "specific_phone") return 40;
-      if (mode === "all") return 20;
+      }
+      if (mode === "specific_phone") {
+        return 40;
+      }
+      if (mode === "all") {
+        return 20;
+      }
       // specific_group in a 1:1 context → unusable
       return -50;
     })();
@@ -1082,12 +1184,16 @@ export async function findCarmenSessionAutomation(
     .select("id, name, configuration")
     .in("id", automationIds)
     .eq("active", true);
-  if (!automations || automations.length === 0) return null;
+  if (!automations || automations.length === 0) {
+    return null;
+  }
 
   const activeById = new Map(automations.map((a) => [a.id, a] as const));
   for (const s of ranked) {
     const auto = activeById.get(s.automation_id);
-    if (!auto) continue;
+    if (!auto) {
+      continue;
+    }
     return {
       ...auto,
       configuration: mergeCarmenStepConfig(auto.configuration, s.configuration),
@@ -1158,7 +1264,9 @@ export async function sendCarmenReplyViaActionStep(args: {
     .order("created_at", { ascending: true })
     .limit(1);
   const step = steps?.[0];
-  if (!step) return false;
+  if (!step) {
+    return false;
+  }
 
   const isMeta = step.action_type === "send_meta_whatsapp_message";
   // Meta's Cloud API has no group messaging at all, so a Carmen line running on it
@@ -1214,7 +1322,9 @@ export async function sendCarmenReplyViaActionStep(args: {
   if (sendRef) {
     body.sendRef = sendRef;
   }
-  if (integrationId) body.integrationId = integrationId;
+  if (integrationId) {
+    body.integrationId = integrationId;
+  }
   if (groupId) {
     body.groupId = groupId;
   } else {
@@ -1259,7 +1369,7 @@ export async function runCarmenAI(
   agentId: string | null,
   tenantId: string,
   userMessage: string,
-  conversationHistory: SessionTurn[],
+  conversationHistory: Array<SessionTurn>,
   senderPhone?: string | null,
   senderName?: string | null,
   waNotify?: CarmenWaNotify | null,
@@ -1326,7 +1436,9 @@ export async function runCarmenAI(
     }
     const data = await res.json();
     const out = (data?.output || "").toString().trim();
-    if (!out) throw new Error("run-ai-agent returned empty output");
+    if (!out) {
+      throw new Error("run-ai-agent returned empty output");
+    }
     return out;
   };
 
@@ -1358,12 +1470,14 @@ export async function syncCarmenToAIConversation(
     | "sender_name"
     | "phone"
   >,
-  conversationHistory: SessionTurn[],
+  conversationHistory: Array<SessionTurn>,
 ): Promise<string | null> {
   try {
     const userId = session.connection_user_id;
     const tenantId = session.tenant_id;
-    if (!userId || !tenantId) return null;
+    if (!userId || !tenantId) {
+      return null;
+    }
 
     const messages = conversationMirrorMessages(conversationHistory);
 
@@ -1411,7 +1525,9 @@ export async function findActiveCarmenSession(
   // Phone is last-speaker metadata and must never select which conversation
   // to continue (same person sits in many groups).
   const origin = requireOriginChatId(chatId);
-  if (!origin.ok) return null;
+  if (!origin.ok) {
+    return null;
+  }
   const activeSessions = supabase
     .from("carmen_whatsapp_sessions")
     .select("*")
@@ -1438,7 +1554,7 @@ export async function findActiveCarmenSession(
   // integration when one exists (each session records its source channel),
   // otherwise fall back to legacy/NULL rows and finally to the newest row —
   // so pre-migration sessions and cross-channel continuations keep working.
-  const list: CarmenSessionRow[] = Array.isArray(rows) ? rows : [];
+  const list: Array<CarmenSessionRow> = Array.isArray(rows) ? rows : [];
   const data = integrationId
     ? list.find((s) => s.integration_id === integrationId) ||
       list.find((s) => !s.integration_id) ||
@@ -1446,7 +1562,9 @@ export async function findActiveCarmenSession(
       null
     : list[0] || null;
 
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
   const lastActivity = new Date(
     data.last_message_at || data.created_at || 0,
@@ -1550,7 +1668,9 @@ async function findCarmenTenantStaffByPhone(
   phoneNumber: string,
 ): Promise<CarmenTenantStaff | null> {
   const tail = phoneTail(phoneNumber);
-  if (!tail) return null;
+  if (!tail) {
+    return null;
+  }
 
   const { data: phoneCampaigners } = await supabase
     .from("campaigners")
@@ -1560,7 +1680,9 @@ async function findCarmenTenantStaffByPhone(
   const matches = (phoneCampaigners || []).filter(
     (row) => phoneTail(row.phone) === tail,
   );
-  if (!matches.length) return null;
+  if (!matches.length) {
+    return null;
+  }
 
   const direct = matches.find((row) => row.tenant_id === tenantId);
   const campaignerIds = matches.map((row) => row.id);
@@ -1601,7 +1723,9 @@ async function findCarmenTenantStaffByPhone(
 
   // A tenant-local active campaigner is sufficient even when no login profile
   // exists. Cross-tenant campaigner reuse requires an explicit tenant role.
-  if (!direct && (!matchedProfile || !tenantRole)) return null;
+  if (!direct && (!matchedProfile || !tenantRole)) {
+    return null;
+  }
   const campaigner =
     direct ||
     matches.find((row) => row.id === matchedProfile?.campaigner_id) ||
@@ -1626,17 +1750,19 @@ async function loadCarmenAccessContext(
   agentId: string | null,
 ): Promise<{
   policy: Tables<"carmen_access_policies"> | null;
-  groupChatIds: string[];
+  groupChatIds: Array<string>;
   mergedScope: ReturnType<typeof mergeCarmenScopeConfig> | null;
 }> {
-  if (!agentId) return { policy: null, groupChatIds: [], mergedScope: null };
+  if (!agentId) {
+    return { policy: null, groupChatIds: [], mergedScope: null };
+  }
   const { data: policy } = await supabase
     .from("carmen_access_policies")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("agent_id", agentId)
     .maybeSingle();
-  let groupChatIds: string[] = [];
+  let groupChatIds: Array<string> = [];
   if (policy?.allowed_group_ids?.length) {
     const manusGroupIds = await filterPolicyGroupsToManus(
       supabase,
@@ -1662,7 +1788,7 @@ async function resolveCarmenGroupIdentity(
   senderName: string | null | undefined,
   messageText: string,
   allowedPhones: unknown,
-  policyPhoneEntries: unknown[] = [],
+  policyPhoneEntries: Array<unknown> = [],
 ): Promise<CarmenIdentityAccess> {
   const digits = await resolveCarmenIdentityPhone(
     { from: () => supabase.from("wa_lid_map") },
@@ -1707,7 +1833,7 @@ async function resolveCarmenGroupIdentity(
     .or(`phone.eq.${digits},phone.ilike.%${tail}`)
     .limit(3);
   // Schema lag: conversation-access columns may be missing — retry without them.
-  let identityRows: CarmenGroupIdentityRow[] | null = identities;
+  let identityRows: Array<CarmenGroupIdentityRow> | null = identities;
   if (identityErr) {
     console.warn(
       "[carmen] identity select with surfaces failed, retrying base columns",
@@ -1839,7 +1965,7 @@ async function resolveCarmenGroupIdentity(
   const phoneAllowList = policyPhoneList(parsedEntries).length
     ? policyPhoneList(parsedEntries)
     : Array.isArray(allowedPhones)
-      ? (allowedPhones as unknown[])
+      ? (allowedPhones as Array<unknown>)
           .map((p) => String(p).replace(/\D/g, ""))
           .filter(Boolean)
       : [];
@@ -1914,8 +2040,9 @@ export async function handleCarmenMessage(
   const handlerStartedAt = Date.now();
 
   // Groups are supported — Carmen replies in the group chat.
-  if (!isIncoming && !isManualOutgoing)
+  if (!isIncoming && !isManualOutgoing) {
     return { handled: false, reason: "not_user_message" };
+  }
 
   const normalizedMsg = (messageText || "").trim().toLowerCase();
   // A personal line answers as its owner's character; the main Carmen line as the org's Carmen.
@@ -2352,7 +2479,9 @@ export async function handleCarmenMessage(
       return { handled: true, outcome: "active" };
     }
     if (!access.allowed) {
-      if (access.reply) await routedSend(chatId, access.reply);
+      if (access.reply) {
+        await routedSend(chatId, access.reply);
+      }
       console.log("[carmen] group author blocked by identity access", {
         tenantId,
         chatId,
@@ -2505,7 +2634,7 @@ export async function handleCarmenMessage(
       }
     }
 
-    const updatedHistory: SessionTurn[] = [
+    const updatedHistory: Array<SessionTurn> = [
       ...history,
       {
         role: "user",
@@ -2649,7 +2778,9 @@ export async function handleCarmenMessage(
   }
 
   const carmenAutomation = earlyAutomation;
-  if (!carmenAutomation) return { handled: false, reason: "no_automation" };
+  if (!carmenAutomation) {
+    return { handled: false, reason: "no_automation" };
+  }
 
   // Legacy compatibility: filter by connection_user_id if set and integration not pinned.
   const pinnedIntegrationId =
@@ -2666,8 +2797,8 @@ export async function handleCarmenMessage(
 
   // Scope enforcement — merged policy (Agent → הרשאות שיחה) overrides automation when set
   const scopeMode = mergedScope.scopeMode;
-  const allowedPhones: string[] = mergedScope.allowedPhones;
-  const allowedGroups: string[] = mergedScope.allowedGroups;
+  const allowedPhones: Array<string> = mergedScope.allowedPhones;
+  const allowedGroups: Array<string> = mergedScope.allowedGroups;
   if (scopeMode === "specific_phone" && !isGroup) {
     // `sourcePhoneNumber` is the CONNECTED account — i.e. always the operator
     // themselves. On the operator's own OUTBOUND messages (isManualOutgoing) it
@@ -2727,8 +2858,9 @@ export async function handleCarmenMessage(
   const endKeywordConfig = endKeywordValue
     ? String(endKeywordValue)
     : "סיימנו כרמן";
-  if (!messageHasTrigger(normalizedMsg, triggerKeywords, personaTrigger))
+  if (!messageHasTrigger(normalizedMsg, triggerKeywords, personaTrigger)) {
     return { handled: false, reason: "no_keyword" };
+  }
 
   // Resolve agent
   let agentId = (carmenAutomation.configuration?.agent_id ?? null) || null;
@@ -2901,7 +3033,7 @@ export async function handleCarmenMessage(
       return { handled: true, outcome: "deferred_to_other_carmen" };
     }
 
-    const history: SessionTurn[] = [
+    const history: Array<SessionTurn> = [
       {
         role: "user",
         content: contentAfterKeyword,
@@ -2976,7 +3108,7 @@ export async function handleCarmenMessage(
         : `היי, ${agentName} כאן. מה תרצה לבדוק? (לסיום: "${endKeywordConfig}")`;
     }
 
-    const history: SessionTurn[] = [
+    const history: Array<SessionTurn> = [
       {
         role: "assistant",
         content: opener,

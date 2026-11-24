@@ -78,12 +78,12 @@ interface CrmRecord {
 }
 
 interface GoogleAnalyticsDashboardProps {
-  records: CrmRecord[];
+  records: Array<CrmRecord>;
   externalDateFilter?: string;
   externalCustomDateRange?: { from: Date | undefined; to: Date | undefined };
   tableId?: string;
   /** Extra GA table ids to keep in sync when the mode toggle is changed. */
-  relatedTableIds?: string[];
+  relatedTableIds?: Array<string>;
   dashboardId?: string;
   defaultReportMode?: AnalyticsReportMode;
 }
@@ -136,7 +136,9 @@ export function GoogleAnalyticsDashboard({
   defaultReportMode,
 }: GoogleAnalyticsDashboardProps) {
   const mapExternalPreset = (ext?: string): DateRangePreset => {
-    if (!ext) return "last_7_days";
+    if (!ext) {
+      return "last_7_days";
+    }
     const map: Record<string, DateRangePreset> = {
       all: "all",
       today: "today",
@@ -184,14 +186,16 @@ export function GoogleAnalyticsDashboard({
   // Keep local mode in sync when the persisted default arrives (async parent load)
   // or when switching between dashboards/tables with different defaults.
   useEffect(() => {
-    if (!defaultReportMode) return;
+    if (!defaultReportMode) {
+      return;
+    }
     setReportMode(defaultReportMode);
   }, [defaultReportMode, dashboardId, tableId]);
 
   const persistReportMode = (newMode: AnalyticsReportMode) => {
     const tableIds = Array.from(
       new Set(
-        [tableId, ...(relatedTableIds || [])].filter(Boolean) as string[],
+        [tableId, ...(relatedTableIds || [])].filter(Boolean) as Array<string>,
       ),
     );
     for (const id of tableIds) {
@@ -224,15 +228,21 @@ export function GoogleAnalyticsDashboard({
               settings: { ...currentSettings, default_report_mode: newMode },
             })
             .eq("id", dashboardId);
-          if (updateError) console.error(updateError);
+          if (updateError) {
+            console.error(updateError);
+          }
         });
     }
   };
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const toNumber = (value: unknown): number => {
-    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (value === null || value === undefined) {
+      return 0;
+    }
     const cleaned = String(value).replace(/[^0-9.-]/g, "");
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -338,13 +348,15 @@ export function GoogleAnalyticsDashboard({
 
   // Filter records by date range - only filter records that have a date field
   const filterRecordsByDate = (
-    records: CrmRecord[],
+    records: Array<CrmRecord>,
     startDate: Date,
     endDate: Date,
   ) => {
     return records.filter((r) => {
       // If record has no date field, include it (aggregated data)
-      if (!r.data.date) return true;
+      if (!r.data.date) {
+        return true;
+      }
 
       // Try to parse the date
       try {
@@ -364,7 +376,9 @@ export function GoogleAnalyticsDashboard({
 
   // Normalize source names - provide meaningful Hebrew labels
   const normalizeSourceName = (name: string): string => {
-    if (!name) return "מקור לא ידוע";
+    if (!name) {
+      return "מקור לא ידוע";
+    }
 
     const lowerName = name.toLowerCase();
 
@@ -399,7 +413,7 @@ export function GoogleAnalyticsDashboard({
     trafficBreakdown,
     phoneCallEvents,
   } = useMemo(() => {
-    const aggregateTrafficSources = (sourceRecords: CrmRecord[]) => {
+    const aggregateTrafficSources = (sourceRecords: Array<CrmRecord>) => {
       const sourceMap = new Map<
         string,
         {
@@ -481,8 +495,12 @@ export function GoogleAnalyticsDashboard({
 
     // Filter daily records by selected date range
     const currentDailyRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -498,8 +516,12 @@ export function GoogleAnalyticsDashboard({
 
     const previousDailyRecords = showComparison
       ? records.filter((r) => {
-          if (r.data.report_type !== "daily") return false;
-          if (!r.data.date) return false;
+          if (r.data.report_type !== "daily") {
+            return false;
+          }
+          if (!r.data.date) {
+            return false;
+          }
 
           try {
             const recordDate = parseISO(r.data.date);
@@ -516,8 +538,12 @@ export function GoogleAnalyticsDashboard({
 
     // Date-synced source rows (new schema)
     const currentDailySourceRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily_source") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily_source") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -536,7 +562,7 @@ export function GoogleAnalyticsDashboard({
       (r) => r.data.source_medium || r.data.source || r.data.medium,
     );
 
-    let trafficSources: {
+    let trafficSources: Array<{
       name: string;
       sessions: number;
       users: number;
@@ -548,7 +574,7 @@ export function GoogleAnalyticsDashboard({
       addToCart: number;
       purchases: number;
       purchaseValue: number;
-    }[];
+    }>;
 
     if (currentDailySourceRecords.length > 0) {
       trafficSources = aggregateTrafficSources(currentDailySourceRecords);
@@ -663,8 +689,12 @@ export function GoogleAnalyticsDashboard({
     // Prefer channel_group records — they match GA Traffic Acquisition exactly
     // Filter by date range so the organic/paid breakdown respects the selected period
     const channelGroupRecords = records.filter((r) => {
-      if (r.data.report_type !== "channel_group") return false;
-      if (!r.data.date) return false; // skip legacy records without date
+      if (r.data.report_type !== "channel_group") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      } // skip legacy records without date
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);
@@ -684,8 +714,12 @@ export function GoogleAnalyticsDashboard({
     // Phone call events - always use date-filtered event_total records for accurate per-period counts
     const dateFilteredEventRecords = records.filter((r) => {
       const reportType = r.data.report_type;
-      if (reportType !== "event_total") return false;
-      if (!r.data.date) return true;
+      if (reportType !== "event_total") {
+        return false;
+      }
+      if (!r.data.date) {
+        return true;
+      }
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);
@@ -700,7 +734,7 @@ export function GoogleAnalyticsDashboard({
 
     const eventSourceRecords = dateFilteredEventRecords;
 
-    const phoneCallEvents: { eventName: string; total: number }[] = [];
+    const phoneCallEvents: Array<{ eventName: string; total: number }> = [];
     const phoneEventMap = new Map<string, number>();
     for (const r of eventSourceRecords) {
       const eventName = (r.data.event_name || "").toLowerCase();

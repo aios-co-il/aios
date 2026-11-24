@@ -33,7 +33,7 @@ export const stillUsd = (model: StillModel) =>
   model === "nano-banana-pro" ? NANO_BANANA_PRO_IMAGE_USD : GPT_IMAGE_STILL_USD;
 
 /** Scenes the production must animate: no clip yet, an outdated clip, or a failed try. */
-export const framesNeedingClip = (frames: StoryboardFrame[]) =>
+export const framesNeedingClip = (frames: Array<StoryboardFrame>) =>
   frames.filter(
     (frame) =>
       frame.status !== "clip_generating" &&
@@ -43,7 +43,7 @@ export const framesNeedingClip = (frames: StoryboardFrame[]) =>
   );
 
 /** Scenes that need a still first: no picture yet, and something to draw. */
-export const framesNeedingStill = (frames: StoryboardFrame[]) =>
+export const framesNeedingStill = (frames: Array<StoryboardFrame>) =>
   [...frames]
     .sort((a, b) => a.order - b.order)
     .filter(
@@ -53,9 +53,9 @@ export const framesNeedingStill = (frames: StoryboardFrame[]) =>
     );
 
 export interface ProductionPlan {
-  stills: StoryboardFrame[];
-  clips: StoryboardFrame[];
-  voices: StoryboardFrame[];
+  stills: Array<StoryboardFrame>;
+  clips: Array<StoryboardFrame>;
+  voices: Array<StoryboardFrame>;
   music: boolean;
   usd: {
     stills: number;
@@ -73,7 +73,7 @@ const round = (value: number) => Math.round(value * 100) / 100;
 
 /** What one click of "הפק סרט" will make, and what it costs, before anything is queued. */
 export function productionPlan(
-  frames: StoryboardFrame[],
+  frames: Array<StoryboardFrame>,
   {
     sceneEngine,
     soundEngine,
@@ -128,11 +128,13 @@ export interface ProductionProgress {
 
 /** A short Hebrew status line and a progress bar value for the studio header. */
 export function productionProgress(
-  frames: StoryboardFrame[],
+  frames: Array<StoryboardFrame>,
   production: VideoProduction | null,
   renderStatus: string | undefined,
 ): ProductionProgress | null {
-  if (production?.status !== "running") return null;
+  if (production?.status !== "running") {
+    return null;
+  }
   const animating = frames.filter((f) => f.status === "clip_generating").length;
   const total = Math.max(frames.length, 1);
   if (animating > 0) {
@@ -142,7 +144,8 @@ export function productionProgress(
       percent: Math.round(10 + (ready / total) * 75),
     };
   }
-  if (renderStatus === "queued" || renderStatus === "running")
+  if (renderStatus === "queued" || renderStatus === "running") {
     return { label: "מרכיב את הסרט…", percent: 92 };
+  }
   return { label: "מכין קריינות ומוזיקה…", percent: 85 };
 }

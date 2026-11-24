@@ -67,21 +67,25 @@ function generateSlug(name: string): string {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
     .trim();
-  if (!slug || slug === "-" || slug.length < 2)
+  if (!slug || slug === "-" || slug.length < 2) {
     slug = `org-${crypto.randomUUID().slice(0, 8)}`;
+  }
   return slug;
 }
 
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
+function asStringArray(value: unknown): Array<string> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
   return value.filter(
     (v): v is string => typeof v === "string" && v.length > 0,
   );
 }
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -89,14 +93,17 @@ serve(async (req: Request) => {
     const admin = createClient(supabaseUrl, serviceKey);
 
     const authHeader = req.headers.get("authorization");
-    if (!authHeader)
+    if (!authHeader) {
       return json({ error: "Missing authorization header" }, 401);
+    }
     const token = authHeader.replace("Bearer ", "");
     const {
       data: { user },
       error: authErr,
     } = await admin.auth.getUser(token);
-    if (authErr || !user) return json({ error: "Unauthorized" }, 401);
+    if (authErr || !user) {
+      return json({ error: "Unauthorized" }, 401);
+    }
 
     const { data: userRoles } = await admin
       .from("user_roles")
@@ -127,7 +134,9 @@ serve(async (req: Request) => {
     const selectedTableIds = asStringArray(share_crm_table_ids);
     const selectedAutomationIds = asStringArray(share_automation_ids);
 
-    if (!client_id) return json({ error: "client_id is required" }, 400);
+    if (!client_id) {
+      return json({ error: "client_id is required" }, 400);
+    }
 
     const { data: client, error: clientErr } = await admin
       .from("clients")
@@ -145,7 +154,9 @@ serve(async (req: Request) => {
       .eq("id", client_id)
       .maybeSingle();
 
-    if (clientErr || !client) return json({ error: "Client not found" }, 404);
+    if (clientErr || !client) {
+      return json({ error: "Client not found" }, 404);
+    }
     const sourceTenantId: string = client.tenant_id;
 
     const ADMIN_ROLES = new Set(["owner", "team_manager", "agency_owner"]);
@@ -154,7 +165,9 @@ serve(async (req: Request) => {
       (userRoles || []).some(
         (r: any) => r.tenant_id === sourceTenantId && ADMIN_ROLES.has(r.role),
       );
-    if (!hasAccess) return json({ error: "Insufficient permissions" }, 403);
+    if (!hasAccess) {
+      return json({ error: "Insufficient permissions" }, 403);
+    }
 
     const { data: sourceTenant } = await admin
       .from("tenants")
@@ -163,12 +176,15 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     let orgType: "root" | "organization" | "sub_organization" = "organization";
-    if (sourceTenant?.org_type === "root") orgType = "organization";
-    else if (sourceTenant?.org_type === "organization")
+    if (sourceTenant?.org_type === "root") {
+      orgType = "organization";
+    } else if (sourceTenant?.org_type === "organization") {
       orgType = "sub_organization";
-    else if (isSuperAdmin) orgType = "organization";
+    } else if (isSuperAdmin) {
+      orgType = "organization";
+    }
 
-    const warnings: string[] = [];
+    const warnings: Array<string> = [];
     if (orgType === "sub_organization") {
       warnings.push(
         "ארגון היעד יהיה תת-ארגון (ארגון המקור עצמו הוא תת-ארגון). לא ניתן ליצור רמה נוספת בהיררכיה.",
@@ -209,7 +225,9 @@ serve(async (req: Request) => {
         .select("id")
         .eq("slug", slug)
         .maybeSingle();
-      if (!existing) break;
+      if (!existing) {
+        break;
+      }
       slug = `${baseSlug}-${slugCounter++}`;
     }
 
@@ -228,8 +246,9 @@ serve(async (req: Request) => {
       .select()
       .single();
 
-    if (tenantErr || !newTenant)
+    if (tenantErr || !newTenant) {
       throw new Error("Failed to create tenant: " + tenantErr?.message);
+    }
 
     const targetTenantId: string = newTenant.id;
 
@@ -371,10 +390,11 @@ serve(async (req: Request) => {
             const { error: contactsErr } = await admin
               .from("client_contacts")
               .insert(contactRows);
-            if (contactsErr)
+            if (contactsErr) {
               warnings.push(
                 "copy_client_details (contacts): " + contactsErr.message,
               );
+            }
           }
         }
       }
@@ -390,11 +410,14 @@ serve(async (req: Request) => {
         .eq("is_active", true)
         .in("id", selectedIntegrationIds);
 
-      if (integLoadErr)
+      if (integLoadErr) {
         warnings.push("integrations load: " + integLoadErr.message);
+      }
 
       for (const integ of sourceIntegrations || []) {
-        if (integ.integration_type === "llm" && !share_llm) continue;
+        if (integ.integration_type === "llm" && !share_llm) {
+          continue;
+        }
         const { error: accessErr } = await admin
           .from("integration_tenant_access")
           .upsert(
@@ -408,11 +431,13 @@ serve(async (req: Request) => {
               ignoreDuplicates: true,
             },
           );
-        if (accessErr)
+        if (accessErr) {
           warnings.push(
             `integration access (${integ.integration_type}): ${accessErr.message}`,
           );
-        else sharedIntegrationCount++;
+        } else {
+          sharedIntegrationCount++;
+        }
       }
     }
 
@@ -439,9 +464,11 @@ serve(async (req: Request) => {
               ignoreDuplicates: true,
             },
           );
-        if (llmErr)
+        if (llmErr) {
           warnings.push("integration access (llm): " + llmErr.message);
-        else sharedIntegrationCount++;
+        } else {
+          sharedIntegrationCount++;
+        }
       }
     }
 
@@ -454,8 +481,9 @@ serve(async (req: Request) => {
         .eq("client_id", client_id)
         .in("id", selectedPageIds);
 
-      if (pagesLoadErr)
+      if (pagesLoadErr) {
         warnings.push("social_pages load: " + pagesLoadErr.message);
+      }
 
       const pageRows = (socialPages || []).map((p: any) => ({
         social_page_id: p.id,
@@ -470,8 +498,11 @@ serve(async (req: Request) => {
             onConflict: "social_page_id,tenant_id",
             ignoreDuplicates: true,
           });
-        if (pagesErr) warnings.push("social_pages_shared: " + pagesErr.message);
-        else sharedPagesCount = pageRows.length;
+        if (pagesErr) {
+          warnings.push("social_pages_shared: " + pagesErr.message);
+        } else {
+          sharedPagesCount = pageRows.length;
+        }
       }
     }
 
@@ -485,8 +516,9 @@ serve(async (req: Request) => {
         .eq("client_id", client_id)
         .in("id", selectedSiteIds);
 
-      if (sitesLoadErr)
+      if (sitesLoadErr) {
         warnings.push("wordpress_sites load: " + sitesLoadErr.message);
+      }
 
       const siteRows = (wpSites || []).map((s: any) => ({
         site_id: s.id,
@@ -501,9 +533,11 @@ serve(async (req: Request) => {
             onConflict: "site_id,tenant_id",
             ignoreDuplicates: true,
           });
-        if (sitesErr)
+        if (sitesErr) {
           warnings.push("wordpress_sites_shared: " + sitesErr.message);
-        else sharedSitesCount = siteRows.length;
+        } else {
+          sharedSitesCount = siteRows.length;
+        }
       }
     }
 
@@ -517,8 +551,9 @@ serve(async (req: Request) => {
         .eq("client_id", client_id)
         .in("id", selectedTableIds);
 
-      if (tablesLoadErr)
+      if (tablesLoadErr) {
         warnings.push("crm_tables load: " + tablesLoadErr.message);
+      }
 
       const tableRows = (tables || []).map((t: any) => ({
         crm_table_id: t.id,
@@ -533,13 +568,16 @@ serve(async (req: Request) => {
             onConflict: "crm_table_id,tenant_id",
             ignoreDuplicates: true,
           });
-        if (tablesErr) warnings.push("crm_tables_shared: " + tablesErr.message);
-        else sharedTablesCount = tableRows.length;
+        if (tablesErr) {
+          warnings.push("crm_tables_shared: " + tablesErr.message);
+        } else {
+          sharedTablesCount = tableRows.length;
+        }
       }
     }
 
     // ── Clone Carmen + selected automations ───────────────────────────────────
-    const cloneResults: any[] = [];
+    const cloneResults: Array<any> = [];
     if (clone_carmen) {
       const sourceAgent = await loadCarmenAgent(
         serviceClient(),
@@ -578,8 +616,9 @@ serve(async (req: Request) => {
         .eq("active", true)
         .in("id", selectedAutomationIds);
 
-      if (automationsErr)
+      if (automationsErr) {
         warnings.push("automations load: " + automationsErr.message);
+      }
 
       for (const aut of automations || []) {
         const res = await fetch(

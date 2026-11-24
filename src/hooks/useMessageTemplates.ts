@@ -24,7 +24,7 @@ export interface MessageTemplate {
   subject: string | null;
   body_html: string | null;
   html_mode: boolean;
-  attachments: EmailAttachment[];
+  attachments: Array<EmailAttachment>;
   body_text: string | null;
   media_url: string | null;
   created_by: string | null;
@@ -64,16 +64,20 @@ export function useMessageTemplates(channel?: TemplateChannel) {
   const list = useQuery({
     queryKey: ["message-templates", tenantId, channel ?? "all"],
     queryFn: tenantId
-      ? async (): Promise<MessageTemplate[]> => {
+      ? async (): Promise<Array<MessageTemplate>> => {
           let q = supabase
             .from("message_templates")
             .select("*")
             .eq("tenant_id", tenantId)
             .is("archived_at", null)
             .order("updated_at", { ascending: false });
-          if (channel) q = q.eq("channel", channel);
+          if (channel) {
+            q = q.eq("channel", channel);
+          }
           const { data, error } = await q;
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return (data || []).map(toMessageTemplate);
         }
       : skipToken,
@@ -89,7 +93,9 @@ export function useMessageTemplates(channel?: TemplateChannel) {
           .from("message_templates")
           .update(input)
           .eq("id", id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return id;
       }
       const { data, error } = await supabase
@@ -101,7 +107,9 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.id as string;
     },
     onSuccess: invalidate,
@@ -113,7 +121,9 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         .from("message_templates")
         .update({ archived_at: new Date().toISOString() })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: invalidate,
   });
@@ -132,7 +142,9 @@ export function useMessageTemplates(channel?: TemplateChannel) {
         body_text: t.body_text,
         media_url: t.media_url,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: invalidate,
   });

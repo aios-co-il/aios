@@ -86,8 +86,8 @@ export default function Tenants() {
 
   // Organize tenants into organizations and sub-organizations
   const organizeTenants = () => {
-    const orgs: any[] = [];
-    const subs: Record<string, any[]> = {};
+    const orgs: Array<any> = [];
+    const subs: Record<string, Array<any>> = {};
 
     (tenants || []).forEach((tenant: any) => {
       if (tenant.org_type === "organization" || tenant.org_type === "root") {
@@ -105,8 +105,12 @@ export default function Tenants() {
 
     // Sort: MarketingCaptain first, then alphabetically
     const sorted = orgs.sort((a, b) => {
-      if (a.name === "MarketingCaptain") return -1;
-      if (b.name === "MarketingCaptain") return 1;
+      if (a.name === "MarketingCaptain") {
+        return -1;
+      }
+      if (b.name === "MarketingCaptain") {
+        return 1;
+      }
       return a.name.localeCompare(b.name, "he");
     });
 
@@ -124,7 +128,9 @@ export default function Tenants() {
 
   const switchTenantMutation = useMutation({
     mutationFn: async (tenantId: string) => {
-      if (!userId) throw new Error("User not authenticated");
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
 
       const { error } = await supabase.from("user_active_tenant").upsert(
         {
@@ -137,7 +143,9 @@ export default function Tenants() {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Get the slug directly from database
       const { data: tenantData } = await supabase
@@ -177,7 +185,9 @@ export default function Tenants() {
     }
 
     const tenant = tenants?.find((t: any) => t.id === tenantId);
-    if (!tenant) return;
+    if (!tenant) {
+      return;
+    }
 
     // Check if user has permission to access this tenant
     const { data: tenantUser } = await supabase
@@ -664,7 +674,9 @@ export default function Tenants() {
         parentTenantId={subTenantParentId || undefined}
         open={!!subTenantParentId}
         onOpenChange={(open) => {
-          if (!open) setSubTenantParentId(null);
+          if (!open) {
+            setSubTenantParentId(null);
+          }
         }}
         onSuccess={() => {
           setSubTenantParentId(null);
@@ -677,7 +689,9 @@ export default function Tenants() {
         open={editNameDialogOpen}
         onOpenChange={(open) => {
           setEditNameDialogOpen(open);
-          if (!open) setSelectedTenantForEdit(null);
+          if (!open) {
+            setSelectedTenantForEdit(null);
+          }
         }}
         tenant={selectedTenantForEdit}
       />

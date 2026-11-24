@@ -14,7 +14,7 @@ type ConceptLike = {
 const text = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
-function asConcepts(value: unknown): ConceptLike[] {
+function asConcepts(value: unknown): Array<ConceptLike> {
   return Array.isArray(value)
     ? value.filter(
         (row): row is ConceptLike => !!row && typeof row === "object",
@@ -25,7 +25,9 @@ function asConcepts(value: unknown): ConceptLike[] {
 export function formatApprovedConceptsFromPayload(
   payload: Record<string, unknown> | null | undefined,
 ): string {
-  if (!payload) return "";
+  if (!payload) {
+    return "";
+  }
   const stored = asConcepts(payload.approved_concepts);
   const fallback = asConcepts(payload.copy_concepts).filter(
     (row) => row.approved === true,

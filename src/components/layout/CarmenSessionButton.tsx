@@ -16,7 +16,9 @@ export function CarmenSessionButton() {
   const sidecar = useCommandCenterSidecar();
   const unread = useCarmenUnreadReply(sidecar.open);
   const { style } = useCarmenAvatarStyle();
-  if (!access.allowed) return null;
+  if (!access.allowed) {
+    return null;
+  }
   return (
     <button
       onClick={() => sidecar.toggle()}

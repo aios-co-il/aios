@@ -22,7 +22,9 @@ export function AIOSCommandBar({
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading) {
+      return;
+    }
     onSend(trimmed);
     setInput("");
   };

@@ -29,9 +29,13 @@ export function cursorSessionDisplayName(args: {
   sourceTool?: string | null;
 }): string {
   const title = String(args.taskTitle || "").trim();
-  if (title) return `AIOS · ${title}`.slice(0, 100);
+  if (title) {
+    return `AIOS · ${title}`.slice(0, 100);
+  }
   const request = String(args.requestText || "").trim();
-  if (request) return `AIOS · ${request}`.slice(0, 100);
+  if (request) {
+    return `AIOS · ${request}`.slice(0, 100);
+  }
   const tool = String(args.sourceTool || "cursor").trim();
   return `AIOS · ${tool}`.slice(0, 100);
 }
@@ -59,7 +63,9 @@ export async function trackCursorTaskSession(
   input: TrackCursorSessionInput,
 ): Promise<void> {
   const agentId = String(input.cursorAgentId || "").trim();
-  if (!agentId.startsWith("bc-")) return;
+  if (!agentId.startsWith("bc-")) {
+    return;
+  }
 
   const now = new Date().toISOString();
   const row = {
@@ -79,7 +85,9 @@ export async function trackCursorTaskSession(
   const { error } = await supabase
     .from("cursor_task_sessions")
     .upsert(row, { onConflict: "tenant_id,cursor_agent_id" });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   if (input.humanTaskId) {
     await supabase
@@ -105,10 +113,14 @@ export async function touchCursorTaskSession(
   status?: CursorSessionStatus,
 ): Promise<void> {
   const id = String(cursorAgentId || "").trim();
-  if (!id.startsWith("bc-")) return;
+  if (!id.startsWith("bc-")) {
+    return;
+  }
   const now = new Date().toISOString();
   const patch: Record<string, string> = { updated_at: now, last_seen_at: now };
-  if (status) patch.status = status;
+  if (status) {
+    patch.status = status;
+  }
   await supabase
     .from("cursor_task_sessions")
     .update(patch)
@@ -156,7 +168,7 @@ export async function listCursorTaskSessions(
   supabase: { from: (t: string) => any },
   tenantId: string,
   opts?: { status?: CursorSessionStatus | "active"; limit?: number },
-): Promise<CursorTaskSessionRow[]> {
+): Promise<Array<CursorTaskSessionRow>> {
   let query = supabase
     .from("cursor_task_sessions")
     .select("*")
@@ -169,8 +181,10 @@ export async function listCursorTaskSessions(
     query = query.eq("status", opts.status);
   }
   const { data, error } = await query;
-  if (error) throw error;
-  return (data || []) as CursorTaskSessionRow[];
+  if (error) {
+    throw error;
+  }
+  return (data || []) as Array<CursorTaskSessionRow>;
 }
 
 export async function findCursorSessionForTask(
@@ -186,14 +200,18 @@ export async function findCursorSessionForTask(
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data as CursorTaskSessionRow | null) ?? null;
 }
 
 export function formatCursorSessionsForAgent(
-  rows: CursorTaskSessionRow[],
+  rows: Array<CursorTaskSessionRow>,
 ): string {
-  if (!rows.length) return "No Cursor task sessions found.";
+  if (!rows.length) {
+    return "No Cursor task sessions found.";
+  }
   return rows
     .map((r) => {
       const task = r.human_task_id ? `task=${r.human_task_id}` : "task=—";

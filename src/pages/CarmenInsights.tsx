@@ -135,13 +135,17 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
 
   const episodesBySession = useMemo(() => {
     const m = new Map<string, any>();
-    for (const e of episodes) m.set(e.session_ref, e);
+    for (const e of episodes) {
+      m.set(e.session_ref, e);
+    }
     return m;
   }, [episodes]);
 
   const filteredSessions = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return sessions;
+    if (!s) {
+      return sessions;
+    }
     return sessions.filter((x: any) =>
       [x.sender_name, x.phone, x.chat_id]
         .filter(Boolean)
@@ -160,9 +164,14 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
           body: { session_id: sessionId, force },
         },
       );
-      if (error) throw error;
-      if (data?.skipped) toast.info(`דילוג: ${data.reason}`);
-      else toast.success(`נותח! איכות ${data?.quality_score ?? "?"}/5`);
+      if (error) {
+        throw error;
+      }
+      if (data?.skipped) {
+        toast.info(`דילוג: ${data.reason}`);
+      } else {
+        toast.success(`נותח! איכות ${data?.quality_score ?? "?"}/5`);
+      }
       await Promise.all([refetchEpisodes(), refetchPointers()]);
     } catch (e: any) {
       toast.error(`שגיאה: ${e.message}`);
@@ -172,8 +181,11 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   };
 
   const backfillAll = async () => {
-    if (!confirm(`לנתח את כל ${sessions.length} השיחות? הפעולה תיקח כמה דקות.`))
+    if (
+      !confirm(`לנתח את כל ${sessions.length} השיחות? הפעולה תיקח כמה דקות.`)
+    ) {
       return;
+    }
     setBackfilling(true);
     setBackfillProgress({ done: 0, total: sessions.length });
     const batch = 5;
@@ -212,8 +224,10 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
   };
 
   const pointersByCategory = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    for (const p of pointers) (map[p.category] ??= []).push(p);
+    const map: Record<string, Array<any>> = {};
+    for (const p of pointers) {
+      (map[p.category] ??= []).push(p);
+    }
     return map;
   }, [pointers]);
 
@@ -423,7 +437,9 @@ function CarmenInsights({ embedded = false }: CarmenInsightsProps = {}) {
         <TabsContent value="memories" className="space-y-4">
           {Object.entries(CATEGORY_META).map(([cat, meta]) => {
             const items = pointersByCategory[cat] || [];
-            if (cat === "what_worked" || cat === "what_failed") return null;
+            if (cat === "what_worked" || cat === "what_failed") {
+              return null;
+            }
             const Icon = meta.icon;
             return (
               <Card key={cat}>
@@ -554,7 +570,7 @@ function InsightColumn({
   onDelete,
 }: {
   title: string;
-  items: any[];
+  items: Array<any>;
   color: string;
   onDelete: (id: string) => void;
 }) {

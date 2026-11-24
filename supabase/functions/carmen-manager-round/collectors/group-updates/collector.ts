@@ -83,11 +83,11 @@ export async function collectGroupUpdates(
 /** The card entries of every client in play, from the oldest point compared. */
 function cardEntries(
   sources: GroupUpdateSources,
-  windows: GroupWindow[],
-  drafts: LiveDraft[],
+  windows: Array<GroupWindow>,
+  drafts: Array<LiveDraft>,
   from: Date,
   now: Date,
-): Promise<CardEntry[]> {
+): Promise<Array<CardEntry>> {
   const clientIds = [
     ...new Set([
       ...windows.map((window) => window.clientId),
@@ -108,9 +108,9 @@ function cardEntries(
  * so its new draft replaces the old one instead of adding an overlapping one.
  */
 function candidates(
-  digests: WindowDigest[],
-  kept: FindingCandidate[],
-): FindingCandidate[] {
+  digests: Array<WindowDigest>,
+  kept: Array<FindingCandidate>,
+): Array<FindingCandidate> {
   const fresh = digests.filter((d) => d.digest.material).map(draftCandidate);
   const replaced = new Set(fresh.map((candidate) => candidate.fingerprint));
   return [
@@ -121,7 +121,7 @@ function candidates(
 
 /** Each window that was digested or found covered moves to its last message. */
 function marks(
-  gated: { window: GroupWindow; action: WindowAction }[],
+  gated: Array<{ window: GroupWindow; action: WindowAction }>,
 ): Record<string, GroupMark> {
   return Object.fromEntries(
     gated

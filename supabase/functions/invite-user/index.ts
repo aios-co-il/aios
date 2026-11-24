@@ -24,10 +24,10 @@ interface InviteUserRequest {
   email: string;
   fullName?: string;
   role?: string;
-  agencyIds?: string[];
+  agencyIds?: Array<string>;
   /** Clients to put the campaigner card on (client_team), so the user sees them. */
-  clientIds?: string[];
-  modulePermissions?: string[];
+  clientIds?: Array<string>;
+  modulePermissions?: Array<string>;
   resend?: boolean;
   campaignerId?: string;
   salesPersonId?: string;
@@ -66,7 +66,9 @@ async function findUserIdByEmail(
     .select("id")
     .ilike("email", normalized)
     .maybeSingle();
-  if (profile?.id) return profile.id;
+  if (profile?.id) {
+    return profile.id;
+  }
 
   // Fallback: paginated auth lookup (avoid single listUsers() over entire user base)
   let page = 1;
@@ -83,8 +85,12 @@ async function findUserIdByEmail(
     const match = data?.users?.find(
       (u) => u.email?.toLowerCase() === normalized,
     );
-    if (match?.id) return match.id;
-    if (!data?.users?.length || data.users.length < perPage) break;
+    if (match?.id) {
+      return match.id;
+    }
+    if (!data?.users?.length || data.users.length < perPage) {
+      break;
+    }
     page++;
   }
   return null;
@@ -177,9 +183,11 @@ async function linkStaffAgencies(
   table: "campaigner_agencies" | "sales_person_agencies",
   idColumn: "campaigner_id" | "sales_person_id",
   staffId: string,
-  agencyIds?: string[],
+  agencyIds?: Array<string>,
 ) {
-  if (!agencyIds || agencyIds.length === 0) return;
+  if (!agencyIds || agencyIds.length === 0) {
+    return;
+  }
   const rows = agencyIds.map((agencyId) => ({
     [idColumn]: staffId,
     agency_id: agencyId,
@@ -188,7 +196,9 @@ async function linkStaffAgencies(
     onConflict: `${idColumn},agency_id`,
     ignoreDuplicates: true,
   });
-  if (error) console.error(`Error linking ${table}:`, error);
+  if (error) {
+    console.error(`Error linking ${table}:`, error);
+  }
 }
 
 async function findOrCreateStaff(
@@ -200,7 +210,7 @@ async function findOrCreateStaff(
     tenantId: string;
     email: string;
     fullName?: string;
-    agencyIds?: string[];
+    agencyIds?: Array<string>;
     createIfMissing: boolean;
     fallbackName: string;
   },
@@ -209,10 +219,12 @@ async function findOrCreateStaff(
     .from(options.table)
     .select("id, email, full_name, active, created_at")
     .eq("tenant_id", options.tenantId);
-  if (listError) console.error(`Error loading ${options.table}:`, listError);
+  if (listError) {
+    console.error(`Error loading ${options.table}:`, listError);
+  }
 
   const match = pickExistingTeamMember(
-    (existing || []) as TeamMemberCandidate[],
+    (existing || []) as Array<TeamMemberCandidate>,
     {
       email: options.email,
       fullName: options.fullName,
@@ -221,7 +233,9 @@ async function findOrCreateStaff(
 
   if (match) {
     const patch: Record<string, unknown> = {};
-    if (!(match.email || "").trim()) patch.email = options.email;
+    if (!(match.email || "").trim()) {
+      patch.email = options.email;
+    }
     const currentName = (match.full_name || "").trim();
     if (
       options.fullName?.trim() &&
@@ -231,7 +245,9 @@ async function findOrCreateStaff(
     ) {
       patch.full_name = options.fullName.trim();
     }
-    if (match.active === false) patch.active = true;
+    if (match.active === false) {
+      patch.active = true;
+    }
     if (Object.keys(patch).length > 0) {
       await supabaseAdmin.from(options.table).update(patch).eq("id", match.id);
     }
@@ -245,7 +261,9 @@ async function findOrCreateStaff(
     return match.id;
   }
 
-  if (!options.createIfMissing) return undefined;
+  if (!options.createIfMissing) {
+    return undefined;
+  }
 
   const displayName =
     options.fullName?.trim() ||
@@ -283,7 +301,9 @@ async function absorbEmailCardIntoAssigned(
   email: string,
   assignedCampaignerId?: string,
 ) {
-  if (!assignedCampaignerId) return;
+  if (!assignedCampaignerId) {
+    return;
+  }
   const { data: rows, error } = await supabaseAdmin
     .from("campaigners")
     .select("id, email")
@@ -294,8 +314,12 @@ async function absorbEmailCardIntoAssigned(
   }
   const normalized = email.trim().toLowerCase();
   for (const row of rows) {
-    if (row.id === assignedCampaignerId) continue;
-    if ((row.email || "").trim().toLowerCase() !== normalized) continue;
+    if (row.id === assignedCampaignerId) {
+      continue;
+    }
+    if ((row.email || "").trim().toLowerCase() !== normalized) {
+      continue;
+    }
     const { error: mergeError } = await supabaseAdmin.rpc(
       "merge_assigned_campaigner_duplicate",
       {
@@ -303,8 +327,9 @@ async function absorbEmailCardIntoAssigned(
         p_duplicate: row.id,
       },
     );
-    if (mergeError)
+    if (mergeError) {
       console.error("Error merging assigned campaigner duplicate:", mergeError);
+    }
   }
 }
 
@@ -742,13 +767,16 @@ serve(async (req: Request) => {
       if (modulePermissions && modulePermissions.length > 0) {
         const permissionsToInsert = modulePermissions.map((module) => ({
           user_id: newUserId,
+          tenant_id: tenantIdFinal,
           module,
           can_access: true,
         }));
         const { error: permError } = await supabaseAdmin
           .from("user_permissions")
           .insert(permissionsToInsert);
-        if (permError) console.error("Error inserting permissions:", permError);
+        if (permError) {
+          console.error("Error inserting permissions:", permError);
+        }
       }
 
       if (updateProfileTeamLinks && effectiveCampaignerId) {

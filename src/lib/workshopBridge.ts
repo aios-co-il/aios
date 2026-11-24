@@ -65,7 +65,9 @@ export function applyWorkshopSkin(
   tenantId: string | null | undefined,
   slug: string,
 ) {
-  if (context) setWorkshopSkin(tenantId, slug);
+  if (context) {
+    setWorkshopSkin(tenantId, slug);
+  }
 }
 
 export function emitWorkshopEvent(event: WorkshopEvent) {
@@ -83,11 +85,19 @@ export function subscribeWorkshopEvents(
 
 /** A stream event from the agent, when it is one the board cares about. */
 export function workshopEventFrom(parsed: unknown): WorkshopEvent | null {
-  if (!parsed || typeof parsed !== "object") return null;
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
   const row = parsed as Record<string, unknown>;
-  if (row.type !== "workshop") return null;
-  if (typeof row.event !== "string" || !EVENTS.has(row.event)) return null;
-  if (typeof row.item_id !== "string" || !row.item_id) return null;
+  if (row.type !== "workshop") {
+    return null;
+  }
+  if (typeof row.event !== "string" || !EVENTS.has(row.event)) {
+    return null;
+  }
+  if (typeof row.item_id !== "string" || !row.item_id) {
+    return null;
+  }
   return {
     event: row.event as WorkshopEvent["event"],
     item_id: row.item_id,
@@ -103,7 +113,9 @@ export const WORKSHOP_SKIN = "carmen_workshop";
 
 /** What the chat adds to a Carmen request while the workshop is open. */
 export function workshopRequestParts(ctx: WorkshopContext | null) {
-  if (!ctx) return null;
+  if (!ctx) {
+    return null;
+  }
   const lines = [
     "=== הסדנה של כרמן ===",
     "המשתמש בלוח הסדנה ורואה כל מה שאת מפיקה.",
@@ -111,20 +123,23 @@ export function workshopRequestParts(ctx: WorkshopContext | null) {
       ? `פרויקט פתוח: item_id=${ctx.projectId}${ctx.title ? ` (${ctx.title})` : ""}. עבדי עליו, ואל תפתחי פרויקט חדש אלא אם ביקשו.`
       : "אין פרויקט פתוח. בקשת עבודה חדשה (מודעה, סרטון, קופי...) פותחת פרויקט עם workshop_start_project. שאלה עלייך או על המערכת מקבלת תשובה ישירה, בלי פרויקט.",
   ];
-  if (ctx.selectedArtifactId)
+  if (ctx.selectedArtifactId) {
     lines.push(
       `העמוד שהמשתמש בחר בלוח: artifact_id=${ctx.selectedArtifactId}. "את זה" ו"שני את זה" מתייחסים אליו.`,
     );
-  if (ctx.selectedSceneId)
+  }
+  if (ctx.selectedSceneId) {
     lines.push(
       `הסצנה שהמשתמש בחר בלוח: scene_id=${ctx.selectedSceneId}${
         ctx.selectedSceneNumber ? ` (סצנה ${ctx.selectedSceneNumber})` : ""
       }. "את זה", "הסצנה הזאת" ו"שני" מתייחסים אליה; שינוי בה עם workshop_update_scene.`,
     );
-  if (ctx.clientId)
+  }
+  if (ctx.clientId) {
     lines.push(
       `הלקוח הפתוח בסדנה: client_id=${ctx.clientId}${ctx.clientName ? ` (${ctx.clientName})` : ""}. פרויקט חדש נפתח עבורו אלא אם ביקשו לקוח אחר.`,
     );
+  }
   return {
     taskSkills: [WORKSHOP_SKIN],
     promptAddon: lines.join("\n"),

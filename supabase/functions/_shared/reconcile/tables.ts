@@ -17,12 +17,12 @@ export async function listReconcileTables(
   opts: {
     afterId?: string | null;
     limit: number;
-    tenantIds?: string[] | null;
+    tenantIds?: Array<string> | null;
     clientId?: string | null;
-    tableIds?: string[] | null;
-    integrationTypes?: readonly string[];
+    tableIds?: Array<string> | null;
+    integrationTypes?: ReadonlyArray<string>;
   },
-): Promise<ListedTable[]> {
+): Promise<Array<ListedTable>> {
   let query = db
     .from("crm_tables")
     .select(TABLE_COLUMNS)
@@ -74,8 +74,8 @@ export async function readAiosCampaignRows(
   start: string,
   end: string,
   pageSize = CRM_RECORDS_PAGE_SIZE,
-): Promise<CampaignDayRow[]> {
-  const rows: CampaignDayRow[] = [];
+): Promise<Array<CampaignDayRow>> {
+  const rows: Array<CampaignDayRow> = [];
   for (let page = 0; ; page++) {
     if (page >= MAX_RECORD_PAGES) {
       throw new Error(`crm_records: more than ${MAX_RECORD_PAGES} pages`);

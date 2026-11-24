@@ -29,8 +29,8 @@ import type {
  * ad group and ad rows under the same campaign id.
  */
 export function summarizeGoogleAdsCampaigns(
-  allRecords: GoogleReportRecord[],
-  tables: GoogleReportTable[],
+  allRecords: Array<GoogleReportRecord>,
+  tables: Array<GoogleReportTable>,
 ): GoogleAdsCampaignSummary {
   const records = allRecords.filter((record) =>
     shouldIncludeInAdsDashboardAggregate(record.data, "google_ads"),

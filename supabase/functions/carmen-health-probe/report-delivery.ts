@@ -35,7 +35,7 @@ export async function deliverHealthDigest(
 async function queueToEveryRecipient(
   supabase: Pick<DbClient, "from" | "rpc">,
   tenantId: string,
-  recipients: CarmenReportRecipient[],
+  recipients: Array<CarmenReportRecipient>,
   digest: string,
 ): Promise<boolean> {
   const deliveries = await queueToReportRecipients(

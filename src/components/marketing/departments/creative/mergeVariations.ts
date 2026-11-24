@@ -2,16 +2,18 @@ import type { CreativeVariation } from "./types";
 
 /** Merge a local write with the latest payload so Cursor completes and user rejects do not clobber each other. */
 export function mergeCreativeVariations(
-  live: CreativeVariation[],
-  incoming: CreativeVariation[],
+  live: Array<CreativeVariation>,
+  incoming: Array<CreativeVariation>,
   options?: { dropIds?: Iterable<string> },
-): CreativeVariation[] {
+): Array<CreativeVariation> {
   const drop = new Set(options?.dropIds ?? []);
   const liveById = new Map(live.map((row) => [row.id, row]));
   const seen = new Set<string>();
-  const merged: CreativeVariation[] = [];
+  const merged: Array<CreativeVariation> = [];
   for (const row of incoming) {
-    if (drop.has(row.id)) continue;
+    if (drop.has(row.id)) {
+      continue;
+    }
     seen.add(row.id);
     const existing = liveById.get(row.id);
     if (!existing) {
@@ -29,8 +31,12 @@ export function mergeCreativeVariations(
     });
   }
   for (const row of live) {
-    if (drop.has(row.id) || seen.has(row.id)) continue;
-    if (row.imageUrl) merged.push(row);
+    if (drop.has(row.id) || seen.has(row.id)) {
+      continue;
+    }
+    if (row.imageUrl) {
+      merged.push(row);
+    }
   }
   return merged;
 }

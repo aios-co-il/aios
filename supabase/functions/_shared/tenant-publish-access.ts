@@ -34,27 +34,39 @@ export async function authorizeTenantPublisher(
   clientIds: Array<string | null | undefined>,
   lookups: PublishAccessLookups,
 ): Promise<PublishDecision> {
-  if (!caller) return { allowed: false, status: 401, error: "Unauthorized" };
-  if (caller.kind === "service") return { allowed: true };
+  if (!caller) {
+    return { allowed: false, status: 401, error: "Unauthorized" };
+  }
+  if (caller.kind === "service") {
+    return { allowed: true };
+  }
   const userId = caller.userId;
-  if (!userId) return { allowed: false, status: 401, error: "Unauthorized" };
-  if (!tenantId) return { allowed: false, status: 403, error: "Forbidden" };
+  if (!userId) {
+    return { allowed: false, status: 401, error: "Unauthorized" };
+  }
+  if (!tenantId) {
+    return { allowed: false, status: 403, error: "Forbidden" };
+  }
 
-  if (await lookups.isSuperAdmin(userId)) return { allowed: true };
-  if (!(await lookups.isTenantMember(userId, tenantId)))
+  if (await lookups.isSuperAdmin(userId)) {
+    return { allowed: true };
+  }
+  if (!(await lookups.isTenantMember(userId, tenantId))) {
     return {
       allowed: false,
       status: 403,
       error: "Not a member of this tenant",
     };
+  }
 
-  for (const clientId of new Set(clientIds.filter(Boolean) as string[])) {
-    if (!(await lookups.canAccessClient(userId, clientId)))
+  for (const clientId of new Set(clientIds.filter(Boolean) as Array<string>)) {
+    if (!(await lookups.canAccessClient(userId, clientId))) {
       return {
         allowed: false,
         status: 403,
         error: "No access to this client",
       };
+    }
   }
   return { allowed: true };
 }
@@ -75,7 +87,9 @@ async function rpcBoolean(
   args: Record<string, unknown>,
 ): Promise<boolean> {
   const { data, error } = await db.rpc(fn, args);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data === true;
 }
 
@@ -92,7 +106,9 @@ export function publishAccessLookups(
         .eq("tenant_id", tenantId)
         .eq("user_id", userId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return !!data;
     },
     isSuperAdmin: (userId) =>
@@ -113,9 +129,11 @@ export function wordPressSiteScopeError(
   tenantId: string,
   clientId: string | null,
 ): string | null {
-  if (site.tenant_id !== tenantId)
+  if (site.tenant_id !== tenantId) {
     return "WordPress site belongs to another tenant";
-  if (site.client_id && site.client_id !== clientId)
+  }
+  if (site.client_id && site.client_id !== clientId) {
     return "WordPress site belongs to another client";
+  }
   return null;
 }

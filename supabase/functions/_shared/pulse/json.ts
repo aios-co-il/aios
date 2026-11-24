@@ -4,7 +4,7 @@ export type JsonValue =
   | number
   | boolean
   | null
-  | JsonValue[]
+  | Array<JsonValue>
   | { [key: string]: JsonValue | undefined };
 
 /** A JSON object; the shape every settings column holds at its top level. */

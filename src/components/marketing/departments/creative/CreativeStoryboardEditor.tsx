@@ -80,8 +80,8 @@ export interface SceneStillVersion {
 }
 
 interface Props {
-  frames: StoryboardFrame[];
-  onChange: (frames: StoryboardFrame[]) => void;
+  frames: Array<StoryboardFrame>;
+  onChange: (frames: Array<StoryboardFrame>) => void;
   onSave: () => Promise<void>;
   onGenerateFrame: (frame: StoryboardFrame) => Promise<void>;
   /** Change the existing still with a short instruction ("move Carmen left"). */
@@ -89,7 +89,7 @@ interface Props {
     frame: StoryboardFrame,
     instruction: string,
   ) => Promise<void>;
-  loadVersions?: (frameId: string) => Promise<SceneStillVersion[]>;
+  loadVersions?: (frameId: string) => Promise<Array<SceneStillVersion>>;
   onSelectVersion?: (frame: StoryboardFrame, assetId: string) => Promise<void>;
   character?: {
     url?: string;
@@ -140,7 +140,7 @@ interface Props {
   /** Image-to-video: signed clip URLs by frame id; re-animate one scene (asks for budget first). */
   clips?: {
     urls: Record<string, string>;
-    onAnimate: (frames: StoryboardFrame[]) => void;
+    onAnimate: (frames: Array<StoryboardFrame>) => void;
   };
   generating?: boolean;
   saving?: boolean;
@@ -178,7 +178,7 @@ const SHOTS = [
 ];
 
 /** Frames in strip order with order/x recomputed (RTL: frame 1 on the right). */
-const renumber = (frames: StoryboardFrame[]): StoryboardFrame[] =>
+const renumber = (frames: Array<StoryboardFrame>): Array<StoryboardFrame> =>
   frames.map((frame, index) => ({
     ...frame,
     order: index + 1,
@@ -375,7 +375,7 @@ export function CreativeStoryboardEditor({
   );
   const [internalSceneOpen, setInternalSceneOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
-  const [versions, setVersions] = useState<SceneStillVersion[]>([]);
+  const [versions, setVersions] = useState<Array<SceneStillVersion>>([]);
   const [busy, setBusy] = useState<"edit" | "version" | null>(null);
   const characterInput = useRef<HTMLInputElement>(null);
   const referenceInput = useRef<HTMLInputElement>(null);
@@ -392,8 +392,9 @@ export function CreativeStoryboardEditor({
   );
 
   useEffect(() => {
-    if (focusRequest && frames.some((frame) => frame.id === focusRequest.id))
+    if (focusRequest && frames.some((frame) => frame.id === focusRequest.id)) {
       setSelectedFrameId(focusRequest.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires per request only
   }, [focusRequest]);
 
@@ -402,7 +403,9 @@ export function CreativeStoryboardEditor({
   }, [selectedFrameId, onSelectFrame]);
 
   useEffect(() => {
-    if (!selectedFrameId && frames[0]?.id) setSelectedFrameId(frames[0].id);
+    if (!selectedFrameId && frames[0]?.id) {
+      setSelectedFrameId(frames[0].id);
+    }
     if (
       selectedFrameId &&
       !frames.some((frame) => frame.id === selectedFrameId)
@@ -423,10 +426,14 @@ export function CreativeStoryboardEditor({
   useEffect(() => {
     let cancelled = false;
     setVersions([]);
-    if (!sceneOpen || !selectedFrameId || !loadVersions) return;
+    if (!sceneOpen || !selectedFrameId || !loadVersions) {
+      return;
+    }
     loadVersions(selectedFrameId)
       .then((rows) => {
-        if (!cancelled) setVersions(rows);
+        if (!cancelled) {
+          setVersions(rows);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -434,10 +441,13 @@ export function CreativeStoryboardEditor({
     };
   }, [sceneOpen, selectedFrameId, selectedStillId, loadVersions]);
 
-  const updateFrames = (next: StoryboardFrame[]) => onChange(renumber(next));
+  const updateFrames = (next: Array<StoryboardFrame>) =>
+    onChange(renumber(next));
 
   const saveFrameDraft = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     onChange(
       frames.map((frame) => (frame.id === frameDraft.id ? frameDraft : frame)),
     );
@@ -453,7 +463,9 @@ export function CreativeStoryboardEditor({
   };
 
   const duplicateFrame = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     const index = ordered.findIndex((frame) => frame.id === frameDraft.id);
     const copy = {
       ...frameDraft,
@@ -470,10 +482,14 @@ export function CreativeStoryboardEditor({
   };
 
   const removeFrame = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     const next = ordered.filter((frame) => frame.id !== frameDraft.id);
     updateFrames(next);
-    if (next.length === 0) setSceneOpen(false);
+    if (next.length === 0) {
+      setSceneOpen(false);
+    }
   };
 
   const toggleLock = (frameId: string) => {
@@ -485,10 +501,14 @@ export function CreativeStoryboardEditor({
   };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
     const from = ordered.findIndex((frame) => frame.id === active.id);
     const to = ordered.findIndex((frame) => frame.id === over.id);
-    if (from < 0 || to < 0) return;
+    if (from < 0 || to < 0) {
+      return;
+    }
     updateFrames(arrayMove(ordered, from, to));
   };
 
@@ -587,7 +607,9 @@ export function CreativeStoryboardEditor({
                     className="hidden"
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      if (file) character.onUpload(file);
+                      if (file) {
+                        character.onUpload(file);
+                      }
                       event.target.value = "";
                     }}
                   />
@@ -665,10 +687,9 @@ export function CreativeStoryboardEditor({
                     </SelectTrigger>
                     <SelectContent>
                       {(
-                        Object.entries(SCENE_ENGINE_LABEL) as [
-                          SceneEngine,
-                          string,
-                        ][]
+                        Object.entries(SCENE_ENGINE_LABEL) as Array<
+                          [SceneEngine, string]
+                        >
                       ).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
@@ -698,10 +719,9 @@ export function CreativeStoryboardEditor({
                     </SelectTrigger>
                     <SelectContent>
                       {(
-                        Object.entries(SOUND_ENGINE_LABEL) as [
-                          SoundEngine,
-                          string,
-                        ][]
+                        Object.entries(SOUND_ENGINE_LABEL) as Array<
+                          [SoundEngine, string]
+                        >
                       ).map(([value, label]) => (
                         <SelectItem key={value} value={value}>
                           {label}
@@ -721,7 +741,9 @@ export function CreativeStoryboardEditor({
                     className="hidden"
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      if (file) reference.onUpload(file);
+                      if (file) {
+                        reference.onUpload(file);
+                      }
                       event.target.value = "";
                     }}
                   />

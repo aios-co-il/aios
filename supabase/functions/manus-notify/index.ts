@@ -73,7 +73,9 @@ async function sendViaActionStep(
     .limit(1);
 
   const step = steps?.[0];
-  if (!step) return false;
+  if (!step) {
+    return false;
+  }
 
   const cfg = step.configuration || {};
   const integrationId =
@@ -88,7 +90,9 @@ async function sendViaActionStep(
       .eq("group_chat_id", chatId)
       .maybeSingle();
     groupId = g?.id || null;
-    if (!groupId) return false;
+    if (!groupId) {
+      return false;
+    }
   }
 
   const fnName =
@@ -103,9 +107,14 @@ async function sendViaActionStep(
     // A staff notification, never logged on a client card.
     sendKind: "staff_alert",
   };
-  if (integrationId) body.integrationId = integrationId;
-  if (groupId) body.groupId = groupId;
-  else body.phoneNumber = phoneNumber;
+  if (integrationId) {
+    body.integrationId = integrationId;
+  }
+  if (groupId) {
+    body.groupId = groupId;
+  } else {
+    body.phoneNumber = phoneNumber;
+  }
 
   const res = await fetch(`${SUPABASE_URL}/functions/v1/${fnName}`, {
     method: "POST",
@@ -128,9 +137,12 @@ async function sendViaActionStep(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  }
+  if (req.method !== "POST") {
+    return json({ error: "POST only" }, 405);
+  }
 
   const auth = authorizeSecretOrServiceRole({
     authorization: req.headers.get("Authorization"),
@@ -153,8 +165,9 @@ Deno.serve(async (req) => {
   const message = String(body?.message ?? "").trim();
   const explicitChatId = body?.chat_id ? String(body.chat_id).trim() : null;
 
-  if (!tenantId || !message)
+  if (!tenantId || !message) {
     return json({ error: "tenant_id and message are required" }, 400);
+  }
 
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },

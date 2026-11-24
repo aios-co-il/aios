@@ -50,7 +50,9 @@ export function AddCampaignerForm() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -59,7 +61,9 @@ export function AddCampaignerForm() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -83,7 +87,9 @@ export function AddCampaignerForm() {
         )
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Extract shared agencies
       const shared = (sharedAccess || [])
@@ -122,7 +128,9 @@ export function AddCampaignerForm() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       // יצירת הקמפיינר
       const { data: campaigner, error: campaignerError } = await supabase
@@ -141,7 +149,9 @@ export function AddCampaignerForm() {
         .select()
         .single();
 
-      if (campaignerError) throw campaignerError;
+      if (campaignerError) {
+        throw campaignerError;
+      }
 
       // קישור הקמפיינר לסוכנויות
       const agencyLinks = values.agency_ids.map((agencyId) => ({
@@ -153,7 +163,9 @@ export function AddCampaignerForm() {
         .from("campaigner_agencies")
         .insert(agencyLinks);
 
-      if (linksError) throw linksError;
+      if (linksError) {
+        throw linksError;
+      }
     },
     onSuccess: () => {
       toast.success("איש הצוות נוסף בהצלחה");

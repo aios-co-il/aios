@@ -15,7 +15,7 @@ export interface AgentListItem {
 }
 
 interface Props {
-  agents: AgentListItem[];
+  agents: Array<AgentListItem>;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -36,7 +36,9 @@ export function AgentSidebar({
   const sorted = [...agents].sort((a, b) => {
     const ac = isCarmen(a.name) ? 0 : 1;
     const bc = isCarmen(b.name) ? 0 : 1;
-    if (ac !== bc) return ac - bc;
+    if (ac !== bc) {
+      return ac - bc;
+    }
     return a.name.localeCompare(b.name, "he");
   });
 

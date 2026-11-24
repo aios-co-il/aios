@@ -17,19 +17,29 @@ export function nodeKind(
   fileType: string | null,
   sourceFile: string | null,
 ): string {
-  if (fileType === "concept" || fileType === "rationale") return fileType;
+  if (fileType === "concept" || fileType === "rationale") {
+    return fileType;
+  }
   const f = sourceFile || "";
-  if (f.startsWith("supabase/functions")) return "edge_function";
-  if (f.startsWith("src/pages")) return "page";
-  if (f.startsWith("src/hooks")) return "hook";
-  if (f.startsWith("src/components") || f.startsWith("src/visual-workspace"))
+  if (f.startsWith("supabase/functions")) {
+    return "edge_function";
+  }
+  if (f.startsWith("src/pages")) {
+    return "page";
+  }
+  if (f.startsWith("src/hooks")) {
+    return "hook";
+  }
+  if (f.startsWith("src/components") || f.startsWith("src/visual-workspace")) {
     return "component";
+  }
   if (
     f.startsWith("src/lib") ||
     f.startsWith("src/contexts") ||
     f.startsWith("src/integrations")
-  )
+  ) {
     return "lib";
+  }
   return "other";
 }
 
@@ -49,17 +59,17 @@ export function GraphCanvas({
   onSelect,
   selectedId,
 }: {
-  nodes: GraphifyNode[];
-  edges: GraphifyEdge[];
+  nodes: Array<GraphifyNode>;
+  edges: Array<GraphifyEdge>;
   onSelect?: (node: GraphifyNode | null) => void;
   selectedId?: string | null;
 }) {
-  const [layout, setLayout] = useState<SimNode[] | null>(null);
+  const [layout, setLayout] = useState<Array<SimNode> | null>(null);
   const [viewBox, setViewBox] = useState("0 0 1000 700");
   const dragRef = useRef<{
     startX: number;
     startY: number;
-    vb: number[];
+    vb: Array<number>;
   } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -76,7 +86,7 @@ export function GraphCanvas({
     const W = 1000,
       H = 700;
     // Seed on a phyllotaxis spiral for stable, overlap-free starting positions.
-    const sim: SimNode[] = nodes.map((n, i) => {
+    const sim: Array<SimNode> = nodes.map((n, i) => {
       const r = 14 * Math.sqrt(i + 1);
       const a = i * 2.399963;
       return {
@@ -111,7 +121,9 @@ export function GraphCanvas({
             dy = Math.random() - 0.5;
             d2 = 1;
           }
-          if (d2 > 40000) continue;
+          if (d2 > 40000) {
+            continue;
+          }
           const f = (900 * alpha) / d2;
           a.vx += dx * f;
           a.vy += dy * f;
@@ -153,8 +165,9 @@ export function GraphCanvas({
   }, [nodes, edges, nodeIndex]);
 
   const positioned = useMemo(() => {
-    if (!layout)
-      return { byId: new Map<string, SimNode>(), list: [] as SimNode[] };
+    if (!layout) {
+      return { byId: new Map<string, SimNode>(), list: [] as Array<SimNode> };
+    }
     return { byId: new Map(layout.map((n) => [n.id, n])), list: layout };
   }, [layout]);
 
@@ -175,7 +188,9 @@ export function GraphCanvas({
     (e.target as Element).setPointerCapture?.(e.pointerId);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || !svgRef.current) return;
+    if (!dragRef.current || !svgRef.current) {
+      return;
+    }
     const { startX, startY, vb } = dragRef.current;
     const rect = svgRef.current.getBoundingClientRect();
     const scaleX = vb[2] / rect.width,
@@ -211,7 +226,9 @@ export function GraphCanvas({
         {edges.map((e, i) => {
           const s = positioned.byId.get(e.source),
             t = positioned.byId.get(e.target);
-          if (!s || !t) return null;
+          if (!s || !t) {
+            return null;
+          }
           return (
             <line key={i} x1={s.x} y1={s.y} x2={t.x} y2={t.y} strokeWidth={1} />
           );
@@ -256,7 +273,7 @@ export function GraphCanvas({
 }
 
 export function GraphLegend() {
-  const entries: [string, string][] = [
+  const entries: Array<[string, string]> = [
     ["component", "קומפוננטה"],
     ["hook", "Hook"],
     ["page", "עמוד"],

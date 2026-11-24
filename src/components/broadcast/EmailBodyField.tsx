@@ -40,8 +40,12 @@ export function EmailBodyField({
               type="button"
               className={`px-2 py-1 ${(m === "html") === htmlMode ? "bg-primary text-primary-foreground" : ""}`}
               onClick={() => {
-                if ((m === "html") === htmlMode) return;
-                if (m === "rich") setEditorKey((k) => k + 1);
+                if ((m === "html") === htmlMode) {
+                  return;
+                }
+                if (m === "rich") {
+                  setEditorKey((k) => k + 1);
+                }
                 setHtmlMode(m === "html");
               }}
             >

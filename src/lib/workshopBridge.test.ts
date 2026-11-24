@@ -107,7 +107,7 @@ test("only well-formed workshop stream events reach the board", () => {
 });
 
 test("the board hears events and the context is shared", () => {
-  const heard: string[] = [];
+  const heard: Array<string> = [];
   const stop = subscribeWorkshopEvents((event) => heard.push(event.item_id));
   emitWorkshopEvent({ event: "artifacts", item_id: "i-1" });
   stop();
@@ -175,19 +175,19 @@ test("a scene event from Carmen reaches the board with its scene", () => {
 test("a composer line nobody heard is dropped when the workshop closes", () => {
   prefillComposer(scenePrefix(5));
   setWorkshopContext(null);
-  const heard: string[] = [];
+  const heard: Array<string> = [];
   const stop = subscribeComposerPrefill((text) => heard.push(text));
   stop();
   expect(heard).toStrictEqual([]);
 });
 
 test("the composer gets the scene line, even when it opens after the board asked", () => {
-  const heard: string[] = [];
+  const heard: Array<string> = [];
   prefillComposer(scenePrefix(2));
   const stop = subscribeComposerPrefill((text) => heard.push(text));
   prefillComposer(scenePrefix(4));
   stop();
-  const late: string[] = [];
+  const late: Array<string> = [];
   const again = subscribeComposerPrefill((text) => late.push(text));
   again();
   expect(heard).toStrictEqual(["סצנה 2: ", "סצנה 4: "]);

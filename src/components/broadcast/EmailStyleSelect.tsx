@@ -12,7 +12,7 @@ export function EmailStyleSelect({
   options,
 }: {
   styleKey: "fontFamily" | "fontSize";
-  options: { text: string; value: string }[];
+  options: Array<{ text: string; value: string }>;
 }) {
   const editor = useBlockNoteEditor<
     typeof emailEditorSchema.blockSchema,
@@ -23,10 +23,11 @@ export function EmailStyleSelect({
   const current = editor.getActiveStyles()[styleKey];
 
   const apply = (value: string) => {
-    if (value)
+    if (value) {
       return styleKey === "fontFamily"
         ? editor.addStyles({ fontFamily: value })
         : editor.addStyles({ fontSize: value });
+    }
     return styleKey === "fontFamily"
       ? editor.removeStyles({ fontFamily: "" })
       : editor.removeStyles({ fontSize: "" });

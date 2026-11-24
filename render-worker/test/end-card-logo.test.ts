@@ -82,11 +82,12 @@ function renderDb(dir: string, payload: WorkItemPayload) {
     stored,
     downloads,
     async select(table: string, query: string) {
-      if (table === "marketing_work_items")
+      if (table === "marketing_work_items") {
         return query.includes("select=payload")
           ? [{ payload }]
           : [{ id: ITEM, tenant_id: TENANT, client_id: null }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return ["c1", "c2"].map((clip, index) => ({
           id: `s${index + 1}`,
           position: index + 1,
@@ -96,13 +97,15 @@ function renderDb(dir: string, payload: WorkItemPayload) {
           clip_asset_id: clip,
           meta: {},
         }));
-      if (table === "marketing_assets" && query.startsWith("id=in."))
+      }
+      if (table === "marketing_assets" && query.startsWith("id=in.")) {
         return ["c1", "c2"].map((id) => ({
           id,
           type: "clip",
           url: clipPath(id),
           meta: { provider: "kling" },
         }));
+      }
       return [];
     },
     async download(bucket: string, path: string) {
@@ -121,15 +124,20 @@ function renderDb(dir: string, payload: WorkItemPayload) {
 
 const saved: Record<string, string | undefined> = {};
 beforeEach(() => {
-  for (const name of ["SUPABASE_URL", "REMOTION_DISABLE"])
+  for (const name of ["SUPABASE_URL", "REMOTION_DISABLE"]) {
     saved[name] = process.env[name];
+  }
   process.env.SUPABASE_URL = PROJECT;
   process.env.REMOTION_DISABLE = "1";
 });
 afterEach(() => {
-  for (const [name, value] of Object.entries(saved))
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
+  for (const [name, value] of Object.entries(saved)) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
 });
 
 test.skipIf(!hasFfmpeg)(
@@ -140,7 +148,7 @@ test.skipIf(!hasFfmpeg)(
       for (const [name, colour] of [
         ["c1", "black"],
         ["c2", "black"],
-      ])
+      ]) {
         media([
           "-f",
           "lavfi",
@@ -150,6 +158,7 @@ test.skipIf(!hasFfmpeg)(
           "yuv420p",
           join(dir, `${name}.mp4`),
         ]);
+      }
       media([
         "-f",
         "lavfi",

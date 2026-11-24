@@ -9,8 +9,12 @@ export function phoneTail(value) {
 export function phonesMatch(a, b) {
   const da = String(a || "").replace(/\D/g, "");
   const db = String(b || "").replace(/\D/g, "");
-  if (!da || !db) return false;
-  if (da === db) return true;
+  if (!da || !db) {
+    return false;
+  }
+  if (da === db) {
+    return true;
+  }
   const ta = phoneTail(da);
   const tb = phoneTail(db);
   return !!ta && !!tb && (ta === tb || da.endsWith(db) || db.endsWith(da));
@@ -69,7 +73,9 @@ export function managerGroupAccessViaAllowedPhones({
   allowedPhones,
   isManager,
 }) {
-  if (!isManager || !phoneDigits) return false;
+  if (!isManager || !phoneDigits) {
+    return false;
+  }
   const allowed = (Array.isArray(allowedPhones) ? allowedPhones : [])
     .map((p) => String(p).replace(/\D/g, ""))
     .filter(Boolean);

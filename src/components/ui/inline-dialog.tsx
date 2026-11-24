@@ -40,7 +40,9 @@ export function InlineDialog({
   className,
 }: InlineDialogProps) {
   if (inline) {
-    if (!open) return null;
+    if (!open) {
+      return null;
+    }
     return (
       <div
         dir="rtl"

@@ -86,7 +86,7 @@ Deno.test("Cursor is Carmen Direct; Codex is ChatGPT Workspace", () => {
 Deno.test(
   "collectOpenChatIds without sticky only returns the current session",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const sb = {
       from(table: string) {
         calls.push(table);
@@ -129,7 +129,7 @@ Deno.test(
 Deno.test(
   "collectOpenChatIds with sticky merges session, env, sticky table, then last sessions",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const sb = {
       from(table: string) {
         calls.push(table);

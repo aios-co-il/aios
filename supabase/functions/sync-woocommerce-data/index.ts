@@ -53,7 +53,7 @@ async function fetchAllPages(
   extraParams: Record<string, string | number> = {},
   maxPages = 200,
 ) {
-  const results: any[] = [];
+  const results: Array<any> = [];
   let page = 1;
   while (page <= maxPages) {
     const data = await wooFetch(siteUrl, key, secret, endpoint, {
@@ -61,9 +61,13 @@ async function fetchAllPages(
       page,
       ...extraParams,
     });
-    if (!Array.isArray(data) || data.length === 0) break;
+    if (!Array.isArray(data) || data.length === 0) {
+      break;
+    }
     results.push(...data);
-    if (data.length < PAGE_SIZE) break;
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
     page++;
   }
   return results;
@@ -72,13 +76,15 @@ async function fetchAllPages(
 async function upsertChunks(
   supabase: any,
   table: string,
-  rows: Record<string, unknown>[],
+  rows: Array<Record<string, unknown>>,
   onConflict: string,
 ) {
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
     const chunk = rows.slice(i, i + UPSERT_CHUNK);
     const { error } = await supabase.from(table).upsert(chunk, { onConflict });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 }
 
@@ -116,7 +122,7 @@ function mapOrderRow(tenant_id: string, siteId: string, order: any) {
 }
 
 /** Merge orders by woo_order_id — later rows win (backfill can refresh attribution on older orders). */
-function mergeOrdersById(orders: any[]) {
+function mergeOrdersById(orders: Array<any>) {
   const map = new Map<number, any>();
   orders.forEach((order) => map.set(order.id, order));
   return Array.from(map.values());
@@ -163,7 +169,9 @@ serve(async (req) => {
     }
 
     const { data: sites, error: sitesError } = await sitesQuery;
-    if (sitesError) throw sitesError;
+    if (sitesError) {
+      throw sitesError;
+    }
     if (!sites || sites.length === 0) {
       return new Response(
         JSON.stringify({
@@ -175,7 +183,7 @@ serve(async (req) => {
       );
     }
 
-    const summaries: any[] = [];
+    const summaries: Array<any> = [];
 
     for (const site of sites) {
       const { id: siteId, tenant_id, site_url } = site;

@@ -4,7 +4,7 @@
 import { APPROVAL_ERROR_MESSAGES_HE } from "../../_shared/carmen/approvals/error-messages.ts";
 
 /** The tools that approve or reject a pending approval. */
-export const APPROVAL_DECISION_TOOLS: readonly string[] = Object.freeze([
+export const APPROVAL_DECISION_TOOLS: ReadonlyArray<string> = Object.freeze([
   "execute_pending_approval",
   "reject_pending_approval",
 ]);
@@ -14,7 +14,7 @@ export const APPROVAL_DECISION_TOOLS: readonly string[] = Object.freeze([
  * (run-agent-task, subagents, the tasks screen) answers a task's text, which a
  * model or an automation may have written, so it never decides approvals.
  */
-export const APPROVAL_DECISION_SURFACES: readonly string[] = Object.freeze([
+export const APPROVAL_DECISION_SURFACES: ReadonlyArray<string> = Object.freeze([
   "internal_chat",
   "aios",
   "whatsapp",
@@ -67,9 +67,9 @@ export function isAutomationRun(
  * run may not decide them, so the model neither tries them nor relays a refusal.
  */
 export function approvalScopedTools<T extends { name?: string }>(
-  tools: T[],
+  tools: Array<T>,
   mayDecide: boolean,
-): T[] {
+): Array<T> {
   if (mayDecide || !Array.isArray(tools)) {
     return tools;
   }

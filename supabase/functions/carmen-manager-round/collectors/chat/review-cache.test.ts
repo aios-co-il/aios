@@ -89,6 +89,6 @@ Deno.test("createReviewCache", async (t) => {
 });
 
 /** The values of a PostgREST `in.(...)` filter. */
-function inList(filter: string | null | undefined): string[] {
+function inList(filter: string | null | undefined): Array<string> {
   return (filter ?? "").replace(/^in\.\(|\)$/g, "").split(",");
 }

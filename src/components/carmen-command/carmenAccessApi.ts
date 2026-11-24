@@ -43,7 +43,9 @@ export async function fetchCarmenAccessRow(
   userId: string,
 ): Promise<BrainAccessRow> {
   const agentId = await fetchCarmenAgentId(tenantId);
-  if (!agentId) return null;
+  if (!agentId) {
+    return null;
+  }
   const { data } = await supabase
     .from("carmen_command_center_access")
     .select("enabled, brain_access")
@@ -72,12 +74,15 @@ export async function resolveCommandCenterAccess(
         .eq("id", viewAsUserId)
         .maybeSingle(),
     ]);
-    if (row) return carmenEnabledFor(row);
+    if (row) {
+      return carmenEnabledFor(row);
+    }
     if (
       carmenOpenToAll() ||
       COMMAND_CENTER_ALLOWLIST.includes(String(prof?.email ?? "").toLowerCase())
-    )
+    ) {
       return true;
+    }
     const { data: hasKey } = await supabase.rpc(
       "carmen_member_has_personal_key",
       { p_user_id: viewAsUserId },
@@ -86,15 +91,21 @@ export async function resolveCommandCenterAccess(
   }
   const { data } = await supabase.auth.getUser();
   const email = data.user?.email?.toLowerCase() ?? "";
-  if (COMMAND_CENTER_ALLOWLIST.includes(email)) return true;
+  if (COMMAND_CENTER_ALLOWLIST.includes(email)) {
+    return true;
+  }
   // A permissions row set in Carmen settings → הרשאות decides first.
   const uid = data.user?.id;
   if (uid && tenantId) {
     const row = await fetchCarmenAccessRow(tenantId, uid);
-    if (row) return carmenEnabledFor(row);
+    if (row) {
+      return carmenEnabledFor(row);
+    }
   }
   // Staging and previews: Carmen is open to every user without a row.
-  if (carmenOpenToAll()) return true;
+  if (carmenOpenToAll()) {
+    return true;
+  }
   // Any user with a personal key gets in (RLS: own row only).
   const { data: keyRow } = await supabase
     .from("user_api_keys")

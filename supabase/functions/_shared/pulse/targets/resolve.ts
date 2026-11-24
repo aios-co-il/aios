@@ -43,7 +43,7 @@ export function resolvePulseTarget(
  * caller gets the same target whatever order it passes the tables in.
  */
 export function resolvePulseTargetAcross(
-  places: PulseTargetPlace[],
+  places: Array<PulseTargetPlace>,
   goal: string,
 ): ResolvedPulseTarget | null {
   let best: Candidate | null = null;

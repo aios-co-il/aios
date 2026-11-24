@@ -35,7 +35,7 @@ async function invokeNotification(
   client: ClientRow,
   triggerType: NotificationType,
   recipient: Recipient,
-  assigneeNames: string[],
+  assigneeNames: Array<string>,
 ) {
   const response = await fetch(
     `${SUPABASE_URL}/functions/v1/trigger-automation`,
@@ -65,7 +65,9 @@ async function invokeNotification(
         `trigger-automation returned ${response.status}`,
     );
   }
-  if (body?.sent === true) return { delivered: true, body };
+  if (body?.sent === true) {
+    return { delivered: true, body };
+  }
   if (body?.handled === true && body?.sent === false) {
     return { delivered: false, body };
   }
@@ -95,7 +97,9 @@ async function claimMarker(
     .is(marker, null)
     .select("id")
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data ? claimedAt : null;
 }
 
@@ -123,14 +127,16 @@ async function fetchClient(
     )
     .eq("id", clientId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data as ClientRow | null;
 }
 
 async function getActiveCampaigners(
   supabase: ReturnType<typeof createClient>,
   clientId: string,
-): Promise<Recipient[]> {
+): Promise<Array<Recipient>> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from("client_team")
@@ -138,15 +144,21 @@ async function getActiveCampaigners(
     .eq("client_id", clientId)
     .or(`start_date.is.null,start_date.lte.${today}`)
     .or(`end_date.is.null,end_date.gte.${today}`);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  const recipients: Recipient[] = [];
+  const recipients: Array<Recipient> = [];
   const seenPhones = new Set<string>();
   for (const row of data || []) {
     const campaigner = (row as any).campaigners;
-    if (!campaigner?.active || !campaigner?.phone) continue;
+    if (!campaigner?.active || !campaigner?.phone) {
+      continue;
+    }
     const phone = String(campaigner.phone).trim();
-    if (!phone || seenPhones.has(phone)) continue;
+    if (!phone || seenPhones.has(phone)) {
+      continue;
+    }
     seenPhones.add(phone);
     recipients.push({
       id: campaigner.id,
@@ -160,8 +172,10 @@ async function getActiveCampaigners(
 async function getManagers(
   supabase: ReturnType<typeof createClient>,
   client: ClientRow,
-): Promise<Recipient[]> {
-  if (!client.tenant_id) return [];
+): Promise<Array<Recipient>> {
+  if (!client.tenant_id) {
+    return [];
+  }
 
   const [
     { data: roleRows, error: rolesError },
@@ -177,40 +191,55 @@ async function getManagers(
       .select("user_id")
       .eq("agency_id", client.agency_id),
   ]);
-  if (rolesError) throw rolesError;
-  if (managedError) throw managedError;
+  if (rolesError) {
+    throw rolesError;
+  }
+  if (managedError) {
+    throw managedError;
+  }
 
   const managerUserIds = new Set<string>();
-  for (const row of roleRows || [])
+  for (const row of roleRows || []) {
     managerUserIds.add(String((row as any).user_id));
+  }
 
   const { data: teamManagerRoles, error: teamManagerError } = await supabase
     .from("user_roles")
     .select("user_id")
     .eq("tenant_id", client.tenant_id)
     .eq("role", "team_manager");
-  if (teamManagerError) throw teamManagerError;
+  if (teamManagerError) {
+    throw teamManagerError;
+  }
   const managedUserIds = new Set(
     (managedRows || []).map((row: any) => String(row.user_id)),
   );
   for (const row of teamManagerRoles || []) {
     const userId = String((row as any).user_id);
-    if (managedUserIds.has(userId)) managerUserIds.add(userId);
+    if (managedUserIds.has(userId)) {
+      managerUserIds.add(userId);
+    }
   }
 
-  if (!managerUserIds.size) return [];
+  if (!managerUserIds.size) {
+    return [];
+  }
 
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
     .select("id, full_name, phone")
     .in("id", [...managerUserIds]);
-  if (profilesError) throw profilesError;
+  if (profilesError) {
+    throw profilesError;
+  }
 
-  const recipients: Recipient[] = [];
+  const recipients: Array<Recipient> = [];
   const seenPhones = new Set<string>();
   for (const profile of profiles || []) {
     const phone = String((profile as any).phone || "").trim();
-    if (!phone || seenPhones.has(phone)) continue;
+    if (!phone || seenPhones.has(phone)) {
+      continue;
+    }
     seenPhones.add(phone);
     recipients.push({
       id: (profile as any).id,
@@ -226,12 +255,14 @@ async function notifyRecipients(
   client: ClientRow,
   triggerType: NotificationType,
   marker: "follow_up_campaigner_notified_at" | "follow_up_manager_notified_at",
-  recipients: Recipient[],
-  assigneeNames: string[],
+  recipients: Array<Recipient>,
+  assigneeNames: Array<string>,
 ) {
   if (!recipients.length) {
     const claimedAt = await claimMarker(supabase, client.id, marker);
-    if (claimedAt) client[marker] = claimedAt;
+    if (claimedAt) {
+      client[marker] = claimedAt;
+    }
     return [
       {
         client_id: client.id,
@@ -252,7 +283,7 @@ async function notifyRecipients(
     ];
   }
 
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   let deliveredCount = 0;
   try {
     for (const recipient of recipients) {
@@ -271,7 +302,9 @@ async function notifyRecipients(
           ? undefined
           : result.body?.reason || "no notification channel configured",
       });
-      if (result.delivered) deliveredCount += 1;
+      if (result.delivered) {
+        deliveredCount += 1;
+      }
     }
     if (deliveredCount === 0) {
       await releaseMarker(supabase, client.id, marker, claimedAt);
@@ -290,13 +323,19 @@ async function processClient(
   supabase: ReturnType<typeof createClient>,
   client: ClientRow,
 ) {
-  if (!client.follow_up_date) return [];
-  if (!["active", "onboarding"].includes(client.status)) return [];
-  if (!isFollowUpDue(client.follow_up_date)) return [];
+  if (!client.follow_up_date) {
+    return [];
+  }
+  if (!["active", "onboarding"].includes(client.status)) {
+    return [];
+  }
+  if (!isFollowUpDue(client.follow_up_date)) {
+    return [];
+  }
 
   const campaigners = await getActiveCampaigners(supabase, client.id);
   const assigneeNames = campaigners.map((c) => c.full_name).filter(Boolean);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
 
   if (!client.follow_up_campaigner_notified_at) {
     results.push(
@@ -329,8 +368,9 @@ async function processClient(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -339,7 +379,7 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const results: unknown[] = [];
+  const results: Array<unknown> = [];
   const errors: Array<{ client_id: string; error: string }> = [];
 
   try {
@@ -349,13 +389,15 @@ Deno.serve(async (req) => {
     if (shabbatHold) {
       return shabbatHold;
     }
-    let clients: ClientRow[] = [];
+    let clients: Array<ClientRow> = [];
     const clientColumns =
       "id,tenant_id,agency_id,name,status,follow_up_date,follow_up_campaigner_notified_at,follow_up_manager_notified_at";
 
     if (body?.client_id) {
       const client = await fetchClient(supabase, String(body.client_id));
-      if (client) clients = [client];
+      if (client) {
+        clients = [client];
+      }
     } else {
       const today = new Date().toISOString().slice(0, 10);
       const [campaignerPending, managerPending] = await Promise.all([
@@ -380,14 +422,17 @@ Deno.serve(async (req) => {
         campaignerPending.error,
         managerPending.error,
       ].filter(Boolean);
-      if (queryErrors.length) throw queryErrors[0];
+      if (queryErrors.length) {
+        throw queryErrors[0];
+      }
 
       const unique = new Map<string, ClientRow>();
       for (const client of [
         ...(campaignerPending.data || []),
         ...(managerPending.data || []),
-      ] as ClientRow[])
+      ] as Array<ClientRow>) {
         unique.set(client.id, client);
+      }
       clients = [...unique.values()];
     }
 

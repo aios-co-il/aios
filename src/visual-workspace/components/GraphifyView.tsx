@@ -23,7 +23,9 @@ import { GraphCanvas, GraphLegend } from "./GraphCanvas";
 
 /** Mirrors public.graphify_node_group: top one/two path segments of source_file. */
 function groupKeyOf(sourceFile: string | null): string | null {
-  if (!sourceFile) return null;
+  if (!sourceFile) {
+    return null;
+  }
   const parts = sourceFile.split("/");
   if (sourceFile.startsWith("src/") || sourceFile.startsWith("supabase/")) {
     return parts.slice(0, 2).join("/");

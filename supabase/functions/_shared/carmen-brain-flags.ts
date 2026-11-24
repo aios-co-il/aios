@@ -55,7 +55,7 @@ export type LoopGuardHit = {
   window_ms: number;
 };
 
-const recentSends = new Map<string, number[]>();
+const recentSends = new Map<string, Array<number>>();
 
 /** In-memory sliding window — helps spot runaway direct-channel loops in logs. */
 export function recordAndCheckLoopGuard(args: {

@@ -40,7 +40,7 @@ export function CarmenSidecar({
   const { userId, user } = useCurrentUser();
   const { toast } = useToast();
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<SidecarMessage[]>([]);
+  const [messages, setMessages] = useState<Array<SidecarMessage>>([]);
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -73,7 +73,9 @@ export function CarmenSidecar({
   const sendMessage = useCallback(
     async (rawText: string, opts?: { devDispatch?: boolean }) => {
       const trimmed = rawText.trim();
-      if (!trimmed || !tenantId || isStreaming) return;
+      if (!trimmed || !tenantId || isStreaming) {
+        return;
+      }
 
       const uiContext = buildUiContext();
       const contextBlock = formatUiContextForPrompt(uiContext);
@@ -124,7 +126,9 @@ export function CarmenSidecar({
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) throw new Error("לא מחוברת");
+        if (!session) {
+          throw new Error("לא מחוברת");
+        }
 
         const history = messages
           .filter((m) => m.role === "user" || m.role === "assistant")
@@ -163,14 +167,20 @@ export function CarmenSidecar({
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            break;
+          }
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";
           for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
+            if (!line.startsWith("data: ")) {
+              continue;
+            }
             const payload = line.slice(6);
-            if (payload === "[DONE]") continue;
+            if (payload === "[DONE]") {
+              continue;
+            }
             try {
               const parsed = JSON.parse(payload);
               if (parsed.type === "token") {

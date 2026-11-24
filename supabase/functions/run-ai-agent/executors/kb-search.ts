@@ -1,0 +1,67 @@
+import type { ToolExecutionContext } from "../tool-context.ts";
+import { aiEmbed } from "../../_shared/ai.ts";
+
+/** Preserves the existing kb_search executor and side-effect order. */
+export async function executeKbSearch(
+  args: KbSearchArgs,
+  context: ToolExecutionContext,
+  embed: typeof aiEmbed = aiEmbed,
+) {
+  const { supabase, tenantId, accessibleTenantIds } = context;
+
+  // Try semantic via embedding; fall back to text ILIKE on title/summary
+  try {
+    const vec = await embed(args.query);
+    if (vec) {
+      const { data, error } = await supabase.rpc("kb_match_pointers", {
+        p_tenant_id: tenantId,
+        p_query_embedding: JSON.stringify(vec),
+        p_category: args.category || undefined,
+        p_since_days: args.since_days || undefined,
+        p_limit: args.limit || 20,
+      });
+      if (error) {
+        console.error("[kb-search] semantic query failed", error);
+      }
+      if (!error && data) {
+        return { count: data.length, results: data, mode: "semantic" };
+      }
+    }
+  } catch (error) {
+    console.error(
+      "[kb-search] semantic search failed; using text fallback",
+      error,
+    );
+  }
+  // Fallback text search
+  let q = supabase
+    .from("carmen_memory_pointers")
+    .select(
+      "id, category, subcategory, path, entity_type, entity_id, title, summary, ref_date",
+    )
+    .in("tenant_id", accessibleTenantIds)
+    .or(`title.ilike.%${args.query}%,summary.ilike.%${args.query}%`);
+  if (args.category) {
+    q = q.eq("category", args.category);
+  }
+  if (args.since_days) {
+    q = q.gte(
+      "ref_date",
+      new Date(Date.now() - args.since_days * 86400000).toISOString(),
+    );
+  }
+  const { data, error } = await q
+    .order("ref_date", { ascending: false, nullsFirst: false })
+    .limit(args.limit || 20);
+  if (error) {
+    throw error;
+  }
+  return { count: data.length, results: data, mode: "text" };
+}
+
+type KbSearchArgs = {
+  query: string;
+  category?: string;
+  since_days?: number;
+  limit?: number;
+};

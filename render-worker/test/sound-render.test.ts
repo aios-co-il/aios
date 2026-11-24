@@ -37,7 +37,9 @@ const media = (args: Array<string>) => {
     "-y",
     ...args,
   ]);
-  if (result.status !== 0) throw new Error(String(result.stderr));
+  if (result.status !== 0) {
+    throw new Error(String(result.stderr));
+  }
 };
 const colorClip = (file: string, color: string) => {
   const picture = `color=c=${color}:s=320x240:d=2`;
@@ -237,11 +239,12 @@ function renderDb(
     calls,
     stored,
     async select(table: string, query: string) {
-      if (table === "marketing_work_items")
+      if (table === "marketing_work_items") {
         return query.includes("select=payload")
           ? [{ payload }]
           : [{ id: ITEM, tenant_id: TENANT, client_id: null }];
-      if (table === "marketing_video_scenes")
+      }
+      if (table === "marketing_video_scenes") {
         return ["c1", "c2"].map((clip, index) => ({
           id: `s${index + 1}`,
           position: index + 1,
@@ -251,18 +254,21 @@ function renderDb(
           clip_asset_id: clip,
           meta: {},
         }));
+      }
       if (
         table === "marketing_assets" &&
         query.includes("type=eq.sound_effect")
-      )
+      ) {
         return sounds;
-      if (table === "marketing_assets" && query.startsWith("id=in."))
+      }
+      if (table === "marketing_assets" && query.startsWith("id=in.")) {
         return ["c1", "c2"].map((id) => ({
           id,
           type: "clip",
           url: clipPath(id),
           meta: { provider: "kling" },
         }));
+      }
       return [];
     },
     async download(_bucket: string, path: string) {
@@ -460,8 +466,11 @@ test.skipIf(!hasFfmpeg)(
       expect(asked).toBe(0);
       expect("sound_effects_error" in quiet.output).toBe(false);
     } finally {
-      if (remotion === undefined) delete process.env.REMOTION_DISABLE;
-      else process.env.REMOTION_DISABLE = remotion;
+      if (remotion === undefined) {
+        delete process.env.REMOTION_DISABLE;
+      } else {
+        process.env.REMOTION_DISABLE = remotion;
+      }
       await rm(dir, { recursive: true, force: true });
     }
   },

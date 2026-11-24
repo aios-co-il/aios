@@ -60,8 +60,9 @@ test("the smoke workflow's Workshop fixture is what the worker builds", () => {
   );
   // A small frame keeps the CI render quick.
   const built = { ...manifest, width: 640, height: 360 };
-  if (process.env.UPDATE_FIXTURE)
+  if (process.env.UPDATE_FIXTURE) {
     writeFileSync(FIXTURE, `${JSON.stringify(built, null, 2)}\n`);
+  }
   expect(JSON.parse(readFileSync(FIXTURE, "utf8"))).toStrictEqual(built);
   // What the workflow checks for: copies of the track to the film's end, and the kickers.
   expect(built.musicLoops?.length).toBeGreaterThan(1);

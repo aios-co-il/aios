@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 interface GoogleAnalyticsTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 interface GAProperty {
@@ -98,7 +98,9 @@ export function GoogleAnalyticsTableDialog({
   const { data: propertiesResponse, isLoading: propertiesLoading } = useQuery({
     queryKey: ["ga-properties", integration?.id],
     queryFn: async () => {
-      if (!integration) return null;
+      if (!integration) {
+        return null;
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "google-analytics-auth?action=get_properties",
@@ -109,9 +111,11 @@ export function GoogleAnalyticsTableDialog({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
-        properties?: GAProperty[];
+        properties?: Array<GAProperty>;
         needs_reconnect?: boolean;
         owner_email?: string | null;
         reason?: string;
@@ -122,7 +126,7 @@ export function GoogleAnalyticsTableDialog({
   });
 
   const properties = useMemo(
-    () => (propertiesResponse?.properties || []) as GAProperty[],
+    () => (propertiesResponse?.properties || []) as Array<GAProperty>,
     [propertiesResponse?.properties],
   );
   const integrationSettings = integration?.settings as Record<
@@ -155,7 +159,9 @@ export function GoogleAnalyticsTableDialog({
         .from("clients")
         .select("id, name, agency_id")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!activeTenantId,
@@ -175,7 +181,9 @@ export function GoogleAnalyticsTableDialog({
 
   const filteredClients = useMemo(() => {
     const search = clientSearch.trim().toLocaleLowerCase("he");
-    if (!search) return clients;
+    if (!search) {
+      return clients;
+    }
     return clients.filter((client) =>
       client.name.toLocaleLowerCase("he").includes(search),
     );
@@ -235,7 +243,9 @@ export function GoogleAnalyticsTableDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({ title: "טבלת Google Analytics נוצרה בהצלחה!" });
       queryClient.invalidateQueries({
@@ -269,8 +279,12 @@ export function GoogleAnalyticsTableDialog({
   };
 
   const filteredProperties = useMemo(() => {
-    if (!properties) return [];
-    if (!propertySearch.trim()) return properties;
+    if (!properties) {
+      return [];
+    }
+    if (!propertySearch.trim()) {
+      return properties;
+    }
     const search = propertySearch.toLowerCase();
     return properties.filter(
       (prop) =>

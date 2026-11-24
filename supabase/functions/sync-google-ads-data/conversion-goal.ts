@@ -2,7 +2,7 @@ import type { GoogleCampaignGoal } from "../_shared/campaign-goal/google-classif
 
 export type ConversionGoalInput = {
   /** The conversion goal categories the campaign bids on (campaign_conversion_goal). */
-  biddableCategories?: string[];
+  biddableCategories?: Array<string>;
   /** Primary purchase conversions in the synced window. */
   purchaseConversions?: number;
   /** Primary lead conversions in the synced window. */

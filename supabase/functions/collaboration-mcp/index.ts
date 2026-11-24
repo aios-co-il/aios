@@ -162,8 +162,9 @@ const TOOLS = [
 ];
 
 function sb() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error("Supabase service configuration is missing.");
+  }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -176,7 +177,7 @@ function bearerFrom(req: Request): string | undefined {
   return match?.[1]?.trim();
 }
 
-function acceptedBearers(): string[] {
+function acceptedBearers(): Array<string> {
   return [
     "COLLABORATION_MCP_BEARER",
     "CURSOR_MCP_BEARER",
@@ -206,7 +207,9 @@ async function tenantForBearer(bearer?: string): Promise<string | null> {
           .filter(Boolean),
       ),
     ];
-    if (tenants.length === 1) return tenants[0] as string;
+    if (tenants.length === 1) {
+      return tenants[0] as string;
+    }
   }
   return (
     Deno.env.get("COLLABORATION_DEFAULT_TENANT_ID") ||
@@ -219,8 +222,9 @@ function cleanAgent(value: unknown): string {
   const agent = String(value || "")
     .trim()
     .toLowerCase();
-  if (!/^[a-z0-9][a-z0-9_-]{1,63}$/.test(agent))
+  if (!/^[a-z0-9][a-z0-9_-]{1,63}$/.test(agent)) {
     throw new Error("Invalid agent key.");
+  }
   return agent;
 }
 
@@ -242,13 +246,17 @@ async function insertMessage(
     metadata:
       args.metadata && typeof args.metadata === "object" ? args.metadata : {},
   };
-  if (!row.body) throw new Error("Message body is required.");
+  if (!row.body) {
+    throw new Error("Message body is required.");
+  }
   const { data, error } = await sb()
     .from("agent_collaboration_messages")
     .insert(row)
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 
@@ -283,7 +291,9 @@ async function callTool(
       .upsert(row, { onConflict: "tenant_id,agent_key" })
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return json(data);
   }
   if (name === "list_agents") {
@@ -295,13 +305,17 @@ async function callTool(
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return json(data);
   }
   if (name === "create_task") {
     const createdBy = cleanAgent(args.agent);
     const title = String(args.title || "").trim();
-    if (!title) throw new Error("Task title is required.");
+    if (!title) {
+      throw new Error("Task title is required.");
+    }
     const assigned = args.assigned_to ? cleanAgent(args.assigned_to) : null;
     const { data, error } = await client
       .from("agent_collaboration_tasks")
@@ -320,7 +334,9 @@ async function callTool(
       })
       .select()
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return json(data);
   }
   if (name === "list_tasks") {
@@ -332,11 +348,16 @@ async function callTool(
     query = tenantId
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
-    if (args.status) query = query.eq("status", String(args.status));
-    if (args.assigned_to)
+    if (args.status) {
+      query = query.eq("status", String(args.status));
+    }
+    if (args.assigned_to) {
       query = query.eq("assigned_to", cleanAgent(args.assigned_to));
+    }
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return json(data);
   }
   if (name === "claim_task") {
@@ -356,8 +377,12 @@ async function callTool(
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
     const { data, error } = await query.select().maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error("Task is unavailable or already claimed.");
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      throw new Error("Task is unavailable or already claimed.");
+    }
     await scopeAgent(
       client.from("agent_collaboration_agents").update({
         current_task_id: data.id,
@@ -375,11 +400,18 @@ async function callTool(
       status,
       updated_at: new Date().toISOString(),
     };
-    if (args.pull_request_url)
+    if (args.pull_request_url) {
       patch.pull_request_url = String(args.pull_request_url);
-    if (args.preview_url) patch.preview_url = String(args.preview_url);
-    if (args.metadata) patch.metadata = args.metadata;
-    if (status === "completed") patch.completed_at = new Date().toISOString();
+    }
+    if (args.preview_url) {
+      patch.preview_url = String(args.preview_url);
+    }
+    if (args.metadata) {
+      patch.metadata = args.metadata;
+    }
+    if (status === "completed") {
+      patch.completed_at = new Date().toISOString();
+    }
     let query = client
       .from("agent_collaboration_tasks")
       .update(patch)
@@ -389,22 +421,28 @@ async function callTool(
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
     const { data, error } = await query.select().maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error("Task not found or agent does not own it.");
-    if (args.message)
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      throw new Error("Task not found or agent does not own it.");
+    }
+    if (args.message) {
       await insertMessage(tenantId, {
         task_id: data.id,
         sender: agent,
         message_type: status === "completed" ? "result" : "status",
         body: args.message,
       });
-    if (["completed", "cancelled"].includes(status))
+    }
+    if (["completed", "cancelled"].includes(status)) {
       await scopeAgent(
         client
           .from("agent_collaboration_agents")
           .update({ current_task_id: null, status: "online" }),
         agent,
       );
+    }
     return json(data);
   }
   if (name === "handoff_task") {
@@ -424,9 +462,12 @@ async function callTool(
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
     const { data, error } = await query.select().maybeSingle();
-    if (error) throw error;
-    if (!data)
+    if (error) {
+      throw error;
+    }
+    if (!data) {
       throw new Error("Task not found or source agent does not own it.");
+    }
     await insertMessage(tenantId, {
       task_id: data.id,
       sender: from,
@@ -448,7 +489,9 @@ async function callTool(
     );
     return json(data);
   }
-  if (name === "send_message") return json(await insertMessage(tenantId, args));
+  if (name === "send_message") {
+    return json(await insertMessage(tenantId, args));
+  }
   if (name === "get_messages") {
     const agent = cleanAgent(args.agent);
     const limit = Math.min(Number(args.limit || 50), 100);
@@ -461,15 +504,21 @@ async function callTool(
     query = tenantId
       ? query.eq("tenant_id", tenantId)
       : query.is("tenant_id", null);
-    if (args.since) query = query.gt("created_at", String(args.since));
-    if (args.task_id) query = query.eq("task_id", String(args.task_id));
+    if (args.since) {
+      query = query.gt("created_at", String(args.since));
+    }
+    if (args.task_id) {
+      query = query.eq("task_id", String(args.task_id));
+    }
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const unread = (data || []).filter(
-      (m: { read_by?: string[] }) => !(m.read_by || []).includes(agent),
+      (m: { read_by?: Array<string> }) => !(m.read_by || []).includes(agent),
     );
     await Promise.all(
-      unread.map((m: { id: string; read_by?: string[] }) =>
+      unread.map((m: { id: string; read_by?: Array<string> }) =>
         client
           .from("agent_collaboration_messages")
           .update({ read_by: [...(m.read_by || []), agent] })
@@ -519,12 +568,14 @@ async function dispatch(
             },
       );
     }
-    if (message.method === "notifications/initialized")
+    if (message.method === "notifications/initialized") {
       return new Response(null, { status: 202, headers: corsHeaders });
-    if (message.method === "tools/list")
+    }
+    if (message.method === "tools/list") {
       return rpcResult(message.id, {
         tools: ctx.grokMode ? compactToolsForGrok(TOOLS) : TOOLS,
       });
+    }
     if (message.method === "tools/call") {
       const params = (message.params || {}) as Record<string, unknown>;
       const text = await callTool(
@@ -552,10 +603,13 @@ async function dispatch(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
   const bearer = bearerFrom(req);
-  if (!authorized(bearer)) return rpcError(null, -32001, "Unauthorized", 401);
+  if (!authorized(bearer)) {
+    return rpcError(null, -32001, "Unauthorized", 401);
+  }
   const tenantId = await tenantForBearer(bearer);
   const pathname = new URL(req.url).pathname;
   if (isStreamableMcpPath(pathname) || wantsStreamableHttp(req, pathname)) {
@@ -566,7 +620,7 @@ Deno.serve(async (req) => {
       dispatch(message, { grokMode, tenantId }),
     );
   }
-  if (req.method === "GET")
+  if (req.method === "GET") {
     return new Response(
       JSON.stringify({
         ok: true,
@@ -575,8 +629,10 @@ Deno.serve(async (req) => {
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
-  if (req.method !== "POST")
+  }
+  if (req.method !== "POST") {
     return rpcError(null, -32600, "POST required", 405);
+  }
   return dispatch((await req.json()) as McpRpcMessage, {
     grokMode: false,
     tenantId,

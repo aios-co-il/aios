@@ -63,7 +63,9 @@ export function AddSupplierForm() {
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       const { error } = await supabase.from("suppliers").insert({
         name: values.name,
@@ -74,7 +76,9 @@ export function AddSupplierForm() {
         notes: values.notes || null,
         tenant_id: tenantId,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הספק נוסף בהצלחה");

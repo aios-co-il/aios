@@ -23,7 +23,7 @@ export async function getReconciliationStatus(
   db: Pick<DbClient, "from">,
   opts: {
     tenantId: string;
-    callerRoles: string[];
+    callerRoles: Array<string>;
     clientId?: string | null;
     sinceIso: string;
   },

@@ -7,23 +7,23 @@ import {
 } from "./creative-studio-tools.ts";
 
 /** Chainable stand-in for the Supabase query builder; records every call. */
-function fakeDb(tables: Record<string, unknown[]>) {
-  const calls: {
+function fakeDb(tables: Record<string, Array<unknown>>) {
+  const calls: Array<{
     table: string;
     op: string;
     payload?: unknown;
-    filters: string[];
-  }[] = [];
+    filters: Array<string>;
+  }> = [];
   const from = (table: string) => {
     const call = {
       table,
       op: "select",
       payload: undefined as unknown,
-      filters: [] as string[],
+      filters: [] as Array<string>,
     };
     calls.push(call);
     const rows = () => {
-      let list = [...(tables[table] ?? [])] as Record<string, unknown>[];
+      let list = [...(tables[table] ?? [])] as Array<Record<string, unknown>>;
       for (const f of call.filters) {
         const [key, value] = f.split("=");
         list = list.filter((row) => String(row[key]) === value);
@@ -95,8 +95,9 @@ const scenes = [
 
 Deno.test("every studio tool has a schema and is recognised", () => {
   assertStrictEquals(CREATIVE_STUDIO_TOOLS.length, 7);
-  for (const tool of CREATIVE_STUDIO_TOOLS)
+  for (const tool of CREATIVE_STUDIO_TOOLS) {
     assert(isCreativeStudioTool(tool.name));
+  }
   assertStrictEquals(isCreativeStudioTool("render_video_film"), false);
 });
 
@@ -132,7 +133,7 @@ Deno.test("studio state lists scenes and what is missing", async () => {
     item_id: "item-1",
   })) as Record<string, unknown>;
   assertStrictEquals(state.mode, "video");
-  assertStrictEquals((state.scenes as unknown[]).length, 2);
+  assertStrictEquals((state.scenes as Array<unknown>).length, 2);
   assertEquals(state.missing, ["לוגו", "רפרנס סגנון (תמונה או מודעה קודמת)"]);
 });
 

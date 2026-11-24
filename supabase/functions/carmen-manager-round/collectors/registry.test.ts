@@ -30,7 +30,7 @@ const all = [hourly, onData, fixture];
 const now = new Date("2026-11-01T08:10:00Z");
 const none = { collectorIds: null, fixtures: null };
 /** The hourly collector's state with this last slot. */
-const state = (last_slot: string | null): RoundStateRow[] => [
+const state = (last_slot: string | null): Array<RoundStateRow> => [
   {
     collector: "hourly",
     first_run_at: "2026-10-01T00:00:00Z",

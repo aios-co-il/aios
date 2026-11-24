@@ -34,7 +34,7 @@ export function BuiltinKeyDialog({
   onClose,
 }: {
   builtin: BuiltinBrainState;
-  shareTargets: TenantRef[];
+  shareTargets: Array<TenantRef>;
   write: ReturnType<typeof useBrainConnections>["write"];
   onClose: () => void;
 }) {

@@ -58,7 +58,9 @@ export default function SharedSeoMonthly() {
     });
 
   const snapshot = useMemo<SeoMonthlyShareSnapshot | null>(() => {
-    if (!data?.snapshot) return null;
+    if (!data?.snapshot) {
+      return null;
+    }
     return isSeoMonthlyShareSnapshot(data.snapshot) ? data.snapshot : null;
   }, [data, dataUpdatedAt]);
 
@@ -79,7 +81,9 @@ export default function SharedSeoMonthly() {
   };
 
   const onExportPdf = async () => {
-    if (!stackRef.current) return;
+    if (!stackRef.current) {
+      return;
+    }
     setExporting(true);
     try {
       // Refresh once more so PDF includes the newest work items/links.
@@ -87,7 +91,9 @@ export default function SharedSeoMonthly() {
       const freshSnapshot = isSeoMonthlyShareSnapshot(fresh.data?.snapshot)
         ? fresh.data.snapshot
         : snapshot;
-      if (!freshSnapshot) throw new Error("אין מצגת ליצוא");
+      if (!freshSnapshot) {
+        throw new Error("אין מצגת ליצוא");
+      }
       await new Promise((r) => setTimeout(r, 120));
       const safeName = `${freshSnapshot.clientName}-${freshSnapshot.monthLabel}`
         .replace(/[^\w\u0590-\u05FF-]+/g, "-")

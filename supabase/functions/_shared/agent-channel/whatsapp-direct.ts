@@ -33,7 +33,9 @@ export async function routeWhatsAppDirect(args: {
   | { handled: true; provider: WhatsAppDirectProvider; ack: string }
 > {
   const command = parseWhatsAppDirectCommand(args.messageText);
-  if (!command || !args.connectionUserId) return { handled: false };
+  if (!command || !args.connectionUserId) {
+    return { handled: false };
+  }
 
   const sb = serviceClient();
   const [{ data: profile }, { data: memberships }] = await Promise.all([
@@ -62,10 +64,14 @@ export async function routeWhatsAppDirect(args: {
   }
 
   const carmen = await resolveCarmenAgent(sb, args.tenantId);
-  if (!carmen) return { handled: false };
+  if (!carmen) {
+    return { handled: false };
+  }
   await ensureDefaultRoutes(sb, args.tenantId, carmen.id);
   const route = await loadRoute(sb, args.tenantId, { slug: command.provider });
-  if (!route) return { handled: false };
+  if (!route) {
+    return { handled: false };
+  }
 
   const title = `WhatsApp · ${route.label}`;
   const { data: existing } = await sb
@@ -94,10 +100,11 @@ export async function routeWhatsAppDirect(args: {
       })
       .select("id")
       .single();
-    if (error || !data)
+    if (error || !data) {
       throw new Error(
         `Failed to create WhatsApp conversation: ${error?.message || "unknown"}`,
       );
+    }
     conversationId = data.id;
   }
 
@@ -181,8 +188,9 @@ export async function deliverWhatsAppReply(
     !target?.integration_id ||
     !target.phone_number ||
     !target.connection_user_id
-  )
+  ) {
     return null;
+  }
   const res = await fetch(
     `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-manus-wa-message`,
     {

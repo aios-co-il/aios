@@ -20,8 +20,9 @@ const AUDIO_EXT: Record<string, string> = {
 };
 
 export function validateRecordingUrl(url: string | null): string | null {
-  if (url && !/^https?:\/\//i.test(url))
+  if (url && !/^https?:\/\//i.test(url)) {
     throw new WebhookError("recording_url must be an http(s) URL", 400);
+  }
   return url;
 }
 
@@ -31,8 +32,9 @@ export async function storeRecordingFile(
   tenantId: string,
   file: File,
 ): Promise<string> {
-  if (file.size > MAX_RECORDING_BYTES)
+  if (file.size > MAX_RECORDING_BYTES) {
     throw new WebhookError("Recording file too large (max 50MB)", 413);
+  }
   const ext = audioExtension(file);
   const path = `${tenantId}/pbx/${crypto.randomUUID()}.${ext}`;
   const { error } = await sb.storage
@@ -51,6 +53,8 @@ function audioExtension(file: File): string {
   const ext =
     fromType ||
     (/^(mp3|wav|ogg|webm|m4a|aac|gsm)$/.test(fromName) ? fromName : null);
-  if (!ext) throw new WebhookError("Recording must be an audio file", 415);
+  if (!ext) {
+    throw new WebhookError("Recording must be an audio file", 415);
+  }
   return ext;
 }

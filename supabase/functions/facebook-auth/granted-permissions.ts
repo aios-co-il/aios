@@ -14,7 +14,7 @@ const permissionsResponseSchema = z.object({
  * Required permissions missing from a `GET /me/permissions` response. Users can
  * untick permissions in the Login dialog and still finish connecting.
  */
-export function missingFacebookPermissions(response: unknown): string[] {
+export function missingFacebookPermissions(response: unknown): Array<string> {
   const granted = new Set(
     permissionsResponseSchema
       .parse(response)

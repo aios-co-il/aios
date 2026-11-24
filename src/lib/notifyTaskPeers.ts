@@ -25,7 +25,9 @@ export async function notifyTaskCollaboratorAdded(input: {
   campaignerId: string;
   addedByUserId?: string | null;
 }): Promise<void> {
-  if (!input.tenantId || !input.taskId || !input.campaignerId) return;
+  if (!input.tenantId || !input.taskId || !input.campaignerId) {
+    return;
+  }
   await invokeTaskPeerNotification({
     trigger_type: "task_collaborator_added",
     tenant_id: input.tenantId,
@@ -44,7 +46,9 @@ export async function notifyTaskUpdateAdded(input: {
   updateContent: string;
   updaterName?: string | null;
 }): Promise<void> {
-  if (!input.tenantId || !input.taskId || !input.userId) return;
+  if (!input.tenantId || !input.taskId || !input.userId) {
+    return;
+  }
   await invokeTaskPeerNotification({
     trigger_type: "task_update_added",
     tenant_id: input.tenantId,

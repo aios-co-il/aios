@@ -29,7 +29,9 @@ export function applyRepeatInboundReopen(
   const incomingSource = givenLeadSource(incoming.source);
   const currentSource = existing.source || null;
   const originalSource = existing.first_source || currentSource;
-  if (originalSource) updates.first_source = originalSource;
+  if (originalSource) {
+    updates.first_source = originalSource;
+  }
   if (incomingSource && incomingSource !== currentSource) {
     updates.source = incomingSource;
   }
@@ -59,13 +61,17 @@ export async function updateLeadWithRepeatReopen(
     .from("leads")
     .update(updates)
     .eq("id", leadId);
-  if (!error) return { error: null };
+  if (!error) {
+    return { error: null };
+  }
   const msg = String(error.message || "");
   if (!/first_created_at|first_source|archived_at|archived_by/.test(msg)) {
     return { error };
   }
   const fallback = withoutNewLeadOriginColumns(updates);
-  if (Object.keys(fallback).length === 0) return { error: null };
+  if (Object.keys(fallback).length === 0) {
+    return { error: null };
+  }
   const retry = await supabase.from("leads").update(fallback).eq("id", leadId);
   return { error: retry.error };
 }

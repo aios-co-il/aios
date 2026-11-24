@@ -40,7 +40,9 @@ export default function AgentHub() {
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
   });
@@ -60,7 +62,9 @@ export default function AgentHub() {
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("missing tenant");
+      if (!tenantId) {
+        throw new Error("missing tenant");
+      }
       const { data, error } = await supabase
         .from("ai_agents")
         .insert({
@@ -72,7 +76,9 @@ export default function AgentHub() {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -86,7 +92,7 @@ export default function AgentHub() {
     onError: (e) => toast.error(e.message),
   });
 
-  const list: AgentListItem[] = agents.map((a) => ({
+  const list: Array<AgentListItem> = agents.map((a) => ({
     id: a.id,
     name: a.name,
     active: a.active ?? true,
@@ -95,12 +101,16 @@ export default function AgentHub() {
 
   const handleSelect = (id: string) => {
     setSelectedId(id);
-    if (isMobile) setSheetOpen(false);
+    if (isMobile) {
+      setSheetOpen(false);
+    }
   };
 
   const handleCreate = () => {
     setCreateOpen(true);
-    if (isMobile) setSheetOpen(false);
+    if (isMobile) {
+      setSheetOpen(false);
+    }
   };
 
   return (

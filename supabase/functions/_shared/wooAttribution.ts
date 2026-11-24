@@ -31,7 +31,9 @@ const metaValue = (
 ): string | null => {
   const row = (meta || []).find((m) => m.key === key);
   const value = row?.value;
-  if (value === null || value === undefined || value === "") return null;
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
   return String(value);
 };
 
@@ -44,7 +46,9 @@ export function buildWooAttributionLabel(
     session_entry?: string | null;
   } | null,
 ): string {
-  if (!attr) return "לא ידוע";
+  if (!attr) {
+    return "לא ידוע";
+  }
 
   const src = (attr.utm_source || "").toLowerCase();
   const med = (attr.utm_medium || "").toLowerCase();
@@ -84,7 +88,9 @@ export function buildWooAttributionLabel(
   if (attr.utm_source && attr.utm_medium) {
     return `${attr.utm_source} / ${attr.utm_medium}`;
   }
-  if (attr.utm_source) return attr.utm_source;
+  if (attr.utm_source) {
+    return attr.utm_source;
+  }
 
   return "אחר";
 }
@@ -105,7 +111,9 @@ export function extractWooOrderAttribution(
   );
   const device_type = metaValue(metaData, ATTRIBUTION_META_KEYS.device_type);
 
-  if (!source_type && !utm_source && !referrer && !session_entry) return null;
+  if (!source_type && !utm_source && !referrer && !session_entry) {
+    return null;
+  }
 
   const partial = {
     source_type,

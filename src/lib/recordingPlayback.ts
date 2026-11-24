@@ -1,6 +1,8 @@
 /** Recall keeps the mp4 on its own bucket and hands back a short-lived S3 URL. */
 export function isRecallRecordingUrl(url: string | null | undefined): boolean {
-  if (!url) return false;
+  if (!url) {
+    return false;
+  }
   try {
     const host = new URL(url).hostname.toLowerCase();
     return host.includes("recallai") || host.endsWith("recall.ai");
@@ -19,7 +21,9 @@ export function recordingNeedsRecallRefresh(rec: {
   file_path: string | null;
   recording_url: string | null;
 }): boolean {
-  if (rec.file_path) return false;
+  if (rec.file_path) {
+    return false;
+  }
   return (
     rec.source === "meeting_bot" || isRecallRecordingUrl(rec.recording_url)
   );
@@ -40,12 +44,15 @@ export function presignedUrlStillValid(
       expires <= 0 ||
       !date ||
       !/^\d{8}T\d{6}Z$/.test(date)
-    )
+    ) {
       return false;
+    }
     const start = Date.parse(
       `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}T${date.slice(9, 11)}:${date.slice(11, 13)}:${date.slice(13, 15)}Z`,
     );
-    if (!Number.isFinite(start)) return false;
+    if (!Number.isFinite(start)) {
+      return false;
+    }
     return now + skewMs < start + expires * 1000;
   } catch {
     return false;

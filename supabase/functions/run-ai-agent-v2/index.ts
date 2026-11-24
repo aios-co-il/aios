@@ -100,7 +100,10 @@ async function logStep(
   });
 }
 
-async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
+async function loadTools(
+  supabase: any,
+  tenantId: string,
+): Promise<Array<ToolRow>> {
   const { data } = await supabase
     .from("agent_tools")
     .select("*")
@@ -109,7 +112,7 @@ async function loadTools(supabase: any, tenantId: string): Promise<ToolRow[]> {
   return data ?? [];
 }
 
-function buildOpenAITools(tools: ToolRow[]) {
+function buildOpenAITools(tools: Array<ToolRow>) {
   return tools.map((t) => ({
     type: "function",
     function: {
@@ -126,7 +129,7 @@ async function reconstructMessages(
   run: RunRow,
   systemPrompt: string,
 ) {
-  const messages: any[] = [
+  const messages: Array<any> = [
     { role: "system", content: systemPrompt },
     { role: "user", content: run.goal },
   ];
@@ -166,7 +169,11 @@ async function reconstructMessages(
   return messages;
 }
 
-async function callLLM(model: string, messages: any[], openaiTools: any[]) {
+async function callLLM(
+  model: string,
+  messages: Array<any>,
+  openaiTools: Array<any>,
+) {
   const t0 = Date.now();
   const resp = await fetch(AI_GATEWAY_URL, {
     method: "POST",
@@ -209,7 +216,9 @@ async function executeTool(
         _agent_id: run.agent_id,
       },
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data ?? { ok: true };
   }
   if (tool.handler_kind === "mcp" && tool.handler_ref) {
@@ -219,13 +228,17 @@ async function executeTool(
       .select("*")
       .eq("id", connId)
       .single();
-    if (!conn) return { ok: false, error: "mcp connection missing" };
+    if (!conn) {
+      return { ok: false, error: "mcp connection missing" };
+    }
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
     };
     const bearer = conn.oauth_tokens?.bearer;
-    if (bearer) headers["Authorization"] = `Bearer ${bearer}`;
+    if (bearer) {
+      headers["Authorization"] = `Bearer ${bearer}`;
+    }
     const resp = await fetch(conn.url, {
       method: "POST",
       headers,
@@ -237,15 +250,18 @@ async function executeTool(
       }),
     });
     const text = await resp.text();
-    if (!resp.ok)
+    if (!resp.ok) {
       return { ok: false, error: `MCP ${resp.status}: ${text.slice(0, 300)}` };
+    }
     try {
       const ct = resp.headers.get("content-type") ?? "";
       let parsed: any;
       if (ct.includes("text/event-stream")) {
         const m = text.match(/data:\s*(\{[^\n]+\})/);
         parsed = m ? JSON.parse(m[1]) : { result: text };
-      } else parsed = JSON.parse(text);
+      } else {
+        parsed = JSON.parse(text);
+      }
       return parsed.result ?? parsed;
     } catch {
       return { ok: true, raw: text.slice(0, 500) };
@@ -328,8 +344,9 @@ async function finalizeRun(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const body = await req.json();
@@ -346,7 +363,9 @@ Deno.serve(async (req) => {
         .select("*")
         .eq("id", body.run_id)
         .single();
-      if (error || !data) throw new Error("run not found");
+      if (error || !data) {
+        throw new Error("run not found");
+      }
       run = data as RunRow;
       if (
         run.status === "completed" ||
@@ -374,7 +393,9 @@ Deno.serve(async (req) => {
           agentId: body.agent_id,
         },
       );
-      if (denied) return denied;
+      if (denied) {
+        return denied;
+      }
       const { data, error } = await supabase
         .from("agent_runs")
         .insert({
@@ -392,7 +413,9 @@ Deno.serve(async (req) => {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       run = data as RunRow;
     }
 
@@ -402,7 +425,9 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", run.agent_id)
       .single();
-    if (!agent) throw new Error("agent not found");
+    if (!agent) {
+      throw new Error("agent not found");
+    }
 
     const model = resolveModelId(agent.engine ?? "gemini-3-flash");
     if (!run.model) {
@@ -419,7 +444,7 @@ Deno.serve(async (req) => {
       .eq("tenant_id", run.tenant_id)
       .eq("state", "ready")
       .or(`agent_id.eq.${run.agent_id},agent_id.is.null`);
-    const mcpTools: ToolRow[] = [];
+    const mcpTools: Array<ToolRow> = [];
     for (const c of mcpConns ?? []) {
       const list = Array.isArray(c.available_tools) ? c.available_tools : [];
       for (const t of list) {

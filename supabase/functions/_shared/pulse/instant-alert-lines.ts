@@ -49,7 +49,7 @@ export function exceptionFiguresText(campaign: AlertCampaign): string {
 }
 
 /** Without a target the comparison is the baseline: the line says how far it moved. */
-export function baselineTrendLines(campaign: AlertCampaign): string[] {
+export function baselineTrendLines(campaign: AlertCampaign): Array<string> {
   const noResults3 = spentWithoutResults3d(campaign);
   if (
     campaign.target_value != null ||

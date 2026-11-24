@@ -31,7 +31,9 @@ export default function MyProfile() {
   const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["my-profile", userId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!userId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -45,7 +47,9 @@ export default function MyProfile() {
         .eq("id", userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!userId,
@@ -54,7 +58,9 @@ export default function MyProfile() {
   const { data: assignments } = useQuery({
     queryKey: ["my-assignments", profile?.campaigner_id],
     queryFn: async () => {
-      if (!profile?.campaigner_id) return [];
+      if (!profile?.campaigner_id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("client_team")
@@ -72,7 +78,9 @@ export default function MyProfile() {
         .eq("campaigner_id", profile.campaigner_id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!profile?.campaigner_id,
@@ -82,7 +90,9 @@ export default function MyProfile() {
   const { data: salesLeads } = useQuery({
     queryKey: ["my-sales-leads", profile?.sales_person_id],
     queryFn: async () => {
-      if (!profile?.sales_person_id) return [];
+      if (!profile?.sales_person_id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("leads")
@@ -95,7 +105,9 @@ export default function MyProfile() {
         .eq("sales_person_id", profile.sales_person_id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!profile?.sales_person_id,
@@ -105,13 +117,17 @@ export default function MyProfile() {
   const { data: salesPerson } = useQuery({
     queryKey: ["my-sales-person", profile?.sales_person_id],
     queryFn: async () => {
-      if (!profile?.sales_person_id) return null;
+      if (!profile?.sales_person_id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name, email, phone, folder_link, active, notes")
         .eq("id", profile.sales_person_id)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!profile?.sales_person_id,
@@ -121,7 +137,9 @@ export default function MyProfile() {
   const { data: salesPersonAgencies } = useQuery({
     queryKey: ["my-sales-person-agencies", profile?.sales_person_id],
     queryFn: async () => {
-      if (!profile?.sales_person_id) return [];
+      if (!profile?.sales_person_id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("sales_person_agencies")
         .select(
@@ -133,7 +151,9 @@ export default function MyProfile() {
         `,
         )
         .eq("sales_person_id", profile.sales_person_id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((row: any) => row.agencies).filter(Boolean);
     },
     enabled: !!profile?.sales_person_id,
@@ -142,7 +162,9 @@ export default function MyProfile() {
   const { data: agencies } = useQuery({
     queryKey: ["my-agencies", profile?.campaigner_id],
     queryFn: async () => {
-      if (!profile?.campaigner_id) return [];
+      if (!profile?.campaigner_id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("campaigner_agencies")
@@ -156,7 +178,9 @@ export default function MyProfile() {
         )
         .eq("campaigner_id", profile.campaigner_id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((item) => item.agencies).filter(Boolean) || [];
     },
     enabled: !!profile?.campaigner_id,
@@ -166,7 +190,9 @@ export default function MyProfile() {
   const { data: managedAgencies } = useQuery({
     queryKey: ["my-managed-agencies", userId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!userId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("user_managed_agencies")
         .select(
@@ -178,7 +204,9 @@ export default function MyProfile() {
         `,
         )
         .eq("user_id", userId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((item: any) => item.agencies).filter(Boolean) || [];
     },
     enabled: !!userId,
@@ -196,7 +224,9 @@ export default function MyProfile() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     const channel = supabase
       .channel("my-profile-changes")
       .on(
@@ -218,7 +248,9 @@ export default function MyProfile() {
   }, [userId, queryClient]);
 
   useEffect(() => {
-    if (!profile?.campaigner_id) return;
+    if (!profile?.campaigner_id) {
+      return;
+    }
     const channel = supabase
       .channel("my-campaigner-changes")
       .on(
@@ -256,7 +288,9 @@ export default function MyProfile() {
   }, [profile?.campaigner_id, queryClient]);
 
   const calculateTotal = () => {
-    if (!assignments) return 0;
+    if (!assignments) {
+      return 0;
+    }
     return assignments
       .filter(
         (assignment) =>

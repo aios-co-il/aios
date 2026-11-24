@@ -43,7 +43,7 @@ export function hasValidSeoReportData(reportData: unknown) {
 }
 
 export function filterValidSeoReports<T extends { report_data?: unknown }>(
-  reports: T[],
+  reports: Array<T>,
 ) {
   return reports.filter((report) => hasValidSeoReportData(report.report_data));
 }

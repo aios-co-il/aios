@@ -122,7 +122,9 @@ export default function LLMSettings({
   const { data: integration, isLoading } = useQuery({
     queryKey: ["llm-integration", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("id, user_id, settings, is_active")
@@ -131,7 +133,9 @@ export default function LLMSettings({
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -155,7 +159,9 @@ export default function LLMSettings({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !userId) throw new Error("משתמש לא מחובר");
+      if (!tenantId || !userId) {
+        throw new Error("משתמש לא מחובר");
+      }
 
       // Merge: only overwrite a provider's key when a new value was typed.
       const mergedSettings: Record<string, string> = { ...savedSettings };
@@ -185,7 +191,9 @@ export default function LLMSettings({
           .from("tenant_integrations")
           .update(payload)
           .eq("id", integration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return integration.id;
       }
       const { data, error } = await supabase
@@ -193,7 +201,9 @@ export default function LLMSettings({
         .insert([payload])
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.id as string;
     },
     onSuccess: () => {

@@ -8,7 +8,9 @@ export function LeadSourceHistory({ leadId }: { leadId: string }) {
   const { data: events = [] } = useLeadSourceEvents(leadId);
 
   // One arrival is already shown as the lead's source.
-  if (events.length < 2) return null;
+  if (events.length < 2) {
+    return null;
+  }
 
   return (
     <div className="space-y-1">

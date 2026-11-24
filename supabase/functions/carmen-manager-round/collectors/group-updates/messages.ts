@@ -38,7 +38,7 @@ export type GroupMessage = {
 };
 
 export type GroupHistory = Omit<GroupRow, "messages"> & {
-  messages: GroupMessage[];
+  messages: Array<GroupMessage>;
 };
 
 /** At most this many recent messages per group reach the collector. */
@@ -47,11 +47,11 @@ export const PER_GROUP = 60;
 export type HistoryQuery = {
   tenantId: string;
   /** chat_messages.connection_user_id of the members' Green lines (chat/connections.ts). */
-  connectionIds: string[];
+  connectionIds: Array<string>;
   /** The tenant's Carmen (Manus) lines. */
   carmenConnectionIds: Array<string>;
   since: Date;
-  clientIds: string[] | null;
+  clientIds: Array<string> | null;
 };
 
 /**
@@ -118,7 +118,7 @@ export function groupHistory(row: GroupRow): GroupHistory {
 }
 
 /** The well-formed messages of the JSON array, oldest first. */
-function parseMessages(raw: Json): GroupMessage[] {
+function parseMessages(raw: Json): Array<GroupMessage> {
   if (!Array.isArray(raw)) {
     return [];
   }

@@ -41,7 +41,7 @@ export type CardWriteReport = {
    */
   already_closed: number;
   /** Findings written (or, in a dry run, to be written); never routed. */
-  finding_ids: string[];
+  finding_ids: Array<string>;
   /** A settings change stopped the writes; the rest wait for the next round. */
   stopped: boolean;
   /** The first failed write's error, kept in the heartbeat row. */
@@ -56,7 +56,7 @@ export type AutowriteRun = {
   /** True once the stored settings differ from `settings`; checked before each write. */
   settingsChanged: () => Promise<boolean>;
   /** A dry run's candidates as unstored findings (dry-run.ts). */
-  virtual?: FindingRow[];
+  virtual?: Array<FindingRow>;
 };
 
 /** At most this many drafts are written per tenant run; the rest wait a round. */
@@ -88,7 +88,7 @@ export async function writeTeamDrafts(
 }
 
 /** Kinds in team mode with card_write on. */
-export function writingKinds(settings: ManagerSettings): FindingKind[] {
+export function writingKinds(settings: ManagerSettings): Array<FindingKind> {
   return FINDING_KINDS.filter(
     (kind) =>
       kindMode(settings, kind) === "team" &&
@@ -102,7 +102,7 @@ export function writingKinds(settings: ManagerSettings): FindingKind[] {
  * fill it.
  */
 function earliestNotifySince(
-  kinds: FindingKind[],
+  kinds: Array<FindingKind>,
   settings: ManagerSettings,
 ): string | undefined {
   const times = kinds.flatMap((kind) => {
@@ -118,7 +118,7 @@ function earliestNotifySince(
  */
 function isDue(
   finding: FindingRow,
-  kinds: FindingKind[],
+  kinds: Array<FindingKind>,
   run: AutowriteRun,
 ): boolean {
   const kind = finding.kind;
@@ -141,7 +141,7 @@ function isDue(
 async function writeAll(
   ports: CardDraftWritePorts,
   run: AutowriteRun,
-  due: FindingRow[],
+  due: Array<FindingRow>,
 ): Promise<CardWriteReport> {
   const done = report({});
   for (const finding of due) {

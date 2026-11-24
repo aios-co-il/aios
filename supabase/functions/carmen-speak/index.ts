@@ -34,7 +34,9 @@ const HEBREW_STEERING =
 // Enabled per-request with provider:'elevenlabs'; falls back to OpenAI on failure.
 async function elevenSpeak(text: string): Promise<Uint8Array | null> {
   const key = Deno.env.get("ELEVENLABS_API_KEY");
-  if (!key) return null;
+  if (!key) {
+    return null;
+  }
   const voiceId = Deno.env.get("ELEVENLABS_VOICE_ID") || "21m00Tcm4TlvDq8ikWAM";
   try {
     const r = await fetch(
@@ -81,8 +83,9 @@ function cleanForSpeech(raw: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const { text, voice, provider, instructions } = await req.json();
@@ -128,9 +131,12 @@ Deno.serve(async (req) => {
       ...(userKey ? { key: userKey } : {}),
     };
     let audio: Uint8Array | null = null;
-    if (provider === "elevenlabs" && !userKey) audio = await elevenSpeak(clean);
-    if (!audio)
+    if (provider === "elevenlabs" && !userKey) {
+      audio = await elevenSpeak(clean);
+    }
+    if (!audio) {
       audio = await aiSpeak(clean, { ...ttsOpts, voice: selectedVoice });
+    }
     if (!audio && selectedVoice === "marin") {
       console.warn("[carmen-speak] marin failed, falling back to shimmer");
       audio = await aiSpeak(clean, { ...ttsOpts, voice: "shimmer" });

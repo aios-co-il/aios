@@ -36,7 +36,9 @@ export default function TelephonySettings() {
         .eq("tenant_id", tenantId!)
         .eq("user_id", userId!)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !!userId,
@@ -81,7 +83,9 @@ export default function TelephonySettings() {
 
   const saveSettingsMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !userId) throw new Error("Missing context");
+      if (!tenantId || !userId) {
+        throw new Error("Missing context");
+      }
 
       // Upsert telephony settings
       const { error: settingsError } = await supabase
@@ -98,7 +102,9 @@ export default function TelephonySettings() {
           { onConflict: "tenant_id,user_id" },
         );
 
-      if (settingsError) throw settingsError;
+      if (settingsError) {
+        throw settingsError;
+      }
 
       // Save API key in tenant_integrations if provided
       if (apiKey.trim()) {
@@ -114,7 +120,9 @@ export default function TelephonySettings() {
             { onConflict: "tenant_id,integration_type" },
           );
 
-        if (integrationError) throw integrationError;
+        if (integrationError) {
+          throw integrationError;
+        }
       }
     },
     onSuccess: () => {

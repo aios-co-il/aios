@@ -26,7 +26,9 @@ const corsHeaders = {
 
 // Normalize phone for comparison
 function normalizePhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   return phone.replace(/[\s\-().+]/g, "").replace(/^0/, "972");
 }
 
@@ -97,8 +99,9 @@ serve(async (req) => {
           return new Response("Invalid signature", { status: 403 });
         }
         let diff = 0;
-        for (let i = 0; i < expected.length; i++)
+        for (let i = 0; i < expected.length; i++) {
           diff |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
+        }
         if (diff !== 0) {
           return new Response("Invalid signature", { status: 403 });
         }
@@ -312,28 +315,33 @@ serve(async (req) => {
                   // Check all field_data for CUSTOM-type fields with Hebrew labels
                   for (const field of flowLeadData.field_data || []) {
                     const val = field.values?.[0] || "";
-                    if (!val) continue;
+                    if (!val) {
+                      continue;
+                    }
                     const lbl = (field.name || "").toLowerCase();
                     if (
                       !mappedName &&
                       (lbl.includes("שם") || lbl.includes("name"))
-                    )
+                    ) {
                       mappedName = val;
+                    }
                     if (
                       !mappedPhone &&
                       (lbl.includes("טלפון") ||
                         lbl.includes("phone") ||
                         lbl.includes("נייד"))
-                    )
+                    ) {
                       mappedPhone = val;
+                    }
                     if (
                       !mappedEmail &&
                       (lbl.includes("אימייל") ||
                         lbl.includes("דוא") ||
                         lbl.includes("email") ||
                         lbl.includes("mail"))
-                    )
+                    ) {
                       mappedEmail = val;
+                    }
                   }
 
                   // Build notes with fb_ prefix for ALL fields
@@ -343,7 +351,9 @@ serve(async (req) => {
                     `Source: Facebook Lead Ads (via Flow)`,
                   ];
                   for (const [k, v] of Object.entries(flowFieldData)) {
-                    if (v) notesLines.push(`fb_${k}: ${v}`);
+                    if (v) {
+                      notesLines.push(`fb_${k}: ${v}`);
+                    }
                   }
 
                   // Build lead record
@@ -411,7 +421,9 @@ serve(async (req) => {
                       processedTenants.add(flowTenantId);
                       continue;
                     }
-                    if (receiptError) throw receiptError;
+                    if (receiptError) {
+                      throw receiptError;
+                    }
                   }
 
                   processedTenants.add(flowTenantId);
@@ -549,7 +561,7 @@ serve(async (req) => {
               };
 
               // Support both legacy single and new multi-select
-              const salesPersonIds: string[] =
+              const salesPersonIds: Array<string> =
                 formMappings.sales_person_ids ||
                 (formMappings.sales_person_id
                   ? [formMappings.sales_person_id]
@@ -571,28 +583,33 @@ serve(async (req) => {
 
               for (const field of leadData.field_data || []) {
                 const val = field.values?.[0] || "";
-                if (!val) continue;
+                if (!val) {
+                  continue;
+                }
                 const lbl = (field.name || "").toLowerCase();
                 if (
                   !legacyMappedName &&
                   (lbl.includes("שם") || lbl.includes("name"))
-                )
+                ) {
                   legacyMappedName = val;
+                }
                 if (
                   !legacyMappedPhone &&
                   (lbl.includes("טלפון") ||
                     lbl.includes("phone") ||
                     lbl.includes("נייד"))
-                )
+                ) {
                   legacyMappedPhone = val;
+                }
                 if (
                   !legacyMappedEmail &&
                   (lbl.includes("אימייל") ||
                     lbl.includes("דוא") ||
                     lbl.includes("email") ||
                     lbl.includes("mail"))
-                )
+                ) {
                   legacyMappedEmail = val;
+                }
               }
 
               // Build notes with fb_ prefix for ALL fields
@@ -602,7 +619,9 @@ serve(async (req) => {
                 `Source: Facebook Lead Ads`,
               ];
               for (const [k, v] of Object.entries(fieldData)) {
-                if (v) legacyNotesLines.push(`fb_${k}: ${v}`);
+                if (v) {
+                  legacyNotesLines.push(`fb_${k}: ${v}`);
+                }
               }
 
               // Map fields to lead record
@@ -679,7 +698,9 @@ serve(async (req) => {
                 if (receiptError?.code === "23505") {
                   continue;
                 }
-                if (receiptError) throw receiptError;
+                if (receiptError) {
+                  throw receiptError;
+                }
 
                 const triggerUrl = `${supabaseUrl}/functions/v1/trigger-automation`;
                 const triggerResponse = await fetch(triggerUrl, {
@@ -882,7 +903,7 @@ serve(async (req) => {
               }
 
               // Append all custom form fields to notes
-              const customFieldLines: string[] = [];
+              const customFieldLines: Array<string> = [];
               for (const [fbFieldName, fbFieldValue] of Object.entries(
                 fieldData,
               )) {

@@ -9,7 +9,7 @@ export type PulseTargetDb = Pick<DbClient, "from">;
  */
 export type PulseTargetToolContext = {
   tenantId: string;
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   /** The person behind this request; null for automations and scheduled runs. */
   actorUserId: string | null;
   agentId: string | null;
@@ -17,7 +17,7 @@ export type PulseTargetToolContext = {
   callerPhone: string | null;
   isManagerRole: boolean;
   isTeamManager: boolean;
-  managedAgencyIds: string[];
+  managedAgencyIds: Array<string>;
   callerCampaignerId: string | null;
   assertClientAccess: (clientId: string) => Promise<void>;
   now?: () => Date;

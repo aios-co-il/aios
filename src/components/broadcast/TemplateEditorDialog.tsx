@@ -50,11 +50,15 @@ export function TemplateEditorDialog({
   const insertField = (token: string) => {
     const set = (key: "subject" | "bodyHtml" | "bodyText") =>
       draftField(setDraft, key);
-    if (channel === "email" && focus === "subject")
+    if (channel === "email" && focus === "subject") {
       return insertAtCursor(subjectRef.current, subject, set("subject"), token);
-    if (channel === "email" && htmlMode)
+    }
+    if (channel === "email" && htmlMode) {
       return insertAtCursor(htmlRef.current, bodyHtml, set("bodyHtml"), token);
-    if (channel === "email") return editorRef.current?.insertText(token);
+    }
+    if (channel === "email") {
+      return editorRef.current?.insertText(token);
+    }
     insertAtCursor(textRef.current, bodyText, set("bodyText"), token);
   };
 

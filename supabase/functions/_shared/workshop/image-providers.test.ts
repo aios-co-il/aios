@@ -20,7 +20,7 @@ Deno.test("a missing key everywhere says what to connect", async () => {
 });
 
 Deno.test("OpenAI is used first and sized by aspect ratio", async () => {
-  const seen: Record<string, unknown>[] = [];
+  const seen: Array<Record<string, unknown>> = [];
   const made = await generateStill(
     { openai: "k", google: "g" },
     "a cat",
@@ -80,7 +80,8 @@ Deno.test(
       bytes: Uint8Array.from([137, 80, 78, 71]),
       mime: "image/png",
     };
-    let sent: { images: Uint8Array[]; mimeTypes?: string[] } | null = null;
+    let sent: { images: Array<Uint8Array>; mimeTypes?: Array<string> } | null =
+      null;
     const made = await generateStill(
       { openai: "k", google: "g" },
       "a cat",
@@ -107,7 +108,7 @@ Deno.test(
       Error,
       "Google (Gemini) לא מחובר",
     );
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     await assertRejects(
       () =>
         generateStill({ openai: "k", google: "g" }, "x", "1:1", {

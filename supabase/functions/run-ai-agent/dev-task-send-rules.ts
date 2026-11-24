@@ -26,20 +26,25 @@ export function directDevSendRefusal(
   args: Record<string, unknown> = {},
 ): { error: string; message: string } | null {
   const agent = codingAgentStarted(toolName, args);
-  if (agent === undefined) return null;
-  if (!turn.appChatUser)
+  if (agent === undefined) {
+    return null;
+  }
+  if (!turn.appChatUser) {
     return { error: "dev_task_approval_not_app_chat", message: NOT_APP_CHAT };
+  }
   if (
     !isExplicitDevTaskApproval(turn.userText) ||
     !offersDevTask(turn.lastAssistantText)
-  )
+  ) {
     return { error: "dev_send_needs_yes", message: DIRECT_ASK };
+  }
   const named = namedDevAgent(turn.userText);
-  if (named && named !== agent)
+  if (named && named !== agent) {
     return {
       error: "dev_task_approval_target_mismatch",
       message: DIRECT_MISMATCH,
     };
+  }
   return null;
 }
 
@@ -62,12 +67,13 @@ export function devTaskSendRule(appChat: boolean): string {
  * sent after the user's later yes. Each tier is told only what it may do.
  */
 export function workshopDevTaskRule(tier: "full" | "bugfix"): string {
-  if (tier === "full")
+  if (tier === "full") {
     return (
       "\n\n🛠️ **משימות פיתוח בסדנה (מורשה — דיוויד):** משימה ל-Cursor או ל-Claude רק דרך create_dev_task " +
       "(assigned_agent cursor או claude); בסדנה אין mcp_ ואין delegate_*. " +
       WORKSHOP_OFFER
     );
+  }
   return (
     "\n\n🐛 **תיקוני באגים בסדנה (מורשה — אנה):** מותר רק תיקון באג ל-Cursor: create_dev_task עם assigned_agent=cursor, " +
     "צעדי שחזור, התנהגות צפויה מול בפועל, ו-requested_by «Requested by Ana — BUG FIX ONLY». " +
@@ -91,19 +97,30 @@ function codingAgentStarted(
   toolName: string,
   args: Record<string, unknown>,
 ): DevAgent | null | undefined {
-  if (toolName === "delegate_to_github_agent") return "github";
-  if (toolName === "assign_task_to_cursor") return "cursor";
+  if (toolName === "delegate_to_github_agent") {
+    return "github";
+  }
+  if (toolName === "assign_task_to_cursor") {
+    return "cursor";
+  }
   // take_task hands a task to Cursor's queue when agent_name names Cursor (run-ai-agent).
-  if (toolName === "take_task")
+  if (toolName === "take_task") {
     return /cursor/i.test(String(args.agent_name ?? "")) ? "cursor" : undefined;
+  }
   const match = CONNECTOR_SEND.exec(toolName);
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   const [, connection, asked] = match;
-  if (asked) return asked as DevAgent;
+  if (asked) {
+    return asked as DevAgent;
+  }
   // The bare legacy request_dev_task is Cursor's; a connection is named after its agent.
-  if (!connection) return "cursor";
-  const named = (Object.keys(AGENT_SPELLINGS) as DevAgent[]).filter((agent) =>
-    connection.toLowerCase().includes(agent),
+  if (!connection) {
+    return "cursor";
+  }
+  const named = (Object.keys(AGENT_SPELLINGS) as Array<DevAgent>).filter(
+    (agent) => connection.toLowerCase().includes(agent),
   );
   return named.length === 1 ? named[0] : null;
 }
