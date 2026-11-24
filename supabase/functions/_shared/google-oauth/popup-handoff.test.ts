@@ -68,6 +68,7 @@ Deno.test("an unsigned state hands over no code", async () => {
   assertStringIncludes(page, '"type":"google_connect_error"');
   assertStringIncludes(page, '"error":"invalid_state"');
   assertEquals(page.includes("the-code"), false);
+  assertStringIncludes(page, '"https://aios.co.il")');
 });
 
 Deno.test(

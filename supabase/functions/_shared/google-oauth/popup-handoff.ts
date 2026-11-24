@@ -46,9 +46,9 @@ export async function popupCallbackResponse(
 }
 
 /**
- * Posts the error code to the opener. Without a verified state the app's
- * origin is unknown, so it goes to any opener; it carries only the state
- * already in this URL and the error code.
+ * Posts the error code to the opener. Without a verified state its origin is
+ * unknown, so the message goes to APP_URL (Production by default), never to
+ * any opener: the state names the user and tenant.
  */
 function popupErrorPage(
   provider: GoogleConnectFunction,
@@ -58,7 +58,7 @@ function popupErrorPage(
 ): Response {
   return popupPage(
     { type: CONNECT_ERROR_MESSAGE, provider, state: rawState, error },
-    state ? appReturnOrigin(state.origin) : "*",
+    appReturnOrigin(state?.origin ?? null),
     FAILED_TEXT,
   );
 }
