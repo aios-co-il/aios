@@ -71,14 +71,25 @@ INSERT INTO functions_url_results
       AND p.prosrc LIKE '%zvoijyneresvkadpprel%'
   );
 
-INSERT INTO functions_url_results
-  SELECT 'no cron job names a supabase.co URL',
-    to_regclass('cron.job') IS NULL
-    OR NOT EXISTS (SELECT 1 FROM cron.job WHERE command ~ 'https://[a-z0-9]+\.supabase\.co');
+-- cron.job is queried only when pg_cron is installed (the migration skips cron then too).
+DO $$
+DECLARE
+  hardcoded boolean := false;
+BEGIN
+  IF to_regclass('cron.job') IS NOT NULL THEN
+    EXECUTE $q$SELECT EXISTS (
+      SELECT 1 FROM cron.job WHERE command ~ 'https://[a-z0-9]+\.supabase\.co'
+    )$q$ INTO hardcoded;
+  END IF;
 
-DO $$ BEGIN IF EXISTS (SELECT 1 FROM functions_url_results WHERE NOT passed) THEN
+  INSERT INTO functions_url_results VALUES ('no cron job names a supabase.co URL', NOT hardcoded);
+END;
+$$;
+
+-- A NULL result (missing key, no queued row) counts as a failure.
+DO $$ BEGIN IF EXISTS (SELECT 1 FROM functions_url_results WHERE passed IS NOT TRUE) THEN
   RAISE EXCEPTION 'functions URL regression failed: %',
-    (SELECT jsonb_agg(to_jsonb(r)) FROM functions_url_results r WHERE NOT passed);
+    (SELECT jsonb_agg(to_jsonb(r)) FROM functions_url_results r WHERE r.passed IS NOT TRUE);
 END IF; END $$;
 SELECT * FROM functions_url_results;
 ROLLBACK;

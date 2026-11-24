@@ -36,6 +36,17 @@ describe("clearStaleScreenshots", () => {
     expect(store.getItem("sb-api-auth-token")).toBe("token");
   });
 
+  it("clears the keys when the module loads", async () => {
+    localStorage.setItem("dashboard-screenshot-1", "x");
+    localStorage.setItem("sb-api-auth-token", "session");
+    vi.resetModules();
+
+    await import("./clearStaleScreenshots");
+
+    expect(localStorage.getItem("dashboard-screenshot-1")).toBeNull();
+    expect(localStorage.getItem("sb-api-auth-token")).toBe("session");
+  });
+
   it("runs before main.tsx loads the Supabase client", () => {
     const main = readFileSync(join(process.cwd(), "src/main.tsx"), "utf8");
     const imports = [...main.matchAll(/^import .*?["'](.+?)["'];$/gm)].map(
