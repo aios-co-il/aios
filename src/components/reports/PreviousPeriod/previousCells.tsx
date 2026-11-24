@@ -1,4 +1,6 @@
 import {
+  changeMark,
+  type ChangeMark,
   PreviousValueCell,
   type PreviousValueProps,
 } from "./PreviousValueCell";
@@ -32,5 +34,24 @@ export function previousCellsFor<T>(
         />
       )
     );
+  };
+}
+
+/**
+ * The change-mark reader of one row: the arrow and colour of a metric's
+ * current value against the previous period, for the current value's own
+ * cell. Null while the comparison is off, when the entity did not run then, or
+ * when the metric was not measured then.
+ */
+export function changeMarksFor<T>(current: T, previous: T | null | undefined) {
+  return function markOf(
+    value: (data: T) => number | null,
+    direction: PreviousValueProps["direction"],
+  ): ChangeMark | null {
+    const before = previous ? value(previous) : null;
+    if (before === null) {
+      return null;
+    }
+    return changeMark(value(current) ?? 0, before, direction);
   };
 }
