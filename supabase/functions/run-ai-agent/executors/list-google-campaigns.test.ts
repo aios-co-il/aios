@@ -29,6 +29,31 @@ describe("executeListGoogleCampaigns", () => {
     assertEquals(integrationReads, []);
   });
 
+  it("asks a campaigner with no linked phone to add it before reading a customer", async () => {
+    const fixture = executorClient(() => [], 200, {
+      callerRole: "campaigner",
+      callerScope: {
+        callerCampaignerId: null,
+        isManagerRole: false,
+        isTeamManager: false,
+        managedAgencyIds: [],
+        accessibleTenantIds: ["t1", "shared"],
+      },
+    });
+
+    const error = await assertRejects(
+      () =>
+        executeListGoogleCampaigns(
+          { customer_id: "1234567890" },
+          fixture.context,
+        ),
+      AccessDeniedError,
+    );
+
+    assertEquals(error.message.includes("האזור האישי"), true);
+    assertEquals(fixture.calls, []);
+  });
+
   it("lets a campaigner read a customer linked to an assigned client", async () => {
     const fixture = executorClient(
       (url) => {
