@@ -17,6 +17,7 @@ import {
   readConnectRequest,
 } from "../_shared/google-oauth/connect-request.ts";
 import {
+  claimedStateOrigin,
   oauthStateSecret,
   signOAuthState,
   verifyOAuthState,
@@ -132,7 +133,7 @@ Deno.serve(async (req) => {
     if (!state?.tenantId) {
       return redirectHandoffError(
         "google-search-console-auth",
-        null,
+        claimedStateOrigin(url.searchParams.get("state") ?? ""),
         null,
         INVALID_STATE_ERROR,
       );
@@ -143,7 +144,7 @@ Deno.serve(async (req) => {
     if (error) {
       return redirectHandoffError(
         "google-search-console-auth",
-        state,
+        state.origin,
         tenantSlug,
         error,
       );
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
     if (!code) {
       return redirectHandoffError(
         "google-search-console-auth",
-        state,
+        state.origin,
         tenantSlug,
         MISSING_CODE_ERROR,
       );

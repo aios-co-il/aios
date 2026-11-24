@@ -30,20 +30,20 @@ export function redirectHandoff(
 
 /**
  * A 302 to the integrations page with Google's error (or invalid_state) in
- * the fragment, which the app shows. Without a verified state the tenant and
- * origin are unknown, so it goes to APP_URL.
+ * the fragment, which the app shows. The origin is the one the connect started
+ * from when it is an AIOS app origin (an unverified state only claims one),
+ * else APP_URL.
  */
 export function redirectHandoffError(
   provider: GoogleConnectFunction,
-  state: OAuthState | null,
+  origin: string | null,
   tenantSlug: string | null,
   error: string,
 ): Response {
-  return integrationsRedirect(
-    state?.origin ?? null,
-    tenantSlug ?? UNKNOWN_TENANT_SLUG,
-    { [CONNECT_FRAGMENT_KEY]: provider, error },
-  );
+  return integrationsRedirect(origin, tenantSlug ?? UNKNOWN_TENANT_SLUG, {
+    [CONNECT_FRAGMENT_KEY]: provider,
+    error,
+  });
 }
 
 /** A 302 to the integrations page on the app origin, carrying the values in the URL fragment. */

@@ -32,6 +32,9 @@ const claimedOriginSchema = z.object({ origin: z.string().nullable() });
  */
 export function claimedStateOrigin(state: string): string | null {
   const [body] = state.split(".");
+  if (!body) {
+    return null;
+  }
   try {
     const claimed = claimedOriginSchema.safeParse(decodeJson(body ?? ""));
     return claimed.success ? claimed.data.origin : null;

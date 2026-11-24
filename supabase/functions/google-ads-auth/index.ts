@@ -15,6 +15,7 @@ import {
   MISSING_CODE_ERROR,
 } from "../_shared/google-oauth/handoff-contract.ts";
 import {
+  claimedStateOrigin,
   oauthStateSecret,
   signOAuthState,
   verifyOAuthState,
@@ -187,7 +188,7 @@ async function handleOAuthCallback(url: URL) {
   if (!state?.tenantId) {
     return redirectHandoffError(
       "google-ads-auth",
-      null,
+      claimedStateOrigin(url.searchParams.get("state") ?? ""),
       null,
       INVALID_STATE_ERROR,
     );
@@ -196,13 +197,18 @@ async function handleOAuthCallback(url: URL) {
   const tenantSlug = await getTenantSlug(state.tenantId);
 
   if (error) {
-    return redirectHandoffError("google-ads-auth", state, tenantSlug, error);
+    return redirectHandoffError(
+      "google-ads-auth",
+      state.origin,
+      tenantSlug,
+      error,
+    );
   }
 
   if (!code) {
     return redirectHandoffError(
       "google-ads-auth",
-      state,
+      state.origin,
       tenantSlug,
       MISSING_CODE_ERROR,
     );

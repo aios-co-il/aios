@@ -176,3 +176,26 @@ Deno.test(
     assertStringIncludes(page, '"https://staging.aios.co.il")');
   },
 );
+
+Deno.test(
+  "a full-page error returns to an allowed app origin only",
+  async () => {
+    const locations = await withRuntime({ env, fetch: globalThis.fetch }, () =>
+      Promise.resolve(
+        ["https://staging.aios.co.il", "https://evil.example"].map((origin) =>
+          redirectHandoffError(
+            "google-ads-auth",
+            origin,
+            null,
+            "invalid_state",
+          ).headers.get("Location"),
+        ),
+      ),
+    );
+
+    assertEquals(locations, [
+      "https://staging.aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
+      "https://aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
+    ]);
+  },
+);
