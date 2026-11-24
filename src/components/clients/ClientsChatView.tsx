@@ -2,6 +2,10 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import ChatViewComponent from "@/components/chat/ChatView";
 import {
+  ContactValue,
+  type ContactKind,
+} from "@/components/contact/ContactValue";
+import {
   User,
   Phone,
   PhoneCall,
@@ -564,6 +568,7 @@ export function ClientsChatView({
     type = "text",
     isLink,
     linkPrefix,
+    contactKind,
   }: {
     label: string;
     value: string | null;
@@ -572,6 +577,7 @@ export function ClientsChatView({
     type?: "text" | "number" | "textarea";
     isLink?: boolean;
     linkPrefix?: string;
+    contactKind?: ContactKind;
   }) => {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(value || "");
@@ -655,7 +661,13 @@ export function ClientsChatView({
         }}
       >
         <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-        {isLink && value ? (
+        {contactKind && value ? (
+          <ContactValue
+            kind={contactKind}
+            value={value}
+            className="font-medium text-primary"
+          />
+        ) : isLink && value ? (
           <a
             href={`${linkPrefix || ""}${value}`}
             target={
@@ -1476,16 +1488,14 @@ export function ClientsChatView({
                             value={selectedClient.phone}
                             field="phone"
                             clientId={selectedClient.id}
-                            isLink
-                            linkPrefix="tel:"
+                            contactKind="phone"
                           />
                           <EditableField
                             label=":אימייל"
                             value={selectedClient.email}
                             field="email"
                             clientId={selectedClient.id}
-                            isLink
-                            linkPrefix="mailto:"
+                            contactKind="email"
                           />
                           <EditableField
                             label=":אתר"
@@ -1922,25 +1932,21 @@ export function ClientsChatView({
                                       {contact.contact_name}
                                     </div>
                                     {contact.phone && (
-                                      <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                                        <a
-                                          href={`tel:${contact.phone}`}
-                                          className="text-primary hover:underline"
-                                        >
-                                          {contact.phone}
-                                        </a>
-                                        <Phone className="h-3 w-3" />
+                                      <div className="flex justify-end">
+                                        <ContactValue
+                                          kind="phone"
+                                          value={contact.phone}
+                                          className="text-primary"
+                                        />
                                       </div>
                                     )}
                                     {contact.email && (
-                                      <div className="flex items-center gap-1 justify-end text-muted-foreground">
-                                        <a
-                                          href={`mailto:${contact.email}`}
-                                          className="text-primary hover:underline truncate"
-                                        >
-                                          {contact.email}
-                                        </a>
-                                        <Mail className="h-3 w-3" />
+                                      <div className="flex justify-end">
+                                        <ContactValue
+                                          kind="email"
+                                          value={contact.email}
+                                          className="text-primary"
+                                        />
                                       </div>
                                     )}
                                   </div>
