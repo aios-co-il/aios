@@ -103,7 +103,7 @@ pnpm --dir .. test:components   # from the repo root; the ffmpeg test needs ffmp
 ## Safety rules the worker enforces
 
 - Tenant members can insert `marketing_runs`, so `run.input` is never trusted for files. Storage paths must start with the run's tenant id and cannot contain `.` or `..` segments (`src/guard.ts`). The item and scene are re-read for the run's tenant, and the client folder comes from the item.
-- Remote stills are fetched only over https from the Supabase project, `*.supabase.co` or `MEDIA_URL_HOSTS`.
-- A link to the project's private `entity-attachments` bucket (an uploaded logo, or the user's own picture or video in a scene) is downloaded with the worker's key, and only from the run's tenant folder (`readMedia` in `src/guard.ts`).
+- Remote stills are fetched only over https from the Supabase project (`SUPABASE_URL` or its custom domain `PUBLIC_API_URL`), `*.supabase.co` or `MEDIA_URL_HOSTS`.
+- A link to the project's private `entity-attachments` bucket on `SUPABASE_URL` or `PUBLIC_API_URL` (an uploaded logo, or the user's own picture or video in a scene) is downloaded with the worker's key, and only from the run's tenant folder (`readMedia` in `src/guard.ts`).
 - Paid jobs are charged at most once per run. Clips resume the stored provider job. Voice and music store the audio and record its path before attaching it, and a failure after the provider has charged is final, not retried. The database also allows only one queued or running job per scene (clip, voice) and per project (music, render).
 - The tenant's own ElevenLabs, Higgsfield, Kling and Google keys win; the worker's env keys are only a fallback.

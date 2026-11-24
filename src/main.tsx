@@ -1,3 +1,5 @@
+// First: frees localStorage before the Supabase client (imported below) saves a session.
+import "./clearStaleScreenshots.ts";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { preserveLegalPrerender } from "./pages/legal/preserveLegalPrerender";
