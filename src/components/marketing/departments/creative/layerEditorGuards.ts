@@ -15,7 +15,9 @@ export function safeFontWeight(weight?: string): string {
 /** `<input type="color">` only accepts #rrggbb. */
 export function safeHexColor(color?: string, fallback = "#111111"): string {
   const value = (color ?? "").trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(value)) return value;
+  if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+    return value;
+  }
   if (/^#[0-9a-fA-F]{3}$/.test(value)) {
     const r = value[1];
     const g = value[2];

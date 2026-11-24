@@ -21,8 +21,12 @@ import { errorText, estimateFor } from "./lipsync.ts";
  * (kling_access_key / kling_secret_key), as the Kling scene engine signs (klingKeys).
  */
 export function klingLipsyncBody({ videoUrl, audioUrl }: MediaInput) {
-  if (!videoUrl) throw new Error("kling lipsync needs the scene clip");
-  if (!audioUrl) throw new Error("kling lipsync needs the voice line");
+  if (!videoUrl) {
+    throw new Error("kling lipsync needs the scene clip");
+  }
+  if (!audioUrl) {
+    throw new Error("kling lipsync needs the voice line");
+  }
   return {
     input: {
       video_url: videoUrl,
@@ -53,12 +57,15 @@ export function klingLipsyncProvider({
         body: JSON.stringify(klingLipsyncBody(input)),
       });
       const data = await providerJson<KlingTaskResponse>(response);
-      if (!response.ok || data.code)
+      if (!response.ok || data.code) {
         throw new Error(
           `kling lipsync ${response.status}: ${data.message ?? errorText(data)}`,
         );
+      }
       const jobId = data.data?.task_id;
-      if (!jobId) throw new Error("kling lipsync returned no task_id");
+      if (!jobId) {
+        throw new Error("kling lipsync returned no task_id");
+      }
       return { jobId };
     },
     async poll(jobId: string): Promise<PollResult> {
@@ -67,10 +74,11 @@ export function klingLipsyncProvider({
         { headers: auth() },
       );
       const data = await providerJson<KlingTaskResponse>(response);
-      if (!response.ok || data.code)
+      if (!response.ok || data.code) {
         throw new Error(
           `kling lipsync poll ${response.status}: ${data.message ?? ""}`,
         );
+      }
       const status = data.data?.task_status;
       if (status === "succeed") {
         const url = data.data?.task_result?.videos?.[0]?.url;
@@ -78,11 +86,12 @@ export function klingLipsyncProvider({
           ? { status: "succeeded", url }
           : { status: "failed", error: "kling returned no video url" };
       }
-      if (status === "failed")
+      if (status === "failed") {
         return {
           status: "failed",
           error: data.data?.task_status_msg || "kling lipsync failed",
         };
+      }
       return { status: "pending" };
     },
   };

@@ -74,7 +74,9 @@ export function storyboardPageWith(
 ): Record<string, unknown> | null {
   const meta = record(pageMeta);
   const rows = (Array.isArray(meta.scenes) ? meta.scenes : []).map(record);
-  if (!rows.some((row) => row.id === scene.id)) return null;
+  if (!rows.some((row) => row.id === scene.id)) {
+    return null;
+  }
   const talk = record(scene.meta);
   const has = (key: keyof PageScene) =>
     scene[key] !== undefined && scene[key] !== null;

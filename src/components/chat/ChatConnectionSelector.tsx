@@ -32,13 +32,19 @@ const VALUE_TG = "platform:telegram";
 const VALUE_MC = "platform:manychat";
 
 function encode(v: ChatFilter): string {
-  if (v.kind === "all") return VALUE_ALL;
-  if (v.kind === "platform") return `platform:${v.platform}`;
+  if (v.kind === "all") {
+    return VALUE_ALL;
+  }
+  if (v.kind === "platform") {
+    return `platform:${v.platform}`;
+  }
   return `conn:${v.integrationId}`;
 }
 
 function decode(s: string): ChatFilter {
-  if (s === VALUE_ALL) return { kind: "all" };
+  if (s === VALUE_ALL) {
+    return { kind: "all" };
+  }
   if (s.startsWith("platform:")) {
     return { kind: "platform", platform: s.slice("platform:".length) as any };
   }

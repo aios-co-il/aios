@@ -21,7 +21,9 @@ export async function createCallLog(sb: DbClient, call: NewOutboundCall) {
     .insert(newCallRow(call))
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data;
 }
 

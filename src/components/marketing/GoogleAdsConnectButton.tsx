@@ -47,7 +47,9 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
           body: { action: "check_status" },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       setStatus(data);
       if (data?.connected && data?.accounts) {
         onConnected?.(data.accounts);
@@ -86,8 +88,12 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
           body: { action: "get_auth_url", origin: window.location.origin },
         },
       );
-      if (error) throw error;
-      if (!data?.auth_url) throw new Error("לא התקבל URL לאימות");
+      if (error) {
+        throw error;
+      }
+      if (!data?.auth_url) {
+        throw new Error("לא התקבל URL לאימות");
+      }
 
       // Open OAuth in a popup
       const popup = window.open(
@@ -112,7 +118,9 @@ export function GoogleAdsConnectButton({ tenantId, onConnected }: Props) {
       const { error } = await supabase.functions.invoke("google-ads-auth", {
         body: { action: "disconnect" },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("Google Ads נותק");
       setStatus({ connected: false });
     } catch (e: any) {

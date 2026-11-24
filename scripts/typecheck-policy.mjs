@@ -60,8 +60,11 @@ export function compareDiagnostics(current, baseline) {
   for (const diagnostic of current) {
     const key = diagnosticKey(diagnostic);
     const remaining = allowed.get(key) ?? 0;
-    if (remaining > 0) allowed.set(key, remaining - 1);
-    else added.push(diagnostic);
+    if (remaining > 0) {
+      allowed.set(key, remaining - 1);
+    } else {
+      added.push(diagnostic);
+    }
   }
   const resolved = baseline.flatMap((entry) => {
     const count = allowed.get(diagnosticKey(entry)) ?? 0;

@@ -52,8 +52,12 @@ async function invokeWarm(body: Record<string, unknown>) {
     "meta-whatsapp-warm",
     { body },
   );
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
+  if (error) {
+    throw error;
+  }
+  if (data?.error) {
+    throw new Error(data.error);
+  }
   return data;
 }
 
@@ -175,7 +179,9 @@ export function MetaWhatsAppWarming({
 
   const launchMutation = useMutation({
     mutationFn: async () => {
-      if (!draftCampaignId) throw new Error("אין קמפיין");
+      if (!draftCampaignId) {
+        throw new Error("אין קמפיין");
+      }
       return invokeWarm({
         action: "confirm_and_launch",
         tenant_id: tenantId,

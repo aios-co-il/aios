@@ -31,8 +31,9 @@ async function refreshAccessTokenIfNeeded(
 
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret)
+  if (!clientId || !clientSecret) {
     throw new Error("Missing Google OAuth credentials");
+  }
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -120,7 +121,9 @@ async function performSync(serviceClient: any, userId: string) {
     serviceClient,
     token,
   );
-  if (needsReconnect) return { ok: false, reason: "needs_reconnect" };
+  if (needsReconnect) {
+    return { ok: false, reason: "needs_reconnect" };
+  }
 
   const baseUrl =
     "https://www.googleapis.com/calendar/v3/calendars/primary/events";
@@ -140,7 +143,9 @@ async function performSync(serviceClient: any, userId: string) {
       url.searchParams.set("timeMin", past.toISOString());
       url.searchParams.set("timeMax", future.toISOString());
     }
-    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    if (pageToken) {
+      url.searchParams.set("pageToken", pageToken);
+    }
     return url.toString();
   };
 
@@ -152,7 +157,9 @@ async function performSync(serviceClient: any, userId: string) {
 
   while (true) {
     attempt++;
-    if (attempt > 20) break; // safety
+    if (attempt > 20) {
+      break;
+    } // safety
     const r = await fetch(buildUrl(syncToken, pageToken), {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -177,7 +184,9 @@ async function performSync(serviceClient: any, userId: string) {
     }
 
     const data = await r.json();
-    if (Array.isArray(data.items)) allEvents.push(...data.items);
+    if (Array.isArray(data.items)) {
+      allEvents.push(...data.items);
+    }
 
     if (data.nextPageToken) {
       pageToken = data.nextPageToken;
@@ -191,13 +200,17 @@ async function performSync(serviceClient: any, userId: string) {
   let updated = 0;
   let completed = 0;
   for (const ev of allEvents) {
-    if (!ev.id) continue;
+    if (!ev.id) {
+      continue;
+    }
     const { data: task } = await serviceClient
       .from("tasks")
       .select("id, title, due_date, due_time, duration_minutes")
       .eq("google_calendar_event_id", ev.id)
       .maybeSingle();
-    if (!task) continue;
+    if (!task) {
+      continue;
+    }
 
     if (ev.status === "cancelled") {
       // Event was deleted in Google -> mark the linked AIOS task done.
@@ -211,7 +224,9 @@ async function performSync(serviceClient: any, userId: string) {
 
     const startIso = ev.start?.dateTime;
     const endIso = ev.end?.dateTime;
-    if (!startIso) continue; // skip all-day for our timed task model
+    if (!startIso) {
+      continue;
+    } // skip all-day for our timed task model
 
     const start = toJerusalemDateTime(startIso);
     const updates: Record<string, any> = {

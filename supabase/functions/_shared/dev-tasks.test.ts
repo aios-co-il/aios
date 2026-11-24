@@ -152,7 +152,7 @@ Deno.test("dispatchDevTask refuses a task no person approved", async () => {
     // Approved in name only: update_dev_task can set the status without an approver.
     { ...DRAFT, status: "approved", approved_by: null },
     { ...DRAFT, status: "cancelled", approved_by: "user-1" },
-  ])
+  ]) {
     await assertRejects(
       () =>
         dispatchDevTask(taskDb(row), {
@@ -161,6 +161,7 @@ Deno.test("dispatchDevTask refuses a task no person approved", async () => {
         }),
       DevTaskNotApprovedError,
     );
+  }
 });
 
 Deno.test(
@@ -172,7 +173,9 @@ Deno.test(
     const keys = ["SUPABASE_URL", "CURSOR_MCP_BEARER"].map(
       (name) => [name, Deno.env.get(name)] as const,
     );
-    for (const [name] of keys) Deno.env.delete(name);
+    for (const [name] of keys) {
+      Deno.env.delete(name);
+    }
     try {
       await assertRejects(
         () =>
@@ -184,8 +187,11 @@ Deno.test(
         "CURSOR_MCP_BEARER missing",
       );
     } finally {
-      for (const [name, value] of keys)
-        if (value !== undefined) Deno.env.set(name, value);
+      for (const [name, value] of keys) {
+        if (value !== undefined) {
+          Deno.env.set(name, value);
+        }
+      }
     }
     const sent = await dispatchDevTask(
       taskDb({

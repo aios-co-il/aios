@@ -27,7 +27,9 @@ export async function saveAgencyShares(
       .eq("source_tenant_id", input.sourceTenantId)
       .eq("accessing_tenant_id", input.accessingTenantId)
       .in("agency_id", remove);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
   if (add.length > 0) {
     const { error } = await db.from("agency_tenant_access").insert(
@@ -38,6 +40,8 @@ export async function saveAgencyShares(
         access_level: "read_write",
       })),
     );
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   }
 }

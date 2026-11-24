@@ -127,7 +127,9 @@ export function ClientRecordingsTab({
         .eq("tenant_id", tenantId!)
         .eq("client_id", clientId)
         .order("start_time", { ascending: false, nullsFirst: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<RecordingRow>;
     },
     enabled: !!tenantId && !!clientId,
@@ -153,7 +155,9 @@ export function ClientRecordingsTab({
         .select("id, title, status, payload")
         .eq("tenant_id", tenantId!)
         .eq("client_id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return ((data ?? []) as Array<WorkItemRow>).filter(
         (wi) => wi.payload?.source_recording_id,
       );
@@ -179,7 +183,9 @@ export function ClientRecordingsTab({
         const url = recordingNeedsRecallRefresh(rec)
           ? await resolveExternalRecordingUrl(rec)
           : rec.recording_url;
-        if (!url) throw new Error("אין קובץ זמין להפעלה");
+        if (!url) {
+          throw new Error("אין קובץ זמין להפעלה");
+        }
         finishExternalOpen(url, pending);
       } catch (error) {
         cancelExternalOpen(pending);
@@ -226,7 +232,9 @@ export function ClientRecordingsTab({
     const pending = beginExternalOpen();
     try {
       const url = await resolveExternalRecordingUrl(rec);
-      if (!url) throw new Error("אין קובץ זמין להורדה");
+      if (!url) {
+        throw new Error("אין קובץ זמין להורדה");
+      }
       finishExternalOpen(url, pending);
     } catch (error) {
       cancelExternalOpen(pending);

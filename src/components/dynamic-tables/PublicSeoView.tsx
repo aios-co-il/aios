@@ -78,10 +78,11 @@ export function PublicSeoView({
   const validReports = useMemo(() => filterValidSeoReports(reports), [reports]);
 
   const selectedReport = useMemo(() => {
-    if (selectedReportId)
+    if (selectedReportId) {
       return (
         validReports.find((r) => r.id === selectedReportId) || validReports[0]
       );
+    }
     return validReports[0];
   }, [validReports, selectedReportId]);
 
@@ -102,12 +103,14 @@ export function PublicSeoView({
     const threeMonth = new Map<string, any>();
     const yearly = new Map<string, any>();
     if (cached?.threeMonth) {
-      for (const [k, v] of Object.entries(cached.threeMonth))
+      for (const [k, v] of Object.entries(cached.threeMonth)) {
         threeMonth.set(k, v as any);
+      }
     }
     if (cached?.yearly) {
-      for (const [k, v] of Object.entries(cached.yearly))
+      for (const [k, v] of Object.entries(cached.yearly)) {
         yearly.set(k, v as any);
+      }
     }
     return { threeMonth, yearly };
   }, [selectedReport?.id]);
@@ -118,7 +121,9 @@ export function PublicSeoView({
     const prev =
       idx >= 0 && idx < validReports.length - 1 ? validReports[idx + 1] : null;
     const map = new Map<string, number | null>();
-    if (!prev) return map;
+    if (!prev) {
+      return map;
+    }
     const rd = (prev.report_data as any) || {};
     const all = [
       ...(Array.isArray(rd.tracked_keywords) ? rd.tracked_keywords : []),
@@ -126,8 +131,9 @@ export function PublicSeoView({
     ];
     for (const kw of all) {
       const name = String(kw.keyword || "").toLowerCase();
-      if (!map.has(name))
+      if (!map.has(name)) {
         map.set(name, kw.position ?? kw.best_position ?? null);
+      }
     }
     return map;
   }, [validReports, selectedReport?.id]);
@@ -139,7 +145,9 @@ export function PublicSeoView({
       const name = String(g.keyword || "")
         .toLowerCase()
         .trim();
-      if (name) m.set(name, g);
+      if (name) {
+        m.set(name, g);
+      }
     }
     return m;
   }, [gscData]);
@@ -152,7 +160,9 @@ export function PublicSeoView({
       const name = String(g.keyword || "")
         .toLowerCase()
         .trim();
-      if (name) m.set(name, g);
+      if (name) {
+        m.set(name, g);
+      }
     }
     return m;
   };
@@ -177,31 +187,41 @@ export function PublicSeoView({
     const gscRow = gscMap.get(lower);
 
     let prevPos = n.position_prev_month ?? prevMonthMap.get(lower) ?? null;
-    if (prevPos == null && api3?.best_position_prev != null)
+    if (prevPos == null && api3?.best_position_prev != null) {
       prevPos = api3.best_position_prev;
+    }
     if (prevPos == null) {
       const gscPrev = gscPrevMonthMap.get(lower)?.position;
-      if (gscPrev != null) prevPos = gscPrev;
+      if (gscPrev != null) {
+        prevPos = gscPrev;
+      }
     }
 
     let pos3m: number | null = api3?.best_position_prev ?? null;
     if (pos3m == null) {
       const gsc3 = gscThreeMonthMap.get(lower)?.position;
-      if (gsc3 != null) pos3m = gsc3;
+      if (gsc3 != null) {
+        pos3m = gsc3;
+      }
     }
 
     let posYear: number | null = apiY?.best_position_prev ?? null;
     if (posYear == null) {
       const gscY = gscYearlyMap.get(lower)?.position;
-      if (gscY != null) posYear = gscY;
+      if (gscY != null) {
+        posYear = gscY;
+      }
     }
 
-    if (n.volume == null && (api3 || apiY)?.volume != null)
+    if (n.volume == null && (api3 || apiY)?.volume != null) {
       n.volume = (api3 || apiY).volume;
-    if (n.kd == null && (api3 || apiY)?.keyword_difficulty != null)
+    }
+    if (n.kd == null && (api3 || apiY)?.keyword_difficulty != null) {
       n.kd = (api3 || apiY).keyword_difficulty;
-    if (n.cpc == null && (api3 || apiY)?.cpc != null)
+    }
+    if (n.cpc == null && (api3 || apiY)?.cpc != null) {
       n.cpc = (api3 || apiY).cpc;
+    }
 
     return {
       ...n,
@@ -226,25 +246,31 @@ export function PublicSeoView({
   const organicKeywords = useMemo(() => {
     const enriched = rawOrganic.map(enrich);
     const existing = new Set<string>();
-    for (const kw of rawOrganic)
+    for (const kw of rawOrganic) {
       existing.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
-    for (const kw of rawTracked)
+    }
+    for (const kw of rawTracked) {
       existing.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
+    }
 
     const extra = new Map<string, any>();
     for (const [name, kw] of comparison.threeMonth) {
-      if (!existing.has(name)) extra.set(name, kw);
+      if (!existing.has(name)) {
+        extra.set(name, kw);
+      }
     }
     for (const [name, kw] of comparison.yearly) {
-      if (!existing.has(name) && !extra.has(name)) extra.set(name, kw);
+      if (!existing.has(name) && !extra.has(name)) {
+        extra.set(name, kw);
+      }
     }
     for (const [, kw] of extra) {
       enriched.push(
@@ -271,20 +297,24 @@ export function PublicSeoView({
   // Keep `position` populated (same as SeoDashboardView) so Top 20 מקודמים
   // on shared links includes GSC-ranked terms — null position previously hid them.
   const gscOnlyKeywords = useMemo(() => {
-    if (gscData.length === 0) return [];
+    if (gscData.length === 0) {
+      return [];
+    }
     const ahrefsNames = new Set<string>();
-    for (const kw of rawOrganic)
+    for (const kw of rawOrganic) {
       ahrefsNames.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
-    for (const kw of rawTracked)
+    }
+    for (const kw of rawTracked) {
       ahrefsNames.add(
         String(kw.keyword || "")
           .toLowerCase()
           .trim(),
       );
+    }
     return gscData
       .filter((g) => {
         const name = String(g.keyword || "")

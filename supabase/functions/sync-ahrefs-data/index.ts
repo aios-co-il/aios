@@ -86,7 +86,9 @@ serve(async (req) => {
       config?: AhrefsConfig;
     };
     // Accept snake_case as well
-    if (!tableId && (body as any).table_id) tableId = (body as any).table_id;
+    if (!tableId && (body as any).table_id) {
+      tableId = (body as any).table_id;
+    }
 
     if (!tableId) {
       return new Response(JSON.stringify({ error: "Missing tableId" }), {
@@ -172,7 +174,9 @@ serve(async (req) => {
         .eq("client_id", clientId)
         .order("report_date", { ascending: false });
 
-      if (reportsError) throw reportsError;
+      if (reportsError) {
+        throw reportsError;
+      }
 
       const targetForFilter = String(config.target || "")
         .replace(/^https?:\/\//, "")
@@ -252,7 +256,9 @@ serve(async (req) => {
         const { error: insertError } = await supabase
           .from("crm_records")
           .insert(recordsToInsert.slice(i, i + 500));
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       const syncedAt = new Date().toISOString();

@@ -14,8 +14,9 @@ vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
 vi.mock("@/integrations/supabase/client", () => {
   const query = () => {
     const chain: Record<string, unknown> = {};
-    for (const name of ["select", "eq", "order", "in", "delete"])
+    for (const name of ["select", "eq", "order", "in", "delete"]) {
       chain[name] = () => chain;
+    }
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({ data: mocks.rows, error: null });
     return chain;

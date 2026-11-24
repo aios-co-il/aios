@@ -9,7 +9,9 @@ export function filterEntityAssignmentOptions<T extends EntityAssignmentOption>(
   search: string,
 ): Array<T> {
   const term = search.trim().toLocaleLowerCase("he");
-  if (!term) return [...options];
+  if (!term) {
+    return [...options];
+  }
   return options.filter((option) =>
     `${option.label} ${option.description || ""}`
       .toLocaleLowerCase("he")
@@ -22,7 +24,9 @@ export function toggleEntityAssignmentId(
   id: string,
   multiple: boolean,
 ): Array<string> {
-  if (!multiple) return [id];
+  if (!multiple) {
+    return [id];
+  }
   return selectedIds.includes(id)
     ? selectedIds.filter((selectedId) => selectedId !== id)
     : [...selectedIds, id];

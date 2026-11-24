@@ -79,7 +79,9 @@ export function permissionHandleForPathname(
   pathname: string,
 ): ModuleRouteHandle | undefined {
   const match = pathname.match(/^\/t\/[^/]+(?:\/(.*))?$/);
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
 
   const subpath = (match[1] || "").replace(/\/+$/, "");
   const permission = permissionForSubpath(subpath);

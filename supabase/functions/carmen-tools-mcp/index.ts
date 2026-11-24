@@ -73,9 +73,13 @@ function rpcError(
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (!a || a.length !== b.length) return false;
+  if (!a || a.length !== b.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
   return diff === 0;
 }
 
@@ -101,16 +105,18 @@ async function runDirect(
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok)
+  if (!res.ok) {
     throw new Error(String(data?.error || `run-ai-agent ${res.status}`));
+  }
   return data;
 }
 
 let toolsCache: { at: number; tools: Array<any> } | null = null;
 
 async function listTools(ctx: Ctx) {
-  if (toolsCache && Date.now() - toolsCache.at < TOOLS_TTL_MS)
+  if (toolsCache && Date.now() - toolsCache.at < TOOLS_TTL_MS) {
     return toolsCache.tools;
+  }
   const data = await runDirect(ctx, { action: "list" });
   const tools = (data.tools || []).map((t: any) => ({
     name: t.name,
@@ -173,8 +179,9 @@ async function handleRpc(msg: McpRpcMessage, ctx: Ctx): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   const url = new URL(req.url);
   const streamable =
     wantsStreamableHttp(req, url.pathname) || isStreamableMcpPath(url.pathname);
@@ -187,21 +194,24 @@ Deno.serve(async (req) => {
       : rpcError(null, code, message, status);
 
   const secret = Deno.env.get("CARMEN_TOOLS_MCP_BEARER") || "";
-  if (!secret)
+  if (!secret) {
     return fail(-32002, "CARMEN_TOOLS_MCP_BEARER is not configured", 503);
-  if (!presentedKeys(req, url).some((k) => timingSafeEqual(k, secret)))
+  }
+  if (!presentedKeys(req, url).some((k) => timingSafeEqual(k, secret))) {
     return fail(-32001, "Unauthorized", 401);
+  }
 
   const tenantId =
     Deno.env.get("CARMEN_MCP_TENANT_ID") ||
     Deno.env.get("CLAUDE_DEFAULT_TENANT_ID") ||
     "";
-  if (!tenantId)
+  if (!tenantId) {
     return fail(
       -32002,
       "CARMEN_MCP_TENANT_ID (or CLAUDE_DEFAULT_TENANT_ID) is not configured",
       503,
     );
+  }
 
   const ctx: Ctx = {
     tenantId,
@@ -212,8 +222,9 @@ Deno.serve(async (req) => {
         .slice(0, 40) || "agent",
   };
 
-  if (streamable)
+  if (streamable) {
     return handleStreamableMcpRequest(req, (msg) => handleRpc(msg, ctx));
+  }
   if (req.method === "GET") {
     return new Response(
       JSON.stringify({

@@ -589,7 +589,9 @@ async function resolveLLMTarget(
   const s = (data?.settings || {}) as Record<string, string>;
   const endpoint = llmEndpoint(model);
   const key = s[endpoint.keyField];
-  if (!key) throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
+  if (!key) {
+    throw new Error(MISSING_KEY_TEXT[endpoint.provider]);
+  }
   return {
     url: endpoint.url,
     key,
@@ -643,10 +645,14 @@ async function buildLLMChain(
   const ordered: Array<string> = [];
   const add = (id: string) => {
     const full = resolveModelId(id);
-    if (!ordered.includes(full)) ordered.push(full);
+    if (!ordered.includes(full)) {
+      ordered.push(full);
+    }
   };
   add(primaryFullId);
-  for (const m of LLM_FALLBACK_ORDER) add(m);
+  for (const m of LLM_FALLBACK_ORDER) {
+    add(m);
+  }
   // All models at once (each resolve is a key lookup); the order is kept, and a model whose
   // provider key is missing is skipped (resolveLLMTarget throws for it).
   const resolved = await Promise.all(
@@ -676,13 +682,18 @@ function connectedBrainHint(status: number, body: string): string {
     /request too large|tokens per minute|context length|maximum context/i.test(
       body,
     );
-  if (tooLarge)
+  if (tooLarge) {
     return "הבקשה של כרמן (כלים, ידע והיסטוריה) גדולה מהמכסה של המוח הזה. מכסה חינמית קטנה מדי לכרמן; נסו מודל או חשבון עם מכסה גדולה יותר.";
-  if (status === 429) return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
-  if (status === 401 || status === 403)
+  }
+  if (status === 429) {
+    return "המוח הגיע למגבלת קצב. נסו שוב עוד רגע.";
+  }
+  if (status === 401 || status === 403) {
     return "המפתח של המוח נדחה. בדקו אותו בהגדרות המוחות.";
-  if (status >= 300 && status < 400)
+  }
+  if (status >= 300 && status < 400) {
     return "כתובת המוח מפנה למקום אחר, וזה לא מותר.";
+  }
   return body.replace(/\s+/g, " ").slice(0, 200);
 }
 
@@ -706,7 +717,9 @@ const LOW_PRIORITY_TOOLS = new Set([
   "save_media_from_chat",
 ]);
 function isEscalationMcpTool(name: string | undefined): boolean {
-  if (!name) return false;
+  if (!name) {
+    return false;
+  }
   return (
     name.startsWith("mcp_Cursor__") ||
     name.startsWith("mcp_Claude__") ||
@@ -759,8 +772,9 @@ function capToolsForTarget<T extends { function?: { name?: string } }>(
   target: LLMTarget,
   tools: Array<T>,
 ): Array<T> {
-  if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS)
+  if (target.provider !== "openai" || tools.length <= OPENAI_MAX_TOOLS) {
     return tools;
+  }
   // Escalation MCP + PRIORITY Meta/approval tools must never be truncated.
   const mustKeepEscalation = tools.filter((t) =>
     isEscalationMcpTool(t?.function?.name),
@@ -771,7 +785,9 @@ function capToolsForTarget<T extends { function?: { name?: string } }>(
   });
   const kept = tools.filter((t) => {
     const n = t?.function?.name;
-    if (!n || isEscalationMcpTool(n) || PRIORITY_TOOLS.has(n)) return false;
+    if (!n || isEscalationMcpTool(n) || PRIORITY_TOOLS.has(n)) {
+      return false;
+    }
     return !LOW_PRIORITY_TOOLS.has(n);
   });
   const reserved = mustKeepEscalation.length + mustKeepPriority.length;
@@ -804,7 +820,9 @@ async function recordProviderFailover(
       .eq("alert_type", "provider_failover")
       .gte("fired_at", since)
       .limit(1);
-    if (recent?.length) return;
+    if (recent?.length) {
+      return;
+    }
     await supabase.from("integration_alerts_log").insert({
       tenant_id: tenantId,
       provider: providerOf(toLabel),
@@ -884,7 +902,9 @@ function estimateLLMCostUSD(
   tokensIn: number,
   tokensOut: number,
 ): number | null {
-  if (!tokensIn && !tokensOut) return null;
+  if (!tokensIn && !tokensOut) {
+    return null;
+  }
   const m = (model || "").toLowerCase();
   const price: [number, number] | null = m.includes("gpt-4o-mini")
     ? [0.15, 0.6]
@@ -901,7 +921,9 @@ function estimateLLMCostUSD(
               : m.includes("gemini")
                 ? [0.1, 0.4]
                 : null;
-  if (!price) return null;
+  if (!price) {
+    return null;
+  }
   return +((tokensIn * price[0] + tokensOut * price[1]) / 1e6).toFixed(6);
 }
 
@@ -930,8 +952,9 @@ function assertHttpsUrl(value: unknown, field: string): string {
   } catch {
     throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
   }
-  if (url.protocol !== "https:")
+  if (url.protocol !== "https:") {
     throw new Error(`${field} חייב להיות קישור HTTPS תקין`);
+  }
   return url.toString();
 }
 
@@ -949,13 +972,15 @@ async function metaLeadPages(
       while (next) {
         const response = await fetch(next);
         const result = await readMetaResponse(response);
-        if (!result.ok)
+        if (!result.ok) {
           throw new Error(
             String(result.error.message ?? "Meta pages request failed"),
           );
+        }
         const json = result.value;
-        if (!response.ok || json?.error)
+        if (!response.ok || json?.error) {
           throw new Error(json?.error?.message || "Meta pages request failed");
+        }
         sourcePages = sourcePages.concat(json.data || []);
         next = json.paging?.next || null;
       }
@@ -983,17 +1008,19 @@ async function metaLeadFormsForPage(
   while (next) {
     const response = await fetch(next);
     const result = await readMetaResponse(response);
-    if (!result.ok)
+    if (!result.ok) {
       throw new Error(
         String(
           result.error.message ?? `Meta forms request failed for ${page.name}`,
         ),
       );
+    }
     const json = result.value;
-    if (!response.ok || json.error)
+    if (!response.ok || json.error) {
       throw new Error(
         json.error?.message || `Meta forms request failed for ${page.name}`,
       );
+    }
     for (const form of json.data || []) {
       forms.push({
         id: String(form.id),
@@ -1025,7 +1052,9 @@ async function findAutomationForMetaForm(
     .select("id, name, active, tenant_id")
     .in("tenant_id", tenantIds)
     .eq("is_flow", true);
-  if (automationId) query = query.eq("id", String(automationId));
+  if (automationId) {
+    query = query.eq("id", String(automationId));
+  }
   const { data, error } = await query.order("name").limit(100).returns<
     Array<
       Pick<AgentRow<"automations">, "id" | "name" | "active"> & {
@@ -1033,18 +1062,25 @@ async function findAutomationForMetaForm(
       }
     >
   >();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   let matches = data || [];
-  if (automationName)
+  if (automationName) {
     matches = matches.filter((a) => metaNameMatches(a.name, automationName));
-  if (matches.length === 0) throw new Error("לא נמצאה אוטומציה תואמת בארגון");
+  }
+  if (matches.length === 0) {
+    throw new Error("לא נמצאה אוטומציה תואמת בארגון");
+  }
   if (matches.length > 1) {
     throw new Error(
       `נמצאו כמה אוטומציות תואמות: ${matches.map((a) => `${a.name} (${a.id})`).join(", ")}. יש לציין שם מדויק או automation_id`,
     );
   }
   const match = matches[0];
-  if (!match.tenant_id) throw new Error("Automation has no tenant");
+  if (!match.tenant_id) {
+    throw new Error("Automation has no tenant");
+  }
   return { ...match, tenant_id: match.tenant_id };
 }
 
@@ -1189,7 +1225,9 @@ async function executeTool(
               engine,
             },
           );
-          if (!("missing" in remote && remote.missing)) return remote;
+          if (!("missing" in remote && remote.missing)) {
+            return remote;
+          }
           const made = await executeTool(
             "generate_ad_image",
             {
@@ -1372,15 +1410,21 @@ async function executeTool(
   // Preserve legacy argument acceptance; domain modules expose named input contracts.
   switch (name) {
     case "query_system_graph": {
-      if (!isManagerRole) throw new Error("אין הרשאה לעיין בגרף המערכת");
+      if (!isManagerRole) {
+        throw new Error("אין הרשאה לעיין בגרף המערכת");
+      }
       const query = String(args.query || "").trim();
-      if (!query) throw new Error("query is required");
+      if (!query) {
+        throw new Error("query is required");
+      }
       const { data, error } = await supabase.rpc("carmen_query_system_graph", {
         p_query: query,
         p_depth: Math.min(3, Math.max(0, Number(args.depth ?? 2))),
         p_limit: Math.min(80, Math.max(1, Number(args.limit ?? 40))),
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data?.length || 0, nodes: data || [], read_only: true };
     }
     case "create_lead":
@@ -1490,12 +1534,13 @@ async function executeTool(
             .select("client_id")
             .eq("campaigner_id", callerCampaignerId);
           clientIdsFilter = (links || []).map((l: any) => l.client_id);
-          if (clientIdsFilter.length === 0)
+          if (clientIdsFilter.length === 0) {
             return {
               count: 0,
               results: [],
               note: "no clients assigned to you",
             };
+          }
         }
         const agencyFilter =
           args.agency_id ||
@@ -1552,7 +1597,9 @@ async function executeTool(
         q = q.eq("agency_id", args.agency_id);
       }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data.length, results: data };
     }
     case "delegate_to_manus": {
@@ -1617,7 +1664,9 @@ async function executeTool(
         tenantId,
         message: args.message,
       };
-      if (args.task_id) msgBody.task_id = args.task_id;
+      if (args.task_id) {
+        msgBody.task_id = args.task_id;
+      }
       const msgRes = await fetch(manusApiUrl, {
         method: "POST",
         headers: {
@@ -1932,10 +1981,16 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .order("name")
         .limit(args.limit || 50);
-      if (args.active_only === true) q = q.eq("active", true);
-      if (args.name_search) q = q.ilike("name", `%${args.name_search}%`);
+      if (args.active_only === true) {
+        q = q.eq("active", true);
+      }
+      if (args.name_search) {
+        q = q.ilike("name", `%${args.name_search}%`);
+      }
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data.length, automations: data };
     }
     case "get_automation_details": {
@@ -1950,7 +2005,9 @@ async function executeTool(
           .maybeSingle();
         automationId = found?.id;
       }
-      if (!automationId) return { error: "automation_id או name_search נדרש" };
+      if (!automationId) {
+        return { error: "automation_id או name_search נדרש" };
+      }
       const { data: auto, error } = await supabase
         .from("automations")
         .select(
@@ -1959,7 +2016,9 @@ async function executeTool(
         .eq("id", automationId)
         .in("tenant_id", accessibleTenantIds)
         .maybeSingle();
-      if (error || !auto) return { error: "אוטומציה לא נמצאה" };
+      if (error || !auto) {
+        return { error: "אוטומציה לא נמצאה" };
+      }
       const { data: steps } = await supabase
         .from("automation_flow_steps")
         .select(
@@ -1993,14 +2052,18 @@ async function executeTool(
     case "toggle_automation":
     case "delete_automation":
     case "propose_automation_edit": {
-      if (!args.automation_id) return { error: "automation_id נדרש" };
+      if (!args.automation_id) {
+        return { error: "automation_id נדרש" };
+      }
       const { data: auto } = await supabase
         .from("automations")
         .select("id, name, active")
         .eq("id", args.automation_id)
         .in("tenant_id", accessibleTenantIds)
         .maybeSingle();
-      if (!auto) return { error: "אוטומציה לא נמצאה" };
+      if (!auto) {
+        return { error: "אוטומציה לא נמצאה" };
+      }
       const autoTitles: Record<string, string> = {
         toggle_automation: `${args.active ? "הפעלת" : "כיבוי"} אוטומציה: ${auto.name}`,
         delete_automation: `מחיקת אוטומציה: ${auto.name}`,
@@ -2029,7 +2092,9 @@ async function executeTool(
         })
         .select("id")
         .single();
-      if (aqErr) throw aqErr;
+      if (aqErr) {
+        throw aqErr;
+      }
       return {
         pending_approval: true,
         approval_id: aqRow.id,
@@ -2046,7 +2111,9 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .eq("is_flow", true)
         .order("name");
-      if (automationError) throw automationError;
+      if (automationError) {
+        throw automationError;
+      }
       let matchingAutomations: Array<
         Pick<AgentRow<"automations">, "id" | "name" | "active" | "tenant_id">
       > = automations || [];
@@ -2063,7 +2130,9 @@ async function executeTool(
             .in("automation_id", automationIds)
             .eq("step_type", "trigger")
         : { data: [], error: null };
-      if (triggerError) throw triggerError;
+      if (triggerError) {
+        throw triggerError;
+      }
       const triggerRows: Array<
         Pick<
           AgentRow<"automation_flow_steps">,
@@ -2083,14 +2152,16 @@ async function executeTool(
       );
 
       let pages = await metaLeadPages(supabase, tenantId);
-      if (args.page_name)
+      if (args.page_name) {
         pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
+      }
       const formsNested = await Promise.all(
         pages.map((page) => metaLeadFormsForPage(page)),
       );
       let forms = formsNested.flat();
-      if (args.form_name)
+      if (args.form_name) {
         forms = forms.filter((f) => metaNameMatches(f.name, args.form_name));
+      }
       return {
         automations: matchingAutomations.map((automation) => {
           const current = currentByAutomation.get(automation.id);
@@ -2116,12 +2187,14 @@ async function executeTool(
       };
     }
     case "set_automation_meta_lead_form": {
-      if (!args.confirmed)
+      if (!args.confirmed) {
         throw new Error("נדרש אישור מפורש לפני החלפת טופס באוטומציה");
-      if (!canManageAutomations)
+      }
+      if (!canManageAutomations) {
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים לשנות טופס באוטומציה",
         );
+      }
       const automation = await findAutomationForMetaForm(
         supabase,
         accessibleTenantIds,
@@ -2129,15 +2202,17 @@ async function executeTool(
         args.automation_name,
       );
       let pages = await metaLeadPages(supabase, automation.tenant_id);
-      if (args.page_name)
+      if (args.page_name) {
         pages = pages.filter((p) => metaNameMatches(p.name, args.page_name));
+      }
       const forms = (
         await Promise.all(pages.map((page) => metaLeadFormsForPage(page)))
       )
         .flat()
         .filter((form) => metaNameMatches(form.name, args.form_name));
-      if (forms.length === 0)
+      if (forms.length === 0) {
         throw new Error(`לא נמצא ב-Meta טופס בשם "${args.form_name}"`);
+      }
       if (forms.length > 1) {
         throw new Error(
           `נמצאו כמה טפסים תואמים: ${forms.map((f) => `${f.name} — ${f.page_name} (${f.id})`).join(", ")}. יש לציין גם את שם העמוד`,
@@ -2152,17 +2227,20 @@ async function executeTool(
       return { success: true, ...connected, form, sync_registered: true };
     }
     case "create_meta_lead_form": {
-      if (!args.confirmed)
+      if (!args.confirmed) {
         throw new Error("נדרש אישור מפורש לפני יצירת טופס חדש ב-Meta");
-      if (!canManageAutomations)
+      }
+      if (!canManageAutomations) {
         throw new Error(
           "רק מנהל צוות, בעלים או Super Admin רשאים ליצור טופס Meta",
         );
+      }
       const questions: Array<unknown> = Array.isArray(args.questions)
         ? args.questions.slice(0, 30)
         : [];
-      if (questions.length === 0)
+      if (questions.length === 0) {
         throw new Error("יש להגדיר לפחות שדה אחד בטופס");
+      }
       const allowedQuestionTypes = new Set([
         "FULL_NAME",
         "FIRST_NAME",
@@ -2188,8 +2266,9 @@ async function executeTool(
       const normalizedQuestions = questions.map((input): MetaLeadQuestion => {
         const question = readMetaLeadQuestionInput(input);
         const type = (question.type || "").trim().toUpperCase();
-        if (!allowedQuestionTypes.has(type))
+        if (!allowedQuestionTypes.has(type)) {
           throw new Error(`סוג שדה Meta אינו נתמך: ${type || "ריק"}`);
+        }
         if (type === "CUSTOM" && !(question.label || "").trim()) {
           throw new Error("שדה CUSTOM חייב לכלול label");
         }
@@ -2208,8 +2287,9 @@ async function executeTool(
       const pages = (await metaLeadPages(supabase, tenantId)).filter((page) =>
         metaNameMatches(page.name, args.page_name),
       );
-      if (pages.length === 0)
+      if (pages.length === 0) {
         throw new Error(`לא נמצא עמוד Meta בשם "${args.page_name}"`);
+      }
       if (pages.length > 1) {
         throw new Error(
           `נמצאו כמה עמודים תואמים: ${pages.map((p) => `${p.name} (${p.id})`).join(", ")}. יש לציין שם מדויק יותר`,
@@ -2548,11 +2628,16 @@ async function executeTool(
           "id, integration_type, is_active, settings, last_sync_at, created_at",
         )
         .in("tenant_id", accessibleTenantIds);
-      if (args.type)
+      if (args.type) {
         q = q.in("integration_type", integrationTypesFor(args.type));
-      if (args.only_active) q = q.eq("is_active", true);
+      }
+      if (args.only_active) {
+        q = q.eq("is_active", true);
+      }
       const { data, error } = await q.order("integration_type");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         count: data?.length || 0,
         integrations: (data || []).map((i) => ({
@@ -2571,7 +2656,9 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .select("id, integration_type, is_active")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     }
     case "list_agents": {
@@ -2579,9 +2666,13 @@ async function executeTool(
         .from("ai_agents")
         .select("id, name, talent, engine, active")
         .in("tenant_id", accessibleTenantIds);
-      if (args.only_active) q = q.eq("active", true);
+      if (args.only_active) {
+        q = q.eq("active", true);
+      }
       const { data, error } = await q.order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { count: data?.length || 0, agents: data };
     }
     case "create_agent": {
@@ -2598,7 +2689,9 @@ async function executeTool(
         })
         .select("id, name")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         agent_id: data.id,
         name: data.name,
@@ -2615,7 +2708,9 @@ async function executeTool(
         "engine",
         "active",
       ] as const) {
-        if (args[k] !== undefined) updates[k] = args[k];
+        if (args[k] !== undefined) {
+          updates[k] = args[k];
+        }
       }
       const { data, error } = await supabase
         .from("ai_agents")
@@ -2624,7 +2719,9 @@ async function executeTool(
         .in("tenant_id", accessibleTenantIds)
         .select("id, name, active")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     }
     case "delegate_to_github_agent": {
@@ -2641,8 +2738,9 @@ async function executeTool(
         }),
       });
       const txt = await res.text();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: `github-agent failed [${res.status}]: ${txt}` };
+      }
       try {
         return JSON.parse(txt);
       } catch {
@@ -2664,10 +2762,11 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return {
           error: data.error || `create_instance failed [${res.status}]`,
         };
+      }
       return data;
     }
     case "get_whatsapp_qr_link": {
@@ -2683,8 +2782,9 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: data.error || `get_qr_link failed [${res.status}]` };
+      }
       return data;
     }
     case "get_whatsapp_status": {
@@ -2700,8 +2800,9 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return { error: data.error || `get_status failed [${res.status}]` };
+      }
       return data;
     }
     case "send_whatsapp_via_gateway": {
@@ -2727,11 +2828,12 @@ async function executeTool(
         }),
       });
       const data = await res.json();
-      if (!res.ok)
+      if (!res.ok) {
         return {
           error:
             data.error || `send_whatsapp_via_gateway failed [${res.status}]`,
         };
+      }
       return data;
     }
     // ===========================
@@ -2749,7 +2851,9 @@ async function executeTool(
           const { data, error } = await supabase.storage
             .from("entity-attachments")
             .createSignedUrl(path, 3600);
-          if (!error && data?.signedUrl) signed[path] = data.signedUrl;
+          if (!error && data?.signedUrl) {
+            signed[path] = data.signedUrl;
+          }
         }),
       );
       return carmenSkinsResult(
@@ -2809,7 +2913,9 @@ async function executeTool(
         })
         .select("id, name, version")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       console.log(
         `[Hermes] Skill created by Carmen: ${data.name} (id=${data.id})`,
       );
@@ -2827,13 +2933,17 @@ async function executeTool(
         .eq("id", args.skill_id)
         .eq("tenant_id", tenantId)
         .single();
-      if (!current) return { error: "Skill not found" };
+      if (!current) {
+        return { error: "Skill not found" };
+      }
       const updates: TablesUpdate<"ai_skills"> = {
         steps: args.body,
         version: (current.version || 1) + 1,
         updated_at: new Date().toISOString(),
       };
-      if (args.description) updates.description = args.description;
+      if (args.description) {
+        updates.description = args.description;
+      }
       const { data, error } = await supabase
         .from("ai_skills")
         .update(updates)
@@ -2841,7 +2951,9 @@ async function executeTool(
         .eq("tenant_id", tenantId)
         .select("id, name, version")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       console.log(
         `[Hermes] Skill updated: ${data.name} v${data.version} - ${args.change_note || ""}`,
       );
@@ -2853,8 +2965,9 @@ async function executeTool(
       };
     }
     case "delegate_to_subagent": {
-      if (!args.title || !args.prompt)
+      if (!args.title || !args.prompt) {
         throw new Error("title and prompt are required");
+      }
       return await spawnSubagent(supabase, {
         parentAgentId: agentId || null,
         tenantId,
@@ -2874,15 +2987,20 @@ async function executeTool(
     }
 
     case "get_subagent_result": {
-      if (!args.sub_task_id) throw new Error("sub_task_id is required");
+      if (!args.sub_task_id) {
+        throw new Error("sub_task_id is required");
+      }
       return await getSubagentResult(supabase, tenantId, args.sub_task_id);
     }
 
     case "delegate_parallel": {
       const items: Array<unknown> = Array.isArray(args.tasks) ? args.tasks : [];
-      if (items.length === 0)
+      if (items.length === 0) {
         throw new Error("tasks (array of {title, prompt}) is required");
-      if (items.length > 8) throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
+      }
+      if (items.length > 8) {
+        throw new Error("עד 8 תת-משימות מקבילות בבת אחת");
+      }
       const cleaned = parallelTaskArgs(items).map((it) => ({
         title: it.title,
         prompt: it.prompt,
@@ -2892,8 +3010,9 @@ async function executeTool(
         sideEffects:
           typeof it.side_effects === "boolean" ? it.side_effects : undefined,
       }));
-      if (cleaned.length === 0)
+      if (cleaned.length === 0) {
         throw new Error("כל תת-משימה חייבת title ו-prompt");
+      }
       const batchId = crypto.randomUUID();
       return await spawnSubagentBatch(
         supabase,
@@ -2910,7 +3029,9 @@ async function executeTool(
     }
 
     case "get_batch_results": {
-      if (!args.batch_id) throw new Error("batch_id is required");
+      if (!args.batch_id) {
+        throw new Error("batch_id is required");
+      }
       return await getBatchResults(supabase, tenantId, args.batch_id);
     }
 
@@ -2967,7 +3088,9 @@ async function executeTool(
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         pending_approval: true,
         approval_id: data.id,
@@ -3353,7 +3476,9 @@ async function handleRunAgent(
       `[AGENT] Starting run: agent=${bodyAgentId}, command="${command_text?.substring(0, 80)}", surface=${surface}, stream=${!!emit}, pin_skills_only=${pinSkillsOnly}`,
     );
 
-    if (!command_text) throw new Error("Missing command_text");
+    if (!command_text) {
+      throw new Error("Missing command_text");
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -3377,7 +3502,9 @@ async function handleRunAgent(
         };
     if (workshopRoleForRun) {
       task_skills = [...requestedTaskSkills, ROLE_SKILL[workshopRoleForRun]];
-      if (emit) emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+      if (emit) {
+        emit({ type: "skin", slug: ROLE_PERSONA[workshopRoleForRun] });
+      }
     }
 
     // 1. Fetch agent — by id, or default to the tenant's Carmen agent
@@ -3389,20 +3516,24 @@ async function handleRunAgent(
         .select("*")
         .eq("id", agent_id)
         .single();
-      if (agentError || !data) throw new Error(`Agent not found: ${agent_id}`);
+      if (agentError || !data) {
+        throw new Error(`Agent not found: ${agent_id}`);
+      }
       agent = data;
     } else {
       // No agent_id provided — look up the active Carmen agent for the tenant.
       // This lets AIOS / other surfaces invoke the unified brain without preloading the id.
-      if (!tenant_id)
+      if (!tenant_id) {
         throw new Error(
           "Missing agent_id or tenant_id (one is required to resolve the agent)",
         );
+      }
       const carmen = await loadCarmenAgent(supabase, tenant_id, {
         activeOnly: true,
       });
-      if (!carmen)
+      if (!carmen) {
         throw new Error(`No active Carmen agent found for tenant ${tenant_id}`);
+      }
       agent = carmen;
       agent_id = carmen.id;
       console.log(
@@ -3441,7 +3572,9 @@ async function handleRunAgent(
 
         if (matchedCampaigners) {
           const match = matchedCampaigners.find((c: any) => {
-            if (!c.phone) return false;
+            if (!c.phone) {
+              return false;
+            }
             const cNorm = c.phone.replace(/[^0-9]/g, "").slice(-9);
             return cNorm === normalizedPhone;
           });
@@ -3608,8 +3741,9 @@ async function handleRunAgent(
           });
         }
       }
-      if (serverConversationId && emit)
+      if (serverConversationId && emit) {
         emit({ type: "conversation_id", id: serverConversationId });
+      }
     }
 
     // A quick model answers small talk and what the org brief already covers before the full
@@ -3700,8 +3834,9 @@ async function handleRunAgent(
           (before + after).trim().slice(0, 400) || cmdRaw.slice(0, 400);
         // Build a stable snake_case key from a short hash of the content.
         let h = 0;
-        for (let i = 0; i < sentence.length; i++)
+        for (let i = 0; i < sentence.length; i++) {
           h = ((h << 5) - h + sentence.charCodeAt(i)) | 0;
+        }
         const keyBase = `instr_${Math.abs(h).toString(36)}`;
         await supabase.from("ai_memory").upsert(
           {
@@ -3999,7 +4134,9 @@ async function handleRunAgent(
       const leadDataObj: Record<string, string> = {};
       if (lead_data) {
         Object.entries(lead_data).forEach(([k, v]) => {
-          if (v) leadDataObj[k] = String(v);
+          if (v) {
+            leadDataObj[k] = String(v);
+          }
         });
       }
 
@@ -4348,8 +4485,9 @@ async function handleRunAgent(
           casual: "כתוב בסגנון קזואלי ונגיש.",
           empathetic: "כתוב בסגנון אמפתי ומבין.",
         };
-        if (styleMap[writingStyle])
+        if (styleMap[writingStyle]) {
           systemPrompt += `\n${styleMap[writingStyle]}`;
+        }
       }
       // Inject response length
       const responseLength = (agent as any).response_length;
@@ -4358,8 +4496,9 @@ async function handleRunAgent(
           short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
           detailed: "תן תשובות מפורטות ומקיפות.",
         };
-        if (lengthMap[responseLength])
+        if (lengthMap[responseLength]) {
           systemPrompt += `\n${lengthMap[responseLength]}`;
+        }
       }
       // Always inject current date and tenant context
       const now = new Date();
@@ -4435,8 +4574,9 @@ async function handleRunAgent(
         const leadParts = Object.entries(lead_data)
           .filter(([, v]) => v)
           .map(([k, v]) => `${k}: ${v}`);
-        if (leadParts.length)
+        if (leadParts.length) {
           systemPrompt += `\n\nפרטי ליד:\n${leadParts.join("\n")}`;
+        }
       }
 
       // WhatsApp context
@@ -4531,7 +4671,9 @@ async function handleRunAgent(
           pinned: task_skills,
         });
       }
-      if (workshopNote) systemPrompt += `\n\n${workshopNote}`;
+      if (workshopNote) {
+        systemPrompt += `\n\n${workshopNote}`;
+      }
     }
     // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
     // The profile name wins over user_name, which some screens set to a department label.
@@ -4841,10 +4983,13 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       extra: Array<{ name: string; description?: string; parameters?: any }>,
     ) => {
       for (const t of extra) {
-        if (!t?.name) continue;
+        if (!t?.name) {
+          continue;
+        }
         promotedToolNames.add(t.name);
-        if (!filteredTools.some((ft) => ft.name === t.name))
+        if (!filteredTools.some((ft) => ft.name === t.name)) {
           filteredTools.push(t as any);
+        }
       }
       rebuildToolsForApi();
     };
@@ -4913,51 +5058,64 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 String(t.name || "")
                   .replace(/^mcp_/, "")
                   .split("__")[0] || "";
-              if (!shouldLoadMcpConnection(connSlug, cmd, false)) continue;
+              if (!shouldLoadMcpConnection(connSlug, cmd, false)) {
+                continue;
+              }
             }
             // Grok Bot is calling Carmen — do not expose Grok MCP back (ping-pong loop).
-            if (surface === "grok_bot" && t.name.startsWith("mcp_Grok__"))
+            if (surface === "grok_bot" && t.name.startsWith("mcp_Grok__")) {
               continue;
+            }
             if (
               escalationAgent === "cursor" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Manus__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "claude" &&
               (t.name.startsWith("mcp_Manus__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "manus" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Grok__"))
-            )
+            ) {
               continue;
+            }
             if (
               escalationAgent === "grok" &&
               (t.name.startsWith("mcp_Claude__") ||
                 t.name.startsWith("mcp_Cursor__") ||
                 t.name.startsWith("mcp_Manus__"))
-            )
+            ) {
               continue;
-            if (escalationAgent === "none" && isEscalationMcp(t.name)) continue;
+            }
+            if (escalationAgent === "none" && isEscalationMcp(t.name)) {
+              continue;
+            }
             // 4b-ii. Hard auth: only allowlisted tiers may see/call coding-agent MCP tools.
             if (
               isDevEscalationTool(t.name) &&
               !isDevEscalationToolAllowed(t.name, devEscalationTier)
-            )
+            ) {
               continue;
+            }
             exposedMcpTools.push(t as any);
-            if (!tokenOptimize || isEscalationMcp(t.name))
+            if (!tokenOptimize || isEscalationMcp(t.name)) {
               promotedToolNames.add(t.name);
+            }
             const exec = mcp.executors.get(t.name);
-            if (exec) mcpExecutors.set(t.name, exec);
+            if (exec) {
+              mcpExecutors.set(t.name, exec);
+            }
           }
           rebuildToolsForApi();
           console.log(
@@ -4987,8 +5145,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       systemPrompt += `\n\n=== סביבת פיתוח (חובה) ===\n${DEV_ENVIRONMENT_STANDING}`;
       // Only the workshop has workshop_check_connections; other chats get no such rule.
       const connections = connectionsStanding(inWorkshop);
-      if (connections)
+      if (connections) {
         systemPrompt += `\n\n=== מפתחות וחיבורים (חובה) ===\n${connections}`;
+      }
       systemPrompt += `\n\n=== שאלות עלייך ועל המערכת (חובה) ===\n${selfQuestionsStanding(
         {
           tier: devEscalationTier,
@@ -5056,7 +5215,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         );
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
-          for (const t of missing) promotedToolNames.add(t.name);
+          for (const t of missing) {
+            promotedToolNames.add(t.name);
+          }
           rebuildToolsForApi();
           console.log(
             `[AGENT] Skill tools added: ${missing.map((t) => t.name).join(", ")}`,
@@ -5098,7 +5259,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         );
         if (missing.length > 0) {
           filteredTools = [...filteredTools, ...missing];
-          for (const t of missing) promotedToolNames.add(t.name);
+          for (const t of missing) {
+            promotedToolNames.add(t.name);
+          }
           rebuildToolsForApi();
           console.log(
             `[AGENT] Pinned skin tools added: ${missing.map((t) => t.name).join(", ")}`,
@@ -5151,17 +5314,18 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         turnStartedAt,
       });
       devTaskOfferAnswered = Boolean(offeredTask);
-      if (offeredTask && devTaskYes)
+      if (offeredTask && devTaskYes) {
         systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
-      else if (
+      } else if (
         offeredTask &&
         (await declineOfferedDevTask(supabase, {
           tenantId: resolvedTenantId,
           taskId: offeredTask.id,
           actorUserId: callerUserId || asUuidOrNull(resolvedUserId),
         }))
-      )
+      ) {
         systemPrompt += `\n\n🚫 המשתמש ענה 'לא' למשימת הפיתוח שהצעת: "${String(offeredTask.title || "").slice(0, 120)}". המשימה בוטלה ולא נשלחה. אשרי בקצרה, ואל תקראי ל-approve_dev_task או ל-dispatch_dev_task; אם ירצה בהמשך, פתחי משימה חדשה ושאלי שוב.`;
+      }
     }
 
     // ─── Chat approval flow (AIO-230): ./approvals/resolve.ts ───
@@ -5237,7 +5401,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       try {
         await supabase.from("agent_action_log").insert({
           tenant_id: resolvedTenantId,
@@ -5340,7 +5506,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       return new Response(
         JSON.stringify({
           success: !!execResult?.success,
@@ -5413,7 +5581,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           .eq("user_id", callerUserId)
           .eq("tenant_id", resolvedTenantId);
       }
-      if (emit && finalOutput) emit({ type: "token", content: finalOutput });
+      if (emit && finalOutput) {
+        emit({ type: "token", content: finalOutput });
+      }
       return new Response(
         JSON.stringify({
           success: !!digest,
@@ -5496,7 +5666,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const manusData = await manusRes.json();
       const taskUrl = manusData.task_url || manusData.share_url || "";
       finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
-      if (emit) emit({ type: "token", content: finalOutput });
+      if (emit) {
+        emit({ type: "token", content: finalOutput });
+      }
       return finalOutput;
     }
 
@@ -5529,9 +5701,12 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       llmChain,
       runsInternal ? internalTail : undefined,
     );
-    if (llmChain.length === 0) await extendChain();
-    if (llmChain.length === 0)
+    if (llmChain.length === 0) {
+      await extendChain();
+    }
+    if (llmChain.length === 0) {
       throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
+    }
     let activeIdx = 0;
     let llm = llmChain[activeIdx];
     console.log(
@@ -5543,14 +5718,20 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     const emittedTexts: Array<string> = [];
     const emitText = (text: string) => {
       const key = text.trim();
-      if (!emit || !key || emittedTexts.includes(key)) return;
+      if (!emit || !key || emittedTexts.includes(key)) {
+        return;
+      }
       // A final answer that opens with texts already sent adds only the rest.
       let fresh = key;
       for (const sent of emittedTexts) {
-        if (fresh.startsWith(sent)) fresh = fresh.slice(sent.length).trim();
+        if (fresh.startsWith(sent)) {
+          fresh = fresh.slice(sent.length).trim();
+        }
       }
       emittedTexts.push(key);
-      if (!fresh) return;
+      if (!fresh) {
+        return;
+      }
       emit({
         type: "token",
         content: emittedTexts.length > 1 ? `\n\n${fresh}` : fresh,
@@ -5588,9 +5769,15 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           messages: messagesForProvider(messages, llm.provider),
         };
         const temp = safeTemp ?? llm.temperature;
-        if (temp !== undefined) payload.temperature = temp;
-        if (llm.maxTokens) payload.max_tokens = llm.maxTokens;
-        if (cappedTools.length > 0) payload.tools = cappedTools;
+        if (temp !== undefined) {
+          payload.temperature = temp;
+        }
+        if (llm.maxTokens) {
+          payload.max_tokens = llm.maxTokens;
+        }
+        if (cappedTools.length > 0) {
+          payload.tools = cappedTools;
+        }
         // A chat that shows the reply live gets the text as the model writes it (AIO-509).
         const streamThisRound = !!emit && canStreamCompletion(llm);
         if (streamThisRound) {
@@ -5652,7 +5839,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
                 .then((d: any) => !d?.choices?.[0]?.message)
                 .catch(() => true)
             : false;
-        if (res.ok && !malformed) break;
+        if (res.ok && !malformed) {
+          break;
+        }
 
         const err = malformed
           ? "המוח החזיר תשובה לא תקינה (בלי הודעה)."
@@ -5681,11 +5870,14 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           ).catch(() => {});
           continue; // retry the same round on the next provider
         }
-        if (llm.connectionId)
+        if (llm.connectionId) {
           throw new Error(
             `${llm.label}: ${res.status} ${connectedBrainHint(res.status, err)}`,
           );
-        if (res.status === 429) throw new Error("מגבלת קצב. נסה שוב.");
+        }
+        if (res.status === 429) {
+          throw new Error("מגבלת קצב. נסה שוב.");
+        }
         throw new Error(`AI error: ${res.status} ${err}`);
       }
 
@@ -5705,7 +5897,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             }))
           : await res.json();
       // Text already streamed counts as sent, so emitText does not send it again.
-      if (streamedText.trim()) emittedTexts.push(streamedText.trim());
+      if (streamedText.trim()) {
+        emittedTexts.push(streamedText.trim());
+      }
       if (data?.usage) {
         usageTokensIn +=
           data.usage.prompt_tokens ?? data.usage.input_tokens ?? 0;
@@ -5715,7 +5909,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       const choice = data.choices?.[0];
       const msg = choice?.message;
 
-      if (!msg) break;
+      if (!msg) {
+        break;
+      }
 
       messages.push(msg);
 
@@ -5738,7 +5934,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           `[AGENT] Done after ${round + 1} rounds, output length=${finalOutput.length}`,
         );
         // Stream the final assistant text in one chunk so AIOS frontends can render progressively.
-        if (emit && finalOutput) emitText(finalOutput);
+        if (emit && finalOutput) {
+          emitText(finalOutput);
+        }
         break;
       }
 
@@ -5755,8 +5953,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       // Only the last budget request of a round: an earlier one's code is no longer valid.
       let budgetSay: string | null = null;
       if (tokenOptimize && msg.tool_calls?.length) {
-        for (const tc of msg.tool_calls)
+        for (const tc of msg.tool_calls) {
           promotedToolNames.add(tc.function.name);
+        }
         rebuildToolsForApi();
       }
       for (const tc of msg.tool_calls) {
@@ -5773,7 +5972,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
         }
 
         console.log(`[AGENT] Tool call: ${toolName}`);
-        if (emit) emit({ type: "tool_call", tool: toolName, args: toolArgs });
+        if (emit) {
+          emit({ type: "tool_call", tool: toolName, args: toolArgs });
+        }
 
         let result: any;
         // A workshop tap is never an approval, and nothing leaves the board from the workshop;
@@ -5910,20 +6111,24 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
             result && typeof result === "object"
               ? (result as any).ui_action
               : undefined;
-          if (uiAction && typeof uiAction === "object")
+          if (uiAction && typeof uiAction === "object") {
             emit({ type: "ui_action", tool: toolName, action: uiAction });
+          }
           // Workshop tools tell the board what appeared and which skin is doing the work.
           const workshopEvent =
             result && typeof result === "object"
               ? (result as any).workshop
               : undefined;
-          if (workshopEvent && typeof workshopEvent === "object")
+          if (workshopEvent && typeof workshopEvent === "object") {
             emit({ type: "workshop", tool: toolName, ...workshopEvent });
+          }
           const skinSlug =
             workshopRoleForRun && isWorkshopTool(toolName)
               ? ROLE_PERSONA[workshopRoleForRun]
               : skinForTool(toolName);
-          if (skinSlug) emit({ type: "skin", slug: skinSlug, tool: toolName });
+          if (skinSlug) {
+            emit({ type: "skin", slug: skinSlug, tool: toolName });
+          }
         }
 
         if (
@@ -5951,14 +6156,21 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           result.say_to_user.trim()
         ) {
           const say = result.say_to_user.trim();
-          if (result.needs_budget === true) budgetSay = say;
-          else if (!sayToUser.includes(say)) sayToUser.push(say);
+          if (result.needs_budget === true) {
+            budgetSay = say;
+          } else if (!sayToUser.includes(say)) {
+            sayToUser.push(say);
+          }
         }
       }
 
       messages.push(...toolResults);
-      if (budgetSay) sayToUser.push(budgetSay);
-      if (sayToUser.length) pulseDigestShortcut = sayToUser.join("\n\n");
+      if (budgetSay) {
+        sayToUser.push(budgetSay);
+      }
+      if (sayToUser.length) {
+        pulseDigestShortcut = sayToUser.join("\n\n");
+      }
       if (pulseDigestShortcut) {
         finalOutput = pulseDigestShortcut;
         // emitText puts it apart from any text the model already sent this turn.
@@ -5972,7 +6184,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       finalOutput = [String(finalOutput || "").trim(), stopped]
         .filter(Boolean)
         .join("\n\n");
-      if (emit) emit({ type: "token", content: `\n\n${stopped}` });
+      if (emit) {
+        emit({ type: "token", content: `\n\n${stopped}` });
+      }
     }
 
     if (!String(finalOutput || "").trim()) {
@@ -5985,7 +6199,9 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
       });
       if (fallback) {
         finalOutput = fallback;
-        if (emit) emit({ type: "token", content: fallback });
+        if (emit) {
+          emit({ type: "token", content: fallback });
+        }
       }
     }
 
@@ -6297,10 +6513,12 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       .select("*")
       .eq("id", req.approval_id)
       .maybeSingle();
-    if (!row || row.action_type !== "agent_direct_tool")
+    if (!row || row.action_type !== "agent_direct_tool") {
       return json({ error: "approval_not_found" }, 404);
-    if (row.status === "executed" || row.status === "rejected")
+    }
+    if (row.status === "executed" || row.status === "rejected") {
       return json({ error: `approval_${row.status}` }, 409);
+    }
     const scope = await resolveDirectCaller(
       supabase,
       row.tenant_id,
@@ -6345,12 +6563,15 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
 
   const tenantId = String(bodyJson.tenant_id || "");
   const userId = asUuidOrNull(bodyJson.user_id);
-  if (!tenantId || !userId)
+  if (!tenantId || !userId) {
     return json({ error: "tenant_id and user_id are required" }, 400);
+  }
   const agent = await loadCarmenAgent(supabase, tenantId, {
     activeOnly: true,
   });
-  if (!agent) return json({ error: "No active Carmen agent for tenant" }, 404);
+  if (!agent) {
+    return json({ error: "No active Carmen agent for tenant" }, 404);
+  }
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
   const disabledTools: Array<string> = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
@@ -6372,13 +6593,15 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       })),
     });
   }
-  if (req.action !== "call")
+  if (req.action !== "call") {
     return json({ error: "unknown direct_tool action" }, 400);
+  }
 
   const name = String(req.name || "");
   const args = req.args && typeof req.args === "object" ? req.args : {};
-  if (!pool.some((t: any) => t.name === name))
+  if (!pool.some((t: any) => t.name === name)) {
     return json({ error: `tool_not_available: ${name}` }, 403);
+  }
 
   if (classifyDirectTool(name) === "approval") {
     const { data: aq, error: aqErr } = await supabase
@@ -6398,7 +6621,9 @@ async function handleDirectTool(bodyJson: any): Promise<Response> {
       })
       .select("id")
       .single();
-    if (aqErr) return json({ error: aqErr.message }, 500);
+    if (aqErr) {
+      return json({ error: aqErr.message }, 500);
+    }
     return json({
       result: {
         pending_approval: true,
@@ -6436,13 +6661,14 @@ async function resolveDirectCaller(
   tenantId: string,
   userId: string | null,
 ) {
-  if (!userId)
+  if (!userId) {
     return {
       userId: null,
       role: null,
       campaignerId: null,
       managedAgencyIds: [] as Array<string>,
     };
+  }
   const [{ data: roles }, { data: prof }] = await Promise.all([
     // Roles in this tenant plus global (tenant_id null) roles only — never another tenant's.
     supabase
@@ -6490,11 +6716,12 @@ async function resolveDirectCaller(
  * client data, or not set up): Carmen says why, instead of a bare error.
  */
 function refusedBrainResponse(message: string, wantStream: boolean): Response {
-  if (!wantStream)
+  if (!wantStream) {
     return new Response(
       JSON.stringify({ success: false, output: message, error: message }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+  }
   const sse = [
     { type: "token", content: message },
     { type: "done", success: false, output: message, error: message },
@@ -6507,8 +6734,9 @@ function refusedBrainResponse(message: string, wantStream: boolean): Response {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const auth = await requireAuth(req);
   if (!auth) {
@@ -6578,9 +6806,12 @@ Deno.serve(async (req) => {
         agentId: bodyJson.agent_id,
       })),
   );
-  if (engine.kind === "denied") return brainDenied("brain");
-  if (engine.kind === "refused")
+  if (engine.kind === "denied") {
+    return brainDenied("brain");
+  }
+  if (engine.kind === "refused") {
     return refusedBrainResponse(engine.message, wantStream);
+  }
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
   // A picked model brain was checked against its own grant above.
   if (engine.kind === "internal") {
@@ -6588,7 +6819,9 @@ Deno.serve(async (req) => {
       tenantId: bodyJson.tenant_id,
       agentId: bodyJson.agent_id,
     });
-    if (denied) return denied;
+    if (denied) {
+      return denied;
+    }
   }
   const brainEngine = engine.kind === "connections" ? engine : undefined;
   // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
@@ -6680,7 +6913,9 @@ Deno.serve(async (req) => {
           ).catch((e) => console.error("[carmen] reply save failed:", e));
         }
       })();
-      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(turn);
+      if (typeof EdgeRuntime !== "undefined") {
+        EdgeRuntime.waitUntil(turn);
+      }
       await turn;
     },
   });

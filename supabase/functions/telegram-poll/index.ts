@@ -8,11 +8,12 @@ Deno.serve(async () => {
   const startTime = Date.now();
 
   const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
-  if (!BOT_TOKEN)
+  if (!BOT_TOKEN) {
     return new Response(
       JSON.stringify({ error: "TELEGRAM_BOT_TOKEN not configured" }),
       { status: 500 },
     );
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,10 +47,14 @@ Deno.serve(async () => {
     while (true) {
       const elapsed = Date.now() - startTime;
       const remainingMs = MAX_RUNTIME_MS - elapsed;
-      if (remainingMs < MIN_REMAINING_MS) break;
+      if (remainingMs < MIN_REMAINING_MS) {
+        break;
+      }
 
       const timeout = Math.min(50, Math.floor(remainingMs / 1000) - 5);
-      if (timeout < 1) break;
+      if (timeout < 1) {
+        break;
+      }
 
       try {
         const response = await fetch(
@@ -75,7 +80,9 @@ Deno.serve(async () => {
         }
 
         const updates = data.result ?? [];
-        if (updates.length === 0) continue;
+        if (updates.length === 0) {
+          continue;
+        }
 
         const rows = updates
           .filter((u: any) => u.message)
@@ -106,7 +113,9 @@ Deno.serve(async () => {
 
           // Trigger automations for each incoming message
           for (const row of rows) {
-            if (!row.text) continue;
+            if (!row.text) {
+              continue;
+            }
             try {
               await supabase.functions.invoke("trigger-automation", {
                 body: {

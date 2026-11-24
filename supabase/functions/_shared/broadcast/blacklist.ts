@@ -124,7 +124,9 @@ export async function addToBlacklist(
   const rows = blacklistRows(tenantId, addresses, source);
   for (const row of rows) {
     const { error } = await db.from("broadcast_opt_outs").insert(row);
-    if (error && error.code !== "23505") throw error;
+    if (error && error.code !== "23505") {
+      throw error;
+    }
   }
   return rows.length;
 }

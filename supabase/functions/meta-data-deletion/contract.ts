@@ -27,7 +27,9 @@ export function isDeletionRequestStatusValue(
 export function readDeletionRequestStatus(
   value: unknown,
 ): DeletionRequestStatus | null {
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
   const confirmation_code =
     "confirmation_code" in value ? value.confirmation_code : undefined;
   const status = "status" in value ? value.status : undefined;

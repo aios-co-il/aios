@@ -7,7 +7,9 @@ export function normalizeChatThreadPhone(phone) {
   const raw = String(phone ?? "").trim();
   // A UUID (lead/client id) must never be treated as a phone number, otherwise
   // its digits would match an unrelated conversation.
-  if (/[a-zA-Z]/.test(raw)) return "";
+  if (/[a-zA-Z]/.test(raw)) {
+    return "";
+  }
 
   const digits = raw.replace(/\D/g, "").replace(/^00/, "");
   const withoutCountryCode = digits.startsWith("972")
@@ -18,12 +20,16 @@ export function normalizeChatThreadPhone(phone) {
 }
 
 export function buildChatThreadFilter({ contactId, contactType, phone }) {
-  if (contactType === "group") return `group_id.eq.${contactId}`;
+  if (contactType === "group") {
+    return `group_id.eq.${contactId}`;
+  }
 
   const phoneTail = normalizeChatThreadPhone(phone);
   const phoneFilter = phoneTail ? `sender_phone.ilike.%${phoneTail}` : "";
 
-  if (contactType === "unknown") return phoneFilter;
+  if (contactType === "unknown") {
+    return phoneFilter;
+  }
 
   const entityColumn = contactType === "client" ? "client_id" : "lead_id";
   return [`${entityColumn}.eq.${contactId}`, phoneFilter]

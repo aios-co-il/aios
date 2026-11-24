@@ -17,7 +17,9 @@ export function generateVerificationCode(
 
 export function introMessage({ agencyName, clientName } = {}) {
   const agency = String(agencyName || "").trim();
-  if (!agency) return "";
+  if (!agency) {
+    return "";
+  }
   const client = String(clientName || "").trim();
   const where = client ? ` של ${client}` : "";
   return `שלום, אני כרמן, מנהלת השיווק הדיגיטלי של ${agency}. כדי לזהות את המספרים שכבר אושרו בקבוצה${where} שלחתי קוד אימות בהודעה פרטית. כתבו כאן את הקוד שקיבלתם.`;
@@ -25,7 +27,9 @@ export function introMessage({ agencyName, clientName } = {}) {
 
 export function agencyVoiceNote({ agencyName, clientName } = {}) {
   const agency = String(agencyName || "").trim();
-  if (!agency) return "";
+  if (!agency) {
+    return "";
+  }
   const client = String(clientName || "").trim();
   const forClient = client ? ` בקבוצה של הלקוח ${client}` : "";
   return `\n\n[זהות בקבוצה] את מנהלת השיווק הדיגיטלי של הסוכנות ${agency}${forClient}. הציגי את עצמך כך, ואין להציג סוכנות אחרת.`;
@@ -48,8 +52,9 @@ export function attachGroupAffiliations(groups, links, clients, agencies) {
   );
   const linkByGroup = new Map();
   for (const link of links || []) {
-    if (!link?.whatsapp_group_id || linkByGroup.has(link.whatsapp_group_id))
+    if (!link?.whatsapp_group_id || linkByGroup.has(link.whatsapp_group_id)) {
       continue;
+    }
     linkByGroup.set(link.whatsapp_group_id, link);
   }
   return (groups || []).map((group) => {
@@ -78,7 +83,9 @@ export function matchGroupActivation(messageText, pendings, groupChatId) {
   const text = String(messageText || "");
   return (
     (pendings || []).find((pending) => {
-      if (!pending?.code || pending.group_chat_id !== groupChatId) return false;
+      if (!pending?.code || pending.group_chat_id !== groupChatId) {
+        return false;
+      }
       return new RegExp(`(^|\\D)${pending.code}(\\D|$)`).test(text);
     }) || null
   );
@@ -86,14 +93,18 @@ export function matchGroupActivation(messageText, pendings, groupChatId) {
 
 export function relationshipNoteForIdentity(identity) {
   const note = String(identity?.relationship_note || "").trim();
-  if (!note || identity?.status !== "approved") return "";
+  if (!note || identity?.status !== "approved") {
+    return "";
+  }
   const label = identity.display_name || identity.phone || "המשתמש";
   return `\n\n[יחס למשתמש ${label}] ${note}. זה טון דיבור בלבד, בלי להרחיב הרשאות או גישה לנתונים.`;
 }
 
 export async function loadRelationshipNote(supabase, tenantId, phone) {
   const tail = phoneTail(phone);
-  if (!tail) return "";
+  if (!tail) {
+    return "";
+  }
   const { data, error } = await supabase
     .from("carmen_whatsapp_identities")
     .select("phone, display_name, status, relationship_note")
@@ -101,7 +112,9 @@ export async function loadRelationshipNote(supabase, tenantId, phone) {
     .eq("status", "approved")
     .limit(50);
   if (error) {
-    if (/relationship_note/.test(error.message || "")) return "";
+    if (/relationship_note/.test(error.message || "")) {
+      return "";
+    }
     throw error;
   }
   const identity = (data || []).find((row) => phoneTail(row.phone) === tail);
@@ -110,7 +123,9 @@ export async function loadRelationshipNote(supabase, tenantId, phone) {
 
 /** Standing introduction for replies in an already linked Manus group. */
 export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
-  if (!chatId) return "";
+  if (!chatId) {
+    return "";
+  }
   const { data: group, error: groupError } = await supabase
     .from("whatsapp_groups")
     .select("id")
@@ -118,8 +133,12 @@ export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
     .eq("group_chat_id", chatId)
     .limit(1)
     .maybeSingle();
-  if (groupError) throw groupError;
-  if (!group?.id) return "";
+  if (groupError) {
+    throw groupError;
+  }
+  if (!group?.id) {
+    return "";
+  }
   const withAgency = await supabase
     .from("carmen_client_group_access")
     .select("client_id, agency_id")
@@ -129,8 +148,9 @@ export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
     .maybeSingle();
   let link = withAgency.data;
   if (withAgency.error) {
-    if (!/agency_id/.test(withAgency.error.message || ""))
+    if (!/agency_id/.test(withAgency.error.message || "")) {
       throw withAgency.error;
+    }
     const fallback = await supabase
       .from("carmen_client_group_access")
       .select("client_id")
@@ -138,10 +158,14 @@ export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
       .eq("whatsapp_group_id", group.id)
       .limit(1)
       .maybeSingle();
-    if (fallback.error) throw fallback.error;
+    if (fallback.error) {
+      throw fallback.error;
+    }
     link = fallback.data;
   }
-  if (!link?.client_id && !link?.agency_id) return "";
+  if (!link?.client_id && !link?.agency_id) {
+    return "";
+  }
   let agencyId = link.agency_id || null;
   let clientName = "";
   if (link.client_id) {
@@ -150,17 +174,25 @@ export async function loadGroupAgencyVoice(supabase, tenantId, chatId) {
       .select("name, agency_id")
       .eq("id", link.client_id)
       .maybeSingle();
-    if (clientError) throw clientError;
+    if (clientError) {
+      throw clientError;
+    }
     clientName = client?.name || "";
-    if (!agencyId) agencyId = client?.agency_id || null;
+    if (!agencyId) {
+      agencyId = client?.agency_id || null;
+    }
   }
-  if (!agencyId) return "";
+  if (!agencyId) {
+    return "";
+  }
   const { data: agency, error: agencyError } = await supabase
     .from("agencies")
     .select("name")
     .eq("id", agencyId)
     .maybeSingle();
-  if (agencyError) throw agencyError;
+  if (agencyError) {
+    throw agencyError;
+  }
   return agencyVoiceNote({ agencyName: agency?.name, clientName });
 }
 
@@ -174,10 +206,18 @@ export function selectRoundPhones(phones) {
   for (const row of phones || []) {
     const phone = digitsOnly(row?.phone);
     const surfaces = Array.isArray(row?.surfaces) ? row.surfaces : [];
-    if (phone.length < 9 || phone.length > 15) continue;
-    if (!surfaces.includes("whatsapp_group")) continue;
-    if (row.status === "rejected" || row.status === "revoked") continue;
-    if (seen.has(phone)) continue;
+    if (phone.length < 9 || phone.length > 15) {
+      continue;
+    }
+    if (!surfaces.includes("whatsapp_group")) {
+      continue;
+    }
+    if (row.status === "rejected" || row.status === "revoked") {
+      continue;
+    }
+    if (seen.has(phone)) {
+      continue;
+    }
     seen.add(phone);
     out.push({
       phone,
@@ -194,7 +234,9 @@ export function selectRoundPhones(phones) {
 export function eligibleManusGroups({ catalog, dbRows }) {
   const dbByChat = new Map();
   for (const row of dbRows || []) {
-    if (!row?.id || !row.group_chat_id) continue;
+    if (!row?.id || !row.group_chat_id) {
+      continue;
+    }
     const prev = dbByChat.get(row.group_chat_id);
     if (!prev || row.description === "manus_wa_sync") {
       dbByChat.set(row.group_chat_id, row);
@@ -202,7 +244,9 @@ export function eligibleManusGroups({ catalog, dbRows }) {
   }
   const byId = new Map();
   const add = (id, chat, name) => {
-    if (!id || !chat) return;
+    if (!id || !chat) {
+      return;
+    }
     byId.set(id, {
       id,
       group_chat_id: chat,
@@ -218,14 +262,18 @@ export function eligibleManusGroups({ catalog, dbRows }) {
     const chat = String(
       entry?.groupChatId || entry?.group_chat_id || "",
     ).trim();
-    if (!chat) continue;
+    if (!chat) {
+      continue;
+    }
     const db = dbByChat.get(chat);
     if (db) {
       add(db.id, chat, db.group_name || entry.name);
       continue;
     }
     const id = String(entry?.groupId || "").trim();
-    if (UUID_RE.test(id)) add(id, chat, entry.name);
+    if (UUID_RE.test(id)) {
+      add(id, chat, entry.name);
+    }
   }
   return [...byId.values()];
 }
@@ -238,7 +286,9 @@ export function selectRoundGroups(
   const ready = (groups || []).filter(
     (group) => group?.id && group.group_chat_id,
   );
-  if (openMemberGroups) return ready;
+  if (openMemberGroups) {
+    return ready;
+  }
   const allowed = new Set(allowedGroupIds || []);
   return ready.filter((group) => allowed.has(group.id));
 }
@@ -254,13 +304,17 @@ export async function consumeGroupActivation(supabase, args) {
     .eq("group_chat_id", args.groupChatId)
     .gte("created_at", since)
     .limit(20);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const hit = matchGroupActivation(
     args.messageText,
     data || [],
     args.groupChatId,
   );
-  if (!hit) return { matched: false, phone: null };
+  if (!hit) {
+    return { matched: false, phone: null };
+  }
   const lid = digitsOnly(args.lid);
   const phone = digitsOnly(hit.phone);
   const now = new Date().toISOString();

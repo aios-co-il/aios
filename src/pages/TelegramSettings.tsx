@@ -32,7 +32,9 @@ export default function TelegramSettings() {
   const { data: botState, isLoading } = useQuery({
     queryKey: ["telegram-bot-state", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("telegram_bot_state")
         .select("*")
@@ -46,7 +48,9 @@ export default function TelegramSettings() {
   const { data: messageCount } = useQuery({
     queryKey: ["telegram-message-count", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return 0;
+      if (!currentTenantId) {
+        return 0;
+      }
       const { count } = await supabase
         .from("telegram_messages")
         .select("*", { count: "exact", head: true })
@@ -58,7 +62,9 @@ export default function TelegramSettings() {
 
   const connectBot = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId || !botToken.trim()) throw new Error("Missing data");
+      if (!currentTenantId || !botToken.trim()) {
+        throw new Error("Missing data");
+      }
 
       setIsVerifying(true);
 
@@ -70,9 +76,12 @@ export default function TelegramSettings() {
         },
       );
 
-      if (error) throw new Error(error.message);
-      if (!data?.success)
+      if (error) {
+        throw new Error(error.message);
+      }
+      if (!data?.success) {
         throw new Error(data?.error || "Failed to verify bot");
+      }
 
       return data;
     },
@@ -91,12 +100,16 @@ export default function TelegramSettings() {
 
   const disconnectBot = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId) throw new Error("Missing tenant");
+      if (!currentTenantId) {
+        throw new Error("Missing tenant");
+      }
       const { error } = await supabase
         .from("telegram_bot_state")
         .update({ is_active: false })
         .eq("tenant_id", currentTenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הבוט נותק בהצלחה");
@@ -109,12 +122,16 @@ export default function TelegramSettings() {
 
   const removeShareMutation = useMutation({
     mutationFn: async () => {
-      if (!botState?.id) throw new Error("Missing state");
+      if (!botState?.id) {
+        throw new Error("Missing state");
+      }
       const { error } = await supabase
         .from("telegram_bot_state")
         .delete()
         .eq("id", botState.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("השיתוף הוסר");

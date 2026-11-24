@@ -15,10 +15,13 @@ function fakeDb(rows: Array<Record<string, unknown>>) {
       const chain: Record<string, unknown> = {};
       const proxy: unknown = new Proxy(chain, {
         get(_target, op: string) {
-          if (op === "then") return undefined;
-          if (op === "maybeSingle")
+          if (op === "then") {
+            return undefined;
+          }
+          if (op === "maybeSingle") {
             return () =>
               Promise.resolve({ data: rows[0] ?? null, error: null });
+          }
           return (...args: Array<unknown>) => {
             call.ops.push([op, args]);
             return op === "insert"

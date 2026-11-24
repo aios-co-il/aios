@@ -32,7 +32,9 @@ export function isWooOrderInRevenueRange(
   range: { start: string; end: string },
 ): boolean {
   const ts = wooOrderRevenueTimestamp(order);
-  if (!ts) return false;
+  if (!ts) {
+    return false;
+  }
   const t = new Date(ts).getTime();
   return (
     t >= new Date(range.start).getTime() && t <= new Date(range.end).getTime()
@@ -44,7 +46,9 @@ export function filterWooOrdersForRevenue(
   range: { start: string; end: string } | null,
 ): Array<WooOrderRevenueRow> {
   const valid = orders.filter((o) => isWooRevenueStatus(o.status));
-  if (!range) return valid;
+  if (!range) {
+    return valid;
+  }
   return valid.filter((o) => isWooOrderInRevenueRange(o, range));
 }
 

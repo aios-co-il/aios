@@ -55,7 +55,9 @@ export function useBroadcastDomains() {
         .filter("tenant_id", "eq", tenantId)
         .order("is_default", { ascending: false })
         .order("created_at", { ascending: true });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as unknown as Array<SenderDomain>;
     },
   });
@@ -64,7 +66,9 @@ export function useBroadcastDomains() {
     mutationFn: async (payload: SenderDomainPayload) => {
       const { domain, default_local, from_name, wasSwapped } =
         normalizePayload(payload);
-      if (!domain) throw new Error("missing_domain");
+      if (!domain) {
+        throw new Error("missing_domain");
+      }
       const insertPayload = {
         tenant_id: requireTenantId(tenantId),
         created_by: userId,
@@ -84,7 +88,9 @@ export function useBroadcastDomains() {
         ...insertPayload,
         is_default: makeDefault,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { wasSwapped, email: formatSenderEmail(default_local, domain) };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
@@ -97,13 +103,17 @@ export function useBroadcastDomains() {
     }: SenderDomainPayload & { id: string }) => {
       const { domain, default_local, from_name, wasSwapped } =
         normalizePayload(payload);
-      if (!domain) throw new Error("missing_domain");
+      if (!domain) {
+        throw new Error("missing_domain");
+      }
       const { error } = await supabase
         .from("broadcast_email_domains")
         .update({ domain, default_local, from_name })
         .eq("id", id)
         .filter("tenant_id", "eq", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { wasSwapped, email: formatSenderEmail(default_local, domain) };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
@@ -115,7 +125,9 @@ export function useBroadcastDomains() {
         .from("broadcast_email_domains")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });
@@ -130,7 +142,9 @@ export function useBroadcastDomains() {
         .from("broadcast_email_domains")
         .update({ is_default: true })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });

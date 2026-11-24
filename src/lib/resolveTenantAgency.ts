@@ -14,19 +14,25 @@ export function mergeAgencyLists<T extends AgencyStamp>(
 ): Array<T> {
   const unique = new Map<string, T>();
   for (const agency of [...(owned || []), ...(shared || [])]) {
-    if (agency?.id && !unique.has(agency.id)) unique.set(agency.id, agency);
+    if (agency?.id && !unique.has(agency.id)) {
+      unique.set(agency.id, agency);
+    }
   }
   return Array.from(unique.values());
 }
 
 export function agenciesFromJoin(value: unknown): Array<AgencyStamp> {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
   if (Array.isArray(value)) {
     return value.flatMap((item) => agenciesFromJoin(item));
   }
   if (typeof value === "object" && value && "id" in value) {
     const id = (value as { id?: unknown }).id;
-    if (typeof id === "string" && id.length > 0) return [value as AgencyStamp];
+    if (typeof id === "string" && id.length > 0) {
+      return [value as AgencyStamp];
+    }
   }
   return [];
 }
@@ -39,11 +45,15 @@ export function pickTenantHomeAgencyId(
   tenantId: string | null | undefined,
   agencies: ReadonlyArray<AgencyStamp> | null | undefined,
 ): string | null {
-  if (!tenantId || !agencies?.length) return null;
+  if (!tenantId || !agencies?.length) {
+    return null;
+  }
   const owned = agencies.filter((agency) => agency.tenant_id === tenantId);
   const pool = owned.length > 0 ? owned : [...agencies];
   const defaulted = pool.find((agency) => agency.is_default);
-  if (defaulted?.id) return defaulted.id;
+  if (defaulted?.id) {
+    return defaulted.id;
+  }
   const sorted = [...pool].sort((a, b) =>
     (a.created_at || "").localeCompare(b.created_at || ""),
   );

@@ -46,8 +46,9 @@ export async function remoteAdImage(
     return { error: "workshop-image is not deployed", missing: true };
   }
   const data = await response.json().catch(() => null);
-  if (data && typeof data.image_url === "string" && data.image_url)
+  if (data && typeof data.image_url === "string" && data.image_url) {
     return { image_url: data.image_url };
+  }
   return {
     error:
       typeof data?.error === "string" && data.error

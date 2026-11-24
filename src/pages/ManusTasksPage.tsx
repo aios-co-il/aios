@@ -58,13 +58,17 @@ export default function ManusTasksPage() {
   const { data: tasks, isLoading } = useQuery({
     queryKey: ["manus-tasks", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("manus_tasks")
         .select("*")
         .eq("tenant_id", currentTenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -72,7 +76,9 @@ export default function ManusTasksPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenantId || !prompt.trim()) throw new Error("Missing data");
+      if (!currentTenantId || !prompt.trim()) {
+        throw new Error("Missing data");
+      }
       const { data, error } = await supabase.functions.invoke("manus-api", {
         body: {
           action: "create_task",
@@ -82,8 +88,12 @@ export default function ManusTasksPage() {
           taskMode,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: () => {
@@ -100,13 +110,19 @@ export default function ManusTasksPage() {
   });
 
   const refreshTask = async (taskId: string) => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
     try {
       const { data, error } = await supabase.functions.invoke("manus-api", {
         body: { action: "get_task", tenantId: currentTenantId, taskId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       queryClient.invalidateQueries({
         queryKey: ["manus-tasks", currentTenantId],
       });
@@ -117,12 +133,16 @@ export default function ManusTasksPage() {
   };
 
   const getOutputText = (output: any) => {
-    if (!output || !Array.isArray(output)) return null;
+    if (!output || !Array.isArray(output)) {
+      return null;
+    }
     const texts: Array<string> = [];
     for (const item of output) {
       if (item.content && Array.isArray(item.content)) {
         for (const c of item.content) {
-          if (c.type === "output_text" && c.text) texts.push(c.text);
+          if (c.type === "output_text" && c.text) {
+            texts.push(c.text);
+          }
         }
       }
     }

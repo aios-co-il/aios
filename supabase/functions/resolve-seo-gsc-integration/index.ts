@@ -19,7 +19,9 @@ function normalizeSiteUrl(value?: string | null): string {
 function siteMatches(a?: string | null, b?: string | null): boolean {
   const na = normalizeSiteUrl(a);
   const nb = normalizeSiteUrl(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.includes(nb) || nb.includes(na);
 }
 
@@ -118,7 +120,9 @@ serve(async (req) => {
 
       const mappedForClient: string | null = clientSites[clientId] || null;
       const isMappingUsable = (siteUrl: string | null) => {
-        if (!siteUrl) return false;
+        if (!siteUrl) {
+          return false;
+        }
         const meta = availableSites.find((x: any) => x?.siteUrl === siteUrl);
         return !meta || meta.permissionLevel !== "siteUnverifiedUser";
       };

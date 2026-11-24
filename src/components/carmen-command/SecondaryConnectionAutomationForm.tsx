@@ -34,12 +34,16 @@ export function SecondaryConnectionAutomationForm({
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("אין ארגון פעיל");
+      if (!tenantId) {
+        throw new Error("אין ארגון פעיל");
+      }
       const triggerKeywords = keywords
         .split(",")
         .map((k) => k.trim())
         .filter(Boolean);
-      if (!triggerKeywords.length) throw new Error("חסרה מילת טריגר");
+      if (!triggerKeywords.length) {
+        throw new Error("חסרה מילת טריגר");
+      }
       const phones = allowedPhones
         .split(/[,\s]+/)
         .map((p) => p.replace(/\D/g, ""))
@@ -59,7 +63,9 @@ export function SecondaryConnectionAutomationForm({
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const { error: stepError } = await db
         .from("automation_flow_steps")

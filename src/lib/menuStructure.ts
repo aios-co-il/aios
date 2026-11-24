@@ -594,11 +594,16 @@ function buildExplicitPermissionMap(): Map<string, string> {
   const map = new Map<string, string>(Object.entries(PERMISSION_KEY_OVERRIDES));
   const collect = (modules: Array<MenuModule>) => {
     for (const m of modules) {
-      if (m.permission) map.set(m.key, m.permission);
+      if (m.permission) {
+        map.set(m.key, m.permission);
+      }
     }
   };
-  for (const tab of MENU_TABS)
-    for (const section of tab.sections) collect(section.items);
+  for (const tab of MENU_TABS) {
+    for (const section of tab.sections) {
+      collect(section.items);
+    }
+  }
   collect(SUB_MODULES);
   collect(INTEGRATION_SETTINGS);
   collect(ORPHAN_MODULES);
@@ -610,8 +615,9 @@ function buildExplicitPermissionMap(): Map<string, string> {
  * Explicit `permission` value (or override) if set, else key.replace(/-/g, "_").
  */
 export function permissionForMenuKey(key: string): string {
-  if (!explicitPermissionByKey)
+  if (!explicitPermissionByKey) {
     explicitPermissionByKey = buildExplicitPermissionMap();
+  }
   return explicitPermissionByKey.get(key) ?? key.replace(/-/g, "_");
 }
 
@@ -625,10 +631,14 @@ export function sectionKey(tabId: MenuTabId, sectionLabel: string): SectionKey {
 export function parseParentMenuKey(
   parentMenuKey: string | null | undefined,
 ): { tabId: MenuTabId; sectionLabel: string } | null {
-  if (!parentMenuKey || !parentMenuKey.startsWith("tab:")) return null;
+  if (!parentMenuKey || !parentMenuKey.startsWith("tab:")) {
+    return null;
+  }
   const rest = parentMenuKey.slice(4);
   const i = rest.indexOf(":");
-  if (i === -1) return null;
+  if (i === -1) {
+    return null;
+  }
   return {
     tabId: rest.slice(0, i) as MenuTabId,
     sectionLabel: rest.slice(i + 1),

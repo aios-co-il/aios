@@ -10,7 +10,9 @@ function mergeDashboardRows(
 ) {
   const map = new Map<string, { id: string; created_at?: string | null }>();
   for (const row of [...owned, ...foreign]) {
-    if (row?.id) map.set(row.id, row);
+    if (row?.id) {
+      map.set(row.id, row);
+    }
   }
   return Array.from(map.values()).sort((a, b) => {
     const ta = a.created_at ? new Date(a.created_at).getTime() : 0;

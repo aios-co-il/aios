@@ -41,7 +41,9 @@ export function ProtectedRoute({
   // If user is authenticated but URL lacks tenant slug, resolve and redirect
   useEffect(() => {
     const goToTenant = async () => {
-      if (!authenticated || tenantSlug || resolvingTenant) return;
+      if (!authenticated || tenantSlug || resolvingTenant) {
+        return;
+      }
       setResolvingTenant(true);
       const {
         data: { user },

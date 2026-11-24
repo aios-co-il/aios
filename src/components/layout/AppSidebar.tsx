@@ -181,11 +181,15 @@ export function AppSidebar() {
   // Keep the sidebar tab aligned with the current route (e.g. /recordings lives under marketing).
   useEffect(() => {
     const match = location.pathname.match(/^\/t\/[^/]+\/(.+)$/);
-    if (!match) return;
+    if (!match) {
+      return;
+    }
     const subpath = match[1].replace(/\/+$/, "");
     const route = `/${subpath.split("/")[0]}`;
     const tabId = tabIdForRoute(route);
-    if (tabId) setActiveTab(tabId);
+    if (tabId) {
+      setActiveTab(tabId);
+    }
   }, [location.pathname]);
 
   const { userId } = useCurrentUser();
@@ -236,11 +240,17 @@ export function AppSidebar() {
           break;
         }
       }
-      if (original) break;
+      if (original) {
+        break;
+      }
     }
-    if (!original) continue;
+    if (!original) {
+      continue;
+    }
     const targetTab = effectiveTabs.find((t) => t.id === target.tabId);
-    if (!targetTab) continue;
+    if (!targetTab) {
+      continue;
+    }
     let targetSection = targetTab.sections.find(
       (s) =>
         s.label === target.sectionLabel ||
@@ -259,12 +269,16 @@ export function AppSidebar() {
   const { data: userTenants, isLoading: isLoadingTenants } = useQuery({
     queryKey: ["user-tenants", userId],
     queryFn: async () => {
-      if (!userId) return [];
+      if (!userId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_users")
         .select("tenant_id, tenants(id, name)")
         .eq("user_id", userId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((tu) => tu.tenants).filter(Boolean) as Array<{
         id: string;
         name: string;
@@ -274,7 +288,9 @@ export function AppSidebar() {
   });
 
   const handleTenantChange = async (newTenantId: string) => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     try {
       const { data: newTenant } = await supabase
         .from("tenants")
@@ -303,11 +319,15 @@ export function AppSidebar() {
   };
 
   const handleLinkClick = () => {
-    if (isMobile && setOpenMobile) setOpenMobile(false);
+    if (isMobile && setOpenMobile) {
+      setOpenMobile(false);
+    }
   };
 
   const canAccess = (key: string) => {
-    if (key === "my-profile") return true;
+    if (key === "my-profile") {
+      return true;
+    }
     return hasPermission(permissionForMenuKey(key));
   };
 
@@ -321,8 +341,9 @@ export function AppSidebar() {
       if (
         dbMenuItems.some((m) => m.menu_key === item.key) &&
         !visibleKeys.has(item.key)
-      )
+      ) {
         return false;
+      }
       return canAccess(item.key);
     });
 
@@ -547,7 +568,9 @@ export function AppSidebar() {
         {/* Active tab sections */}
         {activeMenuTab.sections.map((section) => {
           const visibleItems = filterItems(section.items);
-          if (visibleItems.length === 0) return null;
+          if (visibleItems.length === 0) {
+            return null;
+          }
           return (
             <Collapsible
               key={section.label}
@@ -625,12 +648,15 @@ function InstallAppButton({ isCollapsed }: { isCollapsed: boolean }) {
       setDeferredPrompt(e);
     };
     window.addEventListener("beforeinstallprompt", handler);
-    if (window.matchMedia("(display-mode: standalone)").matches)
+    if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
+    }
     return () => window.removeEventListener("beforeinstallprompt", handler);
   });
 
-  if (isInstalled || !deferredPrompt) return null;
+  if (isInstalled || !deferredPrompt) {
+    return null;
+  }
 
   return (
     <div className="p-2 border-t border-sidebar-border">
@@ -638,7 +664,9 @@ function InstallAppButton({ isCollapsed }: { isCollapsed: boolean }) {
         onClick={async () => {
           deferredPrompt.prompt();
           const { outcome } = await deferredPrompt.userChoice;
-          if (outcome === "accepted") setIsInstalled(true);
+          if (outcome === "accepted") {
+            setIsInstalled(true);
+          }
           setDeferredPrompt(null);
         }}
         className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-md hover:bg-sidebar-accent transition-colors"

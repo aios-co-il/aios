@@ -62,7 +62,9 @@ const FACEBOOK_NOTE_META_KEYS = new Set([
 
 function parseFacebookParamsFromNotes(notes?: string | null) {
   const params: Array<{ key: string; value: string }> = [];
-  if (!notes) return params;
+  if (!notes) {
+    return params;
+  }
 
   let inFbSection = false;
   for (const line of String(notes).split("\n")) {
@@ -80,12 +82,16 @@ function parseFacebookParamsFromNotes(notes?: string | null) {
     const kvMatch = line.match(/^([^:]+):\s*(.+)$/);
     if (kvMatch) {
       const rawKey = kvMatch[1].trim();
-      if (FACEBOOK_NOTE_META_KEYS.has(rawKey.toLowerCase())) continue;
+      if (FACEBOOK_NOTE_META_KEYS.has(rawKey.toLowerCase())) {
+        continue;
+      }
       params.push({ key: `fb_${rawKey}`, value: kvMatch[2].trim() });
       continue;
     }
 
-    if (inFbSection) continue;
+    if (inFbSection) {
+      continue;
+    }
   }
 
   return params;
@@ -192,13 +198,17 @@ export function TestFlowWithLeadDialog({
   const { data: automation } = useQuery({
     queryKey: ["automation-for-test", automationId],
     queryFn: async () => {
-      if (!automationId) return null;
+      if (!automationId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("automations")
         .select("*")
         .eq("id", automationId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open && !!automationId,
@@ -208,7 +218,9 @@ export function TestFlowWithLeadDialog({
   const { data: triggerStep } = useQuery({
     queryKey: ["automation-trigger-step", automationId],
     queryFn: async () => {
-      if (!automationId) return null;
+      if (!automationId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("automation_flow_steps" as any)
         .select("*")
@@ -216,7 +228,9 @@ export function TestFlowWithLeadDialog({
         .eq("step_type", "trigger")
         .limit(1)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as any;
     },
     enabled: open && !!automationId,
@@ -267,8 +281,12 @@ export function TestFlowWithLeadDialog({
           },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       const pulled = ((data as any)?.leads || []).map(facebookLeadToTestLead);
       const to = dateFilter.to ? new Date(dateFilter.to).getTime() : Infinity;
       const inRange = pulled.filter(
@@ -303,7 +321,9 @@ export function TestFlowWithLeadDialog({
       facebookFormName,
     ],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("leads")
         .select(
@@ -312,20 +332,29 @@ export function TestFlowWithLeadDialog({
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
-      if (dateFilter.from) query = query.gte("created_at", dateFilter.from);
-      if (dateFilter.to) query = query.lt("created_at", dateFilter.to);
+      if (dateFilter.from) {
+        query = query.gte("created_at", dateFilter.from);
+      }
+      if (dateFilter.to) {
+        query = query.lt("created_at", dateFilter.to);
+      }
 
       // Filter by facebook form ID or form name if configured in the flow trigger
       if (facebookFormId || facebookFormName) {
         const orParts: Array<string> = [];
-        if (facebookFormId) orParts.push(`notes.ilike.%${facebookFormId}%`);
-        if (facebookFormName)
+        if (facebookFormId) {
+          orParts.push(`notes.ilike.%${facebookFormId}%`);
+        }
+        if (facebookFormName) {
           orParts.push(`notes.ilike.%Facebook Form: ${facebookFormName}%`);
+        }
         query = query.or(orParts.join(","));
       }
 
       const { data, error } = await query.limit(500);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId,
@@ -335,7 +364,9 @@ export function TestFlowWithLeadDialog({
 
   // Filtered leads by search
   const filteredLeads = listLeads.filter((l: any) => {
-    if (!searchQuery) return true;
+    if (!searchQuery) {
+      return true;
+    }
     const q = searchQuery.toLowerCase();
     return (
       (l.company_name || "").toLowerCase().includes(q) ||
@@ -348,8 +379,11 @@ export function TestFlowWithLeadDialog({
   const toggleLead = (id: string) => {
     setSelectedLeadIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -364,7 +398,9 @@ export function TestFlowWithLeadDialog({
 
   // Fetch last WhatsApp message matching automation config
   const handleFetchLastMessage = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsFetchingMessage(true);
     setLastMessageData(null);
 
@@ -393,7 +429,9 @@ export function TestFlowWithLeadDialog({
       }
 
       const { data, error } = await query.maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (!data) {
         toast({
@@ -460,7 +498,9 @@ export function TestFlowWithLeadDialog({
             },
           },
         });
-        if (response.error) throw response.error;
+        if (response.error) {
+          throw response.error;
+        }
         return [
           {
             leadId: "whatsapp",
@@ -527,12 +567,18 @@ export function TestFlowWithLeadDialog({
             }
           }
 
-          if (manualData.phone) testData[fieldMap.fb_phone] = manualData.phone;
-          if (manualData.contact_name)
+          if (manualData.phone) {
+            testData[fieldMap.fb_phone] = manualData.phone;
+          }
+          if (manualData.contact_name) {
             testData[fieldMap.fb_full_name] = manualData.contact_name;
-          if (manualData.email) testData[fieldMap.fb_email] = manualData.email;
-          if (manualData.company_name)
+          }
+          if (manualData.email) {
+            testData[fieldMap.fb_email] = manualData.email;
+          }
+          if (manualData.company_name) {
             testData[fieldMap.fb_company_name] = manualData.company_name;
+          }
 
           // Append fb_ fields to notes like real FB leads do
           const fbEntries = [
@@ -553,7 +599,9 @@ export function TestFlowWithLeadDialog({
         const response = await supabase.functions.invoke("trigger-automation", {
           body: { automationId, tenant_id: tenantId, data: testData },
         });
-        if (response.error) throw response.error;
+        if (response.error) {
+          throw response.error;
+        }
         return [
           {
             leadId: "manual",
@@ -566,7 +614,9 @@ export function TestFlowWithLeadDialog({
       }
 
       // Lead-based batch test
-      if (selectedLeadIds.size === 0) throw new Error("יש לבחור לפחות ליד אחד");
+      if (selectedLeadIds.size === 0) {
+        throw new Error("יש לבחור לפחות ליד אחד");
+      }
 
       const results: Array<{
         leadId: string;
@@ -578,7 +628,9 @@ export function TestFlowWithLeadDialog({
 
       for (const leadId of selectedLeadIds) {
         const lead = listLeads.find((l: any) => l.id === leadId);
-        if (!lead) continue;
+        if (!lead) {
+          continue;
+        }
 
         try {
           const testData: any = {
@@ -601,7 +653,9 @@ export function TestFlowWithLeadDialog({
           };
 
           parseFacebookParamsFromNotes(lead.notes).forEach(({ key, value }) => {
-            if (!(key in testData)) testData[key] = value;
+            if (!(key in testData)) {
+              testData[key] = value;
+            }
           });
 
           const response = await supabase.functions.invoke(
@@ -978,8 +1032,9 @@ export function TestFlowWithLeadDialog({
                             const nameMatch = lead.notes.match(
                               /fb_(?:שם_מלא|שם|full_name|name):\s*(.+)/i,
                             );
-                            if (nameMatch)
+                            if (nameMatch) {
                               displayName = `${nameMatch[1].trim()} (FB)`;
+                            }
                           }
                           return (
                             <label
@@ -1041,7 +1096,9 @@ export function TestFlowWithLeadDialog({
                     const selectedLead = listLeads.find(
                       (l: any) => l.id === selectedId,
                     );
-                    if (!selectedLead) return null;
+                    if (!selectedLead) {
+                      return null;
+                    }
 
                     const sysParams: Array<{ key: string; value: string }> = [];
 
@@ -1050,31 +1107,36 @@ export function TestFlowWithLeadDialog({
                     );
 
                     // System fields
-                    if (selectedLead.contact_name)
+                    if (selectedLead.contact_name) {
                       sysParams.push({
                         key: "contact_name",
                         value: selectedLead.contact_name,
                       });
-                    if (selectedLead.company_name)
+                    }
+                    if (selectedLead.company_name) {
                       sysParams.push({
                         key: "company_name",
                         value: selectedLead.company_name,
                       });
-                    if (selectedLead.phone)
+                    }
+                    if (selectedLead.phone) {
                       sysParams.push({
                         key: "phone",
                         value: selectedLead.phone,
                       });
-                    if (selectedLead.email)
+                    }
+                    if (selectedLead.email) {
                       sysParams.push({
                         key: "email",
                         value: selectedLead.email,
                       });
-                    if (selectedLead.source)
+                    }
+                    if (selectedLead.source) {
                       sysParams.push({
                         key: "source",
                         value: selectedLead.source,
                       });
+                    }
 
                     return (
                       <div className="rounded-lg border bg-muted/30 p-3 space-y-2">

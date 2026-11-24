@@ -66,8 +66,9 @@ function clip(text: string, max = MAX_TEXT): string {
 }
 
 function modelIdFor(provider: CloudDirectProvider): string {
-  if (provider === "grok")
+  if (provider === "grok") {
     return Deno.env.get("GROK_MODEL_ID") || "cursor-grok-4.6-high-fast";
+  }
   return Deno.env.get("CURSOR_MODEL_ID") || "";
 }
 
@@ -258,7 +259,9 @@ async function deliverToOpenCloudChat(args: {
     if (outcome.kind === "ok") {
       return { id: outcome.id, url: outcome.url, reused: true };
     }
-    if (outcome.kind === "busy") sawBusy = outcome;
+    if (outcome.kind === "busy") {
+      sawBusy = outcome;
+    }
   }
 
   const mayCreate = args.allowCreate ?? allowCreateNewCloudAgent(env);
@@ -273,7 +276,9 @@ async function deliverToOpenCloudChat(args: {
     });
   }
 
-  if (sawBusy) throw new Error(busyOpenChatMessage(args.provider, sawBusy.url));
+  if (sawBusy) {
+    throw new Error(busyOpenChatMessage(args.provider, sawBusy.url));
+  }
   throw new Error(missingOpenChatMessage(args.provider));
 }
 

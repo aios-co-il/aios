@@ -29,7 +29,9 @@ async function fbGetToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key || null;
 }
@@ -44,8 +46,9 @@ async function fbResolveClientAdAccount(
     .select("meta_ads_account_id, tenant_id")
     .eq("id", clientId)
     .maybeSingle();
-  if (cl?.meta_ads_account_id)
+  if (cl?.meta_ads_account_id) {
     return String(cl.meta_ads_account_id).replace(/^act_/, "");
+  }
   const tokenTenant = cl?.tenant_id || tenantId;
   const { data: tables } = await supabase
     .from("crm_tables")
@@ -56,7 +59,9 @@ async function fbResolveClientAdAccount(
   for (const t of tables || []) {
     const s = t?.integration_settings || {};
     const acc = s.ad_account_id || s.account_id || s.meta_account_id;
-    if (acc) return String(acc).replace(/^act_/, "");
+    if (acc) {
+      return String(acc).replace(/^act_/, "");
+    }
   }
   return null;
 }
@@ -75,13 +80,18 @@ async function fbLiveCampaignList(
       .maybeSingle();
     const tokenTenant = cl?.tenant_id || tenantId;
     let token = await fbGetToken(supabase, tokenTenant);
-    if (!token && tokenTenant !== tenantId)
+    if (!token && tokenTenant !== tenantId) {
       token = await fbGetToken(supabase, tenantId);
-    if (!acct || !token) return null;
+    }
+    if (!acct || !token) {
+      return null;
+    }
     const url = `https://graph.facebook.com/${FB_GRAPH_VERSION}/act_${acct}/campaigns?fields=id,name,effective_status&limit=300&access_token=${token}`;
     const r = await fetch(url);
     const j = await r.json();
-    if (!r.ok || j?.error || !Array.isArray(j?.data)) return null;
+    if (!r.ok || j?.error || !Array.isArray(j?.data)) {
+      return null;
+    }
     return j.data.map((c: any) => ({
       campaign_id: String(c.id),
       campaign_name: String(c.name || ""),
@@ -106,14 +116,18 @@ export async function resolveClientForShutdownJob(
     return data ? { id: data.id, name: data.name } : null;
   }
   const search = (job.client_name_search || "").trim();
-  if (!search) return null;
+  if (!search) {
+    return null;
+  }
   const { data: rows } = await supabase
     .from("clients")
     .select("id, name")
     .eq("tenant_id", tenantId)
     .ilike("name", `%${search.replace(/[%_]/g, "")}%`)
     .limit(5);
-  if (!rows?.length) return null;
+  if (!rows?.length) {
+    return null;
+  }
   const exact = rows.find(
     (r: any) => String(r.name).toLowerCase() === search.toLowerCase(),
   );
@@ -167,7 +181,9 @@ export async function runClientCampaignShutdownJob(
   }
   const scope = opts.job.scope ?? { mode: "all_client_campaigns" as const };
   const live = await fbLiveCampaignList(supabase, opts.tenantId, client.id);
-  if (!live) throw new Error("fb_live_campaign_list_failed");
+  if (!live) {
+    throw new Error("fb_live_campaign_list_failed");
+  }
 
   const { checked, skipped_out_of_scope } = selectCampaignsForShutdown(
     live,
@@ -195,8 +211,9 @@ export async function runClientCampaignShutdownJob(
         client.id,
         row.campaign_id,
       );
-      if (pr.ok) newly_paused.push(row);
-      else {
+      if (pr.ok) {
+        newly_paused.push(row);
+      } else {
         pause_errors.push({
           campaign_id: row.campaign_id,
           campaign_name: row.campaign_name,

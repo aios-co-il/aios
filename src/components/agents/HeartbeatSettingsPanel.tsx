@@ -110,7 +110,9 @@ export function HeartbeatSettingsPanel() {
           ...settings,
           updated_at: new Date().toISOString(),
         } as TablesInsert<"tenant_heartbeat_settings">);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

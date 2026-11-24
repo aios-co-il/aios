@@ -17,7 +17,9 @@ export function ChatProviderIndicator({
   provider,
   size = "sm",
 }: ChatProviderIndicatorProps) {
-  if (!provider || provider === "internal") return null;
+  if (!provider || provider === "internal") {
+    return null;
+  }
 
   const isSmall = size === "sm";
 

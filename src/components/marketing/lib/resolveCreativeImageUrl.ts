@@ -8,9 +8,13 @@ const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365;
 export function extractEntityAttachmentPath(
   url: string | null | undefined,
 ): string | null {
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   const match = url.match(PUBLIC_PATH) ?? url.match(SIGNED_PATH);
-  if (!match?.[1]) return null;
+  if (!match?.[1]) {
+    return null;
+  }
   try {
     return decodeURIComponent(match[1]);
   } catch {
@@ -22,15 +26,23 @@ export function extractEntityAttachmentPath(
 export async function resolveCreativeImageUrl(
   url: string | null | undefined,
 ): Promise<string | null> {
-  if (!url) return null;
-  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (!url) {
+    return null;
+  }
+  if (url.startsWith("data:") || url.startsWith("blob:")) {
+    return url;
+  }
 
   const path = extractEntityAttachmentPath(url);
-  if (!path) return url;
+  if (!path) {
+    return url;
+  }
 
   const { data, error } = await supabase.storage
     .from("entity-attachments")
     .createSignedUrl(path, SIGNED_TTL_SECONDS);
-  if (error || !data?.signedUrl) return url;
+  if (error || !data?.signedUrl) {
+    return url;
+  }
   return data.signedUrl;
 }

@@ -33,9 +33,13 @@ function collectSyncTargets(
     const settings = (integration.settings as Record<string, unknown>) || {};
     const clientSites = (settings.client_sites as Record<string, string>) || {};
     for (const [clientId, siteUrl] of Object.entries(clientSites)) {
-      if (!clientId || !siteUrl) continue;
+      if (!clientId || !siteUrl) {
+        continue;
+      }
       const key = `${integration.tenant_id}|${siteUrl}`;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       targets.push({ tenantId: integration.tenant_id, clientId, siteUrl });
     }
@@ -72,7 +76,9 @@ serve(async (req) => {
       .eq("integration_type", "google_search_console")
       .eq("is_active", true);
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const allTargets = collectSyncTargets(integrations || []);
 

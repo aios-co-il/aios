@@ -285,8 +285,9 @@ Deno.test(
 Deno.test(
   "a refused key, an empty balance or a rate limit moves to the next link",
   () => {
-    for (const status of [401, 402, 403, 429])
+    for (const status of [401, 402, 403, 429]) {
       assertStrictEquals(movesToNextLink(status, "", false), true);
+    }
     assertStrictEquals(movesToNextLink(400, "insufficient_quota", false), true);
     assertStrictEquals(movesToNextLink(500, "boom", false), false);
     assertStrictEquals(movesToNextLink(500, "boom", true), true);

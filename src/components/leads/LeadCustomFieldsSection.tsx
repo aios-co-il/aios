@@ -22,14 +22,22 @@ interface LeadCustomFieldsSectionProps {
 }
 
 function getOptions(options: unknown): Array<{ label: string; value: string }> {
-  if (!Array.isArray(options)) return [];
+  if (!Array.isArray(options)) {
+    return [];
+  }
 
   return options.flatMap((option) => {
-    if (typeof option === "string") return [{ label: option, value: option }];
-    if (!option || typeof option !== "object") return [];
+    if (typeof option === "string") {
+      return [{ label: option, value: option }];
+    }
+    if (!option || typeof option !== "object") {
+      return [];
+    }
     const item = option as Record<string, unknown>;
     const value = String(item.value ?? item.label ?? "").trim();
-    if (!value) return [];
+    if (!value) {
+      return [];
+    }
     return [{ value, label: String(item.label ?? value) }];
   });
 }
@@ -39,7 +47,9 @@ export function LeadCustomFieldsSection({
   values,
   onChange,
 }: LeadCustomFieldsSectionProps) {
-  if (fields.length === 0) return null;
+  if (fields.length === 0) {
+    return null;
+  }
 
   return (
     <div

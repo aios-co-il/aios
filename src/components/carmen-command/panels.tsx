@@ -67,16 +67,19 @@ function PanelState({
   empty?: boolean;
   emptyText?: string;
 }) {
-  if (loading)
+  if (loading) {
     return <p className="text-sm text-[var(--cc-text-dim)]">טוענת נתונים…</p>;
-  if (error)
+  }
+  if (error) {
     return <p className="text-sm text-[var(--cc-warn)]">המקור לא זמין כרגע</p>;
-  if (empty)
+  }
+  if (empty) {
     return (
       <p className="text-sm text-[var(--cc-text-dim)]">
         {emptyText ?? "אין נתונים"}
       </p>
     );
+  }
   return null;
 }
 

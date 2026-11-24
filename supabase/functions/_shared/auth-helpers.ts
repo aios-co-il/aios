@@ -35,8 +35,12 @@ export async function assertCallerCanAccessClient(
   clientId: string,
   scope: CallerScope,
 ): Promise<void> {
-  if (!clientId) throw new AccessDeniedError("missing client_id");
-  if (scope.isManagerRole) return; // full-tenant managers
+  if (!clientId) {
+    throw new AccessDeniedError("missing client_id");
+  }
+  if (scope.isManagerRole) {
+    return;
+  } // full-tenant managers
 
   const { data: client } = await supabase
     .from("clients")
@@ -44,10 +48,14 @@ export async function assertCallerCanAccessClient(
     .eq("id", clientId)
     .in("tenant_id", scope.accessibleTenantIds)
     .maybeSingle();
-  if (!client) throw new AccessDeniedError("הלקוח לא נמצא או מחוץ להרשאה שלך");
+  if (!client) {
+    throw new AccessDeniedError("הלקוח לא נמצא או מחוץ להרשאה שלך");
+  }
 
   if (scope.isTeamManager) {
-    if (scope.managedAgencyIds.includes(client.agency_id)) return;
+    if (scope.managedAgencyIds.includes(client.agency_id)) {
+      return;
+    }
     throw new AccessDeniedError(
       "הלקוח אינו באחת הסוכנויות שאתה מנהל — אין לך גישה אליו",
     );
@@ -60,7 +68,9 @@ export async function assertCallerCanAccessClient(
       .eq("client_id", clientId)
       .eq("campaigner_id", scope.callerCampaignerId)
       .maybeSingle();
-    if (link) return;
+    if (link) {
+      return;
+    }
     throw new AccessDeniedError(
       "הלקוח לא משויך אליך — אינך רשאי לפעול עליו. פנה למנהל אם זו טעות.",
     );
@@ -79,7 +89,9 @@ async function clientIdFrom(
   id: string,
   accessibleTenantIds: Array<string>,
 ): Promise<string | null> {
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   const { data } = await supabase
     .from(table)
     .select("client_id")
@@ -114,13 +126,17 @@ export async function assertCallerCanAccessEntityClient(
   entityId: string,
   scope: CallerScope,
 ): Promise<void> {
-  if (scope.isManagerRole) return;
+  if (scope.isManagerRole) {
+    return;
+  }
   const clientId = await clientIdFrom(
     supabase,
     table,
     entityId,
     scope.accessibleTenantIds,
   );
-  if (clientId === null) return; // not found-or-no-client → don't block (avoids false denials)
+  if (clientId === null) {
+    return;
+  } // not found-or-no-client → don't block (avoids false denials)
   await assertCallerCanAccessClient(supabase, clientId, scope);
 }

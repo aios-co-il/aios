@@ -392,8 +392,9 @@ export function CreativeStoryboardEditor({
   );
 
   useEffect(() => {
-    if (focusRequest && frames.some((frame) => frame.id === focusRequest.id))
+    if (focusRequest && frames.some((frame) => frame.id === focusRequest.id)) {
       setSelectedFrameId(focusRequest.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires per request only
   }, [focusRequest]);
 
@@ -402,7 +403,9 @@ export function CreativeStoryboardEditor({
   }, [selectedFrameId, onSelectFrame]);
 
   useEffect(() => {
-    if (!selectedFrameId && frames[0]?.id) setSelectedFrameId(frames[0].id);
+    if (!selectedFrameId && frames[0]?.id) {
+      setSelectedFrameId(frames[0].id);
+    }
     if (
       selectedFrameId &&
       !frames.some((frame) => frame.id === selectedFrameId)
@@ -423,10 +426,14 @@ export function CreativeStoryboardEditor({
   useEffect(() => {
     let cancelled = false;
     setVersions([]);
-    if (!sceneOpen || !selectedFrameId || !loadVersions) return;
+    if (!sceneOpen || !selectedFrameId || !loadVersions) {
+      return;
+    }
     loadVersions(selectedFrameId)
       .then((rows) => {
-        if (!cancelled) setVersions(rows);
+        if (!cancelled) {
+          setVersions(rows);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -438,7 +445,9 @@ export function CreativeStoryboardEditor({
     onChange(renumber(next));
 
   const saveFrameDraft = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     onChange(
       frames.map((frame) => (frame.id === frameDraft.id ? frameDraft : frame)),
     );
@@ -454,7 +463,9 @@ export function CreativeStoryboardEditor({
   };
 
   const duplicateFrame = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     const index = ordered.findIndex((frame) => frame.id === frameDraft.id);
     const copy = {
       ...frameDraft,
@@ -471,10 +482,14 @@ export function CreativeStoryboardEditor({
   };
 
   const removeFrame = () => {
-    if (!frameDraft) return;
+    if (!frameDraft) {
+      return;
+    }
     const next = ordered.filter((frame) => frame.id !== frameDraft.id);
     updateFrames(next);
-    if (next.length === 0) setSceneOpen(false);
+    if (next.length === 0) {
+      setSceneOpen(false);
+    }
   };
 
   const toggleLock = (frameId: string) => {
@@ -486,10 +501,14 @@ export function CreativeStoryboardEditor({
   };
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id) {
+      return;
+    }
     const from = ordered.findIndex((frame) => frame.id === active.id);
     const to = ordered.findIndex((frame) => frame.id === over.id);
-    if (from < 0 || to < 0) return;
+    if (from < 0 || to < 0) {
+      return;
+    }
     updateFrames(arrayMove(ordered, from, to));
   };
 
@@ -588,7 +607,9 @@ export function CreativeStoryboardEditor({
                     className="hidden"
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      if (file) character.onUpload(file);
+                      if (file) {
+                        character.onUpload(file);
+                      }
                       event.target.value = "";
                     }}
                   />
@@ -720,7 +741,9 @@ export function CreativeStoryboardEditor({
                     className="hidden"
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      if (file) reference.onUpload(file);
+                      if (file) {
+                        reference.onUpload(file);
+                      }
                       event.target.value = "";
                     }}
                   />

@@ -28,42 +28,48 @@ async function getUserToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key || null;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
     const { tenant_id, client_id } = await req.json().catch(() => ({}));
-    if (!tenant_id)
+    if (!tenant_id) {
       return new Response(JSON.stringify({ error: "tenant_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const userToken = await getUserToken(supabase, tenant_id);
-    if (!userToken)
+    if (!userToken) {
       return new Response(JSON.stringify({ error: "fb_not_connected" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     // Fetch all pages with their PATs and IG business accounts
     const url = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,category,picture{url},instagram_business_account{id,username,profile_picture_url}&limit=100&access_token=${userToken}`;
     const r = await fetch(url);
     const j = await r.json();
-    if (j?.error)
+    if (j?.error) {
       return new Response(
         JSON.stringify({ error: "fb_api_error", fb_error: j.error }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     const upserted: Array<any> = [];
     for (const p of j?.data || []) {

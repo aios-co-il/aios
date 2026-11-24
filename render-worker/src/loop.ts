@@ -41,8 +41,12 @@ export async function runSlots({
         idleSince = now();
         continue;
       }
-      if (stopped()) return;
-      if (drain && now() - idleSince >= idleMs) return;
+      if (stopped()) {
+        return;
+      }
+      if (drain && now() - idleSince >= idleMs) {
+        return;
+      }
       await sleep();
     }
   }

@@ -33,7 +33,9 @@ export function TemplateAttachments({
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
             e.target.value = "";
-            if (!files.length) return;
+            if (!files.length) {
+              return;
+            }
             upload.mutate({
               files,
               currentTotal: attachments.reduce(

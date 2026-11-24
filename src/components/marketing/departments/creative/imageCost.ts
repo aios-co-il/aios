@@ -118,7 +118,9 @@ export const costFromApiUsage = (
   size: ImageSize,
   referenceCount = 0,
 ): ImageGenerationCost | null => {
-  if (!usage || typeof usage !== "object") return null;
+  if (!usage || typeof usage !== "object") {
+    return null;
+  }
   const row = usage as {
     input_tokens?: number;
     output_tokens?: number;
@@ -130,8 +132,12 @@ export const costFromApiUsage = (
   );
   const imageInTokens = Number(details?.image_tokens ?? 0);
   const outputTokens = Number(row.output_tokens ?? 0);
-  if (!Number.isFinite(textTokens + imageInTokens + outputTokens)) return null;
-  if (textTokens + imageInTokens + outputTokens <= 0) return null;
+  if (!Number.isFinite(textTokens + imageInTokens + outputTokens)) {
+    return null;
+  }
+  if (textTokens + imageInTokens + outputTokens <= 0) {
+    return null;
+  }
   return makeCost(
     quality,
     size,
@@ -183,11 +189,18 @@ export const formatTokens = (value: number) =>
   Math.round(value).toLocaleString("he-IL");
 
 export const costSourceLabel = (totals: CostTotals) => {
-  if (totals.images === 0) return "אין תמונות";
-  if (totals.exactImages === totals.images) return "מדויק מה־API";
-  if (totals.exactImages > 0) return "חלק מדויק / חלק מחירון";
-  if (totals.estimatedImages > 0 && totals.images === totals.estimatedImages)
+  if (totals.images === 0) {
+    return "אין תמונות";
+  }
+  if (totals.exactImages === totals.images) {
+    return "מדויק מה־API";
+  }
+  if (totals.exactImages > 0) {
+    return "חלק מדויק / חלק מחירון";
+  }
+  if (totals.estimatedImages > 0 && totals.images === totals.estimatedImages) {
     return "מחירון רשמי";
+  }
   return "הערכה";
 };
 
@@ -206,8 +219,12 @@ export interface LoggedRunCost {
 }
 
 const sizeFromFormat = (format?: string): ImageSize => {
-  if (format === "9:16" || format === "4:5") return "1024x1536";
-  if (format === "16:9") return "1536x1024";
+  if (format === "9:16" || format === "4:5") {
+    return "1024x1536";
+  }
+  if (format === "16:9") {
+    return "1536x1024";
+  }
   return "1024x1024";
 };
 
@@ -226,11 +243,12 @@ export const summarizeStoredImageCosts = (
         totals = addCost(totals, image.generationCost);
         continue;
       }
-      if (image.imageUrl)
+      if (image.imageUrl) {
         totals = addCost(
           totals,
           inferImageCost(fallbackQuality, sizeFromFormat(image.format)),
         );
+      }
     }
     return totals;
   }
@@ -255,7 +273,9 @@ export const summarizeStoredImageCosts = (
 
   let totals = emptyCostTotals();
   for (const image of images) {
-    if (!image.imageUrl || image.source === "manual_edit") continue;
+    if (!image.imageUrl || image.source === "manual_edit") {
+      continue;
+    }
     totals = addCost(
       totals,
       inferImageCost(fallbackQuality, sizeFromFormat(image.format)),

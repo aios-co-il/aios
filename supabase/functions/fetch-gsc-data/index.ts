@@ -84,8 +84,9 @@ serve(async (req) => {
       ok: boolean;
       reason?: string;
     }> => {
-      if (!settings?.refresh_token)
+      if (!settings?.refresh_token) {
         return { ok: false, reason: "missing_refresh_token" };
+      }
       const refreshResponse = await fetch(
         "https://oauth2.googleapis.com/token",
         {
@@ -278,7 +279,9 @@ serve(async (req) => {
       collectedRows.push(...pageRows);
 
       // Stop early if we got less than a full page (no more data).
-      if (pageRows.length < pageSize) break;
+      if (pageRows.length < pageSize) {
+        break;
+      }
     }
 
     // Transform response

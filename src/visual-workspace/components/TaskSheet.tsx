@@ -23,7 +23,9 @@ export function TaskSheet({ taskId, onClose }: Props) {
   const [updates, setUpdates] = useState<Array<any>>([]);
 
   useEffect(() => {
-    if (!taskId) return;
+    if (!taskId) {
+      return;
+    }
     setLoading(true);
     const sb = supabase as any;
     Promise.all([

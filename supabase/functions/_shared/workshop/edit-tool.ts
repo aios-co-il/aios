@@ -122,25 +122,30 @@ export async function buildEditScenes(
     await helpers.loadAssets(itemId),
     args.asset_ids,
   );
-  if (materials.length === 0)
+  if (materials.length === 0) {
     return {
       error:
         "אין בפרויקט סרטונים או תמונות לעריכה. בקשי מהמשתמש להעלות אותם בלשונית הנכסים או לגרור לצ׳אט.",
     };
+  }
   const old = await helpers.loadScenes(itemId);
-  if (old.length > 0 && args.replace !== true)
+  if (old.length > 0 && args.replace !== true) {
     return { error: "כבר יש סטוריבורד. replace=true יחליף אותו." };
+  }
   const keepsPaid = await helpers.replaceRefusal(old);
-  if (keepsPaid) return keepsPaid;
+  if (keepsPaid) {
+    return keepsPaid;
+  }
   const plan = planEditScenes(materials, args);
   const saved = await supabase.rpc("save_video_storyboard", {
     p_item_id: itemId,
     p_scenes: plan.map((scene) => scene.row),
   });
-  if (saved.error)
+  if (saved.error) {
     return productionLockError(saved.error)
       ? { ...PRODUCTION_LOCKED }
       : { error: saved.error.message };
+  }
   if (old.length > 0) {
     const removed = await supabase
       .from("marketing_video_scenes")
@@ -151,7 +156,9 @@ export async function buildEditScenes(
         "id",
         old.map((scene) => scene.id),
       );
-    if (removed.error) return { error: removed.error.message };
+    if (removed.error) {
+      return { error: removed.error.message };
+    }
   }
   // A talking picture speaks in the project's chosen voice, never the engine's: the clip job
   // leaves its clip silent and the lip-sync pass makes the user's own picture say the line.
@@ -182,7 +189,9 @@ export async function buildEditScenes(
       .eq("id", scene.row.id)
       .eq("tenant_id", tenantId)
       .eq("item_id", itemId);
-    if (marked.error) return { error: marked.error.message };
+    if (marked.error) {
+      return { error: marked.error.message };
+    }
   }
   const failed: Array<string> = [];
   // The upload's own address in the private bucket, as the assets tab keeps it: it never expires.
@@ -199,7 +208,9 @@ export async function buildEditScenes(
           p_meta: { source: "user_asset", asset_id: scene.assetId },
         })
       : { error: { message: "no link" } };
-    if (attached.error) failed.push(scene.row.title);
+    if (attached.error) {
+      failed.push(scene.row.title);
+    }
   }
   return { rows: plan.map((scene) => scene.row), plan, failed };
 }

@@ -10,7 +10,9 @@ export function invalidateAIEntityQueries(
   queryClient: QueryClient,
   entity?: string,
 ) {
-  if (!entity) return;
+  if (!entity) {
+    return;
+  }
 
   queryClient.invalidateQueries({ queryKey: [entity] });
 

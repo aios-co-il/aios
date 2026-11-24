@@ -17,7 +17,9 @@ let snapshot = { waiting, scenes };
 
 function emit() {
   snapshot = { waiting, scenes };
-  for (const listener of listeners) listener();
+  for (const listener of listeners) {
+    listener();
+  }
 }
 
 export function subscribeCarmenLoader(listener: Listener) {
@@ -79,7 +81,9 @@ export function registerCarmenFadeOutCanceler(cancel: () => void) {
 }
 
 export function cancelCarmenFadeOutGhosts() {
-  if (fadeOutCancelers.size === 0) return 0;
+  if (fadeOutCancelers.size === 0) {
+    return 0;
+  }
   const count = fadeOutCancelers.size;
   for (const cancel of [...fadeOutCancelers]) {
     try {

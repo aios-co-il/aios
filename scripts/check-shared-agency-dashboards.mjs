@@ -55,7 +55,9 @@ mustNotMatch(
 
 if (failures.length) {
   console.error("Shared-agency dashboard guard FAILED:\n");
-  for (const f of failures) console.error(` - ${f}`);
+  for (const f of failures) {
+    console.error(` - ${f}`);
+  }
   console.error(
     "\nSee docs/postmortems/2026-09-09-dmm-dashboards-regression.md and src/lib/crmDashboards.ts",
   );

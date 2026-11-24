@@ -214,14 +214,18 @@ export function AddAutomationForm() {
   const { data: manychatTags, isLoading: isLoadingTags } = useQuery({
     queryKey: ["manychat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase.functions.invoke(
         "get-manychat-tags",
         {
           body: { tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return Array.isArray(data?.tags) ? data.tags : [];
     },
     enabled:
@@ -235,7 +239,9 @@ export function AddAutomationForm() {
   const { data: greenApiIntegrations } = useQuery({
     queryKey: ["green-api-integrations-for-automation", tenantId, actionType],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Get current user
       const {
@@ -253,7 +259,9 @@ export function AddAutomationForm() {
         .in("integration_type", ["green_api", "manus_wa"])
         .eq("is_active", true);
 
-      if (tenantError) throw tenantError;
+      if (tenantError) {
+        throw tenantError;
+      }
 
       // Get integrations the user has permission to use
       const { data: permissions, error: permError } = await supabase
@@ -321,7 +329,9 @@ export function AddAutomationForm() {
   const createAutomationMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       // Ensure a tenant is selected
-      if (!tenantId) throw new Error("No tenant selected");
+      if (!tenantId) {
+        throw new Error("No tenant selected");
+      }
 
       // Parse conditions if provided
       let conditions: any = {};
@@ -425,7 +435,9 @@ export function AddAutomationForm() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

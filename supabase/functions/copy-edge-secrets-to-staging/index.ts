@@ -36,7 +36,9 @@ async function callerCanManageProject(
 async function probeCursorKey(
   apiKey: string,
 ): Promise<{ ok: boolean; status: number }> {
-  if (!apiKey) return { ok: false, status: 0 };
+  if (!apiKey) {
+    return { ok: false, status: 0 };
+  }
   const headers = {
     Authorization: `Bearer ${apiKey}`,
     Accept: "application/json",
@@ -52,19 +54,27 @@ async function probeCursorKey(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
 
   const token = (req.headers.get("Authorization") || "")
     .replace(/^Bearer\s+/i, "")
     .trim();
-  if (!token) return json(401, { error: "Unauthorized" });
+  if (!token) {
+    return json(401, { error: "Unauthorized" });
+  }
 
   const sourceRef = projectRefFromSupabaseUrl(Deno.env.get("SUPABASE_URL"));
-  if (!sourceRef) return json(500, { error: "SUPABASE_URL missing" });
-  if (!(await callerCanManageProject(token, sourceRef)))
+  if (!sourceRef) {
+    return json(500, { error: "SUPABASE_URL missing" });
+  }
+  if (!(await callerCanManageProject(token, sourceRef))) {
     return json(401, { error: "Unauthorized" });
+  }
 
   let body: { target_ref?: string; names?: Array<string> } = {};
   try {
@@ -85,8 +95,11 @@ Deno.serve(async (req) => {
   const missing: Array<string> = [];
   for (const name of names) {
     const value = Deno.env.get(name) || "";
-    if (!value) missing.push(name);
-    else payload.push({ name, value });
+    if (!value) {
+      missing.push(name);
+    } else {
+      payload.push({ name, value });
+    }
   }
 
   const cursorKey = Deno.env.get("CURSOR_API_KEY") || "";

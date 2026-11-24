@@ -177,7 +177,9 @@ export function AddIntegrationDialog({
   const { data: resources, isLoading: resourcesLoading } = useQuery({
     queryKey: ["platform-resources", selectedPlatform, integration?.id],
     queryFn: async () => {
-      if (!integration || !selectedPlatform) return [];
+      if (!integration || !selectedPlatform) {
+        return [];
+      }
 
       switch (selectedPlatform) {
         case "facebook_insights": {
@@ -270,7 +272,9 @@ export function AddIntegrationDialog({
         .eq("id", tableId)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        throw fetchError;
+      }
 
       const currentIntegrations = (table?.integrations as Array<any>) || [];
       const resource = resources?.find((r: any) => r.id === selectedResource);
@@ -292,7 +296,9 @@ export function AddIntegrationDialog({
         })
         .eq("id", tableId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       toast({ title: "החיבור נוסף בהצלחה!" });
       queryClient.invalidateQueries({

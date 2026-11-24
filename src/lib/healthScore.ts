@@ -134,9 +134,13 @@ export function calculateHealthScore(input: HealthInput): HealthResult {
   score = Math.max(0, Math.min(100, score));
 
   let status: OverallStatus;
-  if (score >= 80) status = "green";
-  else if (score >= 60) status = "yellow";
-  else status = "red";
+  if (score >= 80) {
+    status = "green";
+  } else if (score >= 60) {
+    status = "yellow";
+  } else {
+    status = "red";
+  }
 
   return { score, status, flags };
 }
@@ -273,7 +277,9 @@ const YELLOW_FLAGS: Array<FlagKey> = [
 export function getEffectiveStatus(result: HealthResult): OverallStatus {
   let status = result.status;
   for (const flag of result.flags) {
-    if (RED_FLAGS.includes(flag)) return "red";
+    if (RED_FLAGS.includes(flag)) {
+      return "red";
+    }
     if (YELLOW_FLAGS.includes(flag) && status === "green") {
       status = "yellow";
     }

@@ -89,12 +89,18 @@ export function useSeoMonthlyGsc(params: {
     });
 
   const personal = useMemo(() => {
-    if (!clientId) return null;
+    if (!clientId) {
+      return null;
+    }
     for (const integration of personalIntegrations as Array<any>) {
       const mapped: string | undefined =
         integration?.settings?.client_sites?.[clientId];
-      if (!mapped) continue;
-      if (expectedDomain && !seoDomainsMatch(mapped, expectedDomain)) continue;
+      if (!mapped) {
+        continue;
+      }
+      if (expectedDomain && !seoDomainsMatch(mapped, expectedDomain)) {
+        continue;
+      }
       return { integrationId: integration.id as string, siteUrl: mapped };
     }
     return null;
@@ -140,15 +146,18 @@ export function useSeoMonthlyGsc(params: {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return EMPTY;
+      if (!session) {
+        return EMPTY;
+      }
 
       const windows: Array<{ key: keyof SeoMonthlyGscPeriods; month: string }> =
         [
           { key: "current", month },
           { key: "prev", month: shiftMonth(month, -1) },
         ];
-      if (baselineMonth)
+      if (baselineMonth) {
         windows.push({ key: "baseline", month: baselineMonth });
+      }
 
       const responses = await Promise.all(
         windows.map((w) => {

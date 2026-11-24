@@ -25,7 +25,9 @@ function asConcepts(value: unknown): Array<ConceptLike> {
 export function formatApprovedConceptsFromPayload(
   payload: Record<string, unknown> | null | undefined,
 ): string {
-  if (!payload) return "";
+  if (!payload) {
+    return "";
+  }
   const stored = asConcepts(payload.approved_concepts);
   const fallback = asConcepts(payload.copy_concepts).filter(
     (row) => row.approved === true,

@@ -25,16 +25,29 @@ export async function dispatchSend(ctx: SendContext): Promise<SendResult> {
             ctx.route.slug ||
             "internal") as ChannelProvider);
 
-  if (kind === "internal") return internalStreamResult(ctx.conversationId);
+  if (kind === "internal") {
+    return internalStreamResult(ctx.conversationId);
+  }
 
-  if (kind === "cursor" || kind === "grok") return launchCloudDirect(ctx, kind);
-  if (kind === "codex") return launchWorkspaceAgent(ctx, "codex");
-  if (kind === "claude") return launchClaude(ctx);
-  if (kind === "chatgpt") return launchChatgpt(ctx);
-  if (kind === "parliament") return startParliament(ctx);
-  if (kind === "model")
+  if (kind === "cursor" || kind === "grok") {
+    return launchCloudDirect(ctx, kind);
+  }
+  if (kind === "codex") {
+    return launchWorkspaceAgent(ctx, "codex");
+  }
+  if (kind === "claude") {
+    return launchClaude(ctx);
+  }
+  if (kind === "chatgpt") {
+    return launchChatgpt(ctx);
+  }
+  if (kind === "parliament") {
+    return startParliament(ctx);
+  }
+  if (kind === "model") {
     return isSmartRouter(ctx.route)
       ? launchSmartRouter(ctx)
       : launchModelBrain(ctx);
+  }
   throw new Error(`Unknown brain route: ${kind}`);
 }

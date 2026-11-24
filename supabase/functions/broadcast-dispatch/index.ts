@@ -101,9 +101,12 @@ async function greenApiSendImage(
     integ.settings.country_code || integ.settings.default_country_code || "972",
   );
   let digits = String(chatPhone).replace(/[^0-9]/g, "");
-  if (digits.startsWith("00")) digits = digits.slice(2);
-  if (!digits.startsWith(cc))
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+  if (!digits.startsWith(cc)) {
     digits = digits.startsWith("0") ? cc + digits.slice(1) : cc + digits;
+  }
   const chatId = `${digits}@c.us`;
 
   const url = `https://api.green-api.com/waInstance${instanceId}/sendFileByUrl/${apiToken}`;
@@ -164,7 +167,9 @@ async function sendOne(
 
   // ── Email (Resend) ──
   if (b.channel === "email") {
-    if (!r.email) return { ok: false, error: "missing_email" };
+    if (!r.email) {
+      return { ok: false, error: "missing_email" };
+    }
     const { html, text } = buildEmailContent({
       bodyHtml: b.body_html,
       bodyText: b.body_text,
@@ -200,8 +205,12 @@ async function sendOne(
   if (r.entity_type === "wa_group") {
     const groupId = r.entity_id; // whatsapp_groups.id UUID
     const senderUserId = b.created_by;
-    if (!senderUserId) return { ok: false, error: "missing_created_by" };
-    if (!groupId) return { ok: false, error: "missing_group_entity_id" };
+    if (!senderUserId) {
+      return { ok: false, error: "missing_created_by" };
+    }
+    if (!groupId) {
+      return { ok: false, error: "missing_group_entity_id" };
+    }
 
     try {
       const hasMedia = !!b.media_url;
@@ -236,14 +245,17 @@ async function sendOne(
       if (hasMedia) {
         // For groups with green_api, use the group_chat_id stored in r.phone
         const groupChatId = r.phone; // stored as phone in enqueue
-        if (!groupChatId) return { ok: false, error: "missing_group_chat_id" };
+        if (!groupChatId) {
+          return { ok: false, error: "missing_group_chat_id" };
+        }
         const { data: integ } = await db
           .from("tenant_integrations")
           .select("api_key, settings")
           .eq("id", b.integration_id)
           .maybeSingle();
-        if (!integ?.api_key || !integ?.settings?.instance_id)
+        if (!integ?.api_key || !integ?.settings?.instance_id) {
           return { ok: false, error: "green_api_not_configured" };
+        }
         const url = `https://api.green-api.com/waInstance${integ.settings.instance_id}/sendFileByUrl/${integ.api_key}`;
         const res2 = await fetch(url, {
           method: "POST",
@@ -301,8 +313,12 @@ async function sendOne(
   const hasMedia = !!b.media_url;
   const senderUserId = b.created_by;
 
-  if (!senderUserId) return { ok: false, error: "missing_created_by" };
-  if (!r.phone) return { ok: false, error: "missing_phone" };
+  if (!senderUserId) {
+    return { ok: false, error: "missing_created_by" };
+  }
+  if (!r.phone) {
+    return { ok: false, error: "missing_phone" };
+  }
 
   const clientId = await resolveBroadcastRecipientClientId(db, b.tenant_id, r);
   const recipientStamp = clientId ? { ...sendStamp, clientId } : sendStamp;
@@ -369,8 +385,9 @@ async function sendOne(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const startedAt = Date.now();
   try {
@@ -396,17 +413,20 @@ Deno.serve(async (req) => {
       .order("started_at", { ascending: true })
       .limit(200);
     for (const b of maybeDone || []) {
-      if (b.origin === "automation" && !b.audience_filter?.source) continue;
+      if (b.origin === "automation" && !b.audience_filter?.source) {
+        continue;
+      }
       const { count } = await db
         .from("broadcast_recipients")
         .select("id", { count: "exact", head: true })
         .eq("broadcast_id", b.id)
         .eq("status", "pending");
-      if ((count ?? 0) === 0)
+      if ((count ?? 0) === 0) {
         await db
           .from("broadcasts")
           .update({ status: "sent", completed_at: nowIso })
           .eq("id", b.id);
+      }
     }
 
     // 3) Work broadcasts that still have pending recipients. Selecting only
@@ -415,13 +435,17 @@ Deno.serve(async (req) => {
       "broadcast_dispatch_candidates",
       { p_limit: 5 },
     );
-    if (candidatesError) throw candidatesError;
+    if (candidatesError) {
+      throw candidatesError;
+    }
 
     const summary: Array<any> = [];
     let worked = 0;
 
     for (const b of sending || []) {
-      if (Date.now() - startedAt > MAX_RUN_MS) break;
+      if (Date.now() - startedAt > MAX_RUN_MS) {
+        break;
+      }
 
       // Daily cap: how many already sent today for this broadcast
       const { count: sentToday } = await db
@@ -440,7 +464,9 @@ Deno.serve(async (req) => {
 
       if ((pendingCount ?? 0) === 0) {
         // Automation streams never complete; they wait for the next recipient.
-        if (b.origin === "automation" && !b.audience_filter?.source) continue;
+        if (b.origin === "automation" && !b.audience_filter?.source) {
+          continue;
+        }
         await db
           .from("broadcasts")
           .update({ status: "sent", completed_at: nowIso })
@@ -477,7 +503,9 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: true })
           .limit(1);
         const r = (batch || [])[0];
-        if (!r) break;
+        if (!r) {
+          break;
+        }
 
         // Re-check the blacklist at send time: an address blocked after the
         // broadcast was queued must not get it.

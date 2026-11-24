@@ -168,7 +168,9 @@ Deno.test(
       {
         generateImage: async (_p: string, _f: string, refs?: Array<string>) => {
           seen.push(refs);
-          if (seen.length === 1) throw new Error("engine busy");
+          if (seen.length === 1) {
+            throw new Error("engine busy");
+          }
           return { image_url: `https://x/still-${seen.length}.png` };
         },
       },

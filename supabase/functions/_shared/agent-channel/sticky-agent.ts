@@ -18,7 +18,9 @@ export function uniqueCloudAgentIds(
   const out: Array<string> = [];
   for (const value of values) {
     const id = asCloudAgentId(value);
-    if (id && !out.includes(id)) out.push(id);
+    if (id && !out.includes(id)) {
+      out.push(id);
+    }
   }
   return out;
 }
@@ -37,7 +39,9 @@ export function envOpenChatId(
 export function cursorDirectStickyEnabled(
   env: Record<string, string | undefined> = {},
 ): boolean {
-  if (lightweightBrainEnabled(env)) return true;
+  if (lightweightBrainEnabled(env)) {
+    return true;
+  }
   return String(env.CURSOR_DIRECT_STICKY || "").toLowerCase() === "true";
 }
 
@@ -123,7 +127,9 @@ export async function collectOpenChatIds(
       tenantId: args.tenantId,
       env: args.env || {},
     });
-    if (fixed) ids.push(fixed.sessionId);
+    if (fixed) {
+      ids.push(fixed.sessionId);
+    }
   }
 
   try {

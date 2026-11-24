@@ -167,8 +167,12 @@ export const resolvePreviousStyleId = (
   styleSource?: { visualStyle?: CreativeVisualStyleId },
   live: Array<{ rejected?: boolean; visualStyle?: CreativeVisualStyleId }> = [],
 ): CreativeVisualStyleId | undefined => {
-  if (replacing) return replacing.visualStyle;
-  if (styleSource) return styleSource.visualStyle;
+  if (replacing) {
+    return replacing.visualStyle;
+  }
+  if (styleSource) {
+    return styleSource.visualStyle;
+  }
   return [...live].reverse().find((item) => !item.rejected && item.visualStyle)
     ?.visualStyle;
 };

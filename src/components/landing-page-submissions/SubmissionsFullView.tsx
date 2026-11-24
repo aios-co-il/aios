@@ -70,7 +70,9 @@ export function SubmissionsFullView({ siteId }: Props) {
     qc.invalidateQueries({ queryKey: ["elementor-submissions", siteId] });
 
   const formSubmissions: Array<ElementorSubmission> = useMemo(() => {
-    if (!selectedFormId || !data?.submissions) return [];
+    if (!selectedFormId || !data?.submissions) {
+      return [];
+    }
     return data.submissions.filter((s) => s.form_id === selectedFormId);
   }, [selectedFormId, data]);
 

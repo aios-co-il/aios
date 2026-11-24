@@ -33,7 +33,9 @@ const isPaidMedium = (sm: string) => {
 export function computeGaOrganicByMonth(
   gaRecords: Array<GaRecord> | null | undefined,
 ): Array<GaOrganicMonth> {
-  if (!gaRecords || gaRecords.length === 0) return [];
+  if (!gaRecords || gaRecords.length === 0) {
+    return [];
+  }
 
   // 1. monthly_channel
   const monthlyChannelRows = gaRecords.filter(
@@ -43,9 +45,13 @@ export function computeGaOrganicByMonth(
     const monthMap = new Map<string, number>();
     for (const r of monthlyChannelRows as Array<any>) {
       const cg = String(r.data?.channel_group || "");
-      if (isPaidChannel(cg)) continue;
+      if (isPaidChannel(cg)) {
+        continue;
+      }
       const month = r.data?.month as string;
-      if (!month) continue;
+      if (!month) {
+        continue;
+      }
       const sessions = Number(r.data?.sessions) || 0;
       monthMap.set(month, (monthMap.get(month) || 0) + sessions);
     }
@@ -64,9 +70,13 @@ export function computeGaOrganicByMonth(
     const monthMap = new Map<string, number>();
     for (const r of dailySourceRows as Array<any>) {
       const sm = String(r.data?.source_medium || "");
-      if (isPaidMedium(sm)) continue;
+      if (isPaidMedium(sm)) {
+        continue;
+      }
       const date = r.data?.date;
-      if (!date) continue;
+      if (!date) {
+        continue;
+      }
       const monthKey = String(date).substring(0, 7);
       const sessions = Number(r.data?.sessions) || 0;
       monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + sessions);

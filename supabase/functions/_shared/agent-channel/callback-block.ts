@@ -26,7 +26,9 @@ export async function buildAiosCallbackBlock(
     args.tenantId,
     conversationId || null,
   );
-  if (!channelSession) return "";
+  if (!channelSession) {
+    return "";
+  }
   const token = await mintCallbackToken({
     sessionId: channelSession.id,
     conversationId: channelSession.conversation_id,

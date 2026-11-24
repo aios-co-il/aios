@@ -46,12 +46,16 @@ export function MaskyooSiblingCard({
         .in("tenant_id", accessibleTenantIds)
         .eq("client_id", clientId)
         .eq("is_ignored", false);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as Array<MaskyooNumberRow>;
     },
   });
 
-  if (!clientId || !storageTenantId) return null;
+  if (!clientId || !storageTenantId) {
+    return null;
+  }
 
   const numbers = (rows || []).map((r) => {
     const cat = (r.category || "organic").toLowerCase();

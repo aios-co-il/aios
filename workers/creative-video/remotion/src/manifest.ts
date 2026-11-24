@@ -37,14 +37,16 @@ export function validateManifest(manifest: InputManifest): void {
     manifest.width > 3840 ||
     manifest.height < 240 ||
     manifest.height > 3840
-  )
+  ) {
     throw Error("Invalid manifest header");
+  }
   if (
     !Array.isArray(manifest.scenes) ||
     manifest.scenes.length < 1 ||
     manifest.scenes.length > 100
-  )
+  ) {
     throw Error("Invalid scene count");
+  }
   let cursor = 0;
   const ids = new Set<string>();
   for (const s of [...manifest.scenes].sort((a, b) => a.order - b.order)) {
@@ -54,13 +56,15 @@ export function validateManifest(manifest: InputManifest): void {
       !Number.isInteger(s.frameCount) ||
       s.frameCount < 1 ||
       s.startFrame !== cursor
-    )
+    ) {
       throw Error("Invalid scene order or timing");
+    }
     ids.add(s.id);
     cursor += s.frameCount;
   }
-  if (cursor !== manifest.totalFrames || cursor > 18000)
+  if (cursor !== manifest.totalFrames || cursor > 18000) {
     throw Error("Total frame count mismatch");
+  }
 }
 export function manifestToProps(manifest: InputManifest): CarmenVideoProps {
   validateManifest(manifest);

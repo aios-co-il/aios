@@ -44,7 +44,9 @@ export function DuplicateClientDialog({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!client) throw new Error("missing client");
+      if (!client) {
+        throw new Error("missing client");
+      }
       const { data, error } = await supabase.functions.invoke(
         "duplicate-client",
         {
@@ -57,16 +59,25 @@ export function DuplicateClientDialog({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       return data as { newClientId: string; stats: Record<string, number> };
     },
     onSuccess: (data) => {
       const parts: Array<string> = [];
-      if (data.stats?.contacts) parts.push(`${data.stats.contacts} אנשי קשר`);
-      if (data.stats?.team) parts.push(`${data.stats.team} חברי צוות`);
-      if (data.stats?.credentials)
+      if (data.stats?.contacts) {
+        parts.push(`${data.stats.contacts} אנשי קשר`);
+      }
+      if (data.stats?.team) {
+        parts.push(`${data.stats.team} חברי צוות`);
+      }
+      if (data.stats?.credentials) {
         parts.push(`${data.stats.credentials} אישורי גישה`);
+      }
       toast.success(
         parts.length
           ? `הלקוח שוכפל בהצלחה (כולל ${parts.join(", ")})`

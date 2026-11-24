@@ -10,7 +10,9 @@ export function base64UrlDecode(input: string): Uint8Array {
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
   return bytes;
 }
 
@@ -35,9 +37,13 @@ export async function hmacSha256(
 
 /** Constant-time byte comparison (length mismatch returns early). */
 export function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
   return diff === 0;
 }
 
@@ -51,10 +57,14 @@ export async function parseSignedRequest(
   secret: string,
 ): Promise<Record<string, unknown> | null> {
   const dot = signedRequest.indexOf(".");
-  if (dot <= 0) return null;
+  if (dot <= 0) {
+    return null;
+  }
   const encodedSig = signedRequest.slice(0, dot);
   const encodedPayload = signedRequest.slice(dot + 1);
-  if (!encodedPayload) return null;
+  if (!encodedPayload) {
+    return null;
+  }
 
   let signature: Uint8Array;
   let payloadText: string;
@@ -66,7 +76,9 @@ export async function parseSignedRequest(
   }
 
   const expected = await hmacSha256(secret, encodedPayload);
-  if (!timingSafeEqual(signature, expected)) return null;
+  if (!timingSafeEqual(signature, expected)) {
+    return null;
+  }
 
   let payload: unknown;
   try {

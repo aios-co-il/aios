@@ -230,7 +230,9 @@ Deno.serve(async (req) => {
     let body: any = {};
     try {
       const text = await req.text();
-      if (text) body = JSON.parse(text);
+      if (text) {
+        body = JSON.parse(text);
+      }
     } catch (e) {
       // Keep the empty body default; GET requests do not require a JSON body.
     }
@@ -318,10 +320,16 @@ Deno.serve(async (req) => {
 
           const { data: page, error } = await pageQuery;
 
-          if (error) throw error;
-          if (!page || page.length === 0) break;
+          if (error) {
+            throw error;
+          }
+          if (!page || page.length === 0) {
+            break;
+          }
           allRecords.push(...page);
-          if (page.length < pageSize) break;
+          if (page.length < pageSize) {
+            break;
+          }
         }
 
         const scopedRecords = allRecords;
@@ -394,11 +402,17 @@ Deno.serve(async (req) => {
 
         const { data: page, error } = await pageQuery;
 
-        if (error) throw error;
-        if (!page || page.length === 0) break;
+        if (error) {
+          throw error;
+        }
+        if (!page || page.length === 0) {
+          break;
+        }
 
         allRecords.push(...page);
-        if (page.length < pageSize) break;
+        if (page.length < pageSize) {
+          break;
+        }
       }
 
       const filteredRecords = allRecords;
@@ -449,7 +463,9 @@ Deno.serve(async (req) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return new Response(JSON.stringify(record), {
         status: 201,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -488,7 +504,9 @@ Deno.serve(async (req) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return new Response(JSON.stringify(record), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -520,7 +538,9 @@ Deno.serve(async (req) => {
         .from("crm_records")
         .delete()
         .eq("id", record_id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

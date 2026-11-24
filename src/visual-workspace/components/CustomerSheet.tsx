@@ -24,7 +24,9 @@ export function CustomerSheet({ clientId, onClose }: Props) {
   const [messages, setMessages] = useState<Array<any>>([]);
 
   useEffect(() => {
-    if (!clientId) return;
+    if (!clientId) {
+      return;
+    }
     setLoading(true);
     const sb = supabase as any;
     Promise.all([

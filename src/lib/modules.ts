@@ -197,7 +197,9 @@ function buildPermissionCategories(): Array<PermissionCategory> {
     id: string,
     menuLabel: string,
   ) => {
-    if (seen.has(id)) return; // dedupe by permission id — first label wins
+    if (seen.has(id)) {
+      return;
+    } // dedupe by permission id — first label wins
     seen.add(id);
     cat.modules.push({
       id,
@@ -212,7 +214,9 @@ function buildPermissionCategories(): Array<PermissionCategory> {
     const cat = ensureCategory(tab.id, tab.label);
     for (const section of tab.sections) {
       for (const item of section.items) {
-        if (NON_PERMISSION_MENU_KEYS.has(item.key)) continue;
+        if (NON_PERMISSION_MENU_KEYS.has(item.key)) {
+          continue;
+        }
         addModule(cat, permissionForMenuKey(item.key), item.label);
       }
     }
@@ -231,7 +235,9 @@ function buildPermissionCategories(): Array<PermissionCategory> {
   // Catalog-only permissions with no menu entry
   for (const extra of EXTRA_PERMISSIONS) {
     const cat = categoryById.get(extra.category) ?? special;
-    if (seen.has(extra.id)) continue;
+    if (seen.has(extra.id)) {
+      continue;
+    }
     seen.add(extra.id);
     cat.modules.push({ ...extra, category: cat.id });
   }

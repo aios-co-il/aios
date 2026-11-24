@@ -32,8 +32,9 @@ const BAD_REQUEST = new Set([
 ]);
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -74,22 +75,29 @@ Deno.serve(async (req) => {
         query = query.eq("status", "paused").eq("updated_at", claimRevision);
       }
       const { data: b, error } = await query.single();
-      if (error || !b) return json({ error: "broadcast_not_found" }, 404);
+      if (error || !b) {
+        return json({ error: "broadcast_not_found" }, 404);
+      }
       filter = b.audience_filter || {};
       channel = b.channel;
       tenantId = b.tenant_id;
     }
 
-    if (!filter || !filter.source)
+    if (!filter || !filter.source) {
       return json({ error: "missing_filter_source" }, 400);
-    if (!tenantId) return json({ error: "missing_tenant" }, 400);
+    }
+    if (!tenantId) {
+      return json({ error: "missing_tenant" }, 400);
+    }
 
     let recipients: Array<Recipient>;
     try {
       recipients = await resolveAudience(db, tenantId, filter);
     } catch (e) {
       const msg = String((e as Error)?.message || e);
-      if (BAD_REQUEST.has(msg)) return json({ error: msg }, 400);
+      if (BAD_REQUEST.has(msg)) {
+        return json({ error: msg }, 400);
+      }
       throw e;
     }
     const finalRecipients = await filterReachable(
@@ -111,7 +119,9 @@ Deno.serve(async (req) => {
           },
     );
 
-    if (dryRun || !broadcastId) return json({ success: true, total, sample });
+    if (dryRun || !broadcastId) {
+      return json({ success: true, total, sample });
+    }
 
     // Commit: clear any previous snapshot for re-enqueue, then insert fresh.
     await db
@@ -135,7 +145,9 @@ Deno.serve(async (req) => {
       const { error } = await db
         .from("broadcast_recipients")
         .insert(rows.slice(i, i + 500));
-      if (error && !String(error.message).includes("duplicate")) throw error;
+      if (error && !String(error.message).includes("duplicate")) {
+        throw error;
+      }
     }
 
     const revision = await writeEnqueueStats(

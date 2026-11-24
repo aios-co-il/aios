@@ -38,7 +38,9 @@ function providerLabel(provider: string): string {
 }
 
 function accountLink(provider: string, accountId?: string | null): string {
-  if (!accountId) return "";
+  if (!accountId) {
+    return "";
+  }
   switch (provider) {
     case "facebook":
     case "meta":
@@ -122,8 +124,11 @@ export async function fireIntegrationAlert(
         .eq("alert_type", input.alert_type)
         .gte("fired_at", since)
         .limit(1);
-      if (input.account_id) q = q.eq("account_id", input.account_id);
-      else q = q.is("account_id", null);
+      if (input.account_id) {
+        q = q.eq("account_id", input.account_id);
+      } else {
+        q = q.is("account_id", null);
+      }
       const { data: recent } = await q;
       if (recent && recent.length > 0) {
         return { fired: false, reason: "throttled" };

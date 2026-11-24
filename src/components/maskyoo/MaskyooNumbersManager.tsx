@@ -77,7 +77,9 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .select("*")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as unknown as Array<NumberRow>;
     },
   });
@@ -117,7 +119,9 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
       }
 
       const { data, error } = await query.order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       // Dedupe by id
       const map = new Map<string, ClientOption>();
       (data || []).forEach((c: any) =>
@@ -140,11 +144,15 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .eq("provider", "maskyoo")
         .gte("created_at", since)
         .limit(5000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const map = new Map<string, number>();
       for (const r of data || []) {
         const last9 = (r.to_number || "").replace(/\D/g, "").slice(-9);
-        if (!last9) continue;
+        if (!last9) {
+          continue;
+        }
         map.set(last9, (map.get(last9) || 0) + 1);
       }
       return map;
@@ -164,7 +172,9 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .from("maskyoo_numbers" as any)
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["maskyoo-numbers", tenantId] });
@@ -179,7 +189,9 @@ export function MaskyooNumbersManager({ tenantId }: { tenantId: string }) {
         .from("maskyoo_numbers" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("המספר נמחק");

@@ -50,7 +50,9 @@ export function useWorkshopClientCard(
       .eq("tenant_id", tenant)
       .eq("status", "active")
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as { id: string; name: string; website: string | null } | null;
   });
   const listed: CardScope = { tenantId, clientId, enabled: !!client.data };
@@ -63,7 +65,9 @@ export function useWorkshopClientCard(
       .eq("tenant_id", tenant)
       .eq("client_id", clientId)
       .order("site_name");
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return (data ?? []) as Array<{
       id: string;
       site_name: string | null;
@@ -81,7 +85,9 @@ export function useWorkshopClientCard(
       .order("month", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data as { month: string; status: string } | null;
   });
 
@@ -93,15 +99,21 @@ export function useWorkshopClientCard(
       .eq("tenant_id", tenant)
       .eq("client_id", clientId)
       .eq("is_active", true);
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const ids = (data ?? []).map((row) => row.id as string);
-    if (ids.length === 0) return null;
+    if (ids.length === 0) {
+      return null;
+    }
     const keywords = await supabase
       .from("rank_tracking_keywords")
       .select("id", { count: "exact", head: true })
       .in("project_id", ids)
       .eq("is_active", true);
-    if (keywords.error) throw keywords.error;
+    if (keywords.error) {
+      throw keywords.error;
+    }
     return { projects: ids.length, keywords: keywords.count ?? 0 };
   });
 
@@ -114,13 +126,19 @@ export function useWorkshopClientCard(
       .eq("tenant_id", tenant)
       .eq("client_id", clientId)
       .eq("period_key", "prev_month");
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     const rows = data ?? [];
-    if (rows.length === 0) return null;
+    if (rows.length === 0) {
+      return null;
+    }
     let clicks = 0;
-    for (const row of rows)
-      for (const keyword of Array.isArray(row.keywords) ? row.keywords : [])
+    for (const row of rows) {
+      for (const keyword of Array.isArray(row.keywords) ? row.keywords : []) {
         clicks += Number((keyword as { clicks?: unknown })?.clicks) || 0;
+      }
+    }
     return {
       clicks,
       start: rows[0].start_date as string,
@@ -141,7 +159,9 @@ export function useWorkshopClientCard(
       .eq("client_id", clientId)
       .eq("status", "published")
       .gte("published_at", startOfMonth(new Date()).toISOString());
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return count || null;
   });
 

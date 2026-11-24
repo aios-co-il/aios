@@ -82,7 +82,9 @@ export function ProfileTab({
         .from("ai_agents")
         .update(form)
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });

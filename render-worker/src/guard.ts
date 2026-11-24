@@ -16,10 +16,11 @@ export function assertTenantPath(tenantId: string, path: unknown) {
       (segment) => !segment || segment === "." || segment === "..",
     ) ||
     /[\\\0]/.test(value)
-  )
+  ) {
     throw new Error(
       `storage path outside the tenant folder: ${value.slice(0, 120)}`,
     );
+  }
   return value;
 }
 
@@ -82,7 +83,9 @@ export function privateStorageObject(
   const match = link.pathname.match(
     /^\/storage\/v1\/object\/(?:public|sign)\/entity-attachments\/(.+)$/,
   );
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   try {
     return { bucket: "entity-attachments", path: decodeURIComponent(match[1]) };
   } catch {
@@ -101,7 +104,9 @@ export function assertMediaUrl(url: unknown, hosts = defaultHosts()) {
   const allowed =
     parsed.protocol === "https:" &&
     (hosts.includes(parsed.host) || parsed.hostname.endsWith(".supabase.co"));
-  if (!allowed) throw new Error(`media host not allowed: ${parsed.host}`);
+  if (!allowed) {
+    throw new Error(`media host not allowed: ${parsed.host}`);
+  }
   return parsed.toString();
 }
 
@@ -132,13 +137,15 @@ export async function readMedia(
 ) {
   const value = String(pathOrUrl ?? "");
   const stored = storedObject(value, bucket);
-  if (stored)
+  if (stored) {
     return db.download(stored.bucket, assertTenantPath(tenantId, stored.path));
+  }
   const response = await fetch(assertMediaUrl(value));
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(
       `media download ${response.status}: ${value.slice(0, 200)}`,
     );
+  }
   return new Uint8Array(await response.arrayBuffer());
 }
 
@@ -156,8 +163,9 @@ export async function loadRunItem(
       `id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=id,tenant_id,client_id`,
     ),
   );
-  if (!item)
+  if (!item) {
     throw new Error("run item is not in the run's tenant (is required)");
+  }
   return {
     ...item,
     folder: `${run.tenant_id}/${safeSegment(item.client_id)}/${item.id}`,
@@ -176,8 +184,9 @@ export async function loadRunScene<Scene>(
       `id=eq.${encodeURIComponent(String(run.scene_id))}&item_id=eq.${encodeURIComponent(String(run.item_id))}&tenant_id=eq.${encodeURIComponent(run.tenant_id)}&select=${columns}`,
     ),
   );
-  if (!scene)
+  if (!scene) {
     throw new Error("run scene is not in the run's item (is required)");
+  }
   return scene;
 }
 

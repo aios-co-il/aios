@@ -56,7 +56,9 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
         .select("*")
         .eq("client_id", client.id)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!client.id,

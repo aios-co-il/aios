@@ -116,7 +116,9 @@ function AssociateSignature({
           .select("contact_name, company_name")
           .eq("id", doc.lead_id)
           .maybeSingle();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data?.contact_name || data?.company_name || "ליד";
       }
       if (doc.client_id) {
@@ -125,7 +127,9 @@ function AssociateSignature({
           .select("name")
           .eq("id", doc.client_id)
           .maybeSingle();
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return data?.name || "לקוח";
       }
       return null;
@@ -137,7 +141,9 @@ function AssociateSignature({
   const { data: matches = [], isFetching } = useQuery({
     queryKey: ["signature-associate", tenantId, term],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const safe = term.replace(/[%_,]/g, "");
       const [leads, clients] = await Promise.all([
         supabase
@@ -154,8 +160,12 @@ function AssociateSignature({
           .ilike("name", `%${safe}%`)
           .limit(6),
       ]);
-      if (leads.error) throw leads.error;
-      if (clients.error) throw clients.error;
+      if (leads.error) {
+        throw leads.error;
+      }
+      if (clients.error) {
+        throw clients.error;
+      }
       return [
         ...(leads.data ?? []).map((lead) => ({
           kind: "lead" as const,
@@ -182,7 +192,9 @@ function AssociateSignature({
         .from("signature_documents")
         .update(patch)
         .eq("id", doc.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("המסמך שויך");

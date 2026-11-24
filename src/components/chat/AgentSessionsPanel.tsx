@@ -67,7 +67,9 @@ export default function AgentSessionsPanel() {
         .eq("tenant_id", tenantId!)
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .limit(100);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as unknown as Array<CarmenSession>;
     },
     enabled: !!tenantId,
@@ -93,7 +95,9 @@ export default function AgentSessionsPanel() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     enabled: !!tenantId,
@@ -101,7 +105,9 @@ export default function AgentSessionsPanel() {
 
   // Realtime updates
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     const channel = supabase
       .channel(`agent-sessions-${tenantId}`)
       .on(
@@ -175,7 +181,9 @@ export default function AgentSessionsPanel() {
     newStatus: "active" | "paused" | "ended",
   ) => {
     const updates: any = { status: newStatus };
-    if (newStatus === "ended") updates.ended_at = new Date().toISOString();
+    if (newStatus === "ended") {
+      updates.ended_at = new Date().toISOString();
+    }
     const { error } = await supabase
       .from("carmen_whatsapp_sessions")
       .update(updates)

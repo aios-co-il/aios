@@ -140,7 +140,9 @@ export function MaskyooCallsCard({
         .eq("period_start", periodStart)
         .eq("period_end", periodEnd)
         .in("tenant_id", tenantScope);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as Array<Snapshot>;
     },
   });
@@ -169,7 +171,9 @@ export function MaskyooCallsCard({
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (!range.from || !range.to) throw new Error("בחר טווח תאריכים");
+      if (!range.from || !range.to) {
+        throw new Error("בחר טווח תאריכים");
+      }
       const since = startOfDay(range.from).toISOString();
       const until = endOfDay(range.to).toISOString();
 
@@ -181,7 +185,9 @@ export function MaskyooCallsCard({
         .gte("created_at", since)
         .lte("created_at", until)
         .limit(10000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const all = (rows || []) as Array<{ to_number: string | null }>;
       const upserts: Array<{
@@ -197,7 +203,9 @@ export function MaskyooCallsCard({
 
       for (const cat of ["organic", "paid"] as const) {
         const last9s = numbersByCat[cat];
-        if (last9s.length === 0) continue;
+        if (last9s.length === 0) {
+          continue;
+        }
         const count = all.filter((r) => {
           const d = (r.to_number || "").replace(/\D/g, "").slice(-9);
           return last9s.includes(d);
@@ -223,7 +231,9 @@ export function MaskyooCallsCard({
         .upsert(upserts, {
           onConflict: "tenant_id,client_id,category,period_start,period_end",
         });
-      if (upErr) throw upErr;
+      if (upErr) {
+        throw upErr;
+      }
       return { skipped: false, count: upserts.length };
     },
     onSuccess: (res) => {
@@ -246,7 +256,9 @@ export function MaskyooCallsCard({
   });
 
   const formatRange = () => {
-    if (!range.from) return "בחר טווח";
+    if (!range.from) {
+      return "בחר טווח";
+    }
     const f = format(range.from, "d.M.yy", { locale: he });
     const t = range.to ? format(range.to, "d.M.yy", { locale: he }) : f;
     return `${f} – ${t}`;
@@ -467,8 +479,9 @@ function ManualEditDialog({
   const save = useMutation({
     mutationFn: async () => {
       const parsed = parseInt(count, 10);
-      if (!Number.isFinite(parsed) || parsed < 0)
+      if (!Number.isFinite(parsed) || parsed < 0) {
         throw new Error("מספר לא תקין");
+      }
       const saveTenantId = storageTenantId;
       const payload = {
         tenant_id: saveTenantId,
@@ -486,7 +499,9 @@ function ManualEditDialog({
         .upsert(payload, {
           onConflict: "tenant_id,client_id,category,period_start,period_end",
         });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["seo-call-snapshots", clientId] });

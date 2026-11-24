@@ -21,11 +21,16 @@ export function lineFrames(
   minFrames: Array<number>,
   takeFrames: number,
 ) {
-  if (!lines.length || !words.length) return null;
-  const counts = lines.map(wordCount);
-  if (counts.some((count) => count === 0)) return null;
-  if (counts.reduce((sum, count) => sum + count, 0) !== words.length)
+  if (!lines.length || !words.length) {
     return null;
+  }
+  const counts = lines.map(wordCount);
+  if (counts.some((count) => count === 0)) {
+    return null;
+  }
+  if (counts.reduce((sum, count) => sum + count, 0) !== words.length) {
+    return null;
+  }
   const starts: Array<number> = [];
   let at = 0;
   for (const count of counts) {
@@ -37,7 +42,9 @@ export function lineFrames(
     return end - start;
   });
   // A line spoken too fast for its scene cannot shorten the scene below 15 frames.
-  if (frames.some((count) => count < 15)) return null;
+  if (frames.some((count) => count < 15)) {
+    return null;
+  }
   const last = frames.length - 1;
   frames[last] = Math.max(frames[last], minFrames[last] ?? 0);
   return frames;

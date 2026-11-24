@@ -45,7 +45,9 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
 
   const send = useCallback(
     async (text: string) => {
-      if (!userId || !tenantId || activeRef.current) return;
+      if (!userId || !tenantId || activeRef.current) {
+        return;
+      }
 
       const updatedHistory = [...history, { role: "user", content: text }];
       setHistory(updatedHistory);
@@ -56,7 +58,9 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const { data: session } = await supabase.auth.getSession();
-        if (!session?.session) return;
+        if (!session?.session) {
+          return;
+        }
 
         // Build conversation_history from prior messages (excluding the just-pushed user turn).
         const conversationHistory = history.map((h) => ({
@@ -83,10 +87,14 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
           },
         );
 
-        if (!response.ok) throw new Error("Failed to get AI response");
+        if (!response.ok) {
+          throw new Error("Failed to get AI response");
+        }
 
         const reader = response.body?.getReader();
-        if (!reader) throw new Error("No reader");
+        if (!reader) {
+          throw new Error("No reader");
+        }
 
         const decoder = new TextDecoder();
         let fullContent = "";
@@ -96,18 +104,26 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            break;
+          }
 
           textBuffer += decoder.decode(value, { stream: true });
           let newlineIndex: number;
           while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
             let line = textBuffer.slice(0, newlineIndex);
             textBuffer = textBuffer.slice(newlineIndex + 1);
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (!line.startsWith("data: ")) continue;
+            if (line.endsWith("\r")) {
+              line = line.slice(0, -1);
+            }
+            if (!line.startsWith("data: ")) {
+              continue;
+            }
 
             const jsonStr = line.slice(6).trim();
-            if (jsonStr === "[DONE]") continue;
+            if (jsonStr === "[DONE]") {
+              continue;
+            }
 
             try {
               const parsed = JSON.parse(jsonStr);
@@ -219,6 +235,8 @@ export function AIOSProvider({ children }: { children: React.ReactNode }) {
 
 export function useAIOS() {
   const ctx = useContext(AIOSContext);
-  if (!ctx) throw new Error("useAIOS must be used within AIOSProvider");
+  if (!ctx) {
+    throw new Error("useAIOS must be used within AIOSProvider");
+  }
   return ctx;
 }

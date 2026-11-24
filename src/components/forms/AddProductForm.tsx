@@ -45,13 +45,17 @@ export default function AddProductForm({ onSuccess }: AddProductFormProps) {
   const { data: agencies } = useQuery({
     queryKey: ["owned-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -70,7 +74,9 @@ export default function AddProductForm({ onSuccess }: AddProductFormProps) {
 
   const createMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      if (!tenantId) throw new Error("לא נמצא tenant_id");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant_id");
+      }
 
       const { error } = await supabase.from("products").insert({
         name: values.name,
@@ -81,7 +87,9 @@ export default function AddProductForm({ onSuccess }: AddProductFormProps) {
         agency_id: values.agency_id || null,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products", tenantId] });

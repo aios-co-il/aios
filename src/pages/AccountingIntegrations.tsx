@@ -119,7 +119,9 @@ export default function AccountingIntegrations() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", currentTenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const hasShared = crossTenantAgencyIds.length > 0;
       const orFilter = hasShared
         ? `tenant_id.eq.${currentTenantId},id.in.(${crossTenantAgencyIds.join(",")})`
@@ -127,7 +129,9 @@ export default function AccountingIntegrations() {
       let q = supabase.from("agencies").select("id, name");
       q = orFilter ? q.or(orFilter) : q.eq("tenant_id", currentTenantId);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -142,7 +146,9 @@ export default function AccountingIntegrations() {
       crossTenantAgencyIds,
     ],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
 
       let query = supabase.from("clients").select(`
           id, name, contact_name, email, phone, status, retainer, monthly_budget,
@@ -167,7 +173,9 @@ export default function AccountingIntegrations() {
       }
 
       const { data: clientsData, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       const clientIds = (clientsData || []).map((c) => c.id);
       const { data: financialData } = clientIds.length
@@ -196,7 +204,9 @@ export default function AccountingIntegrations() {
   const { data: campaignerPayments } = useQuery({
     queryKey: ["accounting-campaigner-payments", currentTenantId, agencyFilter],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
 
       const [{ data: ownedAgencies }, { data: sharedAgencies }] =
         await Promise.all([
@@ -217,7 +227,9 @@ export default function AccountingIntegrations() {
       if (agencyFilter && agencyFilter !== "all") {
         agencyIds = agencyIds.filter((id) => id === agencyFilter);
       }
-      if (agencyIds.length === 0) return [];
+      if (agencyIds.length === 0) {
+        return [];
+      }
 
       const { data: clientsData } = await supabase
         .from("clients")
@@ -225,7 +237,9 @@ export default function AccountingIntegrations() {
         .in("agency_id", agencyIds)
         .in("status", ["active", "onboarding"]);
       const clientIds = (clientsData || []).map((c) => c.id);
-      if (clientIds.length === 0) return [];
+      if (clientIds.length === 0) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("client_team")
@@ -233,7 +247,9 @@ export default function AccountingIntegrations() {
           `id, campaigner_payment, campaigner_id, client_id, campaigners (id, full_name), clients (id, name, agency_id)`,
         )
         .in("client_id", clientIds);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -243,7 +259,9 @@ export default function AccountingIntegrations() {
   const { data: suppliers } = useQuery({
     queryKey: ["accounting-suppliers", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("suppliers")
         .select(
@@ -256,7 +274,9 @@ export default function AccountingIntegrations() {
         `,
         )
         .eq("tenant_id", currentTenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -266,14 +286,18 @@ export default function AccountingIntegrations() {
   const { data: oneTimeIncomes } = useQuery({
     queryKey: ["one-time-incomes-all", currentTenantId, selectedMonth],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("one_time_incomes")
         .select("*, clients(name)")
         .eq("tenant_id", currentTenantId)
         .eq("payment_month", selectedMonth)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -283,7 +307,9 @@ export default function AccountingIntegrations() {
   const { data: financeExpenses } = useQuery({
     queryKey: ["accounting-finance-expenses", currentTenantId, selectedMonth],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
 
       const monthStart = `${selectedMonth}-01`;
       const nextMonthStart = format(
@@ -299,7 +325,9 @@ export default function AccountingIntegrations() {
         .gte("date", monthStart)
         .lt("date", nextMonthStart);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId,
@@ -323,11 +351,15 @@ export default function AccountingIntegrations() {
         payment_month: data.payment_month,
         notes: data.notes || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.payment_month;
     },
     onSuccess: (payment_month) => {
-      if (payment_month) setSelectedMonth(payment_month);
+      if (payment_month) {
+        setSelectedMonth(payment_month);
+      }
       queryClient.invalidateQueries({
         queryKey: ["one-time-incomes-all", currentTenantId],
       });
@@ -354,7 +386,9 @@ export default function AccountingIntegrations() {
         .from("one_time_incomes")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -377,7 +411,9 @@ export default function AccountingIntegrations() {
         .from("clients")
         .update({ status: status as any })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -400,7 +436,9 @@ export default function AccountingIntegrations() {
   // up in the accounting table for every month, unless a finance row with
   // category 'הוצאה קבועה' already exists for that client+month (override).
   const syntheticSeoExpenses = useMemo(() => {
-    if (!clients) return [] as Array<any>;
+    if (!clients) {
+      return [] as Array<any>;
+    }
     const haveFixedFinance = new Set(
       (financeExpenses || [])
         .filter((e: any) => (e.category || "") === "הוצאה קבועה")
@@ -456,7 +494,9 @@ export default function AccountingIntegrations() {
   const clientFinanceExpensesMap = useMemo(() => {
     const map = new Map<string, Array<any>>();
     financeExpenses?.forEach((expense) => {
-      if (!expense.client_id) return;
+      if (!expense.client_id) {
+        return;
+      }
       const list = map.get(expense.client_id) || [];
       list.push(expense);
       map.set(expense.client_id, list);
@@ -482,16 +522,25 @@ export default function AccountingIntegrations() {
 
   // Build supplier expense rows (each non-zero payment slot becomes a row)
   const supplierExpenseRows = useMemo(() => {
-    if (!suppliers) return [] as Array<any>;
+    if (!suppliers) {
+      return [] as Array<any>;
+    }
     const rows: Array<any> = [];
     suppliers.forEach((s: any) => {
       [1, 2, 3].forEach((i) => {
         const amount = Number(s[`payment_${i}`] || 0);
-        if (amount <= 0) return;
+        if (amount <= 0) {
+          return;
+        }
         const agency = s[`agency_${i}`];
         const agencyId = s[`agency_id_${i}`];
-        if (agencyFilter && agencyFilter !== "all" && agencyId !== agencyFilter)
+        if (
+          agencyFilter &&
+          agencyFilter !== "all" &&
+          agencyId !== agencyFilter
+        ) {
           return;
+        }
         rows.push({
           id: `${s.id}-${i}`,
           supplier_name: s.name,
@@ -526,19 +575,27 @@ export default function AccountingIntegrations() {
   // without an end_date leaks into every month.
   const wasActiveInMonth = (client: any) => {
     const { monthStart, monthEnd } = monthRange;
-    if (!client.end_date) return false;
+    if (!client.end_date) {
+      return false;
+    }
     const ed = new Date(client.end_date);
-    if (ed < monthStart) return false;
+    if (ed < monthStart) {
+      return false;
+    }
     if (client.start_date) {
       const sd = new Date(client.start_date);
-      if (sd >= monthEnd) return false;
+      if (sd >= monthEnd) {
+        return false;
+      }
     }
     return true;
   };
 
   // Filter clients
   const filteredClients = useMemo(() => {
-    if (!clients) return [];
+    if (!clients) {
+      return [];
+    }
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -575,7 +632,9 @@ export default function AccountingIntegrations() {
   }, [clients, searchQuery, agencyFilter, clientStatusFilter, monthRange]);
 
   const formatCurrency = (amount: number | null) => {
-    if (amount === null || amount === undefined) return "-";
+    if (amount === null || amount === undefined) {
+      return "-";
+    }
     return `₪${amount.toLocaleString("he-IL")}`;
   };
 

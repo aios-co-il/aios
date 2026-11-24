@@ -136,7 +136,9 @@ export function GoogleAnalyticsDashboard({
   defaultReportMode,
 }: GoogleAnalyticsDashboardProps) {
   const mapExternalPreset = (ext?: string): DateRangePreset => {
-    if (!ext) return "last_7_days";
+    if (!ext) {
+      return "last_7_days";
+    }
     const map: Record<string, DateRangePreset> = {
       all: "all",
       today: "today",
@@ -184,7 +186,9 @@ export function GoogleAnalyticsDashboard({
   // Keep local mode in sync when the persisted default arrives (async parent load)
   // or when switching between dashboards/tables with different defaults.
   useEffect(() => {
-    if (!defaultReportMode) return;
+    if (!defaultReportMode) {
+      return;
+    }
     setReportMode(defaultReportMode);
   }, [defaultReportMode, dashboardId, tableId]);
 
@@ -224,15 +228,21 @@ export function GoogleAnalyticsDashboard({
               settings: { ...currentSettings, default_report_mode: newMode },
             })
             .eq("id", dashboardId);
-          if (updateError) console.error(updateError);
+          if (updateError) {
+            console.error(updateError);
+          }
         });
     }
   };
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const toNumber = (value: unknown): number => {
-    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (value === null || value === undefined) {
+      return 0;
+    }
     const cleaned = String(value).replace(/[^0-9.-]/g, "");
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -344,7 +354,9 @@ export function GoogleAnalyticsDashboard({
   ) => {
     return records.filter((r) => {
       // If record has no date field, include it (aggregated data)
-      if (!r.data.date) return true;
+      if (!r.data.date) {
+        return true;
+      }
 
       // Try to parse the date
       try {
@@ -364,7 +376,9 @@ export function GoogleAnalyticsDashboard({
 
   // Normalize source names - provide meaningful Hebrew labels
   const normalizeSourceName = (name: string): string => {
-    if (!name) return "מקור לא ידוע";
+    if (!name) {
+      return "מקור לא ידוע";
+    }
 
     const lowerName = name.toLowerCase();
 
@@ -481,8 +495,12 @@ export function GoogleAnalyticsDashboard({
 
     // Filter daily records by selected date range
     const currentDailyRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -498,8 +516,12 @@ export function GoogleAnalyticsDashboard({
 
     const previousDailyRecords = showComparison
       ? records.filter((r) => {
-          if (r.data.report_type !== "daily") return false;
-          if (!r.data.date) return false;
+          if (r.data.report_type !== "daily") {
+            return false;
+          }
+          if (!r.data.date) {
+            return false;
+          }
 
           try {
             const recordDate = parseISO(r.data.date);
@@ -516,8 +538,12 @@ export function GoogleAnalyticsDashboard({
 
     // Date-synced source rows (new schema)
     const currentDailySourceRecords = records.filter((r) => {
-      if (r.data.report_type !== "daily_source") return false;
-      if (!r.data.date) return false;
+      if (r.data.report_type !== "daily_source") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      }
 
       try {
         const recordDate = parseISO(r.data.date);
@@ -663,8 +689,12 @@ export function GoogleAnalyticsDashboard({
     // Prefer channel_group records — they match GA Traffic Acquisition exactly
     // Filter by date range so the organic/paid breakdown respects the selected period
     const channelGroupRecords = records.filter((r) => {
-      if (r.data.report_type !== "channel_group") return false;
-      if (!r.data.date) return false; // skip legacy records without date
+      if (r.data.report_type !== "channel_group") {
+        return false;
+      }
+      if (!r.data.date) {
+        return false;
+      } // skip legacy records without date
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);
@@ -684,8 +714,12 @@ export function GoogleAnalyticsDashboard({
     // Phone call events - always use date-filtered event_total records for accurate per-period counts
     const dateFilteredEventRecords = records.filter((r) => {
       const reportType = r.data.report_type;
-      if (reportType !== "event_total") return false;
-      if (!r.data.date) return true;
+      if (reportType !== "event_total") {
+        return false;
+      }
+      if (!r.data.date) {
+        return true;
+      }
       try {
         const recordDate = parseISO(r.data.date);
         const start = new Date(currentRange.start);

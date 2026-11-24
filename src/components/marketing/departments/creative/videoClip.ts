@@ -69,15 +69,22 @@ export function mergeServerScenes(
   server: Array<StoryboardFrame>,
   previousServer: Array<StoryboardFrame>,
 ): Array<StoryboardFrame> {
-  if (JSON.stringify(draft) === JSON.stringify(previousServer)) return server;
+  if (JSON.stringify(draft) === JSON.stringify(previousServer)) {
+    return server;
+  }
   const byId = new Map(server.map((frame) => [frame.id, frame]));
   return draft.map((frame) => {
     const live = byId.get(frame.id);
-    if (!live) return frame;
+    if (!live) {
+      return frame;
+    }
     const next: StoryboardFrame = { ...frame };
     for (const field of JOB_FIELDS) {
-      if (live[field] === undefined) delete next[field];
-      else (next as unknown as Record<string, unknown>)[field] = live[field];
+      if (live[field] === undefined) {
+        delete next[field];
+      } else {
+        (next as unknown as Record<string, unknown>)[field] = live[field];
+      }
     }
     return next;
   });

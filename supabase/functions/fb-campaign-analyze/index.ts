@@ -28,13 +28,17 @@ async function getFbToken(
       .eq("id", integ.shared_from_integration_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (src?.api_key) integ = { ...integ, api_key: src.api_key };
+    if (src?.api_key) {
+      integ = { ...integ, api_key: src.api_key };
+    }
   }
   return integ?.api_key || null;
 }
 
 function leadsFromActions(actions: Array<any>): number {
-  if (!Array.isArray(actions)) return 0;
+  if (!Array.isArray(actions)) {
+    return 0;
+  }
   let leads = 0;
   for (const a of actions) {
     const t = String(a?.action_type || "");
@@ -51,8 +55,9 @@ function leadsFromActions(actions: Array<any>): number {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const supabase = createClient(
@@ -76,26 +81,31 @@ Deno.serve(async (req) => {
         .select("tenant_id")
         .eq("id", client_id)
         .maybeSingle();
-      if (cl?.tenant_id) tokenTenant = cl.tenant_id;
+      if (cl?.tenant_id) {
+        tokenTenant = cl.tenant_id;
+      }
     }
     let token = await getFbToken(supabase, tokenTenant);
-    if (!token && tokenTenant !== tenant_id)
+    if (!token && tokenTenant !== tenant_id) {
       token = await getFbToken(supabase, tenant_id);
-    if (!token)
+    }
+    if (!token) {
       return new Response(JSON.stringify({ error: "fb_not_connected" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const metaRes = await fetch(
       `https://graph.facebook.com/v21.0/${campaign_id}?fields=id,name,status,effective_status,daily_budget,lifetime_budget,objective,issues_info&access_token=${token}`,
     );
     const meta = await metaRes.json();
-    if (meta?.error)
+    if (meta?.error) {
       return new Response(
         JSON.stringify({ error: "fb_api_error", fb_error: meta.error }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     const fields =
       "spend,impressions,clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type";
@@ -113,7 +123,9 @@ Deno.serve(async (req) => {
     ]);
 
     const cplFrom = (ins: any) => {
-      if (!ins) return null;
+      if (!ins) {
+        return null;
+      }
       const leadAction = (ins.cost_per_action_type || []).find(
         (a: any) =>
           [
@@ -124,7 +136,9 @@ Deno.serve(async (req) => {
           ].includes(a.action_type) ||
           String(a.action_type || "").endsWith(".lead"),
       );
-      if (leadAction) return Number(leadAction.value);
+      if (leadAction) {
+        return Number(leadAction.value);
+      }
       const leads = leadsFromActions(ins.actions || []);
       const spend = Number(ins.spend || 0);
       return leads > 0 ? Number((spend / leads).toFixed(2)) : null;
@@ -185,43 +199,50 @@ Deno.serve(async (req) => {
     ) {
       anomalies.push(`קמפיין במצב חריג: ${meta.effective_status}`);
     }
-    if (meta.issues_info?.length)
+    if (meta.issues_info?.length) {
       anomalies.push(
         `Meta דיווחו על בעיות: ${JSON.stringify(meta.issues_info).slice(0, 200)}`,
       );
-    if (cplToday && cpl7 && cplToday > cpl7 * 1.5)
+    }
+    if (cplToday && cpl7 && cplToday > cpl7 * 1.5) {
       anomalies.push(
         `CPL היום (${cplToday.toFixed(1)}) חורג ב-${((cplToday / cpl7 - 1) * 100).toFixed(0)}% מהממוצע השבועי`,
       );
+    }
     const freq = Number(last7?.frequency || 0);
-    if (freq > 3.5)
+    if (freq > 3.5) {
       anomalies.push(`Frequency גבוה (${freq.toFixed(2)}) — שקול לרענן יצירה`);
+    }
     const ctr7 = Number(last7?.ctr || 0);
     const ctr30 = Number(last30?.ctr || 0);
-    if (ctr30 && ctr7 && ctr7 < ctr30 * 0.7)
+    if (ctr30 && ctr7 && ctr7 < ctr30 * 0.7) {
       anomalies.push(
         `CTR ירד ב-${(((ctr30 - ctr7) / ctr30) * 100).toFixed(0)}% מול 30 ימים`,
       );
+    }
 
     const recommendations: Array<any> = [];
-    if (cplToday && cpl7 && cplToday > cpl7 * 2)
+    if (cplToday && cpl7 && cplToday > cpl7 * 2) {
       recommendations.push({
         action: "pause",
         reason: "CPL גבוה פי 2 מהממוצע השבועי",
         severity: "high",
       });
-    if (freq > 4)
+    }
+    if (freq > 4) {
       recommendations.push({
         action: "refresh_creative",
         reason: `frequency ${freq.toFixed(2)}`,
         severity: "medium",
       });
-    if (ctr7 && ctr30 && ctr7 < ctr30 * 0.5)
+    }
+    if (ctr7 && ctr30 && ctr7 < ctr30 * 0.5) {
       recommendations.push({
         action: "pause_or_refresh",
         reason: "CTR קטסטרופלי",
         severity: "high",
       });
+    }
     const pausedLowCpl = ads.filter(
       (a: any) =>
         a.effective_status === "PAUSED" && a.cpl_7d != null && a.leads_7d > 0,

@@ -272,7 +272,9 @@ function getSmartScheduleDate(channel: string): string {
 function PlatformTipsBanner({ platformFilter }: { platformFilter: string }) {
   const [open, setOpen] = useState(true);
   const tip = PLATFORM_TIPS[platformFilter];
-  if (!tip) return null;
+  if (!tip) {
+    return null;
+  }
 
   return (
     <div className="mx-4 mt-3">
@@ -390,7 +392,9 @@ function PostDetailDialog({
   const [editDate, setEditDate] = useState("");
   const [editStatus, setEditStatus] = useState("");
 
-  if (!item) return null;
+  if (!item) {
+    return null;
+  }
 
   const imageUrl = item.payload?.image_url;
   const copyText = item.payload?.copy_text ?? item.payload?.brief_text;
@@ -504,7 +508,9 @@ function PostDetailDialog({
                 }
                 patch.status = status;
               }
-              if (editDate) patch.scheduled_date = editDate;
+              if (editDate) {
+                patch.scheduled_date = editDate;
+              }
               if (Object.keys(patch).length > 0) {
                 onUpdate(item.id, patch);
                 onClose();
@@ -552,7 +558,9 @@ function NewItemDialog({
   };
 
   const handleSave = async () => {
-    if (!title.trim() || channels.length === 0) return;
+    if (!title.trim() || channels.length === 0) {
+      return;
+    }
     setSaving(true);
     try {
       const { data: stage } = await supabase
@@ -587,7 +595,9 @@ function NewItemDialog({
       const { error } = await supabase
         .from("marketing_work_items")
         .insert(inserts);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success(`${inserts.length} פריטי תוכן נוצרו`);
 
@@ -915,7 +925,9 @@ function BulkActionsBar({
   onSchedule: () => void;
   onClear: () => void;
 }) {
-  if (count === 0) return null;
+  if (count === 0) {
+    return null;
+  }
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-card border rounded-2xl shadow-xl px-6 py-3 flex items-center gap-4 z-50 backdrop-blur-sm">
       <span className="text-sm font-medium">{count} פריטים נבחרו</span>
@@ -1031,7 +1043,9 @@ export function SocialContentGantt({
         .from("marketing_work_items")
         .update(patch)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["social-gantt-items", pipelineId] });
@@ -1048,7 +1062,9 @@ export function SocialContentGantt({
   // ─── Filtered items ───────────────────────────────────────────────────────
 
   const filteredItems = useMemo(() => {
-    if (platformFilter === "all") return items;
+    if (platformFilter === "all") {
+      return items;
+    }
     return items.filter((item) => {
       const ch = item.payload?.channel ?? item.target_channel ?? "general";
       return ch === platformFilter;
@@ -1068,7 +1084,9 @@ export function SocialContentGantt({
     filteredItems.forEach((item) => {
       if (item.scheduled_date) {
         const key = item.scheduled_date.slice(0, 10);
-        if (!map[key]) map[key] = [];
+        if (!map[key]) {
+          map[key] = [];
+        }
         map[key].push(item);
       }
     });
@@ -1083,7 +1101,9 @@ export function SocialContentGantt({
   // ─── Peak days for current filter ────────────────────────────────────────
 
   const peakDays: Array<number> = useMemo(() => {
-    if (platformFilter === "all") return [];
+    if (platformFilter === "all") {
+      return [];
+    }
     return PLATFORM_TIPS[platformFilter]?.peakDays ?? [];
   }, [platformFilter]);
 

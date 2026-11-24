@@ -148,7 +148,9 @@ export default function SummarizeRecordingDialog({
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
     };
   }, []);
 
@@ -163,7 +165,9 @@ export default function SummarizeRecordingDialog({
 
   const handleRetryTranscription = useCallback(
     async (recordingId: string) => {
-      if (!recordingId) return;
+      if (!recordingId) {
+        return;
+      }
       setFailedError(null);
       setIsPolling(false);
 
@@ -184,7 +188,9 @@ export default function SummarizeRecordingDialog({
 
   const startPolling = useCallback(
     (recordingId: string) => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
       const startedAt = Date.now();
 
       pollingRef.current = setInterval(async () => {
@@ -254,7 +260,9 @@ export default function SummarizeRecordingDialog({
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-summary", currentTenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       let query = supabase.from("clients").select("id, name");
       if (crossTenantAgencyIds.length > 0) {
         query = query.or(
@@ -272,7 +280,9 @@ export default function SummarizeRecordingDialog({
   const { data: leads = [] } = useQuery({
     queryKey: ["leads-summary", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("leads")
         .select("id, company_name")
@@ -286,7 +296,9 @@ export default function SummarizeRecordingDialog({
   const { data: campaigners = [] } = useQuery({
     queryKey: ["campaigners-summary", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("campaigners")
         .select("id, full_name")
@@ -301,7 +313,9 @@ export default function SummarizeRecordingDialog({
   const { data: agencies = [] } = useQuery({
     queryKey: ["agencies-summary", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data } = await supabase
         .from("agencies")
         .select("id, name, is_default")
@@ -336,7 +350,9 @@ export default function SummarizeRecordingDialog({
 
   // ── Transcribe handler ─────────────
   const handleTranscribe = async () => {
-    if (!recording?.id) return;
+    if (!recording?.id) {
+      return;
+    }
     setIsTranscribing(true);
     setTranscribeProgress(null);
     setIsPolling(false);
@@ -474,8 +490,12 @@ export default function SummarizeRecordingDialog({
         },
       );
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       if (data?.pending && data.channel === "model" && recording?.id) {
         // Long summaries are written in the background (AIO-581).
         const saved = await waitForRecordingSummary(

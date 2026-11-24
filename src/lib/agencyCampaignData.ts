@@ -57,9 +57,15 @@ export function matchesAgencyPlatformFilter(
   integrationType: string,
   filter: AgencyPlatformFilter,
 ): boolean {
-  if (filter === "all") return true;
-  if (filter === "facebook") return isFacebookIntegration(integrationType);
-  if (filter === "google_ads") return isGoogleAdsIntegration(integrationType);
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "facebook") {
+    return isFacebookIntegration(integrationType);
+  }
+  if (filter === "google_ads") {
+    return isGoogleAdsIntegration(integrationType);
+  }
   return true;
 }
 

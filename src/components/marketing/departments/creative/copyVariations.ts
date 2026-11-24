@@ -54,7 +54,9 @@ const parseHeader = (chunk: string) => {
   const match = line.match(
     /^(?:וריאציה|variation)\s*(\d+)\s*(?:[—–\-|:•·]\s*(.*))?/i,
   );
-  if (!match) return {};
+  if (!match) {
+    return {};
+  }
   const angle = (match[2] ?? "")
     .replace(/\b(AIDA|PAS|BAB|4Ps|4PS|framework)\b/gi, "")
     .replace(/[—–\-:]/g, " ")
@@ -89,7 +91,9 @@ export const splitCopyVariations = (
   copyText: string,
 ): Array<CopyVariationBlock> => {
   const raw = typeof copyText === "string" ? copyText.trim() : "";
-  if (!raw) return [];
+  if (!raw) {
+    return [];
+  }
 
   const variationChunks = raw
     .split(SPLIT_VARIATION)
@@ -127,13 +131,19 @@ export const parseCopyVariationsFromPayload = (
   payload: Record<string, unknown> | null | undefined,
 ): Array<StoredCopyVariation> => {
   const raw = payload?.copy_variations;
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw.flatMap((value) => {
     const rec = asRecord(value);
-    if (!rec) return [];
+    if (!rec) {
+      return [];
+    }
     const text = asText(rec.text);
     const key = asText(rec.key);
-    if (!text && !key) return [];
+    if (!text && !key) {
+      return [];
+    }
     const parts = text ? parseCreativeCopy(text) : {};
     return [
       {
@@ -159,11 +169,15 @@ export const hydrateCopyVariations = (
   stored: Array<StoredCopyVariation> = [],
 ): Array<StoredCopyVariation> => {
   const blocks = splitCopyVariations(copyText);
-  if (blocks.length === 0) return stored.filter((item) => item.text.trim());
+  if (blocks.length === 0) {
+    return stored.filter((item) => item.text.trim());
+  }
   const byKey = new Map(stored.map((item) => [item.key, item]));
   return blocks.map((block) => {
     const prev = byKey.get(block.key);
-    if (prev) byKey.delete(block.key);
+    if (prev) {
+      byKey.delete(block.key);
+    }
     return {
       ...prev,
       id: prev?.id || crypto.randomUUID(),
@@ -289,9 +303,13 @@ export const linkConceptToGeneratedCopy = (
   copies: Array<StoredCopyVariation>,
 ): Array<CopyConcept> => {
   const first = copies[0];
-  if (!first) return concepts;
+  if (!first) {
+    return concepts;
+  }
   return concepts.map((concept) => {
-    if (concept.id !== conceptId || concept.copyId) return concept;
+    if (concept.id !== conceptId || concept.copyId) {
+      return concept;
+    }
     return {
       ...concept,
       copyId: first.id,
@@ -307,9 +325,13 @@ export const linkApprovedConceptsToCopy = (
 ): Array<CopyConcept> => {
   let index = 0;
   return concepts.map((concept) => {
-    if (!concept.approved || concept.copyId) return concept;
+    if (!concept.approved || concept.copyId) {
+      return concept;
+    }
     const copy = copies[index];
-    if (!copy) return concept;
+    if (!copy) {
+      return concept;
+    }
     index += 1;
     return {
       ...concept,
@@ -346,7 +368,9 @@ export const storedCopiesForGeneration = (
     parseCopyVariationsFromPayload(payload),
   );
   const approved = approvedCopyVariations(hydrated);
-  if (approved.length > 0) return approved;
+  if (approved.length > 0) {
+    return approved;
+  }
   return hydrated.filter((item) => item.text.trim());
 };
 
@@ -355,8 +379,9 @@ export const copyBlocksForGeneration = (
   payload: Record<string, unknown> | null | undefined,
 ): Array<CopyVariationBlock> => {
   const source = storedCopiesForGeneration(payload);
-  if (source.length === 0)
+  if (source.length === 0) {
     return splitCopyVariations(asText(payload?.copy_text));
+  }
   return source.map(storedToCopyBlock);
 };
 
@@ -370,14 +395,20 @@ export const findCopyForConcept = (
   copies: Array<StoredCopyVariation | CopyVariationBlock>,
   concept?: Pick<CopyConcept, "copyId" | "copyKey" | "copyAngle"> | null,
 ): (StoredCopyVariation | CopyVariationBlock) | undefined => {
-  if (!concept || copies.length === 0) return undefined;
+  if (!concept || copies.length === 0) {
+    return undefined;
+  }
   const byId = concept.copyId
     ? copies.find((item) => "id" in item && item.id === concept.copyId)
     : undefined;
-  if (byId) return byId;
+  if (byId) {
+    return byId;
+  }
   if (concept.copyKey) {
     const byKey = copies.find((item) => item.key === concept.copyKey);
-    if (byKey) return byKey;
+    if (byKey) {
+      return byKey;
+    }
   }
   const angle = (concept.copyAngle ?? "").trim();
   if (angle) {
@@ -392,7 +423,9 @@ export const findCopyForConcept = (
         angle.includes(item.label)
       );
     });
-    if (byAngle) return byAngle;
+    if (byAngle) {
+      return byAngle;
+    }
   }
   return undefined;
 };
@@ -401,15 +434,21 @@ export const pairConceptsToCopyVariations = (
   concepts: Array<CopyConcept>,
   copies: Array<StoredCopyVariation>,
 ): Array<CopyConcept> => {
-  if (concepts.length === 0 || copies.length === 0) return concepts;
+  if (concepts.length === 0 || copies.length === 0) {
+    return concepts;
+  }
   const used = new Set<string>();
   return concepts.map((concept, index) => {
     const explicit = findCopyForConcept(copies, concept);
     const unused = copies.find((item) => !used.has(item.id));
     const linked = explicit ?? unused ?? copies[index] ?? copies[0];
-    if (!linked) return concept;
+    if (!linked) {
+      return concept;
+    }
     const stored = linked as StoredCopyVariation;
-    if (stored.id) used.add(stored.id);
+    if (stored.id) {
+      used.add(stored.id);
+    }
     return {
       ...concept,
       copyId: stored.id ?? concept.copyId,
@@ -425,8 +464,9 @@ const approvedConceptsFromPayload = (
   const storedApproved = parseCopyConceptsFromPayload({
     copy_concepts: payload?.approved_concepts,
   });
-  if (storedApproved.length > 0)
+  if (storedApproved.length > 0) {
     return storedApproved.map((concept) => ({ ...concept, approved: true }));
+  }
   return approvedCopyConcepts(parseCopyConceptsFromPayload(payload));
 };
 
@@ -443,12 +483,15 @@ export const conceptCopyJobsForGeneration = (
       ? stored.map(storedToCopyBlock)
       : splitCopyVariations(asText(payload?.copy_text));
   const concepts = approvedConceptsFromPayload(payload);
-  if (concepts.length === 0) return blocks.map((copy) => ({ copy }));
-  if (blocks.length === 0)
+  if (concepts.length === 0) {
+    return blocks.map((copy) => ({ copy }));
+  }
+  if (blocks.length === 0) {
     return concepts.map((concept) => ({
       concept,
       copy: toBlock("", 1, concept.copyKey || "1"),
     }));
+  }
   return concepts.map((concept, index) => {
     const linked = findCopyForConcept(
       stored.length > 0 ? stored : blocks,

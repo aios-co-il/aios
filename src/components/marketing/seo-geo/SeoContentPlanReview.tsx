@@ -63,7 +63,9 @@ export function SeoContentPlanReview({
           },
         })
         .eq("id", workItemId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("תוכנית התוכן נשמרה");
       onUpdated();
     } catch (e: unknown) {
@@ -94,8 +96,12 @@ export function SeoContentPlanReview({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(String(data.error));
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(String(data.error));
+      }
       await supabase
         .from("marketing_work_items")
         .update({

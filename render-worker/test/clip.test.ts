@@ -177,15 +177,19 @@ function fakeDb({
     },
     // The run's item, scene and still, as the guard reads them for the run's tenant.
     select: async (table: string, query: string) => {
-      if (!query.includes("tenant_id=eq.t1")) return [];
-      if (table === "marketing_work_items")
+      if (!query.includes("tenant_id=eq.t1")) {
+        return [];
+      }
+      if (table === "marketing_work_items") {
         return [{ id: "i1", tenant_id: "t1", client_id: "c1" }];
+      }
       if (table === "marketing_video_scenes") {
         const id = /id=eq\.([^&]+)/.exec(query)?.[1];
         return [{ id, still_asset_id: "still-1", ...scene }];
       }
-      if (table === "marketing_assets" && query.includes("id=eq.still-1"))
+      if (table === "marketing_assets" && query.includes("id=eq.still-1")) {
         return [{ id: "still-1", url: stillUrl }];
+      }
       return [];
     },
     upload: async (
@@ -234,8 +238,9 @@ test.skipIf(!hasFfmpeg)(
     const failing: VideoProvider = {
       ...mock,
       submit: async (input) => {
-        if (input.prompt?.startsWith("BROKEN"))
+        if (input.prompt?.startsWith("BROKEN")) {
           throw new Error("provider rejected the image");
+        }
         return mock.submit(input);
       },
     };
@@ -493,8 +498,11 @@ test("a still the user uploaded is read from its private bucket with the worker'
     expect(refused.seen.submits.length).toBe(0);
   } finally {
     globalThis.fetch = realFetch;
-    if (project === undefined) delete process.env.SUPABASE_URL;
-    else process.env.SUPABASE_URL = project;
+    if (project === undefined) {
+      delete process.env.SUPABASE_URL;
+    } else {
+      process.env.SUPABASE_URL = project;
+    }
   }
 });
 

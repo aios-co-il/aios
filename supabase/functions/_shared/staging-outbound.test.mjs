@@ -27,8 +27,9 @@ Deno.test(
         "POST",
       ],
       [`${own}/auth/v1/invite`, "POST"],
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, method, own), false);
+    }
   },
 );
 Deno.test(
@@ -69,8 +70,9 @@ Deno.test(
       "https://searchconsole.googleapis.com/webmasters/v3/sites/sc-domain%3Aexample.com/searchAnalytics/query",
       "https://analyticsdata.googleapis.com/v1beta/properties/123:runReport",
       "https://googleads.googleapis.com/v23/customers/123/googleAds:searchStream",
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, "POST", own), true, url);
+    }
     assertStrictEquals(
       outboundAllowed("https://oauth2.googleapis.com/revoke", "POST", own),
       false,
@@ -105,8 +107,9 @@ Deno.test(
         "POST",
       ],
       ["https://api.chatgpt.com/v1/workspace_agents/agtch_abc123", "HEAD"],
-    ])
+    ]) {
       assertStrictEquals(outboundAllowed(url, method, own), true, url);
+    }
     assertStrictEquals(
       outboundAllowed(
         "https://api.chatgpt.com/v1/workspace_agents/not-a-trigger/trigger",

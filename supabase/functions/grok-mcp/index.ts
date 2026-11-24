@@ -187,7 +187,9 @@ function rpcError(
 function bearerFrom(req: Request): string | undefined {
   const h =
     req.headers.get("authorization") || req.headers.get("Authorization");
-  if (!h) return undefined;
+  if (!h) {
+    return undefined;
+  }
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m ? m[1].trim() : undefined;
 }
@@ -199,7 +201,9 @@ function requiredBearer(): string {
 }
 
 function sbClient() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return null;
+  }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -215,7 +219,9 @@ async function resolveContext(
       null,
     agentId: null as string | null,
   };
-  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return fallback;
+  if (!bearer || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return fallback;
+  }
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false },
@@ -260,7 +266,9 @@ type FireResult = {
 function webhookConfig(): { url: string; key: string } | null {
   const url = String(Deno.env.get("GROK_BOT_WEBHOOK_URL") || "").trim();
   const key = String(Deno.env.get("GROK_BOT_WEBHOOK_KEY") || "").trim();
-  if (!url || !key) return null;
+  if (!url || !key) {
+    return null;
+  }
   return { url, key };
 }
 
@@ -317,12 +325,18 @@ async function fireGrokWebhook(
   }
 
   const contextParts: Array<string> = [];
-  if (opts?.tool) contextParts.push(`tool: ${opts.tool}`);
-  if (opts?.tenantId) contextParts.push(`tenant_id: ${opts.tenantId}`);
+  if (opts?.tool) {
+    contextParts.push(`tool: ${opts.tool}`);
+  }
+  if (opts?.tenantId) {
+    contextParts.push(`tenant_id: ${opts.tenantId}`);
+  }
   contextParts.push(
     replyInstructions(opts?.replyVia ?? "carmen", opts?.sessionId),
   );
-  if (context.trim()) contextParts.push(context.trim());
+  if (context.trim()) {
+    contextParts.push(context.trim());
+  }
   const payload = {
     task:
       trimmedTask.length > MAX_TEXT
@@ -423,10 +437,16 @@ async function getStickyAgentId(
   tenantId: string | null,
 ): Promise<string | null> {
   const forced = Deno.env.get("GROK_STICKY_AGENT_ID") || "";
-  if (forced.startsWith("bc-")) return forced;
-  if (!tenantId) return null;
+  if (forced.startsWith("bc-")) {
+    return forced;
+  }
+  if (!tenantId) {
+    return null;
+  }
   const sb = sbClient();
-  if (!sb) return null;
+  if (!sb) {
+    return null;
+  }
   try {
     const { data } = await sb
       .from("grok_sticky_agents")
@@ -434,7 +454,9 @@ async function getStickyAgentId(
       .eq("tenant_id", tenantId)
       .maybeSingle();
     const id = String((data as any)?.cursor_agent_id || "");
-    if (id.startsWith("bc-")) return id;
+    if (id.startsWith("bc-")) {
+      return id;
+    }
     const { data: last } = await sb
       .from("grok_dispatches")
       .select("cursor_agent_id")
@@ -459,9 +481,13 @@ async function saveStickyAgent(
   agentId: string,
   sessionUrl: string,
 ): Promise<void> {
-  if (!tenantId || !agentId.startsWith("bc-")) return;
+  if (!tenantId || !agentId.startsWith("bc-")) {
+    return;
+  }
   const sb = sbClient();
-  if (!sb) return;
+  if (!sb) {
+    return;
+  }
   try {
     await sb.from("grok_sticky_agents").upsert(
       {
@@ -481,9 +507,13 @@ async function saveStickyAgent(
 }
 
 async function clearStickyAgent(tenantId: string | null): Promise<void> {
-  if (!tenantId) return;
+  if (!tenantId) {
+    return;
+  }
   const sb = sbClient();
-  if (!sb) return;
+  if (!sb) {
+    return;
+  }
   try {
     await sb.from("grok_sticky_agents").delete().eq("tenant_id", tenantId);
   } catch {
@@ -514,7 +544,9 @@ async function followUpStickyAgent(
       };
     }
     if (resp.status === 409) {
-      if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+      if (attempt === 1) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       continue;
     }
     if (resp.status === 404 || resp.status === 410 || resp.status === 400) {
@@ -564,7 +596,9 @@ async function createGrokAgent(
     autoCreatePR,
     name: (opts?.name || "Carmen → Grok Bot").slice(0, 100),
   };
-  if (modelId) body.model = { id: modelId };
+  if (modelId) {
+    body.model = { id: modelId };
+  }
   if (envName) {
     body.env = { type: "cloud", name: envName };
   } else {
@@ -613,9 +647,15 @@ async function fireGrokAgent(
   if (webhookConfig()) {
     const task = String(opts?.task || promptText).trim();
     const contextParts: Array<string> = [];
-    if (opts?.startingRef) contextParts.push(`branch: ${opts.startingRef}`);
-    if (opts?.context) contextParts.push(opts.context);
-    if (opts?.name) contextParts.push(`label: ${opts.name}`);
+    if (opts?.startingRef) {
+      contextParts.push(`branch: ${opts.startingRef}`);
+    }
+    if (opts?.context) {
+      contextParts.push(opts.context);
+    }
+    if (opts?.name) {
+      contextParts.push(`label: ${opts.name}`);
+    }
     contextParts.push(
       replyInstructions(opts?.replyVia ?? "carmen", opts?.sessionId),
     );
@@ -664,9 +704,13 @@ async function fireGrokAgent(
 }
 
 async function recentDispatchContext(tenantId: string | null): Promise<string> {
-  if (!tenantId) return "";
+  if (!tenantId) {
+    return "";
+  }
   const sb = sbClient();
-  if (!sb) return "";
+  if (!sb) {
+    return "";
+  }
   try {
     const { data } = await sb
       .from("grok_dispatches")
@@ -675,7 +719,9 @@ async function recentDispatchContext(tenantId: string | null): Promise<string> {
       .order("created_at", { ascending: false })
       .limit(5);
     const rows = (data || []) as Array<any>;
-    if (!rows.length) return "";
+    if (!rows.length) {
+      return "";
+    }
     const lines = rows.map((r) => {
       const when = String(r.created_at || "")
         .slice(0, 16)
@@ -714,7 +760,9 @@ async function logDispatch(args: {
   cursorAgentId: string;
 }): Promise<void> {
   const sb = sbClient();
-  if (!sb) return;
+  if (!sb) {
+    return;
+  }
   try {
     await sb.from("grok_dispatches").insert({
       tenant_id: args.tenantId,
@@ -767,7 +815,9 @@ async function handleToolCall(
 ): Promise<string> {
   if (name === "request_dev_task") {
     const task = String(args?.task ?? "").trim();
-    if (!task) throw new Error("request_dev_task requires a non-empty 'task'.");
+    if (!task) {
+      throw new Error("request_dev_task requires a non-empty 'task'.");
+    }
     const branch = String(args?.branch ?? "").trim();
     const context = String(args?.context ?? "").trim();
     const replyVia = replyViaChannel(args?.reply_via);
@@ -819,7 +869,9 @@ async function handleToolCall(
 
   if (name === "ask_grok") {
     const request = String(args?.request ?? "").trim();
-    if (!request) throw new Error("ask_grok requires a non-empty 'request'.");
+    if (!request) {
+      throw new Error("ask_grok requires a non-empty 'request'.");
+    }
     const context = String(args?.context ?? "").trim();
     const replyVia = replyViaChannel(args?.reply_via);
     const sessionId = String(args?.session_id ?? "").trim();
@@ -868,8 +920,9 @@ async function handleToolCall(
       await import("../_shared/agent-channel/ingest.ts");
     const conversationId = String(args?.conversation_id ?? "").trim();
     const content = String(args?.content ?? "").trim();
-    if (!conversationId || !content)
+    if (!conversationId || !content) {
       throw new Error("conversation_id and content are required");
+    }
     const result = await ingestChannelReply({
       conversation_id: conversationId,
       session_id: args?.session_id ? String(args.session_id) : undefined,
@@ -930,7 +983,9 @@ async function handleRpcMessage(
       case "tools/call": {
         const name = params?.name as string;
         const args = (params?.arguments ?? {}) as Record<string, any>;
-        if (ctx.grokMode && !args.reply_via) args.reply_via = "cursor";
+        if (ctx.grokMode && !args.reply_via) {
+          args.reply_via = "cursor";
+        }
         try {
           const callCtx = await resolveContext(bearer);
           const text = await handleToolCall(name, args, callCtx);
@@ -952,8 +1007,9 @@ async function handleRpcMessage(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const pathname = new URL(req.url).pathname;
   const streamable =

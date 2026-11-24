@@ -36,7 +36,9 @@ export function useRegenerateRecordingSummary({
           "id, transcription, client_id, lead_id, campaigner_ids, agency_id, summary_scope",
         )
         .in("id", recordingIds);
-      if (rowsError) throw rowsError;
+      if (rowsError) {
+        throw rowsError;
+      }
 
       const sourceRow = pickTranscriptRow(rows ?? []);
       if (!sourceRow?.transcription?.trim()) {
@@ -77,8 +79,12 @@ export function useRegenerateRecordingSummary({
           },
         },
       );
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
       if (data?.pending && data.channel !== "model") {
         return null;
       }

@@ -13,7 +13,9 @@ export const media = (args: Array<string>) => {
     "-y",
     ...args,
   ]);
-  if (result.status !== 0) throw new Error(String(result.stderr));
+  if (result.status !== 0) {
+    throw new Error(String(result.stderr));
+  }
 };
 
 /** Mean volume (dB) of `file` over [from, from + length] seconds; -91 when silent. */

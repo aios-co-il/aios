@@ -16,7 +16,9 @@ export function useCustomFieldLabels(entityType: EntityType) {
   const { data: fieldData, isLoading } = useQuery({
     queryKey: ["custom-field-labels", tenantId, entityType],
     queryFn: async () => {
-      if (!tenantId) return { labels: {}, visibility: {}, definitions: [] };
+      if (!tenantId) {
+        return { labels: {}, visibility: {}, definitions: [] };
+      }
 
       const { data, error } = await supabase
         .from("custom_fields")
@@ -27,7 +29,9 @@ export function useCustomFieldLabels(entityType: EntityType) {
         .eq("entity_type", entityType)
         .order("sort_order");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Convert to maps for easy lookup
       const labelsMap: Record<string, string> = {};

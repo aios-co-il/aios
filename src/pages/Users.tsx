@@ -161,14 +161,18 @@ export default function Users() {
   const { data: campaigners } = useQuery({
     queryKey: ["campaigners-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("campaigners")
         .select("id, full_name")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -177,14 +181,18 @@ export default function Users() {
   const { data: salesPeople } = useQuery({
     queryKey: ["sales-people-for-invite", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select("id, full_name")
         .eq("tenant_id", tenantId)
         .eq("active", true)
         .order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -193,7 +201,9 @@ export default function Users() {
   const { data: salesPeopleWithAgencies } = useQuery({
     queryKey: ["sales-people-with-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("sales_people")
         .select(
@@ -208,7 +218,9 @@ export default function Users() {
         )
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       return data.map((sp: any) => ({
         id: sp.id,
@@ -225,7 +237,9 @@ export default function Users() {
   const { data: userManagedAgencies } = useQuery({
     queryKey: ["user-managed-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase.from("user_managed_agencies")
         .select(`
           user_id,
@@ -233,7 +247,9 @@ export default function Users() {
           agencies (id, name)
         `);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -247,7 +263,9 @@ export default function Users() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: isSuperAdmin,
@@ -256,12 +274,16 @@ export default function Users() {
   const { data: ownerTenants } = useQuery({
     queryKey: ["owner-tenants-for-invite", currentUserId],
     queryFn: async () => {
-      if (!currentUserId) return [];
+      if (!currentUserId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("tenant_users")
         .select("tenant_id, tenants(id, name)")
         .eq("user_id", currentUserId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((row: any) => row.tenants).filter(Boolean);
     },
     enabled: !!currentUserId && !isSuperAdmin,
@@ -287,7 +309,9 @@ export default function Users() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["users-with-roles", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       // Strict tenant isolation: only users explicitly in tenant_users for this org.
       // Cross-tenant staff (shared agencies) appear in team/clients/tasks — not here.
@@ -296,10 +320,14 @@ export default function Users() {
         .select("user_id")
         .eq("tenant_id", tenantId);
 
-      if (tenantUsersError) throw tenantUsersError;
+      if (tenantUsersError) {
+        throw tenantUsersError;
+      }
 
       const tenantUserIdsArr = (tenantUsers || []).map((tu) => tu.user_id);
-      if (tenantUserIdsArr.length === 0) return [];
+      if (tenantUserIdsArr.length === 0) {
+        return [];
+      }
 
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
@@ -317,14 +345,18 @@ export default function Users() {
         )
         .in("id", tenantUserIdsArr);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        throw profilesError;
+      }
 
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id, role, tenant_id")
         .eq("tenant_id", tenantId);
 
-      if (rolesError) throw rolesError;
+      if (rolesError) {
+        throw rolesError;
+      }
 
       // Get campaigner agencies
       const { data: campaignerAgencies } = await supabase
@@ -386,13 +418,18 @@ export default function Users() {
     const seen = new Set<string>();
     const term = userSearchTerm.trim().toLowerCase();
     return organizationUsers.filter((user) => {
-      if (agencyFilter !== "all" && !user.agency_ids?.includes(agencyFilter))
+      if (agencyFilter !== "all" && !user.agency_ids?.includes(agencyFilter)) {
         return false;
+      }
       if (term) {
         const hay = `${user.full_name || ""} ${user.email || ""}`.toLowerCase();
-        if (!hay.includes(term)) return false;
+        if (!hay.includes(term)) {
+          return false;
+        }
       }
-      if (seen.has(user.id)) return false;
+      if (seen.has(user.id)) {
+        return false;
+      }
       seen.add(user.id);
       return true;
     });
@@ -439,12 +476,16 @@ export default function Users() {
       userId: string;
       role: UserRole;
     }) => {
-      if (!tenantId) throw new Error("No tenant selected");
+      if (!tenantId) {
+        throw new Error("No tenant selected");
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
+      if (!session) {
+        throw new Error("No active session");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "manage-user-roles",
@@ -456,8 +497,12 @@ export default function Users() {
         },
       );
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: async () => {
@@ -482,12 +527,16 @@ export default function Users() {
       userId: string;
       role: UserRole;
     }) => {
-      if (!tenantId) throw new Error("No tenant selected");
+      if (!tenantId) {
+        throw new Error("No tenant selected");
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("No active session");
+      if (!session) {
+        throw new Error("No active session");
+      }
 
       const { data, error } = await supabase.functions.invoke(
         "manage-user-roles",
@@ -499,8 +548,12 @@ export default function Users() {
         },
       );
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: async () => {
@@ -530,7 +583,9 @@ export default function Users() {
         .update({ campaigner_id: campaignerId })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (campaignerId) {
         await syncProfileToTeamMember(userId);
@@ -563,7 +618,9 @@ export default function Users() {
         .update({ sales_person_id: salesPersonId })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (salesPersonId) {
         await syncProfileToTeamMember(userId);
@@ -586,7 +643,9 @@ export default function Users() {
   const { data: currentUserTenant } = useQuery({
     queryKey: ["current-user-tenant", currentUserId],
     queryFn: async () => {
-      if (!currentUserId) return null;
+      if (!currentUserId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_users")
@@ -594,7 +653,9 @@ export default function Users() {
         .eq("user_id", currentUserId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!currentUserId && !isSuperAdmin,
@@ -609,7 +670,9 @@ export default function Users() {
       isOwner,
     ],
     queryFn: async () => {
-      if (!tenantId || !currentUserId) return false;
+      if (!tenantId || !currentUserId) {
+        return false;
+      }
       // Check membership in this tenant
       const { data: membership, error } = await supabase
         .from("tenant_users")
@@ -621,7 +684,9 @@ export default function Users() {
         console.error("Error checking tenant membership:", error);
         return false;
       }
-      if (!membership) return false;
+      if (!membership) {
+        return false;
+      }
       // Owner of tenant OR global owner with membership
       return membership.role === "owner" || isOwner;
     },
@@ -632,13 +697,17 @@ export default function Users() {
   const { data: currentTenantDetails } = useQuery({
     queryKey: ["tenant-details", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenants")
         .select("id, name, allow_super_admin_access")
         .eq("id", tenantId)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -646,14 +715,18 @@ export default function Users() {
 
   const updateSuperAdminAccessMutation = useMutation({
     mutationFn: async ({ allowAccess }: { allowAccess: boolean }) => {
-      if (!tenantId) throw new Error("No tenant selected");
+      if (!tenantId) {
+        throw new Error("No tenant selected");
+      }
 
       const { error } = await supabase
         .from("tenants")
         .update({ allow_super_admin_access: allowAccess })
         .eq("id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tenant-details", tenantId] });
@@ -706,7 +779,9 @@ export default function Users() {
         ];
       } else {
         const singleTenantId = currentUserTenant?.tenant_id || tenantId;
-        if (!singleTenantId) throw new Error("לא נמצא ארגון פעיל");
+        if (!singleTenantId) {
+          throw new Error("לא נמצא ארגון פעיל");
+        }
         inviteTenantIds = [singleTenantId];
       }
 
@@ -741,7 +816,9 @@ export default function Users() {
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         if (data.error === "EMAIL_EXISTS_IN_TENANT") {
           results.push({
@@ -758,7 +835,9 @@ export default function Users() {
 
         results.push({ tenantId: targetTenantId, success: true });
         addedCount++;
-        if (data.emailSent) emailSent = true;
+        if (data.emailSent) {
+          emailSent = true;
+        }
       }
 
       if (addedCount === 0) {
@@ -805,7 +884,9 @@ export default function Users() {
       ]);
       setSelectedCampaignerId("");
       setSelectedSalesPersonId("");
-      if (tenantId) setSelectedInviteTenantIds([tenantId]);
+      if (tenantId) {
+        setSelectedInviteTenantIds([tenantId]);
+      }
     },
     onError: (error: Error) => {
       if (error.message === "EMAIL_EXISTS") {
@@ -834,7 +915,9 @@ export default function Users() {
       email?: string;
     }) => {
       const removeTenantId = tenantId || currentUserTenant?.tenant_id;
-      if (!removeTenantId) throw new Error("לא נמצא ארגון פעיל");
+      if (!removeTenantId) {
+        throw new Error("לא נמצא ארגון פעיל");
+      }
 
       return invokeEdgeFunction<DeleteMemberResult>("delete-user", {
         userId,
@@ -881,8 +964,12 @@ export default function Users() {
         },
       });
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error);
+      }
 
       return data;
     },

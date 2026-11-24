@@ -61,13 +61,16 @@ export function leadSourceDisplay(
   lead: LeadSourceLike | null | undefined,
 ): string {
   const source = lead?.source?.trim();
-  if (!source) return "";
+  if (!source) {
+    return "";
+  }
   if (
     source === "paid_ads" ||
     source === "facebook" ||
     compactText(source) === "fb"
-  )
+  ) {
     return "FB";
+  }
   return LEAD_SOURCE_LABELS[source] || source;
 }
 
@@ -88,11 +91,19 @@ export function leadOriginTagNames(
 
   const push = (value: string | null | undefined) => {
     const name = value?.trim();
-    if (!name) return;
-    const key = name.toLowerCase();
-    if (GENERIC_ORIGIN_TAG_NAMES.has(key) || GENERIC_ORIGIN_TAG_NAMES.has(name))
+    if (!name) {
       return;
-    if (seen.has(key)) return;
+    }
+    const key = name.toLowerCase();
+    if (
+      GENERIC_ORIGIN_TAG_NAMES.has(key) ||
+      GENERIC_ORIGIN_TAG_NAMES.has(name)
+    ) {
+      return;
+    }
+    if (seen.has(key)) {
+      return;
+    }
     seen.add(key);
     names.push(name);
   };
@@ -105,7 +116,9 @@ export function leadOriginTagNames(
 export function leadCreatedAtWasBumped(
   lead: LeadSourceLike | null | undefined,
 ): boolean {
-  if (!lead?.first_created_at || !lead.created_at) return false;
+  if (!lead?.first_created_at || !lead.created_at) {
+    return false;
+  }
   return (
     new Date(lead.first_created_at).getTime() + 1000 <
     new Date(lead.created_at).getTime()
@@ -140,14 +153,18 @@ export function leadSourceFieldLabel(
 export function leadFirstSourceDisplay(
   lead: LeadSourceLike | null | undefined,
 ): string {
-  if (!lead?.first_source) return "";
+  if (!lead?.first_source) {
+    return "";
+  }
   return leadSourceDisplay({ source: lead.first_source });
 }
 
 export function looksLikeResponseStatusLabel(
   value: string | null | undefined,
 ): boolean {
-  if (!value || !value.trim()) return false;
+  if (!value || !value.trim()) {
+    return false;
+  }
   const n = compactText(value);
   return /איןמענה|איןעמנה|ללאמענה|לאענה|noanswer|מכחיש|לארלוונטי|לאלרוונטי|לארלווטני|בעבודה|inprogress|deniescontact|notrelevant|תפוס|לאזמין|לאמעוניין|כפול/.test(
     n,
@@ -161,20 +178,33 @@ export function looksLikePipelineStatusLabel(
 }
 
 function matchPipelineStatus(value: string | null | undefined): string | null {
-  if (!value || !value.trim()) return null;
+  if (!value || !value.trim()) {
+    return null;
+  }
   const n = compactText(value);
-  if (/נקבעה?פגישה|meetingscheduled|^meeting$|בתיאום/.test(n))
+  if (/נקבעה?פגישה|meetingscheduled|^meeting$|בתיאום/.test(n)) {
     return "meeting_scheduled";
+  }
   if (
     /נשלחההצעה|הצעתמחיר|אחריהצעה|ממתיןלהצעה|proposalsent|^proposal$/.test(n)
   ) {
     return "proposal_sent";
   }
-  if (/משאומתן|ממתיןלהחלטה|^negotiation$/.test(n)) return "negotiation";
-  if (/יצרנוקשר|^contacted$|^contact$/.test(n)) return "contacted";
-  if (/^פולואפ$|^followup$|^follow_up$|לתאממחדש/.test(n)) return "follow_up";
-  if (/^נסגר$|^closed$|^won$|^lost$/.test(n)) return "closed";
-  if (/^חדש$|^new$/.test(n)) return "new";
+  if (/משאומתן|ממתיןלהחלטה|^negotiation$/.test(n)) {
+    return "negotiation";
+  }
+  if (/יצרנוקשר|^contacted$|^contact$/.test(n)) {
+    return "contacted";
+  }
+  if (/^פולואפ$|^followup$|^follow_up$|לתאממחדש/.test(n)) {
+    return "follow_up";
+  }
+  if (/^נסגר$|^closed$|^won$|^lost$/.test(n)) {
+    return "closed";
+  }
+  if (/^חדש$|^new$/.test(n)) {
+    return "new";
+  }
   return null;
 }
 
@@ -205,27 +235,37 @@ export function classifyLeadImportStatus(
       responseStatus,
     };
   }
-  if (pipelineStatus === "new")
+  if (pipelineStatus === "new") {
     return { pipelineStatus: "new", responseStatus: null };
+  }
   return { pipelineStatus: null, responseStatus: null };
 }
 
 function aliasResponseStatusKey(normalized: string): string | null {
-  if (/איןמענה4|noanswer4/.test(normalized)) return "no_answer_4";
-  if (/איןמענה3|noanswer3/.test(normalized)) return "no_answer_3";
-  if (/איןמענה2|noanswer2/.test(normalized)) return "no_answer_2";
-  if (/איןמענה|איןעמנה|ללאמענה|לאענה|noanswer/.test(normalized))
+  if (/איןמענה4|noanswer4/.test(normalized)) {
+    return "no_answer_4";
+  }
+  if (/איןמענה3|noanswer3/.test(normalized)) {
+    return "no_answer_3";
+  }
+  if (/איןמענה2|noanswer2/.test(normalized)) {
+    return "no_answer_2";
+  }
+  if (/איןמענה|איןעמנה|ללאמענה|לאענה|noanswer/.test(normalized)) {
     return "no_answer_1";
-  if (/מכחיש/.test(normalized) || normalized === "deniescontact")
+  }
+  if (/מכחיש/.test(normalized) || normalized === "deniescontact") {
     return "denies_contact";
+  }
   if (
     /לארלוונטי|לאלרוונטי|לארלווטני/.test(normalized) ||
     normalized === "notrelevant"
   ) {
     return "not_relevant";
   }
-  if (/בעבודה/.test(normalized) || normalized === "inprogress")
+  if (/בעבודה/.test(normalized) || normalized === "inprogress") {
     return "in_progress";
+  }
   return null;
 }
 
@@ -233,29 +273,41 @@ export function resolveResponseStatusKey(
   value: string | null | undefined,
   statuses: Array<LeadStatusLike> = [],
 ): string | null {
-  if (!value || !value.trim() || value === "none") return null;
+  if (!value || !value.trim() || value === "none") {
+    return null;
+  }
   const trimmed = value.trim();
   const normalized = compactText(trimmed);
 
   const byKey = statuses.find(
     (s) => s.status_key === trimmed || compactText(s.status_key) === normalized,
   );
-  if (byKey) return byKey.status_key;
+  if (byKey) {
+    return byKey.status_key;
+  }
 
   const byLabel = statuses.find((s) => compactText(s.label) === normalized);
-  if (byLabel) return byLabel.status_key;
+  if (byLabel) {
+    return byLabel.status_key;
+  }
 
   const aliased = aliasResponseStatusKey(normalized);
   if (aliased) {
     const exact = statuses.find((s) => s.status_key === aliased);
-    if (exact) return exact.status_key;
+    if (exact) {
+      return exact.status_key;
+    }
     if (aliased.startsWith("no_answer")) {
       const numbered = statuses.find((s) => s.status_key === aliased);
-      if (numbered) return numbered.status_key;
+      if (numbered) {
+        return numbered.status_key;
+      }
       const anyNoAnswer =
         statuses.find((s) => s.status_key.startsWith("no_answer")) ||
         statuses.find((s) => /אין.?מענה|ללא.?מענה|no.?answer/i.test(s.label));
-      if (anyNoAnswer) return anyNoAnswer.status_key;
+      if (anyNoAnswer) {
+        return anyNoAnswer.status_key;
+      }
     }
     return aliased;
   }
@@ -269,7 +321,9 @@ export function findLeadStatus<TStatus extends LeadStatusLike>(
   statuses: Array<TStatus>,
 ): TStatus | undefined {
   const key = resolveResponseStatusKey(value, statuses);
-  if (!key) return undefined;
+  if (!key) {
+    return undefined;
+  }
   return statuses.find((s) => s.status_key === key);
 }
 
@@ -277,7 +331,9 @@ export function responseStatusSelectValue(
   value: string | null | undefined,
   statuses: Array<LeadStatusLike>,
 ): string {
-  if (!value || value === "none") return "none";
+  if (!value || value === "none") {
+    return "none";
+  }
   return resolveResponseStatusKey(value, statuses) || value;
 }
 
@@ -286,9 +342,13 @@ export function unmatchedResponseStatusValue(
   value: string | null | undefined,
   statuses: Array<LeadStatusLike>,
 ): string | null {
-  if (!value || value === "none") return null;
+  if (!value || value === "none") {
+    return null;
+  }
   const resolved = resolveResponseStatusKey(value, statuses);
-  if (resolved && statuses.some((s) => s.status_key === resolved)) return null;
+  if (resolved && statuses.some((s) => s.status_key === resolved)) {
+    return null;
+  }
   return value;
 }
 
@@ -416,8 +476,9 @@ export function autoDetectLeadImportField(
         looksLikeResponseStatusLabel(s),
       ).length;
       // Only remap the whole column when it is purely secondary statuses.
-      if (responseHits > samples.length / 2 && pipelineHits === 0)
+      if (responseHits > samples.length / 2 && pipelineHits === 0) {
         return "response_status";
+      }
     }
   }
 

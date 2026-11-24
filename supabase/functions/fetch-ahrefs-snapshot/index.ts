@@ -14,12 +14,18 @@ function isServiceRoleAuth(
   authHeader: string | null,
   serviceKey: string,
 ): boolean {
-  if (!authHeader) return false;
-  if (serviceKey && authHeader === `Bearer ${serviceKey}`) return true;
+  if (!authHeader) {
+    return false;
+  }
+  if (serviceKey && authHeader === `Bearer ${serviceKey}`) {
+    return true;
+  }
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   try {
     const payloadPart = token.split(".")[1];
-    if (!payloadPart) return false;
+    if (!payloadPart) {
+      return false;
+    }
     const normalized = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
     const payload = JSON.parse(atob(padded));
@@ -197,7 +203,9 @@ Deno.serve(async (req) => {
           projects.find((p: any) => normalizeDomain(p.url) === target) ||
           projects.find((p: any) => normalizeDomain(p.url).endsWith(target)) ||
           projects.find((p: any) => target.endsWith(normalizeDomain(p.url)));
-        if (!match) return null;
+        if (!match) {
+          return null;
+        }
         return {
           projectId: String(match.project_id),
           mode: match.mode,
@@ -221,7 +229,9 @@ Deno.serve(async (req) => {
       mode?: string;
       protocol?: string;
     } | null> => {
-      if (current) return { projectId: current };
+      if (current) {
+        return { projectId: current };
+      }
 
       const { data: seoTables } = await supabase
         .from("crm_tables")
@@ -238,7 +248,9 @@ Deno.serve(async (req) => {
           unknown
         >;
         const pid = settings.ahrefs_project_id;
-        if (!pid) continue;
+        if (!pid) {
+          continue;
+        }
         const tableDomain = normalizeDomain(
           String(
             settings.targetDomain || settings.domain || settings.target || "",
@@ -301,8 +313,9 @@ Deno.serve(async (req) => {
       });
       const addRows = (rows: Array<any>, source: string, device?: string) => {
         for (const row of rows) {
-          if (!row || typeof row.keyword !== "string" || !row.keyword.trim())
+          if (!row || typeof row.keyword !== "string" || !row.keyword.trim()) {
             continue;
+          }
           const n = normalizeTracked(row, source, device);
           const key = [
             n.keyword.toLowerCase(),
@@ -310,7 +323,9 @@ Deno.serve(async (req) => {
             n.location,
             n.language,
           ].join("|");
-          if (!trackedByKey.has(key)) trackedByKey.set(key, n);
+          if (!trackedByKey.has(key)) {
+            trackedByKey.set(key, n);
+          }
         }
       };
       const selectFields = [
@@ -367,7 +382,9 @@ Deno.serve(async (req) => {
             );
           }
         }
-        if (trackedByKey.size > 0) break;
+        if (trackedByKey.size > 0) {
+          break;
+        }
       }
       if (trackedByKey.size === 0) {
         const url = `https://api.ahrefs.com/v3/management/project-keywords?project_id=${encodeURIComponent(String(pid))}&output=json`;
@@ -673,7 +690,9 @@ Deno.serve(async (req) => {
     let organic_keywords: Array<any> = await fetchOrganicKeywords(domain);
     if (organic_keywords.length === 0 && !domain.startsWith("www.")) {
       const wwwRows = await fetchOrganicKeywords(`www.${domain}`);
-      if (wwwRows.length > 0) organic_keywords = wwwRows;
+      if (wwwRows.length > 0) {
+        organic_keywords = wwwRows;
+      }
     }
 
     // Build report payload mirroring the webhook contract
@@ -804,11 +823,15 @@ Deno.serve(async (req) => {
         const p = posOf(k);
         return p != null && p <= 10;
       }).length;
-      if (!snapshot.org_keywords_total)
+      if (!snapshot.org_keywords_total) {
         snapshot.org_keywords_total = organic_keywords.length;
-      if (!snapshot.org_keywords_top3) snapshot.org_keywords_top3 = organicTop3;
-      if (!snapshot.org_keywords_top10)
+      }
+      if (!snapshot.org_keywords_top3) {
+        snapshot.org_keywords_top3 = organicTop3;
+      }
+      if (!snapshot.org_keywords_top10) {
         snapshot.org_keywords_top10 = organicTop10;
+      }
     }
 
     // 5) Enrichment via keywords-explorer/overview:
@@ -832,7 +855,9 @@ Deno.serve(async (req) => {
       >();
       for (const k of organic_keywords) {
         const key = norm(k.keyword);
-        if (!key) continue;
+        if (!key) {
+          continue;
+        }
         if (k.volume != null) {
           haveVolume.set(key, {
             volume: k.volume ?? null,
@@ -846,13 +871,21 @@ Deno.serve(async (req) => {
       // Tracked keywords without a usable volume
       for (const t of tracked_keywords) {
         const key = norm(t.keyword);
-        if (!key) continue;
-        if (haveVolume.has(key)) continue;
-        if (t.volume == null || t.volume === 0) needSet.add(key);
+        if (!key) {
+          continue;
+        }
+        if (haveVolume.has(key)) {
+          continue;
+        }
+        if (t.volume == null || t.volume === 0) {
+          needSet.add(key);
+        }
       }
       // GSC keywords
       for (const key of gscKeywords) {
-        if (!haveVolume.has(key)) needSet.add(key);
+        if (!haveVolume.has(key)) {
+          needSet.add(key);
+        }
       }
 
       const needList = Array.from(needSet);
@@ -902,7 +935,9 @@ Deno.serve(async (req) => {
                 : [];
             for (const r of rows2) {
               const key = norm(r.keyword);
-              if (!key) continue;
+              if (!key) {
+                continue;
+              }
               gsc_keyword_metrics[key] = {
                 volume: r.volume ?? null,
                 kd: r.difficulty ?? r.keyword_difficulty ?? null,
@@ -919,7 +954,9 @@ Deno.serve(async (req) => {
               : [];
           for (const r of rows) {
             const key = norm(r.keyword);
-            if (!key) continue;
+            if (!key) {
+              continue;
+            }
             gsc_keyword_metrics[key] = {
               volume: r.volume ?? null,
               kd: r.difficulty ?? r.keyword_difficulty ?? null,
@@ -934,10 +971,15 @@ Deno.serve(async (req) => {
         const key = norm(t.keyword);
         const m = gsc_keyword_metrics[key];
         if (m) {
-          if (t.volume == null || t.volume === 0)
+          if (t.volume == null || t.volume === 0) {
             t.volume = m.volume ?? t.volume;
-          if (t.kd == null) t.kd = m.kd;
-          if (t.cpc == null) t.cpc = m.cpc;
+          }
+          if (t.kd == null) {
+            t.kd = m.kd;
+          }
+          if (t.cpc == null) {
+            t.cpc = m.cpc;
+          }
         }
       }
     } catch (e) {

@@ -66,7 +66,9 @@ export function useTeamRoles() {
   const { data: tenant, isLoading: tenantLoading } = useQuery({
     queryKey: ["tenant-org-type", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenants")
@@ -74,7 +76,9 @@ export function useTeamRoles() {
         .eq("id", tenantId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -84,7 +88,9 @@ export function useTeamRoles() {
   const { data: customRoles, isLoading: settingsLoading } = useQuery({
     queryKey: ["tenant-team-roles", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenant_settings")
@@ -93,7 +99,9 @@ export function useTeamRoles() {
         .eq("setting_key", "team_roles")
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error && error.code !== "PGRST116") {
+        throw error;
+      }
       if (data?.setting_value && Array.isArray(data.setting_value)) {
         return data.setting_value as unknown as Array<TeamRole>;
       }
@@ -143,7 +151,9 @@ export function useUpdateTeamRoles() {
   const { tenantId } = useCurrentTenant();
 
   const updateRoles = async (roles: Array<TeamRole>) => {
-    if (!tenantId) throw new Error("No tenant ID found");
+    if (!tenantId) {
+      throw new Error("No tenant ID found");
+    }
 
     const { error } = await supabase.from("tenant_settings").upsert(
       {
@@ -156,7 +166,9 @@ export function useUpdateTeamRoles() {
       },
     );
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   };
 
   return { updateRoles };

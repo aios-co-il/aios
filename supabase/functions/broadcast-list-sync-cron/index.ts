@@ -11,8 +11,9 @@ const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const db = createClient(SB_URL, SB_SERVICE, {
       auth: { persistSession: false },
@@ -27,7 +28,9 @@ Deno.serve(async (req) => {
     const results: Array<any> = [];
     for (const l of lists || []) {
       const cfg = l.source_config || {};
-      if (!cfg.sheetId) continue;
+      if (!cfg.sheetId) {
+        continue;
+      }
       const r = await fetch(
         `${SB_URL}/functions/v1/import-broadcast-list-sheet`,
         {

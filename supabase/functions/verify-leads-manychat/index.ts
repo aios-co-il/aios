@@ -10,7 +10,9 @@ const PHONE_CUSTOM_FIELD_NAME = "phone_number";
 
 // Normalize phone for comparison
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   let cleaned = phone.replace(/\D/g, "");
   if (cleaned.startsWith("972")) {
     cleaned = cleaned.slice(3);
@@ -30,7 +32,9 @@ function formatPhoneForManyChat(phone: string): string {
 // Generate phone variations for lookup
 function getPhoneCandidates(phone: string): Array<string> {
   const cleaned = normalizePhone(phone);
-  if (!cleaned) return [];
+  if (!cleaned) {
+    return [];
+  }
   const withCountry = `972${cleaned}`;
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
     Boolean,

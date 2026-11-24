@@ -33,7 +33,9 @@ export const DEFAULT_BRAIN_SLUG = "cursor";
 export function readSavedRouteSlug(
   tenantId: string | null | undefined,
 ): string | null {
-  if (!tenantId) return null;
+  if (!tenantId) {
+    return null;
+  }
   try {
     return localStorage.getItem(storageKeyForRoute(tenantId));
   } catch {
@@ -65,7 +67,9 @@ export function routeForRestoredChat(
             r.route_type === lastChat.routing_mode ||
             r.slug === lastChat.routing_mode,
         );
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return pickDefaultRoute(routes);
 }
@@ -133,7 +137,9 @@ export function pickDefaultRoute(
 ): BrainRoute {
   if (saved) {
     const hit = list.find((r) => r.id === saved || r.slug === saved);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return list.find((r) => r.slug === DEFAULT_BRAIN_SLUG) || list[0];
 }
@@ -149,9 +155,15 @@ export function isInputLocked(
 }
 
 export function groupLabel(type: BrainRouteType): string {
-  if (type === "internal") return "מוח פנימי";
-  if (type === "direct_channel") return "ערוץ ישיר";
-  if (type === "model") return "מודלים מחוברים";
+  if (type === "internal") {
+    return "מוח פנימי";
+  }
+  if (type === "direct_channel") {
+    return "ערוץ ישיר";
+  }
+  if (type === "model") {
+    return "מודלים מחוברים";
+  }
   return "פרלמנט";
 }
 
@@ -159,8 +171,11 @@ export function groupLabel(type: BrainRouteType): string {
 const routeLabels = new Map<string, string>();
 
 export function rememberRouteLabels(routes: Array<BrainRoute>): void {
-  for (const r of routes)
-    if (r.slug && r.label) routeLabels.set(r.slug, r.label);
+  for (const r of routes) {
+    if (r.slug && r.label) {
+      routeLabels.set(r.slug, r.label);
+    }
+  }
 }
 
 export function speakerLabel(
@@ -194,8 +209,9 @@ export function speakerLabel(
 export function sendPathForRoute(
   route: BrainRoute | null | undefined,
 ): "internal_stream" | "channel_gateway" {
-  if (!route || route.route_type === "internal" || route.slug === "internal")
+  if (!route || route.route_type === "internal" || route.slug === "internal") {
     return "internal_stream";
+  }
   return "channel_gateway";
 }
 
@@ -214,7 +230,9 @@ export type ChannelHealth = {
 export function channelHealthBanner(
   health: ChannelHealth | null | undefined,
 ): string | null {
-  if (!health) return null;
+  if (!health) {
+    return null;
+  }
   if (health.cursor && health.cursor.ok === false) {
     return "מושבי Cursor / Grok לא מחוברים בסביבת הפיתוח. הפריוויו מדבר עם Staging — צריך מפתח User תקף ב-CURSOR_API_KEY שם. כרמן הפנימית עובדת.";
   }
@@ -257,7 +275,9 @@ export function hudStage(args: {
   routeType?: string | null;
   debating?: boolean;
 }): HudStage {
-  if (args.debating || args.routeType === "parliament") return "table";
+  if (args.debating || args.routeType === "parliament") {
+    return "table";
+  }
   return "direct";
 }
 
@@ -270,10 +290,11 @@ export function routeForTableAddress(
   routes: Array<BrainRoute>,
   addressed: CouncilSeatId | null,
 ): BrainRoute | undefined {
-  if (!addressed)
+  if (!addressed) {
     return routes.find(
       (r) => r.slug === "parliament" || r.route_type === "parliament",
     );
+  }
   const slug = slugForCouncilSeat(addressed);
   return routes.find((r) => r.slug === slug);
 }
@@ -282,8 +303,12 @@ export function councilSeatFromSlug(
   slug?: string | null,
 ): CouncilSeatId | null {
   const key = (slug || "").toLowerCase();
-  if (key === "internal" || key === "carmen") return "carmen";
-  if (key === "cursor" || key === "grok" || key === "codex") return key;
+  if (key === "internal" || key === "carmen") {
+    return "carmen";
+  }
+  if (key === "cursor" || key === "grok" || key === "codex") {
+    return key;
+  }
   return null;
 }
 
@@ -291,7 +316,9 @@ export function parliamentSeats(
   route: BrainRoute | null | undefined,
 ): Array<string> {
   const raw = route?.config?.seats;
-  if (Array.isArray(raw) && raw.length) return raw.map(String);
+  if (Array.isArray(raw) && raw.length) {
+    return raw.map(String);
+  }
   return ["cursor", "grok", "codex"];
 }
 
@@ -377,15 +404,18 @@ export function deriveParliamentView(
     );
     const last = replies.filter((m) => m.role === "assistant").at(-1);
     let state: ParliamentSeatStateUi = "waiting";
-    if (failed && !last) state = "failed";
-    else if (round >= 2 && last)
+    if (failed && !last) {
+      state = "failed";
+    } else if (round >= 2 && last) {
       state =
         replies.filter((m) => m.role === "assistant").length >= 2
           ? "replied"
           : "reviewing";
-    else if (last) state = "replied";
-    else if (replies.length || /נשלח ל-|parliament|חושב/i.test(joined))
+    } else if (last) {
+      state = "replied";
+    } else if (replies.length || /נשלח ל-|parliament|חושב/i.test(joined)) {
       state = round >= 2 ? "reviewing" : "thinking";
+    }
     return {
       provider,
       label: SEAT_LABEL[provider] || provider,

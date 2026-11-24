@@ -171,7 +171,9 @@ export function ImportClientsCSV({
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open,
@@ -184,7 +186,9 @@ export function ImportClientsCSV({
       const { data, error } = await supabase
         .from("campaigners")
         .select("id, full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open,
@@ -204,7 +208,9 @@ export function ImportClientsCSV({
     text: string,
   ): { headers: Array<string>; data: Array<Array<string>> } => {
     const lines = text.split("\n").filter((line) => line.trim());
-    if (lines.length < 1) return { headers: [], data: [] };
+    if (lines.length < 1) {
+      return { headers: [], data: [] };
+    }
 
     // Parse CSV properly handling quoted values
     const parseLine = (line: string): Array<string> => {
@@ -262,7 +268,9 @@ export function ImportClientsCSV({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      return;
+    }
 
     // Accept both .csv and text files
     if (
@@ -360,9 +368,13 @@ export function ImportClientsCSV({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("משתמש לא מחובר");
+      if (!user) {
+        throw new Error("משתמש לא מחובר");
+      }
 
-      if (!tenantId) throw new Error("לא נמצא tenant למשתמש");
+      if (!tenantId) {
+        throw new Error("לא נמצא tenant למשתמש");
+      }
 
       const rows = getMappedData;
       const validRows = rows.filter((row) => row.name && row.agency);
@@ -376,7 +388,9 @@ export function ImportClientsCSV({
         .from("clients")
         .select("id, name, agency_id, phone, email");
 
-      if (existingError) throw existingError;
+      if (existingError) {
+        throw existingError;
+      }
 
       const existingMap = new Map(
         (existingClients || []).map((c) => [
@@ -413,10 +427,14 @@ export function ImportClientsCSV({
           agencyId = agencyMap.get(row.agency.toLowerCase()) || "";
         }
 
-        if (!agencyId) return;
+        if (!agencyId) {
+          return;
+        }
 
         const name = row.name?.trim();
-        if (!name) return;
+        if (!name) {
+          return;
+        }
 
         const existing = existingMap.get(`${name.toLowerCase()}|${agencyId}`);
 
@@ -428,17 +446,36 @@ export function ImportClientsCSV({
 
         if (existing) {
           const updateFields: Record<string, any> = {};
-          if (row.phone) updateFields.phone = row.phone;
-          if (row.email) updateFields.email = row.email;
-          if (row.contact_name) updateFields.contact_name = row.contact_name;
-          if (row.industry) updateFields.industry = row.industry;
-          if (row.folder_link) updateFields.folder_link = row.folder_link;
-          if (row.monthly_budget)
+          if (row.phone) {
+            updateFields.phone = row.phone;
+          }
+          if (row.email) {
+            updateFields.email = row.email;
+          }
+          if (row.contact_name) {
+            updateFields.contact_name = row.contact_name;
+          }
+          if (row.industry) {
+            updateFields.industry = row.industry;
+          }
+          if (row.folder_link) {
+            updateFields.folder_link = row.folder_link;
+          }
+          if (row.monthly_budget) {
             updateFields.monthly_budget = parseFloat(row.monthly_budget);
-          if (row.retainer) updateFields.retainer = parseFloat(row.retainer);
-          if (row.website) updateFields.website = row.website;
-          if (row.notes) updateFields.notes = row.notes;
-          if (row.is_seo_client) updateFields.is_seo_client = isSeoClient;
+          }
+          if (row.retainer) {
+            updateFields.retainer = parseFloat(row.retainer);
+          }
+          if (row.website) {
+            updateFields.website = row.website;
+          }
+          if (row.notes) {
+            updateFields.notes = row.notes;
+          }
+          if (row.is_seo_client) {
+            updateFields.is_seo_client = isSeoClient;
+          }
 
           if (Object.keys(updateFields).length > 0) {
             updates.push({ id: existing.id, data: updateFields });
@@ -508,7 +545,9 @@ export function ImportClientsCSV({
           .insert(inserts)
           .select("id, name");
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          throw insertError;
+        }
         insertedCount = inserted?.length || 0;
 
         // Match inserted clients to their campaigner assignments
@@ -558,8 +597,12 @@ export function ImportClientsCSV({
     onSuccess: (data) => {
       if (data) {
         const parts: Array<string> = [];
-        if (data.imported > 0) parts.push(`יובאו ${data.imported}`);
-        if (data.updated > 0) parts.push(`עודכנו ${data.updated}`);
+        if (data.imported > 0) {
+          parts.push(`יובאו ${data.imported}`);
+        }
+        if (data.updated > 0) {
+          parts.push(`עודכנו ${data.updated}`);
+        }
         const title = parts.length
           ? parts.join(" ו") + " לקוחות"
           : "לא בוצעו שינויים";
@@ -604,8 +647,11 @@ export function ImportClientsCSV({
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) handleClose();
-        else setOpen(true);
+        if (!isOpen) {
+          handleClose();
+        } else {
+          setOpen(true);
+        }
       }}
     >
       {!isControlled && (

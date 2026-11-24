@@ -124,7 +124,9 @@ export function CreativeBriefEditor({
     kind: "logo" | "reference" | "brandbook",
     files: FileList | null,
   ) => {
-    if (!files?.length) return;
+    if (!files?.length) {
+      return;
+    }
     setUploading(kind);
     try {
       const uploaded: Array<
@@ -195,16 +197,24 @@ export function CreativeBriefEditor({
       toast.error(error instanceof Error ? error.message : "ההעלאה נכשלה");
     } finally {
       setUploading(null);
-      if (logoInputRef.current) logoInputRef.current.value = "";
-      if (refsInputRef.current) refsInputRef.current.value = "";
-      if (bookInputRef.current) bookInputRef.current.value = "";
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
+      }
+      if (refsInputRef.current) {
+        refsInputRef.current.value = "";
+      }
+      if (bookInputRef.current) {
+        bookInputRef.current.value = "";
+      }
     }
   };
 
   const assignClient = async (clientId: string | null) => {
     const next = { ...draft, clientId };
     setDraft(next);
-    if (!onAssignClient) return;
+    if (!onAssignClient) {
+      return;
+    }
     setAssigning(true);
     try {
       await onAssignClient(clientId, next);

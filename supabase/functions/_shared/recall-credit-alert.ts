@@ -40,7 +40,9 @@ export async function notifyRecallCreditEmpty(
     .eq("alert_type", "quota_out")
     .gte("fired_at", since)
     .limit(1);
-  if (already?.length) return false;
+  if (already?.length) {
+    return false;
+  }
 
   await supabase.from("integration_alerts_log").insert({
     tenant_id: DAVID_TENANT,
@@ -92,7 +94,9 @@ export async function notifyRecallBudget(
     .eq("alert_type", alertType)
     .gte("fired_at", monthStartIso)
     .limit(1);
-  if (already?.length) return false;
+  if (already?.length) {
+    return false;
+  }
 
   const pct = (usageSeconds / 3600 / budgetHours) * 100;
   const reason = `שימוש בוט החודש: ${formatRecallBotHours(usageSeconds)} מתוך ${budgetHours} שעות (${pct.toFixed(0)}%)`;

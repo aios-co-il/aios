@@ -114,17 +114,24 @@ const SUMMARY_TARGET_TYPES = new Set<MeetingSummaryTargetType>([
 export function meetingSummaryJobFromMetadata(
   metadata: unknown,
 ): MeetingSummaryJob | null {
-  if (!metadata || typeof metadata !== "object") return null;
-  const meta = metadata as Record<string, unknown>;
-  if (meta.purpose !== "meeting_summary") return null;
-  const targetType = String(meta.target_type || "");
-  if (!SUMMARY_TARGET_TYPES.has(targetType as MeetingSummaryTargetType))
+  if (!metadata || typeof metadata !== "object") {
     return null;
+  }
+  const meta = metadata as Record<string, unknown>;
+  if (meta.purpose !== "meeting_summary") {
+    return null;
+  }
+  const targetType = String(meta.target_type || "");
+  if (!SUMMARY_TARGET_TYPES.has(targetType as MeetingSummaryTargetType)) {
+    return null;
+  }
   const recordingId = String(meta.recording_id || "").trim();
   const targetId = String(meta.target_id || "").trim();
   const tenantId = String(meta.tenant_id || "").trim();
   const targetName = String(meta.target_name || "").trim();
-  if (!recordingId || !targetId || !tenantId || !targetName) return null;
+  if (!recordingId || !targetId || !tenantId || !targetName) {
+    return null;
+  }
   return {
     recording_id: recordingId,
     target_type: targetType as MeetingSummaryTargetType,
@@ -162,7 +169,9 @@ export function splitTranscript(
   transcript: string,
   maxChars = TRANSCRIPT_CHUNK_SIZE,
 ): Array<string> {
-  if (transcript.length <= maxChars) return [transcript];
+  if (transcript.length <= maxChars) {
+    return [transcript];
+  }
 
   const lines = transcript.split("\n");
   const chunks: Array<string> = [];
@@ -170,7 +179,9 @@ export function splitTranscript(
   let currentLength = 0;
 
   const flush = () => {
-    if (current.length === 0) return;
+    if (current.length === 0) {
+      return;
+    }
     chunks.push(current.join("\n"));
     current = [];
     currentLength = 0;
@@ -178,7 +189,9 @@ export function splitTranscript(
 
   for (const line of lines) {
     const additions = line.length + (current.length > 0 ? 1 : 0);
-    if (current.length > 0 && currentLength + additions > maxChars) flush();
+    if (current.length > 0 && currentLength + additions > maxChars) {
+      flush();
+    }
 
     if (line.length <= maxChars) {
       current.push(line);
@@ -206,7 +219,9 @@ export async function prepareDetailedSummarySource(
   transcript: string,
   complete: SummaryCompletion,
 ): Promise<string> {
-  if (transcript.length <= LONG_TRANSCRIPT_THRESHOLD) return transcript;
+  if (transcript.length <= LONG_TRANSCRIPT_THRESHOLD) {
+    return transcript;
+  }
 
   const chunks = splitTranscript(transcript);
   const extractedChunks = await Promise.all(

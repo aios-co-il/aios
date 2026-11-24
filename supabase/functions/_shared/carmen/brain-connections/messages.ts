@@ -10,8 +10,9 @@ export function buildModelMessages(args: {
   content: string;
 }): Array<ChatMessage> {
   const messages: Array<ChatMessage> = [];
-  if (args.profile.system_prompt)
+  if (args.profile.system_prompt) {
     messages.push({ role: "system", content: args.profile.system_prompt });
+  }
   const recent = (args.history || [])
     .filter(
       (m) =>
@@ -34,8 +35,9 @@ export function buildModelMessages(args: {
     last.role === "user" &&
     last.content &&
     args.content.endsWith(last.content)
-  )
+  ) {
     messages.pop();
+  }
   messages.push({ role: "user", content: args.content });
   return messages;
 }

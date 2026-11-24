@@ -44,14 +44,18 @@ export function SupervisorTab({ agent }: { agent: any }) {
 
   const addChild = useMutation({
     mutationFn: async () => {
-      if (!childId) throw new Error("בחר סוכן");
+      if (!childId) {
+        throw new Error("בחר סוכן");
+      }
       const { error } = await supabase.from("agent_supervisors").insert({
         tenant_id: requireTenantId(tenantId),
         supervisor_agent_id: agent.id,
         child_agent_id: childId,
         routing_hint: hint || null,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-supervisors", agent.id] });
@@ -68,7 +72,9 @@ export function SupervisorTab({ agent }: { agent: any }) {
         .from("agent_supervisors")
         .update({ enabled })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-supervisors", agent.id] }),
@@ -80,7 +86,9 @@ export function SupervisorTab({ agent }: { agent: any }) {
         .from("agent_supervisors")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["agent-supervisors", agent.id] }),
@@ -94,7 +102,9 @@ export function SupervisorTab({ agent }: { agent: any }) {
           body: { supervisor_agent_id: agent.id, goal, tenant_id: tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (d) => {

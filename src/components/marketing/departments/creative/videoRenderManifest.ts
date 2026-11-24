@@ -45,8 +45,9 @@ export function buildVideoRenderManifest(
   frames: ReadonlyArray<StoryboardFrame>,
   format: CreativeFormat,
 ): VideoRenderManifest {
-  if (!DIMENSIONS[format])
+  if (!DIMENSIONS[format]) {
     throw new VideoRenderValidationError("Unsupported video format");
+  }
   if (frames.length === 0 || frames.length > 100) {
     throw new VideoRenderValidationError(
       "Storyboard must contain 1–100 scenes",
@@ -58,8 +59,9 @@ export function buildVideoRenderManifest(
   const scenes = [...frames]
     .sort((a, b) => a.order - b.order)
     .map((frame) => {
-      if (!frame.id || ids.has(frame.id))
+      if (!frame.id || ids.has(frame.id)) {
         throw new VideoRenderValidationError("Duplicate or missing scene ID");
+      }
       ids.add(frame.id);
       if (
         !Number.isFinite(frame.duration) ||
@@ -90,8 +92,9 @@ export function buildVideoRenderManifest(
       cursor += frameCount;
       return scene;
     });
-  if (cursor > 30 * 60 * 10)
+  if (cursor > 30 * 60 * 10) {
     throw new VideoRenderValidationError("Video exceeds 10 minutes");
+  }
   return {
     schemaVersion: 1,
     format,

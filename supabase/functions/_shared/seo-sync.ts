@@ -4,7 +4,9 @@ export function normalizeSeoDomain(value?: string | null): string {
   let v = String(value || "")
     .trim()
     .toLowerCase();
-  if (!v) return "";
+  if (!v) {
+    return "";
+  }
   v = v.replace(/^sc-domain:/, "");
   v = v.replace(/^https?:\/\//, "");
   v = v.replace(/^www\./, "");
@@ -15,7 +17,9 @@ export function normalizeSeoDomain(value?: string | null): string {
 
 export function looksLikeSeoDomain(value?: string | null): boolean {
   const n = normalizeSeoDomain(value);
-  if (!n || n.includes(" ")) return false;
+  if (!n || n.includes(" ")) {
+    return false;
+  }
   return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(
     n,
   );
@@ -23,7 +27,9 @@ export function looksLikeSeoDomain(value?: string | null): boolean {
 
 export function extractDomainHint(text?: string | null): string {
   const raw = String(text || "").trim();
-  if (!raw) return "";
+  if (!raw) {
+    return "";
+  }
   const m = raw.match(
     /(?:^|[\s\-–—])([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)/i,
   );
@@ -59,7 +65,9 @@ export function pickSeoSyncDomain(input: {
 
   for (const item of chain) {
     const hit = tryPick(item.raw, item.from);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return { domain: "", from: null };
 }
@@ -71,15 +79,20 @@ export function needsSeoSyncThisMonth(
 ): boolean {
   const now = new Date();
   const inCurrentMonth = (iso?: string | null): boolean => {
-    if (!iso) return false;
+    if (!iso) {
+      return false;
+    }
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return false;
+    if (Number.isNaN(d.getTime())) {
+      return false;
+    }
     return (
       d.getUTCFullYear() === now.getUTCFullYear() &&
       d.getUTCMonth() === now.getUTCMonth()
     );
   };
-  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt))
+  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt)) {
     return false;
+  }
   return true;
 }

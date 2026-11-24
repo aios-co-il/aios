@@ -26,7 +26,9 @@ export function CalendarView() {
   const { data: calendarStatus, isLoading } = useQuery({
     queryKey: ["calendar-status", currentTenantId, provider],
     queryFn: async () => {
-      if (!currentTenantId) return { connected: false, type: "none" as const };
+      if (!currentTenantId) {
+        return { connected: false, type: "none" as const };
+      }
       return await checkCalendarConnection({
         tenantId: currentTenantId,
         provider,
@@ -42,7 +44,9 @@ export function CalendarView() {
   }, []);
 
   const handleConnect = async () => {
-    if (!currentTenantId) return;
+    if (!currentTenantId) {
+      return;
+    }
 
     try {
       if (provider === "unified") {

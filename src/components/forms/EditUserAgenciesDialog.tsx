@@ -56,20 +56,26 @@ export function EditUserAgenciesDialog({
           .select("id, name")
           .eq("tenant_id", currentTenant.id)
           .order("name");
-        if (ownedErr) throw ownedErr;
+        if (ownedErr) {
+          throw ownedErr;
+        }
 
         // Get shared agencies via agency_tenant_access
         const { data: shared, error: sharedErr } = await supabase
           .from("agency_tenant_access")
           .select("agency_id, agencies(id, name)")
           .eq("accessing_tenant_id", currentTenant.id);
-        if (sharedErr) throw sharedErr;
+        if (sharedErr) {
+          throw sharedErr;
+        }
 
         const sharedAgencies =
           shared?.map((s) => s.agencies).filter(Boolean) || [];
         const uniqueMap = new Map<string, { id: string; name: string }>();
         [...(owned || []), ...sharedAgencies].forEach((a) => {
-          if (a && a.id) uniqueMap.set(a.id, a as { id: string; name: string });
+          if (a && a.id) {
+            uniqueMap.set(a.id, a as { id: string; name: string });
+          }
         });
         return Array.from(uniqueMap.values()).sort((a, b) =>
           a.name.localeCompare(b.name),
@@ -97,7 +103,9 @@ export function EditUserAgenciesDialog({
           .select("agency_id")
           .eq("campaigner_id", profile.campaigner_id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return links?.map((link) => link.agency_id) || [];
       }
 
@@ -108,7 +116,9 @@ export function EditUserAgenciesDialog({
           .select("agency_id")
           .eq("sales_person_id", profile.sales_person_id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return links?.map((link) => link.agency_id) || [];
       }
 
@@ -126,7 +136,9 @@ export function EditUserAgenciesDialog({
         .select("campaigner_id, sales_person_id")
         .eq("id", userId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open && !!userId,
@@ -168,8 +180,12 @@ export function EditUserAgenciesDialog({
         },
       );
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
+      if (error) {
+        throw error;
+      }
+      if (!data.success) {
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: () => {
@@ -203,7 +219,9 @@ export function EditUserAgenciesDialog({
           .delete()
           .eq("sales_person_id", userProfile.sales_person_id);
 
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+          throw deleteError;
+        }
 
         if (selectedAgencies.length > 0) {
           const { error: insertError } = await supabase
@@ -215,7 +233,9 @@ export function EditUserAgenciesDialog({
               })),
             );
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            throw insertError;
+          }
         }
 
         queryClient.invalidateQueries({

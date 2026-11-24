@@ -167,21 +167,28 @@ function rowToSkill(row: DbSkillRow): CarmenSkill {
     return new RegExp(escaped, "i");
   });
   const promptParts: Array<string> = [];
-  if (row.goal) promptParts.push("מטרה: " + row.goal);
-  if (row.system_prompt) promptParts.push(row.system_prompt);
-  if (row.constraints)
+  if (row.goal) {
+    promptParts.push("מטרה: " + row.goal);
+  }
+  if (row.system_prompt) {
+    promptParts.push(row.system_prompt);
+  }
+  if (row.constraints) {
     promptParts.push(
       'חוקים קשיחים (לעולם לא נדרסים ע"י טון/מצב רוח):\n' + row.constraints,
     );
+  }
   // Procedural playbook — the ordered "do it this way" steps. Injected so a
   // procedure written into a skin's `steps` actually drives behaviour (it was
   // previously stored but never reached the prompt).
-  if (row.steps)
+  if (row.steps) {
     promptParts.push(
       "שלבי עבודה (בצעי לפי הסדר, אלא אם המשתמש ביקש אחרת):\n" + row.steps,
     );
-  if (row.output_template)
+  }
+  if (row.output_template) {
     promptParts.push("פורמט פלט חובה:\n" + row.output_template);
+  }
   // Skin → capability link: name the tools this skin works with, so the model
   // reaches for the right tool immediately instead of exploring.
   if (row.allowed_tools && row.allowed_tools.length > 0) {
@@ -222,11 +229,15 @@ async function loadSkillsForTenant(
           : "scope.eq.global",
       );
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const bySlug = new Map<string, DbSkillRow>();
     for (const row of (data || []) as Array<DbSkillRow>) {
-      if (!row.slug) continue;
+      if (!row.slug) {
+        continue;
+      }
       const existing = bySlug.get(row.slug);
       // Tenant scope wins over global
       if (
@@ -239,7 +250,9 @@ async function loadSkillsForTenant(
     const skills = Array.from(bySlug.values()).map(rowToSkill);
     // Add hardcoded fallbacks for any slug missing from DB
     for (const slug of Object.keys(FALLBACKS)) {
-      if (!bySlug.has(slug)) skills.push(FALLBACKS[slug]);
+      if (!bySlug.has(slug)) {
+        skills.push(FALLBACKS[slug]);
+      }
     }
     cache.set(cacheKey, { skills, fetchedAt: Date.now() });
     return skills;
@@ -279,7 +292,9 @@ export async function buildSkillsBlock(
   tenantId: string | null = null,
 ): Promise<string> {
   const matches = await resolveActiveSkills(commandText, tenantId);
-  if (matches.length === 0) return "";
+  if (matches.length === 0) {
+    return "";
+  }
   return "\n\n" + matches.map((s) => s.prompt).join("\n\n");
 }
 
@@ -294,9 +309,13 @@ export async function resolveSkillsBySlug(
   slugs: Array<string>,
   tenantId: string | null = null,
 ): Promise<Array<CarmenSkill>> {
-  if (!slugs || slugs.length === 0) return [];
+  if (!slugs || slugs.length === 0) {
+    return [];
+  }
   const wanted = new Set(slugs.map((s) => String(s).trim()).filter(Boolean));
-  if (wanted.size === 0) return [];
+  if (wanted.size === 0) {
+    return [];
+  }
   const all = await loadSkillsForTenant(tenantId);
   return all.filter((s) => wanted.has(s.id));
 }
@@ -306,7 +325,9 @@ export async function buildSkillsBlockBySlug(
   tenantId: string | null = null,
 ): Promise<string> {
   const matches = await resolveSkillsBySlug(slugs, tenantId);
-  if (matches.length === 0) return "";
+  if (matches.length === 0) {
+    return "";
+  }
   return "\n\n" + matches.map((s) => s.prompt).join("\n\n");
 }
 

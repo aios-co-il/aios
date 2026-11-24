@@ -95,13 +95,15 @@ test.skipIf(!hasFfmpeg)(
       // The pictures cut every 1.5 s, and each cut's sound starts 0.4 s before its cut.
       const pictureCuts = cuts(output);
       expect(pictureCuts.length).toBe(scenes.length - 1);
-      for (const [index, at] of pictureCuts.entries())
+      for (const [index, at] of pictureCuts.entries()) {
         expect(Math.abs(at - 1.5 * (index + 1))).toBeLessThan(0.05);
+      }
       // (The last silence ends with the film.)
       const heard = onsets(output).slice(0, -1);
       expect(heard.length).toBe(pictureCuts.length);
-      for (const [index, at] of pictureCuts.entries())
+      for (const [index, at] of pictureCuts.entries()) {
         expect(Math.abs(heard[index] - (at - 0.4))).toBeLessThan(0.05);
+      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

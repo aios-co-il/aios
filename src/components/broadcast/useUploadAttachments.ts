@@ -56,7 +56,9 @@ export function useUploadAttachments(
       return added;
     },
     onSuccess: (added) => {
-      if (added.length) onUploaded(added);
+      if (added.length) {
+        onUploaded(added);
+      }
     },
     onError: (e) => toast.error("העלאת הקובץ נכשלה: " + errorMessage(e)),
   });

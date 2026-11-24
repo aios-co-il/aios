@@ -88,7 +88,9 @@ export function AddClientForm() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies-for-client", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as Array<any>;
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -97,7 +99,9 @@ export function AddClientForm() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -113,7 +117,9 @@ export function AddClientForm() {
         )
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Extract shared agencies
       const shared = (sharedAccess || [])
@@ -192,7 +198,9 @@ export function AddClientForm() {
           p_google_ads_account_id: values.google_ads_account_id || undefined,
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Save additional contacts
       if (additionalContacts.length > 0 && newClientId) {
@@ -207,8 +215,9 @@ export function AddClientForm() {
         const { error: contactsError } = await supabase
           .from("client_contacts")
           .insert(contactsToInsert);
-        if (contactsError)
+        if (contactsError) {
           console.error("Error saving contacts:", contactsError);
+        }
       }
     },
     onSuccess: () => {

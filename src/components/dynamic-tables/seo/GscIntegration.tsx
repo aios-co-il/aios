@@ -208,7 +208,9 @@ export function GscIntegration({
   //   4. The first personal integration as a last resort (lets the user pick a site manually).
   const gscIntegration = useMemo(() => {
     const buildFallback = () => {
-      if (!resolvedFallback?.integrationId) return null;
+      if (!resolvedFallback?.integrationId) {
+        return null;
+      }
       return {
         id: resolvedFallback.integrationId,
         settings: {
@@ -235,17 +237,23 @@ export function GscIntegration({
     const explicitlySelected = selectedIntegrationId
       ? usableIntegrations.find((i) => i.id === selectedIntegrationId)
       : null;
-    if (explicitlySelected) return explicitlySelected;
+    if (explicitlySelected) {
+      return explicitlySelected;
+    }
 
     const withGoodMapping = usableIntegrations.find((i: any) => {
       const mapped = (i.settings as any)?.client_sites?.[clientId];
-      if (!mapped) return false;
+      if (!mapped) {
+        return false;
+      }
       const sites = (i.settings as any)?.available_sites || [];
       const site = sites.find((s: any) => s.siteUrl === mapped);
       // Accept if we don't have permission metadata, or if it's not 'siteUnverifiedUser'
       return !site || site.permissionLevel !== "siteUnverifiedUser";
     });
-    if (withGoodMapping) return withGoodMapping;
+    if (withGoodMapping) {
+      return withGoodMapping;
+    }
 
     // Personal integration exists but isn't usable for this client → prefer the
     // org-wide fallback so GSC data still loads automatically (same behavior
@@ -283,7 +291,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         "google-search-console-auth?action=get_sites",
@@ -319,10 +329,18 @@ export function GscIntegration({
   // suppressing the per-client reconnect banner unnecessarily.
   useEffect(() => {
     const id = gscIntegration?.id;
-    if (!id || isFallbackIntegration) return;
-    if (!sitesResult?.needsReconnect) return;
-    if (!resolvedFallback?.integrationId) return; // no fallback → keep banner
-    if (brokenIntegrationIds.has(id)) return;
+    if (!id || isFallbackIntegration) {
+      return;
+    }
+    if (!sitesResult?.needsReconnect) {
+      return;
+    }
+    if (!resolvedFallback?.integrationId) {
+      return;
+    } // no fallback → keep banner
+    if (brokenIntegrationIds.has(id)) {
+      return;
+    }
     setBrokenIntegrationIds((prev) => {
       const next = new Set(prev);
       next.add(id);
@@ -368,12 +386,18 @@ export function GscIntegration({
   );
 
   const isUsableSite = (siteUrl?: string) => {
-    if (!siteUrl) return false;
+    if (!siteUrl) {
+      return false;
+    }
     const meta = availableSites.find((s) => s.siteUrl === siteUrl);
-    if (meta) return meta.permissionLevel !== "siteUnverifiedUser";
+    if (meta) {
+      return meta.permissionLevel !== "siteUnverifiedUser";
+    }
     // Once a selected account has returned its property list, a property absent
     // from that list belongs to another account and must not be reused.
-    if (!isFallbackIntegration && availableSites.length > 0) return false;
+    if (!isFallbackIntegration && availableSites.length > 0) {
+      return false;
+    }
     // Before sites load (and for server-resolved fallback), avoid UI flicker.
     return true;
   };
@@ -442,7 +466,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const { startDate, endDate } = computeRange(effectiveDateRange);
 
@@ -476,7 +502,9 @@ export function GscIntegration({
       ) {
         const id = gscIntegration.id;
         setBrokenIntegrationIds((prev) => {
-          if (prev.has(id)) return prev;
+          if (prev.has(id)) {
+            return prev;
+          }
           const next = new Set(prev);
           next.add(id);
           return next;
@@ -499,7 +527,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const dateMinus = (days: number) => {
         const d = new Date();
@@ -562,7 +592,9 @@ export function GscIntegration({
       if (anyNeedsReconnect && gscIntegration?.id && !isFallbackIntegration) {
         const id = gscIntegration.id;
         setBrokenIntegrationIds((prev) => {
-          if (prev.has(id)) return prev;
+          if (prev.has(id)) {
+            return prev;
+          }
           const next = new Set(prev);
           next.add(id);
           return next;
@@ -600,7 +632,9 @@ export function GscIntegration({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         "google-search-console-auth?action=authorize",
@@ -614,7 +648,9 @@ export function GscIntegration({
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -630,7 +666,9 @@ export function GscIntegration({
 
   const updateSiteMutation = useMutation({
     mutationFn: async (siteUrl: string) => {
-      if (!gscIntegration?.id) return { siteUrl, dbUpdated: false };
+      if (!gscIntegration?.id) {
+        return { siteUrl, dbUpdated: false };
+      }
       // In fallback mode we don't own the integration row — skip the DB write
       // entirely and let the report-level persistence (onSiteSelected) be the
       // source of truth. This avoids RLS errors and unnecessary toasts.
@@ -655,7 +693,9 @@ export function GscIntegration({
             },
           })
           .eq("id", gscIntegration.id);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return { siteUrl, dbUpdated: true };
       } catch (err) {
         // RLS may block updating an integration shared by another user.
@@ -673,7 +713,9 @@ export function GscIntegration({
       });
       queryClient.invalidateQueries({ queryKey: ["gsc-keyword-data"] });
       onSiteSelected?.(siteUrl);
-      if (dbUpdated) toast.success("הנכס עודכן");
+      if (dbUpdated) {
+        toast.success("הנכס עודכן");
+      }
     },
   });
 
@@ -698,10 +740,14 @@ export function GscIntegration({
     storedClientSiteIsUsable,
   ]);
 
-  if (isLoadingIntegration) return null;
+  if (isLoadingIntegration) {
+    return null;
+  }
 
   // SEO dashboard uses GSC only for silent keyword enrichment — no connect CTA.
-  if (!gscIntegration && hideTable) return null;
+  if (!gscIntegration && hideTable) {
+    return null;
+  }
 
   if (!gscIntegration) {
     return (
@@ -729,7 +775,9 @@ export function GscIntegration({
   }
 
   // hideTable = silent enrichment inside SeoDashboardView — no GSC chrome.
-  if (hideTable) return null;
+  if (hideTable) {
+    return null;
+  }
 
   return (
     <Card className="border-primary/20">
@@ -881,7 +929,9 @@ export function GscIntegration({
               onClick={async () => {
                 try {
                   forceLiveNextRef.current = true;
-                  if (!isFallbackIntegration) await refetchSites();
+                  if (!isFallbackIntegration) {
+                    await refetchSites();
+                  }
                   if (enableMultiPeriod) {
                     await queryClient.invalidateQueries({
                       queryKey: [
@@ -891,7 +941,9 @@ export function GscIntegration({
                       ],
                     });
                     const result = await refetchMulti();
-                    if (result.error) throw result.error;
+                    if (result.error) {
+                      throw result.error;
+                    }
                     const count = result.data?.current?.length ?? 0;
                     toast.success(
                       `נתוני GSC עודכנו (${count.toLocaleString()} ביטויים)`,
@@ -905,7 +957,9 @@ export function GscIntegration({
                       ],
                     });
                     const result = await refetchData();
-                    if (result.error) throw result.error;
+                    if (result.error) {
+                      throw result.error;
+                    }
                     const count = Array.isArray(result.data)
                       ? result.data.length
                       : 0;
@@ -1026,7 +1080,9 @@ export function GscIntegration({
                   const values = gscData
                     .map((row: GscKeywordData) => gscCtrAsPercent(row.ctr))
                     .filter((v): v is number => v != null);
-                  if (values.length === 0) return "—";
+                  if (values.length === 0) {
+                    return "—";
+                  }
                   return `${(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1)}%`;
                 })()}
               </p>
@@ -1123,9 +1179,13 @@ function GscQueriesTable({
       other = 0;
     for (const row of data) {
       const k = row.keyword || "";
-      if (HEBREW_REGEX.test(k)) he++;
-      else if (ENGLISH_REGEX.test(k)) en++;
-      else other++;
+      if (HEBREW_REGEX.test(k)) {
+        he++;
+      } else if (ENGLISH_REGEX.test(k)) {
+        en++;
+      } else {
+        other++;
+      }
     }
     return { he, en, other, all: data.length };
   }, [data]);
@@ -1135,9 +1195,12 @@ function GscQueriesTable({
     if (langFilter !== "all") {
       filtered = filtered.filter((row) => {
         const k = row.keyword || "";
-        if (langFilter === "he") return HEBREW_REGEX.test(k);
-        if (langFilter === "en")
+        if (langFilter === "he") {
+          return HEBREW_REGEX.test(k);
+        }
+        if (langFilter === "en") {
           return ENGLISH_REGEX.test(k) && !HEBREW_REGEX.test(k);
+        }
         return true;
       });
     }
@@ -1153,9 +1216,15 @@ function GscQueriesTable({
           trackedPhraseRank(a.keyword, a.position, rankOpts)?.position ?? null;
         const bShown =
           trackedPhraseRank(b.keyword, b.position, rankOpts)?.position ?? null;
-        if (aShown == null && bShown == null) return 0;
-        if (aShown == null) return 1;
-        if (bShown == null) return -1;
+        if (aShown == null && bShown == null) {
+          return 0;
+        }
+        if (aShown == null) {
+          return 1;
+        }
+        if (bShown == null) {
+          return -1;
+        }
         return sortOrder === "desc" ? bShown - aShown : aShown - bShown;
       }
       const aVal = a[sortBy] as number;
@@ -1178,8 +1247,9 @@ function GscQueriesTable({
   };
 
   const SortIcon = ({ col }: { col: keyof GscKeywordData }) => {
-    if (sortBy !== col)
+    if (sortBy !== col) {
       return <ArrowUpDown className="h-3 w-3 opacity-30 inline ml-1" />;
+    }
     return (
       <span className="inline ml-1 text-primary">
         {sortOrder === "asc" ? "↑" : "↓"}

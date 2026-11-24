@@ -26,8 +26,9 @@ test("every offered preset resolves to its own window", () => {
 
   for (const [listName, presets] of presetLists) {
     for (const { value } of presets) {
-      if (value === "custom" || value === "all" || value === "last_30_days")
+      if (value === "custom" || value === "all" || value === "last_30_days") {
         continue;
+      }
       const range = getDashboardDateRange(value, NOW);
       expect(
         range,

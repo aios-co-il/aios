@@ -7,23 +7,29 @@ const corsHeaders = {
 };
 
 function normalizePhone(p: string | null | undefined): string | null {
-  if (!p) return null;
+  if (!p) {
+    return null;
+  }
   let c = p.replace(/\D/g, "");
-  if (c.startsWith("972")) c = "0" + c.slice(3);
+  if (c.startsWith("972")) {
+    c = "0" + c.slice(3);
+  }
   return c;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader)
+    if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
       });
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -36,18 +42,20 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } },
     ).auth.getUser();
-    if (!user)
+    if (!user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: corsHeaders,
       });
+    }
 
     const { tenant_id, days = 7 } = await req.json();
-    if (!tenant_id)
+    if (!tenant_id) {
       return new Response(JSON.stringify({ error: "tenant_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const { data: settings } = await supabase
       .from("maskyoo_settings")
@@ -55,11 +63,12 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .eq("is_active", true)
       .maybeSingle();
-    if (!settings)
+    if (!settings) {
       return new Response(JSON.stringify({ error: "Maskyoo not configured" }), {
         status: 422,
         headers: corsHeaders,
       });
+    }
 
     // Build SQL query - last N days
     const sql = `SELECT id, start_call, end_call, call_duration, cdr_ani, cdr_ddi, onetouch, user_phone, user_name, cdr_uniqueid, call_status FROM webserviceview WHERE start_call >= DATE_SUB(NOW(), INTERVAL ${Number(days)} DAY) ORDER BY start_call DESC LIMIT 1000`;
@@ -97,7 +106,9 @@ Deno.serve(async (req) => {
 
     for (const r of rows) {
       const uniqueid = r.cdr_uniqueid;
-      if (!uniqueid) continue;
+      if (!uniqueid) {
+        continue;
+      }
 
       // Try match existing log by provider_call_id
       const { data: existing } = await supabase
@@ -122,7 +133,9 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenant_id)
           .ilike("phone", `%${last9}`)
           .maybeSingle();
-        if (lead) lead_id = lead.id;
+        if (lead) {
+          lead_id = lead.id;
+        }
         if (!lead_id) {
           const { data: client } = await supabase
             .from("clients")
@@ -130,7 +143,9 @@ Deno.serve(async (req) => {
             .eq("tenant_id", tenant_id)
             .ilike("phone", `%${last9}`)
             .maybeSingle();
-          if (client) client_id = client.id;
+          if (client) {
+            client_id = client.id;
+          }
         }
       }
 

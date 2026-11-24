@@ -159,7 +159,9 @@ function mapAgencyRow(a: {
 async function withSharedTenantAccess(
   agencies: Array<AgencyOpt>,
 ): Promise<Array<AgencyOpt>> {
-  if (agencies.length === 0) return agencies;
+  if (agencies.length === 0) {
+    return agencies;
+  }
   const { data, error } = await supabase
     .from("agency_tenant_access")
     .select("agency_id, accessing_tenant_id")
@@ -167,7 +169,9 @@ async function withSharedTenantAccess(
       "agency_id",
       agencies.map((a) => a.id),
     );
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const sharedByAgency = new Map<string, Array<string>>();
   for (const row of data || []) {
     const list = sharedByAgency.get(row.agency_id) || [];
@@ -194,14 +198,20 @@ async function fetchAgenciesForTenantScope(
       .select("agency_id, agencies(id, name, tenant_id, tenants(name))")
       .eq("accessing_tenant_id", scopeTenantId),
   ]);
-  if (ownRes.error) throw ownRes.error;
-  if (accessRes.error) throw accessRes.error;
+  if (ownRes.error) {
+    throw ownRes.error;
+  }
+  if (accessRes.error) {
+    throw accessRes.error;
+  }
 
   const merged = new Map<string, AgencyOpt>();
   (ownRes.data || []).forEach((a: any) => merged.set(a.id, mapAgencyRow(a)));
   (accessRes.data || []).forEach((row: any) => {
     const a = row.agencies;
-    if (a) merged.set(a.id, mapAgencyRow(a));
+    if (a) {
+      merged.set(a.id, mapAgencyRow(a));
+    }
   });
   return withSharedTenantAccess(
     Array.from(merged.values()).sort((x, y) => x.name.localeCompare(y.name)),
@@ -277,7 +287,9 @@ export default function WordPressSettings() {
         .from("tenants")
         .select("id, name, slug")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: isSuperAdmin,
@@ -297,13 +309,17 @@ export default function WordPressSettings() {
           .from("agencies")
           .select("id, name, tenant_id, tenants(name)")
           .order("name");
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return withSharedTenantAccess(
           (data || []).map((a: any) => mapAgencyRow(a)),
         );
       }
 
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       return fetchAgenciesForTenantScope(tenantId);
     },
     enabled: !!tenantId || isSuperAdmin,
@@ -328,7 +344,9 @@ export default function WordPressSettings() {
     ],
     queryFn: async () => {
       const effTenant = selectedAgencyTenantId || form.tenant_id || tenantId;
-      if (!effTenant && !form.agency_id && !isSuperAdmin) return [];
+      if (!effTenant && !form.agency_id && !isSuperAdmin) {
+        return [];
+      }
 
       let q = supabase
         .from("clients")
@@ -355,7 +373,9 @@ export default function WordPressSettings() {
       }
 
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -396,7 +416,9 @@ export default function WordPressSettings() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []) as unknown as Array<WordPressSite>;
     },
     enabled: !!tenantId,
@@ -426,7 +448,9 @@ export default function WordPressSettings() {
         .insert(payload)
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (created?.id && values.client_id && values.agency_id) {
         await shareWordpressSiteWithAgencyTenants(created.id, values.agency_id);
       }
@@ -470,7 +494,9 @@ export default function WordPressSettings() {
         .from("social_media_wordpress_sites" as any)
         .update(payload)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await shareWordpressSiteWithAgencyTenants(id, values.agency_id || null);
     },
     onSuccess: (_data, { values }) => {
@@ -495,7 +521,9 @@ export default function WordPressSettings() {
         .from("social_media_wordpress_sites" as any)
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -522,7 +550,9 @@ export default function WordPressSettings() {
         .from("social_media_wordpress_sites" as any)
         .update({ is_active, updated_at: new Date().toISOString() })
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -549,12 +579,16 @@ export default function WordPressSettings() {
         client_id,
         updated_at: new Date().toISOString(),
       };
-      if (newTenantId) payload.tenant_id = newTenantId;
+      if (newTenantId) {
+        payload.tenant_id = newTenantId;
+      }
       const { error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .update(payload)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await shareWordpressSiteWithAgencyTenants(id, agency_id);
     },
     onSuccess: (_data, { client_id }) => {
@@ -582,13 +616,17 @@ export default function WordPressSettings() {
           .from("agencies")
           .select("id, name, tenant_id, tenants(name)")
           .order("name");
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return withSharedTenantAccess(
           (data || []).map((a: any) => mapAgencyRow(a)),
         );
       }
 
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       return fetchAgenciesForTenantScope(tenantId);
     },
     enabled: !!tenantId || isSuperAdmin,
@@ -626,7 +664,9 @@ export default function WordPressSettings() {
           [linkEffectiveTenantId, tenantId].filter(Boolean) as Array<string>,
         ),
       );
-      if (tenantIds.length === 0 && !linkAgency) return [];
+      if (tenantIds.length === 0 && !linkAgency) {
+        return [];
+      }
 
       let q = supabase
         .from("clients")
@@ -644,7 +684,9 @@ export default function WordPressSettings() {
       }
 
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data || []).map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -699,14 +741,18 @@ export default function WordPressSettings() {
   }>({
     queryKey: ["wp-discovery", mappingSite?.id],
     queryFn: async () => {
-      if (!mappingSite) return { per_form: [], per_slug: [] };
+      if (!mappingSite) {
+        return { per_form: [], per_slug: [] };
+      }
       const { data, error } = await supabase.functions.invoke(
         "fetch-elementor-submissions",
         {
           body: { site_id: mappingSite.id, days: 90 },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return {
         per_form: (data?.per_form || []) as Array<any>,
         per_slug: (data?.per_slug || []) as Array<any>,
@@ -724,26 +770,36 @@ export default function WordPressSettings() {
   >({
     queryKey: ["wp-client-campaigns", mappingSite?.client_id],
     queryFn: async () => {
-      if (!mappingSite?.client_id) return [];
+      if (!mappingSite?.client_id) {
+        return [];
+      }
       const { data: tables, error: tErr } = await supabase
         .from("crm_tables")
         .select("id")
         .eq("client_id", mappingSite.client_id)
         .eq("integration_type", "google_ads");
-      if (tErr) throw tErr;
-      if (!tables || tables.length === 0) return [];
+      if (tErr) {
+        throw tErr;
+      }
+      if (!tables || tables.length === 0) {
+        return [];
+      }
       const tableIds = tables.map((t: any) => t.id);
       const { data: records, error: rErr } = await supabase
         .from("crm_records")
         .select("data")
         .in("table_id", tableIds)
         .limit(1000);
-      if (rErr) throw rErr;
+      if (rErr) {
+        throw rErr;
+      }
       const map = new Map<string, string>();
       for (const r of records || []) {
         const cid = (r as any).data?.campaign_id;
         const cname = (r as any).data?.campaign_name;
-        if (cid && cname && !map.has(cid)) map.set(cid, cname);
+        if (cid && cname && !map.has(cid)) {
+          map.set(cid, cname);
+        }
       }
       return Array.from(map.entries())
         .map(([campaign_id, campaign_name]) => ({ campaign_id, campaign_name }))
@@ -790,15 +846,20 @@ export default function WordPressSettings() {
         Object.entries(mapping).filter(([_, v]) => v && v.length > 0),
       );
       const payload: any = { updated_at: new Date().toISOString() };
-      if (mode === "form") payload.campaign_form_mapping = clean;
-      else payload.campaign_url_mapping = clean;
+      if (mode === "form") {
+        payload.campaign_form_mapping = clean;
+      } else {
+        payload.campaign_url_mapping = clean;
+      }
       const { data, error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .update(payload)
         .eq("id", id)
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { clean, mode, data };
     },
     onSuccess: async ({ clean, mode, data }) => {
@@ -822,8 +883,11 @@ export default function WordPressSettings() {
           : prev,
       );
       // Sync local per-mode drafts with what was saved
-      if (mode === "form") setFormDraft(clean);
-      else setSlugDraft(clean);
+      if (mode === "form") {
+        setFormDraft(clean);
+      } else {
+        setSlugDraft(clean);
+      }
       await queryClient.invalidateQueries({
         queryKey: ["wordpress-sites-admin", tenantId],
       });
@@ -846,12 +910,16 @@ export default function WordPressSettings() {
       const ids = Array.from(
         new Set(sites.map((s) => s.client_id).filter(Boolean) as Array<string>),
       );
-      if (ids.length === 0) return {};
+      if (ids.length === 0) {
+        return {};
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("id, name")
         .in("id", ids);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return Object.fromEntries((data || []).map((c: any) => [c.id, c.name]));
     },
     enabled: sites.length > 0,
@@ -866,7 +934,9 @@ export default function WordPressSettings() {
           body: { site_id: siteId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
@@ -890,7 +960,9 @@ export default function WordPressSettings() {
           body: { site_id: site.id },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data?.success) {
         toast.success(`חיבור תקין! אתר: ${data.site_name || site.site_url}`);
       } else {
@@ -1544,7 +1616,9 @@ export default function WordPressSettings() {
       <Dialog
         open={!!editSite}
         onOpenChange={(o) => {
-          if (!o) setEditSite(null);
+          if (!o) {
+            setEditSite(null);
+          }
         }}
       >
         <DialogContent dir="rtl" className="max-w-lg">
@@ -1576,7 +1650,9 @@ export default function WordPressSettings() {
       <Dialog
         open={!!linkSite}
         onOpenChange={(o) => {
-          if (!o) setLinkSite(null);
+          if (!o) {
+            setLinkSite(null);
+          }
         }}
       >
         <DialogContent dir="rtl" className="max-w-md">
@@ -1709,7 +1785,9 @@ export default function WordPressSettings() {
                     >
                       <Command
                         filter={(value, search) => {
-                          if (!search) return 1;
+                          if (!search) {
+                            return 1;
+                          }
                           return normalize(value).includes(normalize(search))
                             ? 1
                             : 0;
@@ -1808,7 +1886,9 @@ export default function WordPressSettings() {
               <Button
                 className="flex-1"
                 onClick={() => {
-                  if (!linkSite) return;
+                  if (!linkSite) {
+                    return;
+                  }
                   const targetTenant =
                     linkSelectedAgency?.tenant_id || linkTenantId || null;
                   linkMutation.mutate({
@@ -1837,7 +1917,9 @@ export default function WordPressSettings() {
       <Dialog
         open={!!mappingSite}
         onOpenChange={(o) => {
-          if (!o) setMappingSite(null);
+          if (!o) {
+            setMappingSite(null);
+          }
         }}
       >
         <DialogContent dir="rtl" className="max-w-2xl">
@@ -2099,7 +2181,9 @@ export default function WordPressSettings() {
               <Button
                 className="flex-1"
                 onClick={() => {
-                  if (!mappingSite) return;
+                  if (!mappingSite) {
+                    return;
+                  }
                   mappingMutation.mutate({
                     id: mappingSite.id,
                     mapping: mappingDraft,

@@ -22,11 +22,17 @@ const db = vi.hoisted(() => {
         return { data: null, count: null, error: errors[table] };
       }
       const rows = (tables[table] ??= []);
-      if (insert) rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
+      if (insert) {
+        rows.push({ id: `${table}-${rows.length + 1}`, ...insert });
+      }
       const hits = insert
         ? rows.slice(-1)
         : rows.filter((row) => filters.every((keep) => keep(row)));
-      if (patch) for (const row of hits) Object.assign(row, patch);
+      if (patch) {
+        for (const row of hits) {
+          Object.assign(row, patch);
+        }
+      }
       const data = hits.map((row) =>
         columns
           ? Object.fromEntries(columns.map((column) => [column, row[column]]))
@@ -88,7 +94,9 @@ vi.mock("@/components/marketing/lib/ensurePipeline", () => ({
 beforeEach(() => {
   HTMLElement.prototype.hasPointerCapture = () => false;
   HTMLElement.prototype.scrollIntoView = () => {};
-  for (const table of Object.keys(db.tables)) delete db.tables[table];
+  for (const table of Object.keys(db.tables)) {
+    delete db.tables[table];
+  }
   for (const table of Object.keys(db.errors)) {
     delete db.errors[table];
   }

@@ -109,11 +109,12 @@ Deno.test(
     const { failStalePictures } = await import("./turn-note.ts");
     const calls: Array<[string, ...Array<unknown>]> = [];
     const chain: Record<string, (...a: Array<unknown>) => unknown> = {};
-    for (const name of ["update", "eq", "in", "lt"])
+    for (const name of ["update", "eq", "in", "lt"]) {
       chain[name] = (...a: Array<unknown>) => {
         calls.push([name, ...a]);
         return chain;
       };
+    }
     const db = {
       from: (table: string) => (calls.push(["from", table]), chain),
     };
@@ -158,8 +159,9 @@ Deno.test(
     };
     const query = (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt", "update"])
+      for (const name of ["select", "eq", "in", "lt", "update"]) {
         chain[name] = () => chain;
+      }
       chain.maybeSingle = async () => ({ data: { payload } });
       chain.then = (resolve: (value: unknown) => void) =>
         resolve({ data: rows[table] ?? [], error: null });
@@ -186,8 +188,9 @@ Deno.test(
     };
     const query = () => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt", "order", "update"])
+      for (const name of ["select", "eq", "in", "lt", "order", "update"]) {
         chain[name] = () => chain;
+      }
       chain.maybeSingle = async () => ({ data: { payload } });
       chain.then = (resolve: (value: unknown) => void) =>
         resolve({ data: [], error: null });
@@ -209,8 +212,9 @@ Deno.test(
     const updates: Array<Record<string, unknown>> = [];
     const query = () => {
       const chain: Record<string, unknown> = {};
-      for (const name of ["select", "eq", "in", "lt"])
+      for (const name of ["select", "eq", "in", "lt"]) {
         chain[name] = () => chain;
+      }
       chain.update = (value: Record<string, unknown>) => {
         updates.push(value);
         return chain;

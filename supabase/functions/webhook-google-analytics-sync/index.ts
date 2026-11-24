@@ -176,36 +176,54 @@ Deno.serve(async (req) => {
       const recordData: Record<string, any> = {};
 
       // Map incoming data to our field structure
-      if (record.date) recordData.date = record.date;
+      if (record.date) {
+        recordData.date = record.date;
+      }
       if (record.source_medium) {
         recordData.source_medium = record.source_medium;
       } else if (record.source || record.medium) {
         recordData.source_medium = `${record.source || ""}/${record.medium || ""}`;
       }
-      if (record.campaign) recordData.campaign = record.campaign;
-      if (record.sessions !== undefined)
+      if (record.campaign) {
+        recordData.campaign = record.campaign;
+      }
+      if (record.sessions !== undefined) {
         recordData.sessions = Number(record.sessions) || 0;
-      if (record.users !== undefined)
+      }
+      if (record.users !== undefined) {
         recordData.users = Number(record.users) || 0;
-      if (record.new_users !== undefined)
+      }
+      if (record.new_users !== undefined) {
         recordData.new_users = Number(record.new_users) || 0;
-      if (record.pageviews !== undefined)
+      }
+      if (record.pageviews !== undefined) {
         recordData.pageviews = Number(record.pageviews) || 0;
-      if (record.bounce_rate !== undefined)
+      }
+      if (record.bounce_rate !== undefined) {
         recordData.bounce_rate = Number(record.bounce_rate) || 0;
-      if (record.avg_session_duration !== undefined)
+      }
+      if (record.avg_session_duration !== undefined) {
         recordData.avg_session_duration =
           Number(record.avg_session_duration) || 0;
-      if (record.pages_per_session !== undefined)
+      }
+      if (record.pages_per_session !== undefined) {
         recordData.pages_per_session = Number(record.pages_per_session) || 0;
-      if (record.page_path) recordData.page_path = record.page_path;
-      if (record.page_title) recordData.page_title = record.page_title;
-      if (record.transactions !== undefined)
+      }
+      if (record.page_path) {
+        recordData.page_path = record.page_path;
+      }
+      if (record.page_title) {
+        recordData.page_title = record.page_title;
+      }
+      if (record.transactions !== undefined) {
         recordData.transactions = Number(record.transactions) || 0;
-      if (record.revenue !== undefined)
+      }
+      if (record.revenue !== undefined) {
         recordData.revenue = Number(record.revenue) || 0;
-      if (record.conversion_rate !== undefined)
+      }
+      if (record.conversion_rate !== undefined) {
         recordData.conversion_rate = Number(record.conversion_rate) || 0;
+      }
 
       // Check for existing record by date + source_medium
       const matchCondition: Record<string, any> = { table_id };

@@ -17,5 +17,7 @@ Deno.test("high cursor dispatches per iteration flags waste signal", () => {
     plan_steps_pending: 1,
   };
   const likelyWasteful = m.cursor_dispatches > 1 && m.dev_tasks_open > 1;
-  if (!likelyWasteful) throw new Error("expected waste signal");
+  if (!likelyWasteful) {
+    throw new Error("expected waste signal");
+  }
 });

@@ -99,23 +99,39 @@ export function scenesToFrames(
         x: finiteOr(canvas.x, defaultX(order)),
         y: finiteOr(canvas.y, 100),
       };
-      if (row.status) frame.status = row.status;
+      if (row.status) {
+        frame.status = row.status;
+      }
       frame.locked = row.locked === true;
       frame.hasCharacter = asRecord(row.meta).has_character !== false;
-      if (row.still_asset_id) frame.stillAssetId = row.still_asset_id;
-      if (still?.url) frame.imageUrl = still.url;
-      if (row.clip_asset_id) frame.clipAssetId = row.clip_asset_id;
-      if (clip?.url) frame.clipPath = clip.url;
-      if (row.clip_stale) frame.clipStale = true;
+      if (row.still_asset_id) {
+        frame.stillAssetId = row.still_asset_id;
+      }
+      if (still?.url) {
+        frame.imageUrl = still.url;
+      }
+      if (row.clip_asset_id) {
+        frame.clipAssetId = row.clip_asset_id;
+      }
+      if (clip?.url) {
+        frame.clipPath = clip.url;
+      }
+      if (row.clip_stale) {
+        frame.clipStale = true;
+      }
       if (row.voice_asset_id) {
         frame.voiceAssetId = row.voice_asset_id;
         const voiceMeta = asRecord(assetsById.get(row.voice_asset_id)?.meta);
         const line = asRecord(voiceMeta.lines)[row.id];
         const spoken = typeof line === "string" ? line : voiceMeta.text;
-        if (typeof spoken === "string") frame.voiceText = spoken;
+        if (typeof spoken === "string") {
+          frame.voiceText = spoken;
+        }
       }
       const cost = generationCostOf(still?.meta);
-      if (cost) frame.generationCost = cost;
+      if (cost) {
+        frame.generationCost = cost;
+      }
       return frame;
     });
 }

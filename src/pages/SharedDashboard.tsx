@@ -137,17 +137,28 @@ const matchesPlatformFilter = (
   integrationType: string,
   filter: DashboardPlatformFilter,
 ): boolean => {
-  if (filter === "all") return true;
-  if (filter === "facebook") return isFacebookPlatform(integrationType);
-  if (filter === "google_ads") return integrationType === "google_ads";
-  if (filter === "google_analytics")
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "facebook") {
+    return isFacebookPlatform(integrationType);
+  }
+  if (filter === "google_ads") {
+    return integrationType === "google_ads";
+  }
+  if (filter === "google_analytics") {
     return isAnalyticsPlatform(integrationType);
+  }
   return true;
 };
 
 const formatNumber = (num: number) => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
   return Math.round(num).toString();
 };
 
@@ -272,7 +283,9 @@ export default function SharedDashboard({
           headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}` },
         },
       );
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
       return attachTableSettings(await res.json());
     },
     enabled: !!shareToken && platformFilter === "weekly",
@@ -354,7 +367,7 @@ export default function SharedDashboard({
 
   // Aggregate GSC records per keyword (sum clicks/impressions, weighted-avg position)
   const seoGscAggregated = useMemo(() => {
-    if (seoGscRecords.length === 0)
+    if (seoGscRecords.length === 0) {
       return [] as Array<{
         keyword: string;
         clicks: number;
@@ -362,6 +375,7 @@ export default function SharedDashboard({
         ctr: number;
         position: number;
       }>;
+    }
     const acc = new Map<
       string,
       { clicks: number; impressions: number; positionWeighted: number }
@@ -369,7 +383,9 @@ export default function SharedDashboard({
     for (const rec of seoGscRecords) {
       const d = (rec as any).data || rec;
       const kw = String(d.query || d.keyword || "").trim();
-      if (!kw) continue;
+      if (!kw) {
+        continue;
+      }
       const clicks = Number(d.clicks) || 0;
       const impressions = Number(d.impressions) || 0;
       const position = Number(d.position) || 0;
@@ -400,8 +416,9 @@ export default function SharedDashboard({
 
   // Compute GA monthly non-paid sessions for the SEO traffic chart (mirrors SeoDashboardView).
   const seoGaOrganicByMonth = useMemo(() => {
-    if (seoGaRecords.length === 0)
+    if (seoGaRecords.length === 0) {
       return [] as Array<{ month: string; sessions: number }>;
+    }
     const isPaidChannel = (cg: string) => {
       const v = cg.toLowerCase();
       return (
@@ -424,9 +441,13 @@ export default function SharedDashboard({
       const monthMap = new Map<string, number>();
       for (const r of monthlyChannelRows) {
         const cg = String(r.data?.channel_group || "");
-        if (isPaidChannel(cg)) continue;
+        if (isPaidChannel(cg)) {
+          continue;
+        }
         const month = r.data?.month as string;
-        if (!month) continue;
+        if (!month) {
+          continue;
+        }
         monthMap.set(
           month,
           (monthMap.get(month) || 0) + (Number(r.data?.sessions) || 0),
@@ -447,9 +468,13 @@ export default function SharedDashboard({
       const monthMap = new Map<string, number>();
       for (const r of dailySourceRows) {
         const sm = String(r.data?.source_medium || "");
-        if (isPaidMedium(sm)) continue;
+        if (isPaidMedium(sm)) {
+          continue;
+        }
         const date = r.data?.date;
-        if (!date) continue;
+        if (!date) {
+          continue;
+        }
         const monthKey = String(date).substring(0, 7);
         monthMap.set(
           monthKey,
@@ -489,16 +514,26 @@ export default function SharedDashboard({
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
     tables.forEach((t: any) => {
-      if (t?.integration_type) set.add(t.integration_type);
+      if (t?.integration_type) {
+        set.add(t.integration_type);
+      }
     });
     const platforms: Array<DashboardPlatformFilter> = [];
-    if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
+    if (set.has("facebook_insights") || set.has("facebook_ecommerce")) {
       platforms.push("facebook");
-    if (set.has("google_ads")) platforms.push("google_ads");
-    if (set.has("google_analytics") && hasVisibleAnalyticsData)
+    }
+    if (set.has("google_ads")) {
+      platforms.push("google_ads");
+    }
+    if (set.has("google_analytics") && hasVisibleAnalyticsData) {
       platforms.push("google_analytics");
-    if (hasWooCommerce) platforms.push("woocommerce");
-    if (hasSeo) platforms.push("seo");
+    }
+    if (hasWooCommerce) {
+      platforms.push("woocommerce");
+    }
+    if (hasSeo) {
+      platforms.push("seo");
+    }
     return platforms;
   }, [tables, hasWooCommerce, hasSeo, hasVisibleAnalyticsData]);
 
@@ -599,24 +634,33 @@ export default function SharedDashboard({
   const filteredRecords = useMemo(() => {
     return records.filter((record: any) => {
       const source = record._source || "unknown";
-      if (!matchesPlatformFilter(source, platformFilter)) return false;
+      if (!matchesPlatformFilter(source, platformFilter)) {
+        return false;
+      }
       if (isAnalyticsPlatform(source)) {
-        if (!hasVisibleAnalyticsData) return false;
+        if (!hasVisibleAnalyticsData) {
+          return false;
+        }
         const data = record.data || {};
-        if (data.report_type !== "daily") return false;
+        if (data.report_type !== "daily") {
+          return false;
+        }
       }
       if (
         isAdsPlatform(source) &&
         !shouldIncludeInAdsDashboardAggregate(record.data, source)
-      )
+      ) {
         return false;
+      }
       return true;
     });
   }, [records, platformFilter, hasVisibleAnalyticsData]);
 
   // All analytics records (unfiltered by report_type) for GoogleAnalyticsDashboard
   const allAnalyticsRecords = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     return records
       .filter((r: any) => isAnalyticsPlatform(r._source || ""))
       .map((r: any) => ({ id: r.id, data: r.data }));
@@ -671,8 +715,12 @@ export default function SharedDashboard({
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
         const data = record.data || {};
-        if (data.report_type && data.report_type !== "daily") return;
-        if (!shouldIncludeInAdsDashboardAggregate(data, source)) return;
+        if (data.report_type && data.report_type !== "daily") {
+          return;
+        }
+        if (!shouldIncludeInAdsDashboardAggregate(data, source)) {
+          return;
+        }
         spend += getSpendFromData(data);
         impressions += Number(data.impressions) || 0;
       }
@@ -760,23 +808,30 @@ export default function SharedDashboard({
 
   // Analytics source breakdown
   const analyticsSourceBreakdown = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     const categorize = (sourceMedium: string): string => {
       const sm = sourceMedium.toLowerCase();
       if (sm.includes("facebook") || sm.includes("fb")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Facebook ממומן";
+        }
         return "Facebook אורגני";
       }
       if (sm.includes("instagram") || sm.includes("ig")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Instagram ממומן";
+        }
         return "Instagram אורגני";
       }
       if (sm.includes("google") || sm.includes("googleads")) {
-        if (sm.includes("organic")) return "Google אורגני";
-        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads"))
+        if (sm.includes("organic")) {
+          return "Google אורגני";
+        }
+        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads")) {
           return "Google ממומן";
+        }
         return "Google";
       }
       if (
@@ -785,18 +840,26 @@ export default function SharedDashboard({
         sm.includes("mailchimp") ||
         sm.includes("klaviyo") ||
         sm.includes("activetrail")
-      )
+      ) {
         return "דיוור";
-      if (sm.includes("whatsapp") || sm.includes("wa.me")) return "WhatsApp";
-      if (sm.includes("organic") || sm.includes("seo")) return "אורגני";
+      }
+      if (sm.includes("whatsapp") || sm.includes("wa.me")) {
+        return "WhatsApp";
+      }
+      if (sm.includes("organic") || sm.includes("seo")) {
+        return "אורגני";
+      }
       if (
         sm === "(direct) / (none)" ||
         sm === "direct" ||
         sm.includes("(direct)") ||
         sm.includes("(none)")
-      )
+      ) {
         return "ישיר (Direct)";
-      if (sm.includes("referral")) return "הפניות (Referral)";
+      }
+      if (sm.includes("referral")) {
+        return "הפניות (Referral)";
+      }
       return "אחר";
     };
 
@@ -812,12 +875,16 @@ export default function SharedDashboard({
     > = {};
     records.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "daily_source") return;
+      if (data.report_type !== "daily_source") {
+        return;
+      }
       const sm = data.source_medium || "Unknown";
       const category = categorize(sm);
-      if (!sources[category])
+      if (!sources[category]) {
         sources[category] = {
           sessions: 0,
           users: 0,
@@ -825,6 +892,7 @@ export default function SharedDashboard({
           revenue: 0,
           addToCart: 0,
         };
+      }
       sources[category].sessions += Number(data.sessions) || 0;
       sources[category].users += Number(data.users) || 0;
       sources[category].purchases += getPurchasesFromData(data);
@@ -838,7 +906,9 @@ export default function SharedDashboard({
 
   // Traffic Acquisition by Channel Group
   const channelGroupBreakdown = useMemo(() => {
-    if (!hasVisibleAnalyticsData) return [];
+    if (!hasVisibleAnalyticsData) {
+      return [];
+    }
     const channels: Record<
       string,
       {
@@ -855,11 +925,15 @@ export default function SharedDashboard({
     > = {};
     records.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "channel_group") return;
+      if (data.report_type !== "channel_group") {
+        return;
+      }
       const ch = data.channel_group || "Unknown";
-      if (!channels[ch])
+      if (!channels[ch]) {
         channels[ch] = {
           sessions: 0,
           engagedSessions: 0,
@@ -871,6 +945,7 @@ export default function SharedDashboard({
           eventsSum: 0,
           count: 0,
         };
+      }
       channels[ch].sessions += Number(data.sessions) || 0;
       channels[ch].engagedSessions += Number(data.engaged_sessions) || 0;
       channels[ch].users += Number(data.users) || 0;
@@ -901,7 +976,9 @@ export default function SharedDashboard({
     const byDate: Record<string, any> = {};
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date;
-      if (!date) return;
+      if (!date) {
+        return;
+      }
       const source = record._source || "unknown";
       const data = record.data || {};
       if (!byDate[date]) {

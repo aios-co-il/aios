@@ -90,9 +90,16 @@ function getNum(
 ): number | undefined {
   for (const k of keys) {
     const v = obj[k];
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)))
+    if (typeof v === "number" && Number.isFinite(v)) {
+      return v;
+    }
+    if (
+      typeof v === "string" &&
+      v.trim() !== "" &&
+      Number.isFinite(Number(v))
+    ) {
       return Number(v);
+    }
   }
   return undefined;
 }
@@ -104,7 +111,9 @@ function countAtOrBelow(
   let n = 0;
   for (const kw of kws) {
     const p = kw.position;
-    if (typeof p === "number" && p >= 1 && p <= maxPos) n++;
+    if (typeof p === "number" && p >= 1 && p <= maxPos) {
+      n++;
+    }
   }
   return n;
 }
@@ -143,9 +152,15 @@ function gscTotals(rows: Array<GscRow>): SeoShareSearchTotals {
       // Impressions-weighted so a long tail of rarely-seen terms can't skew it.
       weighted += p * (i || 1);
       weight += i || 1;
-      if (p <= 3) top3++;
-      if (p <= 10) top10++;
-      if (p <= 20) top20++;
+      if (p <= 3) {
+        top3++;
+      }
+      if (p <= 10) {
+        top10++;
+      }
+      if (p <= 20) {
+        top20++;
+      }
     }
   }
   return {
@@ -161,7 +176,9 @@ function gscTotals(rows: Array<GscRow>): SeoShareSearchTotals {
 
 function normalizeKeywordRow(kw: any): SeoShareKeyword | null {
   const keyword = String(kw?.keyword || "").trim();
-  if (!keyword) return null;
+  if (!keyword) {
+    return null;
+  }
   const positionRaw = kw?.position ?? kw?.best_position;
   const position =
     typeof positionRaw === "number" && Number.isFinite(positionRaw)
@@ -236,7 +253,9 @@ export function buildSeoMonthlyShareSnapshot(opts: {
   const byKw = new Map<string, SeoShareKeyword>();
   for (const raw of [...tracked, ...organic]) {
     const row = normalizeKeywordRow(raw);
-    if (!row) continue;
+    if (!row) {
+      continue;
+    }
     const key = row.keyword.toLowerCase();
     const existing = byKw.get(key);
     if (!existing) {
@@ -260,7 +279,9 @@ export function buildSeoMonthlyShareSnapshot(opts: {
     relevanceOpts,
   ).relevant;
   byKw.clear();
-  for (const row of ahrefsRelevant) byKw.set(row.keyword.toLowerCase(), row);
+  for (const row of ahrefsRelevant) {
+    byKw.set(row.keyword.toLowerCase(), row);
+  }
   const allKeywords = Array.from(byKw.values());
 
   const liveTop3 = countAtOrBelow(allKeywords, 3);
@@ -311,7 +332,9 @@ export function buildSeoMonthlyShareSnapshot(opts: {
   for (const def of metricDefs) {
     const value =
       def.value !== undefined ? def.value : getNum(snapshot, ...def.keys);
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     const prevValue = getNum(prev, ...def.keys);
     metrics.push({
       key: def.key,
@@ -402,8 +425,11 @@ export function buildSeoMonthlyShareSnapshot(opts: {
     ) => {
       const idx = metrics.findIndex((m) => m.key === key);
       const entry: SeoShareMetric = { key, label, value, prevValue };
-      if (idx >= 0) metrics[idx] = entry;
-      else metrics.push(entry);
+      if (idx >= 0) {
+        metrics[idx] = entry;
+      } else {
+        metrics.push(entry);
+      }
     };
     upsert(
       "gsc_clicks",
@@ -459,7 +485,9 @@ export function onsiteKindLabel(kind: string): string {
 export function isSeoMonthlyShareSnapshot(
   raw: unknown,
 ): raw is SeoMonthlyShareSnapshot {
-  if (!raw || typeof raw !== "object") return false;
+  if (!raw || typeof raw !== "object") {
+    return false;
+  }
   const o = raw as Record<string, unknown>;
   return (
     o.version === 1 &&
@@ -517,7 +545,9 @@ export function buildSeoPerformanceSummary(
   const sentences: Array<string> = [];
 
   const improved = snapshot.keywords.filter((kw) => {
-    if (kw.position == null) return false;
+    if (kw.position == null) {
+      return false;
+    }
     if (kw.basePosition != null && Number.isFinite(kw.basePosition)) {
       return kw.position < kw.basePosition;
     }
@@ -528,7 +558,9 @@ export function buildSeoPerformanceSummary(
   }).length;
 
   const soft = snapshot.keywords.filter((kw) => {
-    if (kw.position == null) return false;
+    if (kw.position == null) {
+      return false;
+    }
     if (kw.basePosition != null && Number.isFinite(kw.basePosition)) {
       return kw.position > kw.basePosition;
     }
@@ -571,13 +603,18 @@ export function buildSeoPerformanceSummary(
 
   if (search) {
     const bits: Array<string> = [];
-    if (search.totals.impressions > 0)
+    if (search.totals.impressions > 0) {
       bits.push(`${fmtHe(search.totals.impressions)} חשיפות`);
-    if (search.totals.clicks > 0)
+    }
+    if (search.totals.clicks > 0) {
       bits.push(`${fmtHe(search.totals.clicks)} קליקים`);
-    if (search.totals.top20 > 0)
+    }
+    if (search.totals.top20 > 0) {
       bits.push(`${fmtHe(search.totals.top20)} ב-Top 20`);
-    if (bits.length) sentences.push(`החודש נמדדו ${bits.join(" · ")}.`);
+    }
+    if (bits.length) {
+      sentences.push(`החודש נמדדו ${bits.join(" · ")}.`);
+    }
 
     const highlights: Array<string> = [];
     if (impressionDelta != null && impressionDelta > 0) {
@@ -596,7 +633,9 @@ export function buildSeoPerformanceSummary(
           : `שיפור מיקום ב־${fmtHe(improved)} ביטויים`,
       );
     }
-    if (highlights.length) sentences.push(`${highlights.join(", ")}.`);
+    if (highlights.length) {
+      sentences.push(`${highlights.join(", ")}.`);
+    }
     if (soft > 0 && soft >= improved) {
       sentences.push("חלק מהביטויים נסוגו מעט — מטפלים בהם בהמשך.");
     }

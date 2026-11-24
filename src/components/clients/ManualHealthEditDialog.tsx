@@ -83,8 +83,12 @@ export function ManualHealthEditDialog({
   };
 
   const computeStatus = (s: number): OverallStatus => {
-    if (s >= 80) return "green";
-    if (s >= 60) return "yellow";
+    if (s >= 80) {
+      return "green";
+    }
+    if (s >= 60) {
+      return "yellow";
+    }
     return "red";
   };
 
@@ -101,7 +105,9 @@ export function ManualHealthEditDialog({
           mood_status: mood as any,
         })
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("עודכן בהצלחה");
       onSaved();
       onOpenChange(false);

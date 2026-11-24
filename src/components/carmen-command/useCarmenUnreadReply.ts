@@ -16,7 +16,9 @@ export function useCarmenUnreadReply(open: boolean): boolean {
     }
     const chat = readResumeChat();
     const closedAt = chat?.closedAt;
-    if (!chat || !closedAt) return;
+    if (!chat || !closedAt) {
+      return;
+    }
     let alive = true;
     // Run once the subscription is live, so an answer landing in between
     // is caught by one or the other.
@@ -28,7 +30,9 @@ export function useCarmenUnreadReply(open: boolean): boolean {
         .eq("role", "assistant")
         .gt("created_at", closedAt)
         .then(({ count }) => {
-          if (alive && count) setUnread(true);
+          if (alive && count) {
+            setUnread(true);
+          }
         });
     const channel = supabase
       .channel(`carmen-unread-${chat.conversationId}`)
@@ -41,11 +45,15 @@ export function useCarmenUnreadReply(open: boolean): boolean {
           filter: `conversation_id=eq.${chat.conversationId}`,
         },
         (payload: { new: { role?: string } }) => {
-          if (payload.new?.role === "assistant") setUnread(true);
+          if (payload.new?.role === "assistant") {
+            setUnread(true);
+          }
         },
       )
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") catchUp();
+        if (status === "SUBSCRIBED") {
+          catchUp();
+        }
       });
     return () => {
       alive = false;

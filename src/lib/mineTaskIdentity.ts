@@ -31,8 +31,12 @@ export async function fetchMineTaskIdentity(input: {
   ]);
 
   const campaignerIds = new Set<string>();
-  if (profile?.campaigner_id) campaignerIds.add(profile.campaigner_id);
-  if (rpcCampaignerId) campaignerIds.add(rpcCampaignerId as string);
+  if (profile?.campaigner_id) {
+    campaignerIds.add(profile.campaigner_id);
+  }
+  if (rpcCampaignerId) {
+    campaignerIds.add(rpcCampaignerId as string);
+  }
 
   if (profile?.email) {
     const email = profile.email.trim();

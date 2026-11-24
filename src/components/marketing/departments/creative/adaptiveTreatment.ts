@@ -56,7 +56,9 @@ const STYLE_BOARD_RECIPES = [
 
 export const detectCopyMood = (text: string): CopyMood => {
   for (const rule of MOOD_RULES) {
-    if (rule.test.test(text)) return rule.id;
+    if (rule.test.test(text)) {
+      return rule.id;
+    }
   }
   return "neutral";
 };

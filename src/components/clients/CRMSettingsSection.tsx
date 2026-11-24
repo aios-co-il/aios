@@ -78,8 +78,12 @@ export function CRMSettingsSection({
   const currentTier: string = (client as any).tier ?? "";
   const currentServices: Array<string> = (() => {
     const raw = (client as any).services;
-    if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
+    if (!raw) {
+      return [];
+    }
+    if (Array.isArray(raw)) {
+      return raw;
+    }
     try {
       return JSON.parse(raw);
     } catch {
@@ -99,7 +103,9 @@ export function CRMSettingsSection({
           .eq("client_id", client.id)
           .order("month", { ascending: false })
           .limit(3);
-        if (error) return [];
+        if (error) {
+          return [];
+        }
         return data ?? [];
       } catch {
         return [];
@@ -132,7 +138,9 @@ export function CRMSettingsSection({
         .from("clients")
         .update({ tier } as any)
         .eq("id", client.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async (tier: string) => {
       await queryClient.cancelQueries({ queryKey: ["clients"] });
@@ -151,7 +159,9 @@ export function CRMSettingsSection({
         .from("clients")
         .update({ services } as any)
         .eq("id", client.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async (services: Array<string>) => {
       await queryClient.cancelQueries({ queryKey: ["clients"] });

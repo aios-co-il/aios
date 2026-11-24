@@ -11,7 +11,9 @@ export function generateWorkdayTimeSlots(
   for (let hour = startHour; hour <= endHour; hour++) {
     const h = String(hour).padStart(2, "0");
     slots.push(`${h}:00`);
-    if (hour < endHour) slots.push(`${h}:30`);
+    if (hour < endHour) {
+      slots.push(`${h}:30`);
+    }
   }
   return slots;
 }

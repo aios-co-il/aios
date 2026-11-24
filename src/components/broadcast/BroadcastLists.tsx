@@ -53,7 +53,9 @@ export function BroadcastLists() {
   const removeList = (l: BroadcastList) => {
     const syncId: string | undefined = l.source_config?.sync_automation_id;
     // Only owners may delete automations (RLS); the list delete alone is fine.
-    if (!syncId || !isOwner) return deleteList.mutate(l.id);
+    if (!syncId || !isOwner) {
+      return deleteList.mutate(l.id);
+    }
     // The list's own sync automation would only fail once the list is gone.
     deleteSyncAutomation.mutate(syncId, {
       onSettled: () => deleteList.mutate(l.id),
@@ -95,7 +97,9 @@ export function BroadcastLists() {
                     size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm("למחוק את הרשימה?")) removeList(l);
+                      if (confirm("למחוק את הרשימה?")) {
+                        removeList(l);
+                      }
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -200,7 +204,9 @@ function ListDetailDialog({
   };
 
   const loadHeaders = async () => {
-    if (!sheetUrl.trim()) return;
+    if (!sheetUrl.trim()) {
+      return;
+    }
     setLoadingHeaders(true);
     try {
       const res = await sheetHeaders(sheetUrl.trim());

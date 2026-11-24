@@ -5,14 +5,18 @@ const BASE_COLUMNS =
 export async function loadPulseSettings(supabase, tenantId) {
   const read = (columns) => {
     let query = supabase.from("tenant_heartbeat_settings").select(columns);
-    if (tenantId) query = query.eq("tenant_id", tenantId);
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
     return query;
   };
   const current = await read(`${BASE_COLUMNS}, pulse_alert_rules`);
   const missingRules =
     ["42703", "PGRST204"].includes(current.error?.code) &&
     /\bpulse_alert_rules\b/.test(current.error?.message || "");
-  if (!missingRules) return { ...current, legacySchema: false };
+  if (!missingRules) {
+    return { ...current, legacySchema: false };
+  }
   const legacy = await read(BASE_COLUMNS);
   return {
     ...legacy,

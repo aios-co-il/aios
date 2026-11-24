@@ -14,8 +14,9 @@ Deno.test("Carmen's dev-task choices are offers; other choices are not", () => {
     "[[בחירה: להעביר לפיתוח? | כן | עוד לא]]",
     "[[choice: Send to Claude? | yes | no]]",
     "[[בחירה: לשלוח לגרוק? | כן | לא]]",
-  ])
+  ]) {
     assertStrictEquals(offersDevTask(text), true, text);
+  }
   for (const text of [
     "",
     "[[בחירה: להמשיך? | כן | לא]]",
@@ -24,8 +25,9 @@ Deno.test("Carmen's dev-task choices are offers; other choices are not", () => {
     // "מנוסה" (experienced) is not Manus.
     "[[בחירה: לחפש קופירייטרית מנוסה? | כן | לא]]",
     "רוצה שאפתח משימת פיתוח?",
-  ])
+  ]) {
     assertStrictEquals(offersDevTask(text), false, text);
+  }
 });
 
 Deno.test("a plain no declines the offered task; a question does not", () => {
@@ -37,14 +39,16 @@ Deno.test("a plain no declines the offered task; a question does not", () => {
     "אל תשלחי",
     "ביטול",
     "no",
-  ])
+  ]) {
     assertStrictEquals(isExplicitDevTaskDecline(text), true, text);
+  }
   for (const text of [
     "כן",
     "עוד לא",
     "רגע",
     "לא יודעת, מה את ממליצה לעשות?",
     "יש לך גישה לתמונות של הסקינים שלך?",
-  ])
+  ]) {
     assertStrictEquals(isExplicitDevTaskDecline(text), false, text);
+  }
 });

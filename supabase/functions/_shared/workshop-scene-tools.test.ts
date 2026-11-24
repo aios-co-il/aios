@@ -98,14 +98,17 @@ function memoryDb(tables: Record<string, Array<Row>>) {
           meta: { ...args.p_meta, scene_id: args.p_scene_id },
         };
         rows("marketing_assets").push(asset);
-        if (scene) scene[`${args.p_kind}_asset_id`] = asset.id;
+        if (scene) {
+          scene[`${args.p_kind}_asset_id`] = asset.id;
+        }
         return Promise.resolve({ data: asset, error: null });
       }
-      if (name === "produce_video")
+      if (name === "produce_video") {
         return Promise.resolve({
           data: { status: "running", clips: 1, voices: 0, music: 0 },
           error: null,
         });
+      }
       return Promise.resolve({ data: null, error: null });
     },
     from(table: string) {
@@ -126,10 +129,12 @@ function memoryDb(tables: Record<string, Array<Row>>) {
           return Array.isArray(value) ? made : made[0];
         }
         const found = matching();
-        if (op === "update")
+        if (op === "update") {
           found.forEach((row) => Object.assign(row, value as Row));
-        if (op === "delete")
+        }
+        if (op === "delete") {
           tables[table] = rows(table).filter((row) => !found.includes(row));
+        }
         const sorted = order
           ? [...found].sort(
               (a, b) =>
@@ -613,11 +618,15 @@ Deno.test(
     // The tool's first read is a snapshot; a production starts right after it.
     db.from = (table: string) => {
       const builder = from(table);
-      if (table !== "marketing_work_items") return builder;
+      if (table !== "marketing_work_items") {
+        return builder;
+      }
       const maybeSingle = builder.maybeSingle;
       builder.maybeSingle = async () => {
         const result = await maybeSingle();
-        if (reads++ > 0 || !result.data) return result;
+        if (reads++ > 0 || !result.data) {
+          return result;
+        }
         const snapshot = structuredClone(result.data);
         row.payload = {
           ...row.payload,

@@ -36,7 +36,9 @@ export function resolveHeaderShortcuts(
 
   try {
     const parsed = JSON.parse(storedValue);
-    if (!Array.isArray(parsed)) return defaults();
+    if (!Array.isArray(parsed)) {
+      return defaults();
+    }
     return uniqueAccessible(
       parsed.filter((key): key is string => typeof key === "string"),
       accessibleKeys,
@@ -54,6 +56,8 @@ export function toggleHeaderShortcut(
   if (selectedKeys.includes(key)) {
     return selectedKeys.filter((selectedKey) => selectedKey !== key);
   }
-  if (selectedKeys.length >= max) return [...selectedKeys];
+  if (selectedKeys.length >= max) {
+    return [...selectedKeys];
+  }
   return [...selectedKeys, key];
 }

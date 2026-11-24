@@ -22,15 +22,20 @@ export async function loadReferences(
     urls.map(async (url, index) => {
       try {
         const response = await fetchImpl(url);
-        if (!response.ok) throw new Error(String(response.status));
+        if (!response.ok) {
+          throw new Error(String(response.status));
+        }
         const bytes = new Uint8Array(await response.arrayBuffer());
-        if (bytes.length === 0 || bytes.length > REFERENCE_MAX_BYTES)
+        if (bytes.length === 0 || bytes.length > REFERENCE_MAX_BYTES) {
           throw new Error("size");
+        }
         const mime =
           sniffMime(bytes) ??
           response.headers.get("content-type")?.split(";")[0].trim() ??
           "";
-        if (!REFERENCE_MIMES.includes(mime)) throw new Error("type");
+        if (!REFERENCE_MIMES.includes(mime)) {
+          throw new Error("type");
+        }
         references[index] = { bytes, mime, url };
       } catch {
         failed.push(url);
@@ -51,8 +56,9 @@ export const sniffMime = (bytes: Uint8Array) =>
 
 export const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
-  for (let index = 0; index < bytes.length; index += 0x8000)
+  for (let index = 0; index < bytes.length; index += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
   return btoa(binary);
 };
 
@@ -60,7 +66,8 @@ export const toBase64 = (bytes: Uint8Array) => {
 export const fromBase64 = (value: string) => {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++)
+  for (let index = 0; index < binary.length; index++) {
     bytes[index] = binary.charCodeAt(index);
+  }
   return bytes;
 };

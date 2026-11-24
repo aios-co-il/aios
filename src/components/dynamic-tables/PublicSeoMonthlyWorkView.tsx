@@ -112,9 +112,13 @@ export function PublicSeoMonthlyWorkView({
     null;
 
   const work = useMemo(() => {
-    if (!selected) return emptySeoMonthlyWork();
+    if (!selected) {
+      return emptySeoMonthlyWork();
+    }
     const parsed = parseSeoMonthlyWork(selected.work);
-    if (!parsed.summary && selected.notes) parsed.summary = selected.notes;
+    if (!parsed.summary && selected.notes) {
+      parsed.summary = selected.notes;
+    }
     return parsed;
   }, [selected]);
 
@@ -132,12 +136,16 @@ export function PublicSeoMonthlyWorkView({
       }
     })();
     for (const row of sortedMonths) {
-      if (row.month < windowStart || row.month > selectedKey) continue;
+      if (row.month < windowStart || row.month > selectedKey) {
+        continue;
+      }
       const parsed =
         row.month === selectedKey ? work : parseSeoMonthlyWork(row.work);
       for (const link of parsed.links) {
         const key = link.url.trim().toLowerCase();
-        if (!key || seen.has(key)) continue;
+        if (!key || seen.has(key)) {
+          continue;
+        }
         seen.add(key);
         out.push({
           id: link.id,
@@ -224,7 +232,9 @@ export function PublicSeoMonthlyWorkView({
     setExporting(true);
     try {
       await new Promise((r) => setTimeout(r, 80));
-      if (!captureStackRef.current) throw new Error("אין שקפים ליצוא");
+      if (!captureStackRef.current) {
+        throw new Error("אין שקפים ליצוא");
+      }
       const safeName = `${snapshot.clientName}-${snapshot.monthLabel}`
         .replace(/[^\w\u0590-\u05FF-]+/g, "-")
         .slice(0, 60);

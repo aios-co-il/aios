@@ -47,21 +47,27 @@ export function LeadTagSelector({
   // Reset search when popover closes
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open);
-    if (!open) setSearchQuery("");
+    if (!open) {
+      setSearchQuery("");
+    }
   };
 
   // Fetch all available tags
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as Array<ChatTag>;
     },
     enabled: !!tenantId,
@@ -75,7 +81,9 @@ export function LeadTagSelector({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || !tenantId) return [];
+      if (!user || !tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("chat_contact_tags")
@@ -83,7 +91,9 @@ export function LeadTagSelector({
         .eq("lead_id", leadId)
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.map((ct) => ct.tag_id);
     },
     enabled: !!tenantId && !!leadId && initialTagIds === undefined,
@@ -109,7 +119,9 @@ export function LeadTagSelector({
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user || !tenantId) throw new Error("No user or tenant");
+      if (!user || !tenantId) {
+        throw new Error("No user or tenant");
+      }
 
       if (isAssigned) {
         const { error } = await supabase
@@ -118,7 +130,9 @@ export function LeadTagSelector({
           .eq("tag_id", tagId)
           .eq("lead_id", leadId);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       } else {
         const { error } = await supabase.from("chat_contact_tags").insert({
           tag_id: tagId,
@@ -127,7 +141,9 @@ export function LeadTagSelector({
           lead_id: leadId,
         });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
       }
     },
     onMutate: async ({ tagId, isAssigned }) => {
@@ -259,7 +275,9 @@ interface LeadTagBadgesProps {
 export function LeadTagBadges({ allTags, tagIds }: LeadTagBadgesProps) {
   const assignedTags = allTags.filter((tag) => tagIds.includes(tag.id));
 
-  if (assignedTags.length === 0) return null;
+  if (assignedTags.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-wrap gap-1">
@@ -303,7 +321,9 @@ export function LeadTagBadgesEditable({
         .delete()
         .eq("tag_id", tagId)
         .eq("lead_id", leadId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onMutate: async (tagId) => {
       await cancelLeadTagQueries(queryClient, leadId, tenantId);
@@ -334,7 +354,9 @@ export function LeadTagBadgesEditable({
 
   const assignedTags = allTags.filter((tag) => tagIds.includes(tag.id));
 
-  if (assignedTags.length === 0) return null;
+  if (assignedTags.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex flex-wrap gap-1">

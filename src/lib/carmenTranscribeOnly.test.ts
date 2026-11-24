@@ -20,7 +20,9 @@ test("mic capture mode validates known values", () => {
 });
 
 test("loadMicCaptureMode defaults to realtime_voice", () => {
-  if (typeof globalThis.localStorage === "undefined") return;
+  if (typeof globalThis.localStorage === "undefined") {
+    return;
+  }
   const prev = globalThis.localStorage.getItem(MIC_CAPTURE_MODE_KEY);
   try {
     globalThis.localStorage.setItem(MIC_CAPTURE_MODE_KEY, "transcribe_only");
@@ -28,8 +30,11 @@ test("loadMicCaptureMode defaults to realtime_voice", () => {
     globalThis.localStorage.removeItem(MIC_CAPTURE_MODE_KEY);
     expect(loadMicCaptureMode()).toBe("realtime_voice");
   } finally {
-    if (prev == null) globalThis.localStorage.removeItem(MIC_CAPTURE_MODE_KEY);
-    else globalThis.localStorage.setItem(MIC_CAPTURE_MODE_KEY, prev);
+    if (prev == null) {
+      globalThis.localStorage.removeItem(MIC_CAPTURE_MODE_KEY);
+    } else {
+      globalThis.localStorage.setItem(MIC_CAPTURE_MODE_KEY, prev);
+    }
   }
 });
 

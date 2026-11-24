@@ -78,7 +78,9 @@ export function useElementorSubmissions(
           body: { site_id: siteId, days },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as ElementorSubmissionsResponse;
     },
     enabled: !!siteId,

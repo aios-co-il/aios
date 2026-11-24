@@ -36,15 +36,18 @@ async function selectWithFallback(
   let lastError: any = null;
   for (const cols of columns) {
     const { data, error } = await build(db.from(table).select(cols));
-    if (!error) return (data ?? []) as Array<Record<string, any>>;
+    if (!error) {
+      return (data ?? []) as Array<Record<string, any>>;
+    }
     lastError = error;
     // 42703 = undefined column; PGRST204/PGRST200 = schema cache misses.
     if (
       !/column|schema cache|42703|PGRST2/i.test(
         String(error.message ?? error.code),
       )
-    )
+    ) {
       break;
+    }
   }
   throw lastError;
 }
@@ -152,7 +155,9 @@ export function useTenantAgents(tenantId: string | null) {
         .select("id, name, engine")
         .eq("tenant_id", tenantId!)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return (data ?? []) as Array<CarmenAgentOption>;
     },
   });

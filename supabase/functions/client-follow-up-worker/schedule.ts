@@ -58,7 +58,9 @@ function israelLocalToUtc(parts: LocalParts): Date {
 export function clientFollowUpNotifyAt(
   followUpDate: string | null,
 ): Date | null {
-  if (!followUpDate) return null;
+  if (!followUpDate) {
+    return null;
+  }
   const [year, month, day] = followUpDate.split("-").map(Number);
   return israelLocalToUtc({
     year,

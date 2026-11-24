@@ -93,7 +93,9 @@ export default function AhrefsSettings() {
   const { data: clients = [] } = useQuery({
     queryKey: ["clients-for-ahrefs", tenantId, crossTenantAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const crossFilter = buildCrossTenantFilter();
       if (crossFilter) {
         const { data } = await supabase
@@ -153,7 +155,9 @@ export default function AhrefsSettings() {
         .from("ahrefs_reports")
         .select("id, report_data")
         .eq("domain", domain);
-      if (reportError) throw reportError;
+      if (reportError) {
+        throw reportError;
+      }
 
       const validIds = (reportsForDomain || [])
         .filter((report) => hasValidSeoReportData(report.report_data))
@@ -165,7 +169,9 @@ export default function AhrefsSettings() {
           .update({ client_id: clientId })
           .in("id", validIds);
 
-        if (validUpdateError) throw validUpdateError;
+        if (validUpdateError) {
+          throw validUpdateError;
+        }
       }
 
       // Update client website if not set
@@ -236,7 +242,9 @@ export default function AhrefsSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return { connected: false };
+      if (!session) {
+        return { connected: false };
+      }
 
       const statusResponse = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ahrefs-auth?action=status`,
@@ -248,7 +256,9 @@ export default function AhrefsSettings() {
         },
       );
 
-      if (!statusResponse.ok) return { connected: false };
+      if (!statusResponse.ok) {
+        return { connected: false };
+      }
       return statusResponse.json();
     },
   });
@@ -258,7 +268,9 @@ export default function AhrefsSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ahrefs-auth?action=connect`,
@@ -293,7 +305,9 @@ export default function AhrefsSettings() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ahrefs-auth?action=disconnect`,
@@ -306,7 +320,9 @@ export default function AhrefsSettings() {
         },
       );
 
-      if (!response.ok) throw new Error("Failed to disconnect");
+      if (!response.ok) {
+        throw new Error("Failed to disconnect");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -626,7 +642,9 @@ export default function AhrefsSettings() {
                           open={clientSearchOpen === report.id}
                           onOpenChange={(open) => {
                             setClientSearchOpen(open ? report.id : null);
-                            if (!open) setClientSearch("");
+                            if (!open) {
+                              setClientSearch("");
+                            }
                           }}
                         >
                           <PopoverTrigger asChild>

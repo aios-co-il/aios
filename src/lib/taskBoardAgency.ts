@@ -16,7 +16,9 @@ export function resolveTaskEffectiveAgency(
   task: AgencyScopedTask,
 ): string | null {
   const clientAgencyId = task.clients?.agency_id;
-  if (task.client_id && clientAgencyId) return clientAgencyId;
+  if (task.client_id && clientAgencyId) {
+    return clientAgencyId;
+  }
   return task.agency_id ?? null;
 }
 
@@ -31,8 +33,12 @@ export function resolveNewTaskAgency(input: {
   fallbackAgencyId?: string | null;
 }): string | null {
   const { clientAgencyId, selectedAgency, fallbackAgencyId } = input;
-  if (clientAgencyId) return clientAgencyId;
-  if (selectedAgency && selectedAgency !== "all") return selectedAgency;
+  if (clientAgencyId) {
+    return clientAgencyId;
+  }
+  if (selectedAgency && selectedAgency !== "all") {
+    return selectedAgency;
+  }
   return fallbackAgencyId ?? null;
 }
 
@@ -55,7 +61,9 @@ export function filterTasksBySelectedAgency<T extends AgencyScopedTask>(
   tasks: Array<T>,
   selectedAgency: string | null | undefined,
 ): Array<T> {
-  if (!selectedAgency || selectedAgency === "all") return tasks;
+  if (!selectedAgency || selectedAgency === "all") {
+    return tasks;
+  }
   return tasks.filter(
     (task) => resolveTaskEffectiveAgency(task) === selectedAgency,
   );
@@ -88,8 +96,12 @@ export function taskBelongsToBoardTenantScope(
   sharedAgencyIds: Array<string>,
   ownedAgencyShares: Array<OwnedAgencyShare> = [],
 ): boolean {
-  if (!tenantId) return true;
-  if (task.tenant_id === tenantId) return true;
+  if (!tenantId) {
+    return true;
+  }
+  if (task.tenant_id === tenantId) {
+    return true;
+  }
   if (
     ownedAgencyShares.some(
       (share) =>
@@ -98,9 +110,13 @@ export function taskBelongsToBoardTenantScope(
   ) {
     return true;
   }
-  if (!task.client_id) return false;
+  if (!task.client_id) {
+    return false;
+  }
   const clientAgencyId = task.clients?.agency_id;
-  if (!clientAgencyId) return false;
+  if (!clientAgencyId) {
+    return false;
+  }
   return sharedAgencyIds.includes(clientAgencyId);
 }
 
@@ -110,7 +126,9 @@ export function filterTasksByBoardTenantScope<T extends BoardTenantScopedTask>(
   sharedAgencyIds: Array<string>,
   ownedAgencyShares: Array<OwnedAgencyShare> = [],
 ): Array<T> {
-  if (!tenantId) return tasks;
+  if (!tenantId) {
+    return tasks;
+  }
   return tasks.filter((task) =>
     taskBelongsToBoardTenantScope(
       task,

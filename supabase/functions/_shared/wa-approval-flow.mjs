@@ -26,7 +26,9 @@ export const META_APPROVAL_TOOLS = Object.freeze([
 
 /** Strip WhatsApp noise (🎤 prefix, punctuation) for phrase matching. */
 export function normalizeApprovalText(text) {
-  if (text == null) return "";
+  if (text == null) {
+    return "";
+  }
   return String(text)
     .replace(/🎤/g, " ")
     .replace(/[\u200e\u200f\u202a-\u202e]/g, "")
@@ -40,13 +42,18 @@ export function normalizeApprovalText(text) {
  */
 export function isExplicitApprovalPhrase(text) {
   const t = normalizeApprovalText(text);
-  if (!t || t.length > 80) return false;
+  if (!t || t.length > 80) {
+    return false;
+  }
   const lower = t.toLowerCase();
 
   // Pure / near-pure Hebrew confirms
-  if (/^(כן|כן\.|כֵן)([\s,!.]*)$/u.test(t)) return true;
-  if (/^(כן\s+מאשר|מאשר|מאשרת|אשרי|אשר|מאשר\/ת)([\s,!.]*)$/u.test(t))
+  if (/^(כן|כן\.|כֵן)([\s,!.]*)$/u.test(t)) {
     return true;
+  }
+  if (/^(כן\s+מאשר|מאשר|מאשרת|אשרי|אשר|מאשר\/ת)([\s,!.]*)$/u.test(t)) {
+    return true;
+  }
   if (
     /^(כן[\s,]+)?(תעשי|תעשה|תבצעי|תבצע|תריצי|תריץ)\s+(את\s+)?(זה|הפעולה|הבקשה|האישור)([\s,!.]*)$/u.test(
       t,
@@ -61,12 +68,15 @@ export function isExplicitApprovalPhrase(text) {
   ) {
     // Only when paired with confirm intent or alone as ack after approval ask —
     // require כן/תעשי or exact ok/סבבה alone under 12 chars.
-    if (/כן|תעשי|תבצעי|תעשה|תבצע/u.test(t)) return true;
+    if (/כן|תעשי|תבצעי|תעשה|תבצע/u.test(t)) {
+      return true;
+    }
     if (
       /^(יאללה|סבבה|בסדר|אוקיי|אוקי|ok|okay)([\s,!.]*)$/iu.test(t) &&
       t.length <= 12
-    )
+    ) {
       return true;
+    }
   }
 
   // English
@@ -81,27 +91,37 @@ export function isExplicitApprovalPhrase(text) {
     /^(yes[\s,]+)?(please\s+)?(do\s+it|go\s+ahead|approve)([\s,!.]*)$/i.test(
       lower,
     )
-  )
+  ) {
     return true;
+  }
 
   // Soft: "כן מאשר את השכפול" etc. — starts with confirm + short rest
-  if (/^(כן(\s+מאשר)?|מאשר|אשרי)\b/u.test(t) && t.length <= 40) return true;
+  if (/^(כן(\s+מאשר)?|מאשר|אשרי)\b/u.test(t) && t.length <= 40) {
+    return true;
+  }
 
   return false;
 }
 
 export function isExplicitRejectionPhrase(text) {
   const t = normalizeApprovalText(text);
-  if (!t || t.length > 80) return false;
+  if (!t || t.length > 80) {
+    return false;
+  }
   const lower = t.toLowerCase();
-  if (/^(לא|לא\.|לא\s+מאשר|דחה|דחי|בטל|ביטול)([\s,!.]*)$/u.test(t)) return true;
-  if (/^(no|nope|reject|cancel|don't|do\s+not)([\s,!.]*)$/i.test(lower))
+  if (/^(לא|לא\.|לא\s+מאשר|דחה|דחי|בטל|ביטול)([\s,!.]*)$/u.test(t)) {
     return true;
+  }
+  if (/^(no|nope|reject|cancel|don't|do\s+not)([\s,!.]*)$/i.test(lower)) {
+    return true;
+  }
   return false;
 }
 
 export function isMetaApprovalTool(toolName) {
-  if (!toolName) return false;
+  if (!toolName) {
+    return false;
+  }
   return META_APPROVAL_TOOLS.includes(String(toolName));
 }
 
@@ -111,15 +131,21 @@ export function isMetaApprovalTool(toolName) {
  */
 export function pickLatestPendingApproval(rows, opts = {}) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
-  if (list.length === 0) return null;
+  if (list.length === 0) {
+    return null;
+  }
   const preferMeta = opts.preferMeta !== false;
   if (preferMeta) {
     const meta = list.find((r) => isMetaApprovalTool(r.tool_name));
-    if (meta) return meta;
+    if (meta) {
+      return meta;
+    }
   }
   if (opts.toolName) {
     const match = list.find((r) => r.tool_name === opts.toolName);
-    if (match) return match;
+    if (match) {
+      return match;
+    }
   }
   return list[0];
 }

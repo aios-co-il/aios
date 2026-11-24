@@ -34,7 +34,9 @@ const MOVABLE_ROLES: Array<CreativeLayerRole> = [
 
 export const lumaFromHex = (hex: string): number => {
   const value = hex.replace("#", "");
-  if (value.length < 6) return 0.5;
+  if (value.length < 6) {
+    return 0.5;
+  }
   const r = Number.parseInt(value.slice(0, 2), 16) / 255;
   const g = Number.parseInt(value.slice(2, 4), 16) / 255;
   const b = Number.parseInt(value.slice(4, 6), 16) / 255;
@@ -71,7 +73,9 @@ const sampleCell = (
       count += 1;
     }
   }
-  if (!count) return { luma: 0.5, energy: 1 };
+  if (!count) {
+    return { luma: 0.5, energy: 1 };
+  }
   const luma = lumaSum / count;
   return { luma, energy: Math.max(0, lumaSq / count - luma * luma) };
 };
@@ -83,7 +87,9 @@ const toPct = (value: number, total: number) =>
 export const proposeTextSlotsFromPixels = (
   buffer: PixelBuffer,
 ): Array<TextSlot> => {
-  if (buffer.width < 8 || buffer.height < 8) return [];
+  if (buffer.width < 8 || buffer.height < 8) {
+    return [];
+  }
   const cols = 6;
   const rows = 6;
   const cellW = buffer.width / cols;
@@ -110,7 +116,9 @@ export const proposeTextSlotsFromPixels = (
     headlineCell &&
     headlineCell.energy <= 0.02 &&
     headlineCell.energy <= medianEnergy * 0.35;
-  if (!clearlyQuiet) return [];
+  if (!clearlyQuiet) {
+    return [];
+  }
 
   const headline: TextSlot = {
     role: "headline",
@@ -186,11 +194,15 @@ export const applySlotsToLayers = (
           : !role && layer.type === "text" && !usedHeadline
             ? "headline"
             : undefined;
-    if (slotRole === "headline" && !role) usedHeadline = true;
+    if (slotRole === "headline" && !role) {
+      usedHeadline = true;
+    }
     const slot = slotRole
       ? byRole.get(slotRole === "sub" ? "headline" : slotRole)
       : undefined;
-    if (!slot) return layer;
+    if (!slot) {
+      return layer;
+    }
     if (slotRole === "sub") {
       return {
         ...layer,

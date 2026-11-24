@@ -25,9 +25,12 @@ export function renderSeoGeoArticleHtml(article: SeoGeoArticleBlock): string {
   const parts = (article.content ?? [])
     .map((part) => {
       const text = String(part).trim();
-      if (!text) return "";
-      if (text.startsWith("## "))
+      if (!text) {
+        return "";
+      }
+      if (text.startsWith("## ")) {
         return `<h2>${escapeHtml(text.slice(3))}</h2>`;
+      }
       if (text.startsWith("LIST: ")) {
         const items = text
           .slice(6)

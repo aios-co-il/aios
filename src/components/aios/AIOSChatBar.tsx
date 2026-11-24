@@ -40,7 +40,9 @@ export function AIOSChatBar({
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading) {
+      return;
+    }
     onSend(trimmed);
     setInput("");
     if (textareaRef.current) {

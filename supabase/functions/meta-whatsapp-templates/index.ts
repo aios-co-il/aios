@@ -92,31 +92,36 @@ const decodeBase64Payload = (value: string): Uint8Array => {
     : value;
   const binary = atob(normalized.trim());
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++)
+  for (let index = 0; index < binary.length; index++) {
     bytes[index] = binary.charCodeAt(index);
+  }
   return bytes;
 };
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS")
+  if (request.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (request.method !== "POST")
+  }
+  if (request.method !== "POST") {
     return reply({ error: "method_not_allowed" }, 405);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const authHeader = request.headers.get("Authorization") ?? "";
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!supabaseUrl || !serviceKey || !jwt)
+    if (!supabaseUrl || !serviceKey || !jwt) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: authData, error: authError } = await admin.auth.getUser(jwt);
-    if (authError || !authData.user)
+    if (authError || !authData.user) {
       return reply({ error: "unauthorized" }, 401);
+    }
 
     const body = await request.json().catch(() => ({}));
     const action = typeof body.action === "string" ? body.action : "list";
@@ -163,7 +168,9 @@ Deno.serve(async (request) => {
           p_integration_id: integrationId,
         },
       );
-      if (accessError) throw accessError;
+      if (accessError) {
+        throw accessError;
+      }
       canUse = tenantCanUse === true;
     }
     if (!canUse) {
@@ -175,9 +182,12 @@ Deno.serve(async (request) => {
         .maybeSingle();
       canUse = Boolean(permission);
     }
-    if (!canUse) return reply({ error: "integration_access_denied" }, 403);
-    if (action !== "list" && !canManage)
+    if (!canUse) {
+      return reply({ error: "integration_access_denied" }, 403);
+    }
+    if (action !== "list" && !canManage) {
       return reply({ error: "manage_access_required" }, 403);
+    }
 
     const settings = (integration.settings ?? {}) as Record<string, any>;
     const wabaId = String(settings.waba_id ?? "");
@@ -188,16 +198,21 @@ Deno.serve(async (request) => {
     );
     const appId =
       Deno.env.get("FACEBOOK_APP_ID") ?? Deno.env.get("META_APP_ID") ?? "";
-    if (!wabaId) return reply({ error: "waba_id_missing" }, 400);
+    if (!wabaId) {
+      return reply({ error: "waba_id_missing" }, 400);
+    }
 
     const { data: tokenRow, error: tokenError } = await admin
       .from("meta_whatsapp_tokens")
       .select("access_token")
       .eq("integration_id", integrationId)
       .maybeSingle();
-    if (tokenError) throw tokenError;
-    if (!tokenRow?.access_token)
+    if (tokenError) {
+      throw tokenError;
+    }
+    if (!tokenRow?.access_token) {
       return reply({ error: "meta_whatsapp_token_missing" }, 400);
+    }
 
     const baseUrl = `https://graph.facebook.com/${graphVersion}/${wabaId}/message_templates`;
 
@@ -212,17 +227,22 @@ Deno.serve(async (request) => {
           "id,name,status,category,language,parameter_format,components,rejected_reason,quality_score",
         );
         url.searchParams.set("limit", "100");
-        if (after) url.searchParams.set("after", after);
+        if (after) {
+          url.searchParams.set("after", after);
+        }
         const result = await graphRequest(url, tokenRow.access_token);
-        if (!result.ok)
+        if (!result.ok) {
           return reply(
             { error: result.error, meta_error: result.metaError },
             result.status,
           );
+        }
         templates.push(...(result.data.data ?? []));
         after = String(result.data.paging?.cursors?.after ?? "");
         pageCount++;
-        if (!result.data.paging?.next) after = "";
+        if (!result.data.paging?.next) {
+          after = "";
+        }
       } while (after && pageCount < 20);
       return reply({
         templates,
@@ -232,8 +252,12 @@ Deno.serve(async (request) => {
     }
 
     if (action === "upload_media") {
-      if (!canManage) return reply({ error: "manage_access_required" }, 403);
-      if (!appId) return reply({ error: "meta_app_id_not_configured" }, 503);
+      if (!canManage) {
+        return reply({ error: "manage_access_required" }, 403);
+      }
+      if (!appId) {
+        return reply({ error: "meta_app_id_not_configured" }, 503);
+      }
 
       const mimeTypeRaw = String(body.mime_type ?? "")
         .trim()
@@ -245,7 +269,9 @@ Deno.serve(async (request) => {
       if (!mimeType || !META_TEMPLATE_HEADER_FORMAT_BY_MIME[mimeType]) {
         return reply({ error: "unsupported_template_media_type" }, 400);
       }
-      if (!base64) return reply({ error: "file_base64_required" }, 400);
+      if (!base64) {
+        return reply({ error: "file_base64_required" }, 400);
+      }
 
       let fileBytes: Uint8Array;
       try {
@@ -317,8 +343,9 @@ Deno.serve(async (request) => {
           400,
         );
       }
-      if (footerText.length > 60)
+      if (footerText.length > 60) {
         return reply({ error: "footer_too_long" }, 400);
+      }
       if (footerText.includes("{{") || footerText.includes("}}")) {
         return reply({ error: "footer_variables_are_not_supported" }, 400);
       }
@@ -360,7 +387,9 @@ Deno.serve(async (request) => {
         type: "BODY",
         text: bodyText,
       };
-      if (examples.length) bodyComponent.example = { body_text: [examples] };
+      if (examples.length) {
+        bodyComponent.example = { body_text: [examples] };
+      }
       const components: Array<Record<string, unknown>> = [];
 
       if (headerFormat !== "NONE") {
@@ -398,12 +427,14 @@ Deno.serve(async (request) => {
             format: "TEXT",
             text: headerText,
           };
-          if (headerExample)
+          if (headerExample) {
             headerComponent.example = { header_text: [headerExample] };
+          }
           components.push(headerComponent);
         } else if (["IMAGE", "VIDEO", "DOCUMENT"].includes(headerFormat)) {
-          if (!headerHandle)
+          if (!headerHandle) {
             return reply({ error: "header_handle_required_for_media" }, 400);
+          }
           components.push({
             type: "HEADER",
             format: headerFormat,
@@ -415,7 +446,9 @@ Deno.serve(async (request) => {
       }
 
       components.push(bodyComponent);
-      if (footerText) components.push({ type: "FOOTER", text: footerText });
+      if (footerText) {
+        components.push({ type: "FOOTER", text: footerText });
+      }
 
       // Optional QUICK_REPLY buttons (e.g. lead opt-in warm template).
       const quickReplies: Array<{ text: string; payload?: string }> =
@@ -486,15 +519,18 @@ Deno.serve(async (request) => {
       }
       const url = new URL(baseUrl);
       url.searchParams.set("name", templateName);
-      if (templateId) url.searchParams.set("hsm_id", templateId);
+      if (templateId) {
+        url.searchParams.set("hsm_id", templateId);
+      }
       const result = await graphRequest(url, tokenRow.access_token, {
         method: "DELETE",
       });
-      if (!result.ok)
+      if (!result.ok) {
         return reply(
           { error: result.error, meta_error: result.metaError },
           result.status,
         );
+      }
       return reply({ success: true });
     }
 

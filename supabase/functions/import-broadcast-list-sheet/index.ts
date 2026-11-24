@@ -21,12 +21,22 @@ const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
 
 function normalizePhone(phone: string | null | undefined): string | null {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   let d = String(phone).replace(/[^0-9]/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.startsWith("972")) return d;
-  if (d.startsWith("0")) return "972" + d.slice(1);
+  if (!d) {
+    return null;
+  }
+  if (d.startsWith("00")) {
+    d = d.slice(2);
+  }
+  if (d.startsWith("972")) {
+    return d;
+  }
+  if (d.startsWith("0")) {
+    return "972" + d.slice(1);
+  }
   return d.length >= 9 ? "972" + d : d;
 }
 
@@ -37,8 +47,9 @@ function extractSheetId(input: string): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     if (!GOOGLE_API_KEY) {
@@ -73,11 +84,12 @@ Deno.serve(async (req) => {
       const {
         data: { user },
       } = await userClient.auth.getUser(token);
-      if (!user)
+      if (!user) {
         return new Response(JSON.stringify({ error: "unauthorized" }), {
           status: 401,
           headers: corsHeaders,
         });
+      }
       if (!tenantId) {
         const { data: at } = await userClient
           .from("user_active_tenant")
@@ -87,18 +99,20 @@ Deno.serve(async (req) => {
         tenantId = at?.tenant_id;
       }
     }
-    if (!tenantId)
+    if (!tenantId) {
       return new Response(JSON.stringify({ error: "missing_tenant" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const sheetId = extractSheetId(rawSheet);
-    if (!sheetId)
+    if (!sheetId) {
       return new Response(JSON.stringify({ error: "missing_sheet" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const sheetRange = range || "A:Z";
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(sheetRange)}?key=${GOOGLE_API_KEY}`;
@@ -116,11 +130,12 @@ Deno.serve(async (req) => {
     }
     const sheet = await res.json();
     const rows: Array<Array<any>> = sheet.values || [];
-    if (rows.length < 1)
+    if (rows.length < 1) {
       return new Response(JSON.stringify({ error: "empty_sheet" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     const headers = rows[0].map((h) => String(h).trim());
 
@@ -132,10 +147,13 @@ Deno.serve(async (req) => {
       const guess: Record<string, string> = {};
       headers.forEach((h) => {
         const l = h.toLowerCase();
-        if (/(שם|name|איש קשר|contact)/.test(l)) guess[h] = "name";
-        else if (/(טלפון|נייד|phone|mobile|whatsapp)/.test(l))
+        if (/(שם|name|איש קשר|contact)/.test(l)) {
+          guess[h] = "name";
+        } else if (/(טלפון|נייד|phone|mobile|whatsapp)/.test(l)) {
           guess[h] = "phone";
-        else if (/(מייל|אימייל|email|mail)/.test(l)) guess[h] = "email";
+        } else if (/(מייל|אימייל|email|mail)/.test(l)) {
+          guess[h] = "email";
+        }
       });
       return new Response(
         JSON.stringify({ headers, previewRows, suggestedMap: guess }),
@@ -143,16 +161,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!listId)
+    if (!listId) {
       return new Response(JSON.stringify({ error: "missing_listId" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
     const map: Record<string, string> = fieldMap || {};
     const idx: Record<string, number> = {};
     headers.forEach((h, i) => {
       const f = map[h] || map[h.trim()];
-      if (f) idx[f] = i;
+      if (f) {
+        idx[f] = i;
+      }
     });
     if (idx.phone === undefined && idx.email === undefined) {
       return new Response(
@@ -181,17 +202,25 @@ Deno.serve(async (req) => {
         idx.name !== undefined
           ? String(row[idx.name] ?? "").trim() || null
           : null;
-      if (!phone && !email) continue;
+      if (!phone && !email) {
+        continue;
+      }
       const key = phone || email!;
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       // Unmapped columns become merge fields ({{column}}) for templates.
       const custom_fields: Record<string, string> = {};
       headers.forEach((h, i) => {
-        if (map[h] || map[h.trim()]) return;
+        if (map[h] || map[h.trim()]) {
+          return;
+        }
         const key = fieldKeyFromHeader(h);
         const value = String(row[i] ?? "").trim();
-        if (key && value) custom_fields[key] = value;
+        if (key && value) {
+          custom_fields[key] = value;
+        }
       });
       members.push({
         entity_type: "manual",
@@ -210,7 +239,9 @@ Deno.serve(async (req) => {
         p_rows: chunk,
         p_added_via: "sheet",
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       inserted += Number(data || 0);
     }
 

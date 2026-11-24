@@ -39,8 +39,12 @@ export function applySignatureStamp(
     [STAMP_ID_KEY]: companyId.trim(),
   };
   for (const field of fields) {
-    if (field.type === "company_name") next[field.id] = name.trim();
-    if (field.type === "id_number") next[field.id] = companyId.trim();
+    if (field.type === "company_name") {
+      next[field.id] = name.trim();
+    }
+    if (field.type === "id_number") {
+      next[field.id] = companyId.trim();
+    }
   }
   return next;
 }

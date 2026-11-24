@@ -19,7 +19,9 @@ async function clearFailures(
 ): Promise<Array<WorkshopArtifact>> {
   const { kept, failedIds } = splitFailures(rows);
   const fresh = failedIds.filter((id) => !cleared.has(id));
-  if (fresh.length === 0) return kept;
+  if (fresh.length === 0) {
+    return kept;
+  }
   fresh.forEach((id) => cleared.add(id));
   splitFailures(rows.filter((row) => fresh.includes(row.id)))
     .messages.slice(0, 3)
@@ -54,7 +56,9 @@ export function useWorkshopArtifacts(
   const queryKey = ["workshop-artifacts", tenantId, projectId];
 
   useEffect(() => {
-    if (!tenantId || !projectId) return;
+    if (!tenantId || !projectId) {
+      return;
+    }
     const channel = supabase
       .channel(`workshop-artifacts-${projectId}`)
       .on(
@@ -85,13 +89,17 @@ export function useWorkshopArtifacts(
               .eq("tenant_id", tenantId)
               .eq("item_id", projectId)
               .order("created_at", { ascending: true });
-            if (error) throw error;
+            if (error) {
+              throw error;
+            }
             const rows = await clearFailures(
               tenantId,
               (data ?? []) as Array<WorkshopArtifact>,
             );
             const paths = storagePathsIn(rows);
-            if (paths.length === 0) return withViewableUploads(rows);
+            if (paths.length === 0) {
+              return withViewableUploads(rows);
+            }
             const signed = await signCreativeVideoPaths(paths).catch(
               () => ({}),
             );

@@ -58,11 +58,16 @@ export function WaProviderConnectionPicker({
 
   // Auto-pick when exactly one option of selected provider
   useEffect(() => {
-    if (filtered.length === 0) return;
+    if (filtered.length === 0) {
+      return;
+    }
     const stillValid = value && filtered.some((i) => i.id === value);
     if (!stillValid) {
-      if (filtered.length === 1) onChange(filtered[0].id);
-      else if (value) onChange("");
+      if (filtered.length === 1) {
+        onChange(filtered[0].id);
+      } else if (value) {
+        onChange("");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider, filtered.length]);

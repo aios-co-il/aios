@@ -10,7 +10,9 @@ import { isSupabaseApiHost } from "./public-api/hosts.ts";
  */
 export function outboundAllowed(url, method, ownOrigin) {
   const target = new URL(url);
-  if (target.protocol !== "https:") return false;
+  if (target.protocol !== "https:") {
+    return false;
+  }
   if (target.origin === ownOrigin) {
     // Automated Supabase Auth invitations also send real email.
     return !/^\/auth\/v1\/(invite|recover|signup|resend|otp)(\/|$)/.test(
@@ -29,8 +31,9 @@ export function outboundAllowed(url, method, ownOrigin) {
     verb === "POST" &&
     target.hostname === "oauth2.googleapis.com" &&
     target.pathname === "/token"
-  )
+  ) {
     return true;
+  }
   if (
     verb === "POST" &&
     ["www.googleapis.com", "searchconsole.googleapis.com"].includes(
@@ -39,8 +42,9 @@ export function outboundAllowed(url, method, ownOrigin) {
     /^\/webmasters\/v3\/sites\/[^/]+\/searchAnalytics\/query$/.test(
       target.pathname,
     )
-  )
+  ) {
     return true;
+  }
   // Carmen can think and read reports; messaging, publishing and management stay blocked.
   const inference = {
     "api.openai.com":
@@ -48,8 +52,9 @@ export function outboundAllowed(url, method, ownOrigin) {
     "api.anthropic.com": /^\/v1\/messages\/?$/,
     "api.x.ai": /^\/v1\/(chat\/completions|responses|embeddings)\/?$/,
   };
-  if (verb === "POST" && inference[target.hostname]?.test(target.pathname))
+  if (verb === "POST" && inference[target.hostname]?.test(target.pathname)) {
     return true;
+  }
   const workspaceAgentId =
     "(?:agtch_[a-z0-9]+|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})";
   const workspaceTriggerPath = new RegExp(
@@ -65,14 +70,16 @@ export function outboundAllowed(url, method, ownOrigin) {
     ((verb === "POST" && workspaceTriggerPath.test(target.pathname)) ||
       (["GET", "HEAD"].includes(verb) &&
         workspaceProbePath.test(target.pathname)))
-  )
+  ) {
     return true;
+  }
   if (
     verb === "POST" &&
     target.hostname === "api.cursor.com" &&
     /^\/v0\/agents(?:\/[^/]+\/followup)?$/.test(target.pathname)
-  )
+  ) {
     return true;
+  }
   // Claude Direct: fire one configured Claude Code routine (no other Anthropic management API).
   if (
     verb === "POST" &&
@@ -80,33 +87,40 @@ export function outboundAllowed(url, method, ownOrigin) {
     /^\/v1\/claude_code\/routines\/trig_[A-Za-z0-9]+\/fire$/.test(
       target.pathname,
     )
-  )
+  ) {
     return true;
+  }
   if (
     verb === "POST" &&
     target.hostname === "googleads.googleapis.com" &&
     /\/googleAds:search(Stream)?$/.test(target.pathname)
-  )
+  ) {
     return true;
+  }
   if (
     verb === "POST" &&
     target.hostname === "analyticsdata.googleapis.com" &&
     /:(runReport|batchRunReports|runRealtimeReport)$/.test(target.pathname)
-  )
+  ) {
     return true;
-  if (!["GET", "HEAD"].includes(verb)) return false;
+  }
+  if (!["GET", "HEAD"].includes(verb)) {
+    return false;
+  }
   if (
     ["api.openai.com", "api.anthropic.com", "api.x.ai"].includes(
       target.hostname,
     ) &&
     /^\/v1\/(models(?:\/[^/]+)?|responses\/[^/]+)\/?$/.test(target.pathname)
-  )
+  ) {
     return true;
+  }
   if (
     target.hostname === "api.cursor.com" &&
     /^\/v0\/agents(?:\/[^/]+(?:\/conversation)?)?\/?$/.test(target.pathname)
-  )
+  ) {
     return true;
+  }
   // Some providers expose sends as GET. Only explicitly read-only analytics APIs
   // and static assets are allowed; unknown destinations fail closed.
   const readHosts = [
@@ -125,8 +139,9 @@ export function outboundAllowed(url, method, ownOrigin) {
           target.searchParams.has(key) &&
           !["GET", "HEAD"].includes(target.searchParams.get(key).toUpperCase()),
       )
-    )
+    ) {
       return false;
+    }
     return !/\/(messages|feed|photos|videos)(\/|$)/i.test(target.pathname);
   }
   return [

@@ -19,12 +19,16 @@ export function useAgencies(options?: {
   return useQuery({
     queryKey: ["agencies", tenantId, { activeOnly }],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let ownedQuery = supabase
         .from("agencies")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (activeOnly) ownedQuery = ownedQuery.eq("status", "active");
+      if (activeOnly) {
+        ownedQuery = ownedQuery.eq("status", "active");
+      }
 
       const [
         { data: owned, error: ownedError },
@@ -36,7 +40,9 @@ export function useAgencies(options?: {
           .select("agency_id, agencies(*)")
           .eq("accessing_tenant_id", tenantId),
       ]);
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
       if (sharedError) {
         console.error("Error fetching shared agencies:", sharedError);
       }
@@ -68,14 +74,20 @@ export function useCampaigners(options?: {
   return useQuery({
     queryKey: ["campaigners", tenantId, { activeOnly }],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("campaigners")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (activeOnly) query = query.eq("active", true);
+      if (activeOnly) {
+        query = query.eq("active", true);
+      }
       const { data, error } = await query.order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && (options?.enabled ?? true),
@@ -92,14 +104,20 @@ export function useSalesPeople(options?: {
   return useQuery({
     queryKey: ["sales-people", tenantId, { activeOnly }],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("sales_people")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (activeOnly) query = query.eq("active", true);
+      if (activeOnly) {
+        query = query.eq("active", true);
+      }
       const { data, error } = await query.order("full_name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && (options?.enabled ?? true),

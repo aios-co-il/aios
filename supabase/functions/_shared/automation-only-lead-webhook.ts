@@ -27,7 +27,9 @@ const stringRecord = (value: unknown): Record<string, string> =>
   );
 
 const coerceScreeningRecord = (value: unknown): Record<string, string> => {
-  if (typeof value === "string" && value.trim()) return parseQaText(value);
+  if (typeof value === "string" && value.trim()) {
+    return parseQaText(value);
+  }
   return filterScreeningAnswers(stringRecord(value));
 };
 
@@ -44,7 +46,9 @@ export function fieldDataFromLeadWebhookBody(
     payload.questions_and_answers,
   ]) {
     const parsed = coerceScreeningRecord(candidate);
-    if (Object.keys(parsed).length) return parsed;
+    if (Object.keys(parsed).length) {
+      return parsed;
+    }
   }
 
   const fieldData = body.field_data ?? payload.field_data;
@@ -116,7 +120,9 @@ export async function resolveLeadAlertAutomation(
       .eq("active", true)
       .eq("is_flow", true)
       .maybeSingle();
-    if (!automation) return null;
+    if (!automation) {
+      return null;
+    }
 
     const { data: triggerStep } = await supabase
       .from("automation_flow_steps")
@@ -124,7 +130,9 @@ export async function resolveLeadAlertAutomation(
       .eq("automation_id", automation.id)
       .eq("step_type", "trigger")
       .maybeSingle();
-    if (triggerStep?.action_type !== "inbound_webhook_lead") return null;
+    if (triggerStep?.action_type !== "inbound_webhook_lead") {
+      return null;
+    }
 
     return {
       automationId: automation.id,
@@ -144,7 +152,9 @@ export async function resolveLeadAlertAutomation(
     .eq("automations.is_flow", true);
 
   const steps = triggerSteps ?? [];
-  if (!steps.length) return null;
+  if (!steps.length) {
+    return null;
+  }
 
   const payloadClient =
     typeof payloadClientId === "string" ? payloadClientId : "";
@@ -227,7 +237,9 @@ export async function processAutomationOnlyLeadWebhook(
     "client_phone",
     "recipient_phone",
   ]);
-  if (payloadClientPhone) routing.client_phone = payloadClientPhone;
+  if (payloadClientPhone) {
+    routing.client_phone = payloadClientPhone;
+  }
   if (!routedClient) {
     routing.client_name = firstLeadPayloadString(payload, [
       "client_name",
@@ -345,7 +357,9 @@ export async function processAutomationOnlyLeadWebhook(
         },
       };
     }
-    if (receiptError) throw receiptError;
+    if (receiptError) {
+      throw receiptError;
+    }
   }
 
   const normalized = {

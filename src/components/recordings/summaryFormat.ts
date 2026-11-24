@@ -13,7 +13,9 @@ export function markdownToWhatsApp(md: string): string {
         .split("|")
         .map((c) => c.trim())
         .filter(Boolean);
-      if (cells.every((c) => /^:?-+:?$/.test(c))) continue;
+      if (cells.every((c) => /^:?-+:?$/.test(c))) {
+        continue;
+      }
       out.push("• " + cells.join(" — "));
       continue;
     }
@@ -59,7 +61,9 @@ export function markdownToEmailHtml(md: string): string {
     }
   };
   const flushTable = () => {
-    if (tableRows.length === 0) return;
+    if (tableRows.length === 0) {
+      return;
+    }
     const [head, ...body] = tableRows;
     out.push(
       '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;">',
@@ -97,7 +101,9 @@ export function markdownToEmailHtml(md: string): string {
         .split("|")
         .map((c) => c.trim())
         .filter(Boolean);
-      if (!cells.every((c) => /^:?-+:?$/.test(c))) tableRows.push(cells);
+      if (!cells.every((c) => /^:?-+:?$/.test(c))) {
+        tableRows.push(cells);
+      }
       continue;
     }
     flushTable();

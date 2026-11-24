@@ -5,11 +5,15 @@ const TEMPLATE_VAR_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 export function extractTemplateVariables(
   template: string | undefined | null,
 ): Array<string> {
-  if (!template) return [];
+  if (!template) {
+    return [];
+  }
   const keys = new Set<string>();
   for (const match of template.matchAll(TEMPLATE_VAR_RE)) {
     const key = match[1]?.trim();
-    if (key) keys.add(key);
+    if (key) {
+      keys.add(key);
+    }
   }
   return Array.from(keys);
 }
@@ -42,10 +46,18 @@ const SAMPLE_VALUES: Record<string, string> = {
 };
 
 function sampleValueForKey(key: string): string {
-  if (SAMPLE_VALUES[key]) return SAMPLE_VALUES[key];
-  if (key.includes("email") || key.includes("mail")) return "user@example.com";
-  if (key.includes("phone") || key.includes("mobile")) return "0501234567";
-  if (key.includes("name")) return "ישראל ישראלי";
+  if (SAMPLE_VALUES[key]) {
+    return SAMPLE_VALUES[key];
+  }
+  if (key.includes("email") || key.includes("mail")) {
+    return "user@example.com";
+  }
+  if (key.includes("phone") || key.includes("mobile")) {
+    return "0501234567";
+  }
+  if (key.includes("name")) {
+    return "ישראל ישראלי";
+  }
   return `ערך_${key}`;
 }
 
@@ -57,8 +69,12 @@ export function collectEmailMappedFields(
   const usage = new Map<string, Set<EmailFieldUsage>>();
 
   const mark = (key: string, where: EmailFieldUsage) => {
-    if (!key || key === "agent_output") return;
-    if (!usage.has(key)) usage.set(key, new Set());
+    if (!key || key === "agent_output") {
+      return;
+    }
+    if (!usage.has(key)) {
+      usage.set(key, new Set());
+    }
     usage.get(key)!.add(where);
   };
 
@@ -109,8 +125,14 @@ export function buildSampleWebhookJson(
 
 export function usageLabel(usedIn: Array<EmailFieldUsage>): string {
   const parts: Array<string> = [];
-  if (usedIn.includes("subject")) parts.push("נושא");
-  if (usedIn.includes("body")) parts.push("גוף");
-  if (usedIn.includes("recipient")) parts.push("נמען");
+  if (usedIn.includes("subject")) {
+    parts.push("נושא");
+  }
+  if (usedIn.includes("body")) {
+    parts.push("גוף");
+  }
+  if (usedIn.includes("recipient")) {
+    parts.push("נמען");
+  }
   return parts.join(" · ");
 }

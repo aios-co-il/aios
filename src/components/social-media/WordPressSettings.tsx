@@ -48,7 +48,9 @@ export function WordPressSettings() {
   });
 
   const handleCreate = async () => {
-    if (!form.site_url || !form.username || !form.app_password) return;
+    if (!form.site_url || !form.username || !form.app_password) {
+      return;
+    }
     await createSite.mutateAsync({
       site_url: form.site_url.replace(/\/$/, ""),
       username: form.username,

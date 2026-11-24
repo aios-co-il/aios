@@ -94,8 +94,9 @@ export function aggregateFacebookCampaignsFromRecords(
   > = {};
 
   records.forEach((r) => {
-    if (!shouldIncludeInAdsDashboardAggregate(r.data, "facebook_insights"))
+    if (!shouldIncludeInAdsDashboardAggregate(r.data, "facebook_insights")) {
       return;
+    }
     const d = r.data || {};
     const name = facebookCampaignKey(d);
     if (!map[name]) {
@@ -127,7 +128,9 @@ export function aggregateFacebookCampaignsFromRecords(
 
   for (const [name, type] of Object.entries(types)) {
     const campaignType = type.configured ?? type.stored;
-    if (campaignType !== "other") map[name].campaign_type = campaignType;
+    if (campaignType !== "other") {
+      map[name].campaign_type = campaignType;
+    }
   }
   return Object.values(map).sort((a, b) => b.spend - a.spend);
 }

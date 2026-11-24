@@ -10,7 +10,9 @@ export function SignaturePageNavigation({
   count: number;
   onChange: (page: number) => void;
 }) {
-  if (count <= 1) return null;
+  if (count <= 1) {
+    return null;
+  }
   return (
     <nav
       aria-label="ניווט בין עמודי המסמך"

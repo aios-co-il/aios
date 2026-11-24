@@ -199,17 +199,28 @@ const matchesPlatformFilter = (
   integrationType: string,
   filter: DashboardPlatformFilter,
 ): boolean => {
-  if (filter === "all") return true;
-  if (filter === "facebook") return isFacebookPlatform(integrationType);
-  if (filter === "google_ads") return integrationType === "google_ads";
-  if (filter === "google_analytics")
+  if (filter === "all") {
+    return true;
+  }
+  if (filter === "facebook") {
+    return isFacebookPlatform(integrationType);
+  }
+  if (filter === "google_ads") {
+    return integrationType === "google_ads";
+  }
+  if (filter === "google_analytics") {
     return isAnalyticsPlatform(integrationType);
+  }
   return true;
 };
 
 const formatNumber = (num: number) => {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + "M";
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + "K";
+  }
   return Math.round(num).toString();
 };
 
@@ -283,13 +294,17 @@ export default function DashboardView() {
   const { data: dashboard, isLoading: dashboardLoading } = useQuery({
     queryKey: ["crm-dashboard", dashboardId],
     queryFn: async () => {
-      if (!dashboardId) throw new Error("No dashboard ID");
+      if (!dashboardId) {
+        throw new Error("No dashboard ID");
+      }
       const { data, error } = await supabase
         .from("crm_dashboards")
         .select("*, clients(name), agencies(name)")
         .eq("id", dashboardId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!dashboardId,
@@ -308,7 +323,9 @@ export default function DashboardView() {
       isOrganizationDashboard,
     ],
     queryFn: async () => {
-      if (!currentTenantId) return [];
+      if (!currentTenantId) {
+        return [];
+      }
       const { data: shared } = await supabase
         .from("agency_tenant_access")
         .select("agency_id")
@@ -323,7 +340,9 @@ export default function DashboardView() {
         query = query.eq("tenant_id", currentTenantId);
       }
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId && isOrganizationDashboard,
@@ -344,11 +363,15 @@ export default function DashboardView() {
   const { data: tables = [], isPending: tablesPending } = useQuery<Array<any>>({
     queryKey: dashboardTablesQueryKey(dashboard?.client_id),
     queryFn: async () => {
-      if (!dashboard?.client_id) return [];
+      if (!dashboard?.client_id) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await supabase.functions.invoke(
         currentTenantId
@@ -356,7 +379,9 @@ export default function DashboardView() {
           : `crm-tables?client_id=${dashboard.client_id}`,
         { method: "GET" },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!dashboard?.client_id,
@@ -378,7 +403,9 @@ export default function DashboardView() {
     const stamps = tables
       .map((t: any) => getReportLastSyncAt(t))
       .filter(Boolean) as Array<string>;
-    if (!stamps.length) return null;
+    if (!stamps.length) {
+      return null;
+    }
     return stamps.sort().reverse()[0];
   }, [tables]);
   const dashboardSyncProblem = useMemo(
@@ -390,11 +417,15 @@ export default function DashboardView() {
   const { data: tableFields = {} } = useQuery({
     queryKey: ["crm-fields-dashboard", tables.map((t: any) => t.id).join(",")],
     queryFn: async () => {
-      if (tables.length === 0) return {};
+      if (tables.length === 0) {
+        return {};
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const fieldsMap: Record<string, Array<any>> = {};
       await Promise.all(
@@ -433,11 +464,15 @@ export default function DashboardView() {
       customToStr,
     ],
     queryFn: async () => {
-      if (tables.length === 0) return [];
+      if (tables.length === 0) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const tablesToFetch = dashboardRecordTables(tables);
 
@@ -521,13 +556,17 @@ export default function DashboardView() {
   const { data: hasSeoReports = false } = useQuery({
     queryKey: ["has-seo-reports", dashboard?.client_id],
     queryFn: async () => {
-      if (!dashboard?.client_id) return false;
+      if (!dashboard?.client_id) {
+        return false;
+      }
       const { count, error } = await supabase
         .from("ahrefs_reports")
         .select("id", { count: "exact", head: true })
         .eq("client_id", dashboard.client_id)
         .limit(1);
-      if (error) return false;
+      if (error) {
+        return false;
+      }
       return (count || 0) > 0;
     },
     enabled: !!dashboard?.client_id,
@@ -537,7 +576,9 @@ export default function DashboardView() {
   const { data: hasWooCommerce = false } = useQuery({
     queryKey: ["has-woocommerce", dashboard?.client_id],
     queryFn: async () => {
-      if (!dashboard?.client_id) return false;
+      if (!dashboard?.client_id) {
+        return false;
+      }
       const { count, error } = await supabase
         .from("social_media_wordpress_sites" as any)
         .select("id", { count: "exact", head: true })
@@ -555,7 +596,9 @@ export default function DashboardView() {
   });
 
   useEffect(() => {
-    if (didSetSeoDefaultRef.current) return;
+    if (didSetSeoDefaultRef.current) {
+      return;
+    }
     if (hasSeoReports || hasWooCommerce) {
       setDateFilter("last_30_days");
       didSetSeoDefaultRef.current = true;
@@ -660,15 +703,26 @@ export default function DashboardView() {
   const availablePlatforms = useMemo(() => {
     const set = new Set<string>();
     tables.forEach((t: any) => {
-      if (t.integration_type) set.add(t.integration_type);
+      if (t.integration_type) {
+        set.add(t.integration_type);
+      }
     });
     const platforms: Array<DashboardPlatformFilter> = [];
-    if (set.has("facebook_insights") || set.has("facebook_ecommerce"))
+    if (set.has("facebook_insights") || set.has("facebook_ecommerce")) {
       platforms.push("facebook");
-    if (set.has("google_ads")) platforms.push("google_ads");
-    if (set.has("google_analytics")) platforms.push("google_analytics");
-    if (hasSeoReports) platforms.push("seo");
-    if (hasWooCommerce) platforms.push("woocommerce");
+    }
+    if (set.has("google_ads")) {
+      platforms.push("google_ads");
+    }
+    if (set.has("google_analytics")) {
+      platforms.push("google_analytics");
+    }
+    if (hasSeoReports) {
+      platforms.push("seo");
+    }
+    if (hasWooCommerce) {
+      platforms.push("woocommerce");
+    }
     return platforms;
   }, [tables, hasSeoReports, hasWooCommerce]);
 
@@ -751,20 +805,25 @@ export default function DashboardView() {
     return displayAllRecords.filter((record: any) => {
       const source = record._source || "unknown";
       // Platform filter
-      if (!matchesPlatformFilter(source, platformFilter)) return false;
+      if (!matchesPlatformFilter(source, platformFilter)) {
+        return false;
+      }
       // For Analytics: only use 'daily' records for accurate totals
       if (isAnalyticsPlatform(source)) {
         const data = record.data || {};
         // Only include report_type='daily' (aggregate per day)
         // Exclude: traffic_source (no date), daily_source (per-source breakdown = double counting), top_pages
-        if (data.report_type !== "daily") return false;
+        if (data.report_type !== "daily") {
+          return false;
+        }
       }
       // Ads sync stores campaign + adset + ad rows; dashboards aggregate at campaign level only.
       if (
         isAdsPlatform(source) &&
         !shouldIncludeInAdsDashboardAggregate(record.data, source)
-      )
+      ) {
         return false;
+      }
       return true;
     });
   }, [displayAllRecords, platformFilter]);
@@ -775,7 +834,9 @@ export default function DashboardView() {
     const adsDates = displayAllRecords
       .filter((r: any) => isAdsPlatform(r._source || ""))
       .map((r: any) => r.data?.date);
-    if (adsDates.length === 0) return null;
+    if (adsDates.length === 0) {
+      return null;
+    }
     const { startDate } = getDashboardDateRange(
       dateFilter,
       new Date(),
@@ -845,8 +906,12 @@ export default function DashboardView() {
       const source = record._source || "unknown";
       if (isAdsPlatform(source)) {
         const data = record.data || {};
-        if (data.report_type && data.report_type !== "daily") return;
-        if (!shouldIncludeInAdsDashboardAggregate(data, source)) return;
+        if (data.report_type && data.report_type !== "daily") {
+          return;
+        }
+        if (!shouldIncludeInAdsDashboardAggregate(data, source)) {
+          return;
+        }
         spend += getSpendFromData(data);
         impressions += Number(data.impressions) || 0;
       }
@@ -916,19 +981,24 @@ export default function DashboardView() {
     const categorize = (sourceMedium: string): string => {
       const sm = sourceMedium.toLowerCase();
       if (sm.includes("facebook") || sm.includes("fb")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Facebook ממומן";
+        }
         return "Facebook אורגני";
       }
       if (sm.includes("instagram") || sm.includes("ig")) {
-        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm"))
+        if (sm.includes("paid") || sm.includes("cpc") || sm.includes("cpm")) {
           return "Instagram ממומן";
+        }
         return "Instagram אורגני";
       }
       if (sm.includes("google") || sm.includes("googleads")) {
-        if (sm.includes("organic")) return "Google אורגני";
-        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads"))
+        if (sm.includes("organic")) {
+          return "Google אורגני";
+        }
+        if (sm.includes("cpc") || sm.includes("paid") || sm.includes("ads")) {
           return "Google ממומן";
+        }
         return "Google";
       }
       if (
@@ -937,18 +1007,26 @@ export default function DashboardView() {
         sm.includes("mailchimp") ||
         sm.includes("klaviyo") ||
         sm.includes("activetrail")
-      )
+      ) {
         return "דיוור";
-      if (sm.includes("whatsapp") || sm.includes("wa.me")) return "WhatsApp";
-      if (sm.includes("organic") || sm.includes("seo")) return "אורגני";
+      }
+      if (sm.includes("whatsapp") || sm.includes("wa.me")) {
+        return "WhatsApp";
+      }
+      if (sm.includes("organic") || sm.includes("seo")) {
+        return "אורגני";
+      }
       if (
         sm === "(direct) / (none)" ||
         sm === "direct" ||
         sm.includes("(direct)") ||
         sm.includes("(none)")
-      )
+      ) {
         return "ישיר (Direct)";
-      if (sm.includes("referral")) return "הפניות (Referral)";
+      }
+      if (sm.includes("referral")) {
+        return "הפניות (Referral)";
+      }
       return "אחר";
     };
 
@@ -964,13 +1042,17 @@ export default function DashboardView() {
     > = {};
     displayAllRecords.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "daily_source") return;
+      if (data.report_type !== "daily_source") {
+        return;
+      }
 
       const sm = data.source_medium || "Unknown";
       const category = categorize(sm);
-      if (!sources[category])
+      if (!sources[category]) {
         sources[category] = {
           sessions: 0,
           users: 0,
@@ -978,6 +1060,7 @@ export default function DashboardView() {
           revenue: 0,
           addToCart: 0,
         };
+      }
       sources[category].sessions += Number(data.sessions) || 0;
       sources[category].users += Number(data.users) || 0;
       sources[category].purchases += getPurchasesFromData(data);
@@ -1010,12 +1093,16 @@ export default function DashboardView() {
     > = {};
     displayAllRecords.forEach((record: any) => {
       const source = record._source || "unknown";
-      if (!isAnalyticsPlatform(source)) return;
+      if (!isAnalyticsPlatform(source)) {
+        return;
+      }
       const data = record.data || {};
-      if (data.report_type !== "channel_group") return;
+      if (data.report_type !== "channel_group") {
+        return;
+      }
 
       const ch = data.channel_group || "Unknown";
-      if (!channels[ch])
+      if (!channels[ch]) {
         channels[ch] = {
           sessions: 0,
           engagedSessions: 0,
@@ -1030,6 +1117,7 @@ export default function DashboardView() {
           eventsSum: 0,
           count: 0,
         };
+      }
       channels[ch].sessions += Number(data.sessions) || 0;
       channels[ch].engagedSessions += Number(data.engaged_sessions) || 0;
       channels[ch].users += Number(data.users) || 0;
@@ -1068,7 +1156,9 @@ export default function DashboardView() {
 
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date;
-      if (!date) return;
+      if (!date) {
+        return;
+      }
       const source = record._source || "unknown";
       const data = record.data || {};
 
@@ -1119,17 +1209,21 @@ export default function DashboardView() {
 
   // Get raw records and fields for platform-specific tabs
   const platformRawData = useMemo(() => {
-    if (platformFilter === "all")
+    if (platformFilter === "all") {
       return { records: [], fields: [], tableIds: [] };
+    }
 
     // Find matching tables
     const matchingTables = tables.filter((t: any) => {
-      if (platformFilter === "facebook")
+      if (platformFilter === "facebook") {
         return isFacebookPlatform(t.integration_type);
-      if (platformFilter === "google_ads")
+      }
+      if (platformFilter === "google_ads") {
         return t.integration_type === "google_ads";
-      if (platformFilter === "google_analytics")
+      }
+      if (platformFilter === "google_analytics") {
         return t.integration_type === "google_analytics";
+      }
       return false;
     });
 
@@ -1265,7 +1359,9 @@ export default function DashboardView() {
     const byDate: Record<string, Array<any>> = {};
     filteredRecords.forEach((record: any) => {
       const date = record.data?.date || "unknown";
-      if (!byDate[date]) byDate[date] = [];
+      if (!byDate[date]) {
+        byDate[date] = [];
+      }
       byDate[date].push(record);
     });
     return Object.entries(byDate)

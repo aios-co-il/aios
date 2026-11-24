@@ -68,14 +68,18 @@ function bearer(req: Request) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   if (!REQUIRED_BEARER || bearer(req) !== REQUIRED_BEARER) {
     return response({ error: "Unauthorized" }, 401);
   }
-  if (req.method === "GET") return response({ ok: true, server: SERVER_INFO });
-  if (req.method !== "POST")
+  if (req.method === "GET") {
+    return response({ ok: true, server: SERVER_INFO });
+  }
+  if (req.method !== "POST") {
     return response({ error: "Method not allowed" }, 405);
+  }
 
   let body: any;
   try {
@@ -92,10 +96,15 @@ Deno.serve(async (req: Request) => {
       serverInfo: SERVER_INFO,
     });
   }
-  if (method === "notifications/initialized")
+  if (method === "notifications/initialized") {
     return new Response(null, { status: 204, headers: corsHeaders });
-  if (method === "tools/list") return rpcResult(id, { tools });
-  if (method !== "tools/call") return rpcError(id, -32601, "Method not found");
+  }
+  if (method === "tools/list") {
+    return rpcResult(id, { tools });
+  }
+  if (method !== "tools/call") {
+    return rpcError(id, -32601, "Method not found");
+  }
 
   const name = params?.name;
   const args = params?.arguments || {};
@@ -106,7 +115,9 @@ Deno.serve(async (req: Request) => {
   try {
     if (name === "query_system_graph") {
       const query = String(args.query || "").trim();
-      if (!query) return rpcError(id, -32602, "query is required");
+      if (!query) {
+        return rpcError(id, -32602, "query is required");
+      }
       const depth = Math.min(3, Math.max(0, Number(args.depth ?? 2)));
       const limit = Math.min(80, Math.max(1, Number(args.limit ?? 40)));
       const { data, error } = await sb.rpc("carmen_query_system_graph", {
@@ -114,7 +125,9 @@ Deno.serve(async (req: Request) => {
         p_depth: depth,
         p_limit: limit,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return rpcResult(id, {
         content: [{ type: "text", text: JSON.stringify(data || []) }],
       });
@@ -126,7 +139,9 @@ Deno.serve(async (req: Request) => {
         .select("version,commit_sha,node_count,edge_count,activated_at")
         .eq("status", "active")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return rpcResult(id, {
         content: [{ type: "text", text: JSON.stringify(data || null) }],
       });

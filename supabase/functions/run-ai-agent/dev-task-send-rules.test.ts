@@ -51,7 +51,10 @@ Deno.test(
       "dev_task_approval_target_mismatch",
     );
     // Reading a session or another connector is no send.
-    for (const tool of ["mcp_Cursor__list_cursor_task_sessions", "list_leads"])
+    for (const tool of [
+      "mcp_Cursor__list_cursor_task_sessions",
+      "list_leads",
+    ]) {
       assertStrictEquals(
         directDevSendRefusal(
           tool,
@@ -60,6 +63,7 @@ Deno.test(
         null,
         tool,
       );
+    }
   },
 );
 
@@ -91,11 +95,12 @@ Deno.test(
       );
     }
     // Carmen taking a task herself starts no coding agent.
-    for (const args of [{}, { agent_name: "carmen" }])
+    for (const args of [{}, { agent_name: "carmen" }]) {
       assertStrictEquals(
         directDevSendRefusal("take_task", turn({ appChatUser: false }), args),
         null,
       );
+    }
   },
 );
 
@@ -106,23 +111,25 @@ Deno.test("a yes that names the agent sends to that agent only", () => {
     ["mcp_Manus__request_dev_task", "כן למנוס"],
     ["delegate_to_github_agent", "כן, לגיטהאב"],
     ["assign_task_to_cursor", "כן תעבירי לקרסר"],
-  ])
+  ]) {
     assertStrictEquals(
       directDevSendRefusal(tool, turn({ userText })),
       null,
       `${tool}: ${userText}`,
     );
+  }
   // Grok runs on Cursor's agents, but a yes to Cursor is not a yes to Grok.
   for (const [tool, userText] of [
     ["mcp_Grok__request_dev_task", "כן תשלחי לקרסר"],
     ["mcp_Cursor__request_dev_task", "כן, לגרוק"],
     ["mcp_Claude__ask_claude", "כן למנוס"],
-  ])
+  ]) {
     assertStrictEquals(
       directDevSendRefusal(tool, turn({ userText }))?.error,
       "dev_task_approval_target_mismatch",
       `${tool}: ${userText}`,
     );
+  }
 });
 
 Deno.test("work already under way goes on without a new yes", () => {
@@ -133,7 +140,7 @@ Deno.test("work already under way goes on without a new yes", () => {
     "mcp_Cursor__get_cursor_direct_session",
     "mcp_Cursor__complete_human_task",
     "mcp_Grok__reply_to_aios_session",
-  ])
+  ]) {
     assertStrictEquals(
       directDevSendRefusal(
         tool,
@@ -142,6 +149,7 @@ Deno.test("work already under way goes on without a new yes", () => {
       null,
       tool,
     );
+  }
 });
 
 Deno.test(
@@ -158,8 +166,9 @@ Deno.test(
       false,
     );
     // Every coding agent, not only Cursor and Claude.
-    for (const rule of [app, whatsapp])
+    for (const rule of [app, whatsapp]) {
       assertMatch(rule, /mcp_Grok__.*delegate_to_github_agent/);
+    }
   },
 );
 

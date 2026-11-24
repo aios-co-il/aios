@@ -71,21 +71,29 @@ export function parseSharedReportTabs(
   const raw = settings as
     { shared_tabs?: unknown; sharedTabs?: unknown } | null | undefined;
   const stored = raw?.shared_tabs ?? raw?.sharedTabs;
-  if (!stored || typeof stored !== "object" || Array.isArray(stored))
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
     return visibility;
+  }
 
   for (const [rawKey, value] of Object.entries(
     stored as Record<string, unknown>,
   )) {
     const key = normalizeKey(rawKey);
-    if (!key) continue;
-    if (typeof value === "boolean") visibility[key] = value;
-    else if (value === "false" || value === 0) visibility[key] = false;
-    else if (value === "true" || value === 1) visibility[key] = true;
+    if (!key) {
+      continue;
+    }
+    if (typeof value === "boolean") {
+      visibility[key] = value;
+    } else if (value === "false" || value === 0) {
+      visibility[key] = false;
+    } else if (value === "true" || value === 1) {
+      visibility[key] = true;
+    }
   }
 
-  if (!SHARED_REPORT_TAB_KEYS.some((key) => visibility[key]))
+  if (!SHARED_REPORT_TAB_KEYS.some((key) => visibility[key])) {
     visibility.seo = true;
+  }
   return visibility;
 }
 
@@ -114,7 +122,9 @@ export function withSharedReportTab(
     ...parseSharedReportTabs(settings),
     [key]: visible,
   } as SharedReportTabVisibility;
-  if (!SHARED_REPORT_TAB_KEYS.some((tab) => next[tab])) next.seo = true;
+  if (!SHARED_REPORT_TAB_KEYS.some((tab) => next[tab])) {
+    next.seo = true;
+  }
   base.shared_tabs = next;
   delete base.sharedTabs;
   return base;
@@ -125,6 +135,8 @@ export function isLastVisibleSharedReportTab(
   visibility: SharedReportTabVisibility,
   key: SharedReportTabKey,
 ): boolean {
-  if (!visibility[key]) return false;
+  if (!visibility[key]) {
+    return false;
+  }
   return SHARED_REPORT_TAB_KEYS.filter((tab) => visibility[tab]).length === 1;
 }

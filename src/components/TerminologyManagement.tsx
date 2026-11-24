@@ -113,7 +113,9 @@ export default function TerminologyManagement({
         .eq("tenant_id", tenantId)
         .order("term_key");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -142,7 +144,9 @@ export default function TerminologyManagement({
         .update({ singular, plural })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["terminology", tenantId] });
@@ -157,7 +161,9 @@ export default function TerminologyManagement({
   const resetMutation = useMutation({
     mutationFn: async (id: string) => {
       const term = terms.find((t) => t.id === id);
-      if (!term) return;
+      if (!term) {
+        return;
+      }
 
       const { error } = await supabase
         .from("tenant_terminology" as any)
@@ -167,7 +173,9 @@ export default function TerminologyManagement({
         })
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["terminology", tenantId] });
@@ -207,7 +215,9 @@ export default function TerminologyManagement({
           terms,
         });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -229,7 +239,9 @@ export default function TerminologyManagement({
   };
 
   const handleSave = () => {
-    if (!editingTerm) return;
+    if (!editingTerm) {
+      return;
+    }
     updateMutation.mutate({
       id: editingTerm.id,
       singular: editForm.singular,

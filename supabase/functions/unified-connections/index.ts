@@ -453,7 +453,9 @@ Deno.serve(async (req) => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(
           JSON.stringify({ success: true, integration: data }),
@@ -471,7 +473,9 @@ Deno.serve(async (req) => {
           .like("integration_type", "unified_%")
           .eq("is_active", true);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ connections: data || [] }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -495,7 +499,9 @@ Deno.serve(async (req) => {
           .eq("tenant_id", tenant_id)
           .eq("id", connection_id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },

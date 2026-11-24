@@ -12,7 +12,9 @@ export function useSendTestEmail() {
         "broadcast-test-send",
         { body },
       );
-      if (error || data?.error) throw new Error(data?.error || error?.message);
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message);
+      }
       return data.to;
     },
     onSuccess: (to) => toast.success(`נשלח מייל בדיקה אל ${to}`),

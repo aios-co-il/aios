@@ -108,7 +108,9 @@ type SupabaseLike = { from: (t: string) => any };
 export function hashInput(input: unknown): string {
   const s = JSON.stringify(input);
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
   return Math.abs(h).toString(16).padStart(8, "0");
 }
 
@@ -183,7 +185,9 @@ export function detectStuckPatterns(
   previousStuckScore: number,
 ): { stuck: boolean; score: number; reason?: string } {
   let score = previousStuckScore;
-  if (recentActions.length < 3) return { stuck: false, score };
+  if (recentActions.length < 3) {
+    return { stuck: false, score };
+  }
 
   const last5 = recentActions.slice(0, 5);
   const hashes = last5.map((a) => a.input_hash).filter(Boolean);
@@ -255,7 +259,9 @@ export async function seedSuccessCriteria(
       })
       .select("*")
       .single();
-    if (cErr) throw cErr;
+    if (cErr) {
+      throw cErr;
+    }
     criteriaRows.push(row);
   }
   return criteriaRows;
@@ -318,8 +324,12 @@ export async function loadGoalState(
     .eq("tenant_id", tenantId)
     .eq("autonomous_mode", true)
     .maybeSingle();
-  if (error) throw error;
-  if (!goal) return null;
+  if (error) {
+    throw error;
+  }
+  if (!goal) {
+    return null;
+  }
 
   const [
     { data: criteria },
@@ -396,11 +406,15 @@ async function planGoalIfNeeded(
   dispatched?: boolean;
   fallback?: boolean;
 }> {
-  if (!state) return {};
+  if (!state) {
+    return {};
+  }
   const pendingSteps = state.planSteps.filter(
     (s) => s.status === "pending" || s.status === "in_progress",
   );
-  if (pendingSteps.length > 0) return {};
+  if (pendingSteps.length > 0) {
+    return {};
+  }
 
   const {
     getInFlightBrainRequest,
@@ -414,7 +428,9 @@ async function planGoalIfNeeded(
     state.goal.id,
     "plan",
   );
-  if (inflight) return { awaiting_brain: true };
+  if (inflight) {
+    return { awaiting_brain: true };
+  }
 
   const ctx = buildContextPackage(state);
   const prompt = buildPlanBrainPrompt(ctx);
@@ -511,7 +527,9 @@ async function monitorInProgressCursorSteps(
   for (const step of tracks) {
     const devTaskId = (step.metadata as Record<string, unknown>)
       ?.dev_task_id as string | undefined;
-    if (!devTaskId) continue;
+    if (!devTaskId) {
+      continue;
+    }
     const { data: dt } = await supabase
       .from("dev_tasks")
       .select("status, pr_url")
@@ -623,7 +641,9 @@ async function executePlanStep(
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (existingDev?.id) devTaskId = existingDev.id;
+        if (existingDev?.id) {
+          devTaskId = existingDev.id;
+        }
       }
 
       if (devTaskId) {
@@ -784,8 +804,9 @@ async function executePlanStep(
       profile: "FAST_REASON",
       result,
     });
-    if (!result.ok)
+    if (!result.ok) {
       throw new Error(result.failoverReason || "model_step_failed");
+    }
 
     for (const ev of result.data?.evidence || []) {
       const criterion = state.criteria.find(
@@ -802,9 +823,12 @@ async function executePlanStep(
     }
     for (const upd of result.data?.criterion_updates || []) {
       const criterion = state.criteria.find((c) => c.criterion_key === upd.key);
-      if (!criterion) continue;
-      if (!["PASS", "FAIL", "UNKNOWN", "NOT_TESTED"].includes(upd.status))
+      if (!criterion) {
         continue;
+      }
+      if (!["PASS", "FAIL", "UNKNOWN", "NOT_TESTED"].includes(upd.status)) {
+        continue;
+      }
       await supabase
         .from("goal_success_criteria")
         .update({
@@ -864,7 +888,9 @@ export async function acquireGoalLock(
     .eq("id", goalId)
     .or(`lock_until.is.null,lock_until.lte.${now},lock_holder.eq."${holder}"`)
     .select("id");
-  if (error) return false;
+  if (error) {
+    return false;
+  }
   return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
@@ -890,12 +916,16 @@ export async function runGoalIteration(
   lockHolder: string,
 ): Promise<{ status: EngineStatus; summary: string }> {
   const locked = await acquireGoalLock(supabase, goalId, lockHolder);
-  if (!locked) return { status: "EXECUTING", summary: "lock_busy" };
+  if (!locked) {
+    return { status: "EXECUTING", summary: "lock_busy" };
+  }
 
   let iterationId = "";
   try {
     const state = await loadGoalState(supabase, tenantId, goalId);
-    if (!state) return { status: "BLOCKED", summary: "goal_not_found" };
+    if (!state) {
+      return { status: "BLOCKED", summary: "goal_not_found" };
+    }
 
     const { goal } = state;
     if (goal.engine_status === "COMPLETED") {
@@ -924,7 +954,9 @@ export async function runGoalIteration(
       })
       .select("id")
       .single();
-    if (iterErr) throw iterErr;
+    if (iterErr) {
+      throw iterErr;
+    }
     iterationId = iteration.id;
 
     // Completion Gate
@@ -1024,7 +1056,9 @@ export async function runGoalIteration(
     }
 
     const freshState = await loadGoalState(supabase, tenantId, goalId);
-    if (!freshState) throw new Error("state_lost");
+    if (!freshState) {
+      throw new Error("state_lost");
+    }
 
     const {
       selectParallelDispatchBatch,
@@ -1101,12 +1135,16 @@ export async function runGoalIteration(
         summary += ";efficiency_brain_pending";
       } else if (eff.review && !eff.review.efficient) {
         summary += `;efficiency_score:${eff.review.score}`;
-        if (eff.cursor_dispatched) summary += ";cursor_optimize_sent";
+        if (eff.cursor_dispatched) {
+          summary += ";cursor_optimize_sent";
+        }
       }
     }
 
     const brainInflightFinal = await getInFlightBrainRequest(supabase, goalId);
-    if (brainInflightFinal) awaitingBrain = true;
+    if (brainInflightFinal) {
+      awaitingBrain = true;
+    }
 
     const nextStatus: EngineStatus = finalGate.complete
       ? "COMPLETED"
@@ -1198,7 +1236,9 @@ export async function getAutonomousGoalStatus(
   goalId: string,
 ) {
   const state = await loadGoalState(supabase, tenantId, goalId);
-  if (!state) return null;
+  if (!state) {
+    return null;
+  }
   const gate = checkCompletionGate(state.criteria);
   const { data: iterations } = await supabase
     .from("goal_loop_iterations")
@@ -1264,11 +1304,16 @@ export async function listDueAutonomousGoals(
     .or(`next_run_at.is.null,next_run_at.lte.${now}`)
     .order("next_run_at", { ascending: true, nullsFirst: true })
     .limit(limit);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return (data || []).filter((g: AutonomousGoalRow) => {
-    if (g.engine_status === "COMPLETED") return false;
-    if (g.engine_status === "BLOCKED" && g.next_run_at && g.next_run_at > now)
+    if (g.engine_status === "COMPLETED") {
       return false;
+    }
+    if (g.engine_status === "BLOCKED" && g.next_run_at && g.next_run_at > now) {
+      return false;
+    }
     return true;
   });
 }

@@ -11,14 +11,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const { error_message, error_stack, source, context, url, tenant_id } =
       await req.json();
 
-    if (!error_message) throw new Error("error_message is required");
+    if (!error_message) {
+      throw new Error("error_message is required");
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -45,7 +48,9 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      throw insertError;
+    }
 
     // Forward to OpenClaw if webhook configured
     if (OPENCLAW_WEBHOOK) {

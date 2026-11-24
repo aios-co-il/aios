@@ -19,8 +19,9 @@ async function refreshCalendarToken(
 ): Promise<string> {
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret)
+  if (!clientId || !clientSecret) {
     throw new Error("Missing Google OAuth credentials");
+  }
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -33,8 +34,9 @@ async function refreshCalendarToken(
     }),
   });
   const j = await r.json();
-  if (!j.access_token)
+  if (!j.access_token) {
     throw new Error("Failed to refresh Google Calendar token");
+  }
 
   const newExpiresAt = new Date(Date.now() + (j.expires_in ?? 3600) * 1000);
   await supabase
@@ -50,8 +52,9 @@ async function refreshCalendarToken(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -197,7 +200,9 @@ Deno.serve(async (req) => {
         ? `${description}\n\nלקוח: ${task.client_id}`
         : `לקוח: ${task.client_id}`;
     }
-    if (!description) description = "משימה ממערכת Marketing Captain";
+    if (!description) {
+      description = "משימה ממערכת Marketing Captain";
+    }
 
     const event = {
       summary: task.title,

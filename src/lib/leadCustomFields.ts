@@ -81,7 +81,9 @@ export function getLeadCustomFieldInitialValues(
   return Object.fromEntries(
     fields.map((field) => {
       const value = stored[field.field_key];
-      if (!isEditableValue(value)) return [field.field_key, ""];
+      if (!isEditableValue(value)) {
+        return [field.field_key, ""];
+      }
       if (field.field_type === "checkbox") {
         return [field.field_key, value === true || value === "true"];
       }
@@ -95,7 +97,9 @@ export function getMissingRequiredLeadCustomFields(
   values: LeadCustomFieldValues,
 ): Array<LeadCustomFieldDefinition> {
   return fields.filter((field) => {
-    if (!field.is_required) return false;
+    if (!field.is_required) {
+      return false;
+    }
     const value = values[field.field_key];
     return field.field_type === "checkbox"
       ? value !== true
@@ -111,7 +115,9 @@ export function mergeLeadCustomFieldValues(
   const merged = { ...asRecord(formData) };
 
   for (const field of fields) {
-    if (!isEditableValue(merged[field.field_key])) continue;
+    if (!isEditableValue(merged[field.field_key])) {
+      continue;
+    }
 
     const value = values[field.field_key];
     if (field.field_type === "checkbox") {

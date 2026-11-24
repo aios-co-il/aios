@@ -82,7 +82,9 @@ export function CloneToOrgDialog({
     const list = (userTenants || []).filter(
       (t: any) => t.id !== sourceTenantId,
     );
-    if (!search.trim()) return list;
+    if (!search.trim()) {
+      return list;
+    }
     const q = search.trim().toLowerCase();
     return list.filter(
       (t: any) =>
@@ -104,7 +106,9 @@ export function CloneToOrgDialog({
   };
 
   const handleClone = async () => {
-    if (selected.size === 0) return;
+    if (selected.size === 0) {
+      return;
+    }
     setSubmitting(true);
     setResults(null);
     try {
@@ -122,7 +126,9 @@ export function CloneToOrgDialog({
           },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const res: Array<CloneResult> = (data as any)?.results || [];
       setResults(res);
       const ok = res.filter((r) => r.success).length;
@@ -132,7 +138,9 @@ export function CloneToOrgDialog({
         description: failed.length > 0 ? `נכשל ב-${failed.length}` : undefined,
         variant: ok === 0 ? "destructive" : "default",
       });
-      if (ok > 0) setSelected(new Set());
+      if (ok > 0) {
+        setSelected(new Set());
+      }
     } catch (e: any) {
       toast({
         title: "שגיאה בשכפול",

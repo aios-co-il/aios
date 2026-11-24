@@ -14,8 +14,12 @@ const startOfMonth = () => {
 const sevenDaysAgo = () => new Date(Date.now() - 7 * 86400_000).toISOString();
 
 function deriveStatus(alerts: number, errors = 0): IslandStatus {
-  if (alerts >= 3 || errors >= 3) return "alert";
-  if (alerts >= 1 || errors >= 1) return "watch";
+  if (alerts >= 3 || errors >= 3) {
+    return "alert";
+  }
+  if (alerts >= 1 || errors >= 1) {
+    return "watch";
+  }
   return "good";
 }
 

@@ -68,7 +68,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
   const [running, setRunning] = useState<string | null>(null);
 
   const loadItem = async () => {
-    if (!itemId) return;
+    if (!itemId) {
+      return;
+    }
     const { data } = await supabase
       .from("marketing_work_items")
       .select("*")
@@ -124,7 +126,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
 
   // Realtime: refresh runs while something is running
   useEffect(() => {
-    if (!itemId) return;
+    if (!itemId) {
+      return;
+    }
     const channel = supabase
       .channel(`marketing-runs-${itemId}`)
       .on(
@@ -160,7 +164,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
     }
   }, [availableTypes.join("|")]);
 
-  if (!itemId) return null;
+  if (!itemId) {
+    return null;
+  }
 
   const save = async (patch: TablesUpdate<"marketing_work_items">) => {
     setSaving(true);
@@ -189,8 +195,12 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
           body: { item_id: itemId, stage_id: stageId },
         },
       );
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
+      }
       toast({ title: "✓ הופעל", description: "השלב הסתיים" });
       refetchRuns();
       refetchAssets();
@@ -221,7 +231,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
       queryClient.invalidateQueries({
         queryKey: ["marketing-items-calendar", tenantId],
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if ((data as any)?.error) {
         toast({
           title: "שגיאה בהרצת הפייפליין",
@@ -397,7 +409,9 @@ export function WorkItemSidePanel({ itemId, onClose }: Props) {
               const pendingRuns = (runs ?? []).filter(
                 (r: any) => r.status === "awaiting_approval",
               );
-              if (pendingRuns.length === 0) return null;
+              if (pendingRuns.length === 0) {
+                return null;
+              }
               return (
                 <div className="rounded-xl border-2 border-amber-400 bg-gradient-to-b from-amber-50 to-amber-50/40 shadow-md overflow-hidden">
                   {/* Banner header */}

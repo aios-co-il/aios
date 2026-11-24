@@ -84,7 +84,9 @@ export function AddTenantForm({
         .from("tenants")
         .select("id, name")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
   });
@@ -97,7 +99,9 @@ export function AddTenantForm({
         .from("tenant_templates")
         .select("id, name, description, source_tenant_id, is_public")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
   });
@@ -110,7 +114,9 @@ export function AddTenantForm({
         .from("terminology_presets" as any)
         .select("id, name, description, is_public")
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as unknown as Array<{
         id: string;
         name: string;
@@ -149,7 +155,9 @@ export function AddTenantForm({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return result;
     },
     onSuccess: (result) => {
@@ -207,7 +215,9 @@ export function AddTenantForm({
   });
 
   const handleSwitchToNewTenant = async () => {
-    if (!newTenantId || !userId) return;
+    if (!newTenantId || !userId) {
+      return;
+    }
 
     try {
       await supabase.from("user_active_tenant").upsert(

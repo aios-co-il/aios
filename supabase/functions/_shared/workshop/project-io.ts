@@ -51,7 +51,9 @@ export function voiceHelpers(
         .eq("meta->>sample", "true")
         .limit(1)
         .maybeSingle();
-      if (existing) return;
+      if (existing) {
+        return;
+      }
       await recordArtifact(supabase, {
         tenantId,
         itemId,
@@ -111,7 +113,9 @@ export async function savePayload(
     .update({ payload: next })
     .eq("id", itemId)
     .eq("tenant_id", tenantId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
   await syncBriefPage(
     supabase,
     tenantId,
@@ -145,18 +149,20 @@ export async function briefProject(
   const rawEngine =
     typeof args.engine === "string" && args.engine.trim() ? args.engine : null;
   const asked = rawEngine ? normalizeEngine(rawEngine) : null;
-  if (rawEngine && !asked)
+  if (rawEngine && !asked) {
     return {
       gate: {
         error: `לא מכירה את המנוע "${rawEngine}". האפשרויות: google, elevenlabs, higgsfield, openai.`,
       },
     };
-  if (asked && connected && !connected.includes(asked))
+  }
+  if (asked && connected && !connected.includes(asked)) {
     return {
       gate: {
         error: `אין מפתח ל-${PROVIDER_LABEL[asked]} בהגדרות מודלי AI. המחוברים: ${connected.join(", ") || "אין"}.`,
       },
     };
+  }
   const chosen = (asked ??
     (stored.engine && connected?.includes(stored.engine as ImageProvider)
       ? stored.engine
@@ -270,8 +276,12 @@ export async function loadProject(
     .eq("id", itemId)
     .eq("tenant_id", tenantId)
     .maybeSingle();
-  if (loaded.error) return { error: loaded.error.message };
-  if (!loaded.data) return { error: "פרויקט לא נמצא" };
+  if (loaded.error) {
+    return { error: loaded.error.message };
+  }
+  if (!loaded.data) {
+    return { error: "פרויקט לא נמצא" };
+  }
   if (loaded.data.client_id) {
     try {
       await assertClientAccess(loaded.data.client_id);
@@ -323,7 +333,9 @@ export async function mirrorReferences(
   const wanted = (Array.isArray(urls) ? urls : [])
     .filter(isHttpUrl)
     .slice(0, 4);
-  if (wanted.length === 0) return;
+  if (wanted.length === 0) {
+    return;
+  }
   const known = new Set(
     (await loadAssets(supabase, tenantId, itemId)).map((a) => a.url),
   );
@@ -339,5 +351,7 @@ export async function mirrorReferences(
       use_as_reference: true,
       meta: { from: "reference_urls" },
     }));
-  if (rows.length > 0) await supabase.from("workshop_assets").insert(rows);
+  if (rows.length > 0) {
+    await supabase.from("workshop_assets").insert(rows);
+  }
 }

@@ -11,7 +11,9 @@ type PendingConnection = {
 
 const readPendingConnection = (): PendingConnection | null => {
   const readFromStorage = (storage?: Storage | null) => {
-    if (!storage) return null;
+    if (!storage) {
+      return null;
+    }
 
     try {
       const raw = storage.getItem("unified_pending_connection");
@@ -22,7 +24,9 @@ const readPendingConnection = (): PendingConnection | null => {
   };
 
   const currentWindowData = readFromStorage(window.sessionStorage);
-  if (currentWindowData) return currentWindowData;
+  if (currentWindowData) {
+    return currentWindowData;
+  }
 
   try {
     return readFromStorage(window.opener?.sessionStorage);
@@ -32,7 +36,9 @@ const readPendingConnection = (): PendingConnection | null => {
 };
 
 const decodeState = (value: string | null): PendingConnection | null => {
-  if (!value) return null;
+  if (!value) {
+    return null;
+  }
 
   try {
     return JSON.parse(window.atob(value)) as PendingConnection;
@@ -114,7 +120,9 @@ export default function UnifiedCallback() {
             },
           );
 
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           connectionId = data?.connection_id ?? null;
         }
 
@@ -147,7 +155,9 @@ export default function UnifiedCallback() {
           },
         );
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         setStatus("success");
         sessionStorage.removeItem("unified_pending_connection");

@@ -36,18 +36,20 @@ test("filterCreativeDepartmentItems matches a tenant creative stage", () => {
 });
 
 test("items tagged with another department stay out of creative and copy", () => {
-  for (const department of ["copy", "seo", "social", "web"])
+  for (const department of ["copy", "seo", "social", "web"]) {
     expect(
       isCreativeDepartmentItem({
         payload: { department, variations: [{ id: "v1" }] },
       }),
       department,
     ).toBe(false);
-  for (const department of ["creative", "seo", "campaigns", "social", "web"])
+  }
+  for (const department of ["creative", "seo", "campaigns", "social", "web"]) {
     expect(
       isCopyDepartmentItem({ payload: { department, copy_text: "x" } }),
       department,
     ).toBe(false);
+  }
   expect(isCopyDepartmentItem({ payload: { department: "copy" } })).toBe(true);
 });
 

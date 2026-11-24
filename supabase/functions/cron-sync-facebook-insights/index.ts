@@ -225,8 +225,9 @@ Deno.serve(async (req) => {
         );
         const campaignObjectives: Record<string, string | null | undefined> =
           {};
-        for (const c of Object.values(campaignStatuses))
+        for (const c of Object.values(campaignStatuses)) {
           campaignObjectives[c.id] = c.objective;
+        }
         const resultLeadTypes = buildResultLeadTypeMap(
           adsets,
           campaignObjectives,
@@ -491,14 +492,22 @@ Deno.serve(async (req) => {
           for (const campaign of Object.values(campaignStatuses)) {
             // Only alert if the user actually wants this campaign running.
             // Skip campaigns the user paused/archived themselves.
-            if (campaign.configured_status !== "ACTIVE") continue;
+            if (campaign.configured_status !== "ACTIVE") {
+              continue;
+            }
             const status = campaign.effective_status;
-            if (ignoredStatuses.has(status)) continue;
-            if (buckets[status]) buckets[status].campaigns.push(campaign);
+            if (ignoredStatuses.has(status)) {
+              continue;
+            }
+            if (buckets[status]) {
+              buckets[status].campaigns.push(campaign);
+            }
           }
 
           for (const [status, bucket] of Object.entries(buckets)) {
-            if (bucket.campaigns.length === 0) continue;
+            if (bucket.campaigns.length === 0) {
+              continue;
+            }
             statusAlerts.push({ status, ...bucket });
           }
 
@@ -522,7 +531,9 @@ Deno.serve(async (req) => {
                 .eq("title", taskTitle)
                 .gte("created_at", sevenDaysAgo)
                 .limit(1);
-              if (existing && existing.length > 0) continue;
+              if (existing && existing.length > 0) {
+                continue;
+              }
 
               let extraInfo = "";
               if (alert.status === "WITH_ISSUES") {
@@ -597,16 +608,19 @@ Deno.serve(async (req) => {
             { name: string; recent: number; prior: number }
           > = {};
           for (const ins of campaignInsights) {
-            if (!activeCampaignIds.has(ins.campaign_id)) continue;
+            if (!activeCampaignIds.has(ins.campaign_id)) {
+              continue;
+            }
             const c = (perCampaign[ins.campaign_id] ||= {
               name: ins.campaign_name,
               recent: 0,
               prior: 0,
             });
-            if (ins.date >= recentStart && ins.date <= recentEnd)
+            if (ins.date >= recentStart && ins.date <= recentEnd) {
               c.recent += ins.spend;
-            else if (ins.date >= priorStart && ins.date <= priorEnd)
+            } else if (ins.date >= priorStart && ins.date <= priorEnd) {
               c.prior += ins.spend;
+            }
           }
 
           const stoppedCampaigns = Object.entries(perCampaign)
@@ -731,22 +745,30 @@ Deno.serve(async (req) => {
                     "CAMPAIGN_PAUSED",
                     "ADSET_PAUSED",
                   ];
-                  if (!problemStatuses.includes(agg.effective_status)) continue;
+                  if (!problemStatuses.includes(agg.effective_status)) {
+                    continue;
+                  }
                   currentValue = agg.effective_status;
                 } else {
                   currentValue = (agg as any)[metric] || 0;
                   const threshold = alert.threshold;
                   const op = alert.operator; // '>', '<', '>=', '<='
                   let triggered = false;
-                  if (op === ">" && (currentValue as number) > threshold)
+                  if (op === ">" && (currentValue as number) > threshold) {
                     triggered = true;
-                  if (op === "<" && (currentValue as number) < threshold)
+                  }
+                  if (op === "<" && (currentValue as number) < threshold) {
                     triggered = true;
-                  if (op === ">=" && (currentValue as number) >= threshold)
+                  }
+                  if (op === ">=" && (currentValue as number) >= threshold) {
                     triggered = true;
-                  if (op === "<=" && (currentValue as number) <= threshold)
+                  }
+                  if (op === "<=" && (currentValue as number) <= threshold) {
                     triggered = true;
-                  if (!triggered) continue;
+                  }
+                  if (!triggered) {
+                    continue;
+                  }
                 }
 
                 // Get table name for context

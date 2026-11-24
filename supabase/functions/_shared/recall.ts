@@ -49,15 +49,18 @@ export class RecallApiError extends Error {
 }
 
 export function isRecallCreditHttp(status: number, body = ""): boolean {
-  if (status === 402) return true;
+  if (status === 402) {
+    return true;
+  }
   return /insufficient credit|insufficient_credit|credit balance|top up your/i.test(
     body,
   );
 }
 
 export function isRecallCreditError(err: unknown): boolean {
-  if (err instanceof RecallApiError)
+  if (err instanceof RecallApiError) {
     return isRecallCreditHttp(err.status, err.body);
+  }
   if (err instanceof Error) {
     return (
       isRecallCreditHttp(0, err.message) ||
@@ -70,8 +73,12 @@ export function isRecallCreditError(err: unknown): boolean {
 
 export function formatRecallBotHours(seconds: number): string {
   const hours = seconds / 3600;
-  if (hours < 0.05) return `${Math.max(0, Math.round(seconds / 60))} דק׳`;
-  if (hours < 10) return `${hours.toFixed(1)} שעות`;
+  if (hours < 0.05) {
+    return `${Math.max(0, Math.round(seconds / 60))} דק׳`;
+  }
+  if (hours < 10) {
+    return `${hours.toFixed(1)} שעות`;
+  }
   return `${Math.round(hours)} שעות`;
 }
 
@@ -87,10 +94,16 @@ export function recallBudgetThreshold(
   usageSeconds: number,
   budgetHours: number,
 ): "budget_95" | "budget_80" | null {
-  if (!(budgetHours > 0) || !(usageSeconds >= 0)) return null;
+  if (!(budgetHours > 0) || !(usageSeconds >= 0)) {
+    return null;
+  }
   const pct = (usageSeconds / 3600 / budgetHours) * 100;
-  if (pct >= 95) return "budget_95";
-  if (pct >= 80) return "budget_80";
+  if (pct >= 95) {
+    return "budget_95";
+  }
+  if (pct >= 80) {
+    return "budget_80";
+  }
   return null;
 }
 
@@ -110,10 +123,16 @@ export function shouldRunRecallCreditCanary(
   now = Date.now(),
 ): boolean {
   const last = recent.find((row) => isRecallCanaryDetail(row.detail));
-  if (!last) return true;
+  if (!last) {
+    return true;
+  }
   const age = now - Date.parse(last.checked_at);
-  if (!Number.isFinite(age)) return true;
-  if (last.status === "down") return age >= RECALL_CREDIT_CANARY_DOWN_MS;
+  if (!Number.isFinite(age)) {
+    return true;
+  }
+  if (last.status === "down") {
+    return age >= RECALL_CREDIT_CANARY_DOWN_MS;
+  }
   return age >= RECALL_CREDIT_CANARY_OK_MS;
 }
 
@@ -136,7 +155,9 @@ export async function createRecallBot(
   opts: CreateRecallBotOpts,
 ): Promise<RecallBotResponse> {
   const key = recallApiKey();
-  if (!key) throw new Error("RECALL_API_KEY is not configured");
+  if (!key) {
+    throw new Error("RECALL_API_KEY is not configured");
+  }
 
   const platform = detectMeetingPlatform(opts.meeting_url);
   const body: Record<string, unknown> = {
@@ -176,7 +197,9 @@ export async function createRecallBot(
     },
   };
 
-  if (opts.join_at) body.join_at = opts.join_at;
+  if (opts.join_at) {
+    body.join_at = opts.join_at;
+  }
 
   // Zoom meetings that require email — any address works; no real Zoom account needed.
   const zoomEmail = envGet("RECALL_ZOOM_BOT_EMAIL");
@@ -233,7 +256,9 @@ export async function fetchRecallUsageSeconds(
   endIso: string,
 ): Promise<number | null> {
   const key = recallApiKey();
-  if (!key) throw new Error("RECALL_API_KEY is not configured");
+  if (!key) {
+    throw new Error("RECALL_API_KEY is not configured");
+  }
 
   const url = `${recallApiBase()}/billing/usage/?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
   const res = await fetch(url, {
@@ -252,7 +277,9 @@ export async function fetchRecallUsageSeconds(
 
 export async function deleteRecallBot(botId: string): Promise<void> {
   const key = recallApiKey();
-  if (!key) throw new Error("RECALL_API_KEY is not configured");
+  if (!key) {
+    throw new Error("RECALL_API_KEY is not configured");
+  }
 
   const res = await fetch(`${recallApiBase()}/bot/${botId}`, {
     method: "DELETE",
@@ -278,7 +305,9 @@ export async function runRecallCreditCanary(): Promise<{
   detail: string;
 }> {
   const key = recallApiKey();
-  if (!key) throw new Error("RECALL_API_KEY is not configured");
+  if (!key) {
+    throw new Error("RECALL_API_KEY is not configured");
+  }
 
   const joinAt = new Date(Date.now() + 14 * 86400000).toISOString();
   const res = await fetch(`${recallApiBase()}/bot`, {
@@ -326,7 +355,9 @@ export async function retrieveRecallBot(
   botId: string,
 ): Promise<Record<string, unknown>> {
   const key = recallApiKey();
-  if (!key) throw new Error("RECALL_API_KEY is not configured");
+  if (!key) {
+    throw new Error("RECALL_API_KEY is not configured");
+  }
 
   const res = await fetch(`${recallApiBase()}/bot/${botId}`, {
     headers: { Authorization: `Token ${key}`, Accept: "application/json" },
@@ -356,7 +387,9 @@ export function extractRecallDownloads(bot: Record<string, any>): {
   };
   const recordings = Array.isArray(bot.recordings) ? bot.recordings : [];
   const rec = recordings[0];
-  if (!rec) return empty;
+  if (!rec) {
+    return empty;
+  }
 
   const shortcuts = rec.media_shortcuts || {};
   const videoUrl = shortcuts?.video_mixed?.data?.download_url ?? null;
@@ -422,21 +455,25 @@ function participantSegmentsToLines(
 
     const flush = () => {
       const text = buffer.join(" ").trim();
-      if (text && startAt !== null)
+      if (text && startAt !== null) {
         lines.push({
           at: startAt,
           line: `[${formatClock(startAt)}] ${speaker}: ${text}`,
         });
+      }
       buffer = [];
       startAt = null;
     };
 
     for (const word of words) {
       const text = (word.text || "").trim();
-      if (!text) continue;
+      if (!text) {
+        continue;
+      }
       const at = word.start_timestamp?.relative ?? prevAt;
-      if (startAt === null) startAt = at;
-      else if (at - prevAt > UTTERANCE_GAP_SECONDS) {
+      if (startAt === null) {
+        startAt = at;
+      } else if (at - prevAt > UTTERANCE_GAP_SECONDS) {
         flush();
         startAt = at;
       }
@@ -459,7 +496,9 @@ export function recallTranscriptToText(data: any): string {
     : [];
   const nameById = new Map<number, string>();
   for (const p of participants) {
-    if (p.id != null) nameById.set(p.id, p.name || `משתתף ${p.id}`);
+    if (p.id != null) {
+      nameById.set(p.id, p.name || `משתתף ${p.id}`);
+    }
   }
 
   // v1.11 download schema: top-level array of { participant, words }.
@@ -483,7 +522,9 @@ export function recallTranscriptToText(data: any): string {
         .map((w: { text?: string }) => w.text)
         .filter(Boolean)
         .join(" ");
-      if (!text.trim()) continue;
+      if (!text.trim()) {
+        continue;
+      }
       const rel = u.words?.[0]?.start_timestamp?.relative ?? u.start ?? 0;
       lines.push({
         at: rel,
@@ -503,7 +544,9 @@ export function recallTranscriptToText(data: any): string {
     start_timestamp?: { relative?: number };
   }> = Array.isArray(data?.words) ? data.words : [];
 
-  if (words.length === 0 && typeof data?.text === "string") return data.text;
+  if (words.length === 0 && typeof data?.text === "string") {
+    return data.text;
+  }
 
   const segments: Array<{ at: number; speaker: string; text: string }> = [];
   let current: { at: number; speaker: string; parts: Array<string> } | null =
@@ -514,23 +557,25 @@ export function recallTranscriptToText(data: any): string {
       w.participant?.name || nameById.get(w.participant?.id ?? -1) || "משתתף";
     const at = w.start_timestamp?.relative ?? 0;
     if (!current || current.speaker !== speaker) {
-      if (current)
+      if (current) {
         segments.push({
           at: current.at,
           speaker: current.speaker,
           text: current.parts.join(" "),
         });
+      }
       current = { at, speaker, parts: [w.text || ""] };
     } else {
       current.parts.push(w.text || "");
     }
   }
-  if (current)
+  if (current) {
     segments.push({
       at: current.at,
       speaker: current.speaker,
       text: current.parts.join(" "),
     });
+  }
 
   return segments
     .filter((s) => s.text.trim())
@@ -566,7 +611,9 @@ export async function verifyRecallWebhook(
     headers.get("webhook-timestamp") ?? headers.get("svix-timestamp");
   const msgSignature =
     headers.get("webhook-signature") ?? headers.get("svix-signature");
-  if (!msgId || !msgTimestamp || !msgSignature) return false;
+  if (!msgId || !msgTimestamp || !msgSignature) {
+    return false;
+  }
   if (!secret.startsWith("whsec_")) {
     console.error("[recall] invalid verification secret format");
     return false;
@@ -593,8 +640,12 @@ export async function verifyRecallWebhook(
 
     for (const versioned of msgSignature.split(" ")) {
       const [version, signature] = versioned.split(",");
-      if (version !== "v1" || !signature) continue;
-      if (timingSafeEqual(signature, expected)) return true;
+      if (version !== "v1" || !signature) {
+        continue;
+      }
+      if (timingSafeEqual(signature, expected)) {
+        return true;
+      }
     }
     return false;
   } catch (e) {
@@ -604,9 +655,13 @@ export async function verifyRecallWebhook(
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
   return diff === 0;
 }
 

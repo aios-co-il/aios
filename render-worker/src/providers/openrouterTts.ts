@@ -55,11 +55,15 @@ export async function openRouterGenerationCost({
       );
       const data = await providerJson<OpenRouterGenerationResponse>(response);
       const cost = Number(data?.data?.total_cost);
-      if (response.ok && Number.isFinite(cost) && cost >= 0) return cost;
+      if (response.ok && Number.isFinite(cost) && cost >= 0) {
+        return cost;
+      }
     } catch {
       // Best effort: the audio is already paid for and must still be stored.
     }
-    if (attempt < attempts - 1) await sleep(1000);
+    if (attempt < attempts - 1) {
+      await sleep(1000);
+    }
   }
   return null;
 }
@@ -77,7 +81,9 @@ export async function synthesizeOpenRouterSpeech({
   fetchImpl?: FetchImpl;
   sleep?: Sleep;
 }) {
-  if (!apiKey) throw new Error("OpenRouter key is required for OpenRouter TTS");
+  if (!apiKey) {
+    throw new Error("OpenRouter key is required for OpenRouter TTS");
+  }
   const model = OPENROUTER_TTS_MODEL();
   const fallbackVoice = OPENROUTER_TTS_VOICE();
   const voices =
@@ -104,10 +110,11 @@ export async function synthesizeOpenRouterSpeech({
           `openrouter speech was charged but its audio could not be read (${error instanceof Error ? error.message : error}); not retried to avoid paying again`,
         );
       }
-      if (bytes.length === 0)
+      if (bytes.length === 0) {
         throw finalError(
           "openrouter speech was charged but returned no audio; not retried to avoid paying again",
         );
+      }
       const generationId = response.headers.get("x-generation-id");
       const reported = generationId
         ? await openRouterGenerationCost({
@@ -135,8 +142,9 @@ export async function synthesizeOpenRouterSpeech({
       (response.status === 400 || response.status === 404) &&
       voice !== voices[voices.length - 1] &&
       /voice/i.test(body)
-    )
+    ) {
       continue;
+    }
     throw Object.assign(
       new Error(`openrouter speech ${response.status}: ${body.slice(0, 300)}`),
       { status: response.status },

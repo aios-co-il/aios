@@ -14,7 +14,9 @@ async function markStaleProcessing(list: Array<any>) {
       Date.now() - new Date(r.updated_at || r.created_at).getTime() >
         STALE_PROCESSING_MS,
   );
-  if (stale.length === 0) return;
+  if (stale.length === 0) {
+    return;
+  }
 
   await supabase
     .from("zoom_recordings")
@@ -63,7 +65,9 @@ export async function fetchRecordingsFeed(tenantId: string) {
     .eq("tenant_id", tenantId)
     .order("start_time", { ascending: false, nullsFirst: false });
 
-  if (fallbackError) throw fallbackError;
+  if (fallbackError) {
+    throw fallbackError;
+  }
 
   const list = fallbackData || [];
   await markStaleProcessing(list);

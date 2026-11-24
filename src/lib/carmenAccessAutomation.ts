@@ -36,14 +36,18 @@ export async function fetchCarmenAutomationConfig(
     .eq("tenant_id", tenantId)
     .eq("step_type", "trigger")
     .eq("action_type", "carmen_whatsapp_session");
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
   const configs = (steps || [])
     .map((s) => toAutomationConfig(s.configuration))
     .filter((c): c is CarmenAutomationConfig => c !== null)
     .filter((c) => !c.agent_id || c.agent_id === agentId);
 
-  if (!configs.length) return null;
+  if (!configs.length) {
+    return null;
+  }
 
   // Prefer the private-phone trigger when Carmen has both a private and a group
   // trigger — otherwise an unordered `.find()` can pick the group-only step and
@@ -79,7 +83,9 @@ export function resolveAutomationGroupIds(
     : cfg.carmen_allowed_group_id
       ? [cfg.carmen_allowed_group_id]
       : [];
-  if (!refs.length) return [];
+  if (!refs.length) {
+    return [];
+  }
   return (manusGroups || [])
     .filter((g) => refs.includes(g.group_chat_id) || refs.includes(g.id))
     .map((g) => g.id);

@@ -41,7 +41,9 @@ Deno.serve(async (req) => {
       .not("campaign_active", "is", false)
       .order("id");
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     const tables = (allTables || []).slice(
       batchOffset,

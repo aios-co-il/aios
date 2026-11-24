@@ -21,7 +21,9 @@ export function useMenuItems() {
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ["menu-items", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from("menu_items")
@@ -49,7 +51,9 @@ export function useMenuItems() {
   const { data: tenantData } = useQuery({
     queryKey: ["tenant-premium-status", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenants")
         .select("org_type, is_premium")

@@ -43,7 +43,9 @@ const STATUS_CONFIG: Record<
 };
 
 function formatDuration(seconds: number | null) {
-  if (!seconds) return "—";
+  if (!seconds) {
+    return "—";
+  }
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -61,11 +63,17 @@ export function CallHistoryTab({ leadId, clientId }: CallHistoryTabProps) {
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false });
 
-      if (leadId) query = query.eq("lead_id", leadId);
-      if (clientId) query = query.eq("client_id", clientId);
+      if (leadId) {
+        query = query.eq("lead_id", leadId);
+      }
+      if (clientId) {
+        query = query.eq("client_id", clientId);
+      }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !!(leadId || clientId),

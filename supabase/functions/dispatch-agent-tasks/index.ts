@@ -21,8 +21,9 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const nowIso = new Date().toISOString();
@@ -36,7 +37,9 @@ Deno.serve(async (req) => {
   const slots = new Map<string, number>();
   const stuckCutoffIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const takeSlot = async (tenantId: string | null): Promise<boolean> => {
-    if (!tenantId) return true;
+    if (!tenantId) {
+      return true;
+    }
     if (!slots.has(tenantId)) {
       const [{ data: settings }, { count }] = await Promise.all([
         supabase
@@ -58,7 +61,9 @@ Deno.serve(async (req) => {
       slots.set(tenantId, limit - (count ?? 0));
     }
     const left = slots.get(tenantId)!;
-    if (left <= 0) return false;
+    if (left <= 0) {
+      return false;
+    }
     slots.set(tenantId, left - 1);
     return true;
   };
@@ -79,7 +84,9 @@ Deno.serve(async (req) => {
       .lte("scheduled_at", nowIso)
       .order("scheduled_at", { ascending: true })
       .limit(25);
-    if (onceErr) throw onceErr;
+    if (onceErr) {
+      throw onceErr;
+    }
 
     // 2. Cron-scheduled recurring tasks. next_run is set when the task is
     // saved; each claim moves it to the following slot. A run that is more
@@ -99,7 +106,9 @@ Deno.serve(async (req) => {
       .or(`status.neq.running,last_run.lt.${stuckBeforeIso}`)
       .order("next_run", { ascending: true })
       .limit(25);
-    if (cronErr) errors.push({ stage: "cron_select", error: cronErr.message });
+    if (cronErr) {
+      errors.push({ stage: "cron_select", error: cronErr.message });
+    }
 
     const skipped: Array<any> = [];
     for (const task of cronDue || []) {
@@ -160,7 +169,9 @@ Deno.serve(async (req) => {
         errors.push({ id: task.id, stage: "claim", error: claimErr.message });
         continue;
       }
-      if (!claimed) continue;
+      if (!claimed) {
+        continue;
+      }
 
       fetch(`${SUPABASE_URL}/functions/v1/run-agent-task`, {
         method: "POST",

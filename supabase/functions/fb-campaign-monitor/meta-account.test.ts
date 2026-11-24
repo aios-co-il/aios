@@ -15,7 +15,9 @@ function fakeGraph(routes: Record<string, Route>) {
     const status = url.searchParams.get("effective_status") || "";
     const key = `${url.pathname.replace("/v21.0/", "")}${status ? ` ${status}` : ""}`;
     const route = routes[key];
-    if (!route) throw new Error(`unexpected ${key}`);
+    if (!route) {
+      throw new Error(`unexpected ${key}`);
+    }
     return Promise.resolve(new Response(JSON.stringify(route(url))));
   };
   return { fetchImpl, urls };

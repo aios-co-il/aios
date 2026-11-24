@@ -47,9 +47,13 @@ export function isCallStale(
   lastCallAt: string | null | undefined,
   nowMs = Date.now(),
 ): boolean {
-  if (!lastCallAt) return true;
+  if (!lastCallAt) {
+    return true;
+  }
   const ts = new Date(lastCallAt).getTime();
-  if (Number.isNaN(ts)) return true;
+  if (Number.isNaN(ts)) {
+    return true;
+  }
   return nowMs - ts > CLIENT_CALL_STALE_MS;
 }
 
@@ -103,7 +107,9 @@ export function rankRetentionClient(
     band = "watch";
     reasons.push("סנכרון קמפיין ישן");
   }
-  if (!band) return null;
+  if (!band) {
+    return null;
+  }
 
   const suggested_mood: RetentionMood =
     band === "act_now"
@@ -215,7 +221,9 @@ export function buildDailyRetentionBrief(
       item.reasons[0];
     lines.push(`• ${item.client_name}: ${why}. ${item.next_action}`);
   }
-  if (extra > 0) lines.push(`ועוד ${extra} לקוחות באותה רמה.`);
+  if (extra > 0) {
+    lines.push(`ועוד ${extra} לקוחות באותה רמה.`);
+  }
   lines.push(`פער שיחות 14 יום: ${callGapCount}.`);
   lines.push(`למעקב: ${watchCount}.`);
   return {

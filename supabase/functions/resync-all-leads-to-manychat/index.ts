@@ -8,12 +8,18 @@ const corsHeaders = {
 
 // Check if phone is international (non-Israeli)
 function isInternationalPhone(phone: string): boolean {
-  if (!phone) return false;
+  if (!phone) {
+    return false;
+  }
   const trimmed = phone.trim();
   // Starts with + and NOT +972
-  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) return true;
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) {
+    return true;
+  }
   // Starts with 00 and NOT 00972
-  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) return true;
+  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) {
+    return true;
+  }
   // Starts with country code that's not 972 (e.g., 44, 49, 43, 1)
   const digits = trimmed.replace(/\D/g, "");
   if (
@@ -39,8 +45,9 @@ function isInternationalPhone(phone: string): boolean {
       "91",
     ];
     for (const prefix of intlPrefixes) {
-      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8)
+      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8) {
         return true;
+      }
     }
   }
   return false;
@@ -60,7 +67,9 @@ function formatInternationalPhone(phone: string): string {
 }
 
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   let cleaned = phone.replace(/\D/g, "");
 
   if (cleaned.startsWith("972")) {
@@ -97,7 +106,9 @@ function getPhoneLookupCandidates(phone: string): Array<string> {
 
   // Israeli phone - generate all variants
   const cleaned = normalizePhone(phone);
-  if (!cleaned) return [];
+  if (!cleaned) {
+    return [];
+  }
 
   const withCountry = `972${cleaned}`;
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
@@ -199,7 +210,9 @@ async function findSubscriberByEmail(
   apiKey: string,
   email?: string | null,
 ): Promise<string | null> {
-  if (!email) return null;
+  if (!email) {
+    return null;
+  }
   const url = `https://api.manychat.com/fb/subscriber/findBySystemField?email=${encodeURIComponent(email)}`;
   const res = await fetch(url, {
     headers: {
@@ -488,8 +501,9 @@ Deno.serve(async (req) => {
       ) {
         // Retry lookups
         subscriberId = await findSubscriberByPhone(apiKey, phoneCandidates);
-        if (!subscriberId)
+        if (!subscriberId) {
           subscriberId = await findSubscriberByEmail(apiKey, lead.email);
+        }
         if (!subscriberId && phoneFieldId) {
           subscriberId = await findSubscriberByCustomField(
             apiKey,
