@@ -21,8 +21,12 @@ export function heygenLipsyncBody({
   motionPrompt,
   aspect,
 }: MediaInput) {
-  if (!imageUrl) throw new Error("heygen lipsync needs a public image url");
-  if (!audioUrl) throw new Error("heygen lipsync needs the voice line");
+  if (!imageUrl) {
+    throw new Error("heygen lipsync needs a public image url");
+  }
+  if (!audioUrl) {
+    throw new Error("heygen lipsync needs the voice line");
+  }
   const motion = String(motionPrompt ?? "").trim();
   return {
     model: HEYGEN_LIPSYNC_MODEL,

@@ -61,7 +61,7 @@ export function advance(
 /** The watermark as stored JSON, with the lines this run read. */
 export function watermarkJson(
   watermark: GroupWatermark,
-  readLines: string[],
+  readLines: Array<string>,
 ): Json {
   return {
     floor: watermark.floor,

@@ -51,7 +51,9 @@ export default function Agencies() {
   const { data: agencies, isLoading } = useQuery({
     queryKey: ["agencies-list", tenantId, userId, userAgencyIds],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -60,7 +62,9 @@ export default function Agencies() {
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -84,7 +88,9 @@ export default function Agencies() {
         )
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Mark owned agencies
       const markedOwned = (ownedAgencies || []).map((a) => ({
@@ -139,7 +145,9 @@ export default function Agencies() {
         .delete()
         .eq("id", agencyId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agencies-list", tenantId] });
@@ -165,7 +173,9 @@ export default function Agencies() {
         .update({ is_default: true })
         .eq("id", agencyId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agencies-list", tenantId] });

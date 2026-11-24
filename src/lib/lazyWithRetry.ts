@@ -20,7 +20,9 @@ export function lazyWithRetry<T extends ComponentType<any>>(
       }
       return mod;
     } catch (error) {
-      if (!isChunkLoadError(error)) throw error;
+      if (!isChunkLoadError(error)) {
+        throw error;
+      }
 
       let alreadyReloaded = false;
       try {

@@ -14,15 +14,15 @@ export interface SiteReport {
   title: string;
   description: string;
   lang: string;
-  colors: string[];
-  fonts: string[];
-  headings: string[];
-  copy: string[];
-  buttons: string[];
-  images: SiteImage[];
+  colors: Array<string>;
+  fonts: Array<string>;
+  headings: Array<string>;
+  copy: Array<string>;
+  buttons: Array<string>;
+  images: Array<SiteImage>;
   logo: string | null;
-  social: string[];
-  stylesheets: string[];
+  social: Array<string>;
+  stylesheets: Array<string>;
 }
 
 const ENTITIES: Record<string, string> = {
@@ -65,8 +65,9 @@ const attr = (tag: string, name: string) => {
 
 const absolute = (value: string, base: string): string | null => {
   const trimmed = value.trim();
-  if (!trimmed || /^(data|javascript|blob|mailto|tel):/i.test(trimmed))
+  if (!trimmed || /^(data|javascript|blob|mailto|tel):/i.test(trimmed)) {
     return null;
+  }
   try {
     const url = new URL(trimmed, base);
     return url.protocol === "https:" || url.protocol === "http:"
@@ -77,7 +78,7 @@ const absolute = (value: string, base: string): string | null => {
   }
 };
 
-const unique = <T>(values: T[]) => [...new Set(values)];
+const unique = <T>(values: Array<T>) => [...new Set(values)];
 
 function hexToRgb(hex: string): [number, number, number] {
   return [
@@ -96,19 +97,22 @@ function isChromatic(hex: string): boolean {
 }
 
 /** The brand colors in a stretch of CSS or markup, most used first. */
-export function colorsFrom(text: string, limit = 6): string[] {
+export function colorsFrom(text: string, limit = 6): Array<string> {
   const counts = new Map<string, number>();
   for (const match of text.matchAll(
     /#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3})\b/gi,
   )) {
     let hex = match[1].toLowerCase();
-    if (hex.length === 3)
+    if (hex.length === 3) {
       hex = hex
         .split("")
         .map((c) => c + c)
         .join("");
+    }
     hex = hex.slice(0, 6);
-    if (!isChromatic(hex)) continue;
+    if (!isChromatic(hex)) {
+      continue;
+    }
     counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
   for (const match of text.matchAll(
@@ -118,7 +122,9 @@ export function colorsFrom(text: string, limit = 6): string[] {
       Math.min(255, Number(n)),
     );
     const hex = parts.map((n) => n.toString(16).padStart(2, "0")).join("");
-    if (!isChromatic(hex)) continue;
+    if (!isChromatic(hex)) {
+      continue;
+    }
     counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -155,24 +161,29 @@ const GENERIC_FONTS = new Set([
 ]);
 
 /** The fonts a page names, skipping the system fallbacks every page lists. */
-export function fontsFrom(text: string, limit = 4): string[] {
-  const found: string[] = [];
+export function fontsFrom(text: string, limit = 4): Array<string> {
+  const found: Array<string> = [];
   for (const match of text.matchAll(/font-family\s*:\s*([^;}{]+)/gi)) {
     for (const part of match[1].split(",")) {
       const name = part
         .replace(/!important/i, "")
         .replace(/["']/g, "")
         .trim();
-      if (!name || name.startsWith("var(") || name.length > 40) continue;
-      if (GENERIC_FONTS.has(name.toLowerCase())) continue;
+      if (!name || name.startsWith("var(") || name.length > 40) {
+        continue;
+      }
+      if (GENERIC_FONTS.has(name.toLowerCase())) {
+        continue;
+      }
       found.push(name);
     }
   }
   for (const match of text.matchAll(
     /fonts\.googleapis\.com\/css2?\?([^"'\s)>]+)/gi,
   )) {
-    for (const family of match[1].matchAll(/family=([^&:;]+)/g))
+    for (const family of match[1].matchAll(/family=([^&:;]+)/g)) {
       found.push(decodeURIComponent(family[1].replace(/\+/g, " ")));
+    }
   }
   return unique(found).slice(0, limit);
 }
@@ -192,7 +203,9 @@ export function siteReport(html: string, pageUrl: string): SiteReport {
   const meta = (key: string) => {
     for (const tag of metas) {
       const name = (attr(tag, "name") || attr(tag, "property")).toLowerCase();
-      if (name === key) return attr(tag, "content");
+      if (name === key) {
+        return attr(tag, "content");
+      }
     }
     return "";
   };
@@ -238,26 +251,30 @@ export function siteReport(html: string, pageUrl: string): SiteReport {
     ].filter((t) => t.length >= 2 && t.length <= 40),
   ).slice(0, 6);
 
-  const images: SiteImage[] = [];
+  const images: Array<SiteImage> = [];
   const seen = new Set<string>();
   const push = (raw: string, alt: string, role: SiteImage["role"]) => {
     const url = absolute(raw, pageUrl);
-    if (!url || seen.has(url) || BAD_IMAGE.test(url) || OTHER_EXT.test(url))
+    if (!url || seen.has(url) || BAD_IMAGE.test(url) || OTHER_EXT.test(url)) {
       return;
+    }
     if (
       role !== "og" &&
       role !== "logo" &&
       !IMAGE_EXT.test(url) &&
       /\.[a-z0-9]{2,4}(\?|$)/i.test(new URL(url).pathname)
-    )
+    ) {
       return;
+    }
     seen.add(url);
     images.push({ url, alt: alt.slice(0, 120), role });
   };
 
   let logo: string | null = null;
   const ogImage = meta("og:image");
-  if (ogImage) push(ogImage, "תמונת שיתוף של האתר", "og");
+  if (ogImage) {
+    push(ogImage, "תמונת שיתוף של האתר", "og");
+  }
   for (const m of page.matchAll(/<img\b[^>]*>/gi)) {
     const tag = m[0];
     const src =
@@ -265,15 +282,21 @@ export function siteReport(html: string, pageUrl: string): SiteReport {
       attr(tag, "data-src") ||
       attr(tag, "data-lazy-src") ||
       attr(tag, "data-original");
-    if (!src) continue;
+    if (!src) {
+      continue;
+    }
     const width = Number(attr(tag, "width"));
     const height = Number(attr(tag, "height"));
-    if ((width && width < 60) || (height && height < 60)) continue;
+    if ((width && width < 60) || (height && height < 60)) {
+      continue;
+    }
     const alt = attr(tag, "alt");
     const isLogo = /logo/i.test(`${src} ${alt} ${attr(tag, "class")}`);
     if (isLogo) {
       const url = absolute(src, pageUrl);
-      if (url && !logo) logo = url;
+      if (url && !logo) {
+        logo = url;
+      }
       continue;
     }
     push(src, alt, "image");
@@ -282,7 +305,9 @@ export function siteReport(html: string, pageUrl: string): SiteReport {
     for (const m of head.matchAll(/<link\b[^>]*>/gi)) {
       if (/apple-touch-icon/i.test(attr(m[0], "rel"))) {
         logo = absolute(attr(m[0], "href"), pageUrl);
-        if (logo) break;
+        if (logo) {
+          break;
+        }
       }
     }
   }
@@ -334,8 +359,13 @@ export function describeSite(report: SiteReport): string {
 }
 
 /** Merges the colors and fonts of the page's stylesheets into its report. */
-export function withStylesheets(report: SiteReport, css: string[]): SiteReport {
-  if (css.length === 0) return report;
+export function withStylesheets(
+  report: SiteReport,
+  css: Array<string>,
+): SiteReport {
+  if (css.length === 0) {
+    return report;
+  }
   const blob = css.join("\n");
   return {
     ...report,

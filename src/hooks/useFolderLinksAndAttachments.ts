@@ -13,8 +13,8 @@ interface EntityWithFiles {
  * מטפל בפרסור של הנתונים מהדאטהבייס ומחזיר מצב מנוהל
  */
 export function useFolderLinksAndAttachments(entity: EntityWithFiles) {
-  const [folderLinks, setFolderLinks] = useState<FolderLink[]>([]);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [folderLinks, setFolderLinks] = useState<Array<FolderLink>>([]);
+  const [attachments, setAttachments] = useState<Array<Attachment>>([]);
 
   useEffect(() => {
     // Parse folder_links

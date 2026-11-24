@@ -26,8 +26,12 @@ function bearerFrom(req: Request): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json(405, { error: "POST only" });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: cors });
+  }
+  if (req.method !== "POST") {
+    return json(405, { error: "POST only" });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -47,10 +51,14 @@ Deno.serve(async (req) => {
       error: "request_id, goal_id, tenant_id, and content are required",
     });
   }
-  if (!token) return json(401, { error: "Missing callback token" });
+  if (!token) {
+    return json(401, { error: "Missing callback token" });
+  }
 
   const ok = await verifyGoalBrainToken({ token, requestId, tenantId, goalId });
-  if (!ok) return json(401, { error: "Invalid callback token" });
+  if (!ok) {
+    return json(401, { error: "Invalid callback token" });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -65,8 +73,12 @@ Deno.serve(async (req) => {
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
-  if (error) return json(500, { error: error.message });
-  if (!request) return json(404, { error: "brain_request_not_found" });
+  if (error) {
+    return json(500, { error: error.message });
+  }
+  if (!request) {
+    return json(404, { error: "brain_request_not_found" });
+  }
   if (request.status === "completed") {
     return json(200, { ok: true, duplicate: true });
   }

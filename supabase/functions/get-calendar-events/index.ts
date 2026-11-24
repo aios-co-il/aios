@@ -191,7 +191,7 @@ serve(async (req) => {
     const calendars = calendarListData.items || [];
 
     // Fetch events from all calendars
-    const allEvents: any[] = [];
+    const allEvents: Array<any> = [];
 
     for (const calendar of calendars) {
       try {

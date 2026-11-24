@@ -11,10 +11,16 @@ const PHONE_CUSTOM_FIELD_NAME = "phone_number";
 
 // Check if phone is international (non-Israeli)
 function isInternationalPhone(phone: string): boolean {
-  if (!phone) return false;
+  if (!phone) {
+    return false;
+  }
   const trimmed = phone.trim();
-  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) return true;
-  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) return true;
+  if (trimmed.startsWith("+") && !trimmed.startsWith("+972")) {
+    return true;
+  }
+  if (trimmed.startsWith("00") && !trimmed.startsWith("00972")) {
+    return true;
+  }
   const digits = trimmed.replace(/\D/g, "");
   if (
     digits.length >= 10 &&
@@ -38,8 +44,9 @@ function isInternationalPhone(phone: string): boolean {
       "91",
     ];
     for (const prefix of intlPrefixes) {
-      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8)
+      if (digits.startsWith(prefix) && digits.length >= prefix.length + 8) {
         return true;
+      }
     }
   }
   return false;
@@ -47,15 +54,20 @@ function isInternationalPhone(phone: string): boolean {
 
 function formatInternationalPhone(phone: string): string {
   const trimmed = phone.trim();
-  if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
-  if (trimmed.startsWith("00"))
+  if (trimmed.startsWith("+")) {
+    return trimmed.replace(/[^\d+]/g, "");
+  }
+  if (trimmed.startsWith("00")) {
     return "+" + trimmed.slice(2).replace(/\D/g, "");
+  }
   return "+" + trimmed.replace(/\D/g, "");
 }
 
 // Phone normalization helper (for Israeli phones)
 function normalizePhone(phone: string): string {
-  if (!phone) return "";
+  if (!phone) {
+    return "";
+  }
   let cleaned = phone.replace(/\D/g, "");
   if (cleaned.startsWith("972")) {
     cleaned = cleaned.slice(3);
@@ -77,7 +89,7 @@ function formatPhoneForManyChat(phone: string): string {
 }
 
 // Generate phone variations for lookup
-function getPhoneLookupCandidates(phone: string): string[] {
+function getPhoneLookupCandidates(phone: string): Array<string> {
   if (isInternationalPhone(phone)) {
     const formatted = formatInternationalPhone(phone);
     const withoutPlus = formatted.startsWith("+")
@@ -87,7 +99,9 @@ function getPhoneLookupCandidates(phone: string): string[] {
   }
 
   const cleaned = normalizePhone(phone);
-  if (!cleaned) return [];
+  if (!cleaned) {
+    return [];
+  }
 
   const withCountry = `972${cleaned}`;
   return [`+${withCountry}`, withCountry, `0${cleaned}`, cleaned].filter(
@@ -177,7 +191,7 @@ async function getPhoneNumberFieldId(
 // Find subscriber by phone in ManyChat (SEQUENTIAL to avoid rate limits)
 async function findSubscriberByPhone(
   apiKey: string,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     try {
@@ -212,7 +226,9 @@ async function findSubscriberByEmail(
   apiKey: string,
   email?: string | null,
 ): Promise<string | null> {
-  if (!email) return null;
+  if (!email) {
+    return null;
+  }
 
   try {
     const url = `https://api.manychat.com/fb/subscriber/findBySystemField?email=${encodeURIComponent(email)}`;
@@ -240,7 +256,7 @@ async function findSubscriberByEmail(
 async function findSubscriberByCustomField(
   apiKey: string,
   fieldId: number,
-  phoneCandidates: string[],
+  phoneCandidates: Array<string>,
 ): Promise<string | null> {
   for (const candidate of phoneCandidates) {
     try {

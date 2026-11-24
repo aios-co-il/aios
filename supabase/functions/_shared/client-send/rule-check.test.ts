@@ -62,7 +62,7 @@ const send = (fields: Partial<ClientSendRequest>): ClientSendRequest => ({
 });
 
 /** The group, resolved to these clients. */
-const group = (clientIds: string[]): SendRecipient => ({
+const group = (clientIds: Array<string>): SendRecipient => ({
   kind: "client_group",
   clientIds,
   leadId: null,
@@ -72,7 +72,7 @@ const group = (clientIds: string[]): SendRecipient => ({
 });
 
 /** A client's contact who is also staff of the sending tenant. */
-const ownStaffContact = (clientIds: string[]): SendRecipient => ({
+const ownStaffContact = (clientIds: Array<string>): SendRecipient => ({
   ...group(clientIds),
   kind: "client_contact",
   groupId: null,
@@ -84,7 +84,7 @@ const ownStaffContact = (clientIds: string[]): SendRecipient => ({
 async function refusal(
   fields: Partial<ClientSendRequest>,
   recipient: SendRecipient = group([CLIENT]),
-  optIns: string[] = [],
+  optIns: Array<string> = [],
 ) {
   const { db } = guardDb({ tables, optIns });
   return await clientRefusal(db, send(fields), recipient);

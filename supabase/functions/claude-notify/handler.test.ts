@@ -170,7 +170,7 @@ Deno.test("createClaudeNotifyHandler", async (t) => {
   );
 
   await t.step("returns the real send result instead of ok", async () => {
-    const cases: [{ status: number; body: unknown }, string][] = [
+    const cases: Array<[{ status: number; body: unknown }, string]> = [
       [{ status: 500, body: { error: "Manus WA error [500]" } }, "failed"],
       [
         { status: 202, body: { success: false, delivered: "unknown" } },

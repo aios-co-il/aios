@@ -64,13 +64,17 @@ export function EditUserSalesPersonDialog({
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!userId && showCreateForm && !!tenantId,
@@ -80,13 +84,17 @@ export function EditUserSalesPersonDialog({
   const { data: currentAssignment } = useQuery({
     queryKey: ["user-sales-person", userId],
     queryFn: async () => {
-      if (!userId) return null;
+      if (!userId) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("profiles")
         .select("sales_person_id")
         .eq("id", userId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!userId,
@@ -102,14 +110,18 @@ export function EditUserSalesPersonDialog({
 
   const updateSalesPersonMutation = useMutation({
     mutationFn: async (salesPersonId: string | null) => {
-      if (!userId) return;
+      if (!userId) {
+        return;
+      }
 
       const { error } = await supabase
         .from("profiles")
         .update({ sales_person_id: salesPersonId })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // סנכרון אימייל/שם לאיש המכירות אם חסר
       if (salesPersonId) {
@@ -143,7 +155,9 @@ export function EditUserSalesPersonDialog({
   };
 
   const handleCreateNew = () => {
-    if (!userId) return;
+    if (!userId) {
+      return;
+    }
     if (!newSalesPersonName.trim()) {
       toast.error("שם מלא הוא שדה חובה");
       return;

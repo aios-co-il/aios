@@ -5,7 +5,7 @@ export interface ClientConnections {
   client: {
     id: string;
     name: string;
-    services: string[] | null;
+    services: Array<string> | null;
     website: string | null;
     meta_ads_account_id: string | null;
     google_ads_account_id: string | null;

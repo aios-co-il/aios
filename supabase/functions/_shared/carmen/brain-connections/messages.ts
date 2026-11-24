@@ -8,10 +8,11 @@ export function buildModelMessages(args: {
   profile: BrainProfile;
   history: Array<{ role: string; content: string }>;
   content: string;
-}): ChatMessage[] {
-  const messages: ChatMessage[] = [];
-  if (args.profile.system_prompt)
+}): Array<ChatMessage> {
+  const messages: Array<ChatMessage> = [];
+  if (args.profile.system_prompt) {
     messages.push({ role: "system", content: args.profile.system_prompt });
+  }
   const recent = (args.history || [])
     .filter(
       (m) =>
@@ -34,8 +35,9 @@ export function buildModelMessages(args: {
     last.role === "user" &&
     last.content &&
     args.content.endsWith(last.content)
-  )
+  ) {
     messages.pop();
+  }
   messages.push({ role: "user", content: args.content });
   return messages;
 }

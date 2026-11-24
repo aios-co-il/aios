@@ -94,11 +94,11 @@ export interface FeedRecording {
   summary_md: string | null;
   summary_file_url: string | null;
   suggested_client_id: string | null;
-  campaigner_ids: string[] | null;
+  campaigner_ids: Array<string> | null;
   clients?: { name: string } | null;
   agencies?: { name: string } | null;
   // deno-style loose grouping payload from the page
-  _group?: FeedRecording[];
+  _group?: Array<FeedRecording>;
 }
 
 export interface FolderOption {
@@ -109,11 +109,11 @@ export interface FolderOption {
 
 interface RecordingCardProps {
   rec: FeedRecording;
-  clients: { id: string; name: string; agency_id?: string | null }[];
-  campaigners: { id: string; full_name: string; email?: string | null }[];
-  agencies: { id: string; name: string }[];
-  folders: FolderOption[];
-  campaignerNames?: string[];
+  clients: Array<{ id: string; name: string; agency_id?: string | null }>;
+  campaigners: Array<{ id: string; full_name: string; email?: string | null }>;
+  agencies: Array<{ id: string; name: string }>;
+  folders: Array<FolderOption>;
+  campaignerNames?: Array<string>;
   onOpenTranscript: (rec: FeedRecording) => void;
   onOpenSummary: (rec: FeedRecording) => void;
   onCreateSummary: (rec: FeedRecording) => void;
@@ -130,7 +130,9 @@ interface RecordingCardProps {
 }
 
 function formatDuration(minutes: number | null): string | null {
-  if (!minutes) return null;
+  if (!minutes) {
+    return null;
+  }
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, "0")} ש׳` : `${m} דק׳`;
@@ -183,7 +185,9 @@ export function RecordingCard({
   const { data: thumbnailUrl } = useQuery({
     queryKey: ["recording-thumb", rec.thumbnail_path],
     queryFn: async () => {
-      if (!rec.thumbnail_path) return null;
+      if (!rec.thumbnail_path) {
+        return null;
+      }
       const { data } = await supabase.storage
         .from("recordings")
         .createSignedUrl(rec.thumbnail_path, 60 * 60 * 12);
@@ -196,7 +200,9 @@ export function RecordingCard({
   const { data: playbackUrl } = useQuery({
     queryKey: ["recording-play", rec.file_path],
     queryFn: async () => {
-      if (!rec.file_path) return null;
+      if (!rec.file_path) {
+        return null;
+      }
       const { data } = await supabase.storage
         .from("recordings")
         .createSignedUrl(rec.file_path, 3600);
@@ -252,10 +258,14 @@ export function RecordingCard({
       return;
     }
     if (!recordingNeedsRecallRefresh(rec)) {
-      if (rec.recording_url) window.open(rec.recording_url, "_blank");
+      if (rec.recording_url) {
+        window.open(rec.recording_url, "_blank");
+      }
       return;
     }
-    if (refreshingPlay) return;
+    if (refreshingPlay) {
+      return;
+    }
 
     if (rec.recording_url && presignedUrlStillValid(rec.recording_url)) {
       finishExternalOpen(rec.recording_url, null);
@@ -266,7 +276,9 @@ export function RecordingCard({
     setRefreshingPlay(true);
     try {
       const url = await resolveExternalRecordingUrl(rec);
-      if (!url) throw new Error("אין קובץ זמין להפעלה");
+      if (!url) {
+        throw new Error("אין קובץ זמין להפעלה");
+      }
       finishExternalOpen(url, pending);
     } catch (error) {
       cancelExternalOpen(pending);
@@ -285,7 +297,9 @@ export function RecordingCard({
 
   const handleRename = async () => {
     const nextName = renameValue.trim();
-    if (!nextName || nextName === (rec.meeting_topic || "").trim()) return;
+    if (!nextName || nextName === (rec.meeting_topic || "").trim()) {
+      return;
+    }
     setIsRenaming(true);
     try {
       await onRename(rec, nextName);

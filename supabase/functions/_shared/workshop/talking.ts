@@ -38,7 +38,9 @@ export function talkingMeta(meta: unknown): TalkingMeta {
 /** What a talking scene's character says: meta.dialogue, else its voiceover; "" when it does not talk. */
 export function talkingLine(meta: unknown, voiceover: unknown): string {
   const row = record(meta);
-  if (row.lipsync !== true) return "";
+  if (row.lipsync !== true) {
+    return "";
+  }
   return String(row.dialogue ?? "").trim() || String(voiceover ?? "").trim();
 }
 

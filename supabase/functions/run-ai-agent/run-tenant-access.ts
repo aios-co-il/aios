@@ -17,8 +17,12 @@ export async function runTenantDenied(
   auth: RunAuth,
   body: Record<string, unknown>,
 ): Promise<string | null> {
-  if (auth.kind === "service") return null;
-  if (!auth.userId) return "Unauthorized";
+  if (auth.kind === "service") {
+    return null;
+  }
+  if (!auth.userId) {
+    return "Unauthorized";
+  }
 
   const bodyTenant = text(body.tenant_id);
   const agentTenant = await agentTenantOf(sb, text(body.agent_id));
@@ -27,10 +31,14 @@ export async function runTenantDenied(
   }
   const tenantId = bodyTenant || agentTenant;
   // No tenant and no known agent: the run fails later on its own.
-  if (!tenantId) return null;
+  if (!tenantId) {
+    return null;
+  }
 
   const access = await tenantUserAccess(sb, tenantId, auth.userId);
-  if (access.member || access.superAdmin) return null;
+  if (access.member || access.superAdmin) {
+    return null;
+  }
   console.warn(
     `[run-ai-agent] refused user ${auth.userId} for tenant ${tenantId}`,
   );
@@ -42,13 +50,17 @@ async function agentTenantOf(
   sb: Pick<DbClient, "from">,
   agentId: string,
 ): Promise<string> {
-  if (!asUuidOrNull(agentId)) return "";
+  if (!asUuidOrNull(agentId)) {
+    return "";
+  }
   const { data, error } = await sb
     .from("ai_agents")
     .select("tenant_id")
     .eq("id", agentId)
     .maybeSingle();
-  if (error) throw new Error(`ai_agents lookup failed: ${error.message}`);
+  if (error) {
+    throw new Error(`ai_agents lookup failed: ${error.message}`);
+  }
   return data?.tenant_id ?? "";
 }
 

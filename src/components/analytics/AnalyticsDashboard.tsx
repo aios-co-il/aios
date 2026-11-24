@@ -73,7 +73,9 @@ export function AnalyticsDashboard({
 }: AnalyticsDashboardProps) {
   // Helper to get tracking config for client
   const getTrackingConfigQuery = async () => {
-    if (!clientId) return null;
+    if (!clientId) {
+      return null;
+    }
     const { data } = await supabase
       .from("site_tracking_configs")
       .select("id")
@@ -123,7 +125,9 @@ export function AnalyticsDashboard({
       }
 
       const { data, error } = await query.limit(1000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -139,7 +143,9 @@ export function AnalyticsDashboard({
       comparisonRange?.end.toISOString(),
     ],
     queryFn: async () => {
-      if (!comparisonRange) return [];
+      if (!comparisonRange) {
+        return [];
+      }
 
       let query = supabase
         .from("site_sessions")
@@ -156,7 +162,9 @@ export function AnalyticsDashboard({
       }
 
       const { data, error } = await query.limit(1000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId && !!comparisonRange,
@@ -187,7 +195,9 @@ export function AnalyticsDashboard({
       }
 
       const { data, error } = await query.limit(1000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Aggregate by page
       const pageMap = new Map<
@@ -240,7 +250,9 @@ export function AnalyticsDashboard({
       }
 
       const { data, error } = await query.limit(1000);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // Aggregate by event name
       const eventMap = new Map<
@@ -276,7 +288,9 @@ export function AnalyticsDashboard({
 
   // Process sessions data
   const processedData = useMemo(() => {
-    if (!sessionsData) return null;
+    if (!sessionsData) {
+      return null;
+    }
 
     // Calculate days in range
     const daysInRange = differenceInDays(dateRange.end, dateRange.start) + 1;
@@ -370,8 +384,9 @@ export function AnalyticsDashboard({
 
   // Process comparison data
   const comparisonData = useMemo(() => {
-    if (!comparisonSessionsData || comparisonSessionsData.length === 0)
+    if (!comparisonSessionsData || comparisonSessionsData.length === 0) {
       return null;
+    }
 
     const totalSessions = comparisonSessionsData.length;
     const totalDuration = comparisonSessionsData.reduce(

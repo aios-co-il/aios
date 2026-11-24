@@ -27,7 +27,9 @@ function fromEnv(
   key: "CURSOR_DIRECT_AGENT_ID" | "CURSOR_STICKY_AGENT_ID",
 ): CursorDirectSession | null {
   const id = asCursorSessionId(env[key]);
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   return {
     sessionId: id,
     sessionUrl: cursorSessionUrl(id),
@@ -47,7 +49,9 @@ export async function resolveCursorDirectSession(
 ): Promise<CursorDirectSession | null> {
   const env = args.env ?? {};
   const direct = fromEnv(env, "CURSOR_DIRECT_AGENT_ID");
-  if (direct) return direct;
+  if (direct) {
+    return direct;
+  }
 
   const tenantId = String(args.tenantId || "").trim();
   if (tenantId && sb) {
@@ -71,7 +75,9 @@ export async function resolveCursorDirectSession(
   }
 
   const sticky = fromEnv(env, "CURSOR_STICKY_AGENT_ID");
-  if (sticky) return sticky;
+  if (sticky) {
+    return sticky;
+  }
 
   if (tenantId && sb) {
     try {

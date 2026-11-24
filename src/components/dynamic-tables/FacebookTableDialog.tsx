@@ -44,7 +44,7 @@ import { ADS_TABLE_CREATE_DATE_RANGE_OPTIONS } from "@/lib/dashboardDateFilters"
 interface FacebookTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 interface AdAccount {
@@ -59,8 +59,12 @@ interface AdAccount {
 const dateRangeOptions = ADS_TABLE_CREATE_DATE_RANGE_OPTIONS;
 
 const visibilityIcon = (value: string | null) => {
-  if (value === "org") return <Globe className="h-3 w-3 text-blue-500" />;
-  if (value === "shared") return <Users className="h-3 w-3 text-violet-500" />;
+  if (value === "org") {
+    return <Globe className="h-3 w-3 text-blue-500" />;
+  }
+  if (value === "shared") {
+    return <Users className="h-3 w-3 text-violet-500" />;
+  }
   return <Lock className="h-3 w-3 text-muted-foreground" />;
 };
 
@@ -112,7 +116,9 @@ export function FacebookTableDialog({
     : rawClients;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      return;
+    }
     if (fbIntegrations.length === 0) {
       setSelectedIntegrationId("");
       return;
@@ -124,8 +130,9 @@ export function FacebookTableDialog({
       )
     ) {
       const preferred =
-        (fbIntegrations as any[]).find((integration) => integration._isOwn) ||
-        fbIntegrations[0];
+        (fbIntegrations as Array<any>).find(
+          (integration) => integration._isOwn,
+        ) || fbIntegrations[0];
       setSelectedIntegrationId((preferred as any).id);
     }
   }, [fbIntegrations, open, selectedIntegrationId]);
@@ -167,12 +174,17 @@ export function FacebookTableDialog({
           },
         },
       );
-      if (response.error) throw response.error;
-      if (response.data?.error)
+      if (response.error) {
+        throw response.error;
+      }
+      if (response.data?.error) {
         throw new Error(response.data.message || response.data.error);
+      }
       const account =
         response.data?.ad_account || response.data?.ad_accounts?.[0];
-      if (!account) throw new Error("לא התקבלו פרטי חשבון");
+      if (!account) {
+        throw new Error("לא התקבלו פרטי חשבון");
+      }
       setValidatedAccount(account);
       setAdAccountInput(account.id || `act_${normalizedId}`);
       toast.success("חשבון המודעות אומת בהצלחה");
@@ -185,7 +197,9 @@ export function FacebookTableDialog({
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!validatedAccount) throw new Error("יש לאמת את חשבון המודעות");
+      if (!validatedAccount) {
+        throw new Error("יש לאמת את חשבון המודעות");
+      }
       const slug = `${tableName
         .toLowerCase()
         .replace(/\s+/g, "-")
@@ -209,7 +223,9 @@ export function FacebookTableDialog({
           client_id: clientId || null,
         },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: async (data) => {
@@ -234,9 +250,15 @@ export function FacebookTableDialog({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!tableName.trim()) return toast.error("יש להזין שם לטבלה");
-    if (!validatedAccount) return toast.error("יש לאמת את חשבון המודעות");
-    if (assignedClientIds && !clientId) return toast.error("יש לבחור לקוח");
+    if (!tableName.trim()) {
+      return toast.error("יש להזין שם לטבלה");
+    }
+    if (!validatedAccount) {
+      return toast.error("יש לאמת את חשבון המודעות");
+    }
+    if (assignedClientIds && !clientId) {
+      return toast.error("יש לבחור לקוח");
+    }
     createMutation.mutate();
   };
 
@@ -303,7 +325,7 @@ export function FacebookTableDialog({
                     <SelectValue placeholder="בחר חיבור" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(fbIntegrations as any[]).map((integration) => {
+                    {(fbIntegrations as Array<any>).map((integration) => {
                       const settings = integration.settings as any;
                       const visibility =
                         integration.connection_visibility ||

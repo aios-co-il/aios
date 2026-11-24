@@ -76,7 +76,7 @@ interface Conversation {
   id: string;
   title: string;
   created_at: string;
-  messages: Message[];
+  messages: Array<Message>;
 }
 
 interface AIOSDialogProps {
@@ -95,7 +95,7 @@ export function AIOSDialog({
   const [currentConversationId, setCurrentConversationId] = useState<
     string | null
   >(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Array<Message>>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -108,7 +108,7 @@ export function AIOSDialog({
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Array<Blob>>([]);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const speakAudioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
@@ -116,7 +116,9 @@ export function AIOSDialog({
   const { tenantId } = useCurrentTenant();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
-  const [backgroundTasks, setBackgroundTasks] = useState<BackgroundTask[]>([]);
+  const [backgroundTasks, setBackgroundTasks] = useState<Array<BackgroundTask>>(
+    [],
+  );
 
   const { data: conversations = [], isLoading: conversationsLoading } =
     useQuery({
@@ -127,7 +129,9 @@ export function AIOSDialog({
           .select("*")
           .order("updated_at", { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return (data || []).map((conv) => ({
           id: conv.id,
@@ -135,7 +139,7 @@ export function AIOSDialog({
           created_at: conv.created_at,
           messages: (Array.isArray(conv.messages)
             ? conv.messages
-            : []) as unknown as Message[],
+            : []) as unknown as Array<Message>,
         }));
       },
       enabled: !!userId && open,
@@ -147,7 +151,9 @@ export function AIOSDialog({
 
   // Load and subscribe to background tasks
   useEffect(() => {
-    if (!open || !tenantId) return;
+    if (!open || !tenantId) {
+      return;
+    }
 
     // Initial load of recent background tasks
     const loadTasks = async () => {
@@ -161,7 +167,9 @@ export function AIOSDialog({
         .in("status", ["pending", "running", "completed", "failed"])
         .order("created_at", { ascending: false })
         .limit(5);
-      if (data) setBackgroundTasks(data as BackgroundTask[]);
+      if (data) {
+        setBackgroundTasks(data as Array<BackgroundTask>);
+      }
     };
     loadTasks();
 
@@ -178,7 +186,9 @@ export function AIOSDialog({
         },
         (payload) => {
           const task = payload.new as any;
-          if (task?.task_mode !== "background") return;
+          if (task?.task_mode !== "background") {
+            return;
+          }
 
           setBackgroundTasks((prev) => {
             const idx = prev.findIndex((t) => t.id === task.id);
@@ -215,7 +225,9 @@ export function AIOSDialog({
                       typeof m.content === "string" &&
                       m.content.trim(),
                   );
-                if (lastA) output = lastA.content;
+                if (lastA) {
+                  output = lastA.content;
+                }
               }
               const errorText =
                 typeof result.error === "string" ? result.error : "";
@@ -279,7 +291,9 @@ export function AIOSDialog({
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming) {
+      return;
+    }
 
     const userMessage: Message = {
       role: "user",
@@ -342,18 +356,26 @@ export function AIOSDialog({
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.trim() || line.startsWith(":")) continue;
-          if (!line.startsWith("data: ")) continue;
+          if (!line.trim() || line.startsWith(":")) {
+            continue;
+          }
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
 
           const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          if (data === "[DONE]") {
+            continue;
+          }
 
           try {
             const parsed = JSON.parse(data);
@@ -466,7 +488,9 @@ export function AIOSDialog({
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
       };
 
       mediaRecorder.onstop = async () => {
@@ -480,7 +504,9 @@ export function AIOSDialog({
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/webm",
         });
-        if (audioBlob.size < 1000) return; // too short
+        if (audioBlob.size < 1000) {
+          return;
+        } // too short
 
         setIsTranscribing(true);
         logTranscribeOnlyEvent("record_stop");
@@ -488,7 +514,9 @@ export function AIOSDialog({
           const {
             data: { session },
           } = await supabase.auth.getSession();
-          if (!session) throw new Error("Not authenticated");
+          if (!session) {
+            throw new Error("Not authenticated");
+          }
 
           const text = await transcribeAudioBlob(
             audioBlob,
@@ -556,14 +584,18 @@ export function AIOSDialog({
           return;
         }
       }
-      if (!text?.trim()) return;
+      if (!text?.trim()) {
+        return;
+      }
 
       setSpeakingIdx(idx);
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) throw new Error("Not authenticated");
+        if (!session) {
+          throw new Error("Not authenticated");
+        }
 
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/carmen-speak`,
@@ -576,7 +608,9 @@ export function AIOSDialog({
             body: JSON.stringify({ text }),
           },
         );
-        if (!res.ok) throw new Error("TTS failed");
+        if (!res.ok) {
+          throw new Error("TTS failed");
+        }
 
         const blob = await res.blob();
         const audioUrl = URL.createObjectURL(blob);
@@ -584,12 +618,16 @@ export function AIOSDialog({
         speakAudioRef.current = audio;
         audio.onended = () => {
           URL.revokeObjectURL(audioUrl);
-          if (speakAudioRef.current === audio) speakAudioRef.current = null;
+          if (speakAudioRef.current === audio) {
+            speakAudioRef.current = null;
+          }
           setSpeakingIdx((prev) => (prev === idx ? null : prev));
         };
         audio.onerror = () => {
           URL.revokeObjectURL(audioUrl);
-          if (speakAudioRef.current === audio) speakAudioRef.current = null;
+          if (speakAudioRef.current === audio) {
+            speakAudioRef.current = null;
+          }
           setSpeakingIdx((prev) => (prev === idx ? null : prev));
         };
         await audio.play();
@@ -616,7 +654,9 @@ export function AIOSDialog({
   }, [open]);
 
   const sendMessageWithText = async (text: string) => {
-    if (!text.trim() || isStreaming) return;
+    if (!text.trim() || isStreaming) {
+      return;
+    }
 
     const userMessage: Message = {
       role: "user",
@@ -632,7 +672,9 @@ export function AIOSDialog({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const followUpHistory = messages
         .filter((m) => m.role === "user" || m.role === "assistant")
@@ -657,10 +699,12 @@ export function AIOSDialog({
       );
 
       if (!response.ok) {
-        if (response.status === 429)
+        if (response.status === 429) {
           throw new Error("חריגה ממגבלת הקצב. אנא נסה שוב מאוחר יותר.");
-        if (response.status === 402)
+        }
+        if (response.status === 402) {
           throw new Error("נדרש תשלום. אנא הוסף יתרה ל-workspace שלך.");
+        }
         throw new Error("שגיאה בתקשורת עם השרת");
       }
 
@@ -673,18 +717,26 @@ export function AIOSDialog({
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.trim() || line.startsWith(":")) continue;
-          if (!line.startsWith("data: ")) continue;
+          if (!line.trim() || line.startsWith(":")) {
+            continue;
+          }
+          if (!line.startsWith("data: ")) {
+            continue;
+          }
 
           const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          if (data === "[DONE]") {
+            continue;
+          }
 
           try {
             const parsed = JSON.parse(data);
@@ -1124,7 +1176,9 @@ export function AIOSDialog({
                   disabled={isRecording || isTranscribing || isStreaming}
                 >
                   {(
-                    Object.keys(MIC_CAPTURE_MODE_LABELS) as MicCaptureMode[]
+                    Object.keys(
+                      MIC_CAPTURE_MODE_LABELS,
+                    ) as Array<MicCaptureMode>
                   ).map((mode) => (
                     <option key={mode} value={mode}>
                       {MIC_CAPTURE_MODE_LABELS[mode]}

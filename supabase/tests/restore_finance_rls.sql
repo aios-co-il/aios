@@ -96,12 +96,12 @@ BEGIN
     (no_finance_a, tenant_a), (team_manager_a, tenant_a), (owner_b, tenant_b),
     (super_admin, tenant_a);
   -- The member without finance has other modules, and finance rows switched off.
-  INSERT INTO public.user_permissions (user_id, module, can_access) VALUES
-    (finance_a, 'finance', true),
-    (finance_view_a, 'finance_view', true),
-    (no_finance_a, 'suppliers', true),
-    (no_finance_a, 'finance', false),
-    (no_finance_a, 'finance_view', false);
+  INSERT INTO public.user_permissions (user_id, tenant_id, module, can_access) VALUES
+    (finance_a, tenant_a, 'finance', true),
+    (finance_view_a, tenant_a, 'finance_view', true),
+    (no_finance_a, tenant_a, 'suppliers', true),
+    (no_finance_a, tenant_a, 'finance', false),
+    (no_finance_a, tenant_a, 'finance_view', false);
 
   -- One row per table and tenant, as the service role would write it.
   FOR tbl IN SELECT jsonb_object_keys(inserts) LOOP

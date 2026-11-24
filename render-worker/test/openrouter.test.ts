@@ -25,10 +25,12 @@ test("OpenRouter submits, polls and downloads with the tenant key", async () => 
   const calls: Array<{ url: string; auth: string | null }> = [];
   const fetchImpl = fakeFetch(async (url, init) => {
     calls.push({ url, auth: headerOf(init, "Authorization") });
-    if (url.endsWith("/videos"))
+    if (url.endsWith("/videos")) {
       return new Response(JSON.stringify({ id: "job1", status: "pending" }));
-    if (url.endsWith("/videos/job1"))
+    }
+    if (url.endsWith("/videos/job1")) {
       return new Response(JSON.stringify({ status: "completed" }));
+    }
     return new Response(new Uint8Array([1, 2, 3]));
   });
   const provider = getVideoProvider("openrouter", { openRouterKey: "sk-or" });

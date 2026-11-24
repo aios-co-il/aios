@@ -37,7 +37,7 @@ export type AdToolIdentity = {
   getUserId(token: string): Promise<string | null>;
   activeTenantId(userId: string): Promise<string | null>;
   /** The user's roles in the tenant, or null when they are not a member. */
-  tenantRoles(userId: string, tenantId: string): Promise<string[] | null>;
+  tenantRoles(userId: string, tenantId: string): Promise<Array<string> | null>;
   isSuperAdmin(userId: string): Promise<boolean>;
   /** tenants.allow_super_admin_access, which the RLS super-admin policies honour. */
   allowsSuperAdmin(tenantId: string): Promise<boolean>;
@@ -162,7 +162,7 @@ async function userCaller(
   return { ok: true, caller: { kind: "user", userId, tenantId, isApprover } };
 }
 
-const AD_TOOL_APPROVER_ROLES: readonly string[] = [
+const AD_TOOL_APPROVER_ROLES: ReadonlyArray<string> = [
   "owner",
   "agency_owner",
   "super_admin",

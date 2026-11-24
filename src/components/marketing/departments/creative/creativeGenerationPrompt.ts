@@ -62,7 +62,7 @@ export function assembleStaticCreativePrompt({
   styleSource?: { copyLabel?: string; name?: string; copyText?: string };
   attachStyleStill?: boolean;
   compositionId: CompositionId;
-  priorLabels?: string[];
+  priorLabels?: Array<string>;
   variationIndex: number;
   directorNote?: string;
   regenerate?: boolean;

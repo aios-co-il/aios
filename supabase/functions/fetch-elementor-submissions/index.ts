@@ -33,7 +33,9 @@ interface ParsedSubmission {
 }
 
 function extractSlug(referer: string | null): string {
-  if (!referer) return "";
+  if (!referer) {
+    return "";
+  }
   try {
     const u = new URL(referer);
     const seg = u.pathname.split("/").filter(Boolean)[0] || "";
@@ -44,8 +46,12 @@ function extractSlug(referer: string | null): string {
 }
 
 function stringifyFormName(name: any, fallback: string): string {
-  if (!name) return fallback;
-  if (typeof name === "string") return name;
+  if (!name) {
+    return fallback;
+  }
+  if (typeof name === "string") {
+    return name;
+  }
   if (typeof name === "object") {
     // Elementor sometimes returns { rendered: "..." } or similar
     return (
@@ -61,7 +67,9 @@ function stringifyFormName(name: any, fallback: string): string {
 }
 
 function getQueryParam(url: string | null, key: string): string | null {
-  if (!url) return null;
+  if (!url) {
+    return null;
+  }
   try {
     // Search anywhere in the URL string (handles odd Elementor referer formats)
     const re = new RegExp(`[?&]${key}=([^&#]*)`, "i");
@@ -73,7 +81,9 @@ function getQueryParam(url: string | null, key: string): string | null {
 }
 
 function classifySource(referer: string | null): ParsedSubmission["source"] {
-  if (!referer) return "direct";
+  if (!referer) {
+    return "direct";
+  }
   const r = referer.toLowerCase();
   if (
     r.includes("gtm_debug") ||
@@ -102,15 +112,21 @@ function classifySource(referer: string | null): ParsedSubmission["source"] {
   }
   if (r.includes("utm_source=")) {
     const utm = getQueryParam(referer, "utm_source")?.toLowerCase() || "";
-    if (utm.includes("google")) return "google";
-    if (utm.includes("facebook") || utm.includes("fb")) return "facebook";
+    if (utm.includes("google")) {
+      return "google";
+    }
+    if (utm.includes("facebook") || utm.includes("fb")) {
+      return "facebook";
+    }
     return "other";
   }
   return "direct";
 }
 
 function extractEmail(fields: any): string | null {
-  if (!fields) return null;
+  if (!fields) {
+    return null;
+  }
   // Elementor submissions API returns "values" as an array of {key, value, type, ...}
   if (Array.isArray(fields)) {
     for (const f of fields) {
@@ -143,12 +159,16 @@ function extractEmail(fields: any): string | null {
 }
 
 function fieldsToRecord(fields: any): Record<string, any> {
-  if (!fields) return {};
+  if (!fields) {
+    return {};
+  }
   if (Array.isArray(fields)) {
     const out: Record<string, any> = {};
     for (const f of fields) {
       const k = f.key || f.id || f.label;
-      if (k) out[k] = f.value;
+      if (k) {
+        out[k] = f.value;
+      }
     }
     return out;
   }
@@ -226,7 +246,9 @@ serve(async (req) => {
             f.name || f.label || f.title || f.form_name,
             id,
           );
-          if (id) formsMap.set(id, name);
+          if (id) {
+            formsMap.set(id, name);
+          }
         }
       }
     } catch (e) {
@@ -234,7 +256,7 @@ serve(async (req) => {
     }
 
     // 2) Fetch submissions with pagination
-    const allSubmissions: any[] = [];
+    const allSubmissions: Array<any> = [];
     let page = 1;
     const perPage = 100;
     const maxPages = 10;
@@ -267,13 +289,19 @@ serve(async (req) => {
       }
 
       const totalHeader = resp.headers.get("x-wp-total");
-      if (totalHeader) totalAvailable = parseInt(totalHeader, 10);
+      if (totalHeader) {
+        totalAvailable = parseInt(totalHeader, 10);
+      }
 
       const data = await resp.json();
       const items = Array.isArray(data) ? data : data?.data || [];
-      if (items.length === 0) break;
+      if (items.length === 0) {
+        break;
+      }
       allSubmissions.push(...items);
-      if (items.length < perPage) break;
+      if (items.length < perPage) {
+        break;
+      }
       page++;
     }
 
@@ -294,11 +322,13 @@ serve(async (req) => {
       );
     }
 
-    const parsed: ParsedSubmission[] = [];
+    const parsed: Array<ParsedSubmission> = [];
     for (const s of allSubmissions) {
       const createdAt =
         s.created_at || s.date || s.created || new Date().toISOString();
-      if (cutoff > 0 && new Date(createdAt).getTime() < cutoff) continue;
+      if (cutoff > 0 && new Date(createdAt).getTime() < cutoff) {
+        continue;
+      }
 
       const fields = s.values || s.fields || s.form_data || [];
       const referer = s.referer || s.referrer || s.url || s.user_url || null;
@@ -388,13 +418,20 @@ serve(async (req) => {
       const entry = perFormMap.get(key);
       entry.total++;
       entry.sources[sub.source]++;
-      if (sub.slug) entry.slugs.add(sub.slug);
-      if (!entry.sample_referer && sub.referer)
+      if (sub.slug) {
+        entry.slugs.add(sub.slug);
+      }
+      if (!entry.sample_referer && sub.referer) {
         entry.sample_referer = sub.referer;
+      }
       const ts = new Date(sub.created_at).getTime();
       const now = Date.now();
-      if (ts >= now - 7 * 86400000) entry.last_7_days++;
-      if (ts >= now - 30 * 86400000) entry.last_30_days++;
+      if (ts >= now - 7 * 86400000) {
+        entry.last_7_days++;
+      }
+      if (ts >= now - 30 * 86400000) {
+        entry.last_30_days++;
+      }
       if (
         !entry.last_submission_at ||
         new Date(entry.last_submission_at).getTime() < ts
@@ -406,7 +443,9 @@ serve(async (req) => {
     // 5) Aggregate per Google Ads campaign
     const perCampaignMap = new Map<string, any>();
     for (const sub of parsed) {
-      if (!sub.gad_campaignid) continue;
+      if (!sub.gad_campaignid) {
+        continue;
+      }
       if (!perCampaignMap.has(sub.gad_campaignid)) {
         perCampaignMap.set(sub.gad_campaignid, {
           gad_campaignid: sub.gad_campaignid,
@@ -422,7 +461,9 @@ serve(async (req) => {
     // 6) Aggregate per slug (URL path) - useful for slug-based campaign mapping
     const perSlugMap = new Map<string, any>();
     for (const sub of parsed) {
-      if (!sub.slug) continue;
+      if (!sub.slug) {
+        continue;
+      }
       if (!perSlugMap.has(sub.slug)) {
         perSlugMap.set(sub.slug, {
           slug: sub.slug,
@@ -434,9 +475,12 @@ serve(async (req) => {
       }
       const e = perSlugMap.get(sub.slug);
       e.submissions++;
-      if (sub.source === "google_ads" || sub.source === "google")
+      if (sub.source === "google_ads" || sub.source === "google") {
         e.google_ads_submissions++;
-      if (sub.gad_campaignid) e.sample_gad_campaignids.add(sub.gad_campaignid);
+      }
+      if (sub.gad_campaignid) {
+        e.sample_gad_campaignids.add(sub.gad_campaignid);
+      }
       const ts = new Date(sub.created_at).getTime();
       if (
         !e.last_submission_at ||

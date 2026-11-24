@@ -36,11 +36,15 @@ Deno.serve(async (req) => {
     }
 
     const to = await resolveRecipients(body.to, auth.userId);
-    if ("error" in to) return json({ error: to.error }, 400);
+    if ("error" in to) {
+      return json({ error: to.error }, 400);
+    }
 
     const db = userClient(req.headers.get("Authorization") ?? "");
     const sender = await resolveSender(db, body.tenantId, body);
-    if ("error" in sender) return json({ error: sender.error }, 400);
+    if ("error" in sender) {
+      return json({ error: sender.error }, 400);
+    }
 
     const vars = isRecord(body.vars) ? body.vars : {};
     const { html, text } = buildEmailContent({
@@ -62,7 +66,9 @@ Deno.serve(async (req) => {
       fromName: sender.name,
       replyTo: asString(body.replyTo).trim() || undefined,
     });
-    if (sendError) return json({ error: sendError }, 502);
+    if (sendError) {
+      return json({ error: sendError }, 502);
+    }
     return json({ success: true, to: to.emails.join(", ") });
   } catch (e) {
     console.error("[broadcast-test-send]", e);
@@ -85,7 +91,7 @@ const isRecord = (v: unknown): v is TemplateVars =>
 async function resolveRecipients(
   input: unknown,
   userId: string,
-): Promise<{ emails: string[] } | { error: string }> {
+): Promise<{ emails: Array<string> } | { error: string }> {
   const typed = Array.isArray(input)
     ? [...new Set(input.map((e) => asString(e).trim().toLowerCase()))].filter(
         Boolean,
@@ -98,7 +104,9 @@ async function resolveRecipients(
   if (typed.length > MAX_TEST_RECIPIENTS) {
     return { error: `אפשר לשלוח בדיקה לעד ${MAX_TEST_RECIPIENTS} כתובות` };
   }
-  if (typed.length > 0) return { emails: typed };
+  if (typed.length > 0) {
+    return { emails: typed };
+  }
 
   const { data, error } = await serviceClient().auth.admin.getUserById(userId);
   if (error || !data.user?.email) {
@@ -159,7 +167,9 @@ async function sendViaResend(
     "send-resend-email",
     { body: payload },
   );
-  if (!error) return null;
+  if (!error) {
+    return null;
+  }
   const detail = await error.context?.json?.().catch((e: unknown) => {
     console.error("[broadcast-test-send] unreadable send error", e);
     return null;

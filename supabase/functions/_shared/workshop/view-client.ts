@@ -26,7 +26,9 @@ export function startProjectClient(
   inView: string | null | undefined,
 ): StartClient {
   const named = typeof explicit === "string" ? explicit.trim() : "";
-  if (named) return { clientId: named, fromView: false };
+  if (named) {
+    return { clientId: named, fromView: false };
+  }
   return inView
     ? { clientId: inView, fromView: true }
     : { clientId: null, fromView: false };

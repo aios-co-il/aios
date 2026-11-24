@@ -30,10 +30,10 @@ import { type SceneEngine, type VideoConnections } from "./scene-engine.ts";
  */
 export function quotedProductionEstimate(
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   options: ProductionOptions,
   connections: VideoConnections = {},
-  relip: CostScene[] = [],
+  relip: Array<CostScene> = [],
 ) {
   const own = withLipsyncFallback(
     productionEstimate(engine, scenes, options),
@@ -50,7 +50,9 @@ export function quotedProductionEstimate(
       ? { ...fallback, pricedOn: "openrouter" as SceneEngine }
       : { ...own, pricedOn: engine };
   const again = relipEstimate(relip, connections);
-  if (again.usd === 0) return quote;
+  if (again.usd === 0) {
+    return quote;
+  }
   return {
     ...quote,
     lipsync: {
@@ -81,13 +83,13 @@ export interface ProductionOptions {
    * The whole storyboard, when only some scenes are animated: produce_video narrates the whole
    * script again and makes one bed for the whole film, so withVoice and withMusic price these.
    */
-  film?: CostScene[];
+  film?: Array<CostScene>;
 }
 
 /** Everything produce_video will queue for scenes that have a still and no clip yet. */
 export function productionEstimate(
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   options: ProductionOptions,
 ) {
   const clips = clipEstimate(engine, scenes);
@@ -129,14 +131,16 @@ export function productionEstimate(
 function withLipsyncFallback(
   estimate: ReturnType<typeof productionEstimate>,
   engine: SceneEngine,
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   connections: VideoConnections,
 ) {
   // A line in the chosen voice never goes to Veo, which would speak it in its own voice.
   const pass = lipsyncPassScenes(engine, scenes).filter(
     (scene) => scene.chosen_voice !== true,
   );
-  if (!connections.openrouter || pass.length === 0) return estimate;
+  if (!connections.openrouter || pass.length === 0) {
+    return estimate;
+  }
   const own = lipsyncPassUsd(pass);
   const veo = roundUsd(
     pass.reduce(
@@ -145,7 +149,9 @@ function withLipsyncFallback(
       0,
     ),
   );
-  if (veo <= own) return estimate;
+  if (veo <= own) {
+    return estimate;
+  }
   return {
     ...estimate,
     lipsync: {

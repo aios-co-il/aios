@@ -32,7 +32,7 @@ type MetaApiError = {
 };
 
 /** One page of a Graph list, and the link to the next. */
-type MetaPage<T> = { data?: T[]; paging?: { next?: string } };
+type MetaPage<T> = { data?: Array<T>; paging?: { next?: string } };
 
 /** One Graph GET with backoff on rate limits; throws a typed, redacted error. */
 export async function metaGetJson<T extends object>(
@@ -66,8 +66,8 @@ export async function metaGetJson<T extends object>(
 export async function metaGetPaged<T>(
   firstUrl: string,
   opts: MetaRequestOptions & { maxPages: number },
-): Promise<T[]> {
-  const rows: T[] = [];
+): Promise<Array<T>> {
+  const rows: Array<T> = [];
   let next: string | null = firstUrl;
   let pages = 0;
   while (next) {

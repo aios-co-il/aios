@@ -29,13 +29,13 @@ interface Props {
   tenantId: string;
 }
 
-const VISIBILITY_OPTIONS: {
+const VISIBILITY_OPTIONS: Array<{
   value: Visibility;
   label: string;
   description: string;
   icon: React.ReactNode;
   badge?: string;
-}[] = [
+}> = [
   {
     value: "private",
     label: "פרטי",
@@ -75,7 +75,9 @@ export function IntegrationVisibilitySelector({
         .select("id, connection_visibility")
         .eq("id", integrationId)
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!integrationId,
@@ -91,7 +93,9 @@ export function IntegrationVisibilitySelector({
         .from("tenant_integrations")
         .update({ connection_visibility: visibility })
         .eq("id", integrationId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: (_, visibility) => {
       queryClient.invalidateQueries({

@@ -21,7 +21,7 @@ export async function ownRecentDeliveries(
   candidate: PulseInstantAlertCandidate,
   throttleHours: number,
   now: Date,
-): Promise<InstantAlertLogRow[] | null> {
+): Promise<Array<InstantAlertLogRow> | null> {
   const { data, error } = await recentAlertDeliveries(
     input.supabase,
     [input.tenantId],
@@ -48,9 +48,9 @@ export function phonesStillDue(
     PulseInstantAlertCandidate,
     "rule_type" | "fingerprint" | "severity_score"
   >,
-  phones: string[],
-  rows: InstantAlertLogRow[],
-): string[] {
+  phones: Array<string>,
+  rows: Array<InstantAlertLogRow>,
+): Array<string> {
   return phones.filter(
     (phone) =>
       decideInstantAlertDelivery(
@@ -77,7 +77,7 @@ export function decideInstantAlertDelivery(
     PulseInstantAlertCandidate,
     "rule_type" | "fingerprint" | "severity_score"
   >,
-  recentRows: InstantAlertLogRow[],
+  recentRows: Array<InstantAlertLogRow>,
 ): { send: boolean; reason: "new" | "duplicate" | "materially_worse" } {
   const match = recentRows.find((row) =>
     isSameInstantAlertFinding(row.fingerprint, candidate.fingerprint),
@@ -120,7 +120,7 @@ export function isSameInstantAlertFinding(
  */
 export async function recentAlertDeliveries(
   supabase: Pick<DbClient, "from">,
-  tenantIds: string[],
+  tenantIds: Array<string>,
   candidate: PulseInstantAlertCandidate,
   throttleHours: number,
   now: Date,

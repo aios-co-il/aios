@@ -26,9 +26,9 @@ export function pulseClientWindows(now: Date = new Date()) {
 
 /** Rows dated on or before `endYmd` (drops today's partial day). */
 export function recordsThrough<T extends { data?: unknown }>(
-  rows: T[],
+  rows: Array<T>,
   endYmd: string,
-): T[] {
+): Array<T> {
   return rows.filter((row) => {
     const date = isRecord(row.data) ? row.data.date : undefined;
     return typeof date === "string" && date.slice(0, 10) <= endYmd;

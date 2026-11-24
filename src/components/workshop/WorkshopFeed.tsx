@@ -52,7 +52,7 @@ export function WorkshopFeed({
   storyboard,
   openChat,
 }: {
-  artifacts: WorkshopArtifact[];
+  artifacts: Array<WorkshopArtifact>;
   loading: boolean;
   hasProject: boolean;
   tenantId?: string;
@@ -92,12 +92,15 @@ export function WorkshopFeed({
   // A scene stays picked only while its card is on screen.
   const openFolder = (next: string | null) => {
     setFolder(next);
-    if (next !== SCENES_FOLDER) storyboard?.onSelect(null);
+    if (next !== SCENES_FOLDER) {
+      storyboard?.onSelect(null);
+    }
   };
 
   useEffect(() => {
-    if (shouldFollow(seen.current, shown, following))
+    if (shouldFollow(seen.current, shown, following)) {
       bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
     seen.current = shown;
   }, [shown, following]);
 
@@ -109,7 +112,9 @@ export function WorkshopFeed({
 
   const onScroll = () => {
     const el = scroller.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     setFollowing(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
   };
 

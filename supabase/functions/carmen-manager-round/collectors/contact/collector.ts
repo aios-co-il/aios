@@ -51,7 +51,7 @@ async function collectContact(ctx: CollectorContext): Promise<CollectorResult> {
 function contactEvidence(
   ctx: CollectorContext,
   rules: ContactRules,
-): Promise<ContactEvidence[]> {
+): Promise<Array<ContactEvidence>> {
   const fixtures = fixtureEvidence(ctx.fixtures);
   if (fixtures) {
     return Promise.resolve(fixtures);

@@ -20,7 +20,7 @@ const OTHER_TENANT = "22222222-2222-4222-8222-222222222222";
 function fakeDispatchDb(
   opts: { rpcError?: string; updateError?: string } = {},
 ) {
-  const rows: Row[] = [];
+  const rows: Array<Row> = [];
   const clock = { now: Date.parse("2026-11-02T10:00:00Z") };
   return {
     rows,

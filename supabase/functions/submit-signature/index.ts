@@ -3,7 +3,9 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 function clientIp(req: Request): string | null {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
   return (
     req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || null
   );
@@ -23,8 +25,9 @@ const responseHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     const {
@@ -66,7 +69,9 @@ Deno.serve(async (req) => {
         _token: token,
         _ip: ip,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       result = data as Record<string, unknown>;
     } else {
       if (!signatureData) {
@@ -82,7 +87,9 @@ Deno.serve(async (req) => {
         _ip: ip,
         _field_values: fieldValues ?? {},
       });
-      if (submission.error) throw submission.error;
+      if (submission.error) {
+        throw submission.error;
+      }
       result = submission.data as Record<string, unknown>;
 
       // Signature is already persisted — never fail the request because PDF generation failed.

@@ -242,7 +242,9 @@ const CRON_PRESETS = [
 
 function describeCron(expr: string): string {
   const p = CRON_PRESETS.find((x) => x.value === expr);
-  if (p && p.value !== "custom") return p.label;
+  if (p && p.value !== "custom") {
+    return p.label;
+  }
   return `Cron: ${expr}`;
 }
 
@@ -283,13 +285,15 @@ function TaskResultDisplay({ result }: { result: any }) {
   const { buildPath } = useTenantPath();
   const toolLog = result?.tool_log || [];
   const output = result?.output || "";
-  const images: string[] = [];
-  const socialPosts: any[] = [];
+  const images: Array<string> = [];
+  const socialPosts: Array<any> = [];
   for (const log of toolLog) {
-    if (log.tool === "generate_ad_image" && log.result?.image_url)
+    if (log.tool === "generate_ad_image" && log.result?.image_url) {
       images.push(log.result.image_url);
-    if (log.tool === "create_social_post" && log.result?.success)
+    }
+    if (log.tool === "create_social_post" && log.result?.success) {
       socialPosts.push(log.result);
+    }
   }
   const hasVisualContent = images.length > 0 || socialPosts.length > 0;
   return (
@@ -374,8 +378,8 @@ function ParallelSubtaskEditor({
   subtasks,
   onChange,
 }: {
-  subtasks: { title: string; description: string }[];
-  onChange: (s: { title: string; description: string }[]) => void;
+  subtasks: Array<{ title: string; description: string }>;
+  onChange: (s: Array<{ title: string; description: string }>) => void;
 }) {
   const add = () => onChange([...subtasks, { title: "", description: "" }]);
   const remove = (i: number) =>
@@ -432,8 +436,8 @@ function SkillPicker({
   selected,
   onChange,
 }: {
-  selected: string[];
-  onChange: (s: string[]) => void;
+  selected: Array<string>;
+  onChange: (s: Array<string>) => void;
 }) {
   const toggle = (id: string) =>
     onChange(
@@ -487,7 +491,7 @@ function TaskCard({
   const agentName = task.ai_agents?.name || "—";
   const isRecurring = task.schedule_type === "recurring";
   const isScheduled = task.schedule_type === "scheduled";
-  const taskSkills = (task.task_skills || []) as string[];
+  const taskSkills = (task.task_skills || []) as Array<string>;
   const skillNames = taskSkills
     .map((id: string) => BUILT_IN_SKILLS.find((s) => s.id === id))
     .filter(Boolean)
@@ -721,10 +725,10 @@ const defaultForm = {
   schedule_type: "once" as "once" | "scheduled" | "recurring",
   cron_preset: "0 7 * * *",
   custom_cron: "",
-  task_skills: [] as string[],
+  task_skills: [] as Array<string>,
   task_mode: "",
   parallel_execution: false,
-  parallel_subtasks: [] as { title: string; description: string }[],
+  parallel_subtasks: [] as Array<{ title: string; description: string }>,
   scheduled_at: "",
 };
 
@@ -764,10 +768,14 @@ export default function AgentTasksPage() {
         .select("*, ai_agents(name)")
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false });
-      if (filterAgent !== "all") query = query.eq("agent_id", filterAgent);
-      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filterAgent !== "all") {
+        query = query.eq("agent_id", filterAgent);
+      }
+      if (filterStatus !== "all") {
+        query = query.eq("status", filterStatus);
+      }
       const { data } = await query;
-      return (data as any[]) || [];
+      return (data as Array<any>) || [];
     },
     enabled: !!tenantId,
     refetchInterval: 5000,
@@ -808,7 +816,9 @@ export default function AgentTasksPage() {
         enabled: true,
         scheduled_at: scheduledAt,
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] });
@@ -826,7 +836,7 @@ export default function AgentTasksPage() {
         .update({ status: "running", started_at: new Date().toISOString() })
         .eq("id", task.id);
 
-      const taskSkills = (task.task_skills || []) as string[];
+      const taskSkills = (task.task_skills || []) as Array<string>;
       const skillNames = taskSkills
         .map((id: string) => BUILT_IN_SKILLS.find((s) => s.id === id)?.name)
         .filter(Boolean)
@@ -886,7 +896,9 @@ export default function AgentTasksPage() {
           surface: "task",
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await supabase
         .from("agent_tasks")
         .update({
@@ -915,7 +927,9 @@ export default function AgentTasksPage() {
         .from("agent_tasks")
         .delete()
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] });
@@ -931,7 +945,9 @@ export default function AgentTasksPage() {
         .from("agent_tasks")
         .update({ status: newStatus })
         .eq("id", task.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] }),
@@ -943,7 +959,9 @@ export default function AgentTasksPage() {
         .from("agent_tasks")
         .update(updates)
         .eq("id", id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agent_tasks", tenantId] });

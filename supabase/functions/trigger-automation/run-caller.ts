@@ -47,6 +47,5 @@ export function automationRunCaller(
  * Trigger types a WhatsApp provider webhook (green-api-webhook) sends to
  * trigger-automation with the service key. Their payload names the real sender.
  */
-export const WHATSAPP_INBOUND_TRIGGER_TYPES: readonly string[] = Object.freeze([
-  "whatsapp_message_received",
-]);
+export const WHATSAPP_INBOUND_TRIGGER_TYPES: ReadonlyArray<string> =
+  Object.freeze(["whatsapp_message_received"]);

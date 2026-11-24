@@ -28,7 +28,9 @@ export function resolveTargetEntity(
     return v ? { type: "client", id: v } : null;
   }
   const v = leadId ?? id;
-  if (v) return { type: "lead", id: v };
+  if (v) {
+    return { type: "lead", id: v };
+  }
   return clientId ? { type: "client", id: clientId } : null;
 }
 
@@ -43,11 +45,15 @@ export async function contactFromTrigger(
   const target = resolveTargetEntity(config, data, triggerType);
   if (target) {
     const r = await recipientForEntity(db, tenantId, target.type, target.id);
-    if (r) return r;
+    if (r) {
+      return r;
+    }
   }
   const phone = str(data.phone);
   const email = str(data.email);
-  if (!phone && !email) return null;
+  if (!phone && !email) {
+    return null;
+  }
   const name =
     str(data.contact_name) ?? str(data.name) ?? str(data.company_name);
   return {

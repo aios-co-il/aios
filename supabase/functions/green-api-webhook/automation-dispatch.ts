@@ -142,7 +142,7 @@ export async function rememberConnectionWid(
 async function loadOwnNumbers(
   db: DispatchDb,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data, error } = await db
     .from("tenant_integrations")
     .select("settings")
@@ -161,7 +161,7 @@ async function loadOwnNumbers(
 }
 
 /** A stored number as text; settings may keep phone_number as a JSON number. */
-function settingsNumber(value: unknown): string[] {
+function settingsNumber(value: unknown): Array<string> {
   if (typeof value === "number") {
     return [String(value)];
   }

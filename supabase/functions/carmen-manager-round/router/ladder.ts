@@ -32,7 +32,7 @@ export type LadderContext = {
   now: Date;
   settings: ManagerSettings;
   people: ClientRecipients;
-  brief: Recipient[];
+  brief: Array<Recipient>;
   /** The finding's own person, for kinds routed to them first (KIND_POLICY.ownerFirst). */
   owner?: Recipient | null;
 };
@@ -91,7 +91,7 @@ export function levelRecipients(
   level: Level,
   kind: FindingKind,
   ctx: LadderContext,
-): Recipient[] {
+): Array<Recipient> {
   const { campaigners, managers } = ctx.people;
   const policy = KIND_POLICY[kind];
   const first =
@@ -113,10 +113,10 @@ export function levelRecipients(
 /** Planned rows for one level; a recipient without a phone is recorded as in-app only. */
 export function deliveriesFor(
   level: Level,
-  recipients: Recipient[],
+  recipients: Array<Recipient>,
   slot: "now" | "list",
   at: Date,
-): PlannedDelivery[] {
+): Array<PlannedDelivery> {
   return recipients.map((recipient) => ({
     level,
     recipient_key: recipient.key,
@@ -134,7 +134,7 @@ export function deliveriesFor(
 export function action(
   level: Level,
   kind: PlannedAction["action"],
-  recipients: Recipient[],
+  recipients: Array<Recipient>,
   at: Date | null,
   reason?: string,
 ): PlannedAction {
@@ -148,7 +148,10 @@ export function action(
 }
 
 /** `recipients` minus those `already` on the ladder. */
-function without(recipients: Recipient[], already: Recipient[]): Recipient[] {
+function without(
+  recipients: Array<Recipient>,
+  already: Array<Recipient>,
+): Array<Recipient> {
   const keys = new Set(already.map((recipient) => recipient.key));
   return uniqueByKey(
     recipients.filter((recipient) => !keys.has(recipient.key)),

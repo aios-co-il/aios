@@ -46,7 +46,9 @@ export async function createModel(ctx: ActionContext) {
     .select("id")
     .single();
   check(error, "Creating the connection");
-  if (!conn) throw new HttpError(500, "Creating the connection failed");
+  if (!conn) {
+    throw new HttpError(500, "Creating the connection failed");
+  }
 
   try {
     await setSecret(ctx.sb, conn.id, apiKey);
@@ -98,7 +100,9 @@ export async function updateModel(ctx: ActionContext) {
     .eq("tenant_id", ctx.tenantId)
     .eq("id", conn.id);
   check(error, "Saving the connection");
-  if (apiKey) await setSecret(ctx.sb, conn.id, apiKey);
+  if (apiKey) {
+    await setSecret(ctx.sb, conn.id, apiKey);
+  }
 
   const route = await ctx.sb
     .from("agent_brain_routes")

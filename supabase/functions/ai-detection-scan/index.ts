@@ -17,7 +17,7 @@ const AI_GATEWAY_URL = "https://api.openai.com/v1/chat/completions";
 interface ScanRequest {
   brand_id: string;
   tenant_id: string;
-  prompt_ids?: string[]; // optional - scan specific prompts only
+  prompt_ids?: Array<string>; // optional - scan specific prompts only
 }
 
 interface PromptRow {
@@ -29,8 +29,8 @@ interface PromptRow {
 interface BrandRow {
   id: string;
   brand_name: string;
-  keywords: string[];
-  competitor_names: string[];
+  keywords: Array<string>;
+  competitor_names: Array<string>;
   tenant_id: string;
 }
 
@@ -79,7 +79,9 @@ Deno.serve(async (req: Request) => {
       .eq("tenant_id", tenant_id)
       .single();
 
-    if (brandError || !brand) throw new Error("Brand not found");
+    if (brandError || !brand) {
+      throw new Error("Brand not found");
+    }
     const brandData = brand as BrandRow;
 
     // Get prompts to scan
@@ -94,7 +96,9 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: prompts, error: promptsError } = await promptQuery;
-    if (promptsError) throw new Error("Failed to fetch prompts");
+    if (promptsError) {
+      throw new Error("Failed to fetch prompts");
+    }
     if (!prompts || prompts.length === 0) {
       return new Response(
         JSON.stringify({
@@ -106,7 +110,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const typedPrompts = prompts as PromptRow[];
+    const typedPrompts = prompts as Array<PromptRow>;
 
     // Scan each prompt against each platform model
     const platforms = [
@@ -116,8 +120,8 @@ Deno.serve(async (req: Request) => {
     ];
 
     const scanId = `scan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const results: any[] = [];
-    const competitorResults: any[] = [];
+    const results: Array<any> = [];
+    const competitorResults: Array<any> = [];
 
     for (const prompt of typedPrompts) {
       for (const platform of platforms) {
@@ -229,15 +233,18 @@ Deno.serve(async (req: Request) => {
       const { error: insertError } = await supabase
         .from("ai_detection_results")
         .insert(results);
-      if (insertError) console.error("Error saving results:", insertError);
+      if (insertError) {
+        console.error("Error saving results:", insertError);
+      }
     }
 
     if (competitorResults.length > 0) {
       const { error: insertError } = await supabase
         .from("ai_detection_competitor_results")
         .insert(competitorResults);
-      if (insertError)
+      if (insertError) {
         console.error("Error saving competitor results:", insertError);
+      }
     }
 
     // Calculate and save weekly score
@@ -252,7 +259,7 @@ Deno.serve(async (req: Request) => {
       (r) => r.platform === "perplexity",
     );
 
-    const calcScore = (arr: any[]) =>
+    const calcScore = (arr: Array<any>) =>
       arr.length > 0
         ? Math.round(
             (arr.filter((r) => r.is_mentioned).length / arr.length) * 100,
@@ -284,7 +291,9 @@ Deno.serve(async (req: Request) => {
         { onConflict: "brand_id,week_start", ignoreDuplicates: false },
       );
 
-    if (scoreError) console.error("Error saving score:", scoreError);
+    if (scoreError) {
+      console.error("Error saving score:", scoreError);
+    }
 
     return new Response(
       JSON.stringify({
@@ -317,10 +326,12 @@ Deno.serve(async (req: Request) => {
 function checkBrandMention(
   text: string,
   brandName: string,
-  keywords: string[],
+  keywords: Array<string>,
 ): boolean {
   const lowerText = text.toLowerCase();
-  if (lowerText.includes(brandName.toLowerCase())) return true;
+  if (lowerText.includes(brandName.toLowerCase())) {
+    return true;
+  }
   return keywords.some((kw) => lowerText.includes(kw.toLowerCase()));
 }
 
@@ -338,7 +349,7 @@ function findPosition(text: string, name: string): number | null {
   return null;
 }
 
-function extractUrls(text: string): string[] {
+function extractUrls(text: string): Array<string> {
   const urlRegex = /https?:\/\/[^\s)]+/g;
   const matches = text.match(urlRegex);
   return matches ? [...new Set(matches)] : [];
@@ -348,7 +359,7 @@ async function analyzeMention(
   apiKey: string,
   responseText: string,
   brandName: string,
-  keywords: string[],
+  keywords: Array<string>,
 ): Promise<{ sentiment: string; position: number | null; snippet: string }> {
   try {
     const analysisResponse = await fetch(AI_GATEWAY_URL, {

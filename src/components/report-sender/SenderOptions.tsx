@@ -12,7 +12,7 @@ export function SenderOptions({
   senders,
   missingId,
 }: {
-  senders: readonly ReportSender[];
+  senders: ReadonlyArray<ReportSender>;
   missingId?: string | null;
 }) {
   const goneId =

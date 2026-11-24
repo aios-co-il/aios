@@ -33,7 +33,7 @@ export function isPulseTargetGoal(value: unknown): value is PulseTargetGoal {
 /** The target kinds a goal is measured on, the default first. */
 export function pulseTargetKindsForGoal(
   goal: string,
-): readonly PulseTargetKind[] {
+): ReadonlyArray<PulseTargetKind> {
   return TARGET_KINDS_BY_GOAL.get(goal) ?? [];
 }
 
@@ -92,14 +92,14 @@ export function pulseTargetSourceLabel(source: unknown): string {
     : "יעד מאושר";
 }
 
-const TARGET_KINDS: readonly PulseTargetKind[] = [
+const TARGET_KINDS: ReadonlyArray<PulseTargetKind> = [
   "cpl",
   "roas",
   "cpa",
   "cost_per_result",
 ];
 
-const TARGET_KINDS_BY_GOAL = new Map<string, readonly PulseTargetKind[]>([
+const TARGET_KINDS_BY_GOAL = new Map<string, ReadonlyArray<PulseTargetKind>>([
   ["ecommerce", ["roas", "cpa"]],
   ["leads", ["cpl"]],
   ["engagement", ["cost_per_result"]],

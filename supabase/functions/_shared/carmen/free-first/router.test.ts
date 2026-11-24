@@ -7,7 +7,7 @@ const settings: RouterSettings = {
   allowAutomaticPremium: false,
   remainingPremiumBudgetUsd: 5,
 };
-const models: ModelCandidate[] = [
+const models: Array<ModelCandidate> = [
   {
     id: "groq-free",
     provider: "groq",

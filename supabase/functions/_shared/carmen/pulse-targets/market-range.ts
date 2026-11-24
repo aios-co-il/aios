@@ -16,7 +16,10 @@ export const MARKET_RANGE_TEXT = `±${MARKET_TARGET_MAX_DEVIATION * 100}%`;
  * would alert at once (or never), so that call belongs to a person. Null when the
  * value is in range or the pulse has no baseline.
  */
-export function marketRangeProblem(rows: JsonObject[], input: TargetInput) {
+export function marketRangeProblem(
+  rows: Array<JsonObject>,
+  input: TargetInput,
+) {
   const baseline = ownBaseline(rows, input);
   if (
     baseline === null ||
@@ -43,7 +46,7 @@ export function marketRangeProblem(rows: JsonObject[], input: TargetInput) {
  * ROAS unless it has a CPA target). Null when the pulse has none.
  */
 export function ownBaseline(
-  rows: JsonObject[],
+  rows: Array<JsonObject>,
   input: TargetInput,
 ): number | null {
   let weighted = 0;

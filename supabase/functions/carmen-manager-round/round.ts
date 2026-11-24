@@ -23,7 +23,7 @@ const MIN_TENANT_MS = 8_000;
 export type RoundReport = {
   round_id: string;
   dry_run: boolean;
-  tenants: TenantReport[];
+  tenants: Array<TenantReport>;
 };
 
 /** Runs every due tenant within the call's budget and reports each one. */
@@ -35,7 +35,7 @@ export async function runRound(
   const budget = RoundBudget.create(ROUND_BUDGET_MS, ROUND_API_CALLS);
   const sendBudget = RoundBudget.create(SEND_WINDOW_MS, 0);
   const tenants = tenantsToRun(await deps.state.listTenants(), request);
-  const reports: TenantReport[] = [];
+  const reports: Array<TenantReport> = [];
   for (const tenant of tenants) {
     const mode = resolveManagerSettings(tenant.pulse_alert_rules).mode;
     if (!budget.hasTime(MIN_TENANT_MS)) {
@@ -66,9 +66,9 @@ export async function runRound(
 
 /** The named tenant, or every tenant not switched off; never-run and oldest first. */
 export function tenantsToRun(
-  tenants: TenantRow[],
+  tenants: Array<TenantRow>,
   request: Pick<RoundRequest, "tenantId">,
-): TenantRow[] {
+): Array<TenantRow> {
   const chosen = request.tenantId
     ? tenants.filter((tenant) => tenant.tenant_id === request.tenantId)
     : tenants.filter(

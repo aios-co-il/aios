@@ -29,8 +29,8 @@ function gate(
   body: Record<string, unknown>,
   graph: { account_id?: string; error?: { code: number; message: string } },
 ) {
-  const tokens: [string, string | null][] = [];
-  const reads: string[] = [];
+  const tokens: Array<[string, string | null]> = [];
+  const reads: Array<string> = [];
   const result = authorizeFbCall(
     new Request("http://local/carmen-fb-tools", {
       method: "POST",

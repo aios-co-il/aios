@@ -35,7 +35,9 @@ export function envelopeExpression(
   for (let i = 0; i + 1 < times.length; i++) {
     const [from, to] = [times[i], times[i + 1]];
     const [a, b] = [volumes[i], volumes[i + 1]];
-    if (to <= from) continue;
+    if (to <= from) {
+      continue;
+    }
     const value =
       a === b
         ? `${a}`
@@ -96,7 +98,9 @@ export function musicBedFilters({
     filters.push(
       `${loops.map((_, i) => `[mpart${i}]`).join("")}amix=inputs=${loops.length}:duration=longest:dropout_transition=0:normalize=0[mbed]`,
     );
-  } else filters.push(`[${input}:a]${STEREO}[mbed]`);
+  } else {
+    filters.push(`[${input}:a]${STEREO}[mbed]`);
+  }
   const level =
     typeof volume === "number"
       ? `volume=${volume}`
@@ -152,7 +156,9 @@ export function bedVolume(
     trailer: isTrailer(timeline),
     voiceLufs: timeline.voiceLufs ?? null,
   });
-  if (!mix.trailer) return MUSIC_STEADY;
+  if (!mix.trailer) {
+    return MUSIC_STEADY;
+  }
   const envelope = musicEnvelope(
     spanFrames(spans, fps),
     Math.ceil(filmS * fps),

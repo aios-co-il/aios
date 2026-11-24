@@ -38,7 +38,9 @@ function seeded(seed: unknown) {
  * closed on. One sound plays at every cut; no sounds or no cuts give an empty list.
  */
 export function cutSoundOrder(sounds: number, cuts: number, seed = "") {
-  if (!(sounds > 0) || !(cuts > 0)) return [];
+  if (!(sounds > 0) || !(cuts > 0)) {
+    return [];
+  }
   const next = seeded(seed);
   const order: Array<number> = [];
   while (order.length < cuts) {

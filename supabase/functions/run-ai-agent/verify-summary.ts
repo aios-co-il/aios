@@ -7,7 +7,7 @@
 export type VerifyRun = {
   /** One answer per checked table, in table order. */
   results: Array<Record<string, unknown>>;
-  notChecked: string[];
+  notChecked: Array<string>;
   rateLimited: boolean;
 };
 

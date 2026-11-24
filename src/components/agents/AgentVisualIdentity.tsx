@@ -39,8 +39,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
     [agent.id, agent.metadata, agent.name],
   );
   async function createImage(file?: File) {
-    if (tenantId !== agent.tenant_id || (!file && !draft.prompt?.trim()))
+    if (tenantId !== agent.tenant_id || (!file && !draft.prompt?.trim())) {
       return;
+    }
     if (
       file &&
       (!/^image\/(png|jpeg|webp)$/.test(file.type) ||
@@ -52,13 +53,14 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
     setBusy(true);
     try {
       let imageData: string | undefined;
-      if (file)
+      if (file) {
         imageData = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(String(reader.result));
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+      }
       const { data, error } = await supabase.functions.invoke(
         "agent-profile-avatar",
         {
@@ -70,8 +72,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
           },
         },
       );
-      if (error || data?.error || !data?.avatar_url)
+      if (error || data?.error || !data?.avatar_url) {
         throw new Error(data?.error || error?.message || "יצירת התמונה נכשלה");
+      }
       setDraft((current) => ({
         ...current,
         avatarUrl: data.avatar_url,
@@ -87,7 +90,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
     }
   }
   async function save() {
-    if (tenantId !== agent.tenant_id || !draft.displayName?.trim()) return;
+    if (tenantId !== agent.tenant_id || !draft.displayName?.trim()) {
+      return;
+    }
     setBusy(true);
     try {
       const { data: latest, error: readError } = await supabase
@@ -96,7 +101,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
         .eq("id", agent.id)
         .eq("tenant_id", tenantId)
         .single();
-      if (readError) throw readError;
+      if (readError) {
+        throw readError;
+      }
       const metadata =
         latest.metadata &&
         typeof latest.metadata === "object" &&
@@ -119,7 +126,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
         .eq("tenant_id", tenantId)
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] }),
         qc.invalidateQueries({ queryKey: ["carmen-identity", tenantId] }),
@@ -169,7 +178,9 @@ export function AgentVisualIdentity({ agent }: { agent: Agent }) {
         disabled={busy}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void createImage(file);
+          if (file) {
+            void createImage(file);
+          }
           e.target.value = "";
         }}
       />

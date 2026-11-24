@@ -64,10 +64,10 @@ export function ownerCandidate(member: ReportStaffMember): Candidate {
 
 /** Keeps the first candidate per normalised phone; the rest are skipped with a reason. */
 export function dedupeByPhone(
-  candidates: Candidate[],
+  candidates: Array<Candidate>,
 ): Omit<CarmenReportRecipients, "listUnreachable"> {
-  const recipients: CarmenReportRecipient[] = [];
-  const skipped: SkippedReportRecipient[] = [];
+  const recipients: Array<CarmenReportRecipient> = [];
+  const skipped: Array<SkippedReportRecipient> = [];
   const seen = new Set<string>();
   for (const candidate of candidates) {
     const phone = dialablePhone(candidate.rawPhone);

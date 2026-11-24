@@ -63,7 +63,7 @@ import { invalidateClientCrmTablesQueries } from "@/lib/reportQueryCache";
 interface SeoReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 function ClientSearchSelect({
@@ -71,7 +71,7 @@ function ClientSearchSelect({
   selectedClient,
   onSelect,
 }: {
-  clients: { id: string; name: string; is_seo_client?: boolean | null }[];
+  clients: Array<{ id: string; name: string; is_seo_client?: boolean | null }>;
   selectedClient: string;
   onSelect: (id: string) => void;
 }) {
@@ -79,7 +79,9 @@ function ClientSearchSelect({
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return clients;
+    if (!search.trim()) {
+      return clients;
+    }
     const q = search.trim().toLowerCase();
     return clients.filter((c) => c.name.toLowerCase().includes(q));
   }, [clients, search]);
@@ -179,7 +181,9 @@ export function SeoReportDialog({
   const [isCreatingReport, setIsCreatingReport] = useState(false);
 
   const handleFetchFromAhrefs = async () => {
-    if (!selectedClient) return;
+    if (!selectedClient) {
+      return;
+    }
     const client = clients.find((c) => c.id === selectedClient);
     const domain = normalizeDomain(client?.website);
     if (!domain) {
@@ -194,7 +198,9 @@ export function SeoReportDialog({
           body: { clientId: selectedClient, domain },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({
         title: "הדוח נוצר בהצלחה",
         description: `${data?.keywords_count ?? 0} מילות מפתח נטענו עבור ${data?.domain || domain}`,
@@ -238,20 +244,26 @@ export function SeoReportDialog({
         ownPromise,
         sharedAgenciesPromise,
       ]);
-      if (ownRes.error) throw ownRes.error;
-      if (sharedRes.error) throw sharedRes.error;
+      if (ownRes.error) {
+        throw ownRes.error;
+      }
+      if (sharedRes.error) {
+        throw sharedRes.error;
+      }
 
       const sharedAgencyIds = (sharedRes.data || [])
         .map((r: any) => r.agency_id)
         .filter(Boolean);
 
-      let sharedClients: any[] = [];
+      let sharedClients: Array<any> = [];
       if (sharedAgencyIds.length > 0) {
         const { data, error } = await supabase
           .from("clients")
           .select("id, name, agency_id, website, is_seo_client")
           .in("agency_id", sharedAgencyIds);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         sharedClients = data || [];
       }
 
@@ -281,7 +293,9 @@ export function SeoReportDialog({
         .eq("tenant_id", currentTenantId!)
         .eq("client_id", selectedClient)
         .order("received_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentTenantId && !!selectedClient,
@@ -291,7 +305,9 @@ export function SeoReportDialog({
   const seoScope = useSeoScope(selectedClient || undefined);
   const integrationTenantIds = useMemo(() => {
     const set = new Set<string>();
-    if (currentTenantId) set.add(currentTenantId);
+    if (currentTenantId) {
+      set.add(currentTenantId);
+    }
     (seoScope.data?.accessibleTenantIds || []).forEach((t) => set.add(t));
     return Array.from(set);
   }, [currentTenantId, seoScope.data?.accessibleTenantIds]);
@@ -305,7 +321,9 @@ export function SeoReportDialog({
           "list-ahrefs-projects",
           { body: {} },
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         return (data?.projects || []) as Array<{
           project_id: string;
           project_name: string;
@@ -333,14 +351,18 @@ export function SeoReportDialog({
   const availableDomains = useMemo(() => {
     const set = new Set<string>();
     reports.forEach((r: any) => {
-      if (r.domain) set.add(r.domain);
+      if (r.domain) {
+        set.add(r.domain);
+      }
     });
     return Array.from(set);
   }, [reports]);
 
   // Normalize a website URL → bare domain (no protocol, no www, no path)
   const normalizeDomain = (url?: string | null): string => {
-    if (!url) return "";
+    if (!url) {
+      return "";
+    }
     return url
       .replace(/^https?:\/\//i, "")
       .replace(/^www\./i, "")
@@ -357,10 +379,14 @@ export function SeoReportDialog({
   // Auto-select domain: prefer the one matching client's website, else first
   useMemo(() => {
     if (!selectedClient || availableDomains.length === 0) {
-      if (selectedDomain) setSelectedDomain("");
+      if (selectedDomain) {
+        setSelectedDomain("");
+      }
       return;
     }
-    if (selectedDomain && availableDomains.includes(selectedDomain)) return;
+    if (selectedDomain && availableDomains.includes(selectedDomain)) {
+      return;
+    }
     const preferred = clientPreferredDomain
       ? availableDomains.find(
           (d) =>
@@ -420,7 +446,9 @@ export function SeoReportDialog({
             p.domain.toLowerCase().includes(prefill) ||
             prefill.includes(p.domain.toLowerCase())),
       );
-      if (match) setSelectedAhrefsProject(String(match.project_id));
+      if (match) {
+        setSelectedAhrefsProject(String(match.project_id));
+      }
     }
   }, [selectedClient, clientPreferredDomain, ahrefsProjects.length]);
 
@@ -466,7 +494,9 @@ export function SeoReportDialog({
 
   // Pick the latest report matching the selected domain
   const latestReport = useMemo(() => {
-    if (!reports.length) return null;
+    if (!reports.length) {
+      return null;
+    }
     if (selectedDomain) {
       return (
         reports.find((r: any) => r.domain === selectedDomain) || reports[0]
@@ -527,7 +557,9 @@ export function SeoReportDialog({
   const selectedClientObj = clients.find((c) => c.id === selectedClient);
 
   const handleCreateTable = async () => {
-    if (!selectedClient || !latestReport) return;
+    if (!selectedClient || !latestReport) {
+      return;
+    }
     setIsCreatingTable(true);
     try {
       const domain =
@@ -562,7 +594,9 @@ export function SeoReportDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({ title: "טבלת דוח SEO נוצרה בהצלחה!" });
       queryClient.invalidateQueries({
@@ -602,7 +636,9 @@ export function SeoReportDialog({
     !!(domainInput.trim() || selectedAhrefsProject !== "none");
 
   const handleCreateReport = async () => {
-    if (!selectedClient || !canCreate) return;
+    if (!selectedClient || !canCreate) {
+      return;
+    }
     setIsCreatingReport(true);
     try {
       const domain =
@@ -673,7 +709,9 @@ export function SeoReportDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({ title: "דוח ה-SEO נוצר בהצלחה" });
       queryClient.invalidateQueries({
@@ -692,7 +730,9 @@ export function SeoReportDialog({
       );
       onOpenChange(false);
       const tenantSlug = currentTenant?.slug || "";
-      if (tenantSlug) navigate(`/t/${tenantSlug}/table/${slug}`);
+      if (tenantSlug) {
+        navigate(`/t/${tenantSlug}/table/${slug}`);
+      }
     } catch (err: any) {
       toast({
         title: "שגיאה ביצירת דוח SEO",

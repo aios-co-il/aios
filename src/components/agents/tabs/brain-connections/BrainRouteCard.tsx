@@ -113,17 +113,22 @@ function KeyBadge({
       <Badge variant="destructive">חסר מפתח</Badge>
     );
   }
-  if (!builtin) return null;
-  if (builtin.source === "own")
+  if (!builtin) {
+    return null;
+  }
+  if (builtin.source === "own") {
     return (
       <Badge variant="secondary" dir="ltr">
         ••••{builtin.key_last4}
       </Badge>
     );
-  if (builtin.source === "shared")
+  }
+  if (builtin.source === "shared") {
     return <Badge variant="outline">משותף מ-{builtin.shared_from?.name}</Badge>;
-  if (builtin.source === "project")
+  }
+  if (builtin.source === "project") {
     return <Badge variant="outline">מפתח הפרויקט</Badge>;
+  }
   return <Badge variant="destructive">לא מוגדר</Badge>;
 }
 

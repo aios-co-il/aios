@@ -13,19 +13,26 @@ export function useSidecarSessionDefaults(
   // first brain they may use. After that the brain selector owns the choice.
   const initialBrainApplied = useRef(false);
   useEffect(() => {
-    if (initialBrainApplied.current || !brain.routesReady) return;
+    if (initialBrainApplied.current || !brain.routesReady) {
+      return;
+    }
     initialBrainApplied.current = true;
     const internal = brain.routes.find((r) => r.slug === BRAIN.internal);
-    if (internal && brain.selected.slug !== BRAIN.internal)
+    if (internal && brain.selected.slug !== BRAIN.internal) {
       brain.selectRoute(internal, null);
+    }
   }, [brain.routesReady, brain.routes, brain.selected.slug, brain]);
 
   // Each session opens on Carmen's base skin; a skin is picked per task.
   const carmenSkins = useCarmenSkins();
   const initialSkinApplied = useRef(false);
   useEffect(() => {
-    if (!session || initialSkinApplied.current) return;
+    if (!session || initialSkinApplied.current) {
+      return;
+    }
     initialSkinApplied.current = true;
-    if (carmenSkins.activeSlug) carmenSkins.setActiveSkin(null).catch(() => {});
+    if (carmenSkins.activeSlug) {
+      carmenSkins.setActiveSkin(null).catch(() => {});
+    }
   }, [session, carmenSkins]);
 }

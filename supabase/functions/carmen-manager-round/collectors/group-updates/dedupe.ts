@@ -15,7 +15,7 @@ const KNOWN_OVERLAP = 0.6;
 /** The digest without the known items, and how many were dropped. */
 export function dropKnownItems(
   digest: Digest,
-  today: CardEntry[],
+  today: Array<CardEntry>,
 ): { digest: Digest; dropped: number } {
   const known = today.map((entry) => words(entry.content));
   const items = digest.items.filter(

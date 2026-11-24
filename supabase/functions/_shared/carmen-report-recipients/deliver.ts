@@ -11,11 +11,11 @@ import type {
 
 /** Queues the message to each recipient in list order and reports each outcome. */
 export async function queueToReportRecipients(
-  recipients: CarmenReportRecipient[],
+  recipients: Array<CarmenReportRecipient>,
   message: string,
   queue: (message: string, phone: string) => Promise<boolean>,
-): Promise<ReportDelivery[]> {
-  const deliveries: ReportDelivery[] = [];
+): Promise<Array<ReportDelivery>> {
+  const deliveries: Array<ReportDelivery> = [];
   for (const recipient of recipients) {
     deliveries.push({
       recipient: recipient.name,

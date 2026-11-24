@@ -52,14 +52,22 @@ function shortSuffix(): string {
  *   sub.example.org                    -> "example"
  */
 export function slugFromWebsite(website?: string | null): string | null {
-  if (!website) return null;
+  if (!website) {
+    return null;
+  }
   try {
     let raw = website.trim();
-    if (!raw) return null;
-    if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+    if (!raw) {
+      return null;
+    }
+    if (!/^https?:\/\//i.test(raw)) {
+      raw = `https://${raw}`;
+    }
     const url = new URL(raw);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
-    if (!host) return null;
+    if (!host) {
+      return null;
+    }
     // Drop TLD(s): keep the leftmost non-trivial label.
     const parts = host.split(".").filter(Boolean);
     // For "acme.co.il" -> ["acme","co","il"]; for "acme.com" -> ["acme","com"].
@@ -83,7 +91,9 @@ export function buildDefaultShareToken(opts: {
 }): string {
   const { website, fallbackName, defaultPrefix = "report" } = opts;
   const fromSite = slugFromWebsite(website);
-  if (fromSite) return `${fromSite}-${shortSuffix()}`;
+  if (fromSite) {
+    return `${fromSite}-${shortSuffix()}`;
+  }
 
   const firstWord =
     (fallbackName ?? "").trim().split(/\s+/)[0] || defaultPrefix;

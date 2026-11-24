@@ -99,9 +99,13 @@ export function SeoProjectIntakeDialog({
           }
         }
       } catch (error: unknown) {
-        if (!cancelled) toast.error(message(error, "טעינת נתוני לקוח נכשלה"));
+        if (!cancelled) {
+          toast.error(message(error, "טעינת נתוני לקוח נכשלה"));
+        }
       } finally {
-        if (!cancelled) setLoadingPreview(false);
+        if (!cancelled) {
+          setLoadingPreview(false);
+        }
       }
     })();
     return () => {
@@ -117,24 +121,31 @@ export function SeoProjectIntakeDialog({
   );
 
   const createWorkItem = async () => {
-    if (!clientId || !title.trim()) throw new Error("נדרש לקוח ושם תוכנית");
+    if (!clientId || !title.trim()) {
+      throw new Error("נדרש לקוח ושם תוכנית");
+    }
     const pipeline = await ensurePipelineForClient({
       clientId,
       tenantId,
       track: "seo_geo",
     });
-    if (!pipeline?.id)
+    if (!pipeline?.id) {
       throw new Error(
         "לא ניתן לפתוח pipeline SEO/GEO ללקוח — נסה שוב או פנה לתמיכה",
       );
+    }
     const { data: stages, error: stageError } = await supabase
       .from("marketing_pipeline_stages")
       .select("id,stage_type")
       .eq("pipeline_id", pipeline.id);
-    if (stageError) throw stageError;
+    if (stageError) {
+      throw stageError;
+    }
     const stageId =
       stages?.find((stage) => stage.stage_type === "target_seo")?.id ?? null;
-    if (!stageId) throw new Error("שלב SEO/GEO לא נמצא");
+    if (!stageId) {
+      throw new Error("שלב SEO/GEO לא נמצא");
+    }
 
     const { data, error } = await supabase
       .from("marketing_work_items")
@@ -150,7 +161,9 @@ export function SeoProjectIntakeDialog({
       })
       .select("id")
       .single();
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
     return data.id as string;
   };
 

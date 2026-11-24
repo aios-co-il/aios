@@ -16,11 +16,14 @@ export async function creativeStageFor(
     p_tenant_id: tenantId,
     p_client_id: clientId,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
   const row = (Array.isArray(data) ? data[0] : data) as
     { pipeline_id?: string; stage_id?: string } | null | undefined;
-  if (!row?.pipeline_id || !row?.stage_id)
+  if (!row?.pipeline_id || !row?.stage_id) {
     throw new Error("שלב הקריאייטיב לא נמצא בפייפליין");
+  }
   return { pipelineId: row.pipeline_id, stageId: row.stage_id };
 }
 
@@ -30,7 +33,9 @@ export async function recordArtifact(supabase: Db, input: ArtifactInput) {
     .insert(artifactRow(input))
     .select("id, kind, title, folder, status, url, thumb_url")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    throw new Error(error.message);
+  }
   return data as {
     id: string;
     kind: string;

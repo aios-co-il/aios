@@ -46,7 +46,7 @@ export function DashboardGoalOverview({
   hasStore,
 }: Props) {
   const spendParts = goalMoneyParts(summary.rows, currencies);
-  const deliveryFigures: GoalFigure[] = [
+  const deliveryFigures: Array<GoalFigure> = [
     {
       label: "הוצאה כוללת",
       value: spendParts

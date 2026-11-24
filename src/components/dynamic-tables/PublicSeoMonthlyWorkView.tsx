@@ -47,12 +47,12 @@ type MonthlyRow = {
 type Props = {
   clientName?: string | null;
   domain?: string | null;
-  months: MonthlyRow[];
+  months: Array<MonthlyRow>;
   /** @deprecated Prefer per-month share_token on months[]. */
   shareToken?: string | null;
-  ahrefsReports?: any[];
-  forceRelevant?: string[];
-  forceIrrelevant?: string[];
+  ahrefsReports?: Array<any>;
+  forceRelevant?: Array<string>;
+  forceIrrelevant?: Array<string>;
   /** Render as a standalone page: the report fills the screen, controls move into its sticky header. */
   fullPage?: boolean;
   /** Shown as "back to dashboard" in the sticky header when in full-page mode. */
@@ -112,14 +112,18 @@ export function PublicSeoMonthlyWorkView({
     null;
 
   const work = useMemo(() => {
-    if (!selected) return emptySeoMonthlyWork();
+    if (!selected) {
+      return emptySeoMonthlyWork();
+    }
     const parsed = parseSeoMonthlyWork(selected.work);
-    if (!parsed.summary && selected.notes) parsed.summary = selected.notes;
+    if (!parsed.summary && selected.notes) {
+      parsed.summary = selected.notes;
+    }
     return parsed;
   }, [selected]);
 
-  const recentLinks = useMemo<SeoShareRecentLink[]>(() => {
-    const out: SeoShareRecentLink[] = [];
+  const recentLinks = useMemo<Array<SeoShareRecentLink>>(() => {
+    const out: Array<SeoShareRecentLink> = [];
     const seen = new Set<string>();
     const selectedKey = (selected?.month || selectedMonth).slice(0, 10);
     const windowStart = (() => {
@@ -132,12 +136,16 @@ export function PublicSeoMonthlyWorkView({
       }
     })();
     for (const row of sortedMonths) {
-      if (row.month < windowStart || row.month > selectedKey) continue;
+      if (row.month < windowStart || row.month > selectedKey) {
+        continue;
+      }
       const parsed =
         row.month === selectedKey ? work : parseSeoMonthlyWork(row.work);
       for (const link of parsed.links) {
         const key = link.url.trim().toLowerCase();
-        if (!key || seen.has(key)) continue;
+        if (!key || seen.has(key)) {
+          continue;
+        }
         seen.add(key);
         out.push({
           id: link.id,
@@ -224,7 +232,9 @@ export function PublicSeoMonthlyWorkView({
     setExporting(true);
     try {
       await new Promise((r) => setTimeout(r, 80));
-      if (!captureStackRef.current) throw new Error("אין שקפים ליצוא");
+      if (!captureStackRef.current) {
+        throw new Error("אין שקפים ליצוא");
+      }
       const safeName = `${snapshot.clientName}-${snapshot.monthLabel}`
         .replace(/[^\w\u0590-\u05FF-]+/g, "-")
         .slice(0, 60);

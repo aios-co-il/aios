@@ -224,7 +224,9 @@ serve(async (req: Request) => {
         .eq("slug", slug)
         .maybeSingle();
 
-      if (!existing) break;
+      if (!existing) {
+        break;
+      }
       slug = `${baseSlug}-${counter}`;
       counter++;
     }
@@ -325,6 +327,7 @@ serve(async (req: Request) => {
 
     const permissions = allModules.map((module) => ({
       user_id: userId,
+      tenant_id: newTenant.id,
       module,
       can_access: true,
     }));

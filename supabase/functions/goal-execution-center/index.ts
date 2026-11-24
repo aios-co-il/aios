@@ -22,7 +22,9 @@ const cors = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
 
   try {
     const auth = await requireAuth(req);
@@ -33,7 +35,9 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "");
     const tenantId = String(body.tenant_id || "").trim();
-    if (!tenantId) return json({ error: "tenant_id required" }, 400);
+    if (!tenantId) {
+      return json({ error: "tenant_id required" }, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -48,11 +52,15 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("execution_mode", true)
         .order("updated_at", { ascending: false });
-      if (body.status) q = q.eq("status", body.status);
+      if (body.status) {
+        q = q.eq("status", body.status);
+      }
       const { data, error } = await q.limit(
         Math.min(Number(body.limit) || 50, 100),
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return json({ goals: data || [] });
     }
 
@@ -70,7 +78,9 @@ serve(async (req) => {
 
     if (action === "find_duplicates") {
       const title = String(body.title || "").trim();
-      if (!title) return json({ duplicates: [] });
+      if (!title) {
+        return json({ duplicates: [] });
+      }
       const duplicates = await findDuplicateGoals(supabase, tenantId, title);
       return json({
         duplicates: duplicates.map((d) => ({
@@ -84,7 +94,9 @@ serve(async (req) => {
 
     if (action === "create" || action === "autonomous_create") {
       const title = String(body.title || "").trim();
-      if (!title) throw new Error("title required");
+      if (!title) {
+        throw new Error("title required");
+      }
       const autonomous = action === "autonomous_create" || !!body.autonomous;
       const duplicates = await findDuplicateGoals(supabase, tenantId, title);
       const created = await createUnifiedGoal(supabase, {
@@ -166,7 +178,9 @@ serve(async (req) => {
         "completion_criteria",
         "progress_percent",
       ]) {
-        if (body[key] !== undefined) patch[key] = body[key];
+        if (body[key] !== undefined) {
+          patch[key] = body[key];
+        }
       }
       const { data, error } = await supabase
         .from("goals")
@@ -175,7 +189,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await logGoalEvent(supabase, {
         goalId: id,
         tenantId,
@@ -223,7 +239,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       await logGoalEvent(supabase, {
         goalId: data.goal_id,
         tenantId,
@@ -256,7 +274,9 @@ serve(async (req) => {
 
     if (action === "autonomous_status") {
       const id = String(body.id || body.goal_id || "");
-      if (!id) return json({ error: "id required" }, 400);
+      if (!id) {
+        return json({ error: "id required" }, 400);
+      }
       const report = await getGoalExecutionReport(supabase, tenantId, id);
       return json(report);
     }
@@ -264,8 +284,9 @@ serve(async (req) => {
     if (action === "manual_guidance") {
       const goalId = String(body.goal_id || body.id || "");
       const guidance = String(body.guidance || body.message || "").trim();
-      if (!goalId || !guidance)
+      if (!goalId || !guidance) {
         return json({ error: "goal_id and guidance required" }, 400);
+      }
 
       const { data: goal } = await supabase
         .from("goals")
@@ -274,7 +295,9 @@ serve(async (req) => {
         .eq("tenant_id", tenantId)
         .eq("autonomous_mode", true)
         .maybeSingle();
-      if (!goal) return json({ error: "autonomous goal not found" }, 404);
+      if (!goal) {
+        return json({ error: "autonomous goal not found" }, 404);
+      }
 
       await logGoalEvent(supabase, {
         goalId,
@@ -321,7 +344,9 @@ serve(async (req) => {
 
     if (action === "autonomous_run_iteration" || action === "run_iteration") {
       const id = String(body.id || body.goal_id || "");
-      if (!id) return json({ error: "id required" }, 400);
+      if (!id) {
+        return json({ error: "id required" }, 400);
+      }
       const holder = userId ? `user:${userId}` : "api";
       const outcome = await runGoalIteration(supabase, tenantId, id, holder);
       const status = await getAutonomousGoalStatus(supabase, tenantId, id);

@@ -8,7 +8,7 @@ export interface AiModel {
   label: string;
   family: "google" | "openai" | "anthropic" | "manus";
   context_window?: number;
-  capabilities?: string[];
+  capabilities?: Array<string>;
   isLatest?: boolean;
   recommended?: boolean;
   cheap?: boolean;
@@ -25,10 +25,12 @@ export function useAiModels() {
   return useQuery({
     queryKey: ["ai-models"],
     staleTime: 30 * 60 * 1000,
-    queryFn: async (): Promise<AiModel[]> => {
+    queryFn: async (): Promise<Array<AiModel>> => {
       const { data, error } = await supabase.functions.invoke("list-ai-models");
-      if (error) throw error;
-      return (data?.models ?? []) as AiModel[];
+      if (error) {
+        throw error;
+      }
+      return (data?.models ?? []) as Array<AiModel>;
     },
   });
 }
@@ -41,8 +43,9 @@ export function useConnectedProviders() {
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<ConnectedProviders> => {
-      if (!tenantId)
+      if (!tenantId) {
         return { google: false, openai: false, anthropic: false, manus: false };
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("settings")
@@ -86,10 +89,18 @@ export function useConnectedAiModels() {
 
   const models = connected
     ? allModels.filter((m) => {
-        if (m.family === "google") return connected.google;
-        if (m.family === "openai") return connected.openai;
-        if (m.family === "anthropic") return connected.anthropic;
-        if (m.family === "manus") return connected.manus;
+        if (m.family === "google") {
+          return connected.google;
+        }
+        if (m.family === "openai") {
+          return connected.openai;
+        }
+        if (m.family === "anthropic") {
+          return connected.anthropic;
+        }
+        if (m.family === "manus") {
+          return connected.manus;
+        }
         return false;
       })
     : [];

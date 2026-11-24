@@ -174,7 +174,9 @@ function PostEditorDialog({
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file || !tenantId) return;
+      if (!file || !tenantId) {
+        return;
+      }
 
       if (file.size > 10 * 1024 * 1024) {
         toast.error("הקובץ גדול מדי (מקסימום 10MB)");
@@ -195,7 +197,9 @@ function PostEditorDialog({
           .from("entity-attachments")
           .upload(filePath, file, { upsert: true });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          throw uploadError;
+        }
 
         const { data: urlData } = supabase.storage
           .from("entity-attachments")
@@ -208,7 +212,9 @@ function PostEditorDialog({
         setLocalImage(post?.media_urls?.[0] ?? null);
       } finally {
         setUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
       }
     },
     [post, tenantId],
@@ -216,7 +222,9 @@ function PostEditorDialog({
 
   // ── Generate AI image ──
   const handleGenerateAI = useCallback(async () => {
-    if (!aiPrompt.trim() || !tenantId) return;
+    if (!aiPrompt.trim() || !tenantId) {
+      return;
+    }
 
     setGeneratingAI(true);
     try {
@@ -231,7 +239,9 @@ function PostEditorDialog({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       if (data?.image_url) {
         setLocalImage(data.image_url);
         setShowAiPrompt(false);
@@ -283,7 +293,9 @@ function PostEditorDialog({
           .update(updateData)
           .eq("id", post!.id);
 
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         queryClient.invalidateQueries({
           queryKey: ["social-media-posts", tenantId],
         });

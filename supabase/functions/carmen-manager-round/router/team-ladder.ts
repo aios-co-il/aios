@@ -118,7 +118,7 @@ function criticalCopy(
   finding: FindingRow,
   kind: FindingKind,
   ctx: LadderContext,
-): PlannedDelivery[] {
+): Array<PlannedDelivery> {
   return finding.severity === "critical"
     ? deliveriesFor(
         2,

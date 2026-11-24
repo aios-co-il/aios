@@ -4,8 +4,9 @@ import { readFile } from "node:fs/promises";
 const url = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const graphPath = process.argv[2] || "graphify-out/graph.json";
-if (!url || !key)
+if (!url || !key) {
   throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+}
 
 const graph = JSON.parse(await readFile(graphPath, "utf8"));
 const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
@@ -28,10 +29,11 @@ async function request(path, options = {}) {
     ...options,
     headers: { ...headers, ...(options.headers || {}) },
   });
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(
       `${options.method || "GET"} ${path}: ${response.status} ${await response.text()}`,
     );
+  }
   const text = await response.text();
   return text ? JSON.parse(text) : null;
 }

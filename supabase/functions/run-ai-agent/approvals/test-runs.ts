@@ -140,7 +140,7 @@ const PEOPLE = [
 ];
 
 /** The user's roles in this tenant; none for no one. */
-function rolesOf(userId: string | null): string[] {
+function rolesOf(userId: string | null): Array<string> {
   return PEOPLE.find((p) => p.userId === userId)?.roles ?? [];
 }
 

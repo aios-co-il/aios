@@ -73,7 +73,9 @@ export function RunsTab({ agent }: { agent: any }) {
           body: { run_id, tenant_id: tenantId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {

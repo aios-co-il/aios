@@ -43,14 +43,17 @@ function savingDb(script: Record<string, any>) {
   const from = db.from;
   db.from = (table: string) => {
     const builder = from(table) as Record<string, any>;
-    if (table !== "marketing_work_items") return builder;
+    if (table !== "marketing_work_items") {
+      return builder;
+    }
     const update = builder.update as (value: unknown) => unknown;
     builder.update = (value: Record<string, any>) => {
-      if (value?.payload)
+      if (value?.payload) {
         script["marketing_work_items:select"] = {
           ...script["marketing_work_items:select"],
           payload: value.payload,
         };
+      }
       return update(value);
     };
     return builder;

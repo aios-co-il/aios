@@ -9,7 +9,9 @@ export async function propagateWhatsappGroupInviteLink(
   inviteLink: string | null | undefined,
 ): Promise<void> {
   const link = typeof inviteLink === "string" ? inviteLink.trim() : "";
-  if (!groupChatId || !link) return;
+  if (!groupChatId || !link) {
+    return;
+  }
 
   const { error } = await supabase
     .from("whatsapp_groups")
@@ -32,8 +34,12 @@ export async function resolveWhatsappGroupInviteLink(
   cachedLink: string | null | undefined,
 ): Promise<string | null> {
   const link = typeof cachedLink === "string" ? cachedLink.trim() : "";
-  if (link) return link;
-  if (!groupChatId) return null;
+  if (link) {
+    return link;
+  }
+  if (!groupChatId) {
+    return null;
+  }
 
   const { data: siblings } = await supabase
     .from("whatsapp_groups")

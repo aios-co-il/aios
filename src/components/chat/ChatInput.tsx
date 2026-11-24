@@ -82,7 +82,7 @@ export default function ChatInput({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Array<Blob>>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSend = async () => {
@@ -99,7 +99,9 @@ export default function ChatInput({
       return;
     }
 
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading) {
+      return;
+    }
     onSend(message, replyToMessage?.id);
     setMessage("");
     onClearReply?.();
@@ -114,7 +116,9 @@ export default function ChatInput({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
 
     // Check file size (max 16MB for WhatsApp)
     if (file.size > 16 * 1024 * 1024) {
@@ -216,7 +220,9 @@ export default function ChatInput({
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data?.text) {
         setMessage((prev) => (prev ? prev + " " + data.text : data.text));

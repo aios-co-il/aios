@@ -51,7 +51,7 @@ const STAGE_CONFIG: Record<
     headerBg: string;
     accentColor: string;
     systemHint: string;
-    quickPrompts: string[];
+    quickPrompts: Array<string>;
   }
 > = {
   strategy: {
@@ -453,7 +453,7 @@ interface Props {
   pipelineId: string;
   tenantId: string;
   clientId: string;
-  items: any[];
+  items: Array<any>;
   onClose: () => void;
   onSelectItem: (id: string) => void;
   onNewItem: () => void;
@@ -480,7 +480,7 @@ export function StageWorkspace({
     "campaigner";
 
   const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; content: string; ts: number }[]
+    Array<{ role: "user" | "assistant"; content: string; ts: number }>
   >([
     {
       role: "assistant",
@@ -498,7 +498,9 @@ export function StageWorkspace({
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || chatLoading) return;
+    if (!input.trim() || chatLoading) {
+      return;
+    }
     const userMsg = {
       role: "user" as const,
       content: input.trim(),
@@ -557,7 +559,9 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       const reply =
         data?.output ??
         data?.reply ??
@@ -583,7 +587,9 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
       const { error } = await supabase.functions.invoke("marketing-run-stage", {
         body: { item_id: itemId, stage_id: stage.id },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast({ title: "השלב הורץ בהצלחה" });
       queryClient.invalidateQueries({
         queryKey: ["marketing-items", pipelineId, tenantId],
@@ -609,7 +615,9 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         .select("id, sort_order")
         .eq("pipeline_id", pipelineId)
         .order("sort_order");
-      if (stagesError) throw stagesError;
+      if (stagesError) {
+        throw stagesError;
+      }
 
       const currentIndex = (stages ?? []).findIndex(
         (candidate) => candidate.id === stage.id,
@@ -624,7 +632,9 @@ ${itemsSummary ? `פריטי תוכן נוכחיים:\n${itemsSummary}` : ""}
         .update(update)
         .eq("id", itemId)
         .eq("tenant_id", tenantId);
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       queryClient.invalidateQueries({
         queryKey: ["marketing-items", pipelineId, tenantId],

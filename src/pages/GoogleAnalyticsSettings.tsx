@@ -63,7 +63,9 @@ export default function GoogleAnalyticsSettings() {
   const { data: makeIntegration, isLoading: makeLoading } = useQuery({
     queryKey: ["make-integration", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("*")
@@ -115,7 +117,9 @@ export default function GoogleAnalyticsSettings() {
         },
       );
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       if (response.data?.authUrl) {
         window.location.href = response.data.authUrl;
       }
@@ -130,14 +134,18 @@ export default function GoogleAnalyticsSettings() {
   // Disconnect direct API integration
   const disconnectMutation = useMutation({
     mutationFn: async (integrationId: string) => {
-      if (!integrationId) throw new Error("No integration to disconnect");
+      if (!integrationId) {
+        throw new Error("No integration to disconnect");
+      }
 
       const { error } = await supabase
         .from("tenant_integrations")
         .update({ is_active: false })
         .eq("id", integrationId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -694,7 +702,9 @@ export default function GoogleAnalyticsSettings() {
       <ManageIntegrationPermissionsDialog
         open={!!sharingIntegrationId}
         onOpenChange={(open) => {
-          if (!open) setSharingIntegrationId(null);
+          if (!open) {
+            setSharingIntegrationId(null);
+          }
         }}
         integrationId={sharingIntegrationId || ""}
         integrationName={`Google Analytics - ${sharingIntegrationName}`}

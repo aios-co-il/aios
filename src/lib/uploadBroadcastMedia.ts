@@ -21,7 +21,9 @@ export async function uploadBroadcastMedia(
     contentType: file.type || undefined,
     upsert: opts.upsert ?? false,
   });
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   return { path, url };
 }

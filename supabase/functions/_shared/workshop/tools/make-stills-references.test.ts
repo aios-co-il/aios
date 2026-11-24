@@ -23,7 +23,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const seen: { prompt: string; references?: string[] }[] = [];
+    const seen: Array<{ prompt: string; references?: Array<string> }> = [];
     const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -41,7 +41,7 @@ Deno.test(
         generateImage: async (
           prompt: string,
           _format: string,
-          refs?: string[],
+          refs?: Array<string>,
         ) => {
           seen.push({ prompt, references: refs });
           return { image_url: `https://x/still-${seen.length}.png` };
@@ -86,7 +86,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const seen: { prompt: string; references?: string[] }[] = [];
+    const seen: Array<{ prompt: string; references?: Array<string> }> = [];
     const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -102,7 +102,7 @@ Deno.test(
         generateImage: async (
           prompt: string,
           _format: string,
-          refs?: string[],
+          refs?: Array<string>,
         ) => {
           seen.push({ prompt, references: refs });
           return { image_url: `https://x/still-${seen.length}.png` };
@@ -157,7 +157,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const seen: (string[] | undefined)[] = [];
+    const seen: Array<Array<string> | undefined> = [];
     const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -166,9 +166,11 @@ Deno.test(
       async () => {},
       null,
       {
-        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+        generateImage: async (_p: string, _f: string, refs?: Array<string>) => {
           seen.push(refs);
-          if (seen.length === 1) throw new Error("engine busy");
+          if (seen.length === 1) {
+            throw new Error("engine busy");
+          }
           return { image_url: `https://x/still-${seen.length}.png` };
         },
       },
@@ -196,7 +198,7 @@ Deno.test(
       ],
       "rpc:attach_video_scene_asset": { id: "asset-1" },
     });
-    const seen: (string[] | undefined)[] = [];
+    const seen: Array<Array<string> | undefined> = [];
     const done = (await executeApprovedWorkshopTool(
       db,
       "tenant-1",
@@ -205,7 +207,7 @@ Deno.test(
       async () => {},
       null,
       {
-        generateImage: async (_p: string, _f: string, refs?: string[]) => {
+        generateImage: async (_p: string, _f: string, refs?: Array<string>) => {
           seen.push(refs);
           return { image_url: `https://x/still-${seen.length}.png` };
         },

@@ -12,9 +12,9 @@ import { runsUnpicked } from "./plan.ts";
 
 /** The chain with the tail's targets appended, each connection once. */
 export function withBrainTail<T extends { connectionId?: string }>(
-  chain: T[],
-  tail: T[],
-): T[] {
+  chain: Array<T>,
+  tail: Array<T>,
+): Array<T> {
   const seen = new Set(
     chain.map((target) => target.connectionId).filter(Boolean),
   );
@@ -31,18 +31,20 @@ export function withBrainTail<T extends { connectionId?: string }>(
  * the tail is read only on the turns that need it. Resolves true when a link was added.
  */
 export function lazyBrainTail<T extends { connectionId?: string }>(
-  chain: T[],
-  load?: () => Promise<T[]>,
+  chain: Array<T>,
+  load?: () => Promise<Array<T>>,
 ): () => Promise<boolean> {
   let loaded = !load;
   return async () => {
-    if (loaded || !load) return false;
+    if (loaded || !load) {
+      return false;
+    }
     loaded = true;
     const tail = await load().catch((e) => {
       console.warn(
         `[brain-engine] OpenRouter tail skipped: ${e instanceof Error ? e.message : e}`,
       );
-      return [] as T[];
+      return [] as Array<T>;
     });
     const added = withBrainTail(chain, tail).slice(chain.length);
     chain.push(...added);
@@ -60,9 +62,12 @@ export function movesToNextLink(
   body: string,
   connected: boolean,
 ): boolean {
-  if (connected) return true;
-  if (status === 401 || status === 402 || status === 403 || status === 429)
+  if (connected) {
     return true;
+  }
+  if (status === 401 || status === 402 || status === 403 || status === 429) {
+    return true;
+  }
   return (
     isModelUnavailable(status, body) ||
     /insufficient_quota|exceeded its|spending cap|credit balance|RESOURCE_EXHAUSTED|quota/i.test(
@@ -98,7 +103,7 @@ export async function openRouterTail(
   sb: SupabaseClient,
   auth: { kind: "user" | "service"; userId: string | null } | null,
   body: { tenant_id?: unknown; agent_id?: unknown },
-): Promise<BrainEngineTarget[]> {
+): Promise<Array<BrainEngineTarget>> {
   let tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
   if (typeof body.agent_id === "string" && body.agent_id) {
     const { data: agent } = await sb
@@ -108,7 +113,9 @@ export async function openRouterTail(
       .maybeSingle();
     tenantId = agent?.tenant_id ?? tenantId;
   }
-  if (!tenantId) return [];
+  if (!tenantId) {
+    return [];
+  }
   // Only a free brain runs without being picked (the smart router's rule): a paid one has no
   // budget ledger yet (AIO-211).
   const { data: conns } = await sb
@@ -126,7 +133,9 @@ export async function openRouterTail(
       profile: sanitizeProfile(c.profile),
     }),
   )?.id as string | undefined;
-  if (!connectionId) return [];
+  if (!connectionId) {
+    return [];
+  }
   const { data: route } = await sb
     .from("agent_brain_routes")
     .select("slug")
@@ -137,7 +146,9 @@ export async function openRouterTail(
     .order("slug", { ascending: true })
     .limit(1)
     .maybeSingle();
-  if (!route?.slug) return [];
+  if (!route?.slug) {
+    return [];
+  }
   const engine = await resolveBrainEngine(sb, auth, {
     brain_slug: route.slug,
     tenant_id: tenantId,

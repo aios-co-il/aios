@@ -44,11 +44,15 @@ export function createInFlight({
         return new Promise<T>(() => {});
       }
       const entry = held.get(run.id);
-      if (entry) entry.submitting += 1;
+      if (entry) {
+        entry.submitting += 1;
+      }
       try {
         return await submit();
       } finally {
-        if (entry) entry.submitting -= 1;
+        if (entry) {
+          entry.submitting -= 1;
+        }
       }
     },
     /**
@@ -58,7 +62,9 @@ export function createInFlight({
     async requeue({ waitMs = 5000 } = {}) {
       closed = true;
       const deadline = now() + waitMs;
-      while (busy() && now() < deadline) await sleep(50);
+      while (busy() && now() < deadline) {
+        await sleep(50);
+      }
       // A run out of attempts stays running, so claim_video_run fails it as before instead of
       // queueing it forever. Only this worker's own claim (same attempt) is put back.
       const ready = [...held.values()].filter(

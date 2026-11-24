@@ -33,17 +33,27 @@ export function resolvePermissionGateView(
     allowed,
   } = state;
 
-  if (!permission || isSuperAdmin) return "children";
-  if (isLoading) return "skeleton";
-
-  // Cached data is enough to render — never cover a working page with a stale error.
-  if (isReady && allowed) return "children";
-
-  if (!isReady) {
-    if (isError && !isFetching && isFetchedAfterMount) return "error";
+  if (!permission || isSuperAdmin) {
+    return "children";
+  }
+  if (isLoading) {
     return "skeleton";
   }
 
-  if (!allowed) return "redirect";
+  // Cached data is enough to render — never cover a working page with a stale error.
+  if (isReady && allowed) {
+    return "children";
+  }
+
+  if (!isReady) {
+    if (isError && !isFetching && isFetchedAfterMount) {
+      return "error";
+    }
+    return "skeleton";
+  }
+
+  if (!allowed) {
+    return "redirect";
+  }
   return "children";
 }

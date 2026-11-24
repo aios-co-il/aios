@@ -31,7 +31,7 @@ Deno.test("paid call never starts on denied reservation", async () => {
 Deno.test(
   "cost is reserved and settled without overrunning reservation",
   async () => {
-    const settled: number[] = [];
+    const settled: Array<number> = [];
     const store: AtomicBudgetStore = {
       reserve: async (input) => ({
         ok: true,

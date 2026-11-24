@@ -119,25 +119,28 @@ Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
   await t.step(
     "on Saturday a connection_lost made only of single-campaign issues is held, then sent once after Shabbat",
     async () => {
-      const cases: Array<{ label: string; flags: string[]; issues: Issue[] }> =
-        [
-          {
-            label: "ad_disapproved",
-            flags: [],
-            issues: [{ clientId: "c1", alertType: "ad_disapproved" }],
-          },
-          {
-            label: "campaign_stopped",
-            flags: [],
-            issues: [{ clientId: "c1", alertType: "campaign_stopped" }],
-          },
-          { label: "קמפיין נעצר flag", flags: ["קמפיין נעצר"], issues: [] },
-          {
-            label: "N קמפיינים נעצרו flag",
-            flags: ["2 קמפיינים נעצרו"],
-            issues: [],
-          },
-        ];
+      const cases: Array<{
+        label: string;
+        flags: Array<string>;
+        issues: Array<Issue>;
+      }> = [
+        {
+          label: "ad_disapproved",
+          flags: [],
+          issues: [{ clientId: "c1", alertType: "ad_disapproved" }],
+        },
+        {
+          label: "campaign_stopped",
+          flags: [],
+          issues: [{ clientId: "c1", alertType: "campaign_stopped" }],
+        },
+        { label: "קמפיין נעצר flag", flags: ["קמפיין נעצר"], issues: [] },
+        {
+          label: "N קמפיינים נעצרו flag",
+          flags: ["2 קמפיינים נעצרו"],
+          issues: [],
+        },
+      ];
       for (const { label, flags, issues } of cases) {
         const supabase = fakeSupabase();
         const extra = { criticalIssues: issues, rules: NO_CONTACT_OFF };
@@ -166,7 +169,7 @@ Deno.test("deliverInstantPulseAlerts on Shabbat", async (t) => {
       const cases: Array<{
         label: string;
         snapshot: PulseSnapshotAlertInput;
-        issues: Issue[];
+        issues: Array<Issue>;
       }> = [
         {
           label: "stale sync",

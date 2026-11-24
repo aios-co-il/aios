@@ -9,10 +9,14 @@ export async function invokeExecutorFunction(
 ) {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error instanceof FunctionsHttpError) {
-    return { ok: false, data: await error.context.json() };
+    return {
+      ok: false,
+      data: await error.context.json(),
+      status: error.context.status,
+    };
   }
   if (error) {
     throw error;
   }
-  return { ok: true, data };
+  return { ok: true, data, status: 200 };
 }

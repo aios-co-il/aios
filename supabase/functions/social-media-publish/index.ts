@@ -83,18 +83,20 @@ serve(async (req) => {
       .select("*, social_media_channels(*)")
       .eq("post_id", post_id);
 
-    const results: {
+    const results: Array<{
       channel_id: string;
       success: boolean;
       error?: string;
       platform_post_id?: string;
-    }[] = [];
+    }> = [];
 
     // Publish to each social media channel
     if (postChannels && postChannels.length > 0) {
       for (const pc of postChannels) {
         const channel = (pc as any).social_media_channels;
-        if (!channel) continue;
+        if (!channel) {
+          continue;
+        }
 
         try {
           // Never post with another tenant's channel token (AIO-234).
@@ -240,7 +242,9 @@ async function publishToFacebook(
       body: JSON.stringify(photoBody),
     });
     const data = await resp.json();
-    if (data.error) throw new Error(data.error.message);
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
     return data.id;
   }
 
@@ -250,7 +254,9 @@ async function publishToFacebook(
     body: JSON.stringify(body),
   });
   const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
+  if (data.error) {
+    throw new Error(data.error.message);
+  }
   return data.id;
 }
 
@@ -289,7 +295,9 @@ async function publishToInstagram(
     body: JSON.stringify(containerBody),
   });
   const containerData = await containerResp.json();
-  if (containerData.error) throw new Error(containerData.error.message);
+  if (containerData.error) {
+    throw new Error(containerData.error.message);
+  }
 
   // Step 2: Publish the container
   const publishUrl = `https://graph.facebook.com/v19.0/${channel.channel_id}/media_publish`;
@@ -302,7 +310,9 @@ async function publishToInstagram(
     }),
   });
   const publishData = await publishResp.json();
-  if (publishData.error) throw new Error(publishData.error.message);
+  if (publishData.error) {
+    throw new Error(publishData.error.message);
+  }
   return publishData.id;
 }
 
@@ -315,7 +325,9 @@ async function publishToLinkedIn(
   }
 
   const authorUrn = channel.channel_id || channel.metadata?.person_urn;
-  if (!authorUrn) throw new Error("LinkedIn: missing author URN");
+  if (!authorUrn) {
+    throw new Error("LinkedIn: missing author URN");
+  }
 
   const body: any = {
     author: authorUrn.startsWith("urn:")

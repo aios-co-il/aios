@@ -234,8 +234,8 @@ async function readChats(
 ): Promise<{
   refused?: Record<string, unknown>;
   mode?: string;
-  ids?: string[];
-  pushedIds?: string[];
+  ids?: Array<string>;
+  pushedIds?: Array<string>;
 }> {
   const { db } = matrixWorld();
   const { scope, refusal } = await scopedChatRead(

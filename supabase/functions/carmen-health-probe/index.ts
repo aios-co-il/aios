@@ -68,7 +68,10 @@ function campaignServices(client: any): Set<string> {
   );
 }
 
-function platformTables(tables: any[], platform: "meta" | "google"): any[] {
+function platformTables(
+  tables: Array<any>,
+  platform: "meta" | "google",
+): Array<any> {
   return tables.filter((table) =>
     platform === "google"
       ? table.integration_type === "google_ads"
@@ -92,7 +95,7 @@ function isAccountConnected(table: any): boolean {
 async function buildTenantHealthDigest(
   supabase: any,
   tenantId: string,
-  checks: CheckRow[],
+  checks: Array<CheckRow>,
 ): Promise<string> {
   const [
     { data: ownedAgencies },
@@ -147,20 +150,28 @@ async function buildTenantHealthDigest(
         platform === "meta"
           ? services.has("ppc_meta")
           : services.has("ppc_google");
-      if (!expected) continue;
+      if (!expected) {
+        continue;
+      }
       const configured = platformTables(clientTables, platform);
       // Existing tables that were explicitly switched off represent a paused
       // campaign and are excluded from both the health and performance reports.
       const active = configured.filter(
         (table: any) => table.campaign_active !== false,
       );
-      if (configured.length > 0 && active.length === 0) continue;
+      if (configured.length > 0 && active.length === 0) {
+        continue;
+      }
       // Missing report tables are shown on the Pulse Dashboard only — never WA.
-      if (active.length === 0) continue;
+      if (active.length === 0) {
+        continue;
+      }
       // One connection per platform — evaluate the freshest table only so an
       // abandoned duplicate (old ecommerce row) cannot false-positive.
       const [best] = pickFreshestTablePerPlatform(active);
-      if (!best) continue;
+      if (!best) {
+        continue;
+      }
       activeConnections += 1;
       if (!isAccountConnected(best)) {
         issueCount += 1;
@@ -212,15 +223,16 @@ async function timedFetch(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabase = createClient(
     supabaseUrl,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const rows: CheckRow[] = [];
+  const rows: Array<CheckRow> = [];
 
   // 1. Database round-trip
   {
@@ -460,7 +472,9 @@ Deno.serve(async (req) => {
           [95, "budget_95"],
           [80, "budget_80"],
         ] as const) {
-          if (pct < threshold) continue;
+          if (pct < threshold) {
+            continue;
+          }
           const { data: already } = await supabase
             .from("integration_alerts_log")
             .select("id")
@@ -468,7 +482,9 @@ Deno.serve(async (req) => {
             .eq("alert_type", type)
             .gte("fired_at", since)
             .limit(1);
-          if (already?.length) break; // highest crossed threshold alerts once/month
+          if (already?.length) {
+            break;
+          } // highest crossed threshold alerts once/month
           await supabase.from("integration_alerts_log").insert({
             tenant_id: DAVID_TENANT,
             provider: "openai",
@@ -802,7 +818,9 @@ Deno.serve(async (req) => {
     .limit(10);
   for (const integ of waIntegrations ?? []) {
     const instanceId = (integ.settings as Record<string, unknown>)?.instance_id;
-    if (!instanceId || !integ.api_key) continue;
+    if (!instanceId || !integ.api_key) {
+      continue;
+    }
     const res = await timedFetch(
       `${MANUS_GW_BASE}/api/v1/instances/${instanceId}/status`,
       {
@@ -838,7 +856,9 @@ Deno.serve(async (req) => {
     const claim = await supabase.rpc("claim_health_digest_delivery", {
       p_tenant_id: setting.tenant_id,
     });
-    if (claim.error || claim.data !== true) continue;
+    if (claim.error || claim.data !== true) {
+      continue;
+    }
     try {
       const digest = await buildTenantHealthDigest(
         supabase,

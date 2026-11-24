@@ -23,7 +23,7 @@ export const SEND_KINDS = [
 export type SendKind = (typeof SEND_KINDS)[number];
 
 /** Kinds a signed-in person may stamp from the browser. */
-export const USER_SEND_KINDS: readonly SendKind[] = [
+export const USER_SEND_KINDS: ReadonlyArray<SendKind> = [
   "chat",
   "report",
   "dashboard_share",

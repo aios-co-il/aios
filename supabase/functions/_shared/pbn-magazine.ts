@@ -18,7 +18,7 @@ export type MagazineTheme = {
   radius: string;
 };
 
-export const magazineThemes: MagazineTheme[] = [
+export const magazineThemes: Array<MagazineTheme> = [
   {
     id: 1,
     name: "signal",
@@ -467,12 +467,15 @@ const classicHomeBodyFixed = (theme: MagazineTheme) => `
 `;
 
 export function homeFunction(siteId: string, theme: MagazineTheme) {
-  if (theme.layout === "signal")
+  if (theme.layout === "signal") {
     return homeShell(siteId, theme, signalHomeCss, signalHomeBody);
-  if (theme.layout === "ledger")
+  }
+  if (theme.layout === "ledger") {
     return homeShell(siteId, theme, ledgerHomeCss, ledgerHomeBody);
-  if (theme.layout === "atelier")
+  }
+  if (theme.layout === "atelier") {
     return homeShell(siteId, theme, atelierHomeCss, atelierHomeBody);
+  }
   return homeShell(siteId, theme, classicHomeCss, classicHomeBodyFixed(theme));
 }
 

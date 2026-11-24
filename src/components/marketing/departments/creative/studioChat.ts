@@ -27,7 +27,7 @@ export interface StudioUiAction {
   drawer?: StudioDrawer;
 }
 
-const ACTION_TYPES: StudioUiActionType[] = [
+const ACTION_TYPES: Array<StudioUiActionType> = [
   "produce_video",
   "generate_variations",
   "single_variation",
@@ -39,7 +39,7 @@ const ACTION_TYPES: StudioUiActionType[] = [
   "focus_variation",
   "open_drawer",
 ];
-const DRAWERS: StudioDrawer[] = [
+const DRAWERS: Array<StudioDrawer> = [
   "projects",
   "project",
   "scene",
@@ -52,22 +52,37 @@ const str = (value: unknown) =>
 
 /** Accepts only a well-formed action from the stream; anything else is dropped. */
 export function parseUiAction(value: unknown): StudioUiAction | null {
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
   const raw = value as Record<string, unknown>;
   const type = raw.type as StudioUiActionType;
   const itemId = str(raw.item_id);
-  if (!ACTION_TYPES.includes(type) || !itemId) return null;
+  if (!ACTION_TYPES.includes(type) || !itemId) {
+    return null;
+  }
   const action: StudioUiAction = { type, item_id: itemId };
-  if (str(raw.scene_id)) action.scene_id = raw.scene_id as string;
-  if (str(raw.variation_id)) action.variation_id = raw.variation_id as string;
-  if (str(raw.note)) action.note = raw.note as string;
-  if (typeof raw.text_as_layers === "boolean")
+  if (str(raw.scene_id)) {
+    action.scene_id = raw.scene_id as string;
+  }
+  if (str(raw.variation_id)) {
+    action.variation_id = raw.variation_id as string;
+  }
+  if (str(raw.note)) {
+    action.note = raw.note as string;
+  }
+  if (typeof raw.text_as_layers === "boolean") {
     action.text_as_layers = raw.text_as_layers;
-  if (typeof raw.mixed_structure === "boolean")
+  }
+  if (typeof raw.mixed_structure === "boolean") {
     action.mixed_structure = raw.mixed_structure;
-  if (DRAWERS.includes(raw.drawer as StudioDrawer))
+  }
+  if (DRAWERS.includes(raw.drawer as StudioDrawer)) {
     action.drawer = raw.drawer as StudioDrawer;
-  if (type === "open_drawer" && !action.drawer) return null;
+  }
+  if (type === "open_drawer" && !action.drawer) {
+    return null;
+  }
   return action;
 }
 
@@ -75,7 +90,7 @@ export function parseUiAction(value: unknown): StudioUiAction | null {
  * Paid actions whose studio button has no cost dialog of its own: the chat shows an
  * approval card first. Produce, animate and revise open their own dialogs on screen.
  */
-const NEEDS_CHAT_APPROVAL: StudioUiActionType[] = [
+const NEEDS_CHAT_APPROVAL: Array<StudioUiActionType> = [
   "generate_variations",
   "single_variation",
   "regenerate_frame",
@@ -154,19 +169,25 @@ export interface StudioStreamEvent {
 
 /** Splits an SSE buffer into complete `data:` events and the unfinished tail. */
 export function parseSseBuffer(buffer: string): {
-  events: StudioStreamEvent[];
+  events: Array<StudioStreamEvent>;
   rest: string;
 } {
   const lines = buffer.split("\n");
   const rest = lines.pop() ?? "";
-  const events: StudioStreamEvent[] = [];
+  const events: Array<StudioStreamEvent> = [];
   for (const line of lines) {
-    if (!line.startsWith("data: ")) continue;
+    if (!line.startsWith("data: ")) {
+      continue;
+    }
     const payload = line.slice(6).trim();
-    if (!payload || payload === "[DONE]") continue;
+    if (!payload || payload === "[DONE]") {
+      continue;
+    }
     try {
       const parsed = JSON.parse(payload);
-      if (parsed && typeof parsed.type === "string") events.push(parsed);
+      if (parsed && typeof parsed.type === "string") {
+        events.push(parsed);
+      }
     } catch {
       /* a malformed line is skipped; the stream goes on */
     }
@@ -195,12 +216,14 @@ export function studioContextAddon(context: StudioContext): string {
   ];
   if (context.mode === "video") {
     lines.push(`סצנות: ${context.sceneCount ?? 0}`);
-    if (context.sceneNumber)
+    if (context.sceneNumber) {
       lines.push(`סצנה פתוחה כרגע: ${context.sceneNumber}`);
+    }
   } else {
     lines.push(`וריאציות: ${context.variationCount ?? 0}`);
-    if (context.variationName)
+    if (context.variationName) {
       lines.push(`וריאציה מוצגת: ${context.variationName}`);
+    }
   }
   lines.push(
     'השתמשי ב-item_id הזה בכל כלי סטודיו. "הסצנה הזו" או "זה" מתייחסים למה שפתוח כרגע.',
@@ -215,17 +238,20 @@ export type ChatPart =
 const MARKDOWN_IMAGE = /!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g;
 
 /** Carmen's answer as text and pictures, so the skin portraits she shows appear as images. */
-export function chatParts(text: string): ChatPart[] {
-  const parts: ChatPart[] = [];
+export function chatParts(text: string): Array<ChatPart> {
+  const parts: Array<ChatPart> = [];
   let last = 0;
   for (const match of text.matchAll(MARKDOWN_IMAGE)) {
     const start = match.index ?? 0;
-    if (start > last)
+    if (start > last) {
       parts.push({ kind: "text", text: text.slice(last, start) });
+    }
     parts.push({ kind: "image", alt: match[1], url: match[2] });
     last = start + match[0].length;
   }
-  if (last < text.length) parts.push({ kind: "text", text: text.slice(last) });
+  if (last < text.length) {
+    parts.push({ kind: "text", text: text.slice(last) });
+  }
   return parts;
 }
 
@@ -237,7 +263,7 @@ export interface StudioTurn {
   tenantId: string;
   clientId: string | null;
   contextAddon: string;
-  history: { role: "user" | "assistant"; content: string }[];
+  history: Array<{ role: "user" | "assistant"; content: string }>;
   /** The server's conversation for this project's chat, once its first turn started it. */
   conversationId?: string | null;
 }

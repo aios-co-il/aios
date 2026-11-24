@@ -10,7 +10,7 @@ import {
 
 const calendar = {
   business_hours: MANAGER_DEFAULTS.business_hours,
-  holidays: [] as string[],
+  holidays: [] as Array<string>,
 };
 const at = (iso: string) => new Date(iso);
 
@@ -86,7 +86,7 @@ Deno.test("business hours (Israel time)", async (t) => {
 });
 
 Deno.test("businessHoursBetween", async (t) => {
-  const hours = (from: string, to: string, holidays: string[] = []) =>
+  const hours = (from: string, to: string, holidays: Array<string> = []) =>
     businessHoursBetween(at(from), at(to), { ...calendar, holidays });
 
   await t.step("counts only the business window of the day", () => {

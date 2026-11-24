@@ -23,7 +23,7 @@ type DeliveredBody = HeldPeerNotification["request_body"];
 
 /** The service role, or a caller who belongs to tenants `memberOf`. */
 const authorizedFor =
-  (...memberOf: string[]): HoldOptions["authorizeTenant"] =>
+  (...memberOf: Array<string>): HoldOptions["authorizeTenant"] =>
   async (tenantId) =>
     memberOf.includes("service") ||
     (tenantId !== null && memberOf.includes(tenantId))
@@ -40,7 +40,7 @@ const update = PEER_UPDATE;
 
 /** Runs the worker's release on Sunday 08:30 and returns what it sent. */
 async function releasedOnSunday(supabase: ReturnType<typeof fakeHolds>) {
-  const delivered: DeliveredBody[] = [];
+  const delivered: Array<DeliveredBody> = [];
   await releaseHeldTaskNotifications(
     supabase,
     async (body) => delivered.push(body),

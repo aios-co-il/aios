@@ -118,7 +118,7 @@ export function matrixWorld() {
  * carmen-chat-scope-connections.sql.test.ts and
  * supabase/tests/carmen_chat_scope_connections.sql.
  */
-function allowedConnections({ p_tenant_id, p_user_id }: Row): unknown[] {
+function allowedConnections({ p_tenant_id, p_user_id }: Row): Array<unknown> {
   const owners = new Set([p_user_id]);
   for (const ti of integrations) {
     if (

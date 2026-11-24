@@ -70,7 +70,9 @@ export function LinkPhoneDialog({
   const { data: clients = [], isLoading: clientsLoading } = useQuery({
     queryKey: ["clients-for-phone-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("clients")
         .select("id, name, phone, agency_id, agencies(name)")
@@ -93,7 +95,9 @@ export function LinkPhoneDialog({
   const { data: leads = [], isLoading: leadsLoading } = useQuery({
     queryKey: ["leads-for-phone-link", tenantId, searchTerm],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("leads")
         .select(
@@ -120,7 +124,9 @@ export function LinkPhoneDialog({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
 
       // Update the phone number in the selected contact
       const table = values.type === "client" ? "clients" : "leads";
@@ -129,7 +135,9 @@ export function LinkPhoneDialog({
         .update({ phone })
         .eq("id", values.contact_id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { type: values.type, id: values.contact_id };
     },
     onSuccess: (result) => {

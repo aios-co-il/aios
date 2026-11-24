@@ -29,10 +29,14 @@ self.addEventListener("activate", (event) => {
 
 // Fetch — network first for app shell; never intercept hashed Vite bundles
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  if (event.request.method !== "GET") {
+    return;
+  }
 
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith("/assets/")) return;
+  if (url.pathname.startsWith("/assets/")) {
+    return;
+  }
 
   event.respondWith(
     fetch(event.request)

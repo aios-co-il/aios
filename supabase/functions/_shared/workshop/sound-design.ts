@@ -18,7 +18,7 @@ const NO_EFFECTS =
   /בלי (אפקטים|סאונד דיזיין|עיצוב סאונד)|ללא אפקטים|no (sound )?effects|no sfx/i;
 
 /** Mood words of the brief's music and pace answers, in the words a music model reads. */
-const MOODS: [RegExp, string][] = [
+const MOODS: Array<[RegExp, string]> = [
   [/קולנוע|cinematic|\bepic\b/i, "cinematic"],
   [/אלקטרונ|electronic/i, "electronic"],
   [/אקוסטי|acoustic/i, "warm acoustic"],
@@ -50,9 +50,13 @@ export function wantsSoundDesign(
   payload: Record<string, unknown>,
   input: { choice?: unknown; userText?: string | null } = {},
 ): boolean {
-  if (typeof input.choice === "boolean") return input.choice;
+  if (typeof input.choice === "boolean") {
+    return input.choice;
+  }
   const user = String(input.userText ?? "");
-  if (NO_EFFECTS.test(user)) return false;
+  if (NO_EFFECTS.test(user)) {
+    return false;
+  }
   const { music, pace, film } = briefTexts(payload);
   return [user, music, pace, film].some((text) => SOUND_DESIGN.test(text));
 }
@@ -66,18 +70,20 @@ export function musicPromptFor(
   const all = [music, pace, film, user].join(" \n ");
   const sound = [music, film, user].join(" \n ");
   const held = RESTRAINED.test(sound) || /רגוע|calm/i.test(all);
-  const lines: string[] = [];
-  if (TRAILER.test(sound))
+  const lines: Array<string> = [];
+  if (TRAILER.test(sound)) {
     lines.push(
       held
         ? "Restrained cinematic trailer score: a steady low pulse, deep strings, soft synth swells and sparse percussion hits that build tension and momentum without ever turning bombastic, loud or over the top."
         : "Cinematic action-trailer score: driving percussion, deep strings, rising tension and a confident build.",
     );
-  else {
+  } else {
     const moods = MOODS.filter(([pattern]) => pattern.test(all)).map(
       ([, mood]) => mood,
     );
-    if (moods.length === 0) return DEFAULT_MUSIC_PROMPT;
+    if (moods.length === 0) {
+      return DEFAULT_MUSIC_PROMPT;
+    }
     lines.push(
       `Instrumental commercial music bed, ${[...new Set(moods)].join(", ")}${held ? ", restrained and understated" : ""}.`,
     );

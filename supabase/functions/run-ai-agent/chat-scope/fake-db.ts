@@ -8,7 +8,7 @@ import {
 
 /** What a list query resolves to. */
 export interface FakeResult {
-  data: Row[] | null;
+  data: Array<Row> | null;
   error: unknown;
 }
 
@@ -17,7 +17,7 @@ export interface FakeQuery extends PromiseLike<FakeResult> {
   select(columns?: string): FakeQuery;
   eq(col: string, val: unknown): FakeQuery;
   neq(col: string, val: unknown): FakeQuery;
-  in(col: string, vals: unknown[]): FakeQuery;
+  in(col: string, vals: Array<unknown>): FakeQuery;
   is(col: string, val: null): FakeQuery;
   not(col: string, op: string, val: unknown): FakeQuery;
   gte(col: string, val: string): FakeQuery;
@@ -29,30 +29,34 @@ export interface FakeQuery extends PromiseLike<FakeResult> {
   single(): Promise<{ data: Row | null; error: unknown }>;
 }
 
-export type QueryLog = { table: string; ors: string[]; calls: string[] };
+export type QueryLog = {
+  table: string;
+  ors: Array<string>;
+  calls: Array<string>;
+};
 
 /**
  * In-memory stand-in for the Supabase client, for the Deno tests of the chat
  * scope. Queries on a table listed in `errors` resolve with that error.
  */
 export function fakeDb(
-  tables: Record<string, Row[]>,
+  tables: Record<string, Array<Row>>,
   rpcs: Record<string, (args: Row) => unknown> = {},
   errors: Record<string, Error> = {},
 ) {
-  const queries: QueryLog[] = [];
-  const rpcCalls: { fn: string; args: Row }[] = [];
+  const queries: Array<QueryLog> = [];
+  const rpcCalls: Array<{ fn: string; args: Row }> = [];
 
   /** A query builder over one table. */
   function from(table: string): FakeQuery {
-    const preds: ((r: Row) => boolean)[] = [];
+    const preds: Array<(r: Row) => boolean> = [];
     const log: QueryLog = { table, ors: [], calls: [] };
     queries.push(log);
     let orderBy: { col: string; asc: boolean } | null = null;
     let max: number | null = null;
 
     /** The table's rows that pass every filter, ordered and limited. */
-    const run = (): Row[] => {
+    const run = (): Array<Row> => {
       let rows = (tables[table] ?? []).filter((r) => preds.every((p) => p(r)));
       if (orderBy) {
         const { col, asc } = orderBy;

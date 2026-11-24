@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
       .select("role, tenant_id")
       .eq("user_id", user.id);
 
-    if (rolesError) throw rolesError;
+    if (rolesError) {
+      throw rolesError;
+    }
 
     const isSuperAdmin = userRoles?.some(
       (r) => r.role === "super_admin" && r.tenant_id === null,
@@ -67,7 +69,9 @@ Deno.serve(async (req) => {
       .select("id, name")
       .eq("parent_tenant_id", tenant_id);
 
-    if (childrenError) throw childrenError;
+    if (childrenError) {
+      throw childrenError;
+    }
 
     if (children && children.length > 0) {
       throw new Error(
@@ -263,7 +267,9 @@ Deno.serve(async (req) => {
       .delete()
       .eq("id", tenant_id);
 
-    if (deleteTenantError) throw deleteTenantError;
+    if (deleteTenantError) {
+      throw deleteTenantError;
+    }
 
     return new Response(
       JSON.stringify({

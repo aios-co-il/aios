@@ -25,7 +25,9 @@ export async function updateCall(
     .update(callUpdate(existing, event, owner, recording, settings))
     .eq("id", existing.id)
     .eq("tenant_id", tenantId);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return {
     callLogId: existing.id,
     leadId: existing.lead_id ?? owner.leadId,
@@ -65,7 +67,9 @@ export async function insertCall(
     .insert(row)
     .select("id")
     .single();
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return { callLogId: data.id, ...owner };
 }
 
@@ -102,7 +106,9 @@ function hasRecording(recording: Recording): boolean {
 }
 
 function recordingColumns(event: PbxEvent, recording: Recording) {
-  if (!hasRecording(recording)) return {};
+  if (!hasRecording(recording)) {
+    return {};
+  }
   return {
     recording_url: recording.url,
     recording_path: recording.path,
@@ -115,8 +121,12 @@ function resolveStatus(
   recording: Recording,
   existing: CallLogRow | null,
 ): string {
-  if (event.status) return mapCallStatus(event.status);
-  if (hasRecording(recording)) return "completed";
+  if (event.status) {
+    return mapCallStatus(event.status);
+  }
+  if (hasRecording(recording)) {
+    return "completed";
+  }
   return existing?.status ?? "completed";
 }
 

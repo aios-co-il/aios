@@ -7,8 +7,9 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -124,7 +125,9 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    if (insertError) throw insertError;
+    if (insertError) {
+      throw insertError;
+    }
 
     // Trigger Maskyoo Click2Call (onetouch) — connects userPhone to to_number
     const baseUrl = settings.base_url.replace(/\/$/, "");

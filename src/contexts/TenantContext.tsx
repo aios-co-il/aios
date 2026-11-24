@@ -72,7 +72,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [isActiveTenantSynced, setIsActiveTenantSynced] = useState<boolean>(
     () => {
       const slug = getSlugFromPath(window.location.pathname);
-      if (!slug) return false;
+      if (!slug) {
+        return false;
+      }
       const cachedId = getCachedSlugId(slug);
       const storedId = safeGetLocalStorage("selectedTenantId");
       return !!(cachedId && storedId && cachedId === storedId);
@@ -106,7 +108,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { data: tenantFromSlug, isLoading: isLoadingSlug } = useQuery({
     queryKey: ["tenant-by-slug", tenantSlug],
     queryFn: async () => {
-      if (!tenantSlug) return null;
+      if (!tenantSlug) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenants")
@@ -144,7 +148,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   // Sync tenant: clear cache on switch, then unblock UI for shell rendering.
   useEffect(() => {
-    if (!currentTenantId || isActiveTenantSynced) return;
+    if (!currentTenantId || isActiveTenantSynced) {
+      return;
+    }
 
     const keysToRemove = [
       "tasks",
@@ -189,7 +195,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       if (!user) {
         setIsActiveTenantDbSynced(true);
         return;
@@ -206,7 +214,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           { onConflict: "user_id" },
         );
 
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       if (error) {
         console.error("Error updating active tenant in DB:", error);
       }
@@ -219,7 +229,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
     void sync().catch((err) => {
       console.error("Error syncing tenant:", err);
-      if (!cancelled) setIsActiveTenantDbSynced(true);
+      if (!cancelled) {
+        setIsActiveTenantDbSynced(true);
+      }
     });
 
     const {
@@ -241,7 +253,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return null;
+      if (!user) {
+        return null;
+      }
 
       const { data: userTenants, error: tenantsError } = await supabase
         .from("tenant_users")
@@ -280,7 +294,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { data: currentTenant, isLoading: isLoadingTenant } = useQuery({
     queryKey: ["current-tenant", currentTenantId],
     queryFn: async () => {
-      if (!currentTenantId) return null;
+      if (!currentTenantId) {
+        return null;
+      }
 
       const { data, error } = await supabase
         .from("tenants")

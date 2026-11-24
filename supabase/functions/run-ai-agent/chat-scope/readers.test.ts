@@ -175,6 +175,6 @@ function oldFields(id: string, created_at: string): Row {
 }
 
 /** The ids of a reader's messages list. */
-function idsOf(messages: unknown): unknown[] {
+function idsOf(messages: unknown): Array<unknown> {
   return Array.isArray(messages) ? messages.map((m) => m.id) : [];
 }

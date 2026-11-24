@@ -13,11 +13,11 @@ export const NOW = new Date("2026-10-26T10:00:00Z"); // 12:00 in Israel
 
 /** What the fake deps saw, in call order. */
 type FakeCalls = {
-  assert: string[];
-  claim: number[];
-  invoke: PulseRefreshRequestBody[];
+  assert: Array<string>;
+  claim: Array<number>;
+  invoke: Array<PulseRefreshRequestBody>;
   loadPulse: number;
-  order: string[];
+  order: Array<string>;
 };
 
 /** Deps that record every call; overrides replace single deps. */

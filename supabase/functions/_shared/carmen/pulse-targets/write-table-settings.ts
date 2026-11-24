@@ -15,7 +15,7 @@ export async function writeTableSettings(
     tableId,
     tenantIds,
     settings,
-  }: { tableId: string; tenantIds: string[]; settings: JsonObject },
+  }: { tableId: string; tenantIds: Array<string>; settings: JsonObject },
 ): Promise<string | null> {
   const { data, error } = await db
     .from("crm_tables")

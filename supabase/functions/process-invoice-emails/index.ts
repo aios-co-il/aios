@@ -9,7 +9,9 @@ const corsHeaders = {
 
 async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
   const expiresAt = new Date(tokenData.expires_at);
-  if (expiresAt > new Date(Date.now() + 60000)) return tokenData.access_token;
+  if (expiresAt > new Date(Date.now() + 60000)) {
+    return tokenData.access_token;
+  }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -22,7 +24,9 @@ async function refreshTokenIfNeeded(supabaseService: any, tokenData: any) {
     }),
   });
   const tokens = await res.json();
-  if (!tokens.access_token) throw new Error("Token refresh failed");
+  if (!tokens.access_token) {
+    throw new Error("Token refresh failed");
+  }
 
   const newExpires = new Date(Date.now() + tokens.expires_in * 1000);
   await supabaseService
@@ -46,7 +50,10 @@ function parseEmailHeader(payload: any, headerName: string): string {
 }
 
 // Find attachments recursively in MIME parts
-function findAttachments(parts: any[], result: any[] = []): any[] {
+function findAttachments(
+  parts: Array<any>,
+  result: Array<any> = [],
+): Array<any> {
   for (const part of parts || []) {
     if (part.filename && part.body?.attachmentId) {
       result.push({
@@ -56,18 +63,23 @@ function findAttachments(parts: any[], result: any[] = []): any[] {
         size: part.body.size || 0,
       });
     }
-    if (part.parts) findAttachments(part.parts, result);
+    if (part.parts) {
+      findAttachments(part.parts, result);
+    }
   }
   return result;
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
 
     const anonClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -78,7 +90,9 @@ serve(async (req) => {
       data: { user },
       error: userError,
     } = await anonClient.auth.getUser();
-    if (userError || !user) throw new Error("Unauthorized");
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -90,7 +104,9 @@ serve(async (req) => {
       .select("*")
       .eq("user_id", user.id)
       .single();
-    if (tokenError || !tokenData) throw new Error("Gmail not connected");
+    if (tokenError || !tokenData) {
+      throw new Error("Gmail not connected");
+    }
 
     const accessToken = await refreshTokenIfNeeded(serviceClient, tokenData);
     const { messageIds, tenantId } = await req.json();
@@ -106,7 +122,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId);
 
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    const results: any[] = [];
+    const results: Array<any> = [];
 
     for (const messageId of messageIds) {
       try {
@@ -186,8 +202,9 @@ serve(async (req) => {
             const storagePath = `${tenantId}/gmail-invoices/${Date.now()}-${att.filename}`;
             const binaryStr = atob(base64Data);
             const bytes = new Uint8Array(binaryStr.length);
-            for (let i = 0; i < binaryStr.length; i++)
+            for (let i = 0; i < binaryStr.length; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
+            }
 
             const { error: uploadError } = await serviceClient.storage
               .from("supplier-invoices")
@@ -290,10 +307,12 @@ serve(async (req) => {
                     aiData.choices?.[0]?.message?.tool_calls?.[0];
                   if (toolCall?.function?.arguments) {
                     const extracted = JSON.parse(toolCall.function.arguments);
-                    if (extracted.invoice_name)
+                    if (extracted.invoice_name) {
                       invoiceName = extracted.invoice_name;
-                    if (extracted.invoice_amount)
+                    }
+                    if (extracted.invoice_amount) {
                       invoiceAmount = extracted.invoice_amount;
+                    }
                     aiExtracted = true;
 
                     // Try to match supplier by AI-extracted name if not already matched

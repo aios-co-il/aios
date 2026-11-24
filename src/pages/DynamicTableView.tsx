@@ -357,11 +357,15 @@ export default function DynamicTableView({
   } = useQuery({
     queryKey: ["crm-tables", tenantId, tableSlug],
     queryFn: async () => {
-      if (!tableSlug) return null;
+      if (!tableSlug) {
+        return null;
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
       const response = await supabase.functions.invoke(
         `crm-tables?tenant_id=${tenantId}&slug=${encodeURIComponent(tableSlug)}`,
         { method: "GET" },
@@ -374,7 +378,7 @@ export default function DynamicTableView({
         throw response.error;
       }
       const rows = Array.isArray(response.data)
-        ? (response.data as CrmTable[])
+        ? (response.data as Array<CrmTable>)
         : [];
       return rows[0] ?? null;
     },
@@ -397,12 +401,16 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session || !reportClientId) return [];
+      if (!session || !reportClientId) {
+        return [];
+      }
       const response = await supabase.functions.invoke(
         `crm-tables?tenant_id=${tenantId}&client_id=${reportClientId}`,
         { method: "GET" },
       );
-      if (response.error) return [];
+      if (response.error) {
+        return [];
+      }
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: !!tenantId && !!reportClientId && !adAccountUrl && !isEmbed,
@@ -452,8 +460,12 @@ export default function DynamicTableView({
   // Keep currency selector aligned with the persisted table setting (after refetch / sync).
   // Skip while a settings dialog is open so an in-progress USD choice isn't reset by a refetch.
   useEffect(() => {
-    if (!table) return;
-    if (showSettingsDialog || showGoogleSettingsDialog) return;
+    if (!table) {
+      return;
+    }
+    if (showSettingsDialog || showGoogleSettingsDialog) {
+      return;
+    }
     setSelectedCurrency(
       normalizeCurrencyCode(table.integration_settings?.currency),
     );
@@ -467,8 +479,12 @@ export default function DynamicTableView({
   // Default Facebook reports to "last 7 days" instead of "last 30 days"
   const didSetFbDefaultRef = useRef(false);
   useEffect(() => {
-    if (didSetFbDefaultRef.current) return;
-    if (!table) return;
+    if (didSetFbDefaultRef.current) {
+      return;
+    }
+    if (!table) {
+      return;
+    }
     if (
       table.integration_type === "facebook_insights" ||
       table.integration_type === "facebook_ecommerce"
@@ -485,14 +501,18 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
       const response = await supabase.functions.invoke(
         "get-facebook-ad-accounts",
         {
           method: "POST",
         },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       // Ensure we always return an array
       const accounts = response.data?.ad_accounts;
       return Array.isArray(accounts) ? accounts : [];
@@ -506,20 +526,28 @@ export default function DynamicTableView({
   const { data: fields, isLoading: fieldsLoading } = useQuery({
     queryKey: ["crm-fields", table?.id],
     queryFn: async () => {
-      if (!table?.id) return [];
+      if (!table?.id) {
+        return [];
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
       const response = await supabase.functions.invoke(
         `crm-fields?table_id=${table.id}`,
         {
           method: "GET",
         },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       const fields = (response.data as any)?.fields || [];
-      return (fields as CrmField[]).sort((a, b) => a.position - b.position);
+      return (fields as Array<CrmField>).sort(
+        (a, b) => a.position - b.position,
+      );
     },
     enabled: !!table?.id,
   });
@@ -568,14 +596,20 @@ export default function DynamicTableView({
     });
 
   const entityLevelRecords = useMemo(() => {
-    if (!isAdsReportTable) return displayRecords;
+    if (!isAdsReportTable) {
+      return displayRecords;
+    }
     return filterRecordsByEntityLevel(displayRecords, adsEntityLevel);
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
 
   // Filter records by entity search (campaign / ad set / ad name)
   const filteredRecords = useMemo(() => {
-    if (!entityLevelRecords.length) return entityLevelRecords;
-    if (!debouncedCampaignSearch.trim()) return entityLevelRecords;
+    if (!entityLevelRecords.length) {
+      return entityLevelRecords;
+    }
+    if (!debouncedCampaignSearch.trim()) {
+      return entityLevelRecords;
+    }
     return entityLevelRecords.filter((record) =>
       recordMatchesEntitySearch(
         record.data,
@@ -614,11 +648,15 @@ export default function DynamicTableView({
 
   const addColumnMutation = useMutation({
     mutationFn: async (columnName: string) => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const key = columnName
         .toLowerCase()
@@ -634,7 +672,9 @@ export default function DynamicTableView({
           position: (fields?.length || 0) + 1,
         },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -658,7 +698,9 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-fields`,
@@ -695,7 +737,9 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-fields`,
@@ -728,11 +772,15 @@ export default function DynamicTableView({
 
   const addRowMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const emptyData: Record<string, any> = {};
       fields?.forEach((field) => {
@@ -746,7 +794,9 @@ export default function DynamicTableView({
           data: emptyData,
         },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -763,7 +813,9 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/crm-records`,
@@ -807,10 +859,14 @@ export default function DynamicTableView({
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       const record = displayRecords.find((r) => r.id === recordId);
-      if (!record) throw new Error("Record not found");
+      if (!record) {
+        throw new Error("Record not found");
+      }
 
       const updatedData = { ...record.data, [key]: value };
 
@@ -874,7 +930,9 @@ export default function DynamicTableView({
 
   const deleteTableMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       // Delete records first
       await supabase.from("crm_records").delete().eq("table_id", table.id);
       // Delete fields
@@ -884,7 +942,9 @@ export default function DynamicTableView({
         .from("crm_tables")
         .delete()
         .eq("id", table.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הטבלה נמחקה בהצלחה");
@@ -925,14 +985,18 @@ export default function DynamicTableView({
   const { data: makeSettings } = useQuery({
     queryKey: ["make-settings", table?.tenant_id],
     queryFn: async () => {
-      if (!table?.tenant_id) return null;
+      if (!table?.tenant_id) {
+        return null;
+      }
       const { data, error } = await supabase
         .from("tenant_integrations")
         .select("*")
         .eq("tenant_id", table.tenant_id)
         .eq("integration_type", "make_api")
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!table?.tenant_id && isGoogleAdsMakeTable,
@@ -941,7 +1005,9 @@ export default function DynamicTableView({
   // Mutation for automatic Make.com scenario creation and sync
   const syncMakeGoogleAdsMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
 
       // Prevent double-cloning
       if (isCloning) {
@@ -1195,7 +1261,9 @@ export default function DynamicTableView({
   // Google Analytics sync mutation
   const syncGoogleAnalyticsMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       const { startDate, endDate } = getMainFilterSyncRange();
 
       const response = await supabase.functions.invoke(
@@ -1205,7 +1273,9 @@ export default function DynamicTableView({
           body: { tableId: table.id, startDate, endDate },
         },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -1223,7 +1293,9 @@ export default function DynamicTableView({
   // Google Search Console sync mutation
   const syncGoogleSearchConsoleMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       const { startDate, endDate } = getMainFilterSyncRange();
 
       const response = await supabase.functions.invoke(
@@ -1233,7 +1305,9 @@ export default function DynamicTableView({
           body: { tableId: table.id, startDate, endDate },
         },
       );
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -1251,7 +1325,9 @@ export default function DynamicTableView({
   // Ahrefs sync mutation
   const syncAhrefsMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
 
       const settings = table.integration_settings || {};
 
@@ -1260,7 +1336,9 @@ export default function DynamicTableView({
         const clientId = (settings.clientId ||
           settings.client_id ||
           table.client_id) as string;
-        if (!clientId) throw new Error("Missing client ID for SEO report");
+        if (!clientId) {
+          throw new Error("Missing client ID for SEO report");
+        }
 
         // Step 1: pull a fresh snapshot from Ahrefs (persists into ahrefs_reports via webhook)
         const targetDomainForFetch =
@@ -1280,9 +1358,12 @@ export default function DynamicTableView({
                 : {}),
             },
           });
-        if (fetchError) throw fetchError;
-        if ((fetchData as any)?.error)
+        if (fetchError) {
+          throw fetchError;
+        }
+        if ((fetchData as any)?.error) {
           throw new Error((fetchData as any).error);
+        }
 
         // Step 2: pull ALL reports for this client (all months) and rebuild
         const { data: reports, error } = await supabase
@@ -1292,12 +1373,15 @@ export default function DynamicTableView({
           .eq("client_id", clientId)
           .order("report_date", { ascending: false });
 
-        if (error) throw error;
-        if (!reports || reports.length === 0)
+        if (error) {
+          throw error;
+        }
+        if (!reports || reports.length === 0) {
           throw new Error("לא נמצאו דוחות SEO עבור לקוח זה");
+        }
 
         // Build records from ALL reports, each tagged with report_date
-        const allRecordsToInsert: any[] = [];
+        const allRecordsToInsert: Array<any> = [];
 
         for (const report of reports) {
           const rd = ((report as any).report_data as any) || {};
@@ -1364,8 +1448,10 @@ export default function DynamicTableView({
 
         const { error: insertError } = await supabase
           .from("crm_records")
-          .insert(recordsToInsert as any[]);
-        if (insertError) throw insertError;
+          .insert(recordsToInsert as Array<any>);
+        if (insertError) {
+          throw insertError;
+        }
 
         // Auto-create fields if none exist
         const { data: existingFields } = await supabase.functions.invoke(
@@ -1474,7 +1560,9 @@ export default function DynamicTableView({
       const dataType = mapDataType(settings.reportType || "site_explorer");
       const targetDomain = settings.targetDomain as string | undefined;
 
-      if (!targetDomain) throw new Error("Missing Ahrefs target domain");
+      if (!targetDomain) {
+        throw new Error("Missing Ahrefs target domain");
+      }
 
       const response = await supabase.functions.invoke("sync-ahrefs-data", {
         method: "POST",
@@ -1488,7 +1576,9 @@ export default function DynamicTableView({
           },
         },
       });
-      if (response.error) throw response.error;
+      if (response.error) {
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: (data) => {
@@ -1519,17 +1609,21 @@ export default function DynamicTableView({
 
   // Fetch Google Ads accounts for settings dialog
   const { data: googleAdsAccounts, isLoading: googleAccountsLoading } =
-    useQuery<GoogleAdsAccount[]>({
+    useQuery<Array<GoogleAdsAccount>>({
       queryKey: ["google-ads-accounts"],
       queryFn: async () => {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session) throw new Error("Not authenticated");
+        if (!session) {
+          throw new Error("Not authenticated");
+        }
         const response = await supabase.functions.invoke("google-ads-auth", {
           body: { action: "get_accounts" },
         });
-        if (response.error) throw response.error;
+        if (response.error) {
+          throw response.error;
+        }
         return Array.isArray(response.data?.accounts)
           ? response.data.accounts
           : [];
@@ -1542,11 +1636,15 @@ export default function DynamicTableView({
 
   const updateTableSettingsMutation = useMutation({
     mutationFn: async (adAccountId: string) => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
+      if (!session) {
+        throw new Error("Not authenticated");
+      }
 
       // Find the selected ad account to get its currency (only as a fallback)
       const selectedAccount = adAccounts?.find(
@@ -1572,14 +1670,18 @@ export default function DynamicTableView({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return { adAccountId, currency };
     },
     onSuccess: (result) => {
       queryClient.setQueryData(
         ["crm-tables", tenantId, tableSlug],
         (old: CrmTable | null | undefined) => {
-          if (!old || !table?.id) return old;
+          if (!old || !table?.id) {
+            return old;
+          }
           return {
             ...old,
             integration_settings: {
@@ -1679,7 +1781,9 @@ export default function DynamicTableView({
   // This hook must be before any conditional returns
   const cloneScenarioMutation = useMutation({
     mutationFn: async () => {
-      if (!table?.id) throw new Error("No table");
+      if (!table?.id) {
+        throw new Error("No table");
+      }
 
       const settings = (makeSettings?.settings as Record<string, any>) || {};
       const templateId = settings.google_ads_template_scenario_id;
@@ -1713,9 +1817,12 @@ export default function DynamicTableView({
         },
       });
 
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.error || data?.message || "שכפול נכשל");
+      }
 
       // Update the table with the new scenario_id
       const { error: updateError } = await supabase
@@ -1728,7 +1835,9 @@ export default function DynamicTableView({
         })
         .eq("id", table.id);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        throw updateError;
+      }
 
       return data;
     },
@@ -1765,9 +1874,12 @@ export default function DynamicTableView({
         },
       });
 
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.error || data?.message || "הפעלת הסנריו נכשלה");
+      }
 
       return data;
     },
@@ -1847,9 +1959,12 @@ export default function DynamicTableView({
         },
       });
 
-      if (error) throw error;
-      if (!data?.success)
+      if (error) {
+        throw error;
+      }
+      if (!data?.success) {
         throw new Error(data?.error || data?.message || "תיקון הסנריו נכשל");
+      }
 
       return data;
     },
@@ -2290,7 +2405,9 @@ export default function DynamicTableView({
                                 body: { table_id: table.id },
                               },
                             );
-                          if (error) throw error;
+                          if (error) {
+                            throw error;
+                          }
                           setDebugData(data);
                         } catch (e: any) {
                           toast.error("שגיאה בדיבאג: " + e.message);
@@ -2721,7 +2838,9 @@ export default function DynamicTableView({
             open={showSettingsDialog}
             onOpenChange={(open) => {
               setShowSettingsDialog(open);
-              if (!open) setAdAccountSearch("");
+              if (!open) {
+                setAdAccountSearch("");
+              }
             }}
           >
             <DialogContent>
@@ -2757,7 +2876,9 @@ export default function DynamicTableView({
                               const searchTerm = adAccountSearch
                                 .trim()
                                 .toLowerCase();
-                              if (!searchTerm) return true;
+                              if (!searchTerm) {
+                                return true;
+                              }
 
                               const normalizedSearchTerm = searchTerm.replace(
                                 /\D/g,
@@ -2951,7 +3072,9 @@ export default function DynamicTableView({
                 </div>
                 <Button
                   onClick={async () => {
-                    if (!table?.id || !selectedGoogleAccount) return;
+                    if (!table?.id || !selectedGoogleAccount) {
+                      return;
+                    }
                     const cleanId = selectedGoogleAccount.replace(/\D/g, "");
                     const currency = normalizeCurrencyCode(selectedCurrency);
                     const chosenAccount = googleAdsAccounts?.find(
@@ -2981,7 +3104,9 @@ export default function DynamicTableView({
                             integration_settings: accountSettings,
                           },
                         });
-                      if (tableError) throw tableError;
+                      if (tableError) {
+                        throw tableError;
+                      }
 
                       // Also link the account to the client card so syncs/refresh work
                       const linkedClientId =
@@ -3006,7 +3131,9 @@ export default function DynamicTableView({
                       queryClient.setQueryData(
                         ["crm-tables", tenantId, tableSlug],
                         (old: CrmTable | null | undefined) => {
-                          if (!old) return old;
+                          if (!old) {
+                            return old;
+                          }
                           return {
                             ...old,
                             integration_settings: {
@@ -3220,9 +3347,12 @@ export default function DynamicTableView({
                               setEditingFieldName(e.target.value)
                             }
                             onKeyDown={(e) => {
-                              if (e.key === "Enter")
+                              if (e.key === "Enter") {
                                 handleSaveFieldName(field.id);
-                              if (e.key === "Escape") handleCancelEdit();
+                              }
+                              if (e.key === "Escape") {
+                                handleCancelEdit();
+                              }
                             }}
                             autoFocus
                             className="h-7 text-sm font-medium"
@@ -3347,8 +3477,9 @@ export default function DynamicTableView({
                           value === null ||
                           value === undefined ||
                           value === ""
-                        )
+                        ) {
                           return "";
+                        }
 
                         // Format date fields
                         if (fieldType === "date" || fieldKey === "date") {

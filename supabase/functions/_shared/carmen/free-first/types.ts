@@ -59,7 +59,7 @@ export type RoutingDecision = {
   status: RoutingStatus;
   modelId: string | null;
   tier: BrainTier | null;
-  fallbackIds: string[];
+  fallbackIds: Array<string>;
   reason:
     | "deterministic"
     | "task_rule"

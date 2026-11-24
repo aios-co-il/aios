@@ -144,7 +144,9 @@ const LowerThird: React.FC<{ shown: number; accent: string }> = ({
 }) => {
   const { width, height } = useVideoConfig();
   const layout = captionLayout(width, height);
-  if (shown <= 0) return null;
+  if (shown <= 0) {
+    return null;
+  }
   const band = Math.round(layout.box * 1.35);
   return (
     <div

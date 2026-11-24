@@ -89,17 +89,22 @@ export function EditTableDialog({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!open || !table) return;
+    if (!open || !table) {
+      return;
+    }
     setName(table.name || "");
     setIntegrationId(settings.integrationId || settings.integration_id || "");
-    if (type === "google_ads") setAccountId(settings.customer_id || "");
-    else if (type === "facebook_insights" || type === "facebook_ecommerce")
+    if (type === "google_ads") {
+      setAccountId(settings.customer_id || "");
+    } else if (type === "facebook_insights" || type === "facebook_ecommerce") {
       setAccountId(settings.ad_account_id || "");
-    else if (type === "google_search_console")
+    } else if (type === "google_search_console") {
       setAccountId(settings.siteUrl || settings.site_url || "");
-    else if (type === "ahrefs")
+    } else if (type === "ahrefs") {
       setAccountId(settings.targetDomain || settings.target_domain || "");
-    else setAccountId("");
+    } else {
+      setAccountId("");
+    }
     setPropertyId(settings.propertyId || settings.property_id || "");
     setCampaignType(settings.campaign_type || "");
     setAgencyId(table.agency_id || "");
@@ -126,9 +131,11 @@ export function EditTableDialog({
           body: { integrationId },
         },
       );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data as {
-        properties?: GAProperty[];
+        properties?: Array<GAProperty>;
         needs_reconnect?: boolean;
         owner_email?: string | null;
       };
@@ -136,10 +143,13 @@ export function EditTableDialog({
     enabled: open && type === "google_analytics" && !!integrationId,
   });
 
-  const gaProperties = (propertiesResponse?.properties || []) as GAProperty[];
+  const gaProperties = (propertiesResponse?.properties ||
+    []) as Array<GAProperty>;
   const gaNeedsReconnect = !!propertiesResponse?.needs_reconnect;
   const filteredProperties = useMemo(() => {
-    if (!propertySearch.trim()) return gaProperties;
+    if (!propertySearch.trim()) {
+      return gaProperties;
+    }
     const q = propertySearch.toLowerCase();
     return gaProperties.filter(
       (p) =>
@@ -162,8 +172,9 @@ export function EditTableDialog({
     setIsSaving(true);
     try {
       const integrationSettings: Record<string, unknown> = {};
-      if (usesIntegrationId && integrationId)
+      if (usesIntegrationId && integrationId) {
         integrationSettings.integrationId = integrationId;
+      }
       if (type === "google_analytics" && propertyId) {
         integrationSettings.propertyId = propertyId;
         const prop =
@@ -186,12 +197,15 @@ export function EditTableDialog({
           ? v
           : `act_${v}`;
       }
-      if (type === "google_search_console" && accountId.trim())
+      if (type === "google_search_console" && accountId.trim()) {
         integrationSettings.siteUrl = accountId.trim();
-      if (type === "ahrefs" && accountId.trim())
+      }
+      if (type === "ahrefs" && accountId.trim()) {
         integrationSettings.targetDomain = accountId.trim();
-      if (isAds && campaignType)
+      }
+      if (isAds && campaignType) {
         integrationSettings.campaign_type = campaignType;
+      }
 
       const { error } = await supabase.functions.invoke("crm-tables", {
         method: "PATCH",
@@ -205,7 +219,9 @@ export function EditTableDialog({
             : {}),
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast.success("הטבלה עודכנה בהצלחה");
       queryClient.invalidateQueries({ queryKey: ["crm-tables"] });
@@ -225,7 +241,9 @@ export function EditTableDialog({
     }
   };
 
-  if (!table) return null;
+  if (!table) {
+    return null;
+  }
 
   const accountFieldLabel =
     type === "google_ads"

@@ -60,7 +60,9 @@ const STATUS_TONE: Record<TaskStatus, string> = {
 };
 
 function when(iso: string | null) {
-  if (!iso) return null;
+  if (!iso) {
+    return null;
+  }
   const d = new Date(iso);
   const diff = d.getTime() - Date.now();
   const abs = Math.abs(diff);
@@ -72,8 +74,9 @@ function when(iso: string | null) {
         : abs < 86_400_000
           ? `${Math.round(abs / 3_600_000)} שע׳`
           : null;
-  if (rel)
+  if (rel) {
     return diff >= 0 ? `בעוד ${rel}` : rel === "עכשיו" ? rel : `לפני ${rel}`;
+  }
   return d.toLocaleString("he-IL", {
     timeZone: "Asia/Jerusalem",
     day: "numeric",
@@ -106,7 +109,9 @@ export function CarmenTasksView({
   const counts = useMemo(() => {
     const c: Record<string, number> = { running: countRunning(rows) };
     for (const r of rows) {
-      if (r.status === "done" || r.status === "cancelled") continue;
+      if (r.status === "done" || r.status === "cancelled") {
+        continue;
+      }
       c[r.kind] = (c[r.kind] ?? 0) + 1;
       c.all = (c.all ?? 0) + 1;
     }
@@ -120,16 +125,21 @@ export function CarmenTasksView({
         const raw = row.raw as Record<string, any>;
         const patch: Record<string, unknown> = { enabled: on };
         // Resuming a cron task schedules from now — missed runs are not replayed.
-        if (raw.schedule_type === "recurring" && raw.cron_expression)
+        if (raw.schedule_type === "recurring" && raw.cron_expression) {
           patch.next_run = on
             ? computeNextRun(raw.cron_expression, new Date(), raw.timezone)
             : null;
-        if (on && raw.status === "paused") patch.status = "pending";
+        }
+        if (on && raw.status === "paused") {
+          patch.status = "pending";
+        }
         const { error: e } = await db
           .from("agent_tasks")
           .update(patch)
           .eq("id", row.id);
-        if (e) throw e;
+        if (e) {
+          throw e;
+        }
       } else if (row.source === "goals") {
         const { error: e } = await db
           .from("goals")
@@ -139,7 +149,9 @@ export function CarmenTasksView({
               : { status: "paused" },
           )
           .eq("id", row.id);
-        if (e) throw e;
+        if (e) {
+          throw e;
+        }
       } else if (row.source === "automation") {
         await toggleAutomation(requireTenantId(tenantId), row.id, on);
       } else if (row.source === "cron_job") {
@@ -148,7 +160,9 @@ export function CarmenTasksView({
           p_schedule: null,
           p_active: on,
         });
-        if (e) throw e;
+        if (e) {
+          throw e;
+        }
       }
       return on;
     },
@@ -181,7 +195,9 @@ export function CarmenTasksView({
           { tenant_id: tenantId, max_concurrent_tasks: n },
           { onConflict: "tenant_id" },
         );
-      if (e) throw e;
+      if (e) {
+        throw e;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["carmen-max-parallel", tenantId] });
@@ -356,12 +372,12 @@ export function CarmenTasksView({
   );
 }
 
-const NEW_KINDS: {
+const NEW_KINDS: Array<{
   path: string;
   title: string;
   hint: string;
   icon: typeof Repeat;
-}[] = [
+}> = [
   {
     path: "new/task",
     title: "משימה חד-פעמית",

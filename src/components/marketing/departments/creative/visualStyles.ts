@@ -37,10 +37,10 @@ const style = (
   label: string,
   hint: string,
   group: CreativeVisualStyleGroup,
-  lock: string[],
+  lock: Array<string>,
 ): CreativeVisualStyle => ({ id, label, hint, group, lock: lock.join(" ") });
 
-export const CREATIVE_VISUAL_STYLES: CreativeVisualStyle[] = [
+export const CREATIVE_VISUAL_STYLES: Array<CreativeVisualStyle> = [
   style(
     "adaptive",
     "מותאם לקופי",
@@ -247,10 +247,12 @@ export const buildVisualStyleLock = (
   const selected = options?.styleId
     ? visualStyleById(options.styleId)
     : getVisualStyle(payload);
-  if (options?.storyboard)
+  if (options?.storyboard) {
     return [selected.lock, STORYBOARD_CONTINUITY].join("\n");
-  if (selected.id === "adaptive")
+  }
+  if (selected.id === "adaptive") {
     return [selected.lock, STATIC_QUALITY].join("\n");
+  }
   return [
     `SELECTED STYLE — ${selected.label}. The user chose this TECHNIQUE (craft, color family, composition approach). Apply the technique. Do not reprint the same picture.`,
     selected.lock,
@@ -261,7 +263,11 @@ export const buildVisualStyleLock = (
 export const imageSizeForFormat = (
   format?: string,
 ): "1024x1024" | "1024x1536" | "1536x1024" => {
-  if (format === "9:16" || format === "4:5") return "1024x1536";
-  if (format === "16:9") return "1536x1024";
+  if (format === "9:16" || format === "4:5") {
+    return "1024x1536";
+  }
+  if (format === "16:9") {
+    return "1536x1024";
+  }
   return "1024x1024";
 };

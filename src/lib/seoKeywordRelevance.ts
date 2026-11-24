@@ -85,33 +85,46 @@ const EN_STOP = new Set([
   "why",
 ]);
 
-export function tokenizeKeyword(raw: string): string[] {
+export function tokenizeKeyword(raw: string): Array<string> {
   const text = String(raw || "")
     .toLowerCase()
     .replace(/[״"׳']/g, "")
     .replace(/[^\u0590-\u05FFa-z0-9\s-]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text) return [];
+  if (!text) {
+    return [];
+  }
 
-  const tokens: string[] = [];
+  const tokens: Array<string> = [];
   for (const part of text.split(/[\s-]+/)) {
-    if (!part) continue;
+    if (!part) {
+      continue;
+    }
     const isHe = /[\u0590-\u05FF]/.test(part);
     const isEn = /[a-z]/.test(part);
     if (isHe) {
-      if (part.length < 2) continue;
-      if (HE_STOP.has(part)) continue;
+      if (part.length < 2) {
+        continue;
+      }
+      if (HE_STOP.has(part)) {
+        continue;
+      }
       tokens.push(part);
       // Light prefix strip for Hebrew prepositions attached to nouns (ב/ל/מ/ו/ה/כ/ש)
       if (part.length >= 4 && /^[בלמוהכש]/.test(part)) {
         const stripped = part.slice(1);
-        if (stripped.length >= 2 && !HE_STOP.has(stripped))
+        if (stripped.length >= 2 && !HE_STOP.has(stripped)) {
           tokens.push(stripped);
+        }
       }
     } else if (isEn) {
-      if (part.length < 3) continue;
-      if (EN_STOP.has(part)) continue;
+      if (part.length < 3) {
+        continue;
+      }
+      if (EN_STOP.has(part)) {
+        continue;
+      }
       tokens.push(part);
     } else if (/\d/.test(part) && part.length >= 2) {
       tokens.push(part);
@@ -150,7 +163,9 @@ export function notifySeoKeywordRelevanceChanged(
   persistKey: string | undefined,
   kind?: "relevant" | "irrelevant",
 ) {
-  if (!persistKey || typeof window === "undefined") return;
+  if (!persistKey || typeof window === "undefined") {
+    return;
+  }
   window.dispatchEvent(
     new CustomEvent<SeoKeywordRelevanceChangedDetail>(
       SEO_KEYWORD_RELEVANCE_EVENT,
@@ -164,8 +179,10 @@ export function notifySeoKeywordRelevanceChanged(
 export function loadSeoForceList(
   persistKey: string | undefined,
   kind: "relevant" | "irrelevant",
-): string[] {
-  if (!persistKey || typeof window === "undefined") return [];
+): Array<string> {
+  if (!persistKey || typeof window === "undefined") {
+    return [];
+  }
   try {
     const raw = localStorage.getItem(seoForceListStorageKey(persistKey, kind));
     const parsed = raw ? JSON.parse(raw) : [];
@@ -183,9 +200,11 @@ export function loadSeoForceList(
 export function saveSeoForceList(
   persistKey: string | undefined,
   kind: "relevant" | "irrelevant",
-  values: string[],
+  values: Array<string>,
 ) {
-  if (!persistKey || typeof window === "undefined") return;
+  if (!persistKey || typeof window === "undefined") {
+    return;
+  }
   try {
     localStorage.setItem(
       seoForceListStorageKey(persistKey, kind),
@@ -197,24 +216,24 @@ export function saveSeoForceList(
   }
 }
 
-export function loadSeoForceRelevant(persistKey?: string): string[] {
+export function loadSeoForceRelevant(persistKey?: string): Array<string> {
   return loadSeoForceList(persistKey, "relevant");
 }
 
-export function loadSeoForceIrrelevant(persistKey?: string): string[] {
+export function loadSeoForceIrrelevant(persistKey?: string): Array<string> {
   return loadSeoForceList(persistKey, "irrelevant");
 }
 
 export function saveSeoForceRelevant(
   persistKey: string | undefined,
-  values: string[],
+  values: Array<string>,
 ) {
   saveSeoForceList(persistKey, "relevant", values);
 }
 
 export function saveSeoForceIrrelevant(
   persistKey: string | undefined,
-  values: string[],
+  values: Array<string>,
 ) {
   saveSeoForceList(persistKey, "irrelevant", values);
 }
@@ -230,9 +249,13 @@ export function buildTrackedTokenIndex(
   for (const item of trackedKeywords || []) {
     const kw = typeof item === "string" ? item : item?.keyword;
     const phrase = normalizePhrase(String(kw || ""));
-    if (!phrase) continue;
+    if (!phrase) {
+      continue;
+    }
     phrases.add(phrase);
-    for (const t of tokenizeKeyword(phrase)) tokens.add(t);
+    for (const t of tokenizeKeyword(phrase)) {
+      tokens.add(t);
+    }
   }
   return { phrases, tokens };
 }
@@ -251,32 +274,46 @@ export function isKeywordRelevantToTracked(
   opts?: { forceRelevant?: Set<string>; forceIrrelevant?: Set<string> },
 ): boolean {
   const phrase = normalizePhrase(keyword);
-  if (!phrase) return false;
+  if (!phrase) {
+    return false;
+  }
 
-  if (opts?.forceIrrelevant?.has(phrase)) return false;
-  if (opts?.forceRelevant?.has(phrase)) return true;
+  if (opts?.forceIrrelevant?.has(phrase)) {
+    return false;
+  }
+  if (opts?.forceRelevant?.has(phrase)) {
+    return true;
+  }
 
-  if (trackedIndex.phrases.size === 0) return true;
-  if (trackedIndex.phrases.has(phrase)) return true;
+  if (trackedIndex.phrases.size === 0) {
+    return true;
+  }
+  if (trackedIndex.phrases.has(phrase)) {
+    return true;
+  }
 
   for (const tracked of trackedIndex.phrases) {
-    if (phrase.includes(tracked) || tracked.includes(phrase)) return true;
+    if (phrase.includes(tracked) || tracked.includes(phrase)) {
+      return true;
+    }
   }
 
   const tokens = tokenizeKeyword(phrase);
-  if (tokens.length === 0) return false;
+  if (tokens.length === 0) {
+    return false;
+  }
   return tokens.some((t) => trackedIndex.tokens.has(t));
 }
 
 export function filterRelevantKeywords<T extends { keyword?: string }>(
-  keywords: T[],
+  keywords: Array<T>,
   trackedKeywords: Array<{ keyword?: string } | string>,
   opts?: {
     enabled?: boolean;
-    forceRelevant?: string[];
-    forceIrrelevant?: string[];
+    forceRelevant?: Array<string>;
+    forceIrrelevant?: Array<string>;
   },
-): { relevant: T[]; irrelevant: T[] } {
+): { relevant: Array<T>; irrelevant: Array<T> } {
   if (opts?.enabled === false) {
     return { relevant: keywords, irrelevant: [] };
   }
@@ -288,8 +325,8 @@ export function filterRelevantKeywords<T extends { keyword?: string }>(
     (opts?.forceIrrelevant || []).map(normalizePhrase).filter(Boolean),
   );
 
-  const relevant: T[] = [];
-  const irrelevant: T[] = [];
+  const relevant: Array<T> = [];
+  const irrelevant: Array<T> = [];
   for (const kw of keywords) {
     if (
       isKeywordRelevantToTracked(String(kw.keyword || ""), index, {

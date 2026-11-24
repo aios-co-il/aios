@@ -34,8 +34,9 @@ describe("creative metadata transport parity", () => {
 
   it("does not introduce schema defaults for missing runtime fields", () => {
     const active = variation();
-    for (const field of ["name", "layers", "comments", "format"])
+    for (const field of ["name", "layers", "comments", "format"]) {
       Reflect.deleteProperty(active, field);
+    }
     expect(JSON.stringify(serializeCreativeAssetMeta(active))).toBe(
       originalMetadataJson(active),
     );

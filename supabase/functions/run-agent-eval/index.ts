@@ -48,7 +48,9 @@ async function judge(
       response_format: { type: "json_object" },
     }),
   });
-  if (!resp.ok) return { score: 0, reasoning: `judge failed: ${resp.status}` };
+  if (!resp.ok) {
+    return { score: 0, reasoning: `judge failed: ${resp.status}` };
+  }
   const data = await resp.json();
   try {
     const parsed = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
@@ -62,12 +64,14 @@ async function judge(
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const { eval_id, tenant_id, user_id } = await req.json();
-    if (!eval_id || !tenant_id)
+    if (!eval_id || !tenant_id) {
       return jsonResponse({ error: "missing eval_id/tenant_id" }, 400);
+    }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: evalRow } = await supabase
@@ -75,9 +79,11 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", eval_id)
       .single();
-    if (!evalRow) return jsonResponse({ error: "eval not found" }, 404);
+    if (!evalRow) {
+      return jsonResponse({ error: "eval not found" }, 404);
+    }
 
-    const dataset: any[] = Array.isArray(evalRow.dataset)
+    const dataset: Array<any> = Array.isArray(evalRow.dataset)
       ? evalRow.dataset
       : [];
     const threshold = evalRow.pass_threshold ?? 70;
@@ -94,7 +100,7 @@ Deno.serve(async (req) => {
       .select()
       .single();
 
-    const results: any[] = [];
+    const results: Array<any> = [];
     let totalScore = 0;
     let passed = 0;
 
@@ -118,7 +124,9 @@ Deno.serve(async (req) => {
         const actual = invokeData?.final_answer ?? "";
         const { score, reasoning } = await judge(input, expected, actual);
         const pass = score >= threshold;
-        if (pass) passed++;
+        if (pass) {
+          passed++;
+        }
         totalScore += score;
         results.push({
           input,

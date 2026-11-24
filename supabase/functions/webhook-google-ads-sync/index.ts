@@ -105,9 +105,13 @@ Deno.serve(async (req) => {
       campaignType === "ecommerce" ? ecommerceFields : leadFields;
 
     const normalizeDate = (value: unknown): string => {
-      if (!value) return "";
+      if (!value) {
+        return "";
+      }
       const raw = String(value).trim();
-      if (!raw) return "";
+      if (!raw) {
+        return "";
+      }
 
       // Already ISO-like date
       if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -129,15 +133,25 @@ Deno.serve(async (req) => {
       }
 
       const parsed = new Date(raw);
-      if (Number.isNaN(parsed.getTime())) return "";
+      if (Number.isNaN(parsed.getTime())) {
+        return "";
+      }
       return parsed.toISOString().slice(0, 10);
     };
 
     const isWithinRange = (dateStr: string, start?: string, end?: string) => {
-      if (!start && !end) return true;
-      if (!dateStr) return false;
-      if (start && dateStr < start) return false;
-      if (end && dateStr > end) return false;
+      if (!start && !end) {
+        return true;
+      }
+      if (!dateStr) {
+        return false;
+      }
+      if (start && dateStr < start) {
+        return false;
+      }
+      if (end && dateStr > end) {
+        return false;
+      }
       return true;
     };
 
@@ -191,8 +205,8 @@ Deno.serve(async (req) => {
     }
 
     // Process all records and split into inserts vs updates
-    const toInsert: any[] = [];
-    const toUpdate: { id: string; data: Record<string, any> }[] = [];
+    const toInsert: Array<any> = [];
+    const toUpdate: Array<{ id: string; data: Record<string, any> }> = [];
     let skippedInvalidCount = 0;
     let skippedOutOfRangeCount = 0;
 

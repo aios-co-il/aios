@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
+import { requireTenantId } from "@/lib/requireTenantId";
 import { getAllModules } from "@/lib/modules";
 import { PermissionsSelector } from "@/components/forms/PermissionsSelector";
 
@@ -42,7 +43,9 @@ export function EditUserPermissionsDialog({
   const { data: isOwnerInTenant } = useQuery({
     queryKey: ["user-is-owner", userId, tenantId],
     queryFn: async () => {
-      if (!userId || !tenantId) return false;
+      if (!userId || !tenantId) {
+        return false;
+      }
 
       const { data, error } = await supabase
         .from("user_roles")
@@ -50,8 +53,12 @@ export function EditUserPermissionsDialog({
         .eq("user_id", userId)
         .eq("role", "owner");
 
-      if (error) throw error;
-      if (!data || data.length === 0) return false;
+      if (error) {
+        throw error;
+      }
+      if (!data || data.length === 0) {
+        return false;
+      }
 
       const { data: tenantUser } = await supabase
         .from("tenant_users")
@@ -67,14 +74,18 @@ export function EditUserPermissionsDialog({
 
   // טעינת הרשאות קיימות
   const { data: currentPermissions } = useQuery({
-    queryKey: ["user-permissions", userId],
+    queryKey: ["user-permissions", userId, tenantId, "editor"],
     queryFn: async () => {
+      // Modules are granted per tenant: edit the current tenant's only.
       const { data, error } = await supabase
         .from("user_permissions")
         .select("module, can_access")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("tenant_id", requireTenantId(tenantId));
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // ברירת מחדל: כל המודולים כבויים
       const permissionsMap: Record<string, boolean> = {};
@@ -89,7 +100,7 @@ export function EditUserPermissionsDialog({
 
       return permissionsMap;
     },
-    enabled: open && !!userId,
+    enabled: open && !!userId && !!tenantId,
   });
 
   useEffect(() => {
@@ -100,26 +111,28 @@ export function EditUserPermissionsDialog({
 
   // שמירת הרשאות
   const updatePermissionsMutation = useMutation({
+    // Every module is written on or off, so one upsert replaces the tenant's
+    // set without a delete that could leave the user with none.
     mutationFn: async (perms: Record<string, boolean>) => {
-      await supabase.from("user_permissions").delete().eq("user_id", userId);
-
-      const permissionsToInsert = Object.entries(perms).map(
-        ([module, canAccess]) => ({
-          user_id: userId,
-          module,
-          can_access: canAccess,
-        }),
-      );
+      const activeTenantId = requireTenantId(tenantId);
+      const rows = Object.entries(perms).map(([module, canAccess]) => ({
+        user_id: userId,
+        tenant_id: activeTenantId,
+        module,
+        can_access: canAccess,
+      }));
 
       const { error } = await supabase
         .from("user_permissions")
-        .insert(permissionsToInsert);
+        .upsert(rows, { onConflict: "user_id,tenant_id,module" });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["user-permissions", tenantId],
+        queryKey: ["user-permissions", userId],
       });
       toast.success("ההרשאות עודכנו בהצלחה");
       onOpenChange(false);

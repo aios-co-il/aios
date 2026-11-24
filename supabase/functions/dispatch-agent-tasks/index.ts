@@ -1,8 +1,9 @@
 // Cron-driven dispatcher for scheduled agent_tasks.
-// Picks pending tasks whose scheduled_at <= now() (one-shot),
-// recurring (daily/weekly) tasks whose next slot has elapsed,
-// or cron-scheduled recurring tasks (schedule_type='recurring') whose
-// next_run has arrived, and invokes run-agent-task for each.
+// Picks pending tasks whose scheduled_at <= now() (one-shot) or
+// cron-scheduled recurring tasks (schedule_type='recurring') whose next_run
+// has arrived, and invokes run-agent-task for each. Carmen's daily and weekly
+// tasks are stored as 'recurring' too (run-ai-agent/executors/
+// recurring-schedule.ts), so every repeating task runs at its own hour.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import {
   decideRecurringRun,
@@ -20,18 +21,15 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const nowIso = new Date().toISOString();
-  const oneDayAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const sevenDaysAgoIso = new Date(
-    Date.now() - 7 * 24 * 60 * 60 * 1000,
-  ).toISOString();
 
-  const dispatched: any[] = [];
-  const errors: any[] = [];
+  const dispatched: Array<any> = [];
+  const errors: Array<any> = [];
 
   // Per-tenant cap on agent tasks running at the same time
   // (tenant_heartbeat_settings.max_concurrent_tasks, default 3). Tasks left
@@ -39,7 +37,9 @@ Deno.serve(async (req) => {
   const slots = new Map<string, number>();
   const stuckCutoffIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
   const takeSlot = async (tenantId: string | null): Promise<boolean> => {
-    if (!tenantId) return true;
+    if (!tenantId) {
+      return true;
+    }
     if (!slots.has(tenantId)) {
       const [{ data: settings }, { count }] = await Promise.all([
         supabase
@@ -61,11 +61,13 @@ Deno.serve(async (req) => {
       slots.set(tenantId, limit - (count ?? 0));
     }
     const left = slots.get(tenantId)!;
-    if (left <= 0) return false;
+    if (left <= 0) {
+      return false;
+    }
     slots.set(tenantId, left - 1);
     return true;
   };
-  const deferred: string[] = [];
+  const deferred: Array<string> = [];
 
   try {
     // 1. One-shot tasks: scheduled_at in the past, never ran, still pending.
@@ -82,38 +84,14 @@ Deno.serve(async (req) => {
       .lte("scheduled_at", nowIso)
       .order("scheduled_at", { ascending: true })
       .limit(25);
-    if (onceErr) throw onceErr;
+    if (onceErr) {
+      throw onceErr;
+    }
 
-    // 2. Daily recurring: enabled, last_run null or > 24h ago.
-    const { data: dailyDue } = await supabase
-      .from("agent_tasks")
-      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
-      .eq("schedule_type", "daily")
-      .eq("enabled", true)
-      .in("status", ["pending", "completed"])
-      .or(`last_run.is.null,last_run.lte.${oneDayAgoIso}`)
-      .limit(25);
-
-    // 3. Weekly recurring.
-    const { data: weeklyDue } = await supabase
-      .from("agent_tasks")
-      .select("id, tenant_id, title, schedule_type, last_run, status, enabled")
-      .eq("schedule_type", "weekly")
-      .eq("enabled", true)
-      .in("status", ["pending", "completed"])
-      .or(`last_run.is.null,last_run.lte.${sevenDaysAgoIso}`)
-      .limit(25);
-
-    const allTasks = [
-      ...(onceDue || []),
-      ...(dailyDue || []),
-      ...(weeklyDue || []),
-    ];
-
-    // 4. Cron-scheduled recurring tasks (Carmen tasks panel). next_run is set
-    // by the UI; each claim moves it to the following slot. A run that is
-    // more than STALE_RUN_WINDOW_MS late is skipped (never replayed). A task
-    // left "running" for over 30 minutes is treated as stuck.
+    // 2. Cron-scheduled recurring tasks. next_run is set when the task is
+    // saved; each claim moves it to the following slot. A run that is more
+    // than STALE_RUN_WINDOW_MS late is skipped (never replayed). A task left
+    // "running" for over 30 minutes is treated as stuck.
     const stuckBeforeIso = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: cronDue, error: cronErr } = await supabase
       .from("agent_tasks")
@@ -128,9 +106,11 @@ Deno.serve(async (req) => {
       .or(`status.neq.running,last_run.lt.${stuckBeforeIso}`)
       .order("next_run", { ascending: true })
       .limit(25);
-    if (cronErr) errors.push({ stage: "cron_select", error: cronErr.message });
+    if (cronErr) {
+      errors.push({ stage: "cron_select", error: cronErr.message });
+    }
 
-    const skipped: any[] = [];
+    const skipped: Array<any> = [];
     for (const task of cronDue || []) {
       const decision = decideRecurringRun(task, new Date(nowIso));
       if (decision.action === "invalid") {
@@ -189,7 +169,9 @@ Deno.serve(async (req) => {
         errors.push({ id: task.id, stage: "claim", error: claimErr.message });
         continue;
       }
-      if (!claimed) continue;
+      if (!claimed) {
+        continue;
+      }
 
       fetch(`${SUPABASE_URL}/functions/v1/run-agent-task`, {
         method: "POST",
@@ -217,26 +199,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    for (const task of allTasks) {
-      if (!(await takeSlot((task as any).tenant_id))) {
+    for (const task of onceDue || []) {
+      if (!(await takeSlot(task.tenant_id))) {
         deferred.push(task.id);
         continue;
       }
-      // Atomically claim by stamping last_run and flipping status to running.
-      // Use last_run guard to avoid double-firing if cron overlaps.
-      const claimQuery = supabase
+      // Claim by stamping last_run and flipping status to running; the null
+      // guard stops overlapping ticks from double-firing.
+      const { data: claimed, error: claimErr } = await supabase
         .from("agent_tasks")
         .update({ last_run: nowIso, status: "running" })
-        .eq("id", task.id);
-      // For one-shot: only claim if last_run still null
-      if (task.schedule_type === "once") {
-        claimQuery.is("last_run", null);
-      } else {
-        // For recurring: only claim if last_run still in the past window we matched
-        if (task.last_run) claimQuery.eq("last_run", task.last_run);
-        else claimQuery.is("last_run", null);
-      }
-      const { data: claimed, error: claimErr } = await claimQuery
+        .eq("id", task.id)
+        .is("last_run", null)
         .select("id")
         .maybeSingle();
       if (claimErr) {

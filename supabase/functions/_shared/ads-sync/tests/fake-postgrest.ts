@@ -14,8 +14,13 @@ type Predicate = (row: Row) => boolean;
 type Result = { data: unknown; error: { message: string } | null };
 
 export type FakeDb = {
-  tables: Record<string, Row[]>;
-  calls: { table: string; op: string; filters: string[]; range?: number[] }[];
+  tables: Record<string, Array<Row>>;
+  calls: Array<{
+    table: string;
+    op: string;
+    filters: Array<string>;
+    range?: Array<number>;
+  }>;
   /** Make the next matching operation fail: `${table}:${op}` -> message. */
   failures: Record<string, string>;
 };
@@ -26,7 +31,7 @@ export function fakeClient(db: FakeDb) {
 }
 
 /** An empty call log and failure list over `tables`. */
-export function createFakeDb(tables: Record<string, Row[]> = {}): FakeDb {
+export function createFakeDb(tables: Record<string, Array<Row>> = {}): FakeDb {
   return { tables, calls: [], failures: {} };
 }
 
@@ -48,10 +53,10 @@ function parseLogic(expr: string, mode: "or" | "and"): Predicate {
 class Query implements PromiseLike<Result> {
   private op = "select";
   private values: Row = {};
-  private rows: Row[] = [];
-  private predicates: Predicate[] = [];
-  private filters: string[] = [];
-  private window: number[] | undefined;
+  private rows: Array<Row> = [];
+  private predicates: Array<Predicate> = [];
+  private filters: Array<string> = [];
+  private window: Array<number> | undefined;
   private orderBy: string | undefined;
   private single = false;
   private db: FakeDb;
@@ -77,7 +82,7 @@ class Query implements PromiseLike<Result> {
     return this;
   }
 
-  insert(rows: Row[]) {
+  insert(rows: Array<Row>) {
     this.op = "insert";
     this.rows = rows;
     return this;
@@ -89,7 +94,7 @@ class Query implements PromiseLike<Result> {
     return this;
   }
 
-  in(column: string, values: readonly unknown[]) {
+  in(column: string, values: ReadonlyArray<unknown>) {
     this.filters.push(`${column}=in.(${values.join(",")})`);
     const set = new Set(values.map(String));
     this.predicates.push((row) => set.has(String(columnValue(row, column))));
@@ -207,8 +212,8 @@ function columnValue(row: Row, column: string): string | null {
 }
 
 /** Split a logic list on its top-level commas (not those inside nested parens). */
-function splitTopLevel(expr: string): string[] {
-  const parts: string[] = [];
+function splitTopLevel(expr: string): Array<string> {
+  const parts: Array<string> = [];
   let depth = 0;
   let current = "";
   for (const char of expr) {

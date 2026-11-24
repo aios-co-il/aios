@@ -40,17 +40,25 @@ export const REPORT_TABLE_CLIENT_FIELD_MAP = Object.freeze({
 });
 
 export function normalizeGoogleCustomerId(raw) {
-  if (raw == null || raw === "") return null;
+  if (raw == null || raw === "") {
+    return null;
+  }
   const cleaned = String(raw).replace(/-/g, "").trim();
   return /^\d+$/.test(cleaned) ? cleaned : null;
 }
 
 export function normalizeMetaAdAccountId(raw) {
-  if (raw == null || raw === "") return null;
+  if (raw == null || raw === "") {
+    return null;
+  }
   const trimmed = String(raw).trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
   const digits = trimmed.replace(/^act_/i, "");
-  if (!/^\d+$/.test(digits)) return trimmed;
+  if (!/^\d+$/.test(digits)) {
+    return trimmed;
+  }
   return `act_${digits}`;
 }
 
@@ -75,7 +83,9 @@ export function parseMetaAdAccountIdInput(raw) {
 export function metaAdAccountsEqual(a, b) {
   const left = normalizeMetaAdAccountId(a);
   const right = normalizeMetaAdAccountId(b);
-  if (!left || !right) return false;
+  if (!left || !right) {
+    return false;
+  }
   return left === right;
 }
 
@@ -88,8 +98,9 @@ const META_PLATFORM_ALIASES = new Set([
 
 /** Optional platform guard for connect_client_meta_ad_account. */
 export function validateMetaAdPlatform(platform) {
-  if (platform == null || platform === "")
+  if (platform == null || platform === "") {
     return { ok: true, platform: "facebook/meta" };
+  }
   const value = String(platform).trim().toLowerCase();
   if (!META_PLATFORM_ALIASES.has(value)) {
     return {
@@ -108,13 +119,19 @@ export function extractAccountIdFromReportTable(integrationType, settings) {
   const mapping = integrationType
     ? REPORT_TABLE_CLIENT_FIELD_MAP[integrationType]
     : null;
-  if (!mapping) return null;
+  if (!mapping) {
+    return null;
+  }
   const s = settings && typeof settings === "object" ? settings : {};
   for (const key of mapping.settingsKeys) {
     const raw = s[key];
-    if (raw == null || raw === "") continue;
+    if (raw == null || raw === "") {
+      continue;
+    }
     const normalized = mapping.normalize(String(raw));
-    if (normalized) return normalized;
+    if (normalized) {
+      return normalized;
+    }
   }
   return null;
 }
@@ -199,7 +216,9 @@ export async function syncClientCardFromReportTable(
     .select(`id, name, ${mapping.clientField}`)
     .eq("id", clientId)
     .maybeSingle();
-  if (fetchErr) throw fetchErr;
+  if (fetchErr) {
+    throw fetchErr;
+  }
   if (!client) {
     return { skipped: true, reason: "client_not_found", clientId };
   }
@@ -219,7 +238,9 @@ export async function syncClientCardFromReportTable(
     .from("clients")
     .update({ [mapping.clientField]: accountId })
     .eq("id", clientId);
-  if (updateErr) throw updateErr;
+  if (updateErr) {
+    throw updateErr;
+  }
 
   console.log(`${logPrefix} updated client card from report table`, {
     tableId: tableId ?? null,
@@ -259,7 +280,9 @@ export async function googleResolveClientCustomerId(supabase, clientId) {
       "google_ads",
       t.integration_settings,
     );
-    if (id) return id;
+    if (id) {
+      return id;
+    }
   }
 
   const { data: cl } = await supabase
@@ -290,7 +313,9 @@ export async function buildGoogleCustomerClientMap(supabase, tenantIds) {
 
   for (const c of linkedClients || []) {
     const cid = normalizeGoogleCustomerId(c.google_ads_account_id);
-    if (cid) map.set(cid, { id: c.id, name: c.name });
+    if (cid) {
+      map.set(cid, { id: c.id, name: c.name });
+    }
   }
 
   const { data: gTables } = await supabase
@@ -302,7 +327,9 @@ export async function buildGoogleCustomerClientMap(supabase, tenantIds) {
   const tableClientIds = [
     ...new Set((gTables || []).map((t) => t.client_id).filter(Boolean)),
   ];
-  if (tableClientIds.length === 0) return map;
+  if (tableClientIds.length === 0) {
+    return map;
+  }
 
   const { data: tableClients } = await supabase
     .from("clients")
@@ -317,9 +344,13 @@ export async function buildGoogleCustomerClientMap(supabase, tenantIds) {
       "google_ads",
       t.integration_settings,
     );
-    if (!customerId || map.has(customerId)) continue;
+    if (!customerId || map.has(customerId)) {
+      continue;
+    }
     const client = clientById.get(t.client_id);
-    if (client?.id) map.set(customerId, { id: client.id, name: client.name });
+    if (client?.id) {
+      map.set(customerId, { id: client.id, name: client.name });
+    }
   }
 
   return map;

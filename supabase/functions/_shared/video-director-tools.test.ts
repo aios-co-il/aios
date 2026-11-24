@@ -46,8 +46,8 @@ Deno.test("video director tool names", () => {
 Deno.test(
   "render_video_film queues a free compose for a project in the tenant",
   async () => {
-    const calls: Record<string, unknown>[] = [];
-    const filters: string[] = [];
+    const calls: Array<Record<string, unknown>> = [];
+    const filters: Array<string> = [];
     const db: VideoDirectorDb = {
       from: () => {
         const q = query({
@@ -59,7 +59,10 @@ Deno.test(
           error: null,
         });
         const eq = q.eq;
-        q.eq = (...args: unknown[]) => (filters.push(args.join("=")), eq());
+        q.eq = (...args: Array<unknown>) => (
+          filters.push(args.join("=")),
+          eq()
+        );
         return q;
       },
       rpc: async (fn, args) => {
@@ -67,7 +70,7 @@ Deno.test(
         return { data: [{ id: "run-1" }], error: null };
       },
     };
-    const checked: string[] = [];
+    const checked: Array<string> = [];
     const result = await executeVideoDirectorTool(
       db,
       "tenant-1",
@@ -95,7 +98,7 @@ Deno.test(
 Deno.test(
   "render_video_film refuses a project outside the tenant or the caller's clients",
   async () => {
-    const rpcCalls: string[] = [];
+    const rpcCalls: Array<string> = [];
     const missing: VideoDirectorDb = {
       from: () => query({ data: null, error: null }),
       rpc: async (fn) => (rpcCalls.push(fn), { data: [], error: null }),
@@ -129,7 +132,7 @@ Deno.test(
 );
 
 Deno.test("get_video_storyboard stays inside the tenant", async () => {
-  const filters: string[] = [];
+  const filters: Array<string> = [];
   const db: VideoDirectorDb = {
     from: (table) => {
       const q = query({
@@ -148,7 +151,7 @@ Deno.test("get_video_storyboard stays inside the tenant", async () => {
         error: null,
       });
       const eq = q.eq;
-      q.eq = (...args: unknown[]) => {
+      q.eq = (...args: Array<unknown>) => {
         filters.push(`${table}:${String(args[0])}=${String(args[1])}`);
         return eq(...args);
       };

@@ -15,8 +15,10 @@ type SettledResult = PromiseSettledResult<unknown>;
  * (`skipped: true`, or conditions not met → `undefined`) are not counted.
  * A run is "failed" when any automation threw or reported `success: false`.
  */
-export function summarizeExecution(results: SettledResult[]): ExecutionSummary {
-  const errors: string[] = [];
+export function summarizeExecution(
+  results: Array<SettledResult>,
+): ExecutionSummary {
+  const errors: Array<string> = [];
   let ran = 0;
   for (const result of results) {
     if (result.status === "rejected") {

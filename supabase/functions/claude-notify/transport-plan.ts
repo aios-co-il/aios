@@ -28,7 +28,7 @@ export type NotifyTransportPlan = {
   integrationRole: CarmenConnectionRole | null;
   /** True when a Carmen Manus step resolves to an active, primary manus_wa line. */
   manusIntegrationActive: boolean;
-  skipped: NotifySkippedLine[];
+  skipped: Array<NotifySkippedLine>;
   reason: string;
 };
 
@@ -65,7 +65,7 @@ export function transportPlan(
 
 /** The plan when no step resolves to a usable line. */
 export function noTransport(
-  skipped: NotifySkippedLine[],
+  skipped: Array<NotifySkippedLine>,
   reason: string,
 ): NotifyTransportPlan {
   return {

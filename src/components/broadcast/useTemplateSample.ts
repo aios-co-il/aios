@@ -18,8 +18,11 @@ export function useTemplateSample(sampleListId: string | undefined) {
   const sampleMember = (members.data || [])[0];
   const customKeys = useMemo(() => {
     const keys = new Set<string>();
-    for (const m of members.data || [])
-      for (const k of Object.keys(m.custom_fields || {})) keys.add(k);
+    for (const m of members.data || []) {
+      for (const k of Object.keys(m.custom_fields || {})) {
+        keys.add(k);
+      }
+    }
     return [...keys];
   }, [members.data]);
 

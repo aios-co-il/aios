@@ -39,38 +39,55 @@ export function has(body: Record<string, unknown>, key: string): boolean {
 
 export function requireName(body: Record<string, unknown>): string {
   const name = text(body, "name").slice(0, 80);
-  if (name.length < 2) throw new HttpError(400, "Name is required");
+  if (name.length < 2) {
+    throw new HttpError(400, "Name is required");
+  }
   return name;
 }
 
 export function requireBaseUrl(raw: string): string {
   const url = normalizeBaseUrl(raw);
   const problem = baseUrlProblem(url);
-  if (problem) throw new HttpError(400, problem);
+  if (problem) {
+    throw new HttpError(400, problem);
+  }
   return url;
 }
 
 export function requireModel(body: Record<string, unknown>): string {
   const model = text(body, "model");
-  if (!model) throw new HttpError(400, "Model is required");
-  if (model.length > 200) throw new HttpError(400, "Model name is too long");
+  if (!model) {
+    throw new HttpError(400, "Model is required");
+  }
+  if (model.length > 200) {
+    throw new HttpError(400, "Model name is too long");
+  }
   return model;
 }
 
 /** The body's api_key, validated; "" when the caller sent none. */
 export function optionalApiKey(body: Record<string, unknown>): string {
   const key = text(body, "api_key");
-  if (!key) return "";
-  if (key.length < 8) throw new HttpError(400, "API key is too short");
-  if (key.length > 4096) throw new HttpError(400, "API key is too long");
-  if (/\s/.test(key))
+  if (!key) {
+    return "";
+  }
+  if (key.length < 8) {
+    throw new HttpError(400, "API key is too short");
+  }
+  if (key.length > 4096) {
+    throw new HttpError(400, "API key is too long");
+  }
+  if (/\s/.test(key)) {
     throw new HttpError(400, "API key must not contain spaces");
+  }
   return key;
 }
 
 export function requireApiKey(body: Record<string, unknown>): string {
   const key = optionalApiKey(body);
-  if (!key) throw new HttpError(400, "API key is required");
+  if (!key) {
+    throw new HttpError(400, "API key is required");
+  }
   return key;
 }
 
@@ -80,7 +97,9 @@ export function profileOf(body: Record<string, unknown>) {
 
 /** Throws a generic error for a failed query; the detail goes to the log. */
 export function check(error: { message: string } | null, what: string) {
-  if (!error) return;
+  if (!error) {
+    return;
+  }
   console.error(`[carmen-brain-connections] ${what}:`, error.message);
   throw new HttpError(500, `${what} failed`);
 }

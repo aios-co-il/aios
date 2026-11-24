@@ -27,7 +27,9 @@ async function sha256(value: string): Promise<string> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   const bearer =
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
@@ -41,7 +43,9 @@ Deno.serve(async (req) => {
     .select("tenant_id, campaign_pulse_enabled")
     .in("tenant_id", [...TENANT_IDS]);
 
-  if (settingsError) return json({ error: settingsError.message }, 500);
+  if (settingsError) {
+    return json({ error: settingsError.message }, 500);
+  }
   const enabled = new Set(
     (settings || [])
       .filter((setting) => setting.campaign_pulse_enabled)

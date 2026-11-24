@@ -23,13 +23,17 @@ async function callerMayViewBilling(
 ): Promise<boolean> {
   const { data: userData } = await supabase.auth.admin.getUserById(userId);
   const email = userData?.user?.email?.toLowerCase() ?? "";
-  if (COMMAND_CENTER_BILLING_EMAILS.has(email)) return true;
+  if (COMMAND_CENTER_BILLING_EMAILS.has(email)) {
+    return true;
+  }
 
   const { data: roles } = await supabase
     .from("user_roles")
     .select("role, tenant_id")
     .eq("user_id", userId);
-  if (roles?.some((r) => isSuperAdminRole(r.role))) return true;
+  if (roles?.some((r) => isSuperAdminRole(r.role))) {
+    return true;
+  }
 
   const { data: membership } = await supabase
     .from("tenant_users")
@@ -41,7 +45,9 @@ async function callerMayViewBilling(
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: cors });
+  }
 
   try {
     const auth = await requireAuth(req);
@@ -51,7 +57,9 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const tenantId = String(body.tenant_id || "").trim();
-    if (!tenantId) return json({ error: "tenant_id required" }, 400);
+    if (!tenantId) {
+      return json({ error: "tenant_id required" }, 400);
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
