@@ -116,6 +116,40 @@ Deno.test({
       },
     );
 
+    for (const [stored, prompt] of [
+      [{ refresh_token: "stored", google_email: "me@example.com" }, null],
+      [{ refresh_token: "stored", google_email: null }, "consent"],
+      [{ refresh_token: null, google_email: "me@example.com" }, "consent"],
+    ] as const) {
+      await t.step(
+        `init asks for consent unless the stored token can be reused: ${stored.refresh_token}/${stored.google_email}`,
+        async () => {
+          const http = fakeSupabaseHttp({
+            supabaseUrl: SUPABASE_URL,
+            users: { session: USER_ID },
+            tables: { calendar_tokens: [{ user_id: USER_ID, ...stored }] },
+          });
+          await withRuntime({ env, fetch: http.fetch }, async () => {
+            const handle = await servedHandler(
+              new URL("./index.ts", import.meta.url),
+            );
+            const response = await handle(
+              new Request(SUPABASE_URL, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer session",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ action: "init" }),
+              }),
+            );
+            const { authUrl } = await response.json();
+            assertEquals(new URL(authUrl).searchParams.get("prompt"), prompt);
+          });
+        },
+      );
+    }
+
     for (const forged of [USER_ID, btoa(JSON.stringify({ userId: USER_ID }))]) {
       await t.step(
         `callback refuses an unsigned state before exchanging the code: ${forged.slice(0, 8)}`,
@@ -136,9 +170,10 @@ Deno.test({
                 `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback&code=code&state=${encodeURIComponent(forged)}`,
               ),
             );
-            assertEquals(response.status, 500);
-            const { error } = await response.json();
-            assertStringIncludes(error, "invalid or has expired");
+            assertEquals(response.status, 200);
+            const page = await response.text();
+            assertStringIncludes(page, "google_connect_error");
+            assertStringIncludes(page, "invalid or has expired");
             assertEquals(http.calls.length, 0);
           });
         },

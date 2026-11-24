@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import { withRuntime } from "../testing/served-handler.ts";
-import { callbackUri } from "./exchange-code.ts";
+import { callbackUri, exchangeGoogleCode } from "./exchange-code.ts";
 
 const SUPABASE_URL = "https://project-ref.supabase.co";
 
@@ -71,3 +71,24 @@ Deno.test("no base URL at all is refused", async () => {
     "PUBLIC_API_URL or SUPABASE_URL",
   );
 });
+
+Deno.test(
+  "the code exchange refuses to run without the client secret",
+  async () => {
+    await assertRejects(
+      () =>
+        withRuntime(
+          {
+            env: {
+              GOOGLE_CLIENT_ID: "test-client",
+              GOOGLE_CLIENT_SECRET: null,
+            },
+            fetch: () => Promise.reject(new Error("Google was called")),
+          },
+          () => exchangeGoogleCode("code", "https://api.aios.co.il/cb"),
+        ),
+      Error,
+      "GOOGLE_CLIENT_SECRET is not set",
+    );
+  },
+);

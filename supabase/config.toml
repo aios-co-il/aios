@@ -12,6 +12,7 @@ sql_paths = [
 
 [auth]
 site_url = "http://localhost:8080"
+# [remotes.develop.auth] repeats this list (a remote's list replaces it): change both.
 additional_redirect_urls = [
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
@@ -79,6 +80,7 @@ project_id = "efwzhyfpkocghdhhhaza"
 site_url = "https://staging.aios.co.il"
 additional_redirect_urls = [
   "https://staging.aios.co.il/**",
+  # The base [auth] list:
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
   "https://*.vercel.app/**",

@@ -6,11 +6,10 @@ import {
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
+import { popupCallbackResponse } from "../_shared/google-oauth/handoff-response.ts";
 import {
   oauthStateSecret,
   signOAuthState,
-  verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import {
   UserFacingError,
@@ -36,32 +35,15 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const queryAction = url.searchParams.get("action");
-    const hasOAuthCode = !!url.searchParams.get("code");
-    const hasOAuthState = !!url.searchParams.get("state");
+    // Google returns with a code, or with an error when consent was refused.
+    const isGoogleReturn =
+      url.searchParams.has("state") &&
+      (url.searchParams.has("code") || url.searchParams.has("error"));
 
-    // OAuth callback
-    if (queryAction === "callback" || (hasOAuthCode && hasOAuthState)) {
-      const code = url.searchParams.get("code");
-      if (!code) {
-        throw new Error("No authorization code provided");
-      }
-
-      const state = await verifyOAuthState(
-        url.searchParams.get("state"),
-        oauthStateSecret(),
-      );
-      if (!state?.tenantId) {
-        throw new UserFacingError(
-          "This connect link is invalid or has expired. Close this window and connect Gmail again.",
-        );
-      }
-
-      return popupHandoffPage(
-        "gmail-auth",
-        state,
-        code,
-        url.searchParams.get("state") ?? "",
-      );
+    if (queryAction === "callback" || isGoogleReturn) {
+      return await popupCallbackResponse("gmail-auth", url, {
+        requireTenant: true,
+      });
     }
 
     // Authenticated actions

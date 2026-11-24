@@ -107,7 +107,7 @@ Deno.test({
         );
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-search-console-auth&error=invalid_state",
         );
         assertEquals(http.calls.length, 0);
       },

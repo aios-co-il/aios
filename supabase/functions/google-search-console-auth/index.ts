@@ -1,10 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { redirectToIntegrations } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
   readTenantCompleteRequest,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
+import {
+  redirectHandoff,
+  redirectHandoffError,
+} from "../_shared/google-oauth/handoff-response.ts";
 import {
   isConnectRefusal,
   readConnectRequest,
@@ -14,6 +16,7 @@ import {
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeSearchConsoleConnection } from "./store-connection.ts";
 import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
@@ -122,13 +125,23 @@ Deno.serve(async (req) => {
       oauthStateSecret(),
     );
     if (!state?.tenantId) {
-      return redirectToIntegrations(null, "app", { error: "invalid_state" });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        null,
+        null,
+        "invalid_state",
+      );
     }
 
     const tenantSlug = await getTenantSlug(state.tenantId);
 
     if (error) {
-      return redirectToIntegrations(state.origin, tenantSlug, { error });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        state,
+        tenantSlug,
+        error,
+      );
     }
 
     if (!code) {
@@ -167,7 +180,12 @@ Deno.serve(async (req) => {
     } catch (error) {
       console.error("Search Console complete failed:", error);
       return new Response(
-        JSON.stringify({ error: "Could not connect Google Search Console" }),
+        JSON.stringify({
+          error: userFacingMessage(
+            error,
+            "Could not connect Google Search Console",
+          ),
+        }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

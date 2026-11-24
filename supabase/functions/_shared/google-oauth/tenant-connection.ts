@@ -5,6 +5,7 @@ import { z } from "npm:zod@3.25.76";
 import type { Json } from "../database.types.ts";
 import { serviceClient } from "../supabase-clients.ts";
 import type { GoogleTokens } from "./exchange-code.ts";
+import { UserFacingError } from "./user-facing-error.ts";
 
 const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   z.union([
@@ -47,9 +48,36 @@ export async function tenantConnections(
   return data.map((row) => ({
     id: row.id,
     user_id: row.user_id,
-    settings: storedSettingsSchema.parse(row.settings) ?? {},
+    settings: storedSettings(row.id, row.settings),
     updated_at: row.updated_at,
   }));
+}
+
+/**
+ * The row's settings object. A double-encoded object (a JSON string) is
+ * decoded; any other value that is not an object is logged and read as empty,
+ * so one bad row never blocks the tenant's connects.
+ */
+function storedSettings(rowId: string, value: Json): StoredSettings {
+  const settings = storedSettingsSchema.safeParse(decodedJson(value));
+  if (!settings.success) {
+    console.warn(`tenant_integrations ${rowId}: settings is not an object`);
+    return {};
+  }
+
+  return settings.data ?? {};
+}
+
+/** The value a JSON string encodes, else the value itself. */
+function decodedJson(value: Json): unknown {
+  if (typeof value !== "string") {
+    return value;
+  }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }
 
 export type SaveConnection = {
@@ -109,8 +137,8 @@ export async function saveTenantConnection(
   }
   // A PATCH that matched nothing returns no rows (an empty body reads as null).
   if (!data || data.length === 0) {
-    throw new Error(
-      "tenant_integrations changed while connecting; the connect was not saved",
+    throw new UserFacingError(
+      "The connection changed while connecting, so it was not saved. Connect again.",
     );
   }
 }

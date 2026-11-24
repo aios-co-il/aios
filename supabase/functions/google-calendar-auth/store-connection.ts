@@ -57,8 +57,8 @@ export async function storeCalendarConnection(
  * The stored refresh token, for a reconnect where Google sent none (no
  * prompt=consent). Only for the same Google account: another account's token
  * would sit beside this account's access token and email. Throws otherwise,
- * leaving the existing connection untouched; after a disconnect the next
- * connect asks for consent and Google sends a fresh token.
+ * leaving the existing connection untouched. After a disconnect, or while the
+ * stored account is unknown, init asks for consent and Google sends a fresh token.
  */
 async function storedRefreshToken(
   userId: string,
@@ -79,7 +79,13 @@ async function storedRefreshToken(
     );
   }
 
-  if (!googleEmail || existing.google_email !== googleEmail) {
+  if (!googleEmail) {
+    throw new UserFacingError(
+      "Google did not say which account this is, so the existing connection was kept. Connect Calendar again.",
+    );
+  }
+
+  if (existing.google_email !== googleEmail) {
     throw new UserFacingError(
       "This is a different Google account than the connected one. Disconnect Calendar first, then connect the new account.",
     );

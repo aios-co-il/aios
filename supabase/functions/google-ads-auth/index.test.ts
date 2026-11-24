@@ -1,6 +1,7 @@
-import { assertEquals } from "jsr:@std/assert@1";
+import { assertEquals, assertNotEquals } from "jsr:@std/assert@1";
 import {
   oauthStateKey,
+  signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
@@ -107,6 +108,49 @@ Deno.test({
     );
 
     await t.step(
+      "complete does not need a default tenant: the tenant comes from the signed state",
+      async () => {
+        const state = await signOAuthState(
+          { userId: USER_ID, tenantId: TENANT, origin: null, addNew: false },
+          STATE_SECRET,
+        );
+        const http = fakeSupabaseHttp({
+          supabaseUrl: SUPABASE_URL,
+          users: { session: USER_ID },
+          tables: { tenant_users: [] },
+          rpc: { get_user_tenant_id: () => null, is_super_admin: () => false },
+          other: (url) => {
+            throw new Error(`Unexpected provider request: ${url.href}`);
+          },
+        });
+        const response = await withRuntime(
+          { env, fetch: http.fetch },
+          async () => {
+            const handle = await servedHandler(
+              new URL("./index.ts", import.meta.url),
+            );
+            return await handle(
+              new Request(`${FUNCTION_URL}?action=complete`, {
+                method: "POST",
+                headers: {
+                  Authorization: "Bearer session",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ action: "complete", code: "c", state }),
+              }),
+            );
+          },
+        );
+        const { error } = await response.json();
+        assertNotEquals(error, "No tenant found");
+        assertEquals(
+          http.calls.some(({ url }) => url.pathname.endsWith("/tenant_users")),
+          true,
+        );
+      },
+    );
+
+    await t.step(
       "a forged state is refused before the code is exchanged",
       async () => {
         const forged = btoa(
@@ -119,7 +163,7 @@ Deno.test({
         );
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-ads-auth&error=invalid_state",
         );
         assertEquals(http.calls.length, 0);
       },

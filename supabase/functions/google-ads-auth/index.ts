@@ -1,14 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import {
-  allowedAppOrigin,
-  redirectToIntegrations,
-} from "../_shared/google-oauth/app-origin.ts";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
+import {
+  redirectHandoff,
+  redirectHandoffError,
+} from "../_shared/google-oauth/handoff-response.ts";
 import {
   oauthStateSecret,
   signOAuthState,
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
     // Handle OAuth callback
     if (action === "oauth_callback") {
-      return handleOAuthCallback(url);
+      return await handleOAuthCallback(url);
     }
 
     // All other actions require authentication
@@ -66,16 +66,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
-      _user_id: user.id,
-    });
-    if (!tenantId) {
-      return new Response(JSON.stringify({ error: "No tenant found" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     let body: any = {};
     if (req.method === "POST") {
       try {
@@ -86,6 +76,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // complete takes the tenant from the signed state, so it does not need a default tenant.
+    if ((action || body.action) === "complete") {
+      return await completeConnect(body, user.id);
+    }
+
+    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
+      _user_id: user.id,
+    });
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: "No tenant found" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     switch (action || body.action) {
       case "get_auth_url":
         return await getAuthUrl(
@@ -93,9 +98,6 @@ Deno.serve(async (req) => {
           user.id,
           allowedAppOrigin(body.origin ?? req.headers.get("origin")),
         );
-
-      case "complete":
-        return await completeConnect(body, user.id);
 
       case "get_accounts":
         return getGoogleAdsAccounts(supabase, tenantId, user.id);
@@ -115,9 +117,9 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in google-ads-auth:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -178,13 +180,13 @@ async function handleOAuthCallback(url: URL) {
     oauthStateSecret(),
   );
   if (!state?.tenantId) {
-    return redirectToIntegrations(null, "app", { error: "invalid_state" });
+    return redirectHandoffError("google-ads-auth", null, null, "invalid_state");
   }
 
   const tenantSlug = await getTenantSlug(state.tenantId);
 
   if (error) {
-    return redirectToIntegrations(state.origin, tenantSlug, { error });
+    return redirectHandoffError("google-ads-auth", state, tenantSlug, error);
   }
 
   if (!code) {

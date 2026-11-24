@@ -110,16 +110,17 @@ Deno.test({
     );
 
     await t.step(
-      "the old userId|tenantId state is refused before the code is exchanged",
+      "the old userId|tenantId state is refused before the code is exchanged, and the app is told",
       async () => {
         const { response, http } = await run(
           new Request(
             `${FUNCTION_URL}?code=code&state=${encodeURIComponent(`${OUTSIDER}|${TENANT}`)}`,
           ),
         );
-        assertEquals(response.status, 500);
-        const { error } = await response.json();
-        assertStringIncludes(error, "invalid or has expired");
+        assertEquals(response.status, 200);
+        const page = await response.text();
+        assertStringIncludes(page, "google_connect_error");
+        assertStringIncludes(page, "invalid or has expired");
         assertEquals(http.calls.length, 0);
       },
     );

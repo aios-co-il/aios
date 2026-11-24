@@ -6,6 +6,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import { isChunkLoadError, markChunkReloadPending } from "./lib/chunkErrors.ts";
 import { supabase } from "./integrations/supabase/client.ts";
 import { AIOS_BRAND, applyBrandTheme } from "./theme/index.ts";
+import { stashFragmentConnect } from "./lib/googleConnectFragment.ts";
 
 /** One-shot guard — unguarded reload() here caused infinite "jumping" after deploys. */
 const MAIN_CHUNK_RELOAD_KEY = "aios-main-chunk-reload";
@@ -82,6 +83,9 @@ window.addEventListener("unhandledrejection", (event) => {
 // Paint with the default brand before React mounts; ThemeContext swaps in the
 // tenant's brand once its settings load.
 applyBrandTheme(AIOS_BRAND);
+
+// Before routing: a sign-in redirect would drop a Google connect left in the URL fragment.
+stashFragmentConnect();
 
 const root = document.getElementById("root");
 if (!root) {

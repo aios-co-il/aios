@@ -35,23 +35,3 @@ export function appReturnOrigin(origin: string | null): string {
     DEFAULT_APP_ORIGIN
   );
 }
-
-/** A 302 to the tenant's integrations page on the app origin, with the params encoded. */
-export function redirectToIntegrations(
-  origin: string | null,
-  tenantSlug: string,
-  params: Record<string, string>,
-): Response {
-  const target = new URL(
-    `/t/${encodeURIComponent(tenantSlug)}/integrations`,
-    appReturnOrigin(origin),
-  );
-  for (const [key, value] of Object.entries(params)) {
-    target.searchParams.set(key, value);
-  }
-
-  return new Response(null, {
-    status: 302,
-    headers: { Location: target.toString() },
-  });
-}

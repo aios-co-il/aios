@@ -163,7 +163,7 @@ Deno.test({
         assertEquals(response.status, 302);
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-analytics-auth&error=invalid_state",
         );
         assertEquals(http.calls.length, 0);
       },
@@ -182,7 +182,7 @@ Deno.test({
         );
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-analytics-auth&error=invalid_state",
         );
 
         const signed = await signOAuthState(
@@ -201,7 +201,7 @@ Deno.test({
         );
         assertEquals(
           denied.headers.get("Location"),
-          "https://aios.co.il/t/acme/integrations?error=x%26y%3D1",
+          "https://aios.co.il/t/acme/integrations#google_connect=google-analytics-auth&error=x%26y%3D1",
         );
       },
     );

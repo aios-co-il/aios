@@ -1,88 +1,104 @@
 import { describe, expect, it } from "vitest";
-import { fragmentConnectCode, popupConnectCode } from "./googleConnect";
+import {
+  popupAttempt,
+  popupConnectResult,
+  type PopupAttempt,
+} from "./googleConnect";
 
-const SUPABASE_URL = "https://project.supabase.co";
+const CALLBACK_ORIGIN = "https://api.aios.co.il";
 
-const ATTEMPT_STATE = "the-state";
+const ATTEMPT: PopupAttempt = {
+  provider: "gmail-auth",
+  state: "the-state",
+  callbackOrigin: CALLBACK_ORIGIN,
+};
 
-describe("popupConnectCode", () => {
-  it("returns the code our edge function posted for this attempt", () => {
+describe("popupAttempt", () => {
+  it("takes the state and the callback origin from Google's authorize URL", () => {
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    authUrl.searchParams.set(
+      "redirect_uri",
+      "https://api.aios.co.il/functions/v1/gmail-auth",
+    );
+    authUrl.searchParams.set("state", "the-state");
+
+    expect(popupAttempt(authUrl.toString(), "gmail-auth")).toEqual(ATTEMPT);
+  });
+
+  it("trusts no origin when the redirect URI is missing or not https", () => {
+    const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
+      popupAttempt(authUrl.toString(), "gmail-auth").callbackOrigin,
+    ).toBeNull();
+
+    authUrl.searchParams.set("redirect_uri", "http://api.aios.co.il/x");
+    expect(
+      popupAttempt(authUrl.toString(), "gmail-auth").callbackOrigin,
+    ).toBeNull();
+  });
+});
+
+describe("popupConnectResult", () => {
+  it("returns the code the callback posted for this attempt", () => {
+    expect(
+      popupConnectResult(
+        codeMessage(CALLBACK_ORIGIN, "gmail-auth", "the-state"),
+        ATTEMPT,
       ),
     ).toEqual({
-      provider: "gmail-auth",
-      code: "the-code",
-      state: ATTEMPT_STATE,
+      code: { provider: "gmail-auth", code: "the-code", state: "the-state" },
+    });
+  });
+
+  it("returns the error the callback posted for this attempt", () => {
+    const event = new MessageEvent("message", {
+      origin: CALLBACK_ORIGIN,
+      data: {
+        type: "google_connect_error",
+        provider: "gmail-auth",
+        state: "the-state",
+        error: "This connect link is invalid or has expired.",
+      },
+    });
+
+    expect(popupConnectResult(event, ATTEMPT)).toEqual({
+      error: "This connect link is invalid or has expired.",
     });
   });
 
   it("ignores the same message from another origin", () => {
     expect(
-      popupConnectCode(
-        codeMessage("https://evil.example", "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
+      popupConnectResult(
+        codeMessage("https://evil.example", "gmail-auth", "the-state"),
+        ATTEMPT,
       ),
     ).toBeNull();
   });
 
   it("ignores a code meant for another provider", () => {
     expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "google-calendar-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
+      popupConnectResult(
+        codeMessage(CALLBACK_ORIGIN, "google-calendar-auth", "the-state"),
+        ATTEMPT,
       ),
     ).toBeNull();
   });
 
   it("ignores the code of another, overlapping attempt", () => {
     expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", "the-other-attempt"),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        SUPABASE_URL,
+      popupConnectResult(
+        codeMessage(CALLBACK_ORIGIN, "gmail-auth", "the-other-attempt"),
+        ATTEMPT,
       ),
     ).toBeNull();
   });
 
-  it("ignores every message when the Supabase URL is missing", () => {
+  it("ignores every message when the callback origin is unknown", () => {
     expect(
-      popupConnectCode(
-        codeMessage(SUPABASE_URL, "gmail-auth", ATTEMPT_STATE),
-        "gmail-auth",
-        ATTEMPT_STATE,
-        "",
+      popupConnectResult(
+        codeMessage(CALLBACK_ORIGIN, "gmail-auth", "the-state"),
+        { ...ATTEMPT, callbackOrigin: null },
       ),
-    ).toBeNull();
-  });
-});
-
-describe("fragmentConnectCode", () => {
-  it("reads the provider, code and state a full-page connect left", () => {
-    expect(
-      fragmentConnectCode(
-        "#google_connect=google-ads-auth&code=c%2F1&state=s.sig",
-      ),
-    ).toEqual({ provider: "google-ads-auth", code: "c/1", state: "s.sig" });
-  });
-
-  it("ignores an unrelated or incomplete fragment", () => {
-    expect(fragmentConnectCode("")).toBeNull();
-    expect(fragmentConnectCode("#tab=settings")).toBeNull();
-    expect(
-      fragmentConnectCode("#google_connect=google-ads-auth&code=c"),
-    ).toBeNull();
-    expect(
-      fragmentConnectCode("#google_connect=other&code=c&state=s"),
     ).toBeNull();
   });
 });
