@@ -86,6 +86,7 @@ export function ReportNameCell({
   name,
   mark,
   on,
+  onNameClick,
   className = "px-2 py-2.5",
 }: {
   name: string;
@@ -93,6 +94,8 @@ export function ReportNameCell({
   mark?: ReactNode;
   /** The campaign's on/off state; leave out for rows that are not campaigns. */
   on?: boolean | null;
+  /** Makes the name a link-styled button, such as an ad row's preview. */
+  onNameClick?: () => void;
   /** The cell's padding and alignment; the report page's tables pass their own. */
   className?: string;
 }) {
@@ -101,9 +104,20 @@ export function ReportNameCell({
       <span className="flex items-center gap-2">
         {on !== undefined && <CampaignStatusSwitch on={on} compact />}
         {mark && <span className="shrink-0">{mark}</span>}
-        <span className="truncate" title={name}>
-          {name}
-        </span>
+        {onNameClick ? (
+          <button
+            type="button"
+            onClick={onNameClick}
+            className="truncate text-start text-primary underline-offset-2 hover:underline"
+            title={name}
+          >
+            {name}
+          </button>
+        ) : (
+          <span className="truncate" title={name}>
+            {name}
+          </span>
+        )}
       </span>
     </td>
   );

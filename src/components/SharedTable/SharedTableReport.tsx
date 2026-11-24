@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
+import { RangeRefusedNotice } from "@/components/reports/ReportHeader/RangeRefusedNotice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { SharedTableInfo } from "./publicTableApi";
 import { SharedDataReport } from "./SharedDataReport";
+import { SharedReportHeader } from "./SharedReportHeader";
 import { SharedSeoReport } from "./SharedSeoReport";
 import {
   type SharedDateSelection,
@@ -38,13 +41,26 @@ export function SharedTableReport({
   });
   const dates = hostDates ?? ownDates;
   const setDates = onDatesChange ?? setOwnDates;
-  const { data, isLoading, isFetching, error, gscLoading } = useSharedTableData(
-    shareToken,
-    dates,
-  );
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error,
+    rangeRefused,
+    lastTable,
+    gscLoading,
+  } = useSharedTableData(shareToken, dates);
 
   if (isLoading) {
     return <LoadingReport />;
+  }
+  if (rangeRefused && lastTable) {
+    return (
+      <RangeRefusedReport
+        table={lastTable}
+        dates={summaryOnly ? null : { value: dates, onChange: setDates }}
+      />
+    );
   }
   if (error || data?.error) {
     return <InvalidLink detail={error instanceof Error ? error.message : ""} />;
@@ -73,6 +89,29 @@ export function SharedTableReport({
       ready={!isFetching}
       summaryOnly={summaryOnly}
     />
+  );
+}
+
+/** The header with its dates over a notice: public-table refused the window. */
+function RangeRefusedReport({
+  table,
+  dates,
+}: {
+  table: SharedTableInfo;
+  dates: ComponentProps<typeof SharedReportHeader>["dates"];
+}) {
+  return (
+    <div className="min-h-screen bg-background" dir="rtl">
+      <div className="w-full max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        <SharedReportHeader
+          table={table}
+          dates={dates}
+          views={null}
+          comparison={null}
+        />
+        <RangeRefusedNotice />
+      </div>
+    </div>
   );
 }
 

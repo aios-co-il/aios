@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import {
   COMBINED_DASHBOARD_DATE_FILTERS,
-  SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
   SHARED_TABLE_DATE_FILTERS,
   getDashboardDateRange,
 } from "./dashboardDateFilters.ts";
@@ -10,10 +9,6 @@ const NOW = new Date(2026, 8, 18);
 
 const presetLists = [
   ["COMBINED_DASHBOARD_DATE_FILTERS", COMBINED_DASHBOARD_DATE_FILTERS],
-  [
-    "SHARED_COMBINED_DASHBOARD_DATE_FILTERS",
-    SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
-  ],
   ["SHARED_TABLE_DATE_FILTERS", SHARED_TABLE_DATE_FILTERS],
 ] as const;
 

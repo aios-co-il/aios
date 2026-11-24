@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { RangeRefusedError } from "@/lib/rangeRefusedError";
 import {
   fetchPublicTable,
   sharedTableKey,
+  type SharedTableInfo,
   type SharedTablePayload,
 } from "./publicTableApi";
 
@@ -17,6 +19,8 @@ export type SharedDateSelection = {
 /**
  * The share link's report for the picked window. SEO shares ignore the window
  * and load fast first, with Search Console following in a second request.
+ * When public-table refuses the window, `rangeRefused` is set and
+ * `lastTable` names the table it last served, for the header.
  */
 export function useSharedTableData(
   shareToken: string,
@@ -40,6 +44,13 @@ export function useSharedTableData(
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
+
+  const [lastTable, setLastTable] = useState<SharedTableInfo>();
+  useEffect(() => {
+    if (core.data?.table) {
+      setLastTable(core.data.table);
+    }
+  }, [core.data?.table]);
 
   const isSeoShare = core.data?.table?.integration_type === "ahrefs";
   const gsc = useQuery({
@@ -67,6 +78,8 @@ export function useSharedTableData(
     // Either part refetching (stale or invalidated) means the shown figures may be old.
     isFetching: core.isFetching || gsc.isFetching,
     error: core.error,
+    rangeRefused: core.error instanceof RangeRefusedError,
+    lastTable,
     gscLoading: gsc.isLoading,
     isSeoShare,
   };
