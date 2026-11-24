@@ -1,5 +1,5 @@
 -- Google tokens out of the browser's reach, step 3 of 3 (AIO-608, security
--- finding B). Steps 1 and 2: 20261123120000_integration_secrets.sql copies the
+-- finding B). Steps 1 and 2: 20261124110000_integration_secrets.sql copies the
 -- tokens into integration_secrets, and the edge functions read them from there
 -- (withGoogleTokens, which falls back to the row).
 --
