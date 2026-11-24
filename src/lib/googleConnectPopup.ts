@@ -4,6 +4,7 @@ import {
   CONNECT_ERROR_MESSAGE,
   GOOGLE_CONNECT_FUNCTIONS,
   type GoogleConnectFunction,
+  LOCAL_HOSTS,
 } from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
 import { connectCodeSchema, type GoogleConnectCode } from "./googleConnectCode";
 
@@ -33,8 +34,6 @@ const popupMessageSchema = z.discriminatedUnion("type", [
     error: z.string().min(1),
   }),
 ]);
-
-const LOCAL_HOSTS = ["localhost", "127.0.0.1"];
 
 /**
  * The attempt for an authorize URL from our edge function. The callback page

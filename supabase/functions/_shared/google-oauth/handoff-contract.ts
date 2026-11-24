@@ -32,3 +32,9 @@ export const CONSENT_REFUSED_ERROR = "access_denied";
 
 /** How long a returned code is worth completing: Google's authorization codes expire after 10 minutes. */
 export const CONNECT_CODE_TTL_MS = 10 * 60 * 1000;
+
+/** The error when Google returned neither a code nor an error. */
+export const MISSING_CODE_ERROR = "missing_code";
+
+/** Hosts where callbacks and the app may run on plain http (local development). */
+export const LOCAL_HOSTS: ReadonlyArray<string> = ["localhost", "127.0.0.1"];

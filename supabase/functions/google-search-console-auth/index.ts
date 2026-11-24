@@ -7,7 +7,10 @@ import {
   redirectHandoff,
   redirectHandoffError,
 } from "../_shared/google-oauth/handoff-response.ts";
-import { INVALID_STATE_ERROR } from "../_shared/google-oauth/handoff-contract.ts";
+import {
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
+} from "../_shared/google-oauth/handoff-contract.ts";
 import {
   isConnectRefusal,
   readConnectRequest,
@@ -146,7 +149,12 @@ Deno.serve(async (req) => {
     }
 
     if (!code) {
-      return new Response("Missing code", { status: 400 });
+      return redirectHandoffError(
+        "google-search-console-auth",
+        state,
+        tenantSlug,
+        MISSING_CODE_ERROR,
+      );
     }
 
     return redirectHandoff(

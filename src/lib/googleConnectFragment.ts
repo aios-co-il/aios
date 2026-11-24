@@ -37,6 +37,9 @@ const pendingSchema = z.object({
 
 const PENDING_CONNECT_KEY = "aios-google-connect";
 
+/** The stash when sessionStorage is unavailable: it then lasts until a reload, not across a sign-in redirect. */
+let unstoredConnect: string | null = null;
+
 /** The connect a full-page flow left in the URL fragment, or null. */
 export function fragmentConnect(hash: string): FragmentConnect | null {
   const params = new URLSearchParams(hash.replace(/^#/, ""));
@@ -64,22 +67,21 @@ export function stashFragmentConnect(now: number = Date.now()): void {
     return;
   }
 
-  window.history.replaceState(
-    window.history.state,
-    "",
-    `${window.location.pathname}${window.location.search}`,
-  );
+  const pending = JSON.stringify({ connect, at: now });
   try {
-    sessionStorage.setItem(
-      PENDING_CONNECT_KEY,
-      JSON.stringify({ connect, at: now }),
-    );
+    sessionStorage.setItem(PENDING_CONNECT_KEY, pending);
   } catch (error) {
     console.error(
       "Could not keep the Google connect for after sign-in:",
       error,
     );
+    unstoredConnect = pending;
   }
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${window.location.pathname}${window.location.search}`,
+  );
 }
 
 /**
@@ -91,7 +93,8 @@ export function takeStashedConnect(
   now: number = Date.now(),
 ): FragmentConnect | null {
   try {
-    const raw = sessionStorage.getItem(PENDING_CONNECT_KEY);
+    const raw = unstoredConnect ?? sessionStorage.getItem(PENDING_CONNECT_KEY);
+    unstoredConnect = null;
     sessionStorage.removeItem(PENDING_CONNECT_KEY);
     if (!raw) {
       return null;

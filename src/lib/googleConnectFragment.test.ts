@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fragmentConnect,
   stashFragmentConnect,
@@ -69,5 +69,29 @@ describe("stashFragmentConnect", () => {
 
     expect(takeStashedConnect()).toBeNull();
     expect(sessionStorage.getItem("aios-google-connect")).toBeNull();
+  });
+});
+
+describe("stashFragmentConnect without sessionStorage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("keeps the connect in memory when storage is blocked", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    window.history.replaceState(
+      null,
+      "",
+      "/t/acme/integrations#google_connect=gmail-auth&code=c&state=s",
+    );
+
+    stashFragmentConnect();
+
+    expect(takeStashedConnect()).toEqual({
+      code: { provider: "gmail-auth", code: "c", state: "s" },
+    });
   });
 });

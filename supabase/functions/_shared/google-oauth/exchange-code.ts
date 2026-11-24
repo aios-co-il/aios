@@ -1,4 +1,5 @@
 import { z } from "npm:zod@3.25.76";
+import { LOCAL_HOSTS } from "./handoff-contract.ts";
 import { tokenErrorSummary } from "./token-error.ts";
 
 const googleTokensSchema = z.object({
@@ -64,7 +65,11 @@ const apiOriginSchema = z
     z
       .string()
       .transform((value) => new URL(value))
-      .refine((url) => url.protocol === "https:" || url.protocol === "http:")
+      .refine(
+        (url) =>
+          url.protocol === "https:" ||
+          (url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname)),
+      )
       .transform((url) => url.origin),
   );
 
@@ -75,7 +80,7 @@ function apiOrigin(): string {
   const origin = apiOriginSchema.safeParse(configured);
   if (!origin.success) {
     throw new Error(
-      "PUBLIC_API_URL or SUPABASE_URL must be an http(s) URL such as https://api.aios.co.il",
+      "PUBLIC_API_URL or SUPABASE_URL must be an https URL (http only on a local host) such as https://api.aios.co.il",
     );
   }
 

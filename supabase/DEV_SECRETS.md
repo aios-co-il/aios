@@ -39,7 +39,7 @@ Rules: every value is a dev/test credential created for this purpose, never copi
 
 ## Only with a custom domain
 
-- `PUBLIC_API_URL`: the project's custom domain. The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain. It is declared in `config.toml` (`[edge_runtime.secrets]`), not a secret: `https://api.aios.co.il` in `supabase/.env.production`, empty in `supabase/.env.preview`, where the callback uses `SUPABASE_URL`. Its callbacks must be in the Google OAuth client's redirect URIs before it is set. Changing it fails a connect that is open at that moment, because Google issued the code for the old callback; the user connects again.
+- `PUBLIC_API_URL`: the project's custom domain, `https://api.aios.co.il` on Production only, set with `supabase secrets set` (not in `config.toml`, so branches never get it). The Google connect functions (Calendar, Gmail, Ads, Analytics, Search Console) build their callback from it, so Google shows our domain; without it they use `SUPABASE_URL`. The domain must be active for functions and its callbacks must be in the Google OAuth client's redirect URIs before it is set. Changing it fails a connect that is open at that moment, because Google issued the code for the old callback; the user connects again.
 
 ## Open points
 

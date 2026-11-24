@@ -98,3 +98,13 @@ Deno.test(
     );
   },
 );
+
+Deno.test(
+  "no code and no error is reported as missing_code, not as a refusal",
+  async () => {
+    const state = await stagingState();
+    const page = await callbackPage(`state=${encodeURIComponent(state)}`);
+
+    assertStringIncludes(page, '"error":"missing_code"');
+  },
+);

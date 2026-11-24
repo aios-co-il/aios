@@ -1,7 +1,7 @@
-import { render, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { createTestQueryHarness, withTestQuery } from "@/test/withTestQuery";
+import { createTestQueryHarness } from "@/test/withTestQuery";
 import { completeGoogleConnect } from "@/lib/googleConnect";
 import { stashFragmentConnect } from "@/lib/googleConnectFragment";
 import { useGoogleConnectRedirect } from "./useGoogleConnectRedirect";
@@ -24,7 +24,7 @@ describe("useGoogleConnectRedirect", () => {
     window.history.replaceState(null, "", CONNECT_URL);
     stashFragmentConnect();
 
-    render(withTestQuery(<RedirectConsumer />));
+    renderRedirectHook();
 
     await waitFor(() =>
       expect(completeGoogleConnect).toHaveBeenCalledWith(
@@ -41,7 +41,7 @@ describe("useGoogleConnectRedirect", () => {
     stashFragmentConnect();
     window.history.replaceState(null, "", "/t/acme/home");
 
-    render(withTestQuery(<RedirectConsumer />));
+    renderRedirectHook();
 
     await waitFor(() => expect(completeGoogleConnect).toHaveBeenCalled());
   });
@@ -49,14 +49,10 @@ describe("useGoogleConnectRedirect", () => {
   it("refreshes the integration status after the connect is saved", async () => {
     window.history.replaceState(null, "", CONNECT_URL);
     stashFragmentConnect();
-    const { queryClient, wrapper: Provider } = createTestQueryHarness();
+    const { queryClient, wrapper } = createTestQueryHarness();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
-    render(
-      <Provider>
-        <RedirectConsumer />
-      </Provider>,
-    );
+    renderHook(() => useGoogleConnectRedirect(), { wrapper });
 
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
     expect(invalidate).toHaveBeenCalledWith({
@@ -71,7 +67,7 @@ describe("useGoogleConnectRedirect", () => {
     window.history.replaceState(null, "", CONNECT_URL);
     stashFragmentConnect();
 
-    render(withTestQuery(<RedirectConsumer />));
+    renderRedirectHook();
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith(
@@ -90,7 +86,7 @@ describe("useGoogleConnectRedirect", () => {
     );
     stashFragmentConnect();
 
-    render(withTestQuery(<RedirectConsumer />));
+    renderRedirectHook();
 
     expect(toast.error).toHaveBeenCalledWith(
       "קישור החיבור פג תוקף. נסו להתחבר שוב.",
@@ -102,7 +98,7 @@ describe("useGoogleConnectRedirect", () => {
     window.history.replaceState(null, "", "/t/acme/integrations#tab=crm");
     stashFragmentConnect();
 
-    render(withTestQuery(<RedirectConsumer />));
+    renderRedirectHook();
 
     expect(completeGoogleConnect).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
@@ -110,9 +106,10 @@ describe("useGoogleConnectRedirect", () => {
   });
 });
 
-function RedirectConsumer() {
-  useGoogleConnectRedirect();
-  return null;
+function renderRedirectHook() {
+  renderHook(() => useGoogleConnectRedirect(), {
+    wrapper: createTestQueryHarness().wrapper,
+  });
 }
 
 vi.mock("@/lib/googleConnect", async (importOriginal) => ({

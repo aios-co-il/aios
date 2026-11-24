@@ -5,9 +5,9 @@ import { appReturnOrigin } from "./app-origin.ts";
 import {
   CONNECT_CODE_MESSAGE,
   CONNECT_ERROR_MESSAGE,
-  CONSENT_REFUSED_ERROR,
   type GoogleConnectFunction,
   INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
 } from "./handoff-contract.ts";
 import {
   oauthStateSecret,
@@ -33,7 +33,7 @@ export async function popupCallbackResponse(
 
   const code = url.searchParams.get("code");
   if (!code) {
-    const error = url.searchParams.get("error") || CONSENT_REFUSED_ERROR;
+    const error = url.searchParams.get("error") || MISSING_CODE_ERROR;
     return popupErrorPage(provider, state, rawState, error);
   }
 

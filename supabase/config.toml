@@ -43,8 +43,6 @@ WEBHOOK_LEAD_INTAKE_SECRET = "env(WEBHOOK_LEAD_INTAKE_SECRET)"
 WEBHOOK_TASK_INTAKE_SECRET = "env(WEBHOOK_TASK_INTAKE_SECRET)"
 GOOGLE_CLIENT_ID = "env(GOOGLE_CLIENT_ID)"
 GOOGLE_CLIENT_SECRET = "env(GOOGLE_CLIENT_SECRET)"
-# The custom domain Google connect callbacks use; empty means SUPABASE_URL (see supabase/DEV_SECRETS.md).
-PUBLIC_API_URL = "env(PUBLIC_API_URL)"
 
 
 # Production overrides. Every branch, including `develop`, uses the base config above;
