@@ -1,7 +1,9 @@
 import { Fragment, type ReactNode, useState } from "react";
 import { Facebook } from "lucide-react";
 import { ReportSection } from "@/components/report-ui/ReportSection";
-import { previousCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
+import type { ChangeDirection } from "@/components/reports/PreviousPeriod/changeMark";
+import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
+import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
 import {
   REPORT_CELL,
@@ -13,6 +15,7 @@ import {
 } from "@/components/report-ui/ReportTable";
 import { ShowOffRowsToggle } from "@/components/report-ui/ShowOffRowsToggle";
 import type { FacebookCampaignRow } from "@/lib/adsMetrics";
+import { cn } from "@/lib/utils";
 
 /**
  * A column of a Facebook goal table. It reads a list of campaigns: one for a
@@ -27,7 +30,7 @@ export type FacebookColumn = {
   compare?: {
     metric: (rows: Array<FacebookCampaignRow>) => number | null;
     format: (value: number) => string;
-    direction: "higher" | "lower" | "neutral";
+    direction: ChangeDirection;
   };
 };
 
@@ -123,8 +126,9 @@ export function FacebookGoalTable({
 
 /**
  * A cell per column over the given campaigns, each compared column followed
- * by its previous value. `previous` is null when the campaign did not run
- * then, undefined while the comparison is off.
+ * by its previous value; the change's arrow and colour mark the current value.
+ * `previous` is null when the campaign did not run then, undefined while the
+ * comparison is off.
  */
 function Cells({
   columns,
@@ -135,18 +139,24 @@ function Cells({
   rows: Array<FacebookCampaignRow>;
   previous: Array<FacebookCampaignRow> | null | undefined;
 }) {
-  const prev = previousCellsFor(rows, previous, REPORT_CELL);
-  return columns.map((column) => (
-    <Fragment key={column.label}>
-      <ReportTd className={column.tone?.(rows)}>{column.value(rows)}</ReportTd>
-      {column.compare &&
-        prev(
-          column.compare.metric,
-          column.compare.format,
-          column.compare.direction,
-        )}
-    </Fragment>
-  ));
+  const compared = compareCellsFor(rows, previous, REPORT_CELL);
+  return columns.map((column) => {
+    const { compare } = column;
+    const cells = compare
+      ? compared(compare.metric, compare.format, compare.direction)
+      : null;
+    return (
+      <Fragment key={column.label}>
+        <MarkedCell
+          className={cn(REPORT_CELL, column.tone?.(rows))}
+          mark={cells?.mark ?? null}
+        >
+          {column.value(rows)}
+        </MarkedCell>
+        {cells?.previousCell}
+      </Fragment>
+    );
+  });
 }
 
 /** A campaign's previous row, null when it did not run then. */
