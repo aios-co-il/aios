@@ -18,6 +18,16 @@ const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
+/** A JSON string, decoded; fails on any other value or on text that is not JSON. */
+const encodedJsonSchema = z.string().transform((text, ctx): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "not JSON" });
+    return z.NEVER;
+  }
+});
+
 /** settings is free-form jsonb shared by several features, so every key is kept. */
 const storedSettingsSchema = z.record(jsonSchema.optional()).nullable();
 
@@ -26,7 +36,8 @@ export type StoredSettings = { [key: string]: Json | undefined };
 export type StoredConnection = {
   id: string;
   user_id: string | null;
-  settings: StoredSettings;
+  /** null when the stored value is not an object: the row is never rewritten from it. */
+  settings: StoredSettings | null;
   /** The version the settings were read at; the update applies only if it is unchanged. */
   updated_at: string;
 };
@@ -54,30 +65,20 @@ export async function tenantConnections(
 }
 
 /**
- * The row's settings object. A double-encoded object (a JSON string) is
- * decoded; any other value that is not an object is logged and read as empty,
- * so one bad row never blocks the tenant's connects.
+ * The row's settings object; a double-encoded object (a JSON string) is
+ * decoded. Any other value is logged and returned as null, so this row is not
+ * reused, and other rows of the tenant still connect.
  */
-function storedSettings(rowId: string, value: Json): StoredSettings {
-  const settings = storedSettingsSchema.safeParse(decodedJson(value));
+function storedSettings(rowId: string, value: Json): StoredSettings | null {
+  const settings = storedSettingsSchema.safeParse(
+    encodedJsonSchema.safeParse(value).data ?? value,
+  );
   if (!settings.success) {
-    console.warn(`tenant_integrations ${rowId}: settings is not an object`);
-    return {};
+    console.error(`tenant_integrations ${rowId}: settings is not an object`);
+    return null;
   }
 
   return settings.data ?? {};
-}
-
-/** The value a JSON string encodes, else the value itself. */
-function decodedJson(value: Json): unknown {
-  if (typeof value !== "string") {
-    return value;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
 }
 
 export type SaveConnection = {
@@ -100,6 +101,12 @@ export async function saveTenantConnection(
   connection: SaveConnection,
 ): Promise<void> {
   const { tenantId, userId, integrationType, existing, tokens } = connection;
+  if (existing && existing.settings === null) {
+    throw new UserFacingError(
+      "This connection's saved settings cannot be read, so it was not changed. Contact support.",
+    );
+  }
+
   const values = {
     is_active: true,
     api_key: tokens.access_token,

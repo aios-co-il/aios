@@ -53,6 +53,17 @@ describe("stashFragmentConnect", () => {
     expect(takeStashedConnect()).toBeNull();
   });
 
+  it("drops a connect older than Google's code lifetime", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/t/acme/integrations#google_connect=gmail-auth&code=c&state=s",
+    );
+    stashFragmentConnect(0);
+
+    expect(takeStashedConnect(10 * 60 * 1000 + 1)).toBeNull();
+  });
+
   it("ignores a stored value that is not a connect", () => {
     sessionStorage.setItem("aios-google-connect", "{not json");
 

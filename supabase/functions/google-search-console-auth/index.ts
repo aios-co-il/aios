@@ -7,6 +7,7 @@ import {
   redirectHandoff,
   redirectHandoffError,
 } from "../_shared/google-oauth/handoff-response.ts";
+import { INVALID_STATE_ERROR } from "../_shared/google-oauth/handoff-contract.ts";
 import {
   isConnectRefusal,
   readConnectRequest,
@@ -129,7 +130,7 @@ Deno.serve(async (req) => {
         "google-search-console-auth",
         null,
         null,
-        "invalid_state",
+        INVALID_STATE_ERROR,
       );
     }
 

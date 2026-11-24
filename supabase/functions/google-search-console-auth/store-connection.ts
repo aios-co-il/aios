@@ -29,7 +29,7 @@ export async function storeSearchConsoleConnection(
   const rows = await tenantConnections(tenantId, INTEGRATION_TYPE);
   const existing =
     (googleEmail &&
-      rows.find((row) => row.settings.google_email === googleEmail)) ||
+      rows.find((row) => row.settings?.google_email === googleEmail)) ||
     rows.find((row) => row.user_id === userId);
 
   await saveTenantConnection({

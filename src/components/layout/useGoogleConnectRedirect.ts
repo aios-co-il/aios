@@ -1,14 +1,11 @@
 import { useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { completeGoogleConnect } from "@/lib/googleConnect";
+import {
+  completeGoogleConnect,
+  connectErrorMessage,
+} from "@/lib/googleConnect";
 import { takeStashedConnect } from "@/lib/googleConnectFragment";
-
-/** What Google's `error` codes, and ours, mean for the user. */
-const CONNECT_ERRORS: Partial<Record<string, string>> = {
-  access_denied: "החיבור ל-Google בוטל.",
-  invalid_state: "קישור החיבור פג תוקף. נסו להתחבר שוב.",
-};
 
 /**
  * Finishes a full-page Google connect (Analytics, Search Console, Ads): the
@@ -40,10 +37,7 @@ export function useGoogleConnectRedirect(): void {
 
     if ("error" in connect) {
       console.error("Google connect returned an error:", connect);
-      toast.error(
-        CONNECT_ERRORS[connect.error] ??
-          `Google החזיר שגיאה (${connect.error}). נסו להתחבר שוב.`,
-      );
+      toast.error(connectErrorMessage(connect.error));
       return;
     }
 

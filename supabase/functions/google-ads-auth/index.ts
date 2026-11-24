@@ -9,6 +9,7 @@ import {
   redirectHandoff,
   redirectHandoffError,
 } from "../_shared/google-oauth/handoff-response.ts";
+import { INVALID_STATE_ERROR } from "../_shared/google-oauth/handoff-contract.ts";
 import {
   oauthStateSecret,
   signOAuthState,
@@ -180,7 +181,12 @@ async function handleOAuthCallback(url: URL) {
     oauthStateSecret(),
   );
   if (!state?.tenantId) {
-    return redirectHandoffError("google-ads-auth", null, null, "invalid_state");
+    return redirectHandoffError(
+      "google-ads-auth",
+      null,
+      null,
+      INVALID_STATE_ERROR,
+    );
   }
 
   const tenantSlug = await getTenantSlug(state.tenantId);

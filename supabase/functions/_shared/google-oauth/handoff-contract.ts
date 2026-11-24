@@ -20,3 +20,15 @@ export const CONNECT_ERROR_MESSAGE = "google_connect_error";
 
 /** The URL fragment key a full-page connect carries the provider in. */
 export const CONNECT_FRAGMENT_KEY = "google_connect";
+
+/**
+ * The error a connect returns with instead of a code: Google's own `error`
+ * (access_denied when consent is refused), or ours when the state is not
+ * valid. The app shows its own text for each (src/lib/googleConnect.ts).
+ */
+export const INVALID_STATE_ERROR = "invalid_state";
+
+export const CONSENT_REFUSED_ERROR = "access_denied";
+
+/** How long a returned code is worth completing: Google's authorization codes expire after 10 minutes. */
+export const CONNECT_CODE_TTL_MS = 10 * 60 * 1000;

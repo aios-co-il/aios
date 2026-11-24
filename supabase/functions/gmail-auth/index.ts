@@ -6,7 +6,7 @@ import {
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { popupCallbackResponse } from "../_shared/google-oauth/handoff-response.ts";
+import { popupCallbackResponse } from "../_shared/google-oauth/popup-handoff.ts";
 import {
   oauthStateSecret,
   signOAuthState,

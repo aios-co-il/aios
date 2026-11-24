@@ -1,10 +1,8 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { withRuntime } from "../testing/served-handler.ts";
-import {
-  popupCallbackResponse,
-  redirectHandoffError,
-} from "./handoff-response.ts";
+import { redirectHandoffError } from "./handoff-response.ts";
 import { oauthStateKey, signOAuthState } from "./oauth-state.ts";
+import { popupCallbackResponse } from "./popup-handoff.ts";
 
 const CALLBACK = "https://api.aios.co.il/functions/v1/gmail-auth";
 
@@ -50,22 +48,25 @@ Deno.test(
   },
 );
 
-Deno.test("refused consent tells the app that started it why", async () => {
-  const state = await stagingState();
-  const page = await callbackPage(
-    `error=access_denied&state=${encodeURIComponent(state)}`,
-  );
+Deno.test(
+  "refused consent tells the app that started it, with Google's error",
+  async () => {
+    const state = await stagingState();
+    const page = await callbackPage(
+      `error=access_denied&state=${encodeURIComponent(state)}`,
+    );
 
-  assertStringIncludes(page, '"type":"google_connect_error"');
-  assertStringIncludes(page, "Google did not grant access");
-  assertStringIncludes(page, '"https://staging.aios.co.il")');
-});
+    assertStringIncludes(page, '"type":"google_connect_error"');
+    assertStringIncludes(page, '"error":"access_denied"');
+    assertStringIncludes(page, '"https://staging.aios.co.il")');
+  },
+);
 
 Deno.test("an unsigned state hands over no code", async () => {
   const page = await callbackPage("code=the-code&state=forged");
 
   assertStringIncludes(page, '"type":"google_connect_error"');
-  assertStringIncludes(page, "invalid or has expired");
+  assertStringIncludes(page, '"error":"invalid_state"');
   assertEquals(page.includes("the-code"), false);
 });
 

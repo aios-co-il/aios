@@ -120,7 +120,7 @@ Deno.test({
         assertEquals(response.status, 200);
         const page = await response.text();
         assertStringIncludes(page, "google_connect_error");
-        assertStringIncludes(page, "invalid or has expired");
+        assertStringIncludes(page, '"error":"invalid_state"');
         assertEquals(http.calls.length, 0);
       },
     );
