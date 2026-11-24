@@ -39,7 +39,7 @@ jobs:
         run: |
           # Invoke the pinned CLI directly: scripts/gen-types.sh is PR code and uses the repo's pnpm install.
           supabase gen types typescript --local > src/integrations/supabase/types.ts
-          npx --yes prettier@3.9.9 --log-level warn --write src/integrations/supabase/types.ts
+          npx --yes prettier@3.9.9 --log-level warn --ignore-path /dev/null --write src/integrations/supabase/types.ts
           cp src/integrations/supabase/types.ts supabase/functions/_shared/database.types.ts
 
       - name: Fail if committed types are stale
