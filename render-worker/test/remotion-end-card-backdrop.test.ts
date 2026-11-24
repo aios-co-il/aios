@@ -39,7 +39,9 @@ describe("end-card backgrounds and glass", () => {
   test("Carmen, the worker, the render job and the film know the same backgrounds", () => {
     expect([...END_CARD_BACKGROUNDS]).toEqual(WORKER_BACKGROUNDS);
     expect([...CARMEN_BACKGROUNDS]).toEqual(WORKER_BACKGROUNDS);
-    for (const name of END_CARD_BACKGROUNDS) expect(JOB).toContain(`"${name}"`);
+    for (const name of END_CARD_BACKGROUNDS) {
+      expect(JOB).toContain(`"${name}"`);
+    }
     expect(JOB).toContain("endCardGlass: manifest.endCardGlass === true");
   });
 

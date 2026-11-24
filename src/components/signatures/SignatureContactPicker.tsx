@@ -42,8 +42,10 @@ export default function SignatureContactPicker({
 
   const { data: options = [], isLoading } = useQuery({
     queryKey: ["signature-contact-options", tenantId, entity],
-    queryFn: async (): Promise<ContactOption[]> => {
-      if (!tenantId) return [];
+    queryFn: async (): Promise<Array<ContactOption>> => {
+      if (!tenantId) {
+        return [];
+      }
 
       if (entity === "lead") {
         const { data, error } = await supabase
@@ -53,7 +55,9 @@ export default function SignatureContactPicker({
           .is("archived_at", null)
           .order("contact_name")
           .limit(500);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         return (data || []).map((r) => {
           const displayName = r.contact_name || r.company_name || "ללא שם";
@@ -82,7 +86,9 @@ export default function SignatureContactPicker({
         .eq("tenant_id", tenantId)
         .order("name")
         .limit(500);
-      if (clientsError) throw clientsError;
+      if (clientsError) {
+        throw clientsError;
+      }
 
       const clientIds = (clients || []).map((c) => c.id);
       const contactsByClient: Record<
@@ -102,15 +108,18 @@ export default function SignatureContactPicker({
           .select("id, client_id, contact_name, email, phone, role")
           .eq("tenant_id", tenantId)
           .in("client_id", clientIds);
-        if (subError) throw subError;
+        if (subError) {
+          throw subError;
+        }
         for (const sc of subContacts || []) {
-          if (!contactsByClient[sc.client_id])
+          if (!contactsByClient[sc.client_id]) {
             contactsByClient[sc.client_id] = [];
+          }
           contactsByClient[sc.client_id].push(sc);
         }
       }
 
-      const result: ContactOption[] = [];
+      const result: Array<ContactOption> = [];
 
       for (const client of clients || []) {
         const clientLabel = client.name;
@@ -132,7 +141,9 @@ export default function SignatureContactPicker({
         }
 
         for (const sc of contactsByClient[client.id] || []) {
-          if (!sc.email) continue;
+          if (!sc.email) {
+            continue;
+          }
           const { firstName, lastName } = splitContactName(sc.contact_name);
           result.push({
             key: `client_contact:${sc.id}`,
@@ -154,7 +165,9 @@ export default function SignatureContactPicker({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return options;
+    if (!q) {
+      return options;
+    }
     return options.filter(
       (o) =>
         o.name.toLowerCase().includes(q) ||

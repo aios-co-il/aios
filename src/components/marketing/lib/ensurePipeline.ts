@@ -23,7 +23,7 @@ interface DefaultStage {
   sort_order: number;
 }
 
-function buildDefaultStages(track: MarketingTrack): DefaultStage[] {
+function buildDefaultStages(track: MarketingTrack): Array<DefaultStage> {
   const targetByTrack: Record<MarketingTrack, DefaultStage> = {
     campaigns: {
       stage_type: "target_paid",
@@ -94,7 +94,9 @@ async function findOldestPipeline(clientId: string, track: MarketingTrack) {
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(1);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
   return data?.[0] ?? null;
 }
 
@@ -161,7 +163,9 @@ export async function ensurePipelineForClient({
   // If insert failed (e.g. duplicate), try fetching again
   if (error) {
     const retry = await findOldestPipeline(clientId, track);
-    if (retry) return retry;
+    if (retry) {
+      return retry;
+    }
     console.error("ensurePipeline error:", error);
     return null;
   }

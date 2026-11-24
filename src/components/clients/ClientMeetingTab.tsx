@@ -35,10 +35,12 @@ interface ClientMeetingTabProps {
 export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
   const queryClient = useQueryClient();
   const meetingScheduler = useMeetingScheduler(tenantId);
-  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<string[]>(
+  const [selectedMeetingEmails, setSelectedMeetingEmails] = useState<
+    Array<string>
+  >([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Array<string>>(
     [],
   );
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<string[]>([]);
 
   const {
     data: teamMembers = [],
@@ -54,14 +56,16 @@ export function ClientMeetingTab({ client, tenantId }: ClientMeetingTabProps) {
         .select("*")
         .eq("client_id", client.id)
         .order("created_at");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!client.id,
   });
 
   const allContactEmails = useMemo(() => {
-    const emails: { email: string; name: string; source: string }[] = [];
+    const emails: Array<{ email: string; name: string; source: string }> = [];
     if (client.email) {
       emails.push({
         email: client.email,

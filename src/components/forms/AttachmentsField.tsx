@@ -27,8 +27,8 @@ export interface Attachment {
 }
 
 interface AttachmentsFieldProps {
-  attachments: Attachment[];
-  onChange: (attachments: Attachment[]) => void;
+  attachments: Array<Attachment>;
+  onChange: (attachments: Array<Attachment>) => void;
   entityType: "lead" | "client";
   entityId: string;
   readOnly?: boolean;
@@ -47,8 +47,12 @@ function getFileIcon(type: string) {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -80,10 +84,12 @@ export function AttachmentsField({
 
   const handleUpload = useCallback(
     async (files: FileList | null) => {
-      if (!files || files.length === 0 || !tenantId || !entityId) return;
+      if (!files || files.length === 0 || !tenantId || !entityId) {
+        return;
+      }
 
       setIsUploading(true);
-      const newAttachments: Attachment[] = [];
+      const newAttachments: Array<Attachment> = [];
 
       try {
         for (const file of Array.from(files)) {

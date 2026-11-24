@@ -125,7 +125,7 @@ export default function Clients() {
   const [showFiltersDialog, setShowFiltersDialog] = useState(false);
   const [showImportCSV, setShowImportCSV] = useState(false);
   const [showImportSheet, setShowImportSheet] = useState(false);
-  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<Array<string>>([]);
 
   // Bulk Meta page sync
   const [showBulkMetaSync, setShowBulkMetaSync] = useState(false);
@@ -140,7 +140,9 @@ export default function Clients() {
   >([]);
 
   const runBulkMetaSync = async () => {
-    if (!tenantId || !clients) return;
+    if (!tenantId || !clients) {
+      return;
+    }
     const withMeta = clients.filter((c: any) => c.meta_ads_account_id?.trim());
     if (withMeta.length === 0) {
       toast.info("אין לקוחות עם Meta Ads Account ID");
@@ -198,7 +200,9 @@ export default function Clients() {
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
 
       // Get owned agencies
       const { data: ownedAgencies, error: ownedError } = await supabase
@@ -207,7 +211,9 @@ export default function Clients() {
         .eq("tenant_id", tenantId)
         .order("name");
 
-      if (ownedError) throw ownedError;
+      if (ownedError) {
+        throw ownedError;
+      }
 
       // Get shared agencies via agency_tenant_access
       const { data: sharedAccess, error: sharedError } = await supabase
@@ -215,7 +221,9 @@ export default function Clients() {
         .select("agency_id, agencies(id, name)")
         .eq("accessing_tenant_id", tenantId);
 
-      if (sharedError) throw sharedError;
+      if (sharedError) {
+        throw sharedError;
+      }
 
       // Combine owned and shared agencies
       const shared = sharedAccess?.map((s) => s.agencies).filter(Boolean) || [];
@@ -240,12 +248,16 @@ export default function Clients() {
   const { data: ownedAgencies } = useQuery({
     queryKey: ["owned-agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -257,12 +269,16 @@ export default function Clients() {
   const { data: clientFinancialData } = useQuery({
     queryKey: ["client-tenant-financial-data", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("client_tenant_financial_data")
         .select("*")
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: !!tenantId,
@@ -281,14 +297,18 @@ export default function Clients() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session?.user?.id) return [];
+      if (!session?.user?.id) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("user_roles")
         .select("tenant_id")
         .eq("user_id", session.user.id)
         .eq("role", "owner")
         .not("tenant_id", "is", null);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data?.map((r) => r.tenant_id).filter(Boolean) || [];
     },
     enabled: isSuperAdmin,
@@ -313,7 +333,9 @@ export default function Clients() {
       agencies?.length || 0,
     ],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const selectStr = CLIENT_LIST_SELECT;
 
       let query = supabase
@@ -336,7 +358,9 @@ export default function Clients() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     // Don't gate on !!agencies — start fetching immediately with tenantId,
@@ -348,15 +372,21 @@ export default function Clients() {
 
   // 🔒 SECURITY GUARD: Filter clients by current tenant and accessible agencies
   const secureFilteredClients = useMemo(() => {
-    if (!clients || !tenantId) return [];
+    if (!clients || !tenantId) {
+      return [];
+    }
 
     // 🔒 Strict tenant isolation: current tenant OR shared agency only
     return clients.filter((client) => {
       const isTenantMatch = client.tenant_id === tenantId;
-      if (isTenantMatch) return true;
+      if (isTenantMatch) {
+        return true;
+      }
       // Allow cross-tenant only if agency is explicitly shared with this tenant
       const agencyIds = (agencies || []).map((a: any) => a.id);
-      if (client.agency_id && agencyIds.includes(client.agency_id)) return true;
+      if (client.agency_id && agencyIds.includes(client.agency_id)) {
+        return true;
+      }
       return false;
     });
   }, [clients, tenantId, userAgencyIds, isOwner, isSuperAdmin]);
@@ -371,11 +401,15 @@ export default function Clients() {
   const { data: clientTeam } = useQuery({
     queryKey: ["client-team", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [] as any[];
+      if (!tenantId) {
+        return [] as Array<any>;
+      }
       const { data, error } = await supabase
         .from("client_team")
         .select("client_id, campaigner_id");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -385,7 +419,9 @@ export default function Clients() {
   const { data: campaignerClientIds } = useQuery({
     queryKey: ["campaigner-client-ids", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return null;
+      if (!campaignerId) {
+        return null;
+      }
       const { data } = await supabase
         .from("client_team")
         .select("client_id")
@@ -401,7 +437,9 @@ export default function Clients() {
         .from("clients")
         .delete()
         .eq("id", clientId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("הלקוח נמחק בהצלחה");
@@ -620,7 +658,9 @@ export default function Clients() {
       <Dialog
         open={showBulkMetaSync}
         onOpenChange={(open) => {
-          if (!bulkMetaSyncRunning) setShowBulkMetaSync(open);
+          if (!bulkMetaSyncRunning) {
+            setShowBulkMetaSync(open);
+          }
         }}
       >
         <DialogContent dir="rtl" className="max-w-lg">

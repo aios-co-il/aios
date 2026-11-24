@@ -33,7 +33,7 @@ export type RefreshPulseContext = {
   callerCampaignerId?: string | null;
   /** The caller's user uuid, or null for "system" and WhatsApp senders. */
   actorUserId: string | null;
-  accessibleTenantIds: string[];
+  accessibleTenantIds: Array<string>;
   assertCallerCanAccessClient: (clientId: string) => Promise<unknown>;
   supabaseUrl?: string | null;
   serviceKey?: string | null;

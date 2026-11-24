@@ -39,13 +39,23 @@ export function isSkinSwitch(
   current: SkinScene | null | undefined,
   { soundDesign = false } = {},
 ) {
-  if (!previous || !current) return false;
-  if (current.skinSwitch === true || current.transition === "skin") return true;
-  if (current.skinSwitch === false || current.transition) return false;
+  if (!previous || !current) {
+    return false;
+  }
+  if (current.skinSwitch === true || current.transition === "skin") {
+    return true;
+  }
+  if (current.skinSwitch === false || current.transition) {
+    return false;
+  }
   const before = pictureOf(previous);
   const after = pictureOf(current);
-  if (!before || !after || before === after) return false;
-  if (soundDesign === true) return true;
+  if (!before || !after || before === after) {
+    return false;
+  }
+  if (soundDesign === true) {
+    return true;
+  }
   return (
     !!previous.skinRef &&
     !!current.skinRef &&
@@ -69,8 +79,9 @@ export function sceneTransitionFor(
       Math.floor(previousFrames / 3),
       Math.floor(frames / 3),
     );
-    if (overlap >= MIN_SKIN_FRAMES)
+    if (overlap >= MIN_SKIN_FRAMES) {
       return { transition: "skin", transitionFrames: overlap };
+    }
   }
   const transition = sceneTransition(
     index,

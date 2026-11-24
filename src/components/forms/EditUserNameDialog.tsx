@@ -37,14 +37,18 @@ export function EditUserNameDialog({
 
   const updateNameMutation = useMutation({
     mutationFn: async (newFullName: string) => {
-      if (!userId) throw new Error("User ID is required");
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
 
       const { error } = await supabase
         .from("profiles")
         .update({ full_name: newFullName })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // סנכרון השם לקמפיינר/איש מכירות (רק אם ריק/דיפולטי)
       await syncProfileToTeamMember(userId);

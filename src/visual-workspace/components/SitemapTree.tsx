@@ -41,16 +41,22 @@ export function SitemapTree() {
 
   const handleDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
-    if (!over) return;
+    if (!over) {
+      return;
+    }
     const moduleKey = active.data.current?.moduleKey as string | undefined;
-    if (!moduleKey) return;
+    if (!moduleKey) {
+      return;
+    }
     const overData = over.data.current as any;
 
     // Find the module def to send full info
     const node = sitemap.columns
       .flatMap((c) => c.modules)
       .find((n) => n.module.key === moduleKey);
-    if (!node) return;
+    if (!node) {
+      return;
+    }
 
     if (overData?.type === "section") {
       sitemap.moveModule(node.module, {
@@ -59,7 +65,9 @@ export function SitemapTree() {
       });
     } else if (overData?.type === "special" && overData.kind === "hidden") {
       // hide it
-      if (!node.hidden) sitemap.toggleVisibility(node.module, true);
+      if (!node.hidden) {
+        sitemap.toggleVisibility(node.module, true);
+      }
     }
   };
 
@@ -86,7 +94,9 @@ export function SitemapTree() {
                           sitemap.renameTab(tab.id, draftTab);
                           setEditingTab(null);
                         }
-                        if (e.key === "Escape") setEditingTab(null);
+                        if (e.key === "Escape") {
+                          setEditingTab(null);
+                        }
                       }}
                     />
                     <button

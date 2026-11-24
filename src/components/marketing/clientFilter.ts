@@ -6,17 +6,24 @@ export type MarketingClientFilter = string | null;
 export function parseClientFilter(
   param: string | null | undefined,
 ): MarketingClientFilter {
-  if (param === "all" || param == null || param === "")
+  if (param === "all" || param == null || param === "") {
     return ALL_CLIENTS_FILTER;
-  if (param === "general" || param === "none") return null;
+  }
+  if (param === "general" || param === "none") {
+    return null;
+  }
   return param;
 }
 
 export function clientFilterToParam(
   filter: MarketingClientFilter,
 ): string | undefined {
-  if (filter === ALL_CLIENTS_FILTER) return "all";
-  if (!filter) return "general";
+  if (filter === ALL_CLIENTS_FILTER) {
+    return "all";
+  }
+  if (!filter) {
+    return "general";
+  }
   return filter;
 }
 
@@ -26,14 +33,22 @@ export function applyClientFilter<
     is: (col: string, val: null) => T;
   },
 >(query: T, filter: MarketingClientFilter, column = "client_id"): T {
-  if (filter === ALL_CLIENTS_FILTER) return query;
-  if (filter) return query.eq(column, filter);
+  if (filter === ALL_CLIENTS_FILTER) {
+    return query;
+  }
+  if (filter) {
+    return query.eq(column, filter);
+  }
   return query.is(column, null);
 }
 
 export function clientFilterLabel(filter: MarketingClientFilter): string {
-  if (filter === ALL_CLIENTS_FILTER) return "כל הלקוחות";
-  if (!filter) return "תוכן כללי";
+  if (filter === ALL_CLIENTS_FILTER) {
+    return "כל הלקוחות";
+  }
+  if (!filter) {
+    return "תוכן כללי";
+  }
   return "לקוח";
 }
 
@@ -42,7 +57,9 @@ export function entryClientFilter(
   department: string | undefined,
   current: MarketingClientFilter,
 ): MarketingClientFilter {
-  if (department === "creative") return ALL_CLIENTS_FILTER;
+  if (department === "creative") {
+    return ALL_CLIENTS_FILTER;
+  }
   return current;
 }
 

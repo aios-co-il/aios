@@ -2,7 +2,7 @@
  * tool_names carmen-approval-execute can run (besides action_type='agent_direct_tool').
  * A test checks each one against the executor's source.
  */
-export const CARMEN_EXECUTOR_TOOLS: readonly string[] = Object.freeze([
+export const CARMEN_EXECUTOR_TOOLS: ReadonlyArray<string> = Object.freeze([
   "fb_create_campaign",
   "fb_create_adset",
   "fb_create_ad",

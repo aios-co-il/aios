@@ -24,8 +24,9 @@ async function refreshAccessTokenIfNeeded(
   }
   const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
   const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-  if (!clientId || !clientSecret)
+  if (!clientId || !clientSecret) {
     throw new Error("Missing Google OAuth credentials");
+  }
 
   const r = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -91,13 +92,17 @@ async function startWatch(serviceClient: any, userId: string) {
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error || !token) return { ok: false, reason: "no_token" };
+  if (error || !token) {
+    return { ok: false, reason: "no_token" };
+  }
 
   const { accessToken, needsReconnect } = await refreshAccessTokenIfNeeded(
     serviceClient,
     token,
   );
-  if (needsReconnect) return { ok: false, reason: "needs_reconnect" };
+  if (needsReconnect) {
+    return { ok: false, reason: "needs_reconnect" };
+  }
 
   // Stop any prior channel so we don't accumulate them on Google's side.
   if (token.watch_channel_id && token.watch_resource_id) {

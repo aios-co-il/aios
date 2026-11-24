@@ -26,9 +26,12 @@ const json = (body: unknown, status = 200) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  }
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   const rawBody = await req.text();
 
@@ -54,7 +57,9 @@ Deno.serve(async (req) => {
 
   const admin = serviceClient();
 
-  if (!botId) return json({ received: true });
+  if (!botId) {
+    return json({ received: true });
+  }
 
   const { data: session } = await admin
     .from("meeting_bot_sessions")
@@ -81,9 +86,12 @@ Deno.serve(async (req) => {
       status_detail: subCode,
       updated_at: new Date().toISOString(),
     };
-    if (event === "bot.fatal") update.error = subCode || "bot_fatal";
-    if (newStatus === "in_meeting" && !session.joined_at)
+    if (event === "bot.fatal") {
+      update.error = subCode || "bot_fatal";
+    }
+    if (newStatus === "in_meeting" && !session.joined_at) {
       update.joined_at = new Date().toISOString();
+    }
     await admin
       .from("meeting_bot_sessions")
       .update(update)
@@ -91,9 +99,12 @@ Deno.serve(async (req) => {
     return json({ received: true });
   }
 
-  if (!isIngestEvent) return json({ received: true });
-  if (session.status === "done")
+  if (!isIngestEvent) {
+    return json({ received: true });
+  }
+  if (session.status === "done") {
     return json({ received: true, skipped: "already done" });
+  }
   // bot.done, recording.done and transcript.done arrive together. One of them
   // owns the ingest; the others must not each open a summary agent.
   if (session.status === "processing" && isIngesting(session)) {

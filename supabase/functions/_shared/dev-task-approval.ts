@@ -33,33 +33,47 @@ export function devTaskApprovalDecision(
     message: REFUSAL_MESSAGES[reason],
   });
   const task = input.task;
-  if (!task) return refuse("not_found");
-  if (task.status !== "draft" && task.status !== "approved")
+  if (!task) {
+    return refuse("not_found");
+  }
+  if (task.status !== "draft" && task.status !== "approved") {
     return refuse("not_draft");
-  if (!input.appChatUser) return refuse("not_app_chat");
+  }
+  if (!input.appChatUser) {
+    return refuse("not_app_chat");
+  }
   const started = time(input.turnStartedAt);
   if (
     !input.conversationId ||
     !Number.isFinite(started) ||
     !String(input.userText ?? "").trim()
-  )
+  ) {
     return refuse("no_turn");
+  }
   const created = time(task.created_at);
-  if (!Number.isFinite(created) || created >= started)
+  if (!Number.isFinite(created) || created >= started) {
     return refuse("same_turn");
-  if (task.source_conversation_id !== input.conversationId)
+  }
+  if (task.source_conversation_id !== input.conversationId) {
     return refuse("other_conversation");
-  if (started - created > (input.maxAgeMs ?? DEV_TASK_OFFER_TTL_MS))
+  }
+  if (started - created > (input.maxAgeMs ?? DEV_TASK_OFFER_TTL_MS)) {
     return refuse("expired");
-  if (!isExplicitDevTaskApproval(input.userText)) return refuse("not_explicit");
+  }
+  if (!isExplicitDevTaskApproval(input.userText)) {
+    return refuse("not_explicit");
+  }
   if (
     !offersDevTask(input.lastAssistantText) ||
     !task.id ||
     task.id !== input.offeredTaskId
-  )
+  ) {
     return refuse("not_offered");
+  }
   const named = namedDevAgent(input.userText);
-  if (named && named !== agentOf(task)) return refuse("target_mismatch");
+  if (named && named !== agentOf(task)) {
+    return refuse("target_mismatch");
+  }
   const bugfix = bugfixApprovalRefusal(task, input.approver);
   return bugfix ? refuse(bugfix.reason) : { ok: true };
 }
@@ -76,7 +90,9 @@ export function bugfixApprovalRefusal(
   },
   approver: { id?: string | null; tier?: DevEscalationTier } | undefined,
 ): { reason: "bugfix_cursor_only" | "not_requester"; message: string } | null {
-  if (approver?.tier !== "bugfix") return null;
+  if (approver?.tier !== "bugfix") {
+    return null;
+  }
   const requester = task.requested_by_user_id;
   const reason =
     agentOf(task) !== "cursor"

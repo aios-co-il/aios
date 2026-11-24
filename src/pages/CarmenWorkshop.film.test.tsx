@@ -19,9 +19,9 @@ const film = (tenantId: string, payload: Record<string, unknown>) => ({
 
 const state = vi.hoisted(() => ({
   /** marketing_work_items of every tenant. */
-  items: [] as Record<string, unknown>[],
-  aspects: [] as string[],
-  edits: [] as boolean[],
+  items: [] as Array<Record<string, unknown>>,
+  aspects: [] as Array<string>,
+  edits: [] as Array<boolean>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -73,7 +73,9 @@ vi.mock("@/components/workshop/useWorkshopArtifacts", () => ({
 vi.mock("@/components/workshop/useWorkshopScenes", () => ({
   useWorkshopScenes: () => ({ data: [], isLoading: false }),
   useEditSceneText: (_t: unknown, projectId: string | null, edit = false) => {
-    if (projectId) state.edits.push(edit);
+    if (projectId) {
+      state.edits.push(edit);
+    }
     return { mutateAsync: vi.fn() };
   },
 }));
@@ -82,7 +84,9 @@ vi.mock("@/components/workshop/WorkshopFeed", () => ({
     projectId: string | null;
     storyboard: { aspect: string };
   }) => {
-    if (props.projectId) state.aspects.push(props.storyboard.aspect);
+    if (props.projectId) {
+      state.aspects.push(props.storyboard.aspect);
+    }
     return null;
   },
 }));

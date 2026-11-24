@@ -12,7 +12,7 @@ import {
 
 interface Props {
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   triggerType?: string;
   automationId?: string;
 }

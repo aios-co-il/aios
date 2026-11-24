@@ -14,10 +14,10 @@ const CLAIM_KEY = ["provider", "tenant_id", "external_message_id"];
  * makes every insert fail with that error; `failSelect` every read.
  */
 export function fakeClaimTables(
-  seed: { claims?: Row[]; integrations?: Row[] } = {},
+  seed: { claims?: Array<Row>; integrations?: Array<Row> } = {},
   opts: { failInsert?: unknown; failSelect?: unknown } = {},
 ) {
-  const tables: Record<string, Row[]> = {
+  const tables: Record<string, Array<Row>> = {
     processed_webhook_messages: (seed.claims ?? []).map((row) => ({
       processed_at: new Date().toISOString(),
       completed_at: null,
@@ -100,7 +100,7 @@ export function fakeClaimTables(
           filters.push((row) => (row[column] ?? null) === value);
           return b;
         },
-        in: (column: string, values: unknown[]) => {
+        in: (column: string, values: Array<unknown>) => {
           filters.push((row) => values.includes(row[column]));
           return b;
         },

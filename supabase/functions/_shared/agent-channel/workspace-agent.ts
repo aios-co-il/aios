@@ -46,7 +46,9 @@ export function normalizeWorkspaceTriggerId(triggerId: string): string {
 /** Trigger id from the Triggers tab: current ids are UUIDs; legacy ids use `agtch_…`, not About-tab `agt_…`. */
 export function validateWorkspaceTriggerId(triggerId: string): string | null {
   const id = normalizeWorkspaceTriggerId(triggerId);
-  if (!id) return "חסר Trigger ID.";
+  if (!id) {
+    return "חסר Trigger ID.";
+  }
   if (id.startsWith("agt_") && !id.startsWith("agtch_")) {
     return "שמת Agent ID (agt_…) במקום Trigger ID. בבuilder של הסוכן: Add channel → API, שמור ו-Publish, והעתק agtch_… ל-CHATGPT_WORK_AGENT_TRIGGER_ID.";
   }
@@ -62,8 +64,9 @@ export function validateWorkspaceTriggerId(triggerId: string): string | null {
 
 export function assertWorkspaceAccessToken(accessToken: string): string | null {
   const token = String(accessToken || "").trim();
-  if (!token)
+  if (!token) {
     return "חסר Workspace Agent access token (CHATGPT_WORK_AGENT_TOKEN).";
+  }
   if (token.startsWith("sk-")) {
     return "זה נראה כמו OpenAI Platform key (sk-…). צריך ChatGPT Workspace Agent access token מ-Admin → Access tokens (scope Workspace Agents).";
   }
@@ -97,9 +100,13 @@ export async function triggerWorkspaceAgentRun(args: {
 }): Promise<WorkspaceTriggerResult> {
   const triggerId = normalizeWorkspaceTriggerId(args.triggerId);
   const triggerProblem = validateWorkspaceTriggerId(triggerId);
-  if (triggerProblem) return { ok: false, status: 0, error: triggerProblem };
+  if (triggerProblem) {
+    return { ok: false, status: 0, error: triggerProblem };
+  }
   const tokenProblem = assertWorkspaceAccessToken(args.accessToken);
-  if (tokenProblem) return { ok: false, status: 0, error: tokenProblem };
+  if (tokenProblem) {
+    return { ok: false, status: 0, error: tokenProblem };
+  }
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${String(args.accessToken).trim()}`,
@@ -148,9 +155,13 @@ export async function triggerWorkspaceAgentRun(args: {
     } finally {
       clearTimeout(timer);
     }
-    if (resp && resp.status < 500) break;
+    if (resp && resp.status < 500) {
+      break;
+    }
   }
-  if (!resp) return { ok: false, status: 0, error: lastError };
+  if (!resp) {
+    return { ok: false, status: 0, error: lastError };
+  }
   if (resp.status < 200 || resp.status >= 300) {
     return {
       ok: false,
@@ -211,12 +222,13 @@ export async function probeWorkspaceAgent(
     };
   }
   const tokenProblem = assertWorkspaceAccessToken(accessToken);
-  if (tokenProblem)
+  if (tokenProblem) {
     return {
       ok: false,
       error: tokenProblem,
       trigger_id_prefix: id.slice(0, 10),
     };
+  }
   return { ok: true, status: 200, trigger_id_prefix: id.slice(0, 10) };
 }
 

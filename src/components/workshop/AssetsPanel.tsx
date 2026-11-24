@@ -45,7 +45,7 @@ export function AssetsPanel({
   tenantId: string | undefined;
   projectId: string;
   clientName?: string | null;
-  assets: WorkshopAsset[];
+  assets: Array<WorkshopAsset>;
   loading: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -71,7 +71,9 @@ export function AssetsPanel({
       source: "user",
       ...row,
     });
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
   };
 
   const change = useMutation({
@@ -82,11 +84,15 @@ export function AssetsPanel({
   });
   const busy = change.isPending;
   const run = (task: (owner: string) => Promise<void>, failure: string) => {
-    if (tenantId) change.mutate({ task: () => task(tenantId), failure });
+    if (tenantId) {
+      change.mutate({ task: () => task(tenantId), failure });
+    }
   };
 
   const upload = (files: FileList | null) => {
-    if (!files?.length) return;
+    if (!files?.length) {
+      return;
+    }
     const list = Array.from(files);
     run(async (owner) => {
       for (const file of list) {
@@ -98,7 +104,9 @@ export function AssetsPanel({
         const { error } = await supabase.storage
           .from(ASSET_BUCKET)
           .upload(path, file);
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
         // Stored as an identifier for the server tools; the hook signs it for display.
         const { data } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(path);
         const type = assetTypeFor({ name: file.name, mime: file.type });
@@ -111,7 +119,9 @@ export function AssetsPanel({
           meta: { mime: file.type, size: file.size },
         });
       }
-      if (input.current) input.current.value = "";
+      if (input.current) {
+        input.current.value = "";
+      }
     }, "ההעלאה נכשלה");
   };
 
@@ -135,7 +145,9 @@ export function AssetsPanel({
 
   const addText = () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body) {
+      return;
+    }
     run(async (owner) => {
       await insert(owner, {
         asset_type: "text",
@@ -154,7 +166,9 @@ export function AssetsPanel({
         .from("workshop_assets")
         .update({ use_as_reference: !asset.use_as_reference })
         .eq("id", asset.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     }, "לא הצלחנו לעדכן את הרפרנס");
 
   const remove = (asset: WorkshopAsset) =>
@@ -163,9 +177,12 @@ export function AssetsPanel({
         .from("workshop_assets")
         .delete()
         .eq("id", asset.id);
-      if (error) throw error;
-      if (asset.storage_path && asset.source !== "client")
+      if (error) {
+        throw error;
+      }
+      if (asset.storage_path && asset.source !== "client") {
         await supabase.storage.from(ASSET_BUCKET).remove([asset.storage_path]);
+      }
     }, "לא הצלחנו להסיר את הנכס");
 
   return (

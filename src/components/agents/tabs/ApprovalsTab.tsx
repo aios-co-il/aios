@@ -149,7 +149,9 @@ export function ApprovalsTab({ agent }: { agent: any }) {
       }
 
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data ?? [];
     },
     refetchInterval: tab === "pending" ? 10_000 : false,

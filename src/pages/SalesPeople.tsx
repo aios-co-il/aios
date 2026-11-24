@@ -23,7 +23,9 @@ export default function SalesPeople() {
   } = useQuery({
     queryKey: ["sales-people", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       let query = supabase
         .from("sales_people")
         .select("*, agencies (name)")
@@ -35,7 +37,9 @@ export default function SalesPeople() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -48,7 +52,9 @@ export default function SalesPeople() {
         .delete()
         .eq("id", id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       toast({
         title: "איש מכירות נמחק בהצלחה",

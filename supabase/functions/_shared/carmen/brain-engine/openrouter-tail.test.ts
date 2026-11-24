@@ -11,7 +11,7 @@ import {
 type Row = Record<string, unknown>;
 
 /** A read-only PostgREST stand-in: eq filters rows, the rest of the chain is ignored. */
-function fakeDb(tables: Record<string, Row[]>, secret = "sk-or-key") {
+function fakeDb(tables: Record<string, Array<Row>>, secret = "sk-or-key") {
   const query = (table: string) => {
     let rows = [...(tables[table] ?? [])];
     const builder: Record<string, unknown> = {};
@@ -70,7 +70,7 @@ const carmen = {
   active: true,
 };
 
-const tables = (overrides: Partial<Record<string, Row[]>> = {}) => ({
+const tables = (overrides: Partial<Record<string, Array<Row>>> = {}) => ({
   carmen_brain_connections: [openRouterConnection],
   agent_brain_routes: [route],
   ai_agents: [carmen],
@@ -238,7 +238,7 @@ const brain = (label: string, connectionId: string) => ({
 Deno.test(
   "the tail is appended once, after the internal providers, without repeats",
   async () => {
-    const chain: { label: string; connectionId?: string }[] = [
+    const chain: Array<{ label: string; connectionId?: string }> = [
       brain("brain:free", "conn-free"),
       internal("openai"),
     ];
@@ -267,13 +267,13 @@ Deno.test(
 Deno.test(
   "an empty chain (no provider key) becomes the OpenRouter brain alone",
   async () => {
-    const chain: { label: string; connectionId?: string }[] = [];
+    const chain: Array<{ label: string; connectionId?: string }> = [];
     await lazyBrainTail(chain, () =>
       Promise.resolve([brain("brain:openrouter", "conn-or")]),
     )();
     assertEquals(chain, [brain("brain:openrouter", "conn-or")]);
     // A tail that fails to load leaves the chain as it was.
-    const empty: { label: string; connectionId?: string }[] = [];
+    const empty: Array<{ label: string; connectionId?: string }> = [];
     assertStrictEquals(
       await lazyBrainTail(empty, () => Promise.reject(new Error("vault")))(),
       false,
@@ -285,8 +285,9 @@ Deno.test(
 Deno.test(
   "a refused key, an empty balance or a rate limit moves to the next link",
   () => {
-    for (const status of [401, 402, 403, 429])
+    for (const status of [401, 402, 403, 429]) {
       assertStrictEquals(movesToNextLink(status, "", false), true);
+    }
     assertStrictEquals(movesToNextLink(400, "insufficient_quota", false), true);
     assertStrictEquals(movesToNextLink(500, "boom", false), false);
     assertStrictEquals(movesToNextLink(500, "boom", true), true);

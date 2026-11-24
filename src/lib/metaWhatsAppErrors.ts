@@ -30,8 +30,9 @@ export function classifyMetaWhatsAppErrorMessage(
     !String(message ?? "")
       .toLowerCase()
       .includes("meta")
-  )
+  ) {
     return null;
+  }
 
   const table: Record<string, Omit<MetaWhatsAppErrorInfo, "code">> = {
     "131049": {
@@ -67,7 +68,9 @@ export function classifyMetaWhatsAppErrorMessage(
     return { code, ...table[code] };
   }
 
-  if (!code) return null;
+  if (!code) {
+    return null;
+  }
   return {
     code,
     labelHe: `שגיאת Meta ${code}`,
@@ -79,23 +82,29 @@ export function classifyMetaWhatsAppErrorMessage(
 /** Summarize failure classes across recent automation_logs for a banner. */
 export function summarizeMetaFailureClasses(
   logs: Array<{ success: boolean | null; error_message?: string | null }>,
-): { code: string; labelHe: string; count: number; retryable: boolean }[] {
+): Array<{ code: string; labelHe: string; count: number; retryable: boolean }> {
   const counts = new Map<
     string,
     { labelHe: string; count: number; retryable: boolean }
   >();
   for (const log of logs) {
-    if (log.success !== false) continue;
+    if (log.success !== false) {
+      continue;
+    }
     const info = classifyMetaWhatsAppErrorMessage(log.error_message);
-    if (!info?.code) continue;
+    if (!info?.code) {
+      continue;
+    }
     const prev = counts.get(info.code);
-    if (prev) prev.count += 1;
-    else
+    if (prev) {
+      prev.count += 1;
+    } else {
       counts.set(info.code, {
         labelHe: info.labelHe,
         count: 1,
         retryable: info.retryable,
       });
+    }
   }
   return [...counts.entries()]
     .map(([code, v]) => ({ code, ...v }))

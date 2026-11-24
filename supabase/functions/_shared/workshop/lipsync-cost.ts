@@ -24,7 +24,7 @@ import { talkingLine } from "./talking.ts";
  * the line is in the chosen voice. Otherwise each talking scene pays for its own voice line plus
  * a lip-sync pass.
  */
-export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
+export function lipsyncEstimate(engine: SceneEngine, scenes: Array<CostScene>) {
   const talking = scenes.filter((scene) => sceneTalkingLine(scene));
   const pass = lipsyncPassScenes(engine, scenes);
   const spokenByEngine = talking.filter((scene) => !pass.includes(scene));
@@ -61,7 +61,7 @@ export function lipsyncEstimate(engine: SceneEngine, scenes: CostScene[]) {
  * with no new clip. Priced as a lip-sync pass, or as Veo where the worker's chain can end there.
  */
 export function relipEstimate(
-  scenes: CostScene[],
+  scenes: Array<CostScene>,
   connections: VideoConnections = {},
 ): Estimate {
   const talking = scenes.filter((scene) => sceneTalkingLine(scene));
@@ -86,8 +86,10 @@ export function relipEstimate(
 }
 
 /** A lip-sync pass: the scene's own voice line plus the lip sync, priced by length. */
-export function lipsyncPassUsd(scenes: CostScene[]) {
-  if (scenes.length === 0) return 0;
+export function lipsyncPassUsd(scenes: Array<CostScene>) {
+  if (scenes.length === 0) {
+    return 0;
+  }
   const seconds = scenes.reduce(
     (sum, scene) => sum + Math.max(1, Math.ceil(Number(scene.duration_s) || 5)),
     0,
@@ -128,7 +130,10 @@ export const sceneTalkingLine = (scene: CostScene) =>
  * Talking scenes that go through the worker's lip-sync pass on this engine: every scene in the
  * chosen voice, and all of them on an engine that cannot speak.
  */
-export const lipsyncPassScenes = (engine: SceneEngine, scenes: CostScene[]) =>
+export const lipsyncPassScenes = (
+  engine: SceneEngine,
+  scenes: Array<CostScene>,
+) =>
   scenes.filter(
     (scene) =>
       sceneTalkingLine(scene) &&

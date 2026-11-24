@@ -20,7 +20,7 @@ export interface ResolveClientTaskAgencyArgs {
   /** Authoritative lookup of a single client by id, bypassing any list filter. */
   fetchClient: (clientId: string) => Promise<TaskClientRow | null>;
   /** Client rows already loaded by the form; used only if the lookup comes back empty. */
-  cachedClients?: readonly TaskClientRow[] | null;
+  cachedClients?: ReadonlyArray<TaskClientRow> | null;
   /** agency_id passed down by the card the form was opened from. */
   fallbackAgencyId?: string | null;
 }

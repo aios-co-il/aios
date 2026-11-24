@@ -32,14 +32,18 @@ export function usePbxSettings(tenantId: string | null | undefined) {
         .select("is_active, config, inbound_secret, outbound_auth_value")
         .eq("tenant_id", tenantId!)
         .maybeSingle();
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
   });
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
     setForm(formFromSaved(saved ?? null));
     setIsActive(saved ? saved.is_active : true);
   }, [saved, isLoading]);
@@ -57,16 +61,21 @@ export function usePbxSettings(tenantId: string | null | undefined) {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!tenantId) throw new Error("No tenant");
-      if (form.outbound_url && !/^https?:\/\//i.test(form.outbound_url))
+      if (!tenantId) {
+        throw new Error("No tenant");
+      }
+      if (form.outbound_url && !/^https?:\/\//i.test(form.outbound_url)) {
         throw new Error("כתובת ה-Webhook היוצא חייבת להתחיל ב-http או https");
+      }
       const { error } = await supabase
         .from("pbx_settings")
         .upsert(
           { tenant_id: tenantId, is_active: isActive, ...toPbxRow(form) },
           { onConflict: "tenant_id" },
         );
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: pbxSettingsKey(tenantId) });

@@ -102,7 +102,7 @@ Deno.test("hasActivity and roundLog", async (t) => {
       "סבב כרמן (observe): 1 ממצאים חדשים, 0 נסגרו, 0 הודעות, 2 לא נשמרו",
     );
     const stats = row.stats as {
-      collectors: { dropped: unknown }[];
+      collectors: Array<{ dropped: unknown }>;
       gaps_dropped: unknown;
     };
     assertEquals(stats.collectors[0].dropped, {

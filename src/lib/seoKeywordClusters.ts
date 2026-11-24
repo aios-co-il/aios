@@ -6,7 +6,7 @@ export type KeywordLike = {
 export type KeywordCluster<T extends KeywordLike> = {
   key: string;
   label: string;
-  keywords: T[];
+  keywords: Array<T>;
   avgPosition: number | null;
   bestPosition: number | null;
   shortTail: number;
@@ -144,29 +144,39 @@ export function stemToken(token: string): string {
 }
 
 /** Ordered content stems so "טיול מאורגן לצ'ילה" keeps the bigram טיול מאורגן. */
-export function clusterTokens(raw: string): string[] {
+export function clusterTokens(raw: string): Array<string> {
   const text = String(raw || "")
     .toLowerCase()
     .replace(/[״"׳']/g, "")
     .replace(/[^\u0590-\u05FFa-z0-9\s-]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!text) return [];
+  if (!text) {
+    return [];
+  }
 
-  const tokens: string[] = [];
+  const tokens: Array<string> = [];
   for (const part of text.split(/[\s-]+/)) {
-    if (!part) continue;
+    if (!part) {
+      continue;
+    }
     const isHe = /[\u0590-\u05FF]/.test(part);
     const isEn = /[a-z]/.test(part);
     let token = part;
     if (isHe) {
-      if (part.length < 2 || HE_STOP.has(part)) continue;
+      if (part.length < 2 || HE_STOP.has(part)) {
+        continue;
+      }
       if (part.length >= 4 && /^[בל]/.test(part)) {
         const stripped = part.slice(1);
-        if (stripped.length >= 2 && !HE_STOP.has(stripped)) token = stripped;
+        if (stripped.length >= 2 && !HE_STOP.has(stripped)) {
+          token = stripped;
+        }
       }
     } else if (isEn) {
-      if (part.length < 3 || EN_STOP.has(part)) continue;
+      if (part.length < 3 || EN_STOP.has(part)) {
+        continue;
+      }
     } else if (!(/\d/.test(part) && part.length >= 2)) {
       continue;
     }
@@ -175,8 +185,8 @@ export function clusterTokens(raw: string): string[] {
   return tokens;
 }
 
-function phraseBigrams(stems: string[]): string[] {
-  const out: string[] = [];
+function phraseBigrams(stems: Array<string>): Array<string> {
+  const out: Array<string> = [];
   for (let i = 0; i < stems.length - 1; i++) {
     const left = stems[i];
     const right = stems[i + 1];
@@ -187,8 +197,10 @@ function phraseBigrams(stems: string[]): string[] {
   return out;
 }
 
-function average(values: number[]): number | null {
-  if (values.length === 0) return null;
+function average(values: Array<number>): number | null {
+  if (values.length === 0) {
+    return null;
+  }
   return (
     Math.round((values.reduce((sum, n) => sum + n, 0) / values.length) * 10) /
     10
@@ -198,14 +210,17 @@ function average(values: number[]): number | null {
 function summarizeCluster<T extends KeywordLike>(
   key: string,
   label: string,
-  keywords: T[],
+  keywords: Array<T>,
 ): KeywordCluster<T> {
   const ranks = keywords.map(keywordRank).filter((n): n is number => n != null);
   let shortTail = 0;
   let longTail = 0;
   for (const kw of keywords) {
-    if (wordCount(String(kw.keyword || "")) <= 2) shortTail += 1;
-    else longTail += 1;
+    if (wordCount(String(kw.keyword || "")) <= 2) {
+      shortTail += 1;
+    } else {
+      longTail += 1;
+    }
   }
   return {
     key,
@@ -225,54 +240,71 @@ function summarizeCluster<T extends KeywordLike>(
  * A token that covers too many phrases (e.g. "טיול" at a travel brand) is skipped.
  */
 export function clusterKeywords<T extends KeywordLike>(
-  keywords: T[],
+  keywords: Array<T>,
   opts?: { minSize?: number; maxCoverage?: number },
-): KeywordCluster<T>[] {
+): Array<KeywordCluster<T>> {
   const minSize = opts?.minSize ?? 2;
   const maxCoverage = opts?.maxCoverage ?? 0.7;
-  const members = new Map<string, T[]>();
+  const members = new Map<string, Array<T>>();
   const labels = new Map<string, string>();
 
   const add = (key: string, label: string, kw: T) => {
     const list = members.get(key) || [];
     list.push(kw);
     members.set(key, list);
-    if (!labels.has(key)) labels.set(key, label);
+    if (!labels.has(key)) {
+      labels.set(key, label);
+    }
   };
 
   for (const kw of keywords) {
     const phrase = String(kw.keyword || "").trim();
-    if (!phrase) continue;
+    if (!phrase) {
+      continue;
+    }
     const stems = clusterTokens(phrase);
     const keys = [...new Set([...stems, ...phraseBigrams(stems)])];
     for (const key of keys) {
-      if (!key || GENERIC_CLUSTER_TOKENS.has(key)) continue;
-      if (!key.includes(" ") && key.length < 3 && !/[\u0590-\u05FF]/.test(key))
+      if (!key || GENERIC_CLUSTER_TOKENS.has(key)) {
         continue;
+      }
+      if (
+        !key.includes(" ") &&
+        key.length < 3 &&
+        !/[\u0590-\u05FF]/.test(key)
+      ) {
+        continue;
+      }
       add(key, key, kw);
     }
   }
 
   const total = Math.max(keywords.length, 1);
-  const clusters: KeywordCluster<T>[] = [];
+  const clusters: Array<KeywordCluster<T>> = [];
   const assigned = new Set<string>();
 
   for (const [key, rows] of members) {
     const unique = dedupeKeywords(rows);
-    if (unique.length < minSize) continue;
-    if (unique.length / total > maxCoverage && !key.includes(" ")) continue;
+    if (unique.length < minSize) {
+      continue;
+    }
+    if (unique.length / total > maxCoverage && !key.includes(" ")) {
+      continue;
+    }
     clusters.push(summarizeCluster(key, labels.get(key) || key, unique));
-    for (const row of unique)
+    for (const row of unique) {
       assigned.add(
         String(row.keyword || "")
           .trim()
           .toLowerCase(),
       );
+    }
   }
 
   clusters.sort((a, b) => {
-    if (b.keywords.length !== a.keywords.length)
+    if (b.keywords.length !== a.keywords.length) {
       return b.keywords.length - a.keywords.length;
+    }
     return (a.avgPosition ?? 999) - (b.avgPosition ?? 999);
   });
 
@@ -288,14 +320,16 @@ export function clusterKeywords<T extends KeywordLike>(
   return clusters;
 }
 
-function dedupeKeywords<T extends KeywordLike>(rows: T[]): T[] {
+function dedupeKeywords<T extends KeywordLike>(rows: Array<T>): Array<T> {
   const seen = new Set<string>();
-  const out: T[] = [];
+  const out: Array<T> = [];
   for (const row of rows) {
     const key = String(row.keyword || "")
       .trim()
       .toLowerCase();
-    if (!key || seen.has(key)) continue;
+    if (!key || seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     out.push(row);
   }

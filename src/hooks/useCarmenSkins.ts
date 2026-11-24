@@ -44,21 +44,26 @@ export function useCarmenSkins() {
       JSON.stringify(readSkinAvatars(agentQuery.data?.metadata)),
     ],
     enabled: !!tenantId && agentQuery.isSuccess,
-    queryFn: async (): Promise<CarmenSkinOption[]> => {
+    queryFn: async (): Promise<Array<CarmenSkinOption>> => {
       const { data, error } = await supabase
         .from("ai_skills")
         .select("slug,name,description,scope")
         .eq("is_active", true)
         .or(`scope.eq.global,and(scope.eq.tenant,tenant_id.eq.${tenantId})`)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       type Row = NonNullable<typeof data>[number] & { slug: string };
       const bySlug = new Map<string, Row>();
       // Tenant rows override the global skin with the same slug.
       for (const row of data ?? []) {
-        if (!row.slug) continue;
-        if (row.scope === "tenant" || !bySlug.has(row.slug))
+        if (!row.slug) {
+          continue;
+        }
+        if (row.scope === "tenant" || !bySlug.has(row.slug)) {
           bySlug.set(row.slug, row as Row);
+        }
       }
       const avatars = readSkinAvatars(agentQuery.data?.metadata);
       return Promise.all(
@@ -79,7 +84,9 @@ export function useCarmenSkins() {
       patch: (m: Record<string, any>) => Record<string, any>,
     ) => {
       const agent = agentQuery.data;
-      if (!agent || !tenantId) throw new Error("לא נמצא סוכן כרמן");
+      if (!agent || !tenantId) {
+        throw new Error("לא נמצא סוכן כרמן");
+      }
       // Re-read so concurrent edits to other metadata keys are not clobbered.
       const { data: fresh, error: readError } = await supabase
         .from("ai_agents")
@@ -87,14 +94,18 @@ export function useCarmenSkins() {
         .eq("id", agent.id)
         .eq("tenant_id", tenantId)
         .single();
-      if (readError) throw readError;
+      if (readError) {
+        throw readError;
+      }
       const next = patch({ ...((fresh?.metadata as object) ?? {}) });
       const { error } = await supabase
         .from("ai_agents")
         .update({ metadata: next })
         .eq("id", agent.id)
         .eq("tenant_id", tenantId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return next;
     },
     onSettled: () => {
@@ -115,15 +126,20 @@ export function useCarmenSkins() {
 
   const setSkinAvatar = useCallback(
     async (slug: string, file: File | null) => {
-      if (!tenantId) throw new Error("missing tenant");
+      if (!tenantId) {
+        throw new Error("missing tenant");
+      }
       const path = file
         ? await uploadProfileImage(tenantId, `skins/${slug}`, file)
         : null;
       await patchMetadata.mutateAsync((m) => {
         const vi = { ...(m.visual_identity ?? {}) };
         const map = { ...(vi.skins ?? {}) };
-        if (path) map[slug] = { avatarPath: path };
-        else delete map[slug];
+        if (path) {
+          map[slug] = { avatarPath: path };
+        } else {
+          delete map[slug];
+        }
         return { ...m, visual_identity: { ...vi, skins: map } };
       });
     },

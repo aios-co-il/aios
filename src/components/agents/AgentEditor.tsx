@@ -82,7 +82,9 @@ export function AgentEditor({
         .from("ai_agents")
         .update({ engine })
         .eq("id", agent.id);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ai-agents", tenantId] });
@@ -174,7 +176,9 @@ function AgentTabsWithUrl({
     : params.get("tab") || "profile";
   const selectTab = (v: string) => {
     if (controlled) {
-      if (tab === undefined) setLocalTab(v);
+      if (tab === undefined) {
+        setLocalTab(v);
+      }
       onTabChange?.(v);
       return;
     }
@@ -184,54 +188,56 @@ function AgentTabsWithUrl({
   const visualIdentity = readAgentIdentity(agent.metadata);
   const identity = useCarmenIdentity();
 
-  const groups: { label: string; items: { value: string; label: string }[] }[] =
-    [
-      {
-        label: "תצורה",
-        items: [
-          { value: "profile", label: "⚙️ פרופיל" },
-          { value: "goals", label: "🎯 מטרות" },
-          { value: "tools", label: "🛠️ כלים" },
-          { value: "registry", label: "📚 מאגר כלים" },
-          { value: "mcp", label: "🔌 MCP" },
-          { value: "supervisor", label: "👑 Supervisor" },
-          ...(carmen
-            ? [
-                {
-                  value: "conversation-access",
-                  label: "📱 הרשאות WhatsApp" as const,
-                },
-              ]
-            : []),
-        ],
-      },
-      {
-        label: "תפעול וניטור",
-        items: [
-          { value: "tasks", label: "📋 משימות (סוכן זה)" },
-          { value: "runs", label: "🔁 ריצות" },
-          { value: "evals", label: "✅ Evals" },
-          { value: "approvals", label: "🛡️ אישורים" },
-          { value: "cost", label: "💰 עלות" },
-        ],
-      },
-      {
-        label: "ידע ופרסונליזציה",
-        items: [
-          { value: "knowledge", label: "📖 ידע" },
-          { value: "memory", label: "🧠 זיכרון" },
-          { value: "user-profiles", label: "👥 פרופילי משתמשים" },
-        ],
-      },
-      {
-        label: "זהות והתפתחות",
-        items: [
-          { value: "skins", label: "🎭 סקינז" },
-          { value: "access", label: "🛡️ גישות" },
-          { value: "learning", label: "🧬 למידה עצמית" },
-        ],
-      },
-    ];
+  const groups: Array<{
+    label: string;
+    items: Array<{ value: string; label: string }>;
+  }> = [
+    {
+      label: "תצורה",
+      items: [
+        { value: "profile", label: "⚙️ פרופיל" },
+        { value: "goals", label: "🎯 מטרות" },
+        { value: "tools", label: "🛠️ כלים" },
+        { value: "registry", label: "📚 מאגר כלים" },
+        { value: "mcp", label: "🔌 MCP" },
+        { value: "supervisor", label: "👑 Supervisor" },
+        ...(carmen
+          ? [
+              {
+                value: "conversation-access",
+                label: "📱 הרשאות WhatsApp" as const,
+              },
+            ]
+          : []),
+      ],
+    },
+    {
+      label: "תפעול וניטור",
+      items: [
+        { value: "tasks", label: "📋 משימות (סוכן זה)" },
+        { value: "runs", label: "🔁 ריצות" },
+        { value: "evals", label: "✅ Evals" },
+        { value: "approvals", label: "🛡️ אישורים" },
+        { value: "cost", label: "💰 עלות" },
+      ],
+    },
+    {
+      label: "ידע ופרסונליזציה",
+      items: [
+        { value: "knowledge", label: "📖 ידע" },
+        { value: "memory", label: "🧠 זיכרון" },
+        { value: "user-profiles", label: "👥 פרופילי משתמשים" },
+      ],
+    },
+    {
+      label: "זהות והתפתחות",
+      items: [
+        { value: "skins", label: "🎭 סקינז" },
+        { value: "access", label: "🛡️ גישות" },
+        { value: "learning", label: "🧬 למידה עצמית" },
+      ],
+    },
+  ];
 
   const allItems = groups.flatMap((g) => g.items);
   const activeLabel =

@@ -26,14 +26,16 @@ export function useMeetingScheduler(tenantId?: string | null) {
   const [personalMessage, setPersonalMessage] = useState("");
   const [isSchedulingMeeting, setIsSchedulingMeeting] = useState(false);
   const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<Array<any>>([]);
   const [calendarError, setCalendarError] = useState<string | null>(null);
 
   /**
    * טעינת אירועי יומן לתאריך נתון (דרך Unified)
    */
   const fetchCalendarEvents = async (selectedDate: Date) => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      return;
+    }
     setIsLoadingCalendar(true);
     setCalendarError(null);
     setCalendarEvents([]);
@@ -76,8 +78,8 @@ export function useMeetingScheduler(tenantId?: string | null) {
   /**
    * יצירת רשימת שעות אפשריות (7:00 - 21:30)
    */
-  const generateTimeOptions = (): string[] => {
-    const options: string[] = [];
+  const generateTimeOptions = (): Array<string> => {
+    const options: Array<string> = [];
     for (let h = 7; h <= 21; h++) {
       for (let m = 0; m < 60; m += 30) {
         options.push(
@@ -91,7 +93,7 @@ export function useMeetingScheduler(tenantId?: string | null) {
   /**
    * יצירת רשימת שעות סיום אפשריות לפי שעת התחלה
    */
-  const generateEndTimeOptions = (startTime: string): string[] => {
+  const generateEndTimeOptions = (startTime: string): Array<string> => {
     const [startHour, startMinute] = startTime.split(":").map(Number);
     const cursor = new Date();
     cursor.setHours(startHour, startMinute, 0, 0);
@@ -100,7 +102,7 @@ export function useMeetingScheduler(tenantId?: string | null) {
     const maxEnd = new Date();
     maxEnd.setHours(23, 30, 0, 0);
 
-    const options: string[] = [];
+    const options: Array<string> = [];
     while (cursor <= maxEnd) {
       options.push(
         `${cursor.getHours().toString().padStart(2, "0")}:${cursor.getMinutes().toString().padStart(2, "0")}`,
@@ -115,7 +117,9 @@ export function useMeetingScheduler(tenantId?: string | null) {
    * עדכון אוטומטי של שעת סיום כששעת התחלה משתנה
    */
   useEffect(() => {
-    if (!meetingTime) return;
+    if (!meetingTime) {
+      return;
+    }
 
     const [startHour, startMinute] = meetingTime.split(":").map(Number);
     const nextHour = new Date();
@@ -167,7 +171,7 @@ export function useMeetingScheduler(tenantId?: string | null) {
    */
   const getAvailableEndTimeSlots = () => {
     if (!meetingDate || !meetingTime) {
-      return [] as { time: string; available: boolean }[];
+      return [] as Array<{ time: string; available: boolean }>;
     }
 
     const [startHours, startMinutes] = meetingTime.split(":").map(Number);
@@ -206,8 +210,8 @@ export function useMeetingScheduler(tenantId?: string | null) {
     contactEmail?: string;
     contactId: string;
     contactType: "lead" | "client" | "campaigner";
-    additionalEmails?: string[];
-    inviteeLabels?: string[];
+    additionalEmails?: Array<string>;
+    inviteeLabels?: Array<string>;
     onSuccess?: () => void;
   }) => {
     const {

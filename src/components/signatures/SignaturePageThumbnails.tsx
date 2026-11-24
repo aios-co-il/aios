@@ -29,10 +29,14 @@ function Thumbnail({
     let cancelled = false;
     (async () => {
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas) {
+        return;
+      }
       try {
         await renderPdfPageToCanvas(pdf, pageNumber, canvas, 140);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
       } catch {
         /* ignore thumbnail errors */
       }

@@ -17,7 +17,7 @@ import {
 function fbGate(
   bearer: string | null,
   body: Record<string, unknown>,
-  calls: string[] = [],
+  calls: Array<string> = [],
 ) {
   return authorizeFbToolRequest({
     authorization: bearer === null ? null : `Bearer ${bearer}`,
@@ -54,7 +54,7 @@ function denied(res: AdToolAuthResult, status: number, error?: string) {
 Deno.test(
   "authorizeFbToolRequest: service role skips the target checks",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const res = await fbGate(SERVICE, pause("9002", B), calls);
     assertEquals(res, {
       ok: true,
@@ -90,7 +90,7 @@ Deno.test(
 Deno.test(
   "authorizeFbToolRequest: a refused write makes no Graph call",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     denied(
       await fbGate(tokenOf("campaignerA"), pause("9001"), calls),
       403,
@@ -125,7 +125,7 @@ Deno.test(
   "authorizeFbToolRequest: a user acts only with their own tenant's token",
   async () => {
     // The Meta object is read with A's own token, never cRW's tenant's.
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const res = await fbGate(
       tokenOf("ownerA"),
       { ...pause("9003"), client_id: CRW },
@@ -245,7 +245,7 @@ Deno.test(
 Deno.test(
   "authorizeFbToolRequest: a forged body tenant_id is ignored",
   async () => {
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     const res = await fbGate(tokenOf("ownerA"), pause("9001", B), calls);
     assertStrictEquals(res.ok && res.caller.tenantId, A);
     assertEquals(calls, ["getUserId", `fetchAccountId:${A}:own:9001`]);

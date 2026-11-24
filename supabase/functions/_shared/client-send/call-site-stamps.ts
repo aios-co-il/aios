@@ -21,7 +21,10 @@ const NOT_CALLS = new Set(["if", "for", "while", "switch", "catch", "return"]);
  * Every call of the named senders in the file: a literal functions/v1/<name>
  * URL, or, in a file that builds functions/v1/${…} URLs, a quoted name.
  */
-export function senderCalls(text: string, senders: string[]): SenderCall[] {
+export function senderCalls(
+  text: string,
+  senders: Array<string>,
+): Array<SenderCall> {
   const src = maskSource(text);
   const stamps = new Map<number, boolean>();
   for (const site of senderSites(src, senders)) {
@@ -37,11 +40,13 @@ export function senderCalls(text: string, senders: string[]): SenderCall[] {
 }
 
 /** Where the file names a sender: URLs, and quoted names if it builds URLs. */
-function senderSites(src: MaskedSource, senders: string[]) {
+function senderSites(src: MaskedSource, senders: Array<string>) {
   const names = senders.map((name) => name.replace(/[-$]/g, "\\$&")).join("|");
   const literal = new RegExp(`functions/v1/(?:${names})(?![\\w-])`, "g");
   const quoted = new RegExp(`["'\`](?:${names})["'\`]`, "g");
-  const builds = src.plain.includes("functions/v1/${");
+  const builds =
+    src.plain.includes("functions/v1/${") ||
+    /\.functions\.invoke\s*\(|\binvokeExecutorFunction\s*\(/.test(src.code);
   return [
     ...[...src.plain.matchAll(literal)].map((m) => ({
       at: m.index,
@@ -60,7 +65,7 @@ function senderSites(src: MaskedSource, senders: string[]) {
  * name, every built URL request. A site that reaches none is one unstamped
  * call.
  */
-function callsAt(src: MaskedSource, at: number, literal: boolean): Span[] {
+function callsAt(src: MaskedSource, at: number, literal: boolean): Array<Span> {
   const call = enclosingCall(src.code, at);
   if (call) {
     return [call];
@@ -74,7 +79,7 @@ function callsAt(src: MaskedSource, at: number, literal: boolean): Span[] {
 }
 
 /** The requests in its block that use the variable `at` is assigned to. */
-function variableRequests(src: MaskedSource, at: number): Span[] | null {
+function variableRequests(src: MaskedSource, at: number): Array<Span> | null {
   const block = enclosingOpener(src.code, at);
   const variable = declaredAt(src.code, at, block);
   if (!variable) {
@@ -85,7 +90,7 @@ function variableRequests(src: MaskedSource, at: number): Span[] | null {
 }
 
 /** Every request to a built functions/v1/${…} URL in the file. */
-function builtRequests(src: MaskedSource): Span[] {
+function builtRequests(src: MaskedSource): Array<Span> {
   const whole = { open: 0, close: src.code.length };
   return requestCalls(src, /functions\/v1\/\$\{/g, whole);
 }
@@ -107,6 +112,9 @@ function requestCalls(src: MaskedSource, pattern: RegExp, within: Span) {
 function isRequest(src: MaskedSource, call: Span): boolean {
   return (
     /fetch$/i.test(calleeOf(src.code, call.open)) ||
+    /(?:\.functions\.invoke|\binvokeExecutorFunction)\s*$/.test(
+      src.code.slice(0, call.open),
+    ) ||
     src.plain.slice(call.open, call.close).includes("functions/v1/")
   );
 }
@@ -119,7 +127,7 @@ function stampedCalls(
   code: string,
   call: Span,
   followHelper: boolean,
-): [number, boolean][] {
+): Array<[number, boolean]> {
   if (argsStamped(code, call)) {
     return [[call.open, true]];
   }

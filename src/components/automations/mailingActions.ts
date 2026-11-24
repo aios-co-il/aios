@@ -16,13 +16,13 @@ export interface MailingActionMeta {
   /** Shows the picker for which trigger entity (lead / client) to act on. */
   pickEntity: boolean;
   /** The list kinds the action can target. */
-  listKinds: readonly ListKind[];
+  listKinds: ReadonlyArray<ListKind>;
   /** Only lists built from a CRM filter. */
   crmFilterOnly: boolean;
   icon: LucideIcon;
 }
 
-const STORED_MEMBERS: readonly ListKind[] = ["static", "synced"];
+const STORED_MEMBERS: ReadonlyArray<ListKind> = ["static", "synced"];
 
 /** The single registry of mailing automation actions: labels, hints, what
  * each one needs and its icon. */

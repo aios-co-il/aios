@@ -30,21 +30,24 @@ const GOAL_ENGINE_COLUMNS = `${GOAL_COLUMNS}, priority, execution_mode, autonomo
 /** Select with a fallback for environments that don't have newer columns yet. */
 async function selectWithFallback(
   table: string,
-  columns: string[],
+  columns: Array<string>,
   build: (q: any) => any,
 ) {
   let lastError: any = null;
   for (const cols of columns) {
     const { data, error } = await build(db.from(table).select(cols));
-    if (!error) return (data ?? []) as Record<string, any>[];
+    if (!error) {
+      return (data ?? []) as Array<Record<string, any>>;
+    }
     lastError = error;
     // 42703 = undefined column; PGRST204/PGRST200 = schema cache misses.
     if (
       !/column|schema cache|42703|PGRST2/i.test(
         String(error.message ?? error.code),
       )
-    )
+    ) {
       break;
+    }
   }
   throw lastError;
 }
@@ -115,14 +118,14 @@ export function useCarmenTasks(tenantId: string | null) {
           ),
         ]);
 
-      const rows: CarmenTaskRow[] = [
+      const rows: Array<CarmenTaskRow> = [
         ...agentTasks
           // Anomaly alerts are notifications, not tasks Carmen runs.
           .filter((t) => t.task_mode !== "anomaly_alert")
           .map(mapAgentTask),
         ...goals.map(mapGoal),
-        ...(devTasks as Record<string, any>[]).map(mapDevTask),
-        ...(cronJobs as Record<string, any>[]).map((j) =>
+        ...(devTasks as Array<Record<string, any>>).map(mapDevTask),
+        ...(cronJobs as Array<Record<string, any>>).map((j) =>
           mapCronJob(j, getCronMeta(String(j.jobname))),
         ),
         ...mapAutomations(automations),
@@ -130,7 +133,7 @@ export function useCarmenTasks(tenantId: string | null) {
       ];
       return {
         rows,
-        systemJobsVisible: (cronJobs as unknown[]).length > 0,
+        systemJobsVisible: (cronJobs as Array<unknown>).length > 0,
       };
     },
   });
@@ -146,14 +149,16 @@ export function useTenantAgents(tenantId: string | null) {
   return useQuery({
     queryKey: ["carmen-task-agents", tenantId],
     enabled: !!tenantId,
-    queryFn: async (): Promise<CarmenAgentOption[]> => {
+    queryFn: async (): Promise<Array<CarmenAgentOption>> => {
       const { data, error } = await supabase
         .from("ai_agents")
         .select("id, name, engine")
         .eq("tenant_id", tenantId!)
         .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as CarmenAgentOption[];
+      if (error) {
+        throw error;
+      }
+      return (data ?? []) as Array<CarmenAgentOption>;
     },
   });
 }

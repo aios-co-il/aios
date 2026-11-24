@@ -24,7 +24,9 @@ function pickMediaFromRaw(raw: any): {
   mime?: string;
   caption?: string;
 } {
-  if (!raw || typeof raw !== "object") return {};
+  if (!raw || typeof raw !== "object") {
+    return {};
+  }
   // Manus/Green API common shapes
   const candidates = [
     raw?.media_url,
@@ -48,8 +50,9 @@ function pickMediaFromRaw(raw: any): {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -68,11 +71,12 @@ Deno.serve(async (req) => {
       created_by,
     } = body;
 
-    if (!tenant_id)
+    if (!tenant_id) {
       return new Response(JSON.stringify({ error: "tenant_id required" }), {
         status: 400,
         headers: corsHeaders,
       });
+    }
 
     let url: string | undefined = directUrl;
     let mime: string | undefined = directMime;
@@ -90,11 +94,12 @@ Deno.serve(async (req) => {
         .eq("id", message_id)
         .eq("tenant_id", tenant_id)
         .maybeSingle();
-      if (!msg)
+      if (!msg) {
         return new Response(JSON.stringify({ error: "message_not_found" }), {
           status: 404,
           headers: corsHeaders,
         });
+      }
       const picked = pickMediaFromRaw(msg.raw_provider_data);
       url = url || picked.url;
       mime = mime || picked.mime;
@@ -104,7 +109,7 @@ Deno.serve(async (req) => {
       sourceMessageId = msg.id;
     }
 
-    if (!url)
+    if (!url) {
       return new Response(
         JSON.stringify({
           error: "no_media_url",
@@ -112,16 +117,20 @@ Deno.serve(async (req) => {
         }),
         { status: 400, headers: corsHeaders },
       );
+    }
 
     // Download the file
     const fileRes = await fetch(url);
-    if (!fileRes.ok)
+    if (!fileRes.ok) {
       return new Response(
         JSON.stringify({ error: "download_failed", status: fileRes.status }),
         { status: 502, headers: corsHeaders },
       );
+    }
     const blob = await fileRes.blob();
-    if (!mime) mime = blob.type || "application/octet-stream";
+    if (!mime) {
+      mime = blob.type || "application/octet-stream";
+    }
     const ext =
       (mime.split("/")[1] || "bin").replace(/[^a-z0-9]/gi, "").slice(0, 8) ||
       "bin";
@@ -141,11 +150,12 @@ Deno.serve(async (req) => {
         contentType: mime,
         upsert: false,
       });
-    if (upErr)
+    if (upErr) {
       return new Response(
         JSON.stringify({ error: "upload_failed", details: upErr.message }),
         { status: 500, headers: corsHeaders },
       );
+    }
 
     const adReady = SUPPORTED_AD_MIME.has(mime.toLowerCase());
 

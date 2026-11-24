@@ -30,7 +30,7 @@ export const STILLS_BUDGET_MS = 50_000;
 /** Scenes a redo still has to replace; their old picture stays on the board until then. */
 export const REDO_KEY = "workshop_redo_scenes";
 
-export const stringList = (value: unknown): string[] =>
+export const stringList = (value: unknown): Array<string> =>
   Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === "string")
     : [];
@@ -47,8 +47,11 @@ export function endingOf(payload: Record<string, unknown>, ctaText: string) {
   const ending = answerFor(briefAnswersOf(payload), "סיום");
   const next: Record<string, unknown> = { ...payload };
   next.end_card = !/בלי סגיר/.test(ending);
-  if (/בלי סגיר|לוגו בלבד/.test(ending)) delete next.cta_text;
-  else if (ctaText) next.cta_text = ctaText;
+  if (/בלי סגיר|לוגו בלבד/.test(ending)) {
+    delete next.cta_text;
+  } else if (ctaText) {
+    next.cta_text = ctaText;
+  }
   return next;
 }
 
@@ -85,7 +88,9 @@ function wantsNewStory(turn: {
   userText?: string | null;
   lastAssistant?: string | null;
 }) {
-  if (asksForNewStory(turn.userText)) return true;
+  if (asksForNewStory(turn.userText)) {
+    return true;
+  }
   const answers = tappedAnswers(
     String(turn.lastAssistant ?? ""),
     String(turn.userText ?? ""),
@@ -105,13 +110,15 @@ function wantsNewStory(turn: {
 export async function paidReplaceRefusal(
   supabase: Db,
   tenantId: string,
-  old: Record<string, any>[],
+  old: Array<Record<string, any>>,
   turn: { userText?: string | null; lastAssistant?: string | null },
 ): Promise<{ error: string } | null> {
   const ids = old
     .flatMap((scene) => [scene.still_asset_id, scene.clip_asset_id])
     .filter((id): id is string => typeof id === "string" && id !== "");
-  if (ids.length === 0 || wantsNewStory(turn)) return null;
+  if (ids.length === 0 || wantsNewStory(turn)) {
+    return null;
+  }
   const { data } = await supabase
     .from("marketing_assets")
     .select("id, meta")
@@ -125,7 +132,9 @@ export async function paidReplaceRefusal(
       })
       .map((row: { id: string }) => String(row.id)),
   );
-  if (ids.every((id) => free.has(id))) return null;
+  if (ids.every((id) => free.has(id))) {
+    return null;
+  }
   return {
     error: `לסטוריבורד הזה כבר יש תמונות או סרטונים בתשלום, והמשתמש לא ביקש סיפור חדש. אל תחליפי אותו: דווחי למשתמש מה נכשל, או שאלי אם הוא רוצה סטוריבורד חדש, בדיוק עם השאלה הזו: ${NEW_STORYBOARD_QUESTION}`,
   };
@@ -146,7 +155,7 @@ export async function loadScenes(
     .eq("item_id", itemId)
     .eq("tenant_id", tenantId)
     .order("position");
-  return (Array.isArray(data) ? data : []) as Record<string, any>[];
+  return (Array.isArray(data) ? data : []) as Array<Record<string, any>>;
 }
 
 /** Clip assets the free preview made; a paid production makes those scenes again. */
@@ -154,9 +163,11 @@ export async function previewClipIds(
   supabase: Db,
   tenantId: string,
   itemId: string,
-  ids: string[],
+  ids: Array<string>,
 ) {
-  if (ids.length === 0) return new Set<string>();
+  if (ids.length === 0) {
+    return new Set<string>();
+  }
   const { data } = await supabase
     .from("marketing_assets")
     .select("id")

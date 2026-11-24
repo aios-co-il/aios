@@ -12,31 +12,39 @@ import { computeSidebarOverlay } from "@/visual-workspace/hooks/useSitemap";
 export type AccessibleMenuGroup = {
   id: MenuTabId;
   label: string;
-  modules: MenuModule[];
+  modules: Array<MenuModule>;
 };
 
 export function useAccessibleMenuModules() {
   const { menuItems, isLoading: menuLoading } = useMenuItems();
   const { hasPermission, isLoading: permissionsLoading } = useUserPermissions();
 
-  const groups = useMemo<AccessibleMenuGroup[]>(() => {
+  const groups = useMemo<Array<AccessibleMenuGroup>>(() => {
     const dbByKey = new Map(menuItems.map((item) => [item.menu_key, item]));
     const overlay = computeSidebarOverlay(menuItems);
-    const modulesByTab = new Map<MenuTabId, MenuModule[]>(
+    const modulesByTab = new Map<MenuTabId, Array<MenuModule>>(
       MENU_TABS.map((tab) => [tab.id, []]),
     );
 
     for (const tab of MENU_TABS) {
       for (const module of tab.sections.flatMap((section) => section.items)) {
         const targetTabId = overlay.moduleHome.get(module.key)?.tabId || tab.id;
-        if (!modulesByTab.has(targetTabId)) continue;
+        if (!modulesByTab.has(targetTabId)) {
+          continue;
+        }
         const accessible = (() => {
           const configured = dbByKey.get(module.key);
-          if (configured && !configured.is_visible) return false;
-          if (module.key === "my-profile") return true;
+          if (configured && !configured.is_visible) {
+            return false;
+          }
+          if (module.key === "my-profile") {
+            return true;
+          }
           return hasPermission(permissionForMenuKey(module.key));
         })();
-        if (!accessible) continue;
+        if (!accessible) {
+          continue;
+        }
         modulesByTab.get(targetTabId)!.push({
           ...module,
           label: dbByKey.get(module.key)?.custom_label || module.label,

@@ -7,8 +7,8 @@ export async function openPlaceholders(
   supabase: Db,
   tenantId: string,
   itemId: string,
-  rows: { kind: "image" | "scene_still"; title: string; meta?: object }[],
-): Promise<(string | undefined)[]> {
+  rows: Array<{ kind: "image" | "scene_still"; title: string; meta?: object }>,
+): Promise<Array<string | undefined>> {
   const none = rows.map(() => undefined);
   try {
     await supabase
@@ -33,7 +33,9 @@ export async function openPlaceholders(
         ),
       )
       .select("id");
-    if (error || !Array.isArray(data)) return none;
+    if (error || !Array.isArray(data)) {
+      return none;
+    }
     return rows.map((_, index) => data[index]?.id);
   } catch {
     return none;
@@ -46,7 +48,9 @@ export async function settlePlaceholder(
   id: string | undefined,
   patch: Record<string, unknown>,
 ) {
-  if (!id) return null;
+  if (!id) {
+    return null;
+  }
   try {
     const { data } = await supabase
       .from("workshop_artifacts")
@@ -80,7 +84,9 @@ export async function ensureStillPage(
   placeholderId?: string,
 ) {
   const assetId = asRecord(Array.isArray(asset) ? asset[0] : asset).id;
-  if (typeof assetId !== "string") return;
+  if (typeof assetId !== "string") {
+    return;
+  }
   const { data: existing } = await supabase
     .from("workshop_artifacts")
     .select("id")
@@ -88,7 +94,9 @@ export async function ensureStillPage(
     .eq("ref_table", "marketing_assets")
     .eq("ref_id", assetId)
     .maybeSingle();
-  if (existing) return;
+  if (existing) {
+    return;
+  }
   const settled = await settlePlaceholder(supabase, tenantId, placeholderId, {
     status: "ready",
     url,
@@ -97,7 +105,9 @@ export async function ensureStillPage(
     ref_id: assetId,
     meta: { asset_id: assetId },
   });
-  if (settled) return;
+  if (settled) {
+    return;
+  }
   await recordArtifact(supabase, {
     tenantId,
     itemId,

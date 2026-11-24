@@ -89,7 +89,7 @@ export type PulseSnapshotAlertInput = {
   client_name?: string | null;
   status?: string | null;
   cpl_change_pct?: number | null;
-  flags?: string[] | null;
+  flags?: Array<string> | null;
   last_client_call_at?: string | null;
   campaign_goal_mode?: string | null;
   lead_goal_status?: string | null;
@@ -135,7 +135,9 @@ export type QueueWhatsApp = (
 ) => Promise<boolean>;
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_PULSE_ALERT_RULES };
+  }
   const input = raw as Record<string, unknown>;
   return {
     instant_wa_enabled: input.instant_wa_enabled !== false,
@@ -155,24 +157,26 @@ export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
   };
 }
 
-function flagList(flags: string[] | null | undefined): string[] {
+function flagList(flags: Array<string> | null | undefined): Array<string> {
   return Array.isArray(flags) ? flags.filter(Boolean) : [];
 }
 
 export function evaluatePulseInstantAlerts(
-  snapshots: PulseSnapshotAlertInput[],
-  criticalIssues: CriticalIssueLike[],
+  snapshots: Array<PulseSnapshotAlertInput>,
+  criticalIssues: Array<CriticalIssueLike>,
   rulesInput: unknown,
   nowMs = Date.now(),
   disconnects: Array<OpenIntegrationDisconnect> = [],
-): PulseInstantAlertCandidate[] {
+): Array<PulseInstantAlertCandidate> {
   const rules = parsePulseAlertRules(rulesInput);
-  if (!rules.instant_wa_enabled) return [];
+  if (!rules.instant_wa_enabled) {
+    return [];
+  }
 
   // The org's lost connections lead the connection section (AIO-342).
   const candidates: Array<PulseInstantAlertCandidate> =
     rules.disconnected_enabled ? disconnectAlertCandidates(disconnects) : [];
-  const criticalByClient = new Map<string, CriticalIssueLike[]>();
+  const criticalByClient = new Map<string, Array<CriticalIssueLike>>();
   for (const issue of criticalIssues) {
     const list = criticalByClient.get(issue.clientId) || [];
     list.push(issue);
@@ -187,7 +191,9 @@ export function evaluatePulseInstantAlerts(
       : [];
 
     for (const campaign of campaignBreakdown) {
-      if (campaign.alert_eligible !== true || !campaign.campaign_key) continue;
+      if (campaign.alert_eligible !== true || !campaign.campaign_key) {
+        continue;
+      }
       const severity = Math.max(
         1,
         Math.abs(Number(campaign.trend_3d_pct) || 0),
@@ -298,8 +304,12 @@ export function evaluatePulseInstantAlerts(
         snapshot.ecommerce_goal_status === "no_data";
       const critical = criticalByClient.get(snapshot.client_id) || [];
       const criticalLabels = critical.map((issue) => {
-        if (issue.alertType === "campaign_stopped") return "קמפיין הושהה/נעצר";
-        if (issue.alertType === "ad_disapproved") return "מודעה לא מאושרת";
+        if (issue.alertType === "campaign_stopped") {
+          return "קמפיין הושהה/נעצר";
+        }
+        if (issue.alertType === "ad_disapproved") {
+          return "מודעה לא מאושרת";
+        }
         return issue.label || "בעיית קמפיין";
       });
 
@@ -338,9 +348,9 @@ export type InstantPulseAlertsInput = {
   /** The organization's name, in the header of each run message. */
   orgName: string;
   /** Whom the organization's Carmen reports to; alerted ahead of the owners and managers. */
-  reportRecipients: CarmenReportRecipient[];
-  snapshots: PulseSnapshotAlertInput[];
-  criticalIssues: CriticalIssueLike[];
+  reportRecipients: Array<CarmenReportRecipient>;
+  snapshots: Array<PulseSnapshotAlertInput>;
+  criticalIssues: Array<CriticalIssueLike>;
   /** The org's own open connection disconnects (loadOpenIntegrationDisconnects). */
   disconnects?: Array<OpenIntegrationDisconnect>;
   rules: unknown;

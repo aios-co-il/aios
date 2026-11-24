@@ -36,7 +36,7 @@ export function accountStatusLabel(status: number): string {
 export function findingsFor(
   report: ReportAccount,
   snapshot: AccountSnapshot,
-): Finding[] {
+): Array<Finding> {
   const account = accountKey(report.adAccountId);
   if (snapshot.accountStatus !== 1) {
     return [
@@ -54,7 +54,7 @@ export function findingsFor(
     ];
   }
 
-  const findings: Finding[] = [];
+  const findings: Array<Finding> = [];
   for (const campaign of snapshot.campaigns) {
     if (campaign.effective_status === "WITH_ISSUES") {
       findings.push({
@@ -89,7 +89,7 @@ export function findingsFor(
   }
 
   // A disapproved ad matters only while its campaign is meant to run.
-  const disapprovedByCampaign = new Map<string, MetaAd[]>();
+  const disapprovedByCampaign = new Map<string, Array<MetaAd>>();
   for (const ad of snapshot.blockedAds) {
     if (
       ad.effective_status !== "DISAPPROVED" ||

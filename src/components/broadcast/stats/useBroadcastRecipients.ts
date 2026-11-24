@@ -16,7 +16,9 @@ export function useBroadcastRecipients(broadcastId: string | null) {
             .eq("broadcast_id", broadcastId)
             .order("opened_at", { ascending: false, nullsFirst: false })
             .limit(2000);
-          if (error) throw error;
+          if (error) {
+            throw error;
+          }
           return data;
         }
       : skipToken,

@@ -54,7 +54,7 @@ type PlatformTable = {
 };
 
 export const buildPulseAttentionRows = buildRows as (input: {
-  campaignRows: PulseCampaignGoalRow[];
-  tables: PlatformTable[];
-  clients: PulseAttentionClientContext[];
-}) => PulseAttentionRow[];
+  campaignRows: Array<PulseCampaignGoalRow>;
+  tables: Array<PlatformTable>;
+  clients: Array<PulseAttentionClientContext>;
+}) => Array<PulseAttentionRow>;

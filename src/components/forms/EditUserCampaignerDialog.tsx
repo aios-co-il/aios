@@ -55,8 +55,8 @@ export function EditUserCampaignerDialog({
   );
   const [newCampaignerPhone, setNewCampaignerPhone] = useState("");
   const [newCampaignerEmail, setNewCampaignerEmail] = useState(userEmail || "");
-  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([]);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = useState<Array<string>>([]);
+  const [selectedRoles, setSelectedRoles] = useState<Array<string>>([]);
   const [notes, setNotes] = useState("");
 
   // Fetch current user's campaigner
@@ -69,7 +69,9 @@ export function EditUserCampaignerDialog({
         .eq("id", userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data.campaigner_id;
     },
     enabled: open,
@@ -85,7 +87,9 @@ export function EditUserCampaignerDialog({
         .eq("active", true)
         .order("full_name");
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open,
@@ -95,13 +99,17 @@ export function EditUserCampaignerDialog({
   const { data: agencies } = useQuery({
     queryKey: ["agencies", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: open && showCreateForm && !!tenantId,
@@ -125,7 +133,9 @@ export function EditUserCampaignerDialog({
         .update({ campaigner_id: actualCampaignerId })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       // סנכרון אימייל/שם לקמפיינר אם חסר
       if (actualCampaignerId) {

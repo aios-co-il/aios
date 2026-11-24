@@ -95,7 +95,7 @@ const META_INSIGHTS_2 = {
 };
 
 /** The recorded account, campaigns, ad sets and insights, after any `extra` answers. */
-export function metaRecording(extra: Recorded[] = []) {
+export function metaRecording(extra: Array<Recorded> = []) {
   return replay([
     ...extra,
     { match: /\/act_1234\?/, body: META_ACCOUNT },

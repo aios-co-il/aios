@@ -33,14 +33,18 @@ export function ChatMultiSelectToolbar({
   const { data: allTags = [] } = useQuery({
     queryKey: ["chat-tags", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("chat_tags")
         .select("*")
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -52,7 +56,9 @@ export function ChatMultiSelectToolbar({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || !tenantId) throw new Error("No user or tenant");
+      if (!user || !tenantId) {
+        throw new Error("No user or tenant");
+      }
 
       const inserts = selectedContacts
         .map((contact) => {
@@ -113,7 +119,9 @@ export function ChatMultiSelectToolbar({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || !tenantId) throw new Error("No user or tenant");
+      if (!user || !tenantId) {
+        throw new Error("No user or tenant");
+      }
       return removeTagFromChats(supabase, tenantId, tagId, selectedContacts);
     },
     onSuccess: (removed) => {
@@ -142,7 +150,9 @@ export function ChatMultiSelectToolbar({
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user || !tenantId) throw new Error("No user or tenant");
+      if (!user || !tenantId) {
+        throw new Error("No user or tenant");
+      }
 
       const now = new Date().toISOString();
 

@@ -61,7 +61,9 @@ export const DEFAULT_PULSE_ALERT_RULES: PulseAlertRules = {
 };
 
 export function parsePulseAlertRules(raw: unknown): PulseAlertRules {
-  if (!raw || typeof raw !== "object") return { ...DEFAULT_PULSE_ALERT_RULES };
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_PULSE_ALERT_RULES };
+  }
   const input = raw as Record<string, unknown>;
   return {
     instant_wa_enabled: input.instant_wa_enabled !== false,

@@ -8,7 +8,7 @@ type Query = {
   table: string;
   columns?: string;
   eq: Array<[string, unknown]>;
-  in: Array<[string, unknown[]]>;
+  in: Array<[string, Array<unknown>]>;
   order?: [string, unknown];
   limit?: number;
 };
@@ -27,7 +27,7 @@ function fakeSupabase(
   rows: FakeRows,
   error: { message: string } | null = null,
 ) {
-  const queries: Query[] = [];
+  const queries: Array<Query> = [];
   const rpcs: Array<[string, unknown]> = [];
   const supabase = {
     from<T extends keyof FakeRows>(table: T) {
@@ -39,7 +39,7 @@ function fakeSupabase(
           q.eq.push([column, value]),
           chain
         ),
-        in: (column: string, values: unknown[]) => (
+        in: (column: string, values: Array<unknown>) => (
           q.in.push([column, values]),
           chain
         ),
@@ -133,7 +133,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
   await t.step(
     "Supabase deps: a client must sit in an accessible tenant and pass the caller scope",
     async () => {
-      const scopeChecks: string[] = [];
+      const scopeChecks: Array<string> = [];
       const accessibleTenantIds = [TENANT, OTHER_TENANT];
       const found = fakeSupabase({ clients: { id: CLIENT } });
       const visible = createPulseRefreshDeps({
@@ -202,7 +202,7 @@ Deno.test("createPulseRefreshDeps", async (t) => {
   await t.step(
     "a failed client lookup is reported as a failed check, not a missing client",
     async () => {
-      const scopeChecks: string[] = [];
+      const scopeChecks: Array<string> = [];
       const deps = createPulseRefreshDeps({
         supabase: fakeSupabase(
           {},
@@ -213,9 +213,9 @@ Deno.test("createPulseRefreshDeps", async (t) => {
           scopeChecks.push(clientId);
         },
       });
-      const errors: unknown[] = [];
+      const errors: Array<unknown> = [];
       const original = console.error;
-      console.error = (...args: unknown[]) => errors.push(args);
+      console.error = (...args: Array<unknown>) => errors.push(args);
       try {
         // The Postgres text stays in the log, never in the tool result.
         assertStrictEquals(

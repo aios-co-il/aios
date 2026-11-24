@@ -15,19 +15,19 @@ import { errorMessage } from "./templateUtils";
  */
 export function useUploadAttachments(
   tenantId: string | null | undefined,
-  onUploaded: (added: EmailAttachment[]) => void,
+  onUploaded: (added: Array<EmailAttachment>) => void,
 ) {
   return useMutation({
     mutationFn: async ({
       files,
       currentTotal,
     }: {
-      files: File[];
+      files: Array<File>;
       currentTotal: number;
     }) => {
       const tid = requireTenantId(tenantId);
       let total = currentTotal;
-      const added: EmailAttachment[] = [];
+      const added: Array<EmailAttachment> = [];
       for (const file of files) {
         if (file.size > MAX_ATTACHMENT_BYTES) {
           toast.error(`${file.name}: קובץ מעל 10MB`);
@@ -56,7 +56,9 @@ export function useUploadAttachments(
       return added;
     },
     onSuccess: (added) => {
-      if (added.length) onUploaded(added);
+      if (added.length) {
+        onUploaded(added);
+      }
     },
     onError: (e) => toast.error("העלאת הקובץ נכשלה: " + errorMessage(e)),
   });

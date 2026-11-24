@@ -48,7 +48,9 @@ export async function generateVoice({
     : isTalkingScene(scene)
       ? talkingLine(scene)
       : spokenLine(scene?.voiceover_text);
-  if (!text) throw finalError("voice run: voiceover_text is required");
+  if (!text) {
+    throw finalError("voice run: voiceover_text is required");
+  }
   const path = assetPath(
     run,
     item.folder,

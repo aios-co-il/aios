@@ -32,12 +32,15 @@ const json = (body: unknown, status = 200) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Missing authorization" }, 401);
+    if (!authHeader) {
+      return json({ error: "Missing authorization" }, 401);
+    }
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,7 +78,9 @@ Deno.serve(async (req) => {
         data: { user },
         error: authError,
       } = await userClient.auth.getUser();
-      if (authError || !user) return json({ error: "Unauthorized" }, 401);
+      if (authError || !user) {
+        return json({ error: "Unauthorized" }, 401);
+      }
       userId = user.id;
       tenantId = bodyTenantId || null;
 
@@ -89,13 +94,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!tenantId) return json({ error: "tenant_id is required" }, 400);
-    if (!rawUrl?.trim()) return json({ error: "meeting_url is required" }, 400);
-    if (!recallApiKey())
+    if (!tenantId) {
+      return json({ error: "tenant_id is required" }, 400);
+    }
+    if (!rawUrl?.trim()) {
+      return json({ error: "meeting_url is required" }, 400);
+    }
+    if (!recallApiKey()) {
       return json(
         { error: "Meeting bot is not configured (RECALL_API_KEY)" },
         503,
       );
+    }
 
     const meeting_url = normalizeMeetingUrl(rawUrl);
     const platform = detectMeetingPlatform(meeting_url);
@@ -158,8 +168,9 @@ Deno.serve(async (req) => {
         .eq("id", agencyId)
         .eq("tenant_id", tenantId)
         .maybeSingle();
-      if (!agency)
+      if (!agency) {
         return json({ error: "הסוכנות אינה שייכת לארגון הפעיל" }, 403);
+      }
     } else if (summaryScope === "agency" || summaryScope === "campaigner") {
       const { data: agency } = await admin
         .from("agencies")
@@ -170,8 +181,9 @@ Deno.serve(async (req) => {
         .limit(1)
         .maybeSingle();
       agencyId = agency?.id || null;
-      if (!agencyId)
+      if (!agencyId) {
         return json({ error: "לא נמצאה סוכנות לשיוך הסיכום" }, 400);
+      }
     }
 
     if (campaignerIds.length > 0) {

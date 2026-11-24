@@ -27,7 +27,9 @@ export async function getExistingLead(
   incoming: InboundContact,
 ): Promise<Tables<"leads"> | null> {
   const phoneVariants = leadPhoneVariants(incoming.phone);
-  if (phoneVariants.length === 0) return null;
+  if (phoneVariants.length === 0) {
+    return null;
+  }
 
   const { data: leadsByPhone } = await db
     .from("leads")
@@ -38,7 +40,9 @@ export async function getExistingLead(
     .limit(20);
 
   const match = pickDuplicateLead<Tables<"leads">>(leadsByPhone, incoming);
-  if (match) return match;
+  if (match) {
+    return match;
+  }
 
   // Stored phones may use other spellings; scan recent leads as a fallback
   const { data: recentLeads } = await db
@@ -75,7 +79,9 @@ export async function applyTagToLead(
   rawTagName: string,
 ): Promise<void> {
   const tagName = rawTagName.trim();
-  if (!tagName) return;
+  if (!tagName) {
+    return;
+  }
 
   // Look up first: an upsert would reset the color of an existing tag
   const { data: existingTag } = await db
@@ -94,7 +100,9 @@ export async function applyTagToLead(
       .single();
     tagId = newTag?.id;
   }
-  if (!tagId) return;
+  if (!tagId) {
+    return;
+  }
 
   await db.from("chat_contact_tags").upsert(
     {

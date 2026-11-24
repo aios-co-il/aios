@@ -30,22 +30,22 @@ export type RouteTenantInput = {
   today: string;
   floors: NotifyFloors;
   /** Loaded only when there is something to route or re-check. */
-  staff: () => Promise<StaffMember[]>;
+  staff: () => Promise<Array<StaffMember>>;
   dryRun: boolean;
   /** Dry-run only: candidates shown as if they were new findings. */
-  virtual?: FindingRow[];
+  virtual?: Array<FindingRow>;
   /**
    * Findings whose draft Carmen wrote to the card this run (or, in a dry
    * run, would write): closed, so never routed. A real run has closed them
    * already; a dry run closes nothing, so the preview drops them here.
    */
-  onCard?: readonly string[];
+  onCard?: ReadonlyArray<string>;
 };
 
 export type RouteTenantResult = {
-  findings: FindingRow[];
-  decisions: RouteDecision[];
-  gaps: FindingCandidate[];
+  findings: Array<FindingRow>;
+  decisions: Array<RouteDecision>;
+  gaps: Array<FindingCandidate>;
   /** Gaps the database did not store, by outcome. */
   gapsDropped: DroppedCounts;
 };
@@ -112,7 +112,7 @@ export async function routeTenant(
 async function applyAndRecord(
   findings: FindingsStore,
   input: RouteTenantInput,
-  decisions: RouteDecision[],
+  decisions: Array<RouteDecision>,
   gaps: Gaps,
 ): Promise<DroppedCounts> {
   await findings.applyRoute(input.tenantId, input.roundId, decisions);
@@ -123,8 +123,8 @@ async function applyAndRecord(
 async function resolvePeople(
   directory: PeopleDirectory,
   input: RouteTenantInput,
-  staff: StaffMember[],
-  clientIds: string[],
+  staff: Array<StaffMember>,
+  clientIds: Array<string>,
 ): Promise<Map<string, ClientRecipients>> {
   const people = new Map<string, ClientRecipients>();
   for (const clientId of new Set(clientIds)) {

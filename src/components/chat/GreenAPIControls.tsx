@@ -17,7 +17,9 @@ export function GreenAPIControls({
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (!groupChatId) return;
+    if (!groupChatId) {
+      return;
+    }
     try {
       await navigator.clipboard.writeText(groupChatId);
       setCopied(true);

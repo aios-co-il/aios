@@ -75,8 +75,11 @@ export function BrainSelector({
   const { buildPath } = useTenantPath();
   const navigate = useNavigate();
   const manageKeys = () => {
-    if (onManageKeys) onManageKeys();
-    else navigate(buildPath("/llm-settings"));
+    if (onManageKeys) {
+      onManageKeys();
+    } else {
+      navigate(buildPath("/llm-settings"));
+    }
   };
 
   // Connected models (filtered by configured API keys)
@@ -95,10 +98,13 @@ export function BrainSelector({
   const noProviders = !isLoading && connectedModels.length === 0;
 
   // Group by family
-  const byFamily = displayModels.reduce<Record<string, AiModel[]>>((acc, m) => {
-    (acc[m.family] ||= []).push(m);
-    return acc;
-  }, {});
+  const byFamily = displayModels.reduce<Record<string, Array<AiModel>>>(
+    (acc, m) => {
+      (acc[m.family] ||= []).push(m);
+      return acc;
+    },
+    {},
+  );
 
   // Resolve current display value (match alias or full id from full catalog); a retired engine
   // such as gpt-5.5-pro shows the model it now runs on.

@@ -30,16 +30,18 @@ Deno.test("sendTargetFor", async (t) => {
     assertEquals(await sendTargetFor(db, "client", CA, [T]), {
       phone: "972500000001",
       contactName: "א",
+      tenantId: T,
     });
     assertEquals(await sendTargetFor(db, "lead", L1, [T]), {
       phone: "972500000003",
       contactName: "ליד",
+      tenantId: T,
     });
   });
 
   await t.step("finds nothing in another tenant", async () => {
     const { db } = fakeDb(contacts);
-    const none = { phone: null, contactName: null };
+    const none = { phone: null, contactName: null, tenantId: null };
     assertEquals(await sendTargetFor(db, "client", CB, [T]), none);
     assertEquals(await sendTargetFor(db, "lead", L2, [T]), none);
   });

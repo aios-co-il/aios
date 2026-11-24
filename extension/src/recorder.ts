@@ -155,7 +155,9 @@ async function startCameraBubble() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dpp = (window as any).documentPictureInPicture;
-    if (!dpp) throw new Error("Document PiP unsupported");
+    if (!dpp) {
+      throw new Error("Document PiP unsupported");
+    }
     pipWindow = await dpp.requestWindow({ width: 200, height: 200 });
     const doc = pipWindow!.document;
     // The OS window itself is always rectangular — keep the corners pure black
@@ -207,30 +209,30 @@ let audioContext: AudioContext | null = null;
 
 // Continuous recorder for playback: screen video (or full mixed audio in audio-only mode).
 let archiveRecorder: MediaRecorder | null = null;
-const archiveChunks: Blob[] = [];
+const archiveChunks: Array<Blob> = [];
 
 // Continuous system-audio recorder for speaker diarization: the whole meeting
 // as ONE file, so "משתתף 2" keeps the same identity from minute 5 to minute 80.
 // The rotating sys segments remain the crash-safe fallback.
 let sysFullRecorder: MediaRecorder | null = null;
-const sysFullChunks: Blob[] = [];
+const sysFullChunks: Array<Blob> = [];
 
 interface Channel {
   name: "mic" | "sys";
   stream: MediaStream;
   recorder: MediaRecorder | null;
-  chunks: Blob[];
+  chunks: Array<Blob>;
   partNum: number;
 }
 
-const channels: Channel[] = [];
+const channels: Array<Channel> = [];
 let segmentTimer: number | undefined;
 let audioMime: string | undefined;
 
 let recordingId: string | null = null;
-const uploadedPartPaths: string[] = [];
-const failedParts: { path: string; blob: Blob }[] = [];
-const pendingUploads: Promise<void>[] = [];
+const uploadedPartPaths: Array<string> = [];
+const failedParts: Array<{ path: string; blob: Blob }> = [];
+const pendingUploads: Array<Promise<void>> = [];
 
 // Screen frames sampled every minute — the server reads Zoom/Meet name labels
 // off them to replace "משתתף N" with real speaker names.
@@ -276,7 +278,7 @@ function formatElapsed(ms: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-function pickMimeType(candidates: string[]): string | undefined {
+function pickMimeType(candidates: Array<string>): string | undefined {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t));
 }
 
@@ -294,7 +296,9 @@ async function uploadWithRetry(
         contentType,
         upsert: true,
       });
-    if (!error) return;
+    if (!error) {
+      return;
+    }
     lastError = error;
     console.error(`upload attempt ${i + 1} failed for ${path}:`, error);
     await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
@@ -347,7 +351,9 @@ function uploadLargeWithProgress(
         onSuccess: () => resolve(),
       });
       const previous = await upload.findPreviousUploads();
-      if (previous.length > 0) upload.resumeFromPreviousUpload(previous[0]);
+      if (previous.length > 0) {
+        upload.resumeFromPreviousUpload(previous[0]);
+      }
       upload.start();
     })().catch(reject);
   });
@@ -405,8 +411,9 @@ function startFrameCapture() {
     audioOnly ||
     !displayStream ||
     displayStream.getVideoTracks().length === 0
-  )
+  ) {
     return;
+  }
   frameVideo = document.createElement("video");
   frameVideo.srcObject = new MediaStream(displayStream.getVideoTracks());
   frameVideo.muted = true;
@@ -417,10 +424,14 @@ function startFrameCapture() {
 }
 
 async function captureFrame() {
-  if (!recording || !frameVideo || framesCaptured >= MAX_FRAMES) return;
+  if (!recording || !frameVideo || framesCaptured >= MAX_FRAMES) {
+    return;
+  }
   const w = frameVideo.videoWidth;
   const h = frameVideo.videoHeight;
-  if (!w || !h) return;
+  if (!w || !h) {
+    return;
+  }
   const scale = Math.min(1, 1280 / w);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(w * scale);
@@ -431,7 +442,9 @@ async function captureFrame() {
   const blob = await new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/jpeg", 0.7),
   );
-  if (!blob) return;
+  if (!blob) {
+    return;
+  }
   framesCaptured += 1;
   const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
   const path = `${tenantId}/${startedAt}_frame_${elapsedSec}.jpg`;
@@ -471,7 +484,9 @@ function startChannelRecorder(channel: Channel) {
     audioBitsPerSecond: 32_000,
   });
   channel.recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) channel.chunks.push(e.data);
+    if (e.data.size > 0) {
+      channel.chunks.push(e.data);
+    }
   };
   // Fires on rotation and on final stop — ship the finished part right away.
   channel.recorder.onstop = () => {
@@ -496,7 +511,9 @@ async function ensureActiveTenant(): Promise<void> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) {
+    return;
+  }
   await supabase.from("user_active_tenant").upsert(
     {
       user_id: user.id,
@@ -516,7 +533,9 @@ async function createRecordingRow(): Promise<void> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session) return;
+  if (!session) {
+    return;
+  }
   await ensureActiveTenant();
   const { data, error } = await supabase
     .from("zoom_recordings")
@@ -606,7 +625,9 @@ async function startRecording() {
       audioBitsPerSecond: 96_000,
     });
     archiveRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) archiveChunks.push(e.data);
+      if (e.data.size > 0) {
+        archiveChunks.push(e.data);
+      }
     };
     archiveRecorder.start(1000);
   } else if (mixedTracks.length > 0) {
@@ -615,7 +636,9 @@ async function startRecording() {
       audioBitsPerSecond: 32_000,
     });
     archiveRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) archiveChunks.push(e.data);
+      if (e.data.size > 0) {
+        archiveChunks.push(e.data);
+      }
     };
     archiveRecorder.start(1000);
   }
@@ -645,14 +668,20 @@ async function startRecording() {
       audioBitsPerSecond: 32_000,
     });
     sysFullRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) sysFullChunks.push(e.data);
+      if (e.data.size > 0) {
+        sysFullChunks.push(e.data);
+      }
     };
     sysFullRecorder.start(1000);
   }
-  for (const channel of channels) startChannelRecorder(channel);
+  for (const channel of channels) {
+    startChannelRecorder(channel);
+  }
   if (channels.length > 0) {
     segmentTimer = window.setInterval(() => {
-      if (!recording) return;
+      if (!recording) {
+        return;
+      }
       for (const channel of channels) {
         channel.recorder?.stop(); // onstop uploads the finished part
         startChannelRecorder(channel);
@@ -683,13 +712,17 @@ async function startRecording() {
 
   // Stop when the user clicks Chrome's native "Stop sharing" bar.
   displayStream.getVideoTracks()[0]?.addEventListener("ended", () => {
-    if (recording) stopAndUpload();
+    if (recording) {
+      stopAndUpload();
+    }
   });
 }
 
 function stopRecorder(recorder: MediaRecorder | null): Promise<void> {
   return new Promise((resolve) => {
-    if (!recorder || recorder.state === "inactive") return resolve();
+    if (!recorder || recorder.state === "inactive") {
+      return resolve();
+    }
     recorder.addEventListener("stop", () => resolve(), { once: true });
     recorder.stop();
   });
@@ -708,7 +741,9 @@ function cleanupStreams() {
 }
 
 async function stopAndUpload() {
-  if (!recording) return;
+  if (!recording) {
+    return;
+  }
   recording = false;
   window.clearInterval(timerInterval);
   window.clearInterval(segmentTimer);
@@ -755,8 +790,9 @@ async function finalizeUpload(
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session)
+    if (!session) {
       throw new Error("פג תוקף ההתחברות — נא להתחבר מחדש בחלונית התוסף");
+    }
 
     // Wait for in-flight segment uploads (incl. the final rotation parts).
     setWorking("ממתין לסיום שמירת הקטעים");
@@ -783,8 +819,9 @@ async function finalizeUpload(
         `מעלה ערוץ משתתפים לזיהוי דוברים (${(sysFullBlob.size / 1024 / 1024).toFixed(1)}MB) — אל תסגור את החלון`,
       );
       await uploadSmart(sysFullPath, sysFullBlob, "audio/webm", "ערוץ משתתפים");
-      if (!uploadedPartPaths.includes(sysFullPath))
+      if (!uploadedPartPaths.includes(sysFullPath)) {
         uploadedPartPaths.push(sysFullPath);
+      }
     }
 
     let filePath: string | null = null;
@@ -827,8 +864,9 @@ async function finalizeUpload(
           .update(rowData)
           .eq("id", recordingId));
       }
-      if (updateError)
+      if (updateError) {
         throw new Error("שגיאה בעדכון ההקלטה: " + updateError.message);
+      }
     } else {
       // Early insert failed at start — create the row now.
       const insertRow = () =>

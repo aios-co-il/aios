@@ -19,7 +19,9 @@ export default function CustomAudioPlayer({
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) {
+      return;
+    }
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration);
@@ -38,7 +40,9 @@ export default function CustomAudioPlayer({
 
   const togglePlayPause = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) {
+      return;
+    }
 
     if (isPlaying) {
       audio.pause();
@@ -48,16 +52,20 @@ export default function CustomAudioPlayer({
     setIsPlaying(!isPlaying);
   };
 
-  const handleSliderChange = (value: number[]) => {
+  const handleSliderChange = (value: Array<number>) => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio) {
+      return;
+    }
 
     audio.currentTime = value[0];
     setCurrentTime(value[0]);
   };
 
   const formatTime = (time: number) => {
-    if (!isFinite(time)) return "0:00";
+    if (!isFinite(time)) {
+      return "0:00";
+    }
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;

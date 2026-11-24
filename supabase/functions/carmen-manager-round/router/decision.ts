@@ -11,8 +11,8 @@ export type DecisionParts = {
   level: number | null;
   start?: Date;
   next: Date | null;
-  deliveries: PlannedDelivery[];
-  actions: PlannedAction[] | null;
+  deliveries: Array<PlannedDelivery>;
+  actions: Array<PlannedAction> | null;
   status?: "notified" | null;
 };
 
@@ -20,7 +20,7 @@ export type DecisionParts = {
 export function keep(
   finding: FindingRow,
   ctx: LadderContext,
-  actions: PlannedAction[],
+  actions: Array<PlannedAction>,
 ): RouteDecision {
   return decide(finding, ctx, {
     level: finding.escalation_level,

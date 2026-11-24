@@ -6,7 +6,12 @@
 type Row = Record<string, unknown>;
 type Op = "select" | "update" | "insert";
 type Result = { data: unknown; error: { message: string } | null };
-type Write = { table: string; op: Op; rows: Row[]; filters: string[] };
+type Write = {
+  table: string;
+  op: Op;
+  rows: Array<Row>;
+  filters: Array<string>;
+};
 
 /** The chainable query the fake returns from `from()`. */
 type Query = {
@@ -14,7 +19,7 @@ type Query = {
   order: () => Query;
   limit: () => Query;
   eq: (column: string, value: unknown) => Query;
-  in: (column: string, values: unknown[]) => Query;
+  in: (column: string, values: Array<unknown>) => Query;
   gt: (column: string, value: string) => Query;
   not: (column: string) => Query;
   update: (patch: Row) => Query;
@@ -41,18 +46,18 @@ export type FailOn = { table: string; op: Op; noMatch?: boolean; id?: string };
  * landing between two steps).
  */
 export function fakeDb(
-  seed: Record<string, Row[]>,
-  failOn: FailOn | FailOn[] = [],
+  seed: Record<string, Array<Row>>,
+  failOn: FailOn | Array<FailOn> = [],
 ) {
-  const tables: Record<string, Row[]> = structuredClone(seed);
-  const writes: Write[] = [];
+  const tables: Record<string, Array<Row>> = structuredClone(seed);
+  const writes: Array<Write> = [];
   const failures = [failOn].flat();
   const hooks: { afterWrite?: (table: string, row: Row) => void } = {};
   let nextId = 1;
   function from(name: string): Query {
     tables[name] ??= [];
     const filters: Array<(row: Row) => boolean> = [];
-    const filtered: string[] = [];
+    const filtered: Array<string> = [];
     let op: Op = "select";
     let payload: Row = {};
     let returning = false;

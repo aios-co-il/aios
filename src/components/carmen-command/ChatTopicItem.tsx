@@ -4,7 +4,7 @@ import { topicIsLive, topicTitle, type TopicChat } from "@/lib/chatTopics";
 
 interface ChatTopicItemProps {
   conv: TopicChat;
-  routes: BrainRoute[];
+  routes: Array<BrainRoute>;
   active: boolean;
   hasMenu: boolean;
   onSelect: (chat: TopicChat) => void;

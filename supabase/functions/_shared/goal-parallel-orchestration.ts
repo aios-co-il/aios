@@ -30,19 +30,21 @@ export function isParallelCursorStep(step: ParallelPlanStep): boolean {
 
 /** Pending parallel cursor steps ready to dispatch together. */
 export function selectParallelDispatchBatch(
-  steps: ParallelPlanStep[],
-): ParallelPlanStep[] {
+  steps: Array<ParallelPlanStep>,
+): Array<ParallelPlanStep> {
   const pending = steps
     .filter((s) => s.status === "pending" && isParallelCursorStep(s))
     .sort((a, b) => a.sort_order - b.sort_order);
-  if (pending.length < 2) return [];
+  if (pending.length < 2) {
+    return [];
+  }
   return pending.slice(0, MAX_PARALLEL_CURSOR_DISPATCH);
 }
 
 /** In-progress cursor tracks awaiting completion (monitor, do not re-dispatch). */
 export function selectInProgressCursorTracks(
-  steps: ParallelPlanStep[],
-): ParallelPlanStep[] {
+  steps: Array<ParallelPlanStep>,
+): Array<ParallelPlanStep> {
   return steps.filter(
     (s) =>
       s.status === "in_progress" &&
@@ -53,7 +55,7 @@ export function selectInProgressCursorTracks(
 
 /** Next sequential step when not in parallel batch mode. */
 export function selectNextSequentialStep(
-  steps: ParallelPlanStep[],
+  steps: Array<ParallelPlanStep>,
 ): ParallelPlanStep | undefined {
   return steps
     .filter((s) => s.status === "pending" && !isParallelCursorStep(s))

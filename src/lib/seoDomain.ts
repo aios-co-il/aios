@@ -11,7 +11,9 @@ export function normalizeSeoDomain(value?: string | null): string {
   let v = String(value || "")
     .trim()
     .toLowerCase();
-  if (!v) return "";
+  if (!v) {
+    return "";
+  }
   v = v.replace(/^sc-domain:/, "");
   v = v.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
   v = v.split("/")[0].split("?")[0].split("#")[0];
@@ -30,7 +32,9 @@ export function normalizeSeoDomain(value?: string | null): string {
 export function seoDomainsMatch(a?: string | null, b?: string | null): boolean {
   const na = normalizeSeoDomain(a);
   const nb = normalizeSeoDomain(b);
-  if (!na || !nb) return false;
+  if (!na || !nb) {
+    return false;
+  }
   return na === nb || na.endsWith(`.${nb}`) || nb.endsWith(`.${na}`);
 }
 
@@ -88,8 +92,12 @@ export function resolveSeoLinkedGscSiteUrl(input: {
   const expected = normalizeSeoDomain(input.expectedDomain);
   for (const raw of candidates) {
     const value = String(raw || "").trim();
-    if (!value) continue;
-    if (expected && !seoDomainsMatch(value, expected)) continue;
+    if (!value) {
+      continue;
+    }
+    if (expected && !seoDomainsMatch(value, expected)) {
+      continue;
+    }
     return value;
   }
   return "";
@@ -101,24 +109,31 @@ export function resolveSeoLinkedGscSiteUrl(input: {
  * row so the choice is stable instead of depending on row order.
  */
 export function selectSeoTableForClient<T extends SeoTableLike>(
-  tables: T[],
+  tables: Array<T>,
   clientId: string,
   expectedDomain?: string | null,
 ): T | null {
   const candidates = (tables || []).filter((t) => {
-    if (t.client_id === clientId) return true;
+    if (t.client_id === clientId) {
+      return true;
+    }
     // Legacy tables carry the client only inside integration_settings.
     return settingsOf(t).clientId === clientId;
   });
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) {
+    return null;
+  }
 
   const expected = normalizeSeoDomain(expectedDomain);
   const scored = candidates.map((table) => {
     const domain = seoTableDomain(table);
     let score = 0;
     if (expected) {
-      if (domain) score = seoDomainsMatch(domain, expected) ? 2 : 0;
-      else score = -1; // duplicate rows with no domain must lose to a real match
+      if (domain) {
+        score = seoDomainsMatch(domain, expected) ? 2 : 0;
+      } else {
+        score = -1;
+      } // duplicate rows with no domain must lose to a real match
     } else if (domain) {
       score = 1;
     }
@@ -142,11 +157,13 @@ type SeoReportLike = {
  * don't lose their report.
  */
 export function filterSeoReportsByDomain<T extends SeoReportLike>(
-  reports: T[],
+  reports: Array<T>,
   expectedDomain?: string | null,
-): T[] {
+): Array<T> {
   const expected = normalizeSeoDomain(expectedDomain);
-  if (!expected) return reports || [];
+  if (!expected) {
+    return reports || [];
+  }
   const matching = (reports || []).filter((r) =>
     seoDomainsMatch(r.domain, expected),
   );
@@ -155,8 +172,8 @@ export function filterSeoReportsByDomain<T extends SeoReportLike>(
 
 /** Sort reports newest-first by sync time, falling back to the report date. */
 export function sortSeoReportsByRecency<T extends SeoReportLike>(
-  reports: T[],
-): T[] {
+  reports: Array<T>,
+): Array<T> {
   const time = (r: T) => {
     const t = new Date(r.received_at || r.report_date || 0).getTime();
     return Number.isFinite(t) ? t : 0;
@@ -182,17 +199,25 @@ type AgencyTenantAccessRow = {
  */
 export function buildSeoReportTenantIds(
   client: SeoTenantScopeClient | null | undefined,
-  agencyAccessRows: AgencyTenantAccessRow[] | null | undefined,
-  extraTenantIds: string[] = [],
-): string[] {
+  agencyAccessRows: Array<AgencyTenantAccessRow> | null | undefined,
+  extraTenantIds: Array<string> = [],
+): Array<string> {
   const set = new Set<string>();
   for (const id of extraTenantIds) {
-    if (id) set.add(id);
+    if (id) {
+      set.add(id);
+    }
   }
-  if (client?.tenant_id) set.add(client.tenant_id);
+  if (client?.tenant_id) {
+    set.add(client.tenant_id);
+  }
   for (const row of agencyAccessRows || []) {
-    if (row.accessing_tenant_id) set.add(row.accessing_tenant_id);
-    if (row.source_tenant_id) set.add(row.source_tenant_id);
+    if (row.accessing_tenant_id) {
+      set.add(row.accessing_tenant_id);
+    }
+    if (row.source_tenant_id) {
+      set.add(row.source_tenant_id);
+    }
   }
   return Array.from(set);
 }
@@ -204,16 +229,21 @@ export function seoTableNeedsSyncThisMonth(
 ): boolean {
   const now = new Date();
   const inCurrentMonth = (iso?: string | null): boolean => {
-    if (!iso) return false;
+    if (!iso) {
+      return false;
+    }
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return false;
+    if (Number.isNaN(d.getTime())) {
+      return false;
+    }
     return (
       d.getUTCFullYear() === now.getUTCFullYear() &&
       d.getUTCMonth() === now.getUTCMonth()
     );
   };
-  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt))
+  if (inCurrentMonth(lastSyncAt) || inCurrentMonth(latestReportReceivedAt)) {
     return false;
+  }
   return true;
 }
 
@@ -246,7 +276,9 @@ export function pickSeoSyncDomain(input: {
   ];
   for (const item of chain) {
     const hit = tryPick(item.raw, item.from);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
   }
   return { domain: "", from: null };
 }
@@ -254,7 +286,9 @@ export function pickSeoSyncDomain(input: {
 /** Pull a hostname from free text (table title, client name suffix, etc.). */
 export function extractDomainHint(text?: string | null): string {
   const raw = String(text || "").trim();
-  if (!raw) return "";
+  if (!raw) {
+    return "";
+  }
   const m = raw.match(
     /(?:^|[\s\-–—])([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)/i,
   );
@@ -264,7 +298,9 @@ export function extractDomainHint(text?: string | null): string {
 /** Reject client names mistakenly stored as targetDomain (must look like a host). */
 export function looksLikeSeoDomain(value?: string | null): boolean {
   const n = normalizeSeoDomain(value);
-  if (!n || n.includes(" ")) return false;
+  if (!n || n.includes(" ")) {
+    return false;
+  }
   return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(
     n,
   );
@@ -281,7 +317,7 @@ type LinkedTableLike = { id: string; client_id?: string | null };
  */
 export function resolveLinkedCrmTableId(
   savedId: string | null | undefined,
-  candidates: LinkedTableLike[],
+  candidates: Array<LinkedTableLike>,
   clientId: string,
 ): string {
   const list = candidates || [];
@@ -291,10 +327,16 @@ export function resolveLinkedCrmTableId(
     if (saved) {
       const savedIsOtherClient =
         !!saved.client_id && saved.client_id !== clientId;
-      if (!savedIsOtherClient || sameClient.length === 0) return saved.id;
+      if (!savedIsOtherClient || sameClient.length === 0) {
+        return saved.id;
+      }
     }
   }
-  if (sameClient.length > 0) return sameClient[0].id;
-  if (list.length === 1) return list[0].id;
+  if (sameClient.length > 0) {
+    return sameClient[0].id;
+  }
+  if (list.length === 1) {
+    return list[0].id;
+  }
   return "";
 }

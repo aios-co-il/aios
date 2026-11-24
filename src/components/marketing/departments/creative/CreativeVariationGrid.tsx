@@ -26,8 +26,8 @@ import { aspectRatioClass, isVariationLiveText } from "./utils";
 import { isLogoLayer, styleLabelForId } from "./designedLayers";
 
 interface Props {
-  variations: CreativeVariation[];
-  generatingIds?: string[];
+  variations: Array<CreativeVariation>;
+  generatingIds?: Array<string>;
   progressLabel?: string;
   agentUrl?: string | null;
   onLiveTextChange?: (variation: CreativeVariation, enabled: boolean) => void;
@@ -81,9 +81,15 @@ export function CreativeVariationGrid({
           const busy = generatingIds?.includes(variation.id) ?? false;
           const liveText = isVariationLiveText(variation);
           const overlayLayers = (variation.layers ?? []).filter((layer) => {
-            if (layer.type === "background") return false;
-            if (isLogoLayer(layer) || layer.role === "logo") return false;
-            if (liveText) return true;
+            if (layer.type === "background") {
+              return false;
+            }
+            if (isLogoLayer(layer) || layer.role === "logo") {
+              return false;
+            }
+            if (liveText) {
+              return true;
+            }
             return layer.type === "image";
           });
           return (

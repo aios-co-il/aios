@@ -28,9 +28,9 @@ export type CollectorRunInput = {
   settings: ManagerSettings;
   now: Date;
   budget: RoundBudget;
-  state: RoundStateRow[];
-  due: DueCollector[];
-  clientIds: string[] | null;
+  state: Array<RoundStateRow>;
+  due: Array<DueCollector>;
+  clientIds: Array<string> | null;
   fixtures: Json | null;
   dryRun: boolean;
 };
@@ -54,9 +54,12 @@ const MIN_COLLECTOR_MS = 5_000;
 export async function runCollectors(
   deps: CollectorRunDeps,
   input: CollectorRunInput,
-): Promise<{ reports: CollectorReport[]; candidates: FindingCandidate[] }> {
-  const reports: CollectorReport[] = [];
-  const candidates: FindingCandidate[] = [];
+): Promise<{
+  reports: Array<CollectorReport>;
+  candidates: Array<FindingCandidate>;
+}> {
+  const reports: Array<CollectorReport> = [];
+  const candidates: Array<FindingCandidate> = [];
   for (const due of input.due) {
     if (!input.budget.hasTime(MIN_COLLECTOR_MS)) {
       reports.push(report(due.collector, "skipped", { reason: "budget" }));
@@ -74,7 +77,7 @@ async function runOne(
   deps: CollectorRunDeps,
   input: CollectorRunInput,
   due: DueCollector,
-): Promise<{ report: CollectorReport; candidates: FindingCandidate[] }> {
+): Promise<{ report: CollectorReport; candidates: Array<FindingCandidate> }> {
   const { collector } = due;
   const ctx = collectorContext(deps, input, collector);
   try {

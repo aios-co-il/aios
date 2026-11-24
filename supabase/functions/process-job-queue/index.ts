@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     const jobTypes = body.job_types || null;
     const maxJobs = Math.min(body.max_jobs || 10, 50); // Process up to 50 jobs per invocation
 
-    const results: any[] = [];
+    const results: Array<any> = [];
 
     for (let i = 0; i < maxJobs; i++) {
       // Atomically claim next job
@@ -94,7 +94,9 @@ Deno.serve(async (req) => {
             );
             const result = await res.json();
             success = res.ok && result.success !== false;
-            if (!success) error = result.error || `HTTP ${res.status}`;
+            if (!success) {
+              error = result.error || `HTTP ${res.status}`;
+            }
             break;
           }
 
@@ -119,8 +121,9 @@ Deno.serve(async (req) => {
               },
             );
             success = res.ok;
-            if (!success)
+            if (!success) {
               error = `HTTP ${res.status}: ${await res.text().catch(() => "")}`;
+            }
 
             // Record integration result for circuit breaker
             const provider = job.job_type.replace("integration_", "");
@@ -152,7 +155,9 @@ Deno.serve(async (req) => {
               },
             );
             success = res.ok;
-            if (!success) error = `HTTP ${res.status}`;
+            if (!success) {
+              error = `HTTP ${res.status}`;
+            }
             break;
           }
 

@@ -9,8 +9,9 @@ export function buildTaskAppLink(
   const slug = String(tenantSlug || "")
     .trim()
     .replace(/^\/+|\/+$/g, "");
-  if (slug)
+  if (slug) {
     return `${AIOS_APP_URL}/t/${encodeURIComponent(slug)}/tasks?task=${encodedId}`;
+  }
   return `${AIOS_APP_URL}/tasks?task=${encodedId}`;
 }
 
@@ -27,7 +28,9 @@ export function resolveTaskNotificationLinkTenantId(input: {
   fallbackTenantId?: string | null;
 }): string | null {
   const fallback = input.fallbackTenantId || null;
-  if (input.notifyCreator) return input.creatorHomeTenantId || fallback;
+  if (input.notifyCreator) {
+    return input.creatorHomeTenantId || fallback;
+  }
   return input.campaignerTenantId || input.salesPersonTenantId || fallback;
 }
 
@@ -44,7 +47,7 @@ export function resolveTaskNotificationSenderTenantIds(input: {
   campaignerTenantId?: string | null;
   salesPersonTenantId?: string | null;
   fallbackTenantId?: string | null;
-}): string[] {
+}): Array<string> {
   const preferred = input.notifyCreator
     ? [input.creatorHomeTenantId]
     : [input.campaignerTenantId, input.salesPersonTenantId];
@@ -129,7 +132,9 @@ export function formatTaskNotificationMessage(
       `*${task.title}*`,
       `לקוח: ${clientName}`,
     );
-    if (extras?.updateContent) details.push("", String(extras.updateContent));
+    if (extras?.updateContent) {
+      details.push("", String(extras.updateContent));
+    }
   } else {
     details.push(
       creatorName
@@ -142,7 +147,9 @@ export function formatTaskNotificationMessage(
   if (notificationType !== "task_update_added" && task.notes) {
     details.push("", String(task.notes));
   }
-  if (Number(task.priority) >= 8) details.push("", "דחיפות: גבוהה");
+  if (Number(task.priority) >= 8) {
+    details.push("", "דחיפות: גבוהה");
+  }
   if (task.due_date) {
     const due = task.due_time
       ? `${task.due_date} בשעה ${String(task.due_time).slice(0, 5)}`

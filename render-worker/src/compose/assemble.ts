@@ -44,9 +44,13 @@ export function wrapOverlay(text: unknown, maxChars = 22) {
       if (line && line.length + 1 + word.length > maxChars) {
         lines.push(line);
         line = word;
-      } else line = line ? `${line} ${word}` : word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
     }
-    if (line) lines.push(line);
+    if (line) {
+      lines.push(line);
+    }
   }
   return lines.slice(0, 4).join("\n");
 }
@@ -270,12 +274,16 @@ export function fallbackEffectCues(
   } = {},
 ) {
   const cues: Array<{ name: string; atS: number }> = [];
-  if (impact) cues.push({ name: "impact", atS: 0 });
+  if (impact) {
+    cues.push({ name: "impact", atS: 0 });
+  }
   let at = 0;
   for (const [index, length] of lengths.entries()) {
     const name =
       index > 0 ? (cutSounds?.[index - 1] ?? (whoosh ? "whoosh" : null)) : null;
-    if (name) cues.push({ name, atS: Math.max(0, at - WHOOSH_LEAD) });
+    if (name) {
+      cues.push({ name, atS: Math.max(0, at - WHOOSH_LEAD) });
+    }
     at += length;
   }
   if (
@@ -283,8 +291,9 @@ export function fallbackEffectCues(
     typeof endCardS === "number" &&
     Number.isFinite(endCardS) &&
     endCardS > 0
-  )
+  ) {
     cues.push({ name: "impact", atS: Math.max(0, endCardS - 0.2) });
+  }
   return cues.map((cue) => ({
     ...cue,
     atS: Math.round(cue.atS * 1000) / 1000,
@@ -308,7 +317,9 @@ export function effectsGraph(
   const parts: Array<string> = [];
   for (const [name, input] of Object.entries(index)) {
     const mine = cues.filter((cue) => cue.name === name);
-    if (!mine.length) continue;
+    if (!mine.length) {
+      continue;
+    }
     const copies = mine.map((_, i) => `[${name}_${i}]`);
     filters.push(
       `[${input}:a]${STEREO},asplit=${mine.length}${copies.join("")}`,
@@ -349,8 +360,9 @@ async function sceneLengths(timeline: Timeline) {
   }
   const narrationS = await seconds(timeline.narrationPath);
   const total = lengths.reduce((sum, length) => sum + length, 0);
-  if (narrationS && narrationS + TAIL_S > total)
+  if (narrationS && narrationS + TAIL_S > total) {
     lengths[lengths.length - 1] += narrationS + TAIL_S - total;
+  }
   const words = wordsFromAlignment(timeline.narrationAlignment);
   const spans: Array<Span> = words.length
     ? words.map((word): Span => [word.start, word.end])
@@ -359,7 +371,9 @@ async function sceneLengths(timeline: Timeline) {
       : [];
   let at = 0;
   for (const [index, length] of lengths.entries()) {
-    if (spoken[index]) spans.push([at, at + spoken[index]]);
+    if (spoken[index]) {
+      spans.push([at, at + spoken[index]]);
+    }
     at += length;
   }
   return { lengths, spans };
@@ -373,7 +387,9 @@ export async function assembleFilm(
     prepare = prepareSound,
   }: { prepare?: (timeline: Timeline, dir: string) => Promise<Timeline> } = {},
 ) {
-  if (!source.scenes.length) throw new Error("render: no approved clips");
+  if (!source.scenes.length) {
+    throw new Error("render: no approved clips");
+  }
   const dir = join(outputPath, "..", "segments");
   await mkdir(dir, { recursive: true });
   // Music and effects levelled first (sound-prep.ts), like the Remotion edit.
@@ -426,7 +442,9 @@ export async function assembleFilm(
   const cutSounds = (timeline.effects?.cuts ?? [])
     .slice(0, lengths.length - 1)
     .map(({ path }) => {
-      if (!sounds.has(path)) sounds.set(path, `cut${sounds.size}`);
+      if (!sounds.has(path)) {
+        sounds.set(path, `cut${sounds.size}`);
+      }
       return sounds.get(path);
     });
   const cues = fallbackEffectCues(lengths, {
@@ -485,7 +503,9 @@ export async function assembleFilm(
       ...Object.fromEntries([...sounds].map(([path, name]) => [name, path])),
     };
     for (const [name, path] of Object.entries(files)) {
-      if (!path || !cues.some((cue) => cue.name === name)) continue;
+      if (!path || !cues.some((cue) => cue.name === name)) {
+        continue;
+      }
       inputs.push("-i", path);
       index[name] = inputs.filter((arg) => arg === "-i").length - 1;
     }

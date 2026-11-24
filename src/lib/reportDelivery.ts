@@ -2,7 +2,7 @@ export type ReportDeliveryChannel = "whatsapp" | "email";
 
 export type ReportDeliveryOutcome = {
   status: "sent" | "partial";
-  channels: ReportDeliveryChannel[];
+  channels: Array<ReportDeliveryChannel>;
 };
 
 /**
@@ -15,9 +15,9 @@ export type ReportDeliveryOutcome = {
  */
 export function reportDeliveryOutcome(input: {
   requested: { whatsapp: boolean; email: boolean };
-  sent: readonly ReportDeliveryChannel[];
+  sent: ReadonlyArray<ReportDeliveryChannel>;
 }): ReportDeliveryOutcome | null {
-  const requested: ReportDeliveryChannel[] = [
+  const requested: Array<ReportDeliveryChannel> = [
     ...(input.requested.whatsapp ? (["whatsapp"] as const) : []),
     ...(input.requested.email ? (["email"] as const) : []),
   ];

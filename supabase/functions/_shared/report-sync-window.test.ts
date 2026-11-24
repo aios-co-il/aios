@@ -242,7 +242,9 @@ Deno.test(
     let historyFrom: string | null = null;
     for (let run = 0; run < 10; run++) {
       const step = planScheduledSyncWindows(today, historyFrom, today, today);
-      if (!step.catchup) break;
+      if (!step.catchup) {
+        break;
+      }
       assert(step.catchup.startDate >= FULL_HISTORY(today));
       historyFrom = step.historyFrom;
     }

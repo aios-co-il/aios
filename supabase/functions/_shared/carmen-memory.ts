@@ -46,7 +46,9 @@ export async function upsertPointer(
   };
   if (p.withEmbedding && p.summary) {
     const e = await embed(`${p.title}\n${p.summary}`);
-    if (e) row.summary_embedding = e as any;
+    if (e) {
+      row.summary_embedding = e as any;
+    }
   }
   await supabase.from("carmen_memory_pointers").upsert(row, {
     onConflict: "tenant_id,path,entity_type,entity_id,subcategory",
@@ -54,7 +56,9 @@ export async function upsertPointer(
 }
 
 export function shortText(s: string | null | undefined, n = 240): string {
-  if (!s) return "";
+  if (!s) {
+    return "";
+  }
   const t = String(s).replace(/\s+/g, " ").trim();
   return t.length > n ? t.slice(0, n - 1) + "…" : t;
 }

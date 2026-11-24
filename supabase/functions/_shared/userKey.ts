@@ -13,12 +13,16 @@ export interface Caller {
 
 /** Verify the caller's JWT against GoTrue and return their id + email. */
 export async function getCaller(authHeader: string): Promise<Caller | null> {
-  if (!authHeader || !SUPABASE_URL) return null;
+  if (!authHeader || !SUPABASE_URL) {
+    return null;
+  }
   try {
     const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
       headers: { apikey: ANON_KEY, Authorization: authHeader },
     });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      return null;
+    }
     const u = await r.json();
     return u?.id
       ? { id: u.id, email: String(u.email ?? "").toLowerCase() }
@@ -30,7 +34,9 @@ export async function getCaller(authHeader: string): Promise<Caller | null> {
 
 /** The user's personal OpenAI key, or null when they haven't set one. */
 export async function getUserOpenAIKey(userId: string): Promise<string | null> {
-  if (!userId || !SERVICE_ROLE_KEY) return null;
+  if (!userId || !SERVICE_ROLE_KEY) {
+    return null;
+  }
   try {
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/user_api_keys?user_id=eq.${userId}&provider=eq.openai&select=api_key`,
@@ -41,7 +47,9 @@ export async function getUserOpenAIKey(userId: string): Promise<string | null> {
         },
       },
     );
-    if (!r.ok) return null;
+    if (!r.ok) {
+      return null;
+    }
     const rows = await r.json();
     const k = rows?.[0]?.api_key;
     return typeof k === "string" && k.trim() ? k.trim() : null;

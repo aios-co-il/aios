@@ -18,7 +18,7 @@ export async function viaGoogle(
   prompt: string,
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   const made = await (deps.gemini ?? generateGeminiImage)({
     apiKey: key,

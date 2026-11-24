@@ -26,7 +26,7 @@ export async function viaHiggsfield(
   aspect: GeminiAspectRatio,
   deps: ImageDeps,
   fetchImpl: typeof fetch,
-  references: ImageReference[],
+  references: Array<ImageReference>,
 ): Promise<MadeImage> {
   const base = "https://api.higgsfield.ai";
   const headers = {
@@ -49,8 +49,9 @@ export async function viaHiggsfield(
     },
   );
   const started = await submit.json().catch(() => ({}));
-  if (!submit.ok || !started?.request_id)
+  if (!submit.ok || !started?.request_id) {
     throw new Error(`${submit.status} ${clip(JSON.stringify(started))}`);
+  }
   try {
     return await awaitHiggsfield(
       started.request_id,
@@ -82,15 +83,21 @@ async function awaitHiggsfield(
       { headers },
     );
     const state = await poll.json().catch(() => ({}));
-    if (!poll.ok)
+    if (!poll.ok) {
       throw new Error(`${poll.status} ${clip(JSON.stringify(state))}`);
-    if (["failed", "nsfw", "canceled"].includes(state.status))
+    }
+    if (["failed", "nsfw", "canceled"].includes(state.status)) {
       throw new Error(clip(String(state.error ?? state.status)));
+    }
     if (state.status === "completed") {
       const url = state.images?.[0]?.url;
-      if (!url) throw new Error("לא הוחזר קישור לתמונה");
+      if (!url) {
+        throw new Error("לא הוחזר קישור לתמונה");
+      }
       const file = await fetchImpl(url);
-      if (!file.ok) throw new Error(`הורדה ${file.status}`);
+      if (!file.ok) {
+        throw new Error(`הורדה ${file.status}`);
+      }
       return {
         bytes: new Uint8Array(await file.arrayBuffer()),
         mime: file.headers.get("content-type")?.split(";")[0] || "image/png",

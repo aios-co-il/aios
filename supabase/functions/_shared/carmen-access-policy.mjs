@@ -24,11 +24,15 @@ export function normalizePhoneDigits(value) {
 
 /** Parse private_phones jsonb into normalized entries. */
 export function parsePolicyPhones(raw) {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
   return raw
     .map((row) => {
       const phone = normalizePhoneDigits(row?.phone);
-      if (!phone || phone.length < 9) return null;
+      if (!phone || phone.length < 9) {
+        return null;
+      }
       return {
         phone,
         label: row?.label ? String(row.label) : undefined,
@@ -97,19 +101,26 @@ export function mergeCarmenScopeConfig(
     }
     if (isGroup === true) {
       // Private phones govern 1:1 chats only; they must not block groups.
-      if (policyHasGroups) scopeMode = "specific_group";
+      if (policyHasGroups) {
+        scopeMode = "specific_group";
+      }
     } else if (isGroup === false) {
-      if (policyPhoneStrings.length > 0) scopeMode = "specific_phone";
-      else if (policyHasGroups) scopeMode = "specific_group";
+      if (policyPhoneStrings.length > 0) {
+        scopeMode = "specific_phone";
+      } else if (policyHasGroups) {
+        scopeMode = "specific_group";
+      }
     } else {
       // Surface unknown (legacy callers): previous behaviour.
-      if (policyPhoneStrings.length > 0 && scopeMode === "all")
+      if (policyPhoneStrings.length > 0 && scopeMode === "all") {
         scopeMode = "specific_phone";
+      }
       if (
         policyHasGroups &&
         (scopeMode === "specific_phone" || scopeMode === "all")
-      )
+      ) {
         scopeMode = "specific_group";
+      }
     }
     openMemberGroups = policy.open_member_groups === true;
   }
@@ -128,7 +139,9 @@ export function mergeCarmenScopeConfig(
 
 export function isPhoneOnPolicyList(phoneDigits, allowedPhones) {
   const d = normalizePhoneDigits(phoneDigits);
-  if (!d) return false;
+  if (!d) {
+    return false;
+  }
   return (allowedPhones || []).some((p) => phonesMatch(d, p));
 }
 
@@ -144,7 +157,9 @@ export function identityAllowsSurface(identity, surface) {
  * @returns {'full'|'bugfix'|null}
  */
 export function resolveDevEscalationTier(identity = {}, dbTier = null) {
-  if (dbTier === "full" || dbTier === "bugfix") return dbTier;
+  if (dbTier === "full" || dbTier === "bugfix") {
+    return dbTier;
+  }
   if (
     identity?.dev_escalation_tier === "full" ||
     identity?.dev_escalation_tier === "bugfix"
@@ -223,7 +238,9 @@ export async function loadDevEscalationTierFromDb(
         parsePolicyPhones(policy?.private_phones),
         digits,
       );
-      if (tier === "full" || tier === "bugfix") return tier;
+      if (tier === "full" || tier === "bugfix") {
+        return tier;
+      }
     }
   }
   return getHardcodedDevTier({ userId, campaignerId, phone });
@@ -238,25 +255,33 @@ function isUuid(value) {
 
 function collectAutomationGroupRefs(cfg) {
   const refs = [];
-  if (Array.isArray(cfg?.carmen_allowed_group_ids))
+  if (Array.isArray(cfg?.carmen_allowed_group_ids)) {
     refs.push(...cfg.carmen_allowed_group_ids);
-  if (cfg?.carmen_allowed_group_id)
+  }
+  if (cfg?.carmen_allowed_group_id) {
     refs.push(String(cfg.carmen_allowed_group_id));
+  }
   return refs.map(String).filter(Boolean);
 }
 
 async function resolveGroupRefsToIds(supabase, tenantId, refs, into) {
   for (const ref of refs) {
-    if (isUuid(ref)) into.add(String(ref));
+    if (isUuid(ref)) {
+      into.add(String(ref));
+    }
   }
   const chatIds = refs.filter((r) => r.includes("@g.us"));
-  if (!chatIds.length) return;
+  if (!chatIds.length) {
+    return;
+  }
   const { data: groups } = await supabase
     .from("whatsapp_groups")
     .select("id")
     .eq("tenant_id", tenantId)
     .in("group_chat_id", chatIds);
-  for (const g of groups || []) into.add(String(g.id));
+  for (const g of groups || []) {
+    into.add(String(g.id));
+  }
 }
 
 /** Groups whose chat history is exclusively Green API operator mirror traffic. */
@@ -267,21 +292,31 @@ export function findGreenApiMirrorOnlyGroupIds(
   manusLinkedIds,
 ) {
   const mirrorOnly = new Set();
-  if (!groupIds.length || !greenUserIds.size) return mirrorOnly;
+  if (!groupIds.length || !greenUserIds.size) {
+    return mirrorOnly;
+  }
   for (const gid of groupIds) {
-    if (manusLinkedIds.has(gid)) continue;
+    if (manusLinkedIds.has(gid)) {
+      continue;
+    }
     const groupMsgs = (messages || []).filter(
       (m) => String(m.group_id) === gid,
     );
-    if (!groupMsgs.length) continue;
-    if (groupMsgs.some((m) => m.provider === "manus_wa")) continue;
+    if (!groupMsgs.length) {
+      continue;
+    }
+    if (groupMsgs.some((m) => m.provider === "manus_wa")) {
+      continue;
+    }
     const onlyGreenOperator = groupMsgs.every(
       (m) =>
         m.provider === "green_api" &&
         m.connection_user_id &&
         greenUserIds.has(m.connection_user_id),
     );
-    if (onlyGreenOperator) mirrorOnly.add(gid);
+    if (onlyGreenOperator) {
+      mirrorOnly.add(gid);
+    }
   }
   return mirrorOnly;
 }
@@ -292,7 +327,9 @@ export function findGreenApiMirrorOnlyGroupIds(
  */
 export async function fetchManusConnectedGroupIds(supabase, tenantId) {
   const ids = new Set();
-  if (!tenantId) return ids;
+  if (!tenantId) {
+    return ids;
+  }
 
   const { data: manusIntegrations } = await supabase
     .from("tenant_integrations")
@@ -301,17 +338,25 @@ export async function fetchManusConnectedGroupIds(supabase, tenantId) {
     .eq("integration_type", "manus_wa")
     .eq("is_active", true);
 
-  if (!manusIntegrations?.length) return ids;
+  if (!manusIntegrations?.length) {
+    return ids;
+  }
 
   const syncedChatIds = [];
   let hasSync = false;
   for (const integ of manusIntegrations || []) {
     const sync = integ?.settings?.manus_groups_sync || {};
-    if (sync.synced_at) hasSync = true;
+    if (sync.synced_at) {
+      hasSync = true;
+    }
     if (Array.isArray(sync.groups)) {
       for (const g of sync.groups) {
-        if (g?.groupId) ids.add(String(g.groupId));
-        if (g?.groupChatId) syncedChatIds.push(String(g.groupChatId));
+        if (g?.groupId) {
+          ids.add(String(g.groupId));
+        }
+        if (g?.groupChatId) {
+          syncedChatIds.push(String(g.groupChatId));
+        }
       }
     }
     if (Array.isArray(sync.group_chat_ids)) {
@@ -333,7 +378,9 @@ export async function fetchManusConnectedGroupIds(supabase, tenantId) {
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("description", "manus_wa_sync");
-    for (const g of syncedRows || []) ids.add(String(g.id));
+    for (const g of syncedRows || []) {
+      ids.add(String(g.id));
+    }
     return ids;
   }
 
@@ -344,7 +391,9 @@ export async function fetchManusConnectedGroupIds(supabase, tenantId) {
     .eq("provider", "manus_wa")
     .not("group_id", "is", null);
   for (const row of manusMsgs || []) {
-    if (row.group_id) ids.add(String(row.group_id));
+    if (row.group_id) {
+      ids.add(String(row.group_id));
+    }
   }
 
   return ids;
@@ -359,7 +408,9 @@ export async function filterPolicyGroupsToManus(
   const raw = Array.isArray(allowedGroupIds)
     ? allowedGroupIds.map(String).filter(Boolean)
     : [];
-  if (!raw.length) return [];
+  if (!raw.length) {
+    return [];
+  }
   const manusIds = await fetchManusConnectedGroupIds(supabase, tenantId);
   return raw.filter((id) => manusIds.has(id));
 }

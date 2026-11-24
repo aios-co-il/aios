@@ -91,7 +91,9 @@ export function SendSignatureFromLeadPanel({
         .eq("status", "draft")
         .not("file_url", "is", null)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -114,7 +116,9 @@ export function SendSignatureFromLeadPanel({
         .eq("lead_id", lead.id)
         .eq("is_template", false)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId && !!lead.id,
@@ -122,16 +126,24 @@ export function SendSignatureFromLeadPanel({
 
   const saveDocMutation = useMutation({
     mutationFn: async () => {
-      if (!tenantId || !userId) throw new Error("חסר משתמש או דייר");
-      if (!uploadFile) throw new Error("בחר קובץ להעלאה");
-      if (!newDocTitle.trim()) throw new Error("הזן שם למסמך");
+      if (!tenantId || !userId) {
+        throw new Error("חסר משתמש או דייר");
+      }
+      if (!uploadFile) {
+        throw new Error("בחר קובץ להעלאה");
+      }
+      if (!newDocTitle.trim()) {
+        throw new Error("הזן שם למסמך");
+      }
 
       const safeName = sanitizeFileName(uploadFile.name);
       const filePath = signatureDocumentStoragePath(tenantId, safeName);
       const { error: uploadError } = await supabase.storage
         .from("signature-documents")
         .upload(filePath, uploadFile);
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        throw uploadError;
+      }
 
       const doc = await insertSignatureDocument({
         tenant_id: tenantId,
@@ -164,7 +176,9 @@ export function SendSignatureFromLeadPanel({
     signed_file_url: string | null;
     title: string;
   }) => {
-    if (!doc.signed_file_url) return;
+    if (!doc.signed_file_url) {
+      return;
+    }
     if (doc.signed_file_url.startsWith("http")) {
       window.open(doc.signed_file_url, "_blank");
       return;
@@ -172,7 +186,9 @@ export function SendSignatureFromLeadPanel({
     const { data } = await supabase.storage
       .from("signature-documents")
       .createSignedUrl(doc.signed_file_url, 3600);
-    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, "_blank");
+    }
   };
 
   return (

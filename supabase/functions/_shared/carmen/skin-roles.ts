@@ -114,7 +114,7 @@ export function getCarmenRole(slug?: string | null) {
   return CARMEN_ROLES.find(
     (role) =>
       role.slug === slug ||
-      (role.members as readonly string[]).includes(slug ?? ""),
+      (role.members as ReadonlyArray<string>).includes(slug ?? ""),
   );
 }
 
@@ -126,11 +126,13 @@ export function getRoleOrbTint(slug?: string | null): string | undefined {
 /** Retain direct/internal callers and honor disabled and already pinned skins. */
 export function activeRoleSlugs(
   slug: string,
-  disabled: readonly string[] = [],
-  pinned: readonly string[] = [],
+  disabled: ReadonlyArray<string> = [],
+  pinned: ReadonlyArray<string> = [],
 ) {
-  if (disabled.includes(slug)) return [];
-  const members: readonly string[] = CARMEN_ROLES.find(
+  if (disabled.includes(slug)) {
+    return [];
+  }
+  const members: ReadonlyArray<string> = CARMEN_ROLES.find(
     (role) => role.slug === slug,
   )?.members ?? [slug];
   return [...new Set([slug, ...members])].filter(

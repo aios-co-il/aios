@@ -95,14 +95,18 @@ export default function CampaignAlerts() {
         .or(
           "meta_ads_account_id.not.is.null,google_ads_account_id.not.is.null",
         );
-      if (error) throw error;
-      return (data || []) as ClientWithIntegration[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<ClientWithIntegration>;
     },
   });
 
   const clientMap = useMemo(() => {
     const m = new Map<string, ClientWithIntegration>();
-    for (const c of clients) m.set(c.id, c);
+    for (const c of clients) {
+      m.set(c.id, c);
+    }
     return m;
   }, [clients]);
 
@@ -114,7 +118,9 @@ export default function CampaignAlerts() {
     queryKey: ["campaign-alerts", tenantId, clients.map((c) => c.id).join(",")],
     enabled: !!tenantId,
     queryFn: async () => {
-      if (clients.length === 0) return [] as Alert[];
+      if (clients.length === 0) {
+        return [] as Array<Alert>;
+      }
       const { data, error } = await supabase
         .from("campaign_alerts")
         .select("*")
@@ -126,34 +132,46 @@ export default function CampaignAlerts() {
         )
         .order("created_at", { ascending: false })
         .limit(500);
-      if (error) throw error;
-      return (data || []) as Alert[];
+      if (error) {
+        throw error;
+      }
+      return (data || []) as Array<Alert>;
     },
   });
 
   const counts = useMemo(() => {
     const c = { all: alerts.length, critical: 0, warning: 0, info: 0 };
-    for (const a of alerts) c[a.severity]++;
+    for (const a of alerts) {
+      c[a.severity]++;
+    }
     return c;
   }, [alerts]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return alerts;
+    if (filter === "all") {
+      return alerts;
+    }
     return alerts.filter((a) => a.severity === filter);
   }, [alerts, filter]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, Alert[]>();
+    const map = new Map<string, Array<Alert>>();
     for (const a of filtered) {
-      if (!a.client_id) continue;
-      if (!map.has(a.client_id)) map.set(a.client_id, []);
+      if (!a.client_id) {
+        continue;
+      }
+      if (!map.has(a.client_id)) {
+        map.set(a.client_id, []);
+      }
       map.get(a.client_id)!.push(a);
     }
     // Sort by critical count desc
     return Array.from(map.entries()).sort(([, a], [, b]) => {
       const ac = a.filter((x) => x.severity === "critical").length;
       const bc = b.filter((x) => x.severity === "critical").length;
-      if (bc !== ac) return bc - ac;
+      if (bc !== ac) {
+        return bc - ac;
+      }
       return b.length - a.length;
     });
   }, [filtered]);
@@ -193,7 +211,9 @@ export default function CampaignAlerts() {
       const { error } = await supabase.functions.invoke("fb-campaign-monitor", {
         body: { tenant_id: tenantId },
       });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       toast.success("הסריקה הופעלה");
       setTimeout(() => refetch(), 1500);
     } catch (e: any) {

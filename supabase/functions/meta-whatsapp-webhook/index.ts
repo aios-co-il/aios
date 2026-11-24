@@ -39,7 +39,9 @@ async function validSignature(
     Array.from(new Uint8Array(digest))
       .map((byte) => byte.toString(16).padStart(2, "0"))
       .join("");
-  if (signature.length !== expected.length) return false;
+  if (signature.length !== expected.length) {
+    return false;
+  }
   let difference = 0;
   for (let index = 0; index < expected.length; index++) {
     difference |= signature.charCodeAt(index) ^ expected.charCodeAt(index);
@@ -49,8 +51,9 @@ async function validSignature(
 
 const timestampIso = (value: unknown) => {
   const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds <= 0)
+  if (!Number.isFinite(seconds) || seconds <= 0) {
     return new Date().toISOString();
+  }
   return new Date(seconds * 1000).toISOString();
 };
 
@@ -63,7 +66,9 @@ async function resolvePinnedCarmenTarget(
     .from("integration_tenant_access")
     .select("accessing_tenant_id")
     .eq("integration_id", integrationId);
-  if (grantsError) throw grantsError;
+  if (grantsError) {
+    throw grantsError;
+  }
 
   const candidateTenantIds = [
     ownerTenantId,
@@ -83,18 +88,24 @@ async function resolvePinnedCarmenTarget(
       .eq("step_type", "trigger")
       .eq("action_type", "carmen_whatsapp_session")
       .filter("configuration->>carmen_integration_id", "eq", integrationId);
-    if (stepsError) throw stepsError;
+    if (stepsError) {
+      throw stepsError;
+    }
 
     const automationIds = (steps ?? []).map(
       (step: { automation_id: string }) => step.automation_id,
     );
-    if (automationIds.length === 0) return null;
+    if (automationIds.length === 0) {
+      return null;
+    }
     const { data: active, error: activeError } = await admin
       .from("automations")
       .select("id,tenant_id")
       .in("id", automationIds)
       .eq("active", true);
-    if (activeError) throw activeError;
+    if (activeError) {
+      throw activeError;
+    }
 
     const tenantIds = [
       ...new Set(
@@ -126,8 +137,12 @@ async function resolvePinnedCarmenTarget(
     .order("created_at")
     .limit(1)
     .maybeSingle();
-  if (memberError) throw memberError;
-  if (!member?.user_id) return null;
+  if (memberError) {
+    throw memberError;
+  }
+  if (!member?.user_id) {
+    return null;
+  }
   return { tenantId, userId: member.user_id };
 }
 
@@ -158,8 +173,9 @@ Deno.serve(async (request) => {
     }
     return new Response("Forbidden", { status: 403 });
   }
-  if (request.method !== "POST")
+  if (request.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
+  }
   if (!supabaseUrl || !serviceKey || !appSecret || !verifyToken) {
     console.error("Meta WhatsApp webhook secrets are not configured");
     return new Response("Webhook not configured", { status: 503 });
@@ -198,7 +214,9 @@ Deno.serve(async (request) => {
             .select("id,settings")
             .eq("integration_type", "meta_whatsapp")
             .filter("settings->>waba_id", "eq", String(entry.id));
-          if (wabaError) throw wabaError;
+          if (wabaError) {
+            throw wabaError;
+          }
           const eventPhone = digitsOnly(value.phone_number);
           const affectedIntegrations = eventPhone
             ? (wabaIntegrations ?? []).filter(
@@ -228,13 +246,17 @@ Deno.serve(async (request) => {
                 },
               })
               .eq("id", row.id);
-            if (updateError) throw updateError;
+            if (updateError) {
+              throw updateError;
+            }
           }
           continue;
         }
 
         const phoneNumberId = String(value.metadata?.phone_number_id ?? "");
-        if (!phoneNumberId) continue;
+        if (!phoneNumberId) {
+          continue;
+        }
 
         const { data: integration, error: integrationError } = await admin
           .from("tenant_integrations")
@@ -243,7 +265,9 @@ Deno.serve(async (request) => {
           .eq("is_active", true)
           .filter("settings->>phone_number_id", "eq", phoneNumberId)
           .maybeSingle();
-        if (integrationError) throw integrationError;
+        if (integrationError) {
+          throw integrationError;
+        }
         if (!integration) {
           console.warn(
             "No active Meta WhatsApp integration for phone_number_id",
@@ -266,13 +290,17 @@ Deno.serve(async (request) => {
               },
             })
             .eq("id", integration.id);
-          if (syncUpdateError) throw syncUpdateError;
+          if (syncUpdateError) {
+            throw syncUpdateError;
+          }
           continue;
         }
 
         for (const status of value.statuses ?? []) {
           const wamid = String(status.id ?? "");
-          if (!wamid) continue;
+          if (!wamid) {
+            continue;
+          }
           const { data: sentMessage, error: sentMessageError } = await admin
             .from("chat_messages")
             .select("id,raw_provider_data")
@@ -280,8 +308,12 @@ Deno.serve(async (request) => {
             .eq("raw_provider_data->>idMessage", wamid)
             .limit(1)
             .maybeSingle();
-          if (sentMessageError) throw sentMessageError;
-          if (!sentMessage) continue;
+          if (sentMessageError) {
+            throw sentMessageError;
+          }
+          if (!sentMessage) {
+            continue;
+          }
           const rawProviderData = (sentMessage.raw_provider_data ??
             {}) as Record<string, unknown>;
           if (
@@ -289,8 +321,9 @@ Deno.serve(async (request) => {
               rawProviderData.delivery_status,
               status.status,
             )
-          )
+          ) {
             continue;
+          }
           const failure = Array.isArray(status.errors)
             ? (status.errors[0] ?? null)
             : null;
@@ -306,7 +339,9 @@ Deno.serve(async (request) => {
               },
             })
             .eq("id", sentMessage.id);
-          if (statusUpdateError) throw statusUpdateError;
+          if (statusUpdateError) {
+            throw statusUpdateError;
+          }
           if (failure) {
             console.error("Meta WhatsApp delivery failed", {
               wamid,
@@ -332,11 +367,12 @@ Deno.serve(async (request) => {
 
         const contactNames = new Map<string, string>();
         for (const contact of value.contacts ?? []) {
-          if (contact.wa_id)
+          if (contact.wa_id) {
             contactNames.set(
               String(contact.wa_id),
               String(contact.profile?.name ?? ""),
             );
+          }
         }
 
         for (const item of collectWebhookMessages(value, field)) {
@@ -348,7 +384,9 @@ Deno.serve(async (request) => {
             .eq("raw_provider_data->>idMessage", messageId)
             .limit(1)
             .maybeSingle();
-          if (duplicate) continue;
+          if (duplicate) {
+            continue;
+          }
 
           const candidates = normalizedPhoneCandidates(item.peerPhone);
           const suffix =
@@ -365,7 +403,9 @@ Deno.serve(async (request) => {
               .ilike("phone", `%${suffix}%`)
               .limit(1)
               .maybeSingle();
-            if (clientError) throw clientError;
+            if (clientError) {
+              throw clientError;
+            }
             clientId = client?.id ?? null;
             if (!clientId) {
               const { data: lead, error: leadError } = await admin
@@ -375,7 +415,9 @@ Deno.serve(async (request) => {
                 .ilike("phone", `%${suffix}%`)
                 .limit(1)
                 .maybeSingle();
-              if (leadError) throw leadError;
+              if (leadError) {
+                throw leadError;
+              }
               leadId = lead?.id ?? null;
             }
           }
@@ -385,14 +427,22 @@ Deno.serve(async (request) => {
             .select("id")
             .eq("tenant_id", integration.tenant_id)
             .eq("connection_user_id", integration.user_id);
-          if (clientId) blockQuery.eq("client_id", clientId);
-          else if (leadId) blockQuery.eq("lead_id", leadId);
-          else blockQuery.eq("sender_phone", item.peerPhone);
+          if (clientId) {
+            blockQuery.eq("client_id", clientId);
+          } else if (leadId) {
+            blockQuery.eq("lead_id", leadId);
+          } else {
+            blockQuery.eq("sender_phone", item.peerPhone);
+          }
           const { data: blocked, error: blockedError } = await blockQuery
             .limit(1)
             .maybeSingle();
-          if (blockedError) throw blockedError;
-          if (blocked) continue;
+          if (blockedError) {
+            throw blockedError;
+          }
+          if (blocked) {
+            continue;
+          }
 
           const rawProviderData = {
             ...item.message,
@@ -487,8 +537,9 @@ Deno.serve(async (request) => {
                   if (prior?.last_auto_reply_at) {
                     const age =
                       Date.now() - new Date(prior.last_auto_reply_at).getTime();
-                    if (age < 20 * 3600 * 1000 && !isOptIn)
+                    if (age < 20 * 3600 * 1000 && !isOptIn) {
                       shouldThanks = false;
+                    }
                   }
                 }
 
@@ -522,8 +573,9 @@ Deno.serve(async (request) => {
                         last_auto_reply_at: new Date().toISOString(),
                         updated_at: new Date().toISOString(),
                       };
-                      if (isOptIn)
+                      if (isOptIn) {
                         optInRow.opted_in_at = new Date().toISOString();
+                      }
                       await admin.from("wa_warm_opt_ins").upsert(optInRow, {
                         onConflict: "tenant_id,integration_id,phone",
                       });
@@ -555,7 +607,9 @@ Deno.serve(async (request) => {
                 integration.id,
                 integration.tenant_id,
               );
-              if (!target) continue;
+              if (!target) {
+                continue;
+              }
 
               if (target.tenantId !== integration.tenant_id) {
                 let targetClientId: string | null = null;
@@ -588,7 +642,9 @@ Deno.serve(async (request) => {
                   .eq("sender_phone", item.peerPhone)
                   .limit(1)
                   .maybeSingle();
-                if (targetBlocked) continue;
+                if (targetBlocked) {
+                  continue;
+                }
 
                 const { error: copyError } = await admin
                   .from("chat_messages")
@@ -613,7 +669,9 @@ Deno.serve(async (request) => {
                       shared_integration_owner_tenant_id: integration.tenant_id,
                     },
                   });
-                if (copyError) throw copyError;
+                if (copyError) {
+                  throw copyError;
+                }
               }
 
               // Respect the connection's Carmen role (primary/secondary/none),
@@ -629,7 +687,9 @@ Deno.serve(async (request) => {
                   .eq("is_active", true)
                   .limit(1)
                   .maybeSingle();
-                if (manusErr) throw manusErr;
+                if (manusErr) {
+                  throw manusErr;
+                }
                 connectionRole = resolveCarmenConnectionRole(integration, {
                   tenantHasActiveManus: Boolean(manusOwner?.id),
                 });
@@ -681,7 +741,9 @@ Deno.serve(async (request) => {
               },
             })
             .eq("id", integration.id);
-          if (historyUpdateError) throw historyUpdateError;
+          if (historyUpdateError) {
+            throw historyUpdateError;
+          }
         }
       }
     }

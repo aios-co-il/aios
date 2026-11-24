@@ -18,7 +18,7 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 const isHttps = (value: unknown): value is string =>
   typeof value === "string" && /^https:\/\/\S+$/i.test(value.trim());
 
-const urlsFrom = (value: unknown): string[] =>
+const urlsFrom = (value: unknown): Array<string> =>
   (Array.isArray(value) ? value : [])
     .map((entry) => (typeof entry === "string" ? entry : asRecord(entry).url))
     .filter(isHttps)
@@ -30,15 +30,19 @@ const urlsFrom = (value: unknown): string[] =>
  * link the user gave). Null for anything else, so such a scene keeps the project's look.
  */
 export function sceneReferenceUrl(value: unknown): string | null {
-  if (!isHttps(value)) return null;
+  if (!isHttps(value)) {
+    return null;
+  }
   const url = value.trim();
-  if (url.length > 2000) return null;
+  if (url.length > 2000) {
+    return null;
+  }
   const parsed = parsePublicHttpUrl(url);
   return parsed?.protocol === "https:" ? url : null;
 }
 
 export interface ProjectLook {
-  references: string[];
+  references: Array<string>;
   bible: string;
   /** How the film feels: style, pace, narration voice, music mood, who speaks on camera. */
   film: string;
@@ -103,8 +107,9 @@ export function withLook(
     !film &&
     !anchorChanged &&
     !engineChanged
-  )
+  ) {
     return { payload, changed: false };
+  }
   const references = [
     ...new Set([...incoming, ...urlsFrom(stored.references)]),
   ].slice(0, MAX_USER_REFERENCES);
@@ -116,8 +121,11 @@ export function withLook(
     ...(engine ? { engine } : {}),
   };
   if (extra.anchorUrl !== undefined) {
-    if (extra.anchorUrl) next.anchor_url = extra.anchorUrl;
-    else delete next.anchor_url;
+    if (extra.anchorUrl) {
+      next.anchor_url = extra.anchorUrl;
+    } else {
+      delete next.anchor_url;
+    }
   }
   return { payload: { ...payload, [KEY]: next }, changed: true };
 }
@@ -143,29 +151,33 @@ export function stillPrompt(input: {
    */
   noText?: boolean;
 }): string {
-  const parts: string[] = [];
-  if (input.look.bible.trim())
+  const parts: Array<string> = [];
+  if (input.look.bible.trim()) {
     parts.push(
       `Style bible, identical in every picture of this project: ${input.look.bible.trim()}`,
     );
+  }
   parts.push(`This picture: ${input.visual.trim()}`);
-  const rules: string[] = [];
-  if (input.sceneReference)
+  const rules: Array<string> = [];
+  if (input.sceneReference) {
     rules.push(
       "The attached image is this scene's character reference. Draw exactly that character: the same face, hair, skin tone, build, outfit, accessories and colours, with nothing redesigned, restyled or added. Place that character in this picture's setting, framing and action. Where the style bible describes the character's look differently, the reference wins: take only the setting, palette, lighting and rendering from the style bible.",
     );
-  else if (input.userReferences > 0)
+  } else if (input.userReferences > 0) {
     rules.push(
       `The first ${input.userReferences} attached image(s) are the client's reference. Copy their art style, colour palette, lighting and rendering exactly, and if a person or character appears in them, draw that exact same person (face, hair, build, wardrobe).`,
     );
-  if (input.hasAnchor && !input.sceneReference)
+  }
+  if (input.hasAnchor && !input.sceneReference) {
     rules.push(
       "The last attached image is the approved first frame of this project. Keep the same character, wardrobe, rendering style, colour grade and level of detail; only the scene, framing and action change.",
     );
-  if (rules.length === 0)
+  }
+  if (rules.length === 0) {
     rules.push(
       "Keep one consistent character, wardrobe and visual style across the whole project.",
     );
+  }
   if (!input.noText && QUOTED.test(input.visual)) {
     rules.push(
       "Write each quoted text exactly once, spelled exactly as given (Hebrew reads right to left), and no other words or letters anywhere in the picture.",

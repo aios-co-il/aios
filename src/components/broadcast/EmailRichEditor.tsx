@@ -41,7 +41,9 @@ const EmailRichEditor = forwardRef<EmailRichEditorHandle, Props>(
       document.documentElement.classList.contains("dark");
 
     useEffect(() => {
-      if (loaded.current) return;
+      if (loaded.current) {
+        return;
+      }
       loaded.current = true;
       const blocks = initialHtml?.trim()
         ? editor.tryParseHTMLToBlocks(initialHtml)
@@ -72,7 +74,9 @@ const EmailRichEditor = forwardRef<EmailRichEditorHandle, Props>(
             theme={dark ? "dark" : "light"}
             formattingToolbar={false}
             onChange={() => {
-              if (!loaded.current) return;
+              if (!loaded.current) {
+                return;
+              }
               onChange(editor.blocksToHTMLLossy(editor.document));
             }}
           >

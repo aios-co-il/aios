@@ -33,7 +33,9 @@ export default function Finance() {
   const { data: financeRecords, isLoading } = useQuery({
     queryKey: ["finance", tenantId, selectedAgency],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("finance")
         .select(
@@ -46,7 +48,9 @@ export default function Finance() {
         )
         .eq("tenant_id", tenantId)
         .order("date", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -55,13 +59,17 @@ export default function Finance() {
   const { data: clients } = useQuery({
     queryKey: ["clients", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("clients")
         .select("id, retainer, agency_id")
         .eq("tenant_id", tenantId)
         .eq("status", "active");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data;
     },
     enabled: !!tenantId,
@@ -71,7 +79,9 @@ export default function Finance() {
   const { data: campaignerClientIds } = useQuery({
     queryKey: ["campaigner-client-ids", campaignerId],
     queryFn: async () => {
-      if (!campaignerId) return null;
+      if (!campaignerId) {
+        return null;
+      }
       const { data } = await supabase
         .from("client_team")
         .select("client_id")
@@ -85,7 +95,9 @@ export default function Finance() {
   const { data: supplierPaymentRows } = useQuery({
     queryKey: ["supplier-payment-rows", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("suppliers")
         .select(
@@ -100,9 +112,11 @@ export default function Finance() {
         )
         .eq("tenant_id", tenantId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      const rows: any[] = [];
+      const rows: Array<any> = [];
       data?.forEach((s: any) => {
         [1, 2, 3].forEach((i) => {
           const amount = Number(s[`payment_${i}`] || 0);

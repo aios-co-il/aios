@@ -19,13 +19,17 @@ export async function callerCanDeleteUsers(
   const isSuperAdmin = roles?.some(
     (r) => r.role === "super_admin" && r.tenant_id === null,
   );
-  if (isSuperAdmin) return true;
+  if (isSuperAdmin) {
+    return true;
+  }
 
   if (tenantId) {
     const hasRoleInTenant = roles?.some(
       (r) => USER_ADMIN_ROLES.has(r.role) && r.tenant_id === tenantId,
     );
-    if (hasRoleInTenant) return true;
+    if (hasRoleInTenant) {
+      return true;
+    }
 
     const { data: membership } = await supabaseAdmin
       .from("tenant_users")
@@ -34,12 +38,16 @@ export async function callerCanDeleteUsers(
       .eq("tenant_id", tenantId)
       .maybeSingle();
 
-    if (membership && USER_ADMIN_ROLES.has(membership.role)) return true;
+    if (membership && USER_ADMIN_ROLES.has(membership.role)) {
+      return true;
+    }
     return false;
   }
 
   const hasAnyAdminRole = roles?.some((r) => USER_ADMIN_ROLES.has(r.role));
-  if (hasAnyAdminRole) return true;
+  if (hasAnyAdminRole) {
+    return true;
+  }
 
   const { data: memberships } = await supabaseAdmin
     .from("tenant_users")
@@ -60,8 +68,9 @@ export async function detachUserReferences(
       .from(table)
       .update({ [column]: null })
       .eq(column, targetUserId);
-    if (error)
+    if (error) {
       console.error(`detachUserReferences nullify ${table}.${column}:`, error);
+    }
   };
 
   const reassign = async (table: string, column: string) => {
@@ -69,8 +78,9 @@ export async function detachUserReferences(
       .from(table)
       .update({ [column]: fallbackUserId })
       .eq(column, targetUserId);
-    if (error)
+    if (error) {
       console.error(`detachUserReferences reassign ${table}.${column}:`, error);
+    }
   };
 
   await nullify("agency_tenant_access", "created_by");

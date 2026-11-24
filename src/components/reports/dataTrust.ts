@@ -74,7 +74,7 @@ export function reportDataTrust(
  * until it is too old to show.
  */
 export function pickTrustRun(
-  runs: ReconcileRunSnapshot[] | null | undefined,
+  runs: Array<ReconcileRunSnapshot> | null | undefined,
 ): ReconcileRunSnapshot | null {
   return (runs || []).find((run) => !isRateLimitRun(run)) || null;
 }

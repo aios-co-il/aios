@@ -2,7 +2,7 @@
 export type CallerRole = { role: string; tenant_id: string | null };
 
 /** A global super_admin row; is_super_admin ignores tenant-scoped ones, so every grant check does too. */
-export function isGlobalSuperAdmin(roles: readonly CallerRole[]): boolean {
+export function isGlobalSuperAdmin(roles: ReadonlyArray<CallerRole>): boolean {
   return roles.some((r) => r.role === "super_admin" && r.tenant_id === null);
 }
 
@@ -13,10 +13,10 @@ export function isGlobalSuperAdmin(roles: readonly CallerRole[]): boolean {
  * tenant and never grants super_admin.
  */
 export function canGrantRole(
-  roles: readonly CallerRole[],
+  roles: ReadonlyArray<CallerRole>,
   tenantId: string,
   role: string | undefined,
-  adminRoles: readonly string[],
+  adminRoles: ReadonlyArray<string>,
 ): boolean {
   if (isGlobalSuperAdmin(roles)) {
     return true;

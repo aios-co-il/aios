@@ -44,13 +44,17 @@ export function ChangeAgencyDialog({
   const { data: agencies, isLoading: isLoadingAgencies } = useQuery({
     queryKey: ["agencies-for-change", tenantId],
     queryFn: async () => {
-      if (!tenantId) return [];
+      if (!tenantId) {
+        return [];
+      }
       const { data, error } = await supabase
         .from("agencies")
         .select("id, name")
         .eq("tenant_id", tenantId)
         .order("name");
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       return data || [];
     },
     enabled: open && !!tenantId,
@@ -68,7 +72,9 @@ export function ChangeAgencyDialog({
         .from(table)
         .update({ agency_id: agencyId })
         .eq("id", contactId);
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({

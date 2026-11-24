@@ -7,7 +7,7 @@ import { spring, useCurrentFrame, useVideoConfig } from "remotion";
  * `from` scales each line from that size (1 for none), for a design that slams its text in.
  */
 export const CtaLines: React.FC<{
-  lines: string[];
+  lines: Array<string>;
   delay: number;
   from?: number;
 }> = ({ lines, delay, from = 1 }) => {

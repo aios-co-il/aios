@@ -20,8 +20,9 @@ type IntegrationRow = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
 
   try {
     const authHeader = req.headers.get("Authorization") || "";
@@ -59,7 +60,9 @@ Deno.serve(async (req) => {
       .select("tenant_id")
       .eq("tenant_id", tenantId)
       .limit(1);
-    if (memberErr) throw memberErr;
+    if (memberErr) {
+      throw memberErr;
+    }
     if (!membership?.length) {
       return new Response(JSON.stringify({ error: "אין הרשאה לטננט זה" }), {
         status: 403,
@@ -78,10 +81,14 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenantId)
       .eq("integration_type", "manus_wa")
       .eq("is_active", true);
-    if (integrationId) query = query.eq("id", integrationId);
+    if (integrationId) {
+      query = query.eq("id", integrationId);
+    }
 
     const { data: integrations, error: integErr } = await query;
-    if (integErr) throw integErr;
+    if (integErr) {
+      throw integErr;
+    }
     if (!integrations?.length) {
       return new Response(
         JSON.stringify({ error: "לא נמצא חיבור Manus פעיל לטננט" }),
@@ -94,7 +101,7 @@ Deno.serve(async (req) => {
 
     const result = await syncManusGroupsForTenant(
       supabaseSvc,
-      integrations as IntegrationRow[],
+      integrations as Array<IntegrationRow>,
     );
     if (!result.success) {
       return new Response(JSON.stringify(result), {

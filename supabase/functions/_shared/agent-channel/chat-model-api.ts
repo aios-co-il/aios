@@ -29,7 +29,7 @@ export async function callChatModel(args: {
   baseUrl: string;
   apiKey: string;
   model: string;
-  messages: ChatMessage[];
+  messages: Array<ChatMessage>;
   profile: BrainProfile;
 }): Promise<string> {
   const url = chatCompletionsUrl(args.baseUrl);
@@ -54,21 +54,24 @@ export async function callChatModel(args: {
     if (
       resp.type === "opaqueredirect" ||
       (resp.status >= 300 && resp.status < 400)
-    )
+    ) {
       throw new ModelApiError(
         400,
         "Model API redirected. Use the final address as the base URL.",
       );
+    }
     const raw = await resp.text();
-    if (!resp.ok)
+    if (!resp.ok) {
       throw new ModelApiError(
         resp.status,
         `Model API ${resp.status}: ${providerError(raw)}`,
       );
+    }
     return replyText(raw);
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError")
+    if (e instanceof DOMException && e.name === "AbortError") {
       throw new ModelApiError(0, "Model API timed out");
+    }
     throw e;
   } finally {
     clearTimeout(timer);
@@ -81,27 +84,33 @@ export async function callChatModel(args: {
  */
 export async function assertPublicTarget(url: string): Promise<void> {
   const host = new URL(url).hostname.replace(/^\[|\]$/g, "");
-  if (isPrivateHost(host))
+  if (isPrivateHost(host)) {
     throw new ModelApiError(400, "Base URL must be a public host");
-  if (/^[\d.]+$/.test(host) || host.includes(":")) return;
+  }
+  if (/^[\d.]+$/.test(host) || host.includes(":")) {
+    return;
+  }
   const resolveDns = (
-    Deno as { resolveDns?: (q: string, t: string) => Promise<string[]> }
+    Deno as { resolveDns?: (q: string, t: string) => Promise<Array<string>> }
   ).resolveDns;
-  if (typeof resolveDns !== "function") return;
+  if (typeof resolveDns !== "function") {
+    return;
+  }
   const addrs = (
     await Promise.all([
-      resolveDns(host, "A").catch(() => [] as string[]),
-      resolveDns(host, "AAAA").catch(() => [] as string[]),
+      resolveDns(host, "A").catch(() => [] as Array<string>),
+      resolveDns(host, "AAAA").catch(() => [] as Array<string>),
     ])
   ).flat();
-  if (addrs.some(isPrivateHost))
+  if (addrs.some(isPrivateHost)) {
     throw new ModelApiError(400, "Base URL must be a public host");
+  }
 }
 
 /** Chat completions body; profile limits only when set. */
 function requestBody(args: {
   model: string;
-  messages: ChatMessage[];
+  messages: Array<ChatMessage>;
   profile: BrainProfile;
 }): Record<string, unknown> {
   return {
@@ -141,6 +150,8 @@ function replyText(raw: string): string {
         )
         .join("")
     : String(content ?? "");
-  if (!text.trim()) throw new Error("Model API returned an empty reply");
+  if (!text.trim()) {
+    throw new Error("Model API returned an empty reply");
+  }
   return text.trim();
 }

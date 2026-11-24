@@ -33,7 +33,7 @@ import { Loader2, AlertCircle, Music2 } from "lucide-react";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  assignedClientIds?: string[];
+  assignedClientIds?: Array<string>;
 }
 
 const MAX_VIDEOS_OPTIONS = [
@@ -62,7 +62,9 @@ export function TikTokTableDialog({
   const { data: integration, isLoading: checking } = useQuery({
     queryKey: ["tiktok-integration-status", tenantId],
     queryFn: async () => {
-      if (!tenantId) return null;
+      if (!tenantId) {
+        return null;
+      }
       const { data } = await supabase
         .from("tenant_integrations")
         .select("id, is_active, settings")
@@ -122,7 +124,9 @@ export function TikTokTableDialog({
           client_id: clientId || null,
         },
       });
-      if (res.error) throw res.error;
+      if (res.error) {
+        throw res.error;
+      }
       return res.data;
     },
     onSuccess: async (data) => {

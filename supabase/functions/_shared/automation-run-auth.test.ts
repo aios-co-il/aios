@@ -32,9 +32,15 @@ const client = {
   },
   rpc: async (fn: string, args: { _user_id: string }) => {
     const u = Object.values(users).find((x) => x.id === args._user_id)!;
-    if (fn === "get_user_tenant_id") return { data: u.tenant, error: null };
-    if (fn === "has_role") return { data: !!u.owner, error: null };
-    if (fn === "is_super_admin") return { data: !!u.superAdmin, error: null };
+    if (fn === "get_user_tenant_id") {
+      return { data: u.tenant, error: null };
+    }
+    if (fn === "has_role") {
+      return { data: !!u.owner, error: null };
+    }
+    if (fn === "is_super_admin") {
+      return { data: !!u.superAdmin, error: null };
+    }
     throw new Error(`unexpected rpc ${fn}`);
   },
 };
@@ -85,13 +91,15 @@ Deno.test("bearerToken strips the scheme", () => {
 
 // authorizeTenantCaller: the caller client answers user_is_tenant_member for
 // the user whose JWT it carries.
-const callerHeaders: string[] = [];
+const callerHeaders: Array<string> = [];
 const asCaller = (authHeader: string) => {
   callerHeaders.push(authHeader);
   const u = users[bearerToken(authHeader)];
   return {
     rpc: async (fn: string, args: { check_tenant_id: string }) => {
-      if (fn !== "user_is_tenant_member") throw new Error(`unexpected ${fn}`);
+      if (fn !== "user_is_tenant_member") {
+        throw new Error(`unexpected ${fn}`);
+      }
       return { data: !!u && u.tenant === args.check_tenant_id, error: null };
     },
   };

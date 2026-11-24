@@ -28,14 +28,18 @@ async function callerUserId(
   supabase: AuthRpcClient,
   token: string,
 ): Promise<string | null> {
-  if (!token) return null;
+  if (!token) {
+    return null;
+  }
   const { data, error } = await supabase.auth.getUser(token);
   return error ? null : (data?.user?.id ?? null);
 }
 
 async function isSuperAdmin(supabase: Pick<DbClient, "rpc">, userId: string) {
   const admin = await supabase.rpc("is_super_admin", { _user_id: userId });
-  if (admin.error) throw admin.error;
+  if (admin.error) {
+    throw admin.error;
+  }
   return admin.data === true;
 }
 
@@ -54,16 +58,22 @@ export async function authorizeDirectAutomationRun(
   }
 
   const userId = await callerUserId(supabase, token);
-  if (!userId) return { allowed: false, status: 401, error: "Unauthorized" };
+  if (!userId) {
+    return { allowed: false, status: 401, error: "Unauthorized" };
+  }
 
   const tenant = await supabase.rpc("get_user_tenant_id", { _user_id: userId });
-  if (tenant.error) throw tenant.error;
+  if (tenant.error) {
+    throw tenant.error;
+  }
   if (tenant.data === automationTenantId) {
     const owner = await supabase.rpc("has_role", {
       _user_id: userId,
       _role: "owner",
     });
-    if (owner.error) throw owner.error;
+    if (owner.error) {
+      throw owner.error;
+    }
     if (owner.data === true) {
       return { allowed: true, caller: { kind: "user", userId } };
     }
@@ -98,7 +108,9 @@ export async function authorizeTenantCaller(
   }
 
   const userId = await callerUserId(service, token);
-  if (!userId) return { allowed: false, status: 401, error: "Unauthorized" };
+  if (!userId) {
+    return { allowed: false, status: 401, error: "Unauthorized" };
+  }
   if (typeof tenantId !== "string" || !tenantId) {
     return { allowed: false, status: 400, error: "missing_tenant_id" };
   }
@@ -106,7 +118,9 @@ export async function authorizeTenantCaller(
   const member = await asCaller(authHeader ?? "").rpc("user_is_tenant_member", {
     check_tenant_id: tenantId,
   });
-  if (member.error) throw member.error;
+  if (member.error) {
+    throw member.error;
+  }
   if (member.data === true) {
     return { allowed: true, caller: { kind: "user", userId } };
   }

@@ -18,8 +18,8 @@ import {
 
 type Options = {
   /** Server-provided lists (e.g. public share payload). */
-  initialForceRelevant?: string[];
-  initialForceIrrelevant?: string[];
+  initialForceRelevant?: Array<string>;
+  initialForceIrrelevant?: Array<string>;
   /** Public share: apply lists but never write. */
   readOnly?: boolean;
 };
@@ -42,16 +42,22 @@ export function useSeoKeywordRelevance(
     options?.initialForceRelevant !== undefined ||
     options?.initialForceIrrelevant !== undefined;
 
-  const [forceRelevant, setForceRelevant] = useState<string[]>(() => {
-    if (options?.initialForceRelevant !== undefined)
+  const [forceRelevant, setForceRelevant] = useState<Array<string>>(() => {
+    if (options?.initialForceRelevant !== undefined) {
       return options.initialForceRelevant;
-    if (readOnly) return [];
+    }
+    if (readOnly) {
+      return [];
+    }
     return loadSeoForceRelevant(persistKey);
   });
-  const [forceIrrelevant, setForceIrrelevant] = useState<string[]>(() => {
-    if (options?.initialForceIrrelevant !== undefined)
+  const [forceIrrelevant, setForceIrrelevant] = useState<Array<string>>(() => {
+    if (options?.initialForceIrrelevant !== undefined) {
       return options.initialForceIrrelevant;
-    if (readOnly) return [];
+    }
+    if (readOnly) {
+      return [];
+    }
     return loadSeoForceIrrelevant(persistKey);
   });
   const [ready, setReady] = useState(
@@ -108,12 +114,16 @@ export function useSeoKeywordRelevance(
   }, [reload]);
 
   useEffect(() => {
-    if (readOnly || !persistKey || typeof window === "undefined") return;
+    if (readOnly || !persistKey || typeof window === "undefined") {
+      return;
+    }
 
     const onCustom = (event: Event) => {
       const detail = (event as CustomEvent<SeoKeywordRelevanceChangedDetail>)
         .detail;
-      if (detail?.persistKey && detail.persistKey !== persistKey) return;
+      if (detail?.persistKey && detail.persistKey !== persistKey) {
+        return;
+      }
       // Prefer fresh local cache after same-tab mark; DB write is already done.
       applyLists({
         forceRelevant: loadSeoForceRelevant(persistKey),
@@ -122,15 +132,21 @@ export function useSeoKeywordRelevance(
     };
 
     const onStorage = (event: StorageEvent) => {
-      if (!event.key) return;
+      if (!event.key) {
+        return;
+      }
       const relevantKey = seoForceListStorageKey(persistKey, "relevant");
       const irrelevantKey = seoForceListStorageKey(persistKey, "irrelevant");
-      if (event.key !== relevantKey && event.key !== irrelevantKey) return;
+      if (event.key !== relevantKey && event.key !== irrelevantKey) {
+        return;
+      }
       reload();
     };
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") reload();
+      if (document.visibilityState === "visible") {
+        reload();
+      }
     };
 
     window.addEventListener(SEO_KEYWORD_RELEVANCE_EVENT, onCustom);
@@ -145,7 +161,9 @@ export function useSeoKeywordRelevance(
 
   const persistLists = useCallback(
     async (lists: SeoKeywordRelevanceLists) => {
-      if (readOnly || !persistKey) return;
+      if (readOnly || !persistKey) {
+        return;
+      }
       saveSeoForceRelevant(persistKey, lists.forceRelevant);
       saveSeoForceIrrelevant(persistKey, lists.forceIrrelevant);
       if (isClientId) {
@@ -161,9 +179,13 @@ export function useSeoKeywordRelevance(
 
   const markRelevant = useCallback(
     (keyword: string) => {
-      if (readOnly) return;
+      if (readOnly) {
+        return;
+      }
       const key = normalizeKeywordPhrase(keyword);
-      if (!key) return;
+      if (!key) {
+        return;
+      }
       setForceIrrelevant((prevIrr) => {
         const nextIrr = prevIrr.filter(
           (p) => normalizeKeywordPhrase(p) !== key,
@@ -186,9 +208,13 @@ export function useSeoKeywordRelevance(
 
   const markIrrelevant = useCallback(
     (keyword: string) => {
-      if (readOnly) return;
+      if (readOnly) {
+        return;
+      }
       const key = normalizeKeywordPhrase(keyword);
-      if (!key) return;
+      if (!key) {
+        return;
+      }
       setForceRelevant((prevRel) => {
         const nextRel = prevRel.filter(
           (p) => normalizeKeywordPhrase(p) !== key,

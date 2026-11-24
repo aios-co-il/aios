@@ -35,7 +35,7 @@ export function message(
 
 /** One linked group with its messages. */
 export function history(
-  messages: GroupMessage[],
+  messages: Array<GroupMessage>,
   fields: Partial<GroupHistory> = {},
 ): GroupHistory {
   return {
@@ -52,7 +52,7 @@ export function history(
 
 /** A window of labelled messages (client speaker, substantive unless said). */
 export function window(
-  messages: Partial<WindowMessage>[],
+  messages: Array<Partial<WindowMessage>>,
   fields: Partial<GroupWindow> = {},
 ): GroupWindow {
   const full = messages.map((m, i): WindowMessage => ({

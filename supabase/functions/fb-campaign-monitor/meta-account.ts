@@ -107,8 +107,8 @@ async function graphList(
   fetchImpl: Fetch,
   url: string,
   firstPageOnly = false,
-): Promise<GraphRow[]> {
-  const rows: GraphRow[] = [];
+): Promise<Array<GraphRow>> {
+  const rows: Array<GraphRow> = [];
   let next: string | null = url;
   for (let page = 0; next; page += 1) {
     if (page === MAX_PAGES) {

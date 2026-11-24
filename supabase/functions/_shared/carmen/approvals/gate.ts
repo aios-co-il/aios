@@ -13,7 +13,7 @@ export interface GateRow {
 /** The user deciding a row and their roles (one role or a list). */
 export interface Decider {
   userId?: string | null;
-  roles?: string | readonly string[] | null;
+  roles?: string | ReadonlyArray<string> | null;
 }
 
 /** Whether the decider may act on the row, and why not. */
@@ -33,7 +33,7 @@ export function approverDecision({
 }: {
   row?: GateRow | null;
   userId?: string | null;
-  roles?: readonly string[];
+  roles?: ReadonlyArray<string>;
   member?: boolean;
   mode?: "execute" | "reject";
 } = {}): { ok: true } | { ok: false; status: number; error: string } {
@@ -110,7 +110,7 @@ function isApproverRole(roles: Decider["roles"]): boolean {
   return list.some((r) => APPROVER_ROLES.includes(r));
 }
 
-const APPROVER_ROLES: readonly string[] = Object.freeze([
+const APPROVER_ROLES: ReadonlyArray<string> = Object.freeze([
   "owner",
   "agency_owner",
   "super_admin",

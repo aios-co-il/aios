@@ -68,7 +68,7 @@ export function captionLayout(width: number, height: number): CaptionLayout {
 }
 
 /** A line's width in ems of the caption size: its words, their padding and the gaps. */
-export const lineEm = (words: { text: string; key?: boolean }[]) =>
+export const lineEm = (words: Array<{ text: string; key?: boolean }>) =>
   words.reduce(
     (sum, word) =>
       sum +
@@ -88,7 +88,9 @@ export const channels = (hex: string): [number, number, number] | null => {
           .map((c) => c + c)
           .join("")
       : raw;
-  if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+  if (!/^[0-9a-f]{6}$/i.test(full)) {
+    return null;
+  }
   return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255) as [
     number,
     number,
@@ -99,7 +101,9 @@ export const channels = (hex: string): [number, number, number] | null => {
 /** Relative luminance (WCAG) of a hex colour; 0 for anything else. */
 export function luminance(hex: string): number {
   const rgb = channels(hex);
-  if (!rgb) return 0;
+  if (!rgb) {
+    return 0;
+  }
   const [r, g, b] = rgb.map((c) =>
     c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
   );

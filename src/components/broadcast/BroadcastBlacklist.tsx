@@ -32,10 +32,14 @@ export function BroadcastBlacklist() {
 
   const submit = () => {
     const value = address.trim();
-    if (!value) return;
+    if (!value) {
+      return;
+    }
     add.mutate(value.includes("@") ? { email: value } : { phone: value }, {
       onSuccess: (n) => {
-        if (n === 0) return toast.error("טלפון או אימייל לא תקין");
+        if (n === 0) {
+          return toast.error("טלפון או אימייל לא תקין");
+        }
         setAddress("");
         toast.success("נוסף לרשימה השחורה");
       },

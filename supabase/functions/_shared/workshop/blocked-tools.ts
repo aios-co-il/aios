@@ -158,14 +158,16 @@ export function workshopBlockedResult(toolName: string) {
  * has no board to work on.
  */
 export function workshopToolRefusal(toolName: string, inWorkshop: boolean) {
-  if (isBlockedInWorkshop(toolName, inWorkshop))
+  if (isBlockedInWorkshop(toolName, inWorkshop)) {
     return workshopBlockedResult(toolName);
-  if (!inWorkshop && isWorkshopTool(toolName))
+  }
+  if (!inWorkshop && isWorkshopTool(toolName)) {
     return {
       error: "workshop_only",
       message:
         "הכלי הזה עובד רק בסדנה של כרמן, עם פרויקט פתוח. כאן עני בלעדיו, ואם צריך, הציעי למשתמש לעבוד על זה בסדנה.",
     };
+  }
   return null;
 }
 
@@ -175,10 +177,13 @@ const SERVER_ONLY_PAYLOAD_KEYS = ["workshop_budget", "workshop"];
 /** Drops server-only keys from a work item payload patch; says which were dropped. */
 export function stripServerOnlyPayloadKeys(patch: Record<string, unknown>) {
   const kept: Record<string, unknown> = {};
-  const dropped: string[] = [];
+  const dropped: Array<string> = [];
   for (const [key, value] of Object.entries(patch)) {
-    if (SERVER_ONLY_PAYLOAD_KEYS.includes(key)) dropped.push(key);
-    else kept[key] = value;
+    if (SERVER_ONLY_PAYLOAD_KEYS.includes(key)) {
+      dropped.push(key);
+    } else {
+      kept[key] = value;
+    }
   }
   return { patch: kept, dropped };
 }

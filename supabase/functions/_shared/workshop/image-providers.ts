@@ -17,7 +17,7 @@ export type ImageProvider = Extract<
 >;
 export type ImageKeys = Partial<Record<ImageProvider, string>>;
 
-export const IMAGE_PROVIDER_ORDER: ImageProvider[] = [
+export const IMAGE_PROVIDER_ORDER: Array<ImageProvider> = [
   "openai",
   "google",
   "elevenlabs",
@@ -25,7 +25,7 @@ export const IMAGE_PROVIDER_ORDER: ImageProvider[] = [
 ];
 
 /** Gemini-based models hold a character and style across references better than OpenAI image edits. */
-export const REFERENCE_PROVIDER_ORDER: ImageProvider[] = [
+export const REFERENCE_PROVIDER_ORDER: Array<ImageProvider> = [
   "google",
   "elevenlabs",
   "openai",
@@ -51,8 +51,8 @@ export interface ImageDeps {
   gemini?: (input: {
     apiKey: string;
     prompt: string;
-    images: Uint8Array[];
-    mimeTypes?: string[];
+    images: Array<Uint8Array>;
+    mimeTypes?: Array<string>;
     aspectRatio: GeminiAspectRatio;
   }) => Promise<{ bytes: Uint8Array }>;
 }
@@ -63,7 +63,7 @@ export interface MadeImage {
   provider: ImageProvider;
 }
 
-const ASPECTS: GeminiAspectRatio[] = [
+const ASPECTS: Array<GeminiAspectRatio> = [
   "1:1",
   "16:9",
   "9:16",
@@ -82,7 +82,7 @@ export async function generateStill(
   prompt: string,
   aspectRatio: unknown,
   deps: ImageDeps = {},
-  references: ImageReference[] = [],
+  references: Array<ImageReference> = [],
 ): Promise<MadeImage> {
   const aspect = aspectFor(aspectRatio);
   const baseFetch = deps.fetchImpl ?? fetch;
@@ -94,26 +94,30 @@ export async function generateStill(
     });
   const order =
     references.length > 0 ? REFERENCE_PROVIDER_ORDER : IMAGE_PROVIDER_ORDER;
-  if (deps.engine && !keys[deps.engine])
+  if (deps.engine && !keys[deps.engine]) {
     throw new Error(
       `${PROVIDER_LABEL[deps.engine]} לא מחובר. בחרו מנוע אחר או חברו את המפתח בהגדרות מודלי AI.`,
     );
+  }
   const available = deps.engine
     ? [deps.engine]
     : order.filter((provider) => keys[provider]);
-  if (available.length === 0)
+  if (available.length === 0) {
     throw new Error(
       "אין מפתח ליצירת תמונות. מספיק אחד מ-OpenAI, Google, ElevenLabs או Higgsfield בהגדרות מודלי AI.",
     );
-  const failures: string[] = [];
+  }
+  const failures: Array<string> = [];
   for (const provider of available) {
     const key = keys[provider]!;
     try {
-      if (provider === "openai")
+      if (provider === "openai") {
         return await viaOpenAi(key, prompt, aspect, fetchImpl, references);
-      if (provider === "google")
+      }
+      if (provider === "google") {
         return await viaGoogle(key, prompt, aspect, deps, references);
-      if (provider === "higgsfield")
+      }
+      if (provider === "higgsfield") {
         return await viaHiggsfield(
           key,
           prompt,
@@ -122,6 +126,7 @@ export async function generateStill(
           fetchImpl,
           references,
         );
+      }
       return await viaElevenLabs(
         key,
         prompt,
@@ -143,14 +148,18 @@ export async function generateStill(
       const timedOut =
         error instanceof Error &&
         (error.name === "TimeoutError" || error.name === "AbortError");
-      if (timedOut || (error as { accepted?: boolean })?.accepted) break;
+      if (timedOut || (error as { accepted?: boolean })?.accepted) {
+        break;
+      }
       // A pinned ElevenLabs choice on Starter still has to produce the picture.
       if (
         provider === "elevenlabs" &&
         /paid_plan_required|תוכנית pro/i.test(message)
       ) {
         for (const next of ["google", "higgsfield", "openai"] as const) {
-          if (keys[next] && !available.includes(next)) available.push(next);
+          if (keys[next] && !available.includes(next)) {
+            available.push(next);
+          }
         }
       }
     }

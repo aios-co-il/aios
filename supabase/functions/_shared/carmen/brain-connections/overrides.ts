@@ -11,14 +11,17 @@ export async function connectionSecret(
   const { data, error } = await sb.rpc("carmen_brain_secret_get", {
     p_connection_id: connectionId,
   });
-  if (error) throw new Error(`Brain key read failed: ${error.message}`);
+  if (error) {
+    throw new Error(`Brain key read failed: ${error.message}`);
+  }
   return typeof data === "string" ? data : "";
 }
 
 /** A trimmed string field of a jsonb object, or "". */
 export function settingString(settings: unknown, key: string): string {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings))
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
     return "";
+  }
   const value = (settings as Record<string, unknown>)[key];
   return typeof value === "string" ? value.trim() : "";
 }

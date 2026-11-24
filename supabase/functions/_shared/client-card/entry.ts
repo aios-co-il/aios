@@ -121,7 +121,7 @@ export function buildRecordClientCardEntryArgs(
 
 /** Read the RPC's single row; a missing row or field means nothing was written. */
 export function parseRecordClientCardEntryResult(
-  data: RecordClientCardEntryRow[] | RecordClientCardEntryRow | null,
+  data: Array<RecordClientCardEntryRow> | RecordClientCardEntryRow | null,
 ): ClientCardEntryResult {
   const row = Array.isArray(data) ? data[0] : data;
   if (

@@ -33,8 +33,12 @@ export type LiveDraft = {
 /** The collector's live card_stale_group findings for the tenant. */
 export async function loadLiveDrafts(
   db: DbClient,
-  query: { tenantId: string; collectorId: string; clientIds: string[] | null },
-): Promise<LiveDraft[]> {
+  query: {
+    tenantId: string;
+    collectorId: string;
+    clientIds: Array<string> | null;
+  },
+): Promise<Array<LiveDraft>> {
   const live = db
     .from("carmen_findings")
     .select(
@@ -74,10 +78,10 @@ export async function loadLiveDrafts(
 
 /** The drafts to report again: card not updated since, entry not on it, still recent. */
 export function keptDrafts(
-  drafts: LiveDraft[],
-  entries: CardEntry[],
+  drafts: Array<LiveDraft>,
+  entries: Array<CardEntry>,
   now: Date,
-): FindingCandidate[] {
+): Array<FindingCandidate> {
   const oldest = now.getTime() - LOOKBACK_DAYS * DAY_MS;
   return drafts
     .filter((draft) => {
@@ -95,7 +99,7 @@ export function keptDrafts(
  * True when every entry the draft writes is already on the client's card:
  * its summary and, when it holds one, its reported contact.
  */
-function entryOnCard(draft: LiveDraft, entries: CardEntry[]): boolean {
+function entryOnCard(draft: LiveDraft, entries: Array<CardEntry>): boolean {
   const own = cardDraftOf(draft.candidate.evidence);
   if (!own) {
     return false;

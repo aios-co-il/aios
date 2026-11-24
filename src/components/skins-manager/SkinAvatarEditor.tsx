@@ -34,7 +34,9 @@ export function SkinAvatarEditor({
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   e.target.value = "";
-                  if (f && editing.slug) changeAvatar(editing.slug, f);
+                  if (f && editing.slug) {
+                    changeAvatar(editing.slug, f);
+                  }
                 }}
               />
             </label>

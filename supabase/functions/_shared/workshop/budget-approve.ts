@@ -21,8 +21,12 @@ export function approveFromMessage(
 } | null {
   const budget = budgetOf(payload);
   const request = budget.request;
-  if (!request || !requestFresh(request, now)) return null;
-  if (!approvesRequest(userText, request.code)) return null;
+  if (!request || !requestFresh(request, now)) {
+    return null;
+  }
+  if (!approvesRequest(userText, request.code)) {
+    return null;
+  }
   return {
     payload: withBudget(payload, {
       ...budget,

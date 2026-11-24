@@ -27,7 +27,7 @@ const LINE = {
 type Call = { token: string; body: Record<string, unknown> };
 
 /** Runs these requests through the deployed handler on Staging; returns each status and body, and the gateway posts. */
-async function run(calls: Call[], failing: Record<string, string> = {}) {
+async function run(calls: Array<Call>, failing: Record<string, string> = {}) {
   const http = fakeSupabaseHttp({
     supabaseUrl: SUPABASE_URL,
     tables: {

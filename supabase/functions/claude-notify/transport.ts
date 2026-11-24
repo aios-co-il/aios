@@ -89,7 +89,7 @@ export function selectNotifyTransport(
 }
 
 /** Eligible steps, the bridge automation's first, then oldest first. */
-function orderSteps(input: NotifyTransportInput): NotifyStepRow[] {
+function orderSteps(input: NotifyTransportInput): Array<NotifyStepRow> {
   const bridge = input.bridgeAutomationId || null;
   const eligible = new Set(input.activeAutomationIds);
   if (bridge) {
@@ -111,7 +111,7 @@ function orderSteps(input: NotifyTransportInput): NotifyStepRow[] {
 
 /** Why no line of a provider was usable: a non-primary skip, else inactive. */
 function missReason(
-  skipped: NotifySkippedLine[],
+  skipped: Array<NotifySkippedLine>,
   notPrimary: string,
   inactive: string,
 ): string {

@@ -102,8 +102,12 @@ export async function recipientForEntity(
       .eq("tenant_id", tenantId)
       .eq("id", entityId)
       .maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      return null;
+    }
     return leadRecipient(data, await loadLookups(db, tenantId, []));
   }
   const { data, error } = await db
@@ -112,7 +116,11 @@ export async function recipientForEntity(
     .eq("tenant_id", tenantId)
     .eq("id", entityId)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) return null;
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    return null;
+  }
   return clientRecipient(data, await loadLookups(db, tenantId, [entityId]));
 }

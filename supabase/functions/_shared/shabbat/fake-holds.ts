@@ -2,7 +2,11 @@
 // Shabbat hold (trigger-automation) and its release (task-notification-worker).
 
 type Row = Record<string, unknown>;
-type Tables = { tasks?: Row[]; clients?: Row[]; agency_tenant_access?: Row[] };
+type Tables = {
+  tasks?: Array<Row>;
+  clients?: Array<Row>;
+  agency_tenant_access?: Array<Row>;
+};
 type Result = {
   data: unknown;
   error: { code?: string; message: string } | null;
@@ -46,9 +50,9 @@ export function fakeHolds(
   },
   faults: { claim?: string; record?: string } = {},
 ) {
-  const rows: Row[] = [];
+  const rows: Array<Row> = [];
   let nextId = 1;
-  const sourceOf = (table: string): Row[] => {
+  const sourceOf = (table: string): Array<Row> => {
     if (table === "task_notification_holds") {
       return rows;
     }

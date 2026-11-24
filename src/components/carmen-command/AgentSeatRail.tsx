@@ -28,7 +28,7 @@ const SEAT_ARIA: Record<AgentSeatKey, string> = {
 };
 
 interface AgentSeatRailProps {
-  routes: BrainRoute[];
+  routes: Array<BrainRoute>;
   selected: BrainRoute;
   status?: string | null;
   externalUrl?: string | null;
@@ -64,7 +64,9 @@ function SharedCluster() {
 }
 
 function SeatOptionIcon({ seatKey }: { seatKey: AgentSeatKey }) {
-  if (seatKey === "shared") return <SharedCluster />;
+  if (seatKey === "shared") {
+    return <SharedCluster />;
+  }
   return (
     <span
       className="cc-seat-select-icon"
@@ -77,9 +79,9 @@ function SeatOptionIcon({ seatKey }: { seatKey: AgentSeatKey }) {
 const EXTRA_PREFIX = "route:";
 
 /** Seats for the header select: the fixed rail, then every other active brain. */
-export function seatSelectOptions(routes: BrainRoute[]): {
-  seats: AgentSeatKey[];
-  extras: BrainRoute[];
+export function seatSelectOptions(routes: Array<BrainRoute>): {
+  seats: Array<AgentSeatKey>;
+  extras: Array<BrainRoute>;
 } {
   const seats = RAIL_SEAT_ORDER.filter(
     (key) => key === "shared" || routeForSeatKey(routes, key),
@@ -87,14 +89,14 @@ export function seatSelectOptions(routes: BrainRoute[]): {
   const covered = new Set(
     seats
       .map((key) => routeForSeatKey(routes, key)?.id)
-      .filter(Boolean) as string[],
+      .filter(Boolean) as Array<string>,
   );
   const extras = routes.filter((r) => !covered.has(r.id));
   return { seats, extras };
 }
 
 function ExtraOptionIcon({ route }: { route: BrainRoute }) {
-  if (route.route_type === "model")
+  if (route.route_type === "model") {
     return (
       <span
         className="flex h-5 w-5 shrink-0 items-center justify-center"
@@ -103,6 +105,7 @@ function ExtraOptionIcon({ route }: { route: BrainRoute }) {
         <RouteIcon type="model" color={routeColor(route)} />
       </span>
     );
+  }
   const key = route.slug as AgentSeatKey;
   return <SeatOptionIcon seatKey={key in AGENT_SPRITES ? key : "carmen"} />;
 }
@@ -125,7 +128,9 @@ export function AgentSeatSelect({
         const route = next.startsWith(EXTRA_PREFIX)
           ? extras.find((r) => r.slug === next.slice(EXTRA_PREFIX.length))
           : routeForSeatKey(routes, next as AgentSeatKey);
-        if (route) onSelect(route);
+        if (route) {
+          onSelect(route);
+        }
       }}
     >
       <SelectTrigger
@@ -189,7 +194,9 @@ export function AgentSeatButtons({
     >
       {RAIL_SEAT_ORDER.map((key) => {
         const route = routeForSeatKey(routes, key);
-        if (!route && key !== "shared") return null;
+        if (!route && key !== "shared") {
+          return null;
+        }
         const isActive = activeKey === key;
         const sprite = key === "shared" ? null : AGENT_SPRITES[key];
         return (
@@ -201,7 +208,9 @@ export function AgentSeatButtons({
             aria-pressed={isActive}
             onClick={() => {
               const next = routeForSeatKey(routes, key);
-              if (next) onSelect(next);
+              if (next) {
+                onSelect(next);
+              }
             }}
             className={`cc-seat-btn${isActive ? " is-active" : ""}${key === "shared" ? " is-shared" : ""}`}
           >
@@ -243,7 +252,9 @@ export function AgentSeatStatus({
   const waiting = status === "waiting_external" || status === "debating";
   const note = billingNoteForRoute(selected.provider);
   const showParliament = debating && activeKey === "shared";
-  if (!note && !waiting && !externalUrl && !showParliament) return null;
+  if (!note && !waiting && !externalUrl && !showParliament) {
+    return null;
+  }
 
   return (
     <div

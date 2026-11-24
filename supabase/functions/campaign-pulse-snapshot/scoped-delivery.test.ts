@@ -38,7 +38,7 @@ const PLANS = [plan("Felix", FELIX), plan("Dana", DANA), plan("Rina", RINA)];
 async function pulseRun(run: {
   previewOnly?: boolean;
   campaignerName?: string;
-  plans?: PulseDeliveryPlan[];
+  plans?: Array<PulseDeliveryPlan>;
   failPhone?: string;
 }) {
   const sends: Array<{ message: string; phone: string }> = [];

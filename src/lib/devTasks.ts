@@ -62,7 +62,7 @@ export async function listDevTasks(
   token: string,
   tenantId: string,
   filters?: { status?: DevTaskStatus; priority?: DevTaskPriority },
-): Promise<DevTask[]> {
+): Promise<Array<DevTask>> {
   const res = await fetch(FN, {
     method: "POST",
     headers: await authHeader(token),
@@ -74,7 +74,9 @@ export async function listDevTasks(
     }),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "list failed");
+  if (!res.ok) {
+    throw new Error(json.error || "list failed");
+  }
   return json.tasks || [];
 }
 
@@ -88,7 +90,9 @@ export async function devTaskAction(
     body: JSON.stringify(payload),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "action failed");
+  if (!res.ok) {
+    throw new Error(json.error || "action failed");
+  }
   return json;
 }
 

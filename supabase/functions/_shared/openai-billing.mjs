@@ -47,9 +47,13 @@ export function sumOrganizationCosts(payload) {
         typeof amount?.value === "number"
           ? amount.value
           : Number(amount?.value);
-      if (!Number.isFinite(value)) continue;
+      if (!Number.isFinite(value)) {
+        continue;
+      }
       total += value;
-      if (amount?.currency) currency = String(amount.currency).toLowerCase();
+      if (amount?.currency) {
+        currency = String(amount.currency).toLowerCase();
+      }
       const li = row?.line_item || "other";
       byLineItem[li] = (byLineItem[li] || 0) + value;
       bucketCount += 1;
@@ -104,7 +108,9 @@ export function extractDailyCostBuckets(payload) {
       typeof ts === "number"
         ? new Date(ts * 1000).toISOString().slice(0, 10)
         : null;
-    if (!date) continue;
+    if (!date) {
+      continue;
+    }
     let cost = 0;
     const lineItems = {};
     for (const row of Array.isArray(bucket?.results) ? bucket.results : []) {
@@ -112,7 +118,9 @@ export function extractDailyCostBuckets(payload) {
         typeof row?.amount?.value === "number"
           ? row.amount.value
           : Number(row?.amount?.value);
-      if (!Number.isFinite(value)) continue;
+      if (!Number.isFinite(value)) {
+        continue;
+      }
       cost += value;
       const li = row?.line_item || "other";
       lineItems[li] = roundMoney((lineItems[li] || 0) + value);
@@ -132,7 +140,9 @@ export function extractDailyUsageBuckets(payload) {
       typeof ts === "number"
         ? new Date(ts * 1000).toISOString().slice(0, 10)
         : null;
-    if (!date) continue;
+    if (!date) {
+      continue;
+    }
     let inputTokens = 0;
     let outputTokens = 0;
     let requests = 0;
@@ -239,8 +249,12 @@ function sanitizeSpendLimits(payload) {
 
 /** Concise Hebrew/English summary safe for WhatsApp (no keys). */
 export function formatOpenAiBillingWhatsApp(status) {
-  if (!status) return "אין נתוני חיוב OpenAI.";
-  if (status.error && !status.ok) return String(status.error);
+  if (!status) {
+    return "אין נתוני חיוב OpenAI.";
+  }
+  if (status.error && !status.ok) {
+    return String(status.error);
+  }
 
   const lines = [];
   lines.push("OpenAI — סטטוס חיוב/שימוש");

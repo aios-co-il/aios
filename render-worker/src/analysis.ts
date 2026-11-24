@@ -61,8 +61,9 @@ export async function transcribe(
       response.status,
     );
   }
-  if (!openaiKey)
+  if (!openaiKey) {
     return { provider: null, language: null, text: "", words: [] };
+  }
   const form = new FormData();
   form.append(
     "file",
@@ -80,10 +81,11 @@ export async function transcribe(
       body: form,
     },
   );
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(
       `whisper ${response.status}: ${(await response.text()).slice(0, 300)}`,
     );
+  }
   const data = await responseJson<WhisperResponse>(response);
   return {
     provider: "openai_whisper",
@@ -117,10 +119,11 @@ async function chatJson<Answer>(
       temperature: 0.4,
     }),
   });
-  if (!response.ok)
+  if (!response.ok) {
     throw new Error(
       `${model} ${response.status}: ${(await response.text()).slice(0, 300)}`,
     );
+  }
   const data = await responseJson<ChatResponse>(response);
   const value: Answer = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
   return { value, usage: data.usage ?? null };

@@ -26,7 +26,7 @@ const PULSE_ON = {
 
 /** One gated run for ACME on WEDNESDAY, as campaign-pulse-snapshot calls it. */
 async function gatedRun(setting: Setting, body: Body) {
-  const sends: string[] = [];
+  const sends: Array<string> = [];
   const result = await gatedInstantAlerts(setting, body, {
     supabase: fakeSupabase(),
     tenantId: "t1",

@@ -28,14 +28,14 @@ interface ResendAttachment {
 /** Email as the Resend API expects it. */
 interface ResendEmailPayload {
   from: string;
-  to: string[];
+  to: Array<string>;
   subject: string;
   html?: string;
   text?: string;
   reply_to?: string;
   headers?: Record<string, string>;
-  tags?: { name: string; value: string }[];
-  attachments?: ResendAttachment[];
+  tags?: Array<{ name: string; value: string }>;
+  attachments?: Array<ResendAttachment>;
 }
 
 const corsHeaders = {
@@ -51,8 +51,9 @@ const DEFAULT_FROM_EMAIL =
 const DEFAULT_FROM_NAME = Deno.env.get("RESEND_FROM_NAME") ?? "AIOS";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
 
   try {
     if (!req.headers.get("Authorization")) {
@@ -99,18 +100,30 @@ Deno.serve(async (req) => {
       to: Array.isArray(to) ? to : [to],
       subject,
     };
-    if (html) payload.html = html;
-    if (text) payload.text = text;
-    if (replyTo) payload.reply_to = replyTo;
-    if (headers && typeof headers === "object") payload.headers = headers;
-    if (Array.isArray(tags)) payload.tags = tags;
+    if (html) {
+      payload.html = html;
+    }
+    if (text) {
+      payload.text = text;
+    }
+    if (replyTo) {
+      payload.reply_to = replyTo;
+    }
+    if (headers && typeof headers === "object") {
+      payload.headers = headers;
+    }
+    if (Array.isArray(tags)) {
+      payload.tags = tags;
+    }
     const allowedPrefix = attachmentUrlPrefix(
       Deno.env.get("SUPABASE_URL") ?? "",
     );
     const allowedAttachments = (
       Array.isArray(attachments) ? attachments : []
     ).filter((a: AttachmentInput) => {
-      if (!a.path || a.content || a.path.startsWith(allowedPrefix)) return true;
+      if (!a.path || a.content || a.path.startsWith(allowedPrefix)) {
+        return true;
+      }
       console.warn(`send-resend-email: dropped attachment path ${a.path}`);
       return false;
     });
@@ -121,14 +134,16 @@ Deno.serve(async (req) => {
         (a: AttachmentInput): ResendAttachment => {
           const att: ResendAttachment = { filename: a.filename };
           // path = a URL Resend downloads itself (stored broadcast attachments)
-          if (a.path && !a.content) att.path = a.path;
-          else {
+          if (a.path && !a.content) {
+            att.path = a.path;
+          } else {
             att.content = a.content;
             att.content_type =
               a.contentType || a.content_type || "application/octet-stream";
           }
-          if (a.content_id || a.contentId)
+          if (a.content_id || a.contentId) {
             att.content_id = a.content_id || a.contentId;
+          }
           return att;
         },
       );

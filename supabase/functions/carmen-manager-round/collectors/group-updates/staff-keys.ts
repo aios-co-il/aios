@@ -25,7 +25,7 @@ export async function loadGroupStaff(
 async function relatedTenants(
   db: DbClient,
   tenantId: string,
-): Promise<string[]> {
+): Promise<Array<string>> {
   const { data, error } = await db
     .from("agency_tenant_access")
     .select("source_tenant_id, accessing_tenant_id")

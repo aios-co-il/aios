@@ -23,7 +23,9 @@ export function isStreamableMcpPath(pathname: string): boolean {
 }
 
 export function wantsStreamableHttp(req: Request, pathname: string): boolean {
-  if (isStreamableMcpPath(pathname)) return true;
+  if (isStreamableMcpPath(pathname)) {
+    return true;
+  }
   const accept = (req.headers.get("accept") || "").toLowerCase();
   return accept.includes("text/event-stream");
 }
@@ -151,7 +153,9 @@ export async function handleStreamableMcpRequest(
   }
 
   const resp = await handler(msg);
-  if (!resp.ok) return resp;
+  if (!resp.ok) {
+    return resp;
+  }
 
   const useJson = prefersJsonResponse(req);
   const raw = await resp.text();

@@ -21,7 +21,7 @@ const TEXT_FIELDS = [
 ] as const;
 
 /** A SQL text[] literal the way the migration spells it. */
-const sqlArray = (values: readonly string[]) =>
+const sqlArray = (values: ReadonlyArray<string>) =>
   `ARRAY[${values.map((v) => `'${v}'`).join(", ")}]::text[]`;
 
 Deno.test("pulse skill rows", async (t) => {

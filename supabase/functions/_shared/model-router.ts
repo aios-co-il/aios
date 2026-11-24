@@ -33,7 +33,7 @@ export type ModelCallResult<T = string> = {
   attempts: Array<{ model: string; error?: string }>;
 };
 
-const PROFILE_MODELS: Record<ModelProfile, string[]> = {
+const PROFILE_MODELS: Record<ModelProfile, Array<string>> = {
   FAST_CHAT: ["gpt-4o-mini", "gpt-4.1-mini"],
   FAST_REASON: ["gpt-4o-mini", "gpt-4.1-mini"],
   DEEP_REASON: ["gpt-4.1-mini", "gpt-4o-mini"],
@@ -44,7 +44,9 @@ function classifyHttpError(
   body: string,
 ): ModelRouterErrorClass {
   const lower = body.toLowerCase();
-  if (status === 429 || lower.includes("rate limit")) return "rate_limit";
+  if (status === 429 || lower.includes("rate limit")) {
+    return "rate_limit";
+  }
   if (
     lower.includes("quota") ||
     lower.includes("insufficient") ||
@@ -53,11 +55,15 @@ function classifyHttpError(
   ) {
     return "quota_exhausted";
   }
-  if (status === 401 || status === 403 || lower.includes("invalid api key"))
+  if (status === 401 || status === 403 || lower.includes("invalid api key")) {
     return "auth_error";
-  if (status >= 500) return "provider_outage";
-  if (lower.includes("context length") || lower.includes("maximum context"))
+  }
+  if (status >= 500) {
+    return "provider_outage";
+  }
+  if (lower.includes("context length") || lower.includes("maximum context")) {
     return "context_incompatible";
+  }
   return "unknown";
 }
 
@@ -70,14 +76,17 @@ async function callOpenAIChat(
   | { ok: false; errorClass: ModelRouterErrorClass; detail: string }
 > {
   const resolvedKey = await resolveOpenAIKey();
-  if (!resolvedKey)
+  if (!resolvedKey) {
     return { ok: false, errorClass: "auth_error", detail: "no_openai_key" };
+  }
 
   const body: Record<string, unknown> = {
     model,
     messages: [{ role: "user", content: prompt }],
   };
-  if (jsonMode) body.response_format = { type: "json_object" };
+  if (jsonMode) {
+    body.response_format = { type: "json_object" };
+  }
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -134,7 +143,9 @@ export async function modelRouterChat(
       };
     }
     attempts.push({ model, error: res.detail });
-    if (i < models.length - 1) continue;
+    if (i < models.length - 1) {
+      continue;
+    }
     return {
       ok: false,
       data: null,
@@ -169,7 +180,9 @@ export async function modelRouterJSON<T>(
   prompt: string,
 ): Promise<ModelCallResult<T>> {
   const res = await modelRouterChat(profile, prompt, { jsonMode: true });
-  if (!res.ok || !res.data) return { ...res, data: null };
+  if (!res.ok || !res.data) {
+    return { ...res, data: null };
+  }
   try {
     return { ...res, data: JSON.parse(res.data) as T };
   } catch {
@@ -183,6 +196,8 @@ export async function modelRouterChatOrFallback(
   prompt: string,
 ): Promise<string | null> {
   const routed = await modelRouterChat(profile, prompt);
-  if (routed.ok && routed.data) return routed.data;
+  if (routed.ok && routed.data) {
+    return routed.data;
+  }
   return await aiChat(prompt);
 }

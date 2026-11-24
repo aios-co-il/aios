@@ -15,7 +15,7 @@ export interface ClipEstimate {
   credits: number;
 }
 
-export function clipEstimate(frames: StoryboardFrame[]): ClipEstimate {
+export function clipEstimate(frames: Array<StoryboardFrame>): ClipEstimate {
   const blocks = frames.reduce(
     (sum, frame) => sum + clipSeconds(frame.duration) / 5,
     0,
@@ -38,7 +38,7 @@ export const canAnimate = (frame: StoryboardFrame) =>
  * "Animate all": approved stills without a clip, failed attempts, and clips the still or
  * prompt has since outdated. Current clips are kept so only changed scenes cost again.
  */
-export const framesToAnimate = (frames: StoryboardFrame[]) =>
+export const framesToAnimate = (frames: Array<StoryboardFrame>) =>
   [...frames]
     .sort((a, b) => a.order - b.order)
     .filter(
@@ -65,19 +65,26 @@ const JOB_FIELDS = [
  * and clip), so a clip finishing never wipes what the user is typing.
  */
 export function mergeServerScenes(
-  draft: StoryboardFrame[],
-  server: StoryboardFrame[],
-  previousServer: StoryboardFrame[],
-): StoryboardFrame[] {
-  if (JSON.stringify(draft) === JSON.stringify(previousServer)) return server;
+  draft: Array<StoryboardFrame>,
+  server: Array<StoryboardFrame>,
+  previousServer: Array<StoryboardFrame>,
+): Array<StoryboardFrame> {
+  if (JSON.stringify(draft) === JSON.stringify(previousServer)) {
+    return server;
+  }
   const byId = new Map(server.map((frame) => [frame.id, frame]));
   return draft.map((frame) => {
     const live = byId.get(frame.id);
-    if (!live) return frame;
+    if (!live) {
+      return frame;
+    }
     const next: StoryboardFrame = { ...frame };
     for (const field of JOB_FIELDS) {
-      if (live[field] === undefined) delete next[field];
-      else (next as unknown as Record<string, unknown>)[field] = live[field];
+      if (live[field] === undefined) {
+        delete next[field];
+      } else {
+        (next as unknown as Record<string, unknown>)[field] = live[field];
+      }
     }
     return next;
   });

@@ -20,7 +20,7 @@ import { EmailWebhookMappingPanel } from "./EmailWebhookMappingPanel";
 
 interface Props {
   configuration: Record<string, any>;
-  availableFields: { key: string; label: string }[];
+  availableFields: Array<{ key: string; label: string }>;
   tenantId: string | undefined;
   triggerType?: string;
   automationId?: string;
@@ -55,10 +55,16 @@ export function EmailActionConfig({
   );
 
   useEffect(() => {
-    if (domains.length === 0) return;
-    if (configuration?.sender_domain_id) return;
+    if (domains.length === 0) {
+      return;
+    }
+    if (configuration?.sender_domain_id) {
+      return;
+    }
     const preferred = defaultDomain?.id;
-    if (preferred) onConfigChange("sender_domain_id", preferred);
+    if (preferred) {
+      onConfigChange("sender_domain_id", preferred);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domains.length, defaultDomain?.id]);
 

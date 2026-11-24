@@ -14,7 +14,9 @@ function formatLeadDate(
   value: string | null | undefined,
   withTime = true,
 ): string {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
   const pattern = withTime ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy";
   return format(new Date(value), pattern, { locale: he });
 }
@@ -93,7 +95,9 @@ export function LeadSourceLines({
   const first = leadFirstSourceDisplay(lead);
   const campaign = showCampaign ? lead.campaign_name : null;
   if (compact) {
-    if (!current && !campaign) return null;
+    if (!current && !campaign) {
+      return null;
+    }
     return (
       <div
         className="text-xs text-muted-foreground truncate"

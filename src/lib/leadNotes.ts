@@ -8,7 +8,9 @@ export function patchLeadNotesInCache(
   leadId: string,
   notes: string | null,
 ): unknown {
-  if (!old) return old;
+  if (!old) {
+    return old;
+  }
   if (Array.isArray(old)) {
     return old.map((lead) =>
       lead &&
@@ -18,7 +20,9 @@ export function patchLeadNotesInCache(
         : lead,
     );
   }
-  if (typeof old !== "object") return old;
+  if (typeof old !== "object") {
+    return old;
+  }
 
   const updated: Record<string, unknown> = {
     ...(old as Record<string, unknown>),
@@ -34,7 +38,7 @@ export function patchLeadNotesInCache(
       typeof value === "object" &&
       Array.isArray((value as { leads?: unknown }).leads)
     ) {
-      const stage = value as { leads: unknown[] };
+      const stage = value as { leads: Array<unknown> };
       updated[key] = {
         ...stage,
         leads: patchLeadNotesInCache(stage.leads, leadId, notes),

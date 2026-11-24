@@ -7,15 +7,15 @@ import type { Thread, Turn } from "./threads.ts";
 
 export type ClientStreak = {
   /** Oldest first; never empty. */
-  turns: Turn[];
+  turns: Array<Turn>;
   /** A staff turn precedes it in the read: it did not start before the read. */
   anchored: boolean;
 };
 
 /** The thread's client streaks, oldest first. */
-export function clientStreaks(thread: Thread): ClientStreak[] {
-  const streaks: ClientStreak[] = [];
-  let current: Turn[] = [];
+export function clientStreaks(thread: Thread): Array<ClientStreak> {
+  const streaks: Array<ClientStreak> = [];
+  let current: Array<Turn> = [];
   let anchored = false;
   for (const turn of thread.turns) {
     if (turn.by === "client") {

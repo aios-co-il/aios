@@ -14,7 +14,7 @@ const FELIX = {
 };
 
 /** The list as the settings screen renders it, resolved like the server. */
-function renderList(rows: ReportRecipientRow[], staff = [FELIX]) {
+function renderList(rows: Array<ReportRecipientRow>, staff = [FELIX]) {
   render(
     <ReportRecipientList
       rows={rows}

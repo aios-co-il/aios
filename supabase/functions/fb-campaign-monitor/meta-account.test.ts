@@ -8,14 +8,16 @@ type Route = (url: URL) => unknown;
 
 /** A fetch that answers each Graph path from `routes` and records the URLs. */
 function fakeGraph(routes: Record<string, Route>) {
-  const urls: URL[] = [];
+  const urls: Array<URL> = [];
   const fetchImpl = (raw: string) => {
     const url = new URL(raw);
     urls.push(url);
     const status = url.searchParams.get("effective_status") || "";
     const key = `${url.pathname.replace("/v21.0/", "")}${status ? ` ${status}` : ""}`;
     const route = routes[key];
-    if (!route) throw new Error(`unexpected ${key}`);
+    if (!route) {
+      throw new Error(`unexpected ${key}`);
+    }
     return Promise.resolve(new Response(JSON.stringify(route(url))));
   };
   return { fetchImpl, urls };

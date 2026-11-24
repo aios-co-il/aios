@@ -44,27 +44,32 @@ export async function generateLipsync({
   log?: (line: string) => void;
   submitting?: <T>(submit: () => Promise<T>) => Promise<T>;
 }) {
-  if (!run.scene_id) throw finalError("lipsync run: scene_id is required");
+  if (!run.scene_id) {
+    throw finalError("lipsync run: scene_id is required");
+  }
   const item = await loadRunItem(db, run);
   const scene = await loadRunScene<SceneRow>(
     db,
     run,
     "id,still_asset_id,clip_asset_id,voice_asset_id,voiceover_text,duration_s,motion_prompt,meta",
   );
-  if (!isTalkingScene(scene))
+  if (!isTalkingScene(scene)) {
     throw finalError(
       "lipsync run: the scene is not marked lipsync (is required)",
     );
+  }
   const line = talkingLine(scene);
-  if (!line)
+  if (!line) {
     throw finalError(
       "lipsync run: the scene has no line to speak (is required)",
     );
+  }
   const voice = await asset(db, run, scene.voice_asset_id, "voiceover");
-  if (!voice || String(voice.meta?.text ?? "") !== line)
+  if (!voice || String(voice.meta?.text ?? "") !== line) {
     throw finalError(
       "lipsync run: the scene's own voice line is missing (is required)",
     );
+  }
   const still = await asset(db, run, scene.still_asset_id, "video_still");
   const clip = await asset(db, run, scene.clip_asset_id, "video_clip");
   const motion = await motionClipOf(db, run, clip);
@@ -74,7 +79,9 @@ export async function generateLipsync({
   const names = lipsyncProviderNames(run, keys, env).filter(
     (name) => !(speaksInOwnVoice(name) && speaksInChosenVoice(scene)),
   );
-  if (!names.length) throw finalError(NO_LIPSYNC_PROVIDER);
+  if (!names.length) {
+    throw finalError(NO_LIPSYNC_PROVIDER);
+  }
   const durationS = Number(scene.duration_s) || 5;
   const aspect = run.input?.aspect || clip?.meta?.aspect || "9:16";
 
