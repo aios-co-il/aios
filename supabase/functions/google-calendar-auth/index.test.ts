@@ -1,4 +1,9 @@
 import { assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
+import {
+  oauthStateKey,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 import { fakeSupabaseHttp } from "../_shared/testing/fake-supabase-http.ts";
 import {
   servedHandler,
@@ -6,6 +11,12 @@ import {
 } from "../_shared/testing/served-handler.ts";
 
 const SUPABASE_URL = "https://oauth-test.supabase.co";
+
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+
+/** The handlers sign with this key, derived from GOOGLE_CLIENT_SECRET below. */
+const STATE_SECRET = oauthStateKey("test-secret");
+
 const env = {
   SUPABASE_URL,
   SUPABASE_ANON_KEY: "test-anon",
@@ -24,7 +35,7 @@ Deno.test({
       async () => {
         const http = fakeSupabaseHttp({
           supabaseUrl: SUPABASE_URL,
-          users: { session: "user-1" },
+          users: { session: USER_ID },
         });
         await withRuntime({ env, fetch: http.fetch }, async () => {
           const handle = await servedHandler(
@@ -49,10 +60,44 @@ Deno.test({
             "https://www.googleapis.com/auth/userinfo.email",
           ]);
           assertEquals(url.searchParams.get("client_id"), env.GOOGLE_CLIENT_ID);
-          assertEquals(url.searchParams.get("state"), "user-1");
+          const state = await verifyOAuthState(
+            url.searchParams.get("state"),
+            STATE_SECRET,
+          );
+          assertEquals(state?.userId, USER_ID);
+          assertEquals(state?.origin, null);
         });
       },
     );
+
+    for (const forged of [USER_ID, btoa(JSON.stringify({ userId: USER_ID }))]) {
+      await t.step(
+        `callback refuses an unsigned state before exchanging the code: ${forged.slice(0, 8)}`,
+        async () => {
+          const http = fakeSupabaseHttp({
+            supabaseUrl: SUPABASE_URL,
+            tables: { calendar_tokens: [] },
+            other: (url) => {
+              throw new Error(`Unexpected provider request: ${url.href}`);
+            },
+          });
+          await withRuntime({ env, fetch: http.fetch }, async () => {
+            const handle = await servedHandler(
+              new URL("./index.ts", import.meta.url),
+            );
+            const response = await handle(
+              new Request(
+                `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback&code=code&state=${encodeURIComponent(forged)}`,
+              ),
+            );
+            assertEquals(response.status, 500);
+            const { error } = await response.json();
+            assertStringIncludes(error, "invalid or has expired");
+            assertEquals(http.calls.length, 0);
+          });
+        },
+      );
+    }
 
     for (const [scope, accepted] of [
       [undefined, false],
@@ -70,7 +115,7 @@ Deno.test({
         `callback scope ${String(scope)} is ${accepted ? "accepted" : "rejected"}`,
         async () => {
           const existing = {
-            user_id: "user-1",
+            user_id: USER_ID,
             access_token: "existing",
             refresh_token: "existing-refresh",
           };
@@ -98,9 +143,13 @@ Deno.test({
             const handle = await servedHandler(
               new URL("./index.ts", import.meta.url),
             );
+            const state = await signOAuthState(
+              { userId: USER_ID, tenantId: null, origin: null, addNew: false },
+              STATE_SECRET,
+            );
             const response = await handle(
               new Request(
-                `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback&code=code&state=user-1`,
+                `${SUPABASE_URL}/functions/v1/google-calendar-auth?action=callback&code=code&state=${encodeURIComponent(state)}`,
               ),
             );
             const writes = http.calls.filter(

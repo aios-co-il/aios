@@ -1,4 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import {
+  allowedAppOrigin,
+  redirectToIntegrations,
+} from "../_shared/google-oauth/app-origin.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,7 +80,11 @@ Deno.serve(async (req) => {
 
     switch (action || body.action) {
       case "get_auth_url":
-        return getAuthUrl(tenantId, user.id, body.origin);
+        return await getAuthUrl(
+          tenantId,
+          user.id,
+          allowedAppOrigin(body.origin ?? req.headers.get("origin")),
+        );
 
       case "get_accounts":
         return getGoogleAdsAccounts(supabase, tenantId, user.id);
@@ -100,9 +113,14 @@ Deno.serve(async (req) => {
   }
 });
 
-function getAuthUrl(tenantId: string, userId: string, origin?: string) {
-  const state = btoa(
-    JSON.stringify({ tenantId, userId, origin: origin || null }),
+async function getAuthUrl(
+  tenantId: string,
+  userId: string,
+  origin: string | null,
+) {
+  const state = await signOAuthState(
+    { userId, tenantId, origin, addNew: false },
+    oauthStateSecret(),
   );
 
   const scopes = ["https://www.googleapis.com/auth/adwords"];
@@ -123,7 +141,6 @@ function getAuthUrl(tenantId: string, userId: string, origin?: string) {
 
 async function handleOAuthCallback(url: URL) {
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
   // Create supabase client for database operations
@@ -142,42 +159,26 @@ async function handleOAuthCallback(url: URL) {
     return tenant?.slug || "app";
   }
 
-  // Try to extract origin from state for accurate redirects on error too.
-  let stateOrigin: string | null = null;
-  let stateTenantId: string | null = null;
-  if (state) {
-    try {
-      const parsed = JSON.parse(atob(state));
-      stateOrigin = parsed.origin || null;
-      stateTenantId = parsed.tenantId || null;
-    } catch {
-      /* noop */
-    }
+  const state = await verifyOAuthState(
+    url.searchParams.get("state"),
+    oauthStateSecret(),
+  );
+  if (!state?.tenantId) {
+    return redirectToIntegrations(null, "app", { error: "invalid_state" });
   }
-  // Strip any trailing slash so `${APP_BASE}/t/...` never produces a double slash.
-  const APP_BASE = (
-    stateOrigin ||
-    Deno.env.get("APP_URL") ||
-    "https://aios.co.il"
-  ).replace(/\/+$/, "");
+
+  const { tenantId, userId, origin } = state;
+  const tenantSlug = await getTenantSlug(tenantId);
 
   if (error) {
-    const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-    const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${error}`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
-    });
+    return redirectToIntegrations(origin, tenantSlug, { error });
   }
 
-  if (!code || !state) {
-    return new Response("Missing code or state", { status: 400 });
+  if (!code) {
+    return new Response("Missing code", { status: 400 });
   }
 
   try {
-    const { tenantId, userId } = JSON.parse(atob(state));
-    const tenantSlug = await getTenantSlug(tenantId);
-
     // Exchange code for tokens
     const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -254,20 +255,12 @@ async function handleOAuthCallback(url: URL) {
       throw saveError;
     }
 
-    // Redirect back to integrations page on the user's original origin
-    const redirectUrl = `${APP_BASE}/t/${tenantSlug}/integrations?google_ads=connected`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
+    return redirectToIntegrations(origin, tenantSlug, {
+      google_ads: "connected",
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("OAuth callback error:", err);
-    const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-    const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${encodeURIComponent(err.message)}`;
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl },
-    });
+    return redirectToIntegrations(origin, tenantSlug, { error: "auth_failed" });
   }
 }
 

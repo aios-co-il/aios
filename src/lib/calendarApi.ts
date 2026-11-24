@@ -3,6 +3,7 @@ import {
   listenForUnifiedConnection,
   openUnifiedCalendarConnection,
 } from "@/lib/unifiedCalendarConnection";
+import { isOAuthPopupMessage } from "./oauthPopupMessage";
 
 /**
  * Dual-mode Calendar API.
@@ -217,7 +218,7 @@ export function startCalendarOAuth(
         }
         let closedTimer = 0;
         const handler = (event: MessageEvent) => {
-          if (event.data?.type !== "calendar_connected") {
+          if (!isOAuthPopupMessage(event, "calendar_connected")) {
             return;
           }
           window.removeEventListener("message", handler);

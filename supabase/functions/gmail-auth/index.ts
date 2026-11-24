@@ -1,5 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { tenantUserAccess } from "../_shared/auth/tenant-access.ts";
+import {
+  allowedAppOrigin,
+  appReturnOrigin,
+} from "../_shared/google-oauth/app-origin.ts";
 import { missingGrantedScopes } from "../_shared/google-oauth/granted-scopes.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { tokenErrorSummary } from "../_shared/google-oauth/token-error.ts";
+import {
+  UserFacingError,
+  userFacingMessage,
+} from "../_shared/google-oauth/user-facing-error.ts";
+import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
 import { GMAIL_SCOPES } from "./scopes.ts";
 // Gmail OAuth integration v1
@@ -28,6 +44,18 @@ Deno.serve(async (req) => {
         throw new Error("No authorization code provided");
       }
 
+      const state = await verifyOAuthState(
+        url.searchParams.get("state"),
+        oauthStateSecret(),
+      );
+      if (!state?.tenantId) {
+        throw new UserFacingError(
+          "This connect link is invalid or has expired. Close this window and connect Gmail again.",
+        );
+      }
+
+      const { userId, tenantId } = state;
+
       const supabaseClient = createClient(
         Deno.env.get("SUPABASE_URL") ?? "",
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -55,22 +83,15 @@ Deno.serve(async (req) => {
 
       const tokens = await tokenResponse.json();
       if (!tokens.access_token || !tokens.refresh_token) {
-        console.error("Token error:", tokens);
+        console.error("Token error:", tokenErrorSummary(tokens));
         throw new Error("Failed to get tokens from Google");
       }
 
       const missingScopes = missingGrantedScopes(tokens, GMAIL_SCOPES);
       if (missingScopes.length > 0) {
-        throw new Error(
+        throw new UserFacingError(
           "Gmail permission is missing. Close this window and connect Gmail again, allowing Gmail access.",
         );
-      }
-
-      // state = userId|tenantId
-      const stateParam = url.searchParams.get("state") || "";
-      const [userId, tenantId] = stateParam.split("|");
-      if (!userId || !tenantId) {
-        throw new Error("Invalid state parameter");
       }
 
       // Gmail profile uses the same permission as mailbox operations.
@@ -119,7 +140,7 @@ Deno.serve(async (req) => {
           <head>
             <title>Gmail Connected</title>
             <script>
-              window.opener?.postMessage({ type: 'gmail_connected' }, '*');
+              window.opener?.postMessage({ type: 'gmail_connected' }, ${JSON.stringify(appReturnOrigin(state.origin))});
               setTimeout(() => window.close(), 1000);
             </script>
           </head>
@@ -175,10 +196,31 @@ Deno.serve(async (req) => {
         throw new Error("Missing tenantId");
       }
 
+      const access = await tenantUserAccess(serviceClient(), tenantId, user.id);
+      if (!access.member && !access.superAdmin) {
+        return new Response(
+          JSON.stringify({
+            error: "You are not a member of this organization",
+          }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
       const authUrl = buildGmailAuthorizeUrl({
         clientId,
         redirectUri,
-        state: `${user.id}|${tenantId}`,
+        state: await signOAuthState(
+          {
+            userId: user.id,
+            tenantId,
+            origin: allowedAppOrigin(req.headers.get("origin")),
+            addNew: false,
+          },
+          oauthStateSecret(),
+        ),
       });
 
       return new Response(JSON.stringify({ authUrl }), {
@@ -230,7 +272,7 @@ Deno.serve(async (req) => {
     console.error("Error:", error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: userFacingMessage(error),
       }),
       {
         status: 500,

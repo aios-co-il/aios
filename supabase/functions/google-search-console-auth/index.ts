@@ -1,5 +1,15 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redirectToIntegrations } from "../_shared/google-oauth/app-origin.ts";
+import {
+  isConnectRefusal,
+  readConnectRequest,
+} from "../_shared/google-oauth/connect-request.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import { tokenErrorSummary } from "../_shared/google-oauth/token-error.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +17,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,29 +44,16 @@ serve(async (req) => {
 
   // Handle OAuth initiation
   if (action === "authorize") {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-
     try {
-      const { tenantId, userId, addNew, origin } = await req.json();
-
-      if (!tenantId || !userId) {
-        return new Response(
-          JSON.stringify({ error: "Missing tenantId or userId" }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+      const connect = await readConnectRequest(req);
+      if (isConnectRefusal(connect)) {
+        return new Response(JSON.stringify({ error: connect.error }), {
+          status: connect.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
+
+      const { addNew } = connect.state;
 
       // Google Search Console scopes (+ userinfo.email so we can identify the Google account)
       const scopes = [
@@ -64,14 +61,7 @@ serve(async (req) => {
         "https://www.googleapis.com/auth/userinfo.email",
       ].join(" ");
 
-      const state = btoa(
-        JSON.stringify({
-          tenantId,
-          userId,
-          addNew: !!addNew,
-          origin: origin || null,
-        }),
-      );
+      const state = await signOAuthState(connect.state, oauthStateSecret());
 
       const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
       authUrl.searchParams.set("client_id", clientId);
@@ -103,7 +93,6 @@ serve(async (req) => {
   // Handle OAuth callback
   if (action === "oauth_callback") {
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
     const error = url.searchParams.get("error");
 
     const supabase = createClient(
@@ -120,42 +109,26 @@ serve(async (req) => {
       return tenant?.slug || "app";
     }
 
-    let stateOrigin: string | null = null;
-    let stateTenantId: string | null = null;
-    if (state) {
-      try {
-        const parsed = JSON.parse(atob(state));
-        stateOrigin = parsed.origin || null;
-        stateTenantId = parsed.tenantId || null;
-      } catch {
-        /* noop */
-      }
+    const state = await verifyOAuthState(
+      url.searchParams.get("state"),
+      oauthStateSecret(),
+    );
+    if (!state?.tenantId) {
+      return redirectToIntegrations(null, "app", { error: "invalid_state" });
     }
-    // Strip any trailing slash so `${APP_BASE}/t/...` never produces a double slash
-    // (e.g. https://www.aios.co.il//t/... → ERR_FAILED).
-    const APP_BASE = (
-      stateOrigin ||
-      Deno.env.get("APP_URL") ||
-      "https://aios.co.il"
-    ).replace(/\/+$/, "");
+
+    const { tenantId, userId, origin } = state;
+    const tenantSlug = await getTenantSlug(tenantId);
 
     if (error) {
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=${error}`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
-      });
+      return redirectToIntegrations(origin, tenantSlug, { error });
     }
 
-    if (!code || !state) {
-      return new Response("Missing code or state", { status: 400 });
+    if (!code) {
+      return new Response("Missing code", { status: 400 });
     }
 
     try {
-      const { tenantId, userId } = JSON.parse(atob(state));
-      const tenantSlug = await getTenantSlug(tenantId);
-
       // Exchange code for tokens
       const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -172,7 +145,7 @@ serve(async (req) => {
       const tokens = await tokenResponse.json();
 
       if (tokens.error) {
-        console.error("Token exchange error:", tokens);
+        console.error("Token exchange error:", tokenErrorSummary(tokens));
         throw new Error(tokens.error_description || tokens.error);
       }
 
@@ -260,18 +233,13 @@ serve(async (req) => {
         throw saveError;
       }
 
-      const redirectUrl = `${APP_BASE}/t/${tenantSlug}/integrations?google_search_console=connected`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
+      return redirectToIntegrations(origin, tenantSlug, {
+        google_search_console: "connected",
       });
     } catch (error) {
       console.error("OAuth callback error:", error);
-      const slug = stateTenantId ? await getTenantSlug(stateTenantId) : "app";
-      const redirectUrl = `${APP_BASE}/t/${slug}/integrations?error=auth_failed`;
-      return new Response(null, {
-        status: 302,
-        headers: { Location: redirectUrl },
+      return redirectToIntegrations(origin, tenantSlug, {
+        error: "auth_failed",
       });
     }
   }
