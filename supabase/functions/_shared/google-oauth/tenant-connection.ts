@@ -18,6 +18,9 @@ const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
+/** Where a settings value that is not an object is kept when the row is rewritten. */
+const UNREADABLE_SETTINGS_KEY = "unreadable_settings";
+
 /** A JSON string, decoded; fails on any other value or on text that is not JSON. */
 const encodedJsonSchema = z.string().transform((text, ctx): unknown => {
   try {
@@ -36,8 +39,7 @@ export type StoredSettings = { [key: string]: Json | undefined };
 export type StoredConnection = {
   id: string;
   user_id: string | null;
-  /** null when the stored value is not an object: the row is never rewritten from it. */
-  settings: StoredSettings | null;
+  settings: StoredSettings;
   /** The version the settings were read at; the update applies only if it is unchanged. */
   updated_at: string;
 };
@@ -66,16 +68,16 @@ export async function tenantConnections(
 
 /**
  * The row's settings object; a double-encoded object (a JSON string) is
- * decoded. Any other value is logged and returned as null, so this row is not
- * reused, and other rows of the tenant still connect.
+ * decoded. Any other value has no keys to keep: it is logged and kept under
+ * UNREADABLE_SETTINGS_KEY, so a reconnect writes a valid object and loses nothing.
  */
-function storedSettings(rowId: string, value: Json): StoredSettings | null {
+function storedSettings(rowId: string, value: Json): StoredSettings {
   const settings = storedSettingsSchema.safeParse(
     encodedJsonSchema.safeParse(value).data ?? value,
   );
   if (!settings.success) {
     console.error(`tenant_integrations ${rowId}: settings is not an object`);
-    return null;
+    return { [UNREADABLE_SETTINGS_KEY]: value };
   }
 
   return settings.data ?? {};
@@ -101,12 +103,6 @@ export async function saveTenantConnection(
   connection: SaveConnection,
 ): Promise<void> {
   const { tenantId, userId, integrationType, existing, tokens } = connection;
-  if (existing && existing.settings === null) {
-    throw new UserFacingError(
-      "This connection's saved settings cannot be read, so it was not changed. Contact support.",
-    );
-  }
-
   const values = {
     is_active: true,
     api_key: tokens.access_token,

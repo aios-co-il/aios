@@ -1,11 +1,7 @@
-import { assertEquals, assertRejects } from "jsr:@std/assert@1";
+import { assertEquals } from "jsr:@std/assert@1";
 import { fakeSupabaseHttp } from "../testing/fake-supabase-http.ts";
 import { withRuntime } from "../testing/served-handler.ts";
-import {
-  saveTenantConnection,
-  tenantConnections,
-} from "./tenant-connection.ts";
-import { UserFacingError } from "./user-facing-error.ts";
+import { tenantConnections } from "./tenant-connection.ts";
 
 const SUPABASE_URL = "https://tenant-connection.supabase.co";
 
@@ -23,7 +19,7 @@ function row(id: string, settings: unknown) {
 }
 
 Deno.test(
-  "a row whose settings are not an object is marked unreadable and never blocks the tenant",
+  "settings that are not an object are kept aside and never block the tenant",
   async () => {
     const http = fakeSupabaseHttp({
       supabaseUrl: SUPABASE_URL,
@@ -51,30 +47,10 @@ Deno.test(
       [
         ["object", { property_id: "p-1" }],
         ["encoded", { property_id: "p-2" }],
-        ["array", null],
-        ["text", null],
+        ["array", { unreadable_settings: [1, 2] }],
+        ["text", { unreadable_settings: "not json" }],
         ["null", {}],
       ],
     );
   },
 );
-
-Deno.test("an unreadable row is never rewritten", async () => {
-  await assertRejects(
-    () =>
-      saveTenantConnection({
-        tenantId: TENANT,
-        userId: "user-1",
-        integrationType: "google_analytics",
-        existing: {
-          id: "array",
-          user_id: "user-1",
-          settings: null,
-          updated_at: "2026-11-24T00:00:00Z",
-        },
-        tokens: { access_token: "a", expires_in: 3600 },
-      }),
-    UserFacingError,
-    "cannot be read",
-  );
-});

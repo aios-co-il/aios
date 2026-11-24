@@ -45,6 +45,7 @@ export function redirectHandoffError(
   );
 }
 
+/** A 302 to the integrations page on the app origin, carrying the values in the URL fragment. */
 function integrationsRedirect(
   origin: string | null,
   tenantSlug: string,

@@ -29,11 +29,19 @@ const CONNECT_ERROR_TEXT: Partial<Record<string, string>> = {
   [INVALID_STATE_ERROR]: "קישור החיבור פג תוקף. נסו להתחבר שוב.",
 };
 
+/** Google's error codes are snake_case words; any other value came from a crafted link and is not shown. */
+const ERROR_CODE = /^[a-z_]{1,40}$/;
+
 /** The text to show for a connect's error code (Google's `error`, or ours). */
 export function connectErrorMessage(error: string): string {
-  return (
-    CONNECT_ERROR_TEXT[error] ?? `Google החזיר שגיאה (${error}). ${TRY_AGAIN}`
-  );
+  const known = CONNECT_ERROR_TEXT[error];
+  if (known) {
+    return known;
+  }
+
+  return ERROR_CODE.test(error)
+    ? `Google החזיר שגיאה (${error}). ${TRY_AGAIN}`
+    : `החיבור ל-Google נכשל. ${TRY_AGAIN}`;
 }
 
 /** Sends the code to the function's `complete` action with the signed-in session; rejects with the function's reason. */

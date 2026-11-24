@@ -62,6 +62,7 @@ function popupErrorPage(
   );
 }
 
+/** An HTML page that posts the message to the opener on the target origin, shows the text, and closes. */
 function popupPage(message: unknown, target: string, text: string): Response {
   return new Response(
     `<!DOCTYPE html>
@@ -83,5 +84,5 @@ function popupPage(message: unknown, target: string, text: string): Response {
 
 /** JSON safe inside an inline <script>: `<` is escaped so a value cannot close the tag. */
 function scriptJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, "\u003c");
+  return JSON.stringify(value).replace(/</g, "\\u003c");
 }

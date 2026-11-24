@@ -32,7 +32,7 @@ export async function storeAnalyticsConnection(
   const googleEmail = await googleAccountEmail(tokens.access_token);
   const rows = await tenantConnections(tenantId, INTEGRATION_TYPE);
   const existing = googleEmail
-    ? rows.find((row) => row.settings?.google_email === googleEmail)
+    ? rows.find((row) => row.settings.google_email === googleEmail)
     : rows.find((row) => row.user_id === userId);
 
   await saveTenantConnection({

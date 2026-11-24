@@ -649,21 +649,6 @@ export default function GoogleAnalyticsSettings() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-medium">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium">הגדר Redirect URI</p>
-                  <p className="text-sm text-muted-foreground">
-                    ב-OAuth 2.0 Client ID, הוסף:
-                    <code className="block mt-1 text-xs bg-muted p-1 rounded overflow-x-auto">
-                      {import.meta.env.VITE_SUPABASE_URL}
-                      /functions/v1/google-analytics-auth?action=oauth_callback
-                    </code>
-                  </p>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

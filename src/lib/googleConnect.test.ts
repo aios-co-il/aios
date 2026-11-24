@@ -9,6 +9,12 @@ describe("connectErrorMessage", () => {
     );
     expect(connectErrorMessage("server_error")).toContain("(server_error)");
   });
+
+  it("never shows text a crafted link put in the error", () => {
+    expect(connectErrorMessage("Your account is suspended, call +1-555")).toBe(
+      "החיבור ל-Google נכשל. נסו להתחבר שוב.",
+    );
+  });
 });
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));

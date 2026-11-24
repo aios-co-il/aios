@@ -71,6 +71,19 @@ Deno.test("an unsigned state hands over no code", async () => {
 });
 
 Deno.test(
+  "a state that tries to close the script tag stays inside the JSON",
+  async () => {
+    const page = await callbackPage(
+      `code=c&state=${encodeURIComponent("</script><script>alert(1)</script>")}`,
+    );
+
+    assertEquals(page.includes("</script><script>"), false);
+    // A backslash, then u003c: the escaped "<".
+    assertStringIncludes(page, `${String.fromCharCode(92)}u003c/script>`);
+  },
+);
+
+Deno.test(
   "a full-page error goes in the fragment of the integrations page",
   async () => {
     const response = await withRuntime({ env, fetch: globalThis.fetch }, () =>

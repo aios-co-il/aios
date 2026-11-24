@@ -68,6 +68,7 @@ const apiOriginSchema = z
       .transform((url) => url.origin),
   );
 
+/** The origin callbacks are served from: PUBLIC_API_URL, else SUPABASE_URL. Throws when neither is an http(s) URL. */
 function apiOrigin(): string {
   const configured =
     Deno.env.get("PUBLIC_API_URL") || Deno.env.get("SUPABASE_URL");
