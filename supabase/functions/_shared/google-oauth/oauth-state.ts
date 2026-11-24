@@ -36,7 +36,7 @@ export function claimedStateOrigin(state: string): string | null {
     return null;
   }
   try {
-    const claimed = claimedOriginSchema.safeParse(decodeJson(body ?? ""));
+    const claimed = claimedOriginSchema.safeParse(decodeJson(body));
     return claimed.success ? claimed.data.origin : null;
   } catch (error) {
     console.warn("OAuth state is not readable:", String(error));
