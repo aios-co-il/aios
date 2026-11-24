@@ -4,7 +4,6 @@ import {
   ADS_TABLE_CREATE_DATE_RANGE_OPTIONS,
   COMBINED_DASHBOARD_DATE_FILTERS,
   REQUIRED_COMBINED_DATE_FILTERS,
-  SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
   SHARED_TABLE_DATE_FILTERS,
   assertCombinedDateFilters,
   dateFilterHasOption,
@@ -13,10 +12,6 @@ import {
 
 const SURFACES = [
   ["COMBINED_DASHBOARD_DATE_FILTERS", COMBINED_DASHBOARD_DATE_FILTERS],
-  [
-    "SHARED_COMBINED_DASHBOARD_DATE_FILTERS",
-    SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
-  ],
   ["SHARED_TABLE_DATE_FILTERS", SHARED_TABLE_DATE_FILTERS],
   ["ADS_TABLE_CREATE_DATE_RANGE_OPTIONS", ADS_TABLE_CREATE_DATE_RANGE_OPTIONS],
 ];
@@ -70,10 +65,10 @@ test("getDashboardDateRange last_14_days is 14 rolling days ending yesterday", (
   expect(range.endDate).toBe("2026-08-18");
 });
 
-test("SHARED_COMBINED_DASHBOARD_DATE_FILTERS includes 14-day preset", () => {
+test("COMBINED_DASHBOARD_DATE_FILTERS includes 14-day preset", () => {
   expect(
     dateFilterHasOption(
-      SHARED_COMBINED_DASHBOARD_DATE_FILTERS,
+      COMBINED_DASHBOARD_DATE_FILTERS,
       "last_14_days",
       "14 יום אחרונים",
     ),

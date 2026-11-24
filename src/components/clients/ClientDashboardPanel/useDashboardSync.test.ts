@@ -53,7 +53,10 @@ describe("useDashboardSync", () => {
   it("sends ads tables through the picked window and other sources through reportSync", async () => {
     const { wrapper } = createTestQueryHarness();
     const { result } = renderHook(
-      () => useDashboardSync("client-1", "tenant-1", null, "last_7_days"),
+      () =>
+        useDashboardSync("client-1", "tenant-1", null, {
+          filter: "last_7_days",
+        }),
       { wrapper },
     );
     await waitFor(() => expect(result.current.loadingTables).toBe(false));
@@ -77,6 +80,30 @@ describe("useDashboardSync", () => {
           },
         },
       ],
+    ]);
+  });
+
+  it("syncs the custom range picked on the card", async () => {
+    const { wrapper } = createTestQueryHarness();
+    const { result } = renderHook(
+      () =>
+        useDashboardSync("client-1", "tenant-1", null, {
+          filter: "custom",
+          customStart: "2026-11-01",
+          customEnd: "2026-11-05",
+        }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.loadingTables).toBe(false));
+
+    act(() => result.current.sync());
+    await waitFor(() => expect(result.current.syncing).toBe(false));
+
+    const syncBodies = mocks.invoke.mock.calls
+      .filter(([name]) => !String(name).startsWith("crm-tables"))
+      .map(([, options]) => options.body);
+    expect(syncBodies).toEqual([
+      { table_id: "ads-1", start_date: "2026-11-01", end_date: "2026-11-05" },
     ]);
   });
 });

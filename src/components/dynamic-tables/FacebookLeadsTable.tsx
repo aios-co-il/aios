@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
+import { FacebookEntityNameCell } from "@/components/reports/AdPreview/FacebookEntityNameCell";
 import { MarkedCell } from "@/components/reports/PreviousPeriod/MarkedCell";
 import { compareCellsFor } from "@/components/reports/PreviousPeriod/previousCells";
 import { PreviousValueHead } from "@/components/reports/PreviousPeriod/PreviousValueCell";
@@ -67,10 +67,10 @@ export function FacebookLeadsTable({
                 key={`lead-${groupKey}`}
                 className="border-b hover:bg-muted/30"
               >
-                <ReportNameCell
+                <FacebookEntityNameCell
                   name={campaign.name}
-                  on={!campaign.off}
-                  className="p-2 text-right"
+                  off={campaign.off}
+                  adId={campaign.adId}
                 />
                 <LeadCells
                   campaigns={[campaign]}

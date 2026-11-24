@@ -1,6 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
+import {
+  isCompleteRefusal,
+  readCompleteRequest,
+} from "../_shared/google-oauth/connect-handoff.ts";
+import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
+import {
+  oauthStateSecret,
+  signOAuthState,
+  verifyOAuthState,
+} from "../_shared/google-oauth/oauth-state.ts";
+import {
+  UserFacingError,
+  userFacingMessage,
+} from "../_shared/google-oauth/user-facing-error.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
-import { missingCalendarScopes } from "./scopes.ts";
+import { storeCalendarConnection } from "./store-connection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,158 +39,21 @@ Deno.serve(async (req) => {
         throw new Error("No authorization code provided");
       }
 
-      const supabaseClient = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      const state = await verifyOAuthState(
+        url.searchParams.get("state"),
+        oauthStateSecret(),
       );
-
-      // Get user from state parameter if needed, or use service role to update
-
-      const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-      const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
-      if (!clientId) {
-        throw new Error("Missing GOOGLE_CLIENT_ID secret");
-      }
-
-      // Exchange code for tokens
-      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: clientSecret!,
-          redirect_uri: redirectUri,
-          grant_type: "authorization_code",
-        }),
-      });
-
-      const tokens = await tokenResponse.json();
-
-      if (!tokens.access_token) {
-        console.error("Token exchange failed:", tokens);
-        throw new Error("Failed to get tokens from Google");
-      }
-
-      const missingScopes = missingCalendarScopes(tokens);
-      if (missingScopes.length > 0) {
-        throw new Error(
-          "Calendar permission is missing. Close this window and connect Calendar again, allowing both event and calendar list access. Your existing connection has been kept.",
+      if (!state) {
+        throw new UserFacingError(
+          "This connect link is invalid or has expired. Close this window and connect Calendar again.",
         );
       }
 
-      // Get user_id from state or session
-      const stateParam = url.searchParams.get("state");
-      const userId = stateParam; // We'll pass userId in state
-
-      if (!userId) {
-        throw new Error("No user ID in state");
-      }
-
-      // If Google didn't return a refresh_token (re-auth without prompt=consent),
-      // keep the previously stored one so we don't lose offline access.
-      let refreshTokenToStore: string | null = tokens.refresh_token || null;
-      if (!refreshTokenToStore) {
-        const { data: existing } = await supabaseClient
-          .from("calendar_tokens")
-          .select("refresh_token")
-          .eq("user_id", userId)
-          .maybeSingle();
-        refreshTokenToStore = existing?.refresh_token || null;
-      }
-      if (!refreshTokenToStore) {
-        throw new Error(
-          "No refresh token available. Please disconnect and reconnect granting offline access.",
-        );
-      }
-
-      // Fetch the Google user's email
-      let googleEmail = null;
-      try {
-        const userInfoResponse = await fetch(
-          "https://www.googleapis.com/oauth2/v2/userinfo",
-          {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          },
-        );
-        if (userInfoResponse.ok) {
-          const userInfo = await userInfoResponse.json();
-          googleEmail = userInfo.email;
-        }
-      } catch (e) {
-        console.error("Failed to fetch Google user info:", e);
-      }
-
-      // Calculate expiration time
-      const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-
-      // Store tokens in database
-      const { error: dbError } = await supabaseClient
-        .from("calendar_tokens")
-        .upsert({
-          user_id: userId,
-          access_token: tokens.access_token,
-          refresh_token: refreshTokenToStore,
-          expires_at: expiresAt.toISOString(),
-          updated_at: new Date().toISOString(),
-          google_email: googleEmail,
-          needs_reconnect: false,
-          sync_status: "connected",
-          sync_error: null,
-        });
-
-      if (dbError) {
-        console.error("Database error:", dbError);
-        throw dbError;
-      }
-
-      // Start (or refresh) the Google push notifications channel so changes
-      // made in Google Calendar flow back into the app automatically.
-      try {
-        await fetch(
-          `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-watch`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`,
-            },
-            body: JSON.stringify({ user_id: userId }),
-          },
-        );
-      } catch (e) {
-        console.warn(
-          "Failed to start calendar watch on connect (non-fatal):",
-          e,
-        );
-      }
-
-      // Redirect back to the app - return HTML that closes the popup
-      return new Response(
-        `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Calendar Connected</title>
-            <script>
-              window.opener?.postMessage({ type: 'calendar_connected' }, '*');
-              setTimeout(() => window.close(), 1000);
-            </script>
-          </head>
-          <body style="font-family: system-ui; text-align: center; padding: 50px;">
-            <h1>✅ היומן התחבר בהצלחה!</h1>
-            <p>החלון ייסגר אוטומטית...</p>
-          </body>
-        </html>
-      `,
-        {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html; charset=utf-8",
-          },
-        },
+      return popupHandoffPage(
+        "google-calendar-auth",
+        state,
+        code,
+        url.searchParams.get("state") ?? "",
       );
     }
 
@@ -238,6 +116,22 @@ Deno.serve(async (req) => {
     const requestBody = await req.json();
     const action = requestBody.action;
 
+    if (action === "complete") {
+      const request = await readCompleteRequest(requestBody, user.id);
+      if (isCompleteRefusal(request)) {
+        return new Response(JSON.stringify({ error: request.error }), {
+          status: request.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await storeCalendarConnection(request.code, request.state.userId);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Handle disconnect via action (for POST requests from supabase.functions.invoke)
     if (action === "disconnect") {
       const serviceClient = createClient(
@@ -284,7 +178,15 @@ Deno.serve(async (req) => {
       const authUrl = buildCalendarAuthorizeUrl({
         clientId,
         redirectUri,
-        state: user.id,
+        state: await signOAuthState(
+          {
+            userId: user.id,
+            tenantId: null,
+            origin: allowedAppOrigin(req.headers.get("origin")),
+            addNew: false,
+          },
+          oauthStateSecret(),
+        ),
         forceConsent: !hasExistingRefresh,
       });
 
@@ -315,9 +217,7 @@ Deno.serve(async (req) => {
     throw new Error("Invalid action");
   } catch (error) {
     console.error("Error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
