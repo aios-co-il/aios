@@ -75,7 +75,7 @@ describe("DashboardAnalyticsTab", () => {
     );
   });
 
-  it("passes no days while the custom range is half picked", () => {
+  it("passes only the picked day while the custom range is half picked", () => {
     const from = new Date(2026, 9, 3);
 
     renderTab({ from });
