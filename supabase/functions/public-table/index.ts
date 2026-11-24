@@ -13,6 +13,7 @@ import {
   writeSeoShareCacheToDb,
 } from "../_shared/gscKeywords.ts";
 import { toPublicTableSettings } from "../_shared/share-links/public-table-settings.ts";
+import { parseRequestRange } from "../_shared/share-links/request-range.ts";
 import { toPublicCachedShareBody } from "./cached-share-body.ts";
 
 const corsHeaders = {
@@ -43,11 +44,10 @@ function subDays(base: Date, days: number): Date {
  * Notably: "last_N_days" includes today for ads reports — same as
  * the internal view and Meta/Google report expectations.
  */
-function getDateRange(
-  filter: string,
-  customStart?: string | null,
-  customEnd?: string | null,
-): { startDate: string | null; endDate: string | null } {
+function getDateRange(filter: string): {
+  startDate: string | null;
+  endDate: string | null;
+} {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -129,17 +129,9 @@ function getDateRange(
         startDate: fmt(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
         endDate: fmt(new Date(now.getFullYear(), now.getMonth(), 0)),
       };
-    case "custom":
-      if (customStart && customEnd) {
-        return { startDate: customStart, endDate: customEnd };
-      }
-      // Fall through to default if custom range incomplete
-      return {
-        startDate: fmt(subDays(today, 30)),
-        endDate: fmt(subDays(today, 1)),
-      };
     default:
-      // Default mirrors internal default: last_30_days
+      // Default mirrors internal default: last_30_days. A "custom" filter
+      // without its days lands here; with them, parseRequestRange serves them.
       return {
         startDate: fmt(subDays(today, 30)),
         endDate: fmt(subDays(today, 1)),
@@ -483,9 +475,6 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const shareToken = url.searchParams.get("token");
-    const dateFilter = url.searchParams.get("date_filter") || "last_30_days";
-    const customStart = url.searchParams.get("custom_start");
-    const customEnd = url.searchParams.get("custom_end");
     const seoPart = url.searchParams.get("seo_part"); // core | gsc | null (full)
     const liveGsc = url.searchParams.get("live_gsc") === "1";
 
@@ -522,6 +511,22 @@ Deno.serve(async (req) => {
     if (!table) {
       return new Response(JSON.stringify({ error: "Table not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // A preset, or a custom window checked as public-dashboard checks it.
+    // Read after the token check, so a bad link never learns about dates.
+    const requestRange = parseRequestRange(url.searchParams, getDateRange);
+    if (!requestRange.ok) {
+      console.warn(
+        "[public-table] rejected date range:",
+        requestRange.error,
+        url.searchParams.get("custom_start"),
+        url.searchParams.get("custom_end"),
+      );
+      return new Response(JSON.stringify({ error: "Invalid date range" }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1094,12 +1099,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Calculate date range — mirror of internal DynamicTableView logic
-    const { startDate, endDate } = getDateRange(
-      dateFilter,
-      customStart,
-      customEnd,
-    );
+    // The window parsed above — presets mirror internal DynamicTableView logic.
+    const { startDate, endDate } = requestRange.window;
 
     // Fetch records WITH PAGINATION (bypass 1000-row default limit)
     const allRecords: Array<any> = [];

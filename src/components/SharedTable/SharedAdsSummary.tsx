@@ -75,6 +75,7 @@ export function SharedAdsSummary({
         }}
         // Notes on the account's conversion tracking are for the agency.
         showTrackingWarnings={false}
+        adPreview={{ shareToken }}
       />
     </>
   );
