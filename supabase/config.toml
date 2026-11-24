@@ -81,6 +81,10 @@ enabled = false
 [functions.public-table]
 verify_jwt = false
 
+# Share links call it without a session; the JWT or share token is checked in code.
+[functions.ad-preview]
+verify_jwt = false
+
 [functions.public-dashboard]
 verify_jwt = false
 
