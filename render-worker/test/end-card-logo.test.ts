@@ -19,32 +19,32 @@ const attachment = (path: string) =>
 test("a link to the project's entity-attachments bucket reads as its bucket and path", () => {
   const path = `${TENANT}/workshop/${ITEM}/1793_carmen logo.png`;
   expect(
-    privateStorageObject(attachment(encodeURI(path)), PROJECT),
+    privateStorageObject(attachment(encodeURI(path)), [PROJECT]),
   ).toStrictEqual({ bucket: "entity-attachments", path });
   // A signed link of the same file, with its token.
   expect(
     privateStorageObject(
       `${PROJECT}/storage/v1/object/sign/entity-attachments/${TENANT}/a.png?token=abc`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toStrictEqual({ bucket: "entity-attachments", path: `${TENANT}/a.png` });
   // Another project, another bucket, or not a storage link: fetched as a plain link.
   expect(
     privateStorageObject(
       `https://other.supabase.co/storage/v1/object/public/entity-attachments/${TENANT}/a.png`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toBe(null);
   expect(
     privateStorageObject(
       `${PROJECT}/storage/v1/object/public/brand-assets/${TENANT}/a.png`,
-      PROJECT,
+      [PROJECT],
     ),
   ).toBe(null);
-  expect(privateStorageObject("https://cdn.example.com/a.png", PROJECT)).toBe(
+  expect(privateStorageObject("https://cdn.example.com/a.png", [PROJECT])).toBe(
     null,
   );
-  expect(privateStorageObject(attachment(`${TENANT}/a.png`), "")).toBe(null);
+  expect(privateStorageObject(attachment(`${TENANT}/a.png`), [""])).toBe(null);
 });
 
 test("a link on the project's custom domain reads as its bucket and path", () => {

@@ -65,7 +65,10 @@ function hostOf(url: unknown) {
  */
 export function privateStorageObject(
   url: unknown,
-  projectUrls: unknown = [process.env.SUPABASE_URL, process.env.PUBLIC_API_URL],
+  projectUrls: Array<string | undefined> = [
+    process.env.SUPABASE_URL,
+    process.env.PUBLIC_API_URL,
+  ],
 ): StoredObject | null {
   let link: URL;
   try {
@@ -73,10 +76,7 @@ export function privateStorageObject(
   } catch {
     return null;
   }
-  const hosts = projectHosts(
-    Array.isArray(projectUrls) ? projectUrls : [projectUrls],
-  );
-  if (!hosts.includes(link.host)) {
+  if (!projectHosts(projectUrls).includes(link.host)) {
     return null;
   }
   const match = link.pathname.match(
