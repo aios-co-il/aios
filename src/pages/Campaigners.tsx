@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/table";
 import {
   Megaphone,
-  Phone,
-  Mail,
   Briefcase,
   ChevronDown,
   ChevronUp,
@@ -22,6 +20,7 @@ import {
   MessageSquare,
   Pencil,
 } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { AddCampaignerForm } from "@/components/forms/AddCampaignerForm";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -235,10 +234,11 @@ export default function Campaigners() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {campaigner.phone && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      <span dir="ltr">{campaigner.phone}</span>
-                    </div>
+                    <ContactValue
+                      kind="phone"
+                      value={campaigner.phone}
+                      className="flex text-sm text-muted-foreground"
+                    />
                   )}
                   <CarmenWhatsAppAccess
                     entityType="campaigner"
@@ -252,10 +252,11 @@ export default function Campaigners() {
                     }
                   />
                   {campaigner.email && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4" />
-                      <span>{campaigner.email}</span>
-                    </div>
+                    <ContactValue
+                      kind="email"
+                      value={campaigner.email}
+                      className="flex text-sm text-muted-foreground"
+                    />
                   )}
                   {campaigner.notes && (
                     <p className="text-sm text-muted-foreground mt-2 pt-2 border-t">

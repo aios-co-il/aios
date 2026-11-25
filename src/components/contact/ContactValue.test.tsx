@@ -28,7 +28,9 @@ describe("ContactValue", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(<ContactValue kind="phone" value="050-1234567" />);
 
-    await user.click(screen.getByRole("button", { name: "העתק טלפון" }));
+    await user.click(
+      screen.getByRole("button", { name: "העתק טלפון 050-1234567" }),
+    );
 
     expect(writeText).toHaveBeenCalledWith("050-1234567");
     await waitFor(() =>
@@ -45,10 +47,14 @@ describe("ContactValue", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "התקשר" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "התקשר 050-1234567" })
+        .getAttribute("href"),
     ).toBe("tel:050-1234567");
     expect(
-      screen.getByRole("link", { name: "שלח מייל" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "שלח מייל lead@example.com" })
+        .getAttribute("href"),
     ).toBe("mailto:lead@example.com");
   });
 
@@ -57,7 +63,9 @@ describe("ContactValue", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText");
     render(<ContactValue kind="email" value="lead@example.com" />);
 
-    await user.click(screen.getByRole("button", { name: "העתק אימייל" }));
+    await user.click(
+      screen.getByRole("button", { name: "העתק אימייל lead@example.com" }),
+    );
 
     expect(writeText).toHaveBeenCalledWith("lead@example.com");
   });
@@ -72,9 +80,35 @@ describe("ContactValue", () => {
     );
 
     await user.click(screen.getByText("050-1234567"));
-    await user.click(screen.getByRole("button", { name: "העתק טלפון" }));
+    await user.click(
+      screen.getByRole("button", { name: "העתק טלפון 050-1234567" }),
+    );
 
     expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps a drag-select that ends outside the value from clicking the row", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <div onClick={onRowClick}>
+        <ContactValue kind="phone" value="050-1234567" />
+        <span>שם הליד</span>
+      </div>,
+    );
+
+    await user.pointer([
+      { keys: "[MouseLeft>]", target: screen.getByText("050-1234567") },
+      { target: screen.getByText("שם הליד") },
+      { keys: "[/MouseLeft]" },
+    ]);
+
+    expect(window.getSelection()?.toString()).not.toBe("");
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText("שם הליד"));
+
+    expect(onRowClick).toHaveBeenCalledTimes(1);
   });
 
   it("reports a failure when the browser offers no clipboard", async () => {
@@ -88,7 +122,9 @@ describe("ContactValue", () => {
     });
 
     try {
-      await user.click(screen.getByRole("button", { name: "העתק טלפון" }));
+      await user.click(
+        screen.getByRole("button", { name: "העתק טלפון 050-1234567" }),
+      );
 
       await waitFor(() =>
         expect(toasts.error).toHaveBeenCalledWith("לא ניתן להעתיק את הטלפון"),

@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import { Globe } from "lucide-react";
 import { ContactValue } from "@/components/contact/ContactValue";
 import type { ClientRow } from "./clientRow";
@@ -7,11 +6,7 @@ import type { ClientRow } from "./clientRow";
 export function ClientContactLines({ client }: { client: ClientRow }) {
   return (
     <div className="space-y-1.5 text-sm">
-      {client.website && (
-        <ContactLine icon={Globe} href={client.website} external>
-          {client.website}
-        </ContactLine>
-      )}
+      {client.website && <WebsiteLine website={client.website} />}
       {client.phone && (
         <ContactValue
           kind="phone"
@@ -30,28 +25,19 @@ export function ClientContactLines({ client }: { client: ClientRow }) {
   );
 }
 
-/** A contact detail with its icon. */
-function ContactLine({
-  icon: Icon,
-  href,
-  external = false,
-  children,
-}: {
-  icon: LucideIcon;
-  href: string;
-  external?: boolean;
-  children: string;
-}) {
+/** The client's website, opened in a new tab. */
+function WebsiteLine({ website }: { website: string }) {
   return (
     <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
-      <Icon className="h-4 w-4 shrink-0" />
+      <Globe className="h-4 w-4 shrink-0" />
       <a
-        href={href}
+        href={website}
         dir="ltr"
         className="truncate hover:text-foreground hover:underline"
-        {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+        target="_blank"
+        rel="noopener noreferrer"
       >
-        {children}
+        {website}
       </a>
     </div>
   );

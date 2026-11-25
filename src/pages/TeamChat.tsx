@@ -80,6 +80,7 @@ import {
   Phone,
   Globe,
 } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ConvertMessageToTaskDialog } from "@/components/chat/ConvertMessageToTaskDialog";
@@ -1038,10 +1039,7 @@ function ManageTeamMembersDialog({ tenantId }: { tenantId: string }) {
                     </p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       {member.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          <span dir="ltr">{member.phone}</span>
-                        </span>
+                        <ContactValue kind="phone" value={member.phone} />
                       )}
                       {member.notification_group_link && (
                         <span className="flex items-center gap-1">

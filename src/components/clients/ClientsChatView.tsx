@@ -567,7 +567,6 @@ export function ClientsChatView({
     clientId,
     type = "text",
     isLink,
-    linkPrefix,
     contactKind,
   }: {
     label: string;
@@ -576,7 +575,6 @@ export function ClientsChatView({
     clientId: string;
     type?: "text" | "number" | "textarea";
     isLink?: boolean;
-    linkPrefix?: string;
     contactKind?: ContactKind;
   }) => {
     const [editing, setEditing] = useState(false);
@@ -669,12 +667,8 @@ export function ClientsChatView({
           />
         ) : isLink && value ? (
           <a
-            href={`${linkPrefix || ""}${value}`}
-            target={
-              linkPrefix?.startsWith("http") || linkPrefix === undefined
-                ? "_blank"
-                : undefined
-            }
+            href={value}
+            target="_blank"
             className="font-medium text-primary hover:underline truncate"
             onClick={(e) => e.stopPropagation()}
           >
