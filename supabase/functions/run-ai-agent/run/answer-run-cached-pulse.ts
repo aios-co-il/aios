@@ -2,7 +2,7 @@ import type { RunState } from "./state.ts";
 import { pulseSurfacePrefersWhatsAppDigest } from "../../_shared/campaign-pulse.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 import { resolveModelId } from "../../_shared/models.ts";
-/** answer Run Cached Pulse in the original run order. */
+
 export async function answerRunCachedPulse(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -39,6 +39,7 @@ export async function answerRunCachedPulse(
     const finalOutput =
       digest || "אין בדיקת דופק זמינה כרגע — נסה שוב אחרי הסנכרון הבא.";
     const executionTime = Date.now() - autoStart;
+
     if (run.serverConversationId && run.callerUserId) {
       const persistedMessages = [
         ...run.serverConversationHistory,
@@ -55,9 +56,11 @@ export async function answerRunCachedPulse(
         .eq("user_id", run.callerUserId)
         .eq("tenant_id", run.resolvedTenantId);
     }
+
     if (run.input.emit && finalOutput) {
       run.input.emit({ type: "token", content: finalOutput });
     }
+
     return new Response(
       JSON.stringify({
         success: !!digest,

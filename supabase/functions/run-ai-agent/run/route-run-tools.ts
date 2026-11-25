@@ -7,7 +7,7 @@ import { isExplicitRejectionPhrase } from "../../_shared/wa-approval-flow.ts";
 import { extractMeetingUrl } from "../../_shared/meeting-url.ts";
 import { promoteFindingDraftTool } from "../finding-draft/tool.ts";
 import { promoteCardDraftTool } from "../card-draft-approval/tool.ts";
-/** route Run Tools in the original run order. */
+
 export async function routeRunTools(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -20,6 +20,7 @@ export async function routeRunTools(
     /\b(github|גיטהאב|גיט\s*האב|שגיאת\s*קוד|תמיכה\s*טכנית|אגנט\s*קוד)\b/i.test(
       run.cmd,
     );
+
   if (run.input.surface === "task") {
     run.filteredTools = run.filteredTools.filter(
       (t) =>
@@ -43,18 +44,22 @@ export async function routeRunTools(
         (t) => t.name !== "delegate_to_subagent",
       );
     }
+
     if (!run.userAskedManus) {
       run.filteredTools = run.filteredTools.filter(
         (t) => t.name !== "delegate_to_manus",
       );
     }
+
     if (!run.userAskedGithubAgent) {
       run.filteredTools = run.filteredTools.filter(
         (t) => t.name !== "delegate_to_github_agent",
       );
     }
   }
+
   run.promotedToolNames = new Set(run.filteredTools.map((t) => t.name));
+
   if (run.pinSkillsOnly) {
     run.filteredTools = [];
     run.promotedToolNames = new Set();

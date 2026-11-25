@@ -2,7 +2,7 @@ import type { RunState } from "./state.ts";
 import { shouldUseV2Prompt } from "../../_shared/carmen-prompt-v2.ts";
 import { carmenPulseRulesVersion } from "../pulse-refresh/rules-block.ts";
 import { agencyDataRulesVersion } from "../agency-data/rules-block.ts";
-/** build Run Tenant Context in the original run order. */
+
 export async function buildRunTenantContext(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -16,6 +16,7 @@ export async function buildRunTenantContext(
   run.leadsByStatus = (run.leadsData.data || []).reduce<Record<string, number>>(
     (acc, l) => {
       acc[l.status] = (acc[l.status] || 0) + 1;
+
       return acc;
     },
     {},
@@ -38,6 +39,7 @@ export async function buildRunTenantContext(
               m.email ? `✉️ ${m.email}` : null,
               m.role?.length ? `(${m.role.join(", ")})` : null,
             ];
+
             return `• [${m.id}] ${parts.filter(Boolean).join(" | ")}`;
           })
           .join("\n")

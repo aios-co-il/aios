@@ -1,6 +1,6 @@
 import { buildCarmenV2SystemPrompt } from "../../_shared/carmen-prompt-v2.ts";
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V2 prompt and its precedence. */
+
 export function buildV2RunPrompt(run: RunState): void {
   // Build V2 prompt using the new modular builder
   // We need to collect all the context that V1 was building inline
@@ -50,6 +50,7 @@ export function buildV2RunPrompt(run: RunState): void {
   const todayISO = now.toISOString().split("T")[0];
   // Lead data context
   const leadDataObj: Record<string, string> = {};
+
   if (run.lead_data) {
     Object.entries(run.lead_data).forEach(([k, v]) => {
       if (v) {
@@ -57,6 +58,7 @@ export function buildV2RunPrompt(run: RunState): void {
       }
     });
   }
+
   run.systemPrompt = buildCarmenV2SystemPrompt({
     agent: run.agent,
     tenant: tenantContextObj,

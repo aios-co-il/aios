@@ -6,7 +6,7 @@ import { isBugfixEscalationSkill } from "../../_shared/dev-escalation-auth.ts";
 import { missingEnabledTools } from "../missing-enabled-tools.ts";
 import { ALL_TOOLS } from "../tool-catalog.ts";
 import { isDevEscalationToolAllowed } from "../../_shared/dev-escalation-auth.ts";
-/** match Run Skills in the original run order. */
+
 export async function matchRunSkills(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -38,6 +38,7 @@ export async function matchRunSkills(
     _matchedSkills.length > 0
       ? "\n\n" + _matchedSkills.map((s) => s.prompt).join("\n\n")
       : "";
+
   if (activeSkillsBlock) {
     run.systemPrompt += activeSkillsBlock;
     console.log(
@@ -50,6 +51,7 @@ export async function matchRunSkills(
     const skillToolNames = new Set(
       _matchedSkills.flatMap((s) => s.tools || []),
     );
+
     if (skillToolNames.size > 0 && !run.pinSkillsOnly) {
       const missing = missingEnabledTools(
         run.filteredTools,
@@ -61,17 +63,21 @@ export async function matchRunSkills(
           run.workshopToolAllowed(t.name) &&
           isDevEscalationToolAllowed(t.name, run.devEscalationTier),
       );
+
       if (missing.length > 0) {
         run.filteredTools = [...run.filteredTools, ...missing];
+
         for (const t of missing) {
           run.promotedToolNames.add(t.name);
         }
+
         run.rebuildToolsForApi();
         console.log(
           `[AGENT] Skill tools added: ${missing.map((t) => t.name).join(", ")}`,
         );
       }
     }
+
     // Usage signal (fire-and-forget): matched skins bump usage_count so real
     // usage data accumulates for ranking/cleanup. Never blocks the reply.
     run.supabase
@@ -84,6 +90,7 @@ export async function matchRunSkills(
         () => {},
       );
   }
+
   // Skins pinned by the caller (task_skills, e.g. the Creative studio chat) also get
   // their tools, like trigger-matched skins above; their prompts were added earlier.
   if (
@@ -108,11 +115,14 @@ export async function matchRunSkills(
           run.workshopToolAllowed(t.name) &&
           isDevEscalationToolAllowed(t.name, run.devEscalationTier),
       );
+
       if (missing.length > 0) {
         run.filteredTools = [...run.filteredTools, ...missing];
+
         for (const t of missing) {
           run.promotedToolNames.add(t.name);
         }
+
         run.rebuildToolsForApi();
         console.log(
           `[AGENT] Pinned skin tools added: ${missing.map((t) => t.name).join(", ")}`,

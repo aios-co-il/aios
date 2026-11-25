@@ -13,25 +13,32 @@ export function createLoopTextEmitter(
 ) {
   function emitText(text: string) {
     const key = text.trim();
+
     if (!emit || !key || emittedTexts.includes(key)) {
       return;
     }
+
     // A final answer that opens with texts already sent adds only the rest.
     let fresh = key;
+
     for (const sent of emittedTexts) {
       if (fresh.startsWith(sent)) {
         fresh = fresh.slice(sent.length).trim();
       }
     }
+
     emittedTexts.push(key);
+
     if (!fresh) {
       return;
     }
+
     emit({
       type: "token",
       content: emittedTexts.length > 1 ? `\n\n${fresh}` : fresh,
     });
   }
+
   return emitText;
 }
 
@@ -46,10 +53,12 @@ export function finalizeLoopText(
     run.finalOutput = [String(run.finalOutput || "").trim(), stopped]
       .filter(Boolean)
       .join("\n\n");
+
     if (run.input.emit) {
       run.input.emit({ type: "token", content: `\n\n${stopped}` });
     }
   }
+
   if (!String(run.finalOutput || "").trim()) {
     const fallback = fallbackReply(run.toolLog, {
       outOfSteps: stoppedAtStepLimit(
@@ -58,8 +67,10 @@ export function finalizeLoopText(
         run.messages[run.messages.length - 1]?.role,
       ),
     });
+
     if (fallback) {
       run.finalOutput = fallback;
+
       if (run.input.emit) {
         run.input.emit({ type: "token", content: fallback });
       }

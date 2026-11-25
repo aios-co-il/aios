@@ -1,8 +1,9 @@
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V1 prompt and its precedence. */
+
 export function appendV1AgentSpecialties(run: RunState): void {
   // Inject active modes
   const activeModes: Array<string> = run.agent.active_modes || [];
+
   if (activeModes.length > 0) {
     const MODES_PROMPTS: Record<string, string> = {
       sales:
@@ -21,12 +22,15 @@ export function appendV1AgentSpecialties(run: RunState): void {
     const modePrompts = activeModes
       .map((m: string) => MODES_PROMPTS[m])
       .filter(Boolean);
+
     if (modePrompts.length > 0) {
       run.systemPrompt += `\n\n=== מצבי פעולה פעילים ===\n${modePrompts.join("\n")}`;
     }
   }
+
   // Inject active skills
   const activeSkills: Array<string> = run.agent.active_skills || [];
+
   if (activeSkills.length > 0) {
     const SKILLS_PROMPTS: Record<string, string> = {
       "lead-qualifier":
@@ -123,6 +127,7 @@ export function appendV1AgentSpecialties(run: RunState): void {
     const skillPrompts = activeSkills
       .map((s: string) => SKILLS_PROMPTS[s])
       .filter(Boolean);
+
     if (skillPrompts.length > 0) {
       run.systemPrompt += `\n\n=== סקילז פעילים ===\n${skillPrompts.join("\n")}`;
     }

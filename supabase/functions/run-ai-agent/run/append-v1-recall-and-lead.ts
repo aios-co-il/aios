@@ -1,9 +1,15 @@
-import type { RecalledMemoryItem } from "./contracts.ts";
 import { recallAgentMemoryFTS } from "../../_shared/agent-memory.ts";
 import { recallAgentMemory } from "../../_shared/agent-memory.ts";
 import { buildVoiceCapabilityPromptRule } from "../../_shared/wa-voice-resolve.ts";
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V1 prompt and its precedence. */
+
+type RecalledMemoryItem = {
+  title: string;
+  summary: string;
+  category: string;
+  importance?: number;
+};
+
 export async function appendV1RecallAndLead(run: RunState): Promise<void> {
   // Per-agent memory recall: pull relevant past episodes.
   // Carmen uses fast FTS (cheap, indexed). Other agents use embedding similarity.
@@ -22,6 +28,7 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
           run.command_text,
           6,
         );
+
     if (recalled.length > 0) {
       const block = recalled
         .map(
@@ -37,15 +44,18 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
       (e as Error | null)?.message,
     );
   }
+
   // Inject lead context
   if (run.lead_data) {
     const leadParts = Object.entries(run.lead_data)
       .filter(([, v]) => v)
       .map(([k, v]) => `${k}: ${v}`);
+
     if (leadParts.length) {
       run.systemPrompt += `\n\nפרטי ליד:\n${leadParts.join("\n")}`;
     }
   }
+
   // WhatsApp context
   if (run.isCarmen) {
     run.systemPrompt += `\n\n⚡ **כלל תמציתיות (חובה ב-WhatsApp):** עני ישירות לשאלה שנשאלה, ב-1–3 משפטים מקסימום. אסור פתיחים, אסור לחזור על השאלה, אסור להציע פעולות נוספות אלא אם נתבקשת במפורש.`;
@@ -64,6 +74,7 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
 - kb_recall_conversation — שליפת סיכומי שיחות עבר לפי נושא.
 - kb_learn — שמירת לקח/סיכום חשוב לטווח ארוך עם embedding.
 **עיקרון:** ה-pointers הם מפה — התוכן עצמו תמיד חי ב-DB. השתמשי ב-kb_search לפני שאת אומרת "לא מצאתי" על נושא ישן או שיחה קודמת.`;
+
     // Inject caller identity + role-based scoping rules
     if (run.callerCampaignerId && run.callerName) {
       const roleLabel: Record<string, string> = {
@@ -82,6 +93,7 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
         : "קמפיינר";
       run.systemPrompt += `\n\n👤 **זהות המשתמש הנוכחי:** ${run.callerName} — תפקיד: ${roleHe} (campaigner_id: ${run.callerCampaignerId}${run.callerRole ? `, role: ${run.callerRole}` : ""}). כשיוצרים משימה, שייך אותה אוטומטית ל-${run.callerName} אלא אם המשתמש מבקש במפורש לשייך למישהו אחר.`;
       run.systemPrompt += `\n\n📋 **שיוך לקוחות לקמפיינר:** לשאלות "אילו לקוחות משוייכים ל-X" השתמשי תמיד ב-list_clients עם campaigner_name/campaigner_id (טבלת client_team) — לא ב-list_tasks.`;
+
       if (run.isManagerRoleCaller) {
         run.systemPrompt += `\n\n🛡️ **הרשאות מנהל (${roleHe}):** יש לך גישה מלאה לכל הלקוחות, הסוכנויות, הצוות, הכספים והאוטומציות בארגון. השרת לא מצמצם את התוצאות שלך אוטומטית. אם המשתמש שואל "מה הלקוחות שלי" — הצג את כל הלקוחות בארגון אלא אם ציין סוכנות/קמפיינר ספציפי. כשמדובר ב"לקוחות בסוכנות X" — חובה לסנן לפי agency_name/agency_id.`;
       } else if (run.isTeamManagerCaller) {
@@ -89,6 +101,7 @@ export async function appendV1RecallAndLead(run: RunState): Promise<void> {
       } else {
         run.systemPrompt += `\n\n🔒 **סקופ אישי לקמפיינר (חובה):** ${run.callerName} הוא קמפיינר. כשהוא שואל על לקוחות — החזירי אך ורק לקוחות שמשוייכים אליו בסטטוס active/onboarding. השרת אוכף זאת אוטומטית. אסור לחשוף לקוחות של קמפיינרים אחרים (גם לא בסיכום או מניין). רק אם המשתמש ביקש מפורשות "כל הלקוחות בארגון" / "לקוחות של [שם קמפיינר אחר]" / "לקוחות בסוכנות X" — תעבירי all_scopes=true או campaigner_name/agency_name.`;
       }
+
       run.systemPrompt += `\n\n🏢 **הבדל בין ארגון (tenant) לסוכנות (agency):** "ארגון" = כל ה-tenant. "סוכנות" = יחידה בתוך הארגון. כשהמשתמש מציין סוכנות בשם — חובה לסנן לפי agency_id/agency_name של אותה סוכנות בלבד; בצעי קודם search_entities entity_type=agency לאימות.`;
       run.systemPrompt += `\n\n🧠 **למידה עצמית פעילה (חובה):** אם המשתמש כתב אחת מהמילים: "תזכרי", "זכרי", "תזכור", "שמרי", "תרשמי", "מעכשיו", "מהיום והלאה", "תמיד", "אל תעשי", "remember", "from now on" — *לפני* שאת עונה, חייבת לקרוא ל-save_memory עם category='instructions' ומפתח תיאורי באנגלית (snake_case), כדי שההנחיה תיטען לכל סשן עתידי. אם ההנחיה מתקנת הנחיה קיימת — השתמשי באותו key (upsert). אחרי השמירה אשרי קצרות ("נרשם"). אם לא קראת ל-save_memory עבור בקשת זיכרון — נכשלת.`;
     }

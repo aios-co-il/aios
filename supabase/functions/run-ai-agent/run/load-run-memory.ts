@@ -1,10 +1,11 @@
 import type { RunState } from "./state.ts";
 import { fetchRelevantMemoryPointers } from "../../_shared/carmen-token-optimizer.ts";
-/** load Run Memory in the original run order. */
+
 export async function loadRunMemory(
   run: RunState,
 ): Promise<Response | string | void> {
   run.relevantLongTermMemory = [];
+
   if (run.tokenOptimize) {
     run.relevantLongTermMemory = await fetchRelevantMemoryPointers(
       run.supabase,
@@ -34,7 +35,6 @@ export async function loadRunMemory(
       .toLocaleLowerCase("he")
       .split(/[^\p{L}\p{N}]+/u)
       .filter((term: string) => term.length >= 3);
-    /** Retains the original scoreMemory helper. */
     function scoreMemory(text: string, importance: number) {
       return memoryTerms.reduce(
         (score: number, term: string) =>

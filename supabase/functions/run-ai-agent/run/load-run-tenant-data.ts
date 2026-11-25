@@ -1,7 +1,13 @@
-import type { SharedAgencyAccessRow } from "./contracts.ts";
 import type { RosterRow } from "./contracts.ts";
 import type { RunState } from "./state.ts";
-/** load Run Tenant Data in the original run order. */
+
+type SharedAgencyAccessRow = {
+  agency_id: string;
+  source_tenant_id: string;
+  agencies: { name: string } | null;
+  tenants: { name: string } | null;
+};
+
 export async function loadRunTenantData(
   run: RunState,
 ): Promise<Response | string | void> {

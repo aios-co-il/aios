@@ -9,7 +9,7 @@ import { parseActiveSkin } from "../../_shared/carmen/active-skin.ts";
 import { callerAddressLine } from "../../_shared/carmen/user-address.ts";
 import { automationInstructionsBlock } from "../../_shared/carmen-connection-role.ts";
 import { sanitizeCarmenInstructions } from "../../_shared/carmen-connection-role.ts";
-/** append Run Skins in the original run order. */
+
 export async function appendRunSkins(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -26,7 +26,7 @@ export async function appendRunSkins(
   ) {
     try {
       const pinnedTenantId = run.agent?.tenant_id || run.tenant_id || null;
-      const disabledForPin = (run.agent?.disabled_skins || []) as Array<string>;
+      const disabledForPin = run.agent?.disabled_skins || [];
       const pinnableSlugs = (run.task_skills as Array<string>).filter(
         (s) => !disabledForPin.includes(s),
       );
@@ -34,6 +34,7 @@ export async function appendRunSkins(
         pinnableSlugs,
         pinnedTenantId,
       );
+
       if (pinnedBlock) {
         run.systemPrompt += pinnedBlock;
         console.log(
@@ -44,6 +45,7 @@ export async function appendRunSkins(
       console.error("[AGENT] pinned-skin resolution failed (non-fatal):", e);
     }
   }
+
   // The skin picked in this chat session shapes Carmen for this run only. In the workshop the
   // role's skill is already pinned; the persona's older skills would contradict it.
   if (run.isCarmen && !run.pinSkillsOnly) {
@@ -55,10 +57,12 @@ export async function appendRunSkins(
         pinned: run.task_skills,
       });
     }
+
     if (run.workshopNote) {
       run.systemPrompt += `\n\n${run.workshopNote}`;
     }
   }
+
   // Hebrew verbs carry gender: Carmen addresses the caller by their profile's gender, else plural.
   // The profile name wins over user_name, which some screens set to a department label.
   run.systemPrompt += await callerAddressLine(
@@ -73,9 +77,11 @@ export async function appendRunSkins(
         run.personaUserId,
       )
     : null;
+
   if (run.callerPersona) {
     run.systemPrompt += personaPromptSection(run.callerPersona);
   }
+
   // Per-automation instructions for this WhatsApp conversation (set on the
   // Carmen automation; stripped in Deno.serve for non-service callers).
   if (
@@ -89,10 +95,12 @@ export async function appendRunSkins(
       ),
     );
   }
+
   const promptAddon =
     typeof run.input.bodyJson.system_prompt_addon === "string"
       ? run.input.bodyJson.system_prompt_addon.trim()
       : "";
+
   if (promptAddon) {
     run.systemPrompt += `\n\n=== הקשר סטודיו (משימה מבודדת) ===\n${promptAddon}`;
   }

@@ -7,6 +7,7 @@ export async function runErrorResponse(
   error: unknown,
 ): Promise<Response> {
   console.error("run-ai-agent error:", error);
+
   // Persist the failure so it's diagnosable from the DB (console logs are ephemeral
   // and invisible to monitoring). Fire-and-forget — never mask the original error.
   try {
@@ -35,6 +36,7 @@ export async function runErrorResponse(
   } catch (logErr) {
     console.error("run-ai-agent error_logs insert failed:", logErr);
   }
+
   return new Response(
     JSON.stringify({ success: false, error: (error as Error).message }),
     {

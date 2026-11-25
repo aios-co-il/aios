@@ -7,30 +7,36 @@ import { findingDraftReplyOf } from "../finding-draft/reply.ts";
 import { loadDevEscalationTierFromDb } from "../../_shared/carmen-access-policy.ts";
 import { personalLineOwner } from "../line-owner-pick.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
-/** resolve Run Caller in the original run order. */
+
 export async function resolveRunCaller(
   run: RunState,
 ): Promise<Response | string | void> {
   run.callerCampaignerId = null;
   run.callerName = run.user_name || null;
   run.callerPhone = runCallerPhone(run.input.bodyJson);
+
   if (run.callerPhone && run.resolvedTenantId) {
     // Normalize: take last 9 digits for comparison
     const normalizedPhone = run.callerPhone.replace(/[^0-9]/g, "").slice(-9);
+
     if (normalizedPhone.length >= 9) {
       const { data: matchedCampaigners } = await run.supabase
         .from("campaigners")
         .select("id, full_name, phone")
         .eq("tenant_id", run.resolvedTenantId)
         .eq("active", true);
+
       if (matchedCampaigners) {
         const match = matchedCampaigners.find((c) => {
           if (!c.phone) {
             return false;
           }
+
           const cNorm = c.phone.replace(/[^0-9]/g, "").slice(-9);
+
           return cNorm === normalizedPhone;
         });
+
         if (match) {
           run.callerCampaignerId = match.id;
           run.callerName = match.full_name;
@@ -41,9 +47,11 @@ export async function resolveRunCaller(
       }
     }
   }
+
   run.callerRole = null;
   run.callerUserId = null;
   run.callerManagedAgencyIds = [];
+
   if (run.callerCampaignerId) {
     const { data: prof } = await run.supabase
       .from("profiles")
@@ -52,6 +60,7 @@ export async function resolveRunCaller(
       .maybeSingle();
     run.callerUserId = prof?.id || null;
   }
+
   if (
     !run.callerUserId &&
     run.resolvedUserId &&
@@ -59,22 +68,27 @@ export async function resolveRunCaller(
   ) {
     run.callerUserId = run.resolvedUserId;
   }
+
   run.personaUserId =
     run.input.surface === "whatsapp"
       ? personalLineOwner(run.input.bodyJson)
       : run.input.surface === "internal_chat" || run.input.surface === "aios"
         ? run.callerUserId
         : null;
+
   if (run.callerUserId) {
     const { data: roles, error: rolesError } = await run.supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", run.callerUserId)
       .or(`tenant_id.eq.${run.resolvedTenantId},tenant_id.is.null`);
+
     if (rolesError) {
       throw rolesError;
     }
+
     const roleList: Array<string> = (roles || []).map((r) => r.role);
+
     // Priority order
     for (const r of CALLER_ROLE_PRIORITY) {
       if (roleList.includes(r)) {
@@ -82,6 +96,7 @@ export async function resolveRunCaller(
         break;
       }
     }
+
     if (
       run.callerRole === "team_manager" ||
       run.callerRole === "agency_manager"
@@ -92,10 +107,12 @@ export async function resolveRunCaller(
         .eq("user_id", run.callerUserId);
       run.callerManagedAgencyIds = (mng || []).map((m) => m.agency_id);
     }
+
     console.log(
       `[AGENT] Caller role: ${run.callerRole} (user_id=${run.callerUserId}, managed_agencies=${run.callerManagedAgencyIds.length})`,
     );
   }
+
   run.isManagerRoleCaller =
     !!run.callerRole && MANAGER_ROLES.includes(run.callerRole);
   run.isTeamManagerCaller = run.callerRole === "team_manager";

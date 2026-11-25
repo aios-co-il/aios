@@ -11,6 +11,7 @@ export function fixedDate() {
     }
   }
   globalThis.Date = FixedDate as DateConstructor;
+
   return {
     restore() {
       globalThis.Date = NativeDate;

@@ -6,7 +6,7 @@ import { lastAssistantText } from "../../_shared/workshop/tapped-answers.ts";
 import { findOfferedDevTask } from "../dev-task-offer.ts";
 import { declineOfferedDevTask } from "../dev-task-offer.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
-/** answer Run Dev Task Offer in the original run order. */
+
 export async function answerRunDevTaskOffer(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -17,6 +17,7 @@ export async function answerRunDevTaskOffer(
   const devTaskYes = isExplicitDevTaskApproval(devTaskUserText);
   const devTaskNo = !devTaskYes && isExplicitDevTaskDecline(devTaskUserText);
   run.devTaskOfferAnswered = false;
+
   if (
     run.isCarmen &&
     run.canEscalateDevFixes &&
@@ -31,6 +32,7 @@ export async function answerRunDevTaskOffer(
       turnStartedAt: run.turnStartedAt,
     });
     run.devTaskOfferAnswered = Boolean(offeredTask);
+
     if (offeredTask && devTaskYes) {
       run.systemPrompt += `\n\n✅ המשתמש ענה 'כן' למשימת הפיתוח שהצעת בהודעה הקודמת: "${String(offeredTask.title || "").slice(0, 120)}" (dev_task_id=${offeredTask.id}, ל-${offeredTask.assigned_agent || "cursor"}). קראי עכשיו ל-approve_dev_task ואז ל-dispatch_dev_task עם המזהה הזה, ודווחי מה נשלח.`;
     } else if (

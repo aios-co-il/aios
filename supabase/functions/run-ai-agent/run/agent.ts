@@ -25,6 +25,7 @@ import { prepareRunMessages } from "./prepare-run-messages.ts";
 import { runModelLoop } from "./run-model-loop.ts";
 import { persistRunCompletion } from "./persist-run-completion.ts";
 import type { RunState } from "./state.ts";
+
 /** Executes named run stages in their original order, preserving early returns. */
 export async function runAgent(run: RunState): Promise<Response | string> {
   const stages = [
@@ -55,11 +56,14 @@ export async function runAgent(run: RunState): Promise<Response | string> {
     runModelLoop,
     persistRunCompletion,
   ];
+
   for (const stage of stages) {
     const response = await stage(run);
+
     if (response !== undefined) {
       return response;
     }
   }
+
   throw new Error("Run stages completed without a response");
 }

@@ -1,7 +1,7 @@
 import type { RunState } from "./state.ts";
 import { appendAgencyDataRules } from "../agency-data/rules-block.ts";
 import { appendCarmenPulseRules } from "../pulse-refresh/rules-block.ts";
-/** append Run Standing Rules in the original run order. */
+
 export async function appendRunStandingRules(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -20,6 +20,7 @@ export async function appendRunStandingRules(
     surface: run.input.surface,
     pinSkillsOnly: run.pinSkillsOnly,
   });
+
   // Surface instruction-capture confirmation in the system prompt so the model knows
   // a rule was just persisted and can acknowledge it briefly without re-saving.
   if (run.instructionCaptured) {

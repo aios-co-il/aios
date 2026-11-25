@@ -1,16 +1,18 @@
 import type { RunState } from "./state.ts";
 import { INSTRUCTION_TRIGGER_RE } from "../instruction-trigger.ts";
 import { saveAgentMemory } from "../../_shared/agent-memory.ts";
-/** capture Run Instruction in the original run order. */
+
 export async function captureRunInstruction(
   run: RunState,
 ): Promise<Response | string | void> {
   run.instructionCaptured = null;
+
   try {
     const cmdRaw = String(run.command_text || "").trim();
     const m = cmdRaw.match(INSTRUCTION_TRIGGER_RE);
     const looksLikeInstruction =
       !!m && cmdRaw.length > 0 && cmdRaw.length < 1500;
+
     // A workshop message is a creative brief ("פיצריה שתמיד פתוחה"), not a standing instruction,
     // and an automation's text is not someone teaching Carmen (AIO-241).
     if (
@@ -20,7 +22,7 @@ export async function captureRunInstruction(
       !run.automationRun
     ) {
       // Extract the surrounding sentence/paragraph (split on . ! ? newlines, max ~400 chars)
-      const triggerIdx = (m as RegExpMatchArray).index ?? 0;
+      const triggerIdx = m.index ?? 0;
       const before =
         cmdRaw
           .slice(0, triggerIdx)
@@ -31,9 +33,11 @@ export async function captureRunInstruction(
         (before + after).trim().slice(0, 400) || cmdRaw.slice(0, 400);
       // Build a stable snake_case key from a short hash of the content.
       let h = 0;
+
       for (let i = 0; i < sentence.length; i++) {
         h = ((h << 5) - h + sentence.charCodeAt(i)) | 0;
       }
+
       const keyBase = `instr_${Math.abs(h).toString(36)}`;
       await run.supabase.from("ai_memory").upsert(
         {
@@ -51,6 +55,7 @@ export async function captureRunInstruction(
           ignoreDuplicates: false,
         },
       );
+
       // Mirror to Hermes FTS layer (agent_memory) so cross-conversation recall sees it.
       try {
         await saveAgentMemory({
@@ -65,15 +70,16 @@ export async function captureRunInstruction(
             source: "auto_instruction_capture",
             surface: run.input.surface,
             key: keyBase,
-            trigger: (m as RegExpMatchArray)[0],
+            trigger: m[0],
           },
         });
       } catch {
         /* non-fatal */
       }
+
       run.instructionCaptured = sentence;
       console.log(
-        `[AGENT] Auto-captured instruction (${run.input.surface}, trigger="${(m as RegExpMatchArray)[0]}") → key=${keyBase}`,
+        `[AGENT] Auto-captured instruction (${run.input.surface}, trigger="${m[0]}") → key=${keyBase}`,
       );
     }
   } catch (e: unknown) {

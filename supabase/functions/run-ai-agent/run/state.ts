@@ -1,5 +1,36 @@
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { loadCallerPersona } from "../../_shared/carmen/persona-runtime.ts";
 import type * as types from "./contracts.ts";
+
+type SharedAgency = {
+  id: string;
+  name: string;
+  source_tenant_id: string;
+  source_tenant_name: string;
+};
+
+type MemoryRow = {
+  key: string;
+  content: string;
+  category: string;
+};
+
+type CountResult = QueryResult<Array<{ id: string }>>;
+
+type LeadCountResult = QueryResult<Array<{ status: string }>>;
+
+type AgencyRow = {
+  id: string;
+  name: string;
+  tenant_id: string | null;
+};
+
+type QueryResult<Row> = {
+  data: Row | null;
+  count?: number | null;
+  error?: unknown;
+};
+
 /** Mutable run bindings shared by named stages; stages initialize them in execution order. */
 export class RunState {
   declare pictureRequest: import("../attachments/turn-pictures.ts").TurnPictures;
@@ -23,7 +54,7 @@ export class RunState {
   declare pinSkillsOnly: boolean;
   declare automationRun: boolean;
   declare mayDecideApprovals: boolean;
-  declare supabase: types.RunDatabaseClient;
+  declare supabase: DbClient;
   declare turnId: `${string}-${string}-${string}-${string}-${string}`;
   declare workshopNote: string | null;
   declare workshopRoleForRun: types.WorkshopRole | null;
@@ -56,16 +87,12 @@ export class RunState {
     content: string;
   }>;
   declare instructionCaptured: string | null;
-  declare agenciesRes: types.QueryResult<Array<types.AgencyRow>>;
-  declare statsRes: [
-    types.LeadCountResult,
-    types.CountResult,
-    types.CountResult,
-  ];
-  declare memoryRes: types.QueryResult<Array<types.MemoryRow>>;
-  declare teamRosterRes: types.QueryResult<Array<types.RosterRow>>;
+  declare agenciesRes: QueryResult<Array<AgencyRow>>;
+  declare statsRes: [LeadCountResult, CountResult, CountResult];
+  declare memoryRes: QueryResult<Array<MemoryRow>>;
+  declare teamRosterRes: QueryResult<Array<types.RosterRow>>;
   declare tenantName: string;
-  declare sharedAgencies: Array<types.SharedAgency>;
+  declare sharedAgencies: Array<SharedAgency>;
   declare memoryTenantIds: Array<string>;
   declare relevantLongTermMemory: Array<{
     label: string;
@@ -73,9 +100,9 @@ export class RunState {
   }>;
   declare ownAgencyList: string;
   declare sharedAgencyList: string;
-  declare leadsData: types.LeadCountResult;
-  declare clientsData: types.CountResult;
-  declare tasksData: types.CountResult;
+  declare leadsData: LeadCountResult;
+  declare clientsData: CountResult;
+  declare tasksData: CountResult;
   declare leadsByStatus: Record<string, number>;
   declare tenantContext: string;
   declare isCarmen: boolean;

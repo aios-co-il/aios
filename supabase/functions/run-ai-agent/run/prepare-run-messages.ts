@@ -1,7 +1,7 @@
 import { withBrowserTab } from "../../_shared/carmen/screen-context.ts";
 import { textOnlyTurn } from "../attachments/picture-turn.ts";
 import type { RunState } from "./state.ts";
-/** prepare Run Messages in the original run order. */
+
 export async function prepareRunMessages(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -12,11 +12,13 @@ export async function prepareRunMessages(
     : Array.isArray(run.conversation_history)
       ? run.conversation_history
       : [];
+
   for (const h of history) {
     if (h.role === "user" || h.role === "assistant") {
       run.messages.push({ role: h.role, content: h.content });
     }
   }
+
   // Add current message
   const userTurn = withBrowserTab(run.command_text, run.input.bodyJson.context_metadata);
   run.messages.push({ role: "user", content: userTurn });
@@ -24,6 +26,7 @@ export async function prepareRunMessages(
   run.finalOutput = "";
   run.toolLog = [];
   run.startTime = Date.now();
+
   // If the agent's engine is Manus — delegate the entire conversation to Manus AI
   // and return the result directly (no tool loop needed here).
   if (
@@ -47,6 +50,7 @@ export async function prepareRunMessages(
         body: JSON.stringify(manusBody),
       },
     );
+
     if (!manusRes.ok) {
       const errText = await manusRes.text();
       const detail = (() => {
@@ -56,17 +60,22 @@ export async function prepareRunMessages(
           return errText;
         }
       })();
+
       if (/not configured|key not found|api_key/i.test(String(detail))) {
         throw new Error("Manus API key חסר — הגדר אותו בהגדרות אינטגרציות");
       }
+
       throw new Error(`Manus API error [${manusRes.status}]: ${detail}`);
     }
+
     const manusData = await manusRes.json();
     const taskUrl = manusData.task_url || manusData.share_url || "";
     run.finalOutput = `✅ משימה נשלחה ל-Manus AI${taskUrl ? `\n🔗 ${taskUrl}` : ""}\nמזהה: ${manusData.task_id || "—"}`;
+
     if (run.input.emit) {
       run.input.emit({ type: "token", content: run.finalOutput });
     }
+
     return run.finalOutput;
   }
 }

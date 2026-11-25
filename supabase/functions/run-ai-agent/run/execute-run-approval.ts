@@ -4,7 +4,7 @@ import { runApprovalExecutor } from "../approvals/executor.ts";
 import { formatApprovalExecutionReply } from "../../_shared/wa-approval-flow.ts";
 import { formatApprovalPickReply } from "../approvals/chat-text.ts";
 import { resolveModelId } from "../../_shared/models.ts";
-/** execute Run Approval in the original run order. */
+
 export async function executeRunApproval(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -32,6 +32,7 @@ export async function executeRunApproval(
       ? formatApprovalExecutionReply(execResult, run.pendingForConfirm)
       : formatApprovalPickReply(run.approvalPick);
     const executionTime = Date.now() - autoStart;
+
     if (run.serverConversationId && run.callerUserId) {
       const persistedMessages = [
         ...run.serverConversationHistory,
@@ -48,9 +49,11 @@ export async function executeRunApproval(
         .eq("user_id", run.callerUserId)
         .eq("tenant_id", run.resolvedTenantId);
     }
+
     if (run.input.emit && finalOutput) {
       run.input.emit({ type: "token", content: finalOutput });
     }
+
     try {
       await run.supabase.from("agent_action_log").insert({
         tenant_id: run.resolvedTenantId,
@@ -78,6 +81,7 @@ export async function executeRunApproval(
     } catch {
       /* ignore */
     }
+
     return new Response(
       JSON.stringify({
         success: true,

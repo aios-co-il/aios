@@ -1,5 +1,5 @@
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V1 prompt and its precedence. */
+
 export function appendV1TaskPrompts(run: RunState): void {
   // Inject task-level mode override (from AgentTasksPage)
   if (run.task_mode) {
@@ -16,10 +16,12 @@ export function appendV1TaskPrompts(run: RunState): void {
       onboarding:
         "את מומחית קליטת לקוחות. מדריכה לקוחות חדשים בצורה חמה ומקצועית.",
     };
+
     if (TASK_MODE_PROMPTS[run.task_mode]) {
       run.systemPrompt += `\n\n=== מוד משימה ===\n${TASK_MODE_PROMPTS[run.task_mode]}`;
     }
   }
+
   // Inject task-level skills override (from AgentTasksPage)
   if (
     run.task_skills &&
@@ -121,6 +123,7 @@ export function appendV1TaskPrompts(run: RunState): void {
     const taskSkillPrompts = (run.task_skills as Array<string>)
       .map((s: string) => TASK_SKILLS_PROMPTS[s])
       .filter(Boolean);
+
     if (taskSkillPrompts.length > 0) {
       run.systemPrompt += `\n\n=== סקילז למשימה זו ===\n${taskSkillPrompts.join("\n")}`;
     }

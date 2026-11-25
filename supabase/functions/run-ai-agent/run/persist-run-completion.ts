@@ -1,11 +1,12 @@
 import type { RunState } from "./state.ts";
 import { summarizeAndStoreAgentMemory } from "../../_shared/agent-memory.ts";
 import { estimateLLMCostUSD } from "../llm/cost.ts";
-/** persist Run Completion in the original run order. */
+
 export async function persistRunCompletion(
   run: RunState,
 ): Promise<Response | string | void> {
   const executionTime = Date.now() - run.startTime;
+
   if (run.serverConversationId && run.callerUserId) {
     await run.dependencies.saveConversationTurn(run.supabase, {
       tenantId: run.resolvedTenantId,
@@ -16,6 +17,7 @@ export async function persistRunCompletion(
       answer: String(run.finalOutput || ""),
     });
   }
+
   // 6. Log to automation_logs
   if (run.automation_id) {
     await run.supabase.from("automation_logs").insert({
@@ -36,6 +38,7 @@ export async function persistRunCompletion(
       execution_time_ms: executionTime,
     });
   }
+
   // 7. Auto-memory for non-Carmen agents (fire and forget, doesn't block response).
   if (
     run.resolvedTenantId &&
@@ -50,12 +53,14 @@ export async function persistRunCompletion(
       assistant_output: run.finalOutput,
       tools_used: run.toolLog.map((t) => t.tool),
     });
+
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
       EdgeRuntime.waitUntil(memPromise);
     } else {
       memPromise.catch(() => {});
     }
   }
+
   // 8. Run trace — one row per turn so we can audit later whether Carmen
   // actually executed what she claimed. Same shape across every surface.
   try {
@@ -93,6 +98,7 @@ export async function persistRunCompletion(
       (e as Error | null)?.message,
     );
   }
+
   return new Response(
     JSON.stringify({
       success: true,

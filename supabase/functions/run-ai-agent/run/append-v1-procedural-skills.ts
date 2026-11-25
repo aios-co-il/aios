@@ -1,16 +1,23 @@
-import type { ProceduralSkill } from "./contracts.ts";
+import type { Tables } from "../../_shared/database.types.ts";
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V1 prompt and its precedence. */
+
+type ProceduralSkill = Pick<
+  Tables<"ai_skills">,
+  "id" | "name" | "description" | "steps" | "version" | "usage_count"
+>;
+
 export async function appendV1ProceduralSkills(run: RunState): Promise<void> {
   // === HERMES: Auto-inject relevant DB skills (procedural memory) ===
   try {
     const queryText = String(run.command_text || "").trim();
+
     if (queryText) {
       const tokens = queryText
         .split(/\s+/)
         .filter((t: string) => t.length > 1)
         .slice(0, 8);
       let relevantSkills: Array<ProceduralSkill> = [];
+
       if (tokens.length > 0) {
         const tsQuery = tokens.join(" | ");
         const { data: ftsHits } = await run.supabase
@@ -25,6 +32,7 @@ export async function appendV1ProceduralSkills(run: RunState): Promise<void> {
           .limit(3);
         relevantSkills = ftsHits || [];
       }
+
       if (relevantSkills.length > 0) {
         const skillsBlock = relevantSkills
           .map(

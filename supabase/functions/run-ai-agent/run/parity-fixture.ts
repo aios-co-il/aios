@@ -8,6 +8,7 @@ import { CORE_TOOLS } from "./core-tools.ts";
 import type { RunBody, RunDependencies } from "./contracts.ts";
 
 export type CapturedRequest = { url: string; method: string; body: unknown };
+
 export interface FixtureOptions {
   promptVersion?: "v1" | "v2";
   body?: Partial<RunBody>;
@@ -39,6 +40,7 @@ export async function runFixture(options: FixtureOptions = {}) {
     const url = new URL(request.url);
     let data: unknown = [];
     let status = 200;
+
     if (url.pathname.endsWith("/ai_agents")) {
       data = {
         id: "agent",
@@ -60,9 +62,11 @@ export async function runFixture(options: FixtureOptions = {}) {
         token_optimize: false,
       };
     }
+
     if (url.pathname.endsWith("/tenants")) {
       data = { name: "Test tenant", type: "agency" };
     }
+
     if (
       url.pathname.endsWith("/tenant_integrations") &&
       url.searchParams.get("integration_type") === "eq.llm"
@@ -71,6 +75,7 @@ export async function runFixture(options: FixtureOptions = {}) {
         settings: options.settings ?? { google_api_key: "fake-google" },
       };
     }
+
     if (url.pathname.endsWith("/chat/completions")) {
       const response = responses.shift();
       status = response?.status ?? 200;
@@ -79,6 +84,7 @@ export async function runFixture(options: FixtureOptions = {}) {
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       };
     }
+
     return new Response(JSON.stringify(data), {
       status,
       headers: { "Content-Type": "application/json", "content-range": "0-0/0" },
@@ -89,6 +95,7 @@ export async function runFixture(options: FixtureOptions = {}) {
     ...args: Parameters<RunDependencies["executeTool"]>
   ) {
     executed.push({ name: args[0], args: args[1] });
+
     return { count: 0, memories: [] };
   }
   /** No fast-lane answer for these full-run fixtures. */
@@ -97,6 +104,7 @@ export async function runFixture(options: FixtureOptions = {}) {
   }
   /** Conversation persistence is asserted separately from these tenant-only fixtures. */
   async function noSave() {}
+
   try {
     const result = await runOrchestratedAgent(
       {
@@ -136,15 +144,18 @@ export async function runFixture(options: FixtureOptions = {}) {
     );
     // Flush best-effort reporting that the run intentionally does not await.
     await new Promise((resolve) => setTimeout(resolve, 0));
+
     return { result, calls, executed };
   } finally {
     network.restore();
     date.restore();
+
     if (oldUrl === undefined) {
       Deno.env.delete("SUPABASE_URL");
     } else {
       Deno.env.set("SUPABASE_URL", oldUrl);
     }
+
     if (oldKey === undefined) {
       Deno.env.delete("SUPABASE_SERVICE_ROLE_KEY");
     } else {

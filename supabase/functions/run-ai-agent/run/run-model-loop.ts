@@ -6,12 +6,11 @@ import { executeModelTool } from "./execute-model-tool.ts";
 import { processModelToolResult } from "./process-model-tool-result.ts";
 import type { RoundToolState } from "./loop-contracts.ts";
 import type { RunState } from "./state.ts";
-
 import { lastAssistantText } from "../../_shared/workshop/tapped-answers.ts";
 import { readStreamedCompletion } from "../stream-completion.ts";
 import { shouldNudgeSilentTurn } from "../../_shared/workshop/reply.ts";
 import { SILENT_TURN_NUDGE } from "../../_shared/workshop/reply.ts";
-/** run Model Loop in the original run order. */
+
 export async function runModelLoop(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -22,7 +21,6 @@ export async function runModelLoop(
   // Models often repeat their mid-loop text ("creating the image…") in the
   // final answer; the client joins tokens, so send each text once, apart.
   const emittedTexts: Array<string> = [];
-  /** Retains the original emitText helper. */
   const emitText = createLoopTextEmitter(run.input.emit, emittedTexts);
   run.usageTokensIn = 0;
   run.usageTokensOut = 0;
@@ -40,11 +38,13 @@ export async function runModelLoop(
     run.callerUserId,
   );
   let stoppedByUser = false;
+
   for (let round = 0; round < run.maxRounds; round++) {
     if (await runStopped()) {
       stoppedByUser = true;
       break;
     }
+
     roundsRun = round + 1;
     // Provider failover: try the active provider; on a quota/credit error, advance
     // to the next provider in the chain and retry THIS round (no round consumed).
@@ -62,22 +62,28 @@ export async function runModelLoop(
             choices: [{ message }],
           }))
         : await res.json();
+
     // Text already streamed counts as sent, so emitText does not send it again.
     if (streamedText.trim()) {
       emittedTexts.push(streamedText.trim());
     }
+
     if (data?.usage) {
       run.usageTokensIn +=
         data.usage.prompt_tokens ?? data.usage.input_tokens ?? 0;
       run.usageTokensOut +=
         data.usage.completion_tokens ?? data.usage.output_tokens ?? 0;
     }
+
     const choice = data.choices?.[0];
     const msg = choice?.message;
+
     if (!msg) {
       break;
     }
+
     run.messages.push(msg);
+
     // No tool calls → done
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
       if (
@@ -92,16 +98,20 @@ export async function runModelLoop(
         });
         continue;
       }
+
       run.finalOutput = msg.content || "";
       console.log(
         `[AGENT] Done after ${round + 1} rounds, output length=${run.finalOutput.length}`,
       );
+
       // Stream the final assistant text in one chunk so AIOS frontends can render progressively.
       if (run.input.emit && run.finalOutput) {
         emitText(run.finalOutput);
       }
+
       break;
     }
+
     // Mid-loop assistant text (assistant decided to talk while also calling tools) — stream it too.
     if (
       run.input.emit &&
@@ -110,6 +120,7 @@ export async function runModelLoop(
     ) {
       emitText(msg.content);
     }
+
     // Execute tool calls — promote any called tool to full schema for the next round.
     const tools: RoundToolState = {
       toolResults: [],
@@ -117,27 +128,35 @@ export async function runModelLoop(
       sayToUser: [],
       budgetSay: null,
     };
+
     if (run.tokenOptimize && msg.tool_calls?.length) {
       for (const tc of msg.tool_calls) {
         run.promotedToolNames.add(tc.function.name);
       }
+
       run.rebuildToolsForApi();
     }
+
     for (const tc of msg.tool_calls) {
       if (await runStopped()) {
         stoppedByUser = true;
         break;
       }
+
       const execution = await executeModelTool(run, tc, devSendTurn);
       processModelToolResult(run, round, tc, execution, tools);
     }
+
     run.messages.push(...tools.toolResults);
+
     if (tools.budgetSay) {
       tools.sayToUser.push(tools.budgetSay);
     }
+
     if (tools.sayToUser.length) {
       tools.pulseDigestShortcut = tools.sayToUser.join("\n\n");
     }
+
     if (tools.pulseDigestShortcut) {
       run.finalOutput = tools.pulseDigestShortcut;
       // emitText puts it apart from any text the model already sent this turn.
@@ -145,5 +164,6 @@ export async function runModelLoop(
       break;
     }
   }
+
   finalizeLoopText(run, roundsRun, stoppedByUser);
 }

@@ -5,11 +5,12 @@ import { buildDevEscalationPromptRule } from "../../_shared/dev-escalation-auth.
 import { devTaskSendRule } from "../dev-task-send-rules.ts";
 import { buildVoiceCapabilityPromptRule } from "../../_shared/wa-voice-resolve.ts";
 import { agentMoodPrompt } from "../../_shared/carmen/agent-mood.ts";
-/** append Run Policies in the original run order. */
+
 export async function appendRunPolicies(
   run: RunState,
 ): Promise<Response | string | void> {
   const screenContext = parseScreenContext(run.input.bodyJson.context_metadata);
+
   if (
     run.isCarmen &&
     run.input.surface === "internal_chat" &&
@@ -26,6 +27,7 @@ export async function appendRunPolicies(
       "Always include path + entity context in any dev task you create.\n" +
       `context_metadata: ${sidebarContextJson(screenContext, 4000)}`;
   }
+
   // Hard rule for both V1 and V2: only allowlisted requesters may escalate
   // system/dev/config/code fixes to Cursor/Claude/Manus/GitHub agent.
   // The workshop has no connector or delegate tools: there a dev task goes only through
@@ -36,6 +38,7 @@ export async function appendRunPolicies(
       ? workshopDevTaskRule(run.devEscalationTier)
       : buildDevEscalationPromptRule(run.devEscalationTier) +
         (run.devEscalationTier ? devTaskSendRule(run.appChatTurn) : "");
+
   if (
     run.isCarmen &&
     run.input.surface === "whatsapp" &&
@@ -47,6 +50,7 @@ export async function appendRunPolicies(
       "1) find_dev_task_duplicates → 2) create_dev_task (brief מובנה) → 3) אמרי במשפט מה המשימה ולמי, ושהיא מחכה לאישור במרכז משימות הפיתוח באפליקציה (כפתור 'שלח'). מוואטסאפ לא מאשרים ולא שולחים: השרת מסרב ל-approve_dev_task, ל-dispatch_dev_task ולשליחה ישירה.\n" +
       "4) שאלה על משימה שכבר נשלחה: list_dev_tasks או attach_dev_task_session.";
   }
+
   // Voice capability (both prompt versions): answer from 🎤 / explicit failure markers.
   if (
     run.isCarmen &&
@@ -56,27 +60,32 @@ export async function appendRunPolicies(
   ) {
     run.systemPrompt += buildVoiceCapabilityPromptRule();
   }
+
   if (run.isCarmen && run.input.surface === "grok_bot") {
     run.systemPrompt +=
       "\n\n=== Grok Bot (חיצוני) ===\n" +
       "הבקשה הגיעה מ-Grok Bot — עוזר דיוויד מחוץ לאפליקציה. עני ישירות; אל תשלחי בחזרה ל-Grok Bot (mcp_Grok__*) — " +
       "את כבר המטפלת. אם צריך פיתוח/קוד — Cursor או Claude, לא Grok.";
   }
+
   if (run.isCarmen && run.relevantLongTermMemory.length > 0) {
     run.systemPrompt += `\n\n🧠 === זיכרון ארוך רלוונטי שנשלף אוטומטית ===
 זהו זיכרון העבודה שלך מהמערכת, לא "מערכת אחרת". השתמשי בו כשהוא רלוונטי לבקשה, אך העדיפי נתוני כלים חיים כשיש סתירה.
 ${run.relevantLongTermMemory.map((item) => `• [${item.label}] ${item.text}`).join("\n")}`;
   }
+
   // ─── Mood / persona modulation (swappable tone layer) ───
   {
     const moodPrompt = agentMoodPrompt(
       run.callerPersona?.mood ?? run.agent.mood,
       run.agent.id,
     );
+
     if (moodPrompt) {
       run.systemPrompt += `\n\n${moodPrompt}`;
     }
   }
+
   // ─── Command Center (internal_chat) rendering layer ───
   // The dashboard chat renders full GitHub-flavored Markdown (ReactMarkdown +
   // remark-gfm), unlike WhatsApp. Placed after the V1/V2 prompt building so it

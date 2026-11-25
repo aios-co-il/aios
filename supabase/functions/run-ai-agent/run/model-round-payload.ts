@@ -5,7 +5,21 @@ import { messagesForProvider } from "../stream-completion.ts";
 import { canStreamCompletion } from "../stream-completion.ts";
 import { pulseRefreshToolChoice } from "../pulse-refresh/routing.ts";
 import { extractMeetingUrl } from "../../_shared/meeting-url.ts";
-import type { CompletionRequest } from "./loop-contracts.ts";
+import type { RunMessage, ToolApiEntries } from "./contracts.ts";
+
+interface CompletionRequest {
+  model: string;
+  messages: Array<RunMessage>;
+  temperature?: number;
+  max_tokens?: number;
+  tools?: ToolApiEntries;
+  stream?: boolean;
+  stream_options?: {
+    include_usage: boolean;
+  };
+  tool_choice?: NonNullable<ReturnType<typeof pulseRefreshToolChoice>>;
+}
+
 /** Builds the same round request anew for each provider retry. */
 export function buildRoundPayload(
   run: RunState,
@@ -17,21 +31,27 @@ export function buildRoundPayload(
     messages: messagesForProvider(withTurnPictures(run.messages, run.pictureTurnAt, run.turnPictures, run.llm, run.pictureRefusers), run.llm.provider),
   };
   const temp = run.safeTemp ?? run.llm.temperature;
+
   if (temp !== undefined) {
     payload.temperature = temp;
   }
+
   if (run.llm.maxTokens) {
     payload.max_tokens = run.llm.maxTokens;
   }
+
   if (cappedTools.length > 0) {
     payload.tools = cappedTools;
   }
+
   // A chat that shows the reply live gets the text as the model writes it (AIO-509).
   const streamThisRound = !!run.input.emit && canStreamCompletion(run.llm);
+
   if (streamThisRound) {
     payload.stream = true;
     payload.stream_options = { include_usage: true };
   }
+
   if (
     round === 0 &&
     run.isStoredPulseRequest &&
@@ -42,13 +62,16 @@ export function buildRoundPayload(
       function: { name: "get_latest_campaign_pulse" },
     };
   }
+
   const refreshChoice = pulseRefreshToolChoice(
     run.pulseRefreshRoute,
     cappedTools,
   );
+
   if (round === 0 && refreshChoice) {
     payload.tool_choice = refreshChoice;
   }
+
   if (
     round === 0 &&
     extractMeetingUrl(String(run.command_text || "")) &&
@@ -59,5 +82,6 @@ export function buildRoundPayload(
       function: { name: "join_meeting_for_client" },
     };
   }
+
   return payload;
 }

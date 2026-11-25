@@ -5,7 +5,7 @@ import { approvalScopedTools } from "../approvals/decision-scope.ts";
 import { isDevEscalationTool } from "../../_shared/dev-escalation-auth.ts";
 import { isDevEscalationToolAllowed } from "../../_shared/dev-escalation-auth.ts";
 import { isSuperAdminRole } from "../../_shared/openai-billing.ts";
-/** prepare Run Tool Api in the original run order. */
+
 export async function prepareRunToolApi(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -40,13 +40,17 @@ export async function prepareRunToolApi(
       if (!t?.name) {
         continue;
       }
+
       run.promotedToolNames.add(t.name);
+
       if (!run.filteredTools.some((ft) => ft.name === t.name)) {
         run.filteredTools.push(t);
       }
     }
+
     run.rebuildToolsForApi();
   };
+
   // Unauthorized callers must not see native GitHub-agent delegation either.
   if (!run.canEscalateDevFixes) {
     run.filteredTools = run.filteredTools.filter(
@@ -61,6 +65,7 @@ export async function prepareRunToolApi(
     );
     run.rebuildToolsForApi();
   }
+
   // OpenAI billing/usage is super_admin-only — hide from everyone else.
   if (!isSuperAdminRole(run.callerRole)) {
     run.filteredTools = run.filteredTools.filter(
@@ -68,5 +73,6 @@ export async function prepareRunToolApi(
     );
     run.rebuildToolsForApi();
   }
+
   run.mcpExecutors = new Map<string, McpExecutor>();
 }

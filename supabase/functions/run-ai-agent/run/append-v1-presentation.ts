@@ -1,8 +1,9 @@
 import type { RunState } from "./state.ts";
-/** Preserves this part of the V1 prompt and its precedence. */
+
 export function appendV1Presentation(run: RunState): void {
   // Inject writing style
   const writingStyle = run.agent.writing_style;
+
   if (writingStyle && writingStyle !== "professional") {
     const styleMap: Record<string, string> = {
       friendly: "כתוב בסגנון חברותי וחמול.",
@@ -10,21 +11,26 @@ export function appendV1Presentation(run: RunState): void {
       casual: "כתוב בסגנון קזואלי ונגיש.",
       empathetic: "כתוב בסגנון אמפתי ומבין.",
     };
+
     if (styleMap[writingStyle]) {
       run.systemPrompt += `\n${styleMap[writingStyle]}`;
     }
   }
+
   // Inject response length
   const responseLength = run.agent.response_length;
+
   if (responseLength) {
     const lengthMap: Record<string, string> = {
       short: "הגבל תשובות ל-2-3 משפטים מקסימום.",
       detailed: "תן תשובות מפורטות ומקיפות.",
     };
+
     if (lengthMap[responseLength]) {
       run.systemPrompt += `\n${lengthMap[responseLength]}`;
     }
   }
+
   // Always inject current date and tenant context
   const now = new Date();
   const currentDate = now.toLocaleDateString("he-IL", {
@@ -47,17 +53,20 @@ export function appendV1Presentation(run: RunState): void {
   run.systemPrompt += `\n\n=== הקשר ארגוני ===\n${run.tenantContext}`;
   // Inject memory context — instructions get top priority and a strict directive
   const memoryItems = run.memoryRes.data || [];
+
   if (memoryItems.length > 0) {
     const instructionItems = memoryItems.filter(
       (m) => m.category === "instructions",
     );
     const otherItems = memoryItems.filter((m) => m.category !== "instructions");
+
     if (instructionItems.length > 0) {
       const block = instructionItems
         .map((m) => `• ${m.key}: ${m.content}`)
         .join("\n");
       run.systemPrompt += `\n\n📌 === הנחיות קבועות שנשמרו (חובה לפעול לפיהן) ===\n${block}\n⚠️ אלה הנחיות שהמשתמש ביקש שתזכרי. חובה לכבד אותן בכל תשובה. אם תשובה חדשה סותרת אותן — ההנחיות גוברות, אלא אם המשתמש ביקש לעדכן/למחוק (אז קראי ל-save_memory עם אותו key, או delete_memory).`;
     }
+
     if (otherItems.length > 0) {
       const memoryContext = otherItems
         .map((m) => `[${m.category}] ${m.key}: ${m.content}`)

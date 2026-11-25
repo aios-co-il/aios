@@ -6,7 +6,7 @@ import type { FastLaneChannel } from "../fast-lane/eligibility.ts";
 import { isGroupChat } from "../finding-draft/reply.ts";
 import { fastLaneFits } from "../fast-lane/eligibility.ts";
 import { chatTurns } from "../fast-lane/answer.ts";
-/** load Run Conversation in the original run order. */
+
 export async function loadRunConversation(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -16,6 +16,7 @@ export async function loadRunConversation(
     run.input.request.authKind === "user" &&
     (run.input.surface === "internal_chat" || run.input.surface === "aios");
   run.serverConversationHistory = [];
+
   if (
     (run.input.surface === "internal_chat" ||
       run.input.surface === "aios" ||
@@ -32,6 +33,7 @@ export async function loadRunConversation(
         .eq("tenant_id", run.resolvedTenantId)
         .maybeSingle()
         .returns<{ id: string; messages: unknown }>();
+
       if (existingConversation) {
         run.serverConversationId = existingConversation.id;
         run.serverConversationHistory = (
@@ -47,6 +49,7 @@ export async function loadRunConversation(
           .slice(-24);
       }
     }
+
     if (!run.serverConversationId) {
       const clientHistory = (
         Array.isArray(run.conversation_history) ? run.conversation_history : []
@@ -67,6 +70,7 @@ export async function loadRunConversation(
         })
         .select("id")
         .single();
+
       if (createdConversation?.id) {
         run.serverConversationId = createdConversation.id;
         run.serverConversationHistory = clientHistory;
@@ -77,11 +81,13 @@ export async function loadRunConversation(
         });
       }
     }
+
     if (run.serverConversationId && run.input.emit) {
       run.input.emit({ type: "conversation_id", id: run.serverConversationId });
     }
   }
   run.pictureRequest = readPictureRequest(run.input.bodyJson.attachments, { authKind: run.input.request.authKind, userId: run.callerUserId });
+
   // A quick model answers small talk and what the org brief already covers before the full
   // setup (memory, skills, tools) runs; anything else falls through unchanged (fast-lane/).
   const fastLaneChannel: FastLaneChannel | null =
@@ -97,6 +103,7 @@ export async function loadRunConversation(
           run.callerCampaignerId
         ? "whatsapp_staff"
         : null;
+
   if (
     fastLaneFits({
       message: String(run.command_text),
@@ -141,6 +148,7 @@ export async function loadRunConversation(
         },
       },
     );
+
     if (fastReply) {
       return fastReply;
     }

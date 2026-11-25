@@ -15,11 +15,13 @@ export async function loadProviderChain(
     (run.model === "manus/manus-1" || run.model === "manus-1")
       ? "google/gemini-3-flash-preview"
       : run.model;
+
   if (isolatedChatModel !== run.model) {
     console.log(
       `[AGENT] pin_skills_only: remapping ${run.model} → ${isolatedChatModel} for isolated chat`,
     );
   }
+
   // A picked model brain runs this same loop on its own endpoint and key;
   // "נתב חכם" may continue on Carmen's own engine when its brains fail.
   const runsInternal =
@@ -42,16 +44,20 @@ export async function loadProviderChain(
     llmChain,
     runsInternal ? run.input.internalTail : undefined,
   );
+
   if (llmChain.length === 0) {
     await extendChain();
   }
+
   if (llmChain.length === 0) {
     throw new Error("לא מוגדר אף מפתח מודל AI פעיל באינטגרציית מודלי AI");
   }
   run.turnPictures = await loadTurnPictures(commandCenterPictureStore(run.supabase), run.pictureRequest, { wanted: llmChain.some(targetCanSee), userId: run.callerUserId });
   run.pictureRefusers = new Set<string>();
+
   const chain: ProviderChainState = { llmChain, activeIdx: 0, extendChain };
   run.llm = llmChain[chain.activeIdx];
   console.log(`[AGENT] LLM chain: ${llmChain.map((c) => c.label).join(" → ")}`);
+
   return chain;
 }

@@ -7,6 +7,7 @@ import { REFRESH_PULSE_TOOL_NAME } from "../../_shared/carmen/pulse-tools.ts";
 import { buildPulseRefreshDigestReply } from "../pulse-refresh/note.ts";
 import type { ToolCall } from "../stream-completion.ts";
 import type { ModelToolExecution, RoundToolState } from "./loop-contracts.ts";
+
 /** Records and emits a tool result before choosing deterministic reply shortcuts. */
 export function processModelToolResult(
   run: RunState,
@@ -22,6 +23,7 @@ export function processModelToolResult(
     tool_call_id: tc.id,
     content: JSON.stringify(result),
   });
+
   // Emit tool_result so AIOS can link e.g. delegate_to_subagent → sub_task_id back to the chat.
   if (run.input.emit) {
     const subTaskId =
@@ -37,6 +39,7 @@ export function processModelToolResult(
     // (or focus a scene / variation); the studio chat executes it on screen.
     const uiAction =
       result && typeof result === "object" ? result.ui_action : undefined;
+
     if (uiAction && typeof uiAction === "object") {
       run.input.emit({
         type: "ui_action",
@@ -44,9 +47,11 @@ export function processModelToolResult(
         action: uiAction,
       });
     }
+
     // Workshop tools tell the board what appeared and which skin is doing the work.
     const workshopEvent =
       result && typeof result === "object" ? result.workshop : undefined;
+
     if (workshopEvent && typeof workshopEvent === "object") {
       run.input.emit({
         type: "workshop",
@@ -54,14 +59,17 @@ export function processModelToolResult(
         ...workshopEvent,
       });
     }
+
     const skinSlug =
       run.workshopRoleForRun && isWorkshopTool(toolName)
         ? ROLE_PERSONA[run.workshopRoleForRun]
         : skinForTool(toolName);
+
     if (skinSlug) {
       run.input.emit({ type: "skin", slug: skinSlug, tool: toolName });
     }
   }
+
   if (
     round === 0 &&
     toolName === "get_latest_campaign_pulse" &&
@@ -72,6 +80,7 @@ export function processModelToolResult(
   ) {
     tools.pulseDigestShortcut = result.whatsapp_digest.trim();
   }
+
   if (
     round === 0 &&
     toolName === REFRESH_PULSE_TOOL_NAME &&
@@ -79,6 +88,7 @@ export function processModelToolResult(
   ) {
     tools.pulseDigestShortcut = buildPulseRefreshDigestReply(result);
   }
+
   // A workshop question or budget request is sent to the user exactly as the server
   // wrote it (buttons included) and the turn ends; a model rewording it dropped questions.
   if (
@@ -87,6 +97,7 @@ export function processModelToolResult(
     result.say_to_user.trim()
   ) {
     const say = result.say_to_user.trim();
+
     if (result.needs_budget === true) {
       tools.budgetSay = say;
     } else if (!tools.sayToUser.includes(say)) {

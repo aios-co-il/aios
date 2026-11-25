@@ -3,13 +3,14 @@ import { extractMeetingUrl } from "../../_shared/meeting-url.ts";
 import { isBlockedInWorkshop } from "../../_shared/workshop/blocked-tools.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
 import { resolveModelId } from "../../_shared/models.ts";
-/** join Run Meeting in the original run order. */
+
 export async function joinRunMeeting(
   run: RunState,
 ): Promise<Response | string | void> {
   // Deterministic path: meeting join URL in message → dispatch Recall bot immediately.
   // Not from the workshop: a meeting link there is project material, not a request to join.
   const meetingUrl = extractMeetingUrl(String(run.command_text || ""));
+
   if (
     run.isCarmen &&
     !run.pinSkillsOnly &&
@@ -41,6 +42,7 @@ export async function joinRunMeeting(
         )
       : `לא הצלחתי להצטרף לפגישה: ${execResult?.error || "שגיאה לא ידועה"}`;
     const executionTime = Date.now() - autoStart;
+
     if (run.serverConversationId && run.callerUserId) {
       const persistedMessages = [
         ...run.serverConversationHistory,
@@ -57,9 +59,11 @@ export async function joinRunMeeting(
         .eq("user_id", run.callerUserId)
         .eq("tenant_id", run.resolvedTenantId);
     }
+
     if (run.input.emit && finalOutput) {
       run.input.emit({ type: "token", content: finalOutput });
     }
+
     return new Response(
       JSON.stringify({
         success: !!execResult?.success,

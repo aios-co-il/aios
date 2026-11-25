@@ -7,6 +7,7 @@ import { failoverReason } from "../../_shared/carmen/brain-engine/openrouter-tai
 import { connectedBrainHint } from "../llm/connection-hint.ts";
 import { buildRoundPayload } from "./model-round-payload.ts";
 import type { ProviderChainState } from "./loop-contracts.ts";
+
 /** Retries the same round on the next allowed provider before consuming another round. */
 export async function requestModelRound(
   run: RunState,
@@ -39,9 +40,11 @@ export async function requestModelRound(
             .then((d) => !d?.choices?.[0]?.message)
             .catch(() => true)
         : false;
+
     if (res.ok && !malformed) {
       break;
     }
+
     const err = malformed
       ? "המוח החזיר תשובה לא תקינה (בלי הודעה)."
       : await res.text();
@@ -49,6 +52,7 @@ export async function requestModelRound(
       `[AGENT] AI error ${res.status} on ${run.llm.label}:`,
       err.substring(0, 200),
     );
+
     // A 429, a refused key (401/402/403), a body signalling exhausted balance/quota or a
     // model the endpoint cannot serve (not a chat model / model_not_found) triggers
     // failover. A connected brain may also fail on size, model or auth; any failure moves
@@ -75,15 +79,19 @@ export async function requestModelRound(
       console.warn(`[AGENT] ${run.llm.label} refused the attached pictures (${res.status}); asking again without them`);
       continue;
     }
+
     if (run.llm.connectionId) {
       throw new Error(
         `${run.llm.label}: ${res.status} ${connectedBrainHint(res.status, err)}`,
       );
     }
+
     if (res.status === 429) {
       throw new Error("מגבלת קצב. נסה שוב.");
     }
+
     throw new Error(`AI error: ${res.status} ${err}`);
   }
+
   return res;
 }

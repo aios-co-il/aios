@@ -2,11 +2,10 @@ import type { RunState } from "./state.ts";
 import { isWorkshopTurn } from "../workshop-turn-setup.ts";
 import { isAutomationRun } from "../approvals/decision-scope.ts";
 import { runMayDecideApprovals } from "../approvals/decision-scope.ts";
-
 import { workshopTurnSetup } from "../workshop-turn-setup.ts";
 import { ROLE_SKILL } from "../../_shared/workshop/roles.ts";
 import { ROLE_PERSONA } from "../../_shared/workshop/roles.ts";
-/** initialize Run in the original run order. */
+
 export async function initializeRun(
   run: RunState,
 ): Promise<Response | string | void> {
@@ -48,9 +47,11 @@ export async function initializeRun(
   console.log(
     `[AGENT] Starting run: agent=${bodyAgentId}, command="${run.command_text?.substring(0, 80)}", surface=${run.input.surface}, stream=${!!run.input.emit}, pin_skills_only=${run.pinSkillsOnly}`,
   );
+
   if (!run.command_text) {
     throw new Error("Missing command_text");
   }
+
   run.supabase = run.dependencies.createClient(
     run.dependencies.SUPABASE_URL,
     run.dependencies.SUPABASE_SERVICE_ROLE_KEY,
@@ -74,11 +75,13 @@ export async function initializeRun(
         workshopRoleForRun: null,
         workshopMode: undefined,
       });
+
   if (run.workshopRoleForRun) {
     run.task_skills = [
       ...(requestedTaskSkills as Array<string>),
       ROLE_SKILL[run.workshopRoleForRun],
     ];
+
     if (run.input.emit) {
       run.input.emit({
         type: "skin",
@@ -86,5 +89,6 @@ export async function initializeRun(
       });
     }
   }
+
   run.agent_id = bodyAgentId;
 }
