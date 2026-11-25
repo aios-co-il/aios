@@ -1,7 +1,7 @@
 import type { SyntheticEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Copy, Mail, Phone } from "lucide-react";
-import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { cn } from "@/lib/utils";
 
 export type ContactKind = "phone" | "email";
@@ -46,7 +46,13 @@ const ICON_BUTTON_CLASS =
  * before it and a copy icon after it.
  */
 export function ContactValue({ kind, value, className }: ContactValueProps) {
-  const { icon: ActionIcon, scheme, action, copy } = CONTACT_KINDS[kind];
+  const {
+    icon: ActionIcon,
+    scheme,
+    action,
+    copy,
+    subject,
+  } = CONTACT_KINDS[kind];
 
   return (
     <span
@@ -78,7 +84,7 @@ export function ContactValue({ kind, value, className }: ContactValueProps) {
         title={copy}
         aria-label={`${copy} ${value}`}
         className={ICON_BUTTON_CLASS}
-        onClick={() => void copyContactValue(kind, value)}
+        onClick={() => void copyToClipboard(value, `${subject} הועתק`)}
       >
         <Copy className="h-4 w-4" />
       </button>
@@ -119,23 +125,4 @@ function stopSwallowingAfterThisClick() {
       capture: true,
     });
   });
-}
-
-/**
- * Copies the value and reports the outcome in a toast. The Clipboard API is
- * missing outside secure contexts and in some embedded browsers, so its absence
- * reports a failure instead of throwing.
- */
-async function copyContactValue(kind: ContactKind, value: string) {
-  const { subject } = CONTACT_KINDS[kind];
-  try {
-    if (!navigator.clipboard) {
-      throw new Error("Clipboard API is unavailable");
-    }
-    await navigator.clipboard.writeText(value);
-    toast.success(`${subject} הועתק`);
-  } catch (error) {
-    console.error("Failed to copy contact value", error);
-    toast.error(`לא ניתן להעתיק את ${subject}`);
-  }
 }
