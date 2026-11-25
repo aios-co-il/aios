@@ -28,6 +28,7 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "test-service",
   GOOGLE_CLIENT_ID: "test-client",
   GOOGLE_CLIENT_SECRET: "test-secret",
+  PUBLIC_API_URL: null,
   APP_URL: "https://aios.co.il",
 };
 
@@ -75,10 +76,11 @@ function authorize(token: string | null, body: Record<string, unknown>) {
 async function run(
   request: Request,
   integrations: Array<Record<string, unknown>> = [],
+  runtimeEnv: Record<string, string | null> = env,
 ) {
   const http = fakeHttp(integrations);
 
-  return await withRuntime({ env, fetch: http.fetch }, async () => {
+  return await withRuntime({ env: runtimeEnv, fetch: http.fetch }, async () => {
     const handle = await servedHandler(new URL("./index.ts", import.meta.url));
     return { response: await handle(request), http };
   });
@@ -129,6 +131,25 @@ Deno.test({
     );
 
     await t.step(
+      "the authorize URL sends Google the custom-domain callback when PUBLIC_API_URL is set",
+      async () => {
+        const { response } = await run(
+          authorize("member", { tenantId: TENANT }),
+          [],
+          {
+            ...env,
+            PUBLIC_API_URL: "https://api.aios.co.il",
+          },
+        );
+        const { authUrl } = await response.json();
+        assertEquals(
+          new URL(authUrl).searchParams.get("redirect_uri"),
+          "https://api.aios.co.il/functions/v1/google-analytics-auth?action=oauth_callback",
+        );
+      },
+    );
+
+    await t.step(
       "a forged state is refused before the code is exchanged",
       async () => {
         const forged = btoa(
@@ -142,7 +163,7 @@ Deno.test({
         assertEquals(response.status, 302);
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-analytics-auth&error=invalid_state",
         );
         assertEquals(http.calls.length, 0);
       },
@@ -161,7 +182,7 @@ Deno.test({
         );
         assertEquals(
           response.headers.get("Location"),
-          "https://aios.co.il/t/app/integrations?error=invalid_state",
+          "https://aios.co.il/t/app/integrations#google_connect=google-analytics-auth&error=invalid_state",
         );
 
         const signed = await signOAuthState(
@@ -180,7 +201,7 @@ Deno.test({
         );
         assertEquals(
           denied.headers.get("Location"),
-          "https://aios.co.il/t/acme/integrations?error=x%26y%3D1",
+          "https://aios.co.il/t/acme/integrations#google_connect=google-analytics-auth&error=x%26y%3D1",
         );
       },
     );

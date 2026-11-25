@@ -1,0 +1,38 @@
+import type { ToolExecutionContext } from "../tool-context.ts";
+
+type CreateAgentArgs = {
+  name: string;
+  talent: string;
+  personality?: string;
+  soul?: string;
+  engine?: string;
+};
+
+export async function executeCreateAgent(
+  args: CreateAgentArgs,
+  context: ToolExecutionContext,
+) {
+  const { supabase, tenantId } = context;
+
+  const { data, error } = await supabase
+    .from("ai_agents")
+    .insert({
+      tenant_id: tenantId,
+      name: args.name,
+      talent: args.talent,
+      personality: args.personality || null,
+      soul: args.soul || null,
+      engine: args.engine || "gemini-3-flash",
+      active: true,
+    })
+    .select("id, name")
+    .single();
+  if (error) {
+    throw error;
+  }
+  return {
+    agent_id: data.id,
+    name: data.name,
+    message: `סוכן ${data.name} נוצר בהצלחה תחת כרמן`,
+  };
+}

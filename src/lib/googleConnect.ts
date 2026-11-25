@@ -1,36 +1,52 @@
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeFunctionErrorMessage } from "@/lib/edgeFunctionInvoke";
 import {
-  CONNECT_CODE_MESSAGE,
-  CONNECT_FRAGMENT_KEY,
-  GOOGLE_CONNECT_FUNCTIONS,
+  CONSENT_REFUSED_ERROR,
   type GoogleConnectFunction,
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
 } from "../../supabase/functions/_shared/google-oauth/handoff-contract.ts";
+import type { GoogleConnectCode } from "./googleConnectCode";
+import { popupAttempt, popupConnectResult } from "./googleConnectPopup";
 
 /**
  * Finishing a Google connect in the signed-in app. Google's redirect reaches
  * our edge function without an AIOS session, so the function hands the code
- * back (a popup message, or the URL fragment for full-page flows) and the app
- * sends it to `complete` with the user's session. The function refuses a code
- * whose connect another user started.
+ * back (a popup message, see googleConnectPopup.ts, or the URL fragment for
+ * full-page flows, see googleConnectFragment.ts) and the app sends it to
+ * `complete` with the user's session. The function refuses a code whose
+ * connect another user started.
  */
-
-const connectCodeSchema = z.object({
-  provider: z.enum(GOOGLE_CONNECT_FUNCTIONS),
-  code: z.string().min(1),
-  state: z.string().min(1),
-});
-
-export type GoogleConnectCode = z.infer<typeof connectCodeSchema>;
-
-const popupMessageSchema = connectCodeSchema.extend({
-  type: z.literal(CONNECT_CODE_MESSAGE),
-});
 
 /** How often to check whether the user closed the popup. */
 const POPUP_CLOSED_POLL_MS = 600;
 
-/** Sends the code to the function's `complete` action with the signed-in session. */
+/** The fallback when `complete` gives no reason; callers prefix their own "failed" text. */
+const TRY_AGAIN = "נסו להתחבר שוב.";
+
+/** What the app says for the error a connect returned with instead of a code. */
+const CONNECT_ERROR_TEXT = new Map<string, string>([
+  [CONSENT_REFUSED_ERROR, "החיבור ל-Google בוטל."],
+  [INVALID_STATE_ERROR, "קישור החיבור פג תוקף. נסו להתחבר שוב."],
+  [MISSING_CODE_ERROR, "Google לא החזיר אישור לחיבור. נסו להתחבר שוב."],
+]);
+
+/** Google's error codes are snake_case words; any other value came from a crafted link and is not shown. */
+const ERROR_CODE = /^[a-z_]{1,40}$/;
+
+/** The text to show for a connect's error code (Google's `error`, or ours). */
+export function connectErrorMessage(error: string): string {
+  const known = CONNECT_ERROR_TEXT.get(error);
+  if (known) {
+    return known;
+  }
+
+  return ERROR_CODE.test(error)
+    ? `Google החזיר שגיאה (${error}). ${TRY_AGAIN}`
+    : `החיבור ל-Google נכשל. ${TRY_AGAIN}`;
+}
+
+/** Sends the code to the function's `complete` action with the signed-in session; rejects with the function's reason. */
 export async function completeGoogleConnect({
   provider,
   code,
@@ -41,46 +57,14 @@ export async function completeGoogleConnect({
     { body: { action: "complete", code, state } },
   );
   if (error) {
-    throw error;
+    throw new Error(await edgeFunctionErrorMessage(error, TRY_AGAIN));
   }
-}
-
-/**
- * The code the popup posted for this connect attempt: from our edge function,
- * for this function, and carrying the state this attempt sent to Google, so
- * two overlapping attempts never complete the same code.
- */
-export function popupConnectCode(
-  event: MessageEvent,
-  provider: GoogleConnectFunction,
-  attemptState: string | null,
-  supabaseUrl: string = import.meta.env.VITE_SUPABASE_URL,
-): GoogleConnectCode | null {
-  if (
-    !URL.canParse(supabaseUrl) ||
-    event.origin !== new URL(supabaseUrl).origin
-  ) {
-    return null;
-  }
-
-  const message = popupMessageSchema.safeParse(event.data);
-  if (
-    !message.success ||
-    message.data.provider !== provider ||
-    message.data.state !== attemptState
-  ) {
-    return null;
-  }
-
-  const { code, state } = message.data;
-
-  return { provider, code, state };
 }
 
 /**
  * Opens Google's consent screen in a popup and resolves once the connect is
  * completed for the signed-in user. Rejects when the popup is blocked, closed
- * first, or `complete` fails.
+ * first, reports an error, or `complete` fails.
  */
 export function connectGoogleInPopup(
   authUrl: string,
@@ -93,7 +77,7 @@ export function connectGoogleInPopup(
     );
   }
 
-  const attemptState = new URL(authUrl).searchParams.get("state");
+  const attempt = popupAttempt(authUrl, provider);
 
   return new Promise<void>((resolve, reject) => {
     let closedTimer = 0;
@@ -101,13 +85,18 @@ export function connectGoogleInPopup(
       window.removeEventListener("message", onMessage);
       window.clearInterval(closedTimer);
     }
+
     function onMessage(event: MessageEvent) {
-      const code = popupConnectCode(event, provider, attemptState);
-      if (!code) {
+      const result = popupConnectResult(event, attempt);
+      if (!result) {
         return;
       }
       stop();
-      completeGoogleConnect(code).then(resolve, reject);
+      if ("error" in result) {
+        reject(new Error(connectErrorMessage(result.error)));
+        return;
+      }
+      completeGoogleConnect(result.code).then(resolve, reject);
     }
 
     window.addEventListener("message", onMessage);
@@ -118,16 +107,4 @@ export function connectGoogleInPopup(
       }
     }, POPUP_CLOSED_POLL_MS);
   });
-}
-
-/** The code a full-page connect left in the URL fragment, or null. */
-export function fragmentConnectCode(hash: string): GoogleConnectCode | null {
-  const params = new URLSearchParams(hash.replace(/^#/, ""));
-  const code = connectCodeSchema.safeParse({
-    provider: params.get(CONNECT_FRAGMENT_KEY),
-    code: params.get("code"),
-    state: params.get("state"),
-  });
-
-  return code.success ? code.data : null;
 }
