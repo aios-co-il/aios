@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { Globe, Mail, Phone } from "lucide-react";
+import { Globe } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import type { ClientRow } from "./clientRow";
 
 /** The grid card's website, phone and email, each only when set. */
@@ -12,14 +13,18 @@ export function ClientContactLines({ client }: { client: ClientRow }) {
         </ContactLine>
       )}
       {client.phone && (
-        <ContactLine icon={Phone} href={`tel:${client.phone}`}>
-          {client.phone}
-        </ContactLine>
+        <ContactValue
+          kind="phone"
+          value={client.phone}
+          className="flex text-muted-foreground"
+        />
       )}
       {client.email && (
-        <ContactLine icon={Mail} href={`mailto:${client.email}`}>
-          {client.email}
-        </ContactLine>
+        <ContactValue
+          kind="email"
+          value={client.email}
+          className="flex text-muted-foreground"
+        />
       )}
     </div>
   );

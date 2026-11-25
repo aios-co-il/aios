@@ -2,6 +2,10 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
+import {
+  ContactValue,
+  type ContactKind,
+} from "@/components/contact/ContactValue";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -540,8 +544,7 @@ export function CampaignersChatView({
                         <EditableRow
                           label=":טלפון"
                           value={selected.phone}
-                          isLink
-                          linkPrefix="tel:"
+                          contactKind="phone"
                           onSave={(v) =>
                             updateCampaignerField(selected.id, {
                               phone: v || null,
@@ -551,8 +554,7 @@ export function CampaignersChatView({
                         <EditableRow
                           label=":אימייל"
                           value={selected.email}
-                          isLink
-                          linkPrefix="mailto:"
+                          contactKind="email"
                           onSave={(v) =>
                             updateCampaignerField(selected.id, {
                               email: v || null,
@@ -802,16 +804,14 @@ function EditableRow({
   value,
   type = "text",
   placeholder,
-  isLink,
-  linkPrefix,
+  contactKind,
   onSave,
 }: {
   label: string;
   value: string | null | undefined;
   type?: "text" | "email" | "number" | "textarea";
   placeholder?: string;
-  isLink?: boolean;
-  linkPrefix?: string;
+  contactKind?: ContactKind;
   onSave: (v: string) => void | Promise<any>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -901,20 +901,12 @@ function EditableRow({
       {label && (
         <span className="text-muted-foreground text-sm shrink-0">{label}</span>
       )}
-      {isLink && value ? (
-        <a
-          href={`${linkPrefix || ""}${value}`}
-          target={
-            linkPrefix?.startsWith("http") || linkPrefix === undefined
-              ? "_blank"
-              : undefined
-          }
-          rel="noreferrer"
-          className="font-medium text-primary hover:underline truncate"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {value}
-        </a>
+      {contactKind && value ? (
+        <ContactValue
+          kind={contactKind}
+          value={value}
+          className="font-medium text-primary"
+        />
       ) : (
         <span className="font-medium whitespace-pre-wrap">
           {value || (

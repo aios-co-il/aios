@@ -8,7 +8,6 @@ import { isQueryResolving } from "@/lib/queryUi";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Phone,
   Trash2,
   Building2,
   LayoutGrid,
@@ -88,7 +87,7 @@ import {
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ResizableTable } from "@/components/ResizableTable";
-import { LeadContactLink } from "@/components/LeadsPage/LeadContactLink";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { useLeadTableColumnOrder } from "@/components/LeadsPage/useLeadTableColumnOrder";
 import { cn } from "@/lib/utils";
 import AddTaskForm from "@/components/forms/AddTaskForm";
@@ -390,12 +389,11 @@ function LeadCardContent({
       <CardContent className="px-4 pb-4 pt-2 space-y-3">
         {/* Phone */}
         {lead.phone && (
-          <div className="flex items-center gap-2 text-xs pb-3 border-b">
-            <Phone className="h-3 w-3 text-primary shrink-0" />
-            <LeadContactLink
+          <div className="flex items-center text-xs pb-3 border-b">
+            <ContactValue
               kind="phone"
               value={lead.phone}
-              className="hover:underline font-medium text-primary"
+              className="font-medium text-primary"
             />
           </div>
         )}
@@ -4832,13 +4830,7 @@ function TableWithStickyScroll({
                   field.type,
                 );
                 if (field.key === "email" && text !== "—") {
-                  return (
-                    <LeadContactLink
-                      kind="email"
-                      value={text}
-                      className="block max-w-full truncate text-right hover:underline"
-                    />
-                  );
+                  return <ContactValue kind="email" value={text} />;
                 }
                 const link =
                   field.key === "folder_link" && /^https?:\/\//i.test(text)
