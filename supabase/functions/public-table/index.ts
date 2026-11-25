@@ -83,6 +83,11 @@ function getDateRange(filter: string): {
         startDate: fmt(subDays(today, 7)),
         endDate: fmt(subDays(today, 1)),
       };
+    case "last_9_days":
+      return {
+        startDate: fmt(subDays(today, 9)),
+        endDate: fmt(subDays(today, 1)),
+      };
     case "last_14_days":
       return {
         startDate: fmt(subDays(today, 14)),

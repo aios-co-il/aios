@@ -260,6 +260,7 @@ export default function DynamicTableView({
     { value: "this_week", label: "השבוע" },
     { value: "last_week", label: "שבוע שעבר" },
     { value: "last_7_days", label: "7 ימים אחרונים" },
+    { value: "last_9_days", label: "9 ימים אחרונים" },
     { value: "last_14_days", label: "14 יום" },
     { value: "last_30_days", label: "30 יום" },
     { value: "last_60_days", label: "60 יום" },
@@ -315,6 +316,7 @@ export default function DynamicTableView({
       case "this_week":
       case "last_week":
       case "last_7_days":
+      case "last_9_days":
       case "last_14_days":
       case "last_30_days":
       case "last_60_days":

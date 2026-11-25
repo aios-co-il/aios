@@ -15,6 +15,14 @@ describe("previousPeriodRange", () => {
     ).toStrictEqual({ startDate: "2026-09-21", endDate: "2026-09-30" });
   });
 
+  it("puts the 9 days before the last 9 days", () => {
+    // Last 9 days: 1–9 Nov, so the 9 days before are 23–31 Oct.
+    expect(previousPeriodRange("last_9_days", null, null, NOW)).toStrictEqual({
+      startDate: "2026-10-23",
+      endDate: "2026-10-31",
+    });
+  });
+
   it("compares this month so far with as many days before it", () => {
     expect(previousPeriodRange("this_month", null, null, NOW)).toStrictEqual({
       startDate: "2026-10-22",

@@ -23,6 +23,7 @@ export const COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -42,6 +43,7 @@ export const SHARED_TABLE_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -141,6 +143,11 @@ export function getDashboardDateRange(
     case "last_7_days":
       return {
         startDate: fmt(subDays(today, 7)),
+        endDate: fmt(subDays(today, 1)),
+      };
+    case "last_9_days":
+      return {
+        startDate: fmt(subDays(today, 9)),
         endDate: fmt(subDays(today, 1)),
       };
     case "last_14_days":
