@@ -30,6 +30,11 @@ describe("dailyRunMinutes", () => {
       dailyRunMinutes("10 5,8,11,14,17 * * *"),
       [310, 490, 670, 850, 1030],
     );
+  });
+});
+
+describe("ADS_SYNC_RUNS_PER_DAY", () => {
+  it("counts five scheduled runs a day", () => {
     assertEquals(ADS_SYNC_RUNS_PER_DAY, 5);
   });
 });

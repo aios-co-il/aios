@@ -6,6 +6,7 @@ import {
   resyncAllowedAt,
 } from "./refresh-windows.ts";
 
+/** The instant `time` (HH:MM, UTC) on 2026-11-25. */
 function at(time: string): Date {
   return new Date(`2026-11-25T${time}:00Z`);
 }

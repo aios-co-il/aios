@@ -77,6 +77,7 @@ Deno.test(
   "isSyncStale: a day of failed runs is stale, two runs 3h apart are not",
   () => {
     // The last write came one run before the first failure; runs are 3h apart.
+    /** A table whose last `streak` runs failed. */
     function table(streak: number) {
       const lastWrite = iso(NOW - (streak + 1) * 3 * HOUR);
       return {

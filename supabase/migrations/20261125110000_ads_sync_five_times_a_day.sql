@@ -2,7 +2,8 @@
 -- from 05:00 to 17:00 UTC (07:00, 10:00, 13:00, 16:00, 19:00 in Israel winter
 -- time; one hour later in summer). Each job keeps its minute (Meta insights :00,
 -- Meta ecommerce :05, Google Ads :10) so the three chains do not start together.
--- The schedules match ADS_SYNC_SCHEDULES in src/lib/cronJobsCatalog.ts.
+-- ADS_SYNC_SCHEDULES in supabase/functions/_shared/ads-sync/schedules.ts is the
+-- source of truth; its test checks these schedules match it.
 --
 -- Only the schedule changes: commands, keys and bodies stay as they are, so this
 -- migration carries no key. The job names keep "twice-daily": pg_cron cannot

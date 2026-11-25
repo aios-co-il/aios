@@ -40,8 +40,6 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
   ...SYSTEM_CRON_JOBS,
 };
 
-export { ADS_SYNC_SCHEDULES } from "../../supabase/functions/_shared/ads-sync/schedules.ts";
-
 /** WooCommerce syncs twice a day; its morning run starts 15 minutes before the first ads sync. */
 export const WOO_SYNC_SCHEDULE = {
   jobname: "sync-woocommerce-twice-daily",
