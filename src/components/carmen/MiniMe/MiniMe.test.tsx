@@ -4,13 +4,6 @@ import { MiniMe } from "./MiniMe";
 import { MiniMeGenderContext, resolveMiniMeGender } from "./miniMeGender";
 import { CARMEN_ROLES } from "../../../../supabase/functions/_shared/carmen/skin-roles";
 
-/** The image file each rendered Mini Me shows, in document order. */
-function shownImages(container: HTMLElement) {
-  return [...container.querySelectorAll("img")].map((img) =>
-    img.getAttribute("src"),
-  );
-}
-
 describe("MiniMe", () => {
   it("shows the skin's own render", () => {
     const { container } = render(<MiniMe skin="cfo" label="כספים" />);
@@ -70,3 +63,10 @@ describe("resolveMiniMeGender", () => {
     expect(resolveMiniMeGender("other", "male")).toBe("male");
   });
 });
+
+/** The image file each rendered Mini Me shows, in document order. */
+function shownImages(container: HTMLElement) {
+  return [...container.querySelectorAll("img")].map((img) =>
+    img.getAttribute("src"),
+  );
+}
