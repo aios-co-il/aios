@@ -1,9 +1,9 @@
-import { resolveModel } from "./llm/model.ts";
+import { resolveModelId } from "../_shared/models.ts";
 import { resolveLLMTarget } from "./llm/target.ts";
 
 import type { LLMTarget } from "./llm/contracts.ts";
 
-import { FAST_LANE_MODELS } from "./llm/models.ts";
+import { FAST_LANE_MODELS } from "./llm/fallback-models.ts";
 
 import { buildLLMChain } from "./llm/chain.ts";
 import { connectedBrainHint } from "./llm/connection-hint.ts";
@@ -3527,7 +3527,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
     }
 
     // 5. Run agent with tool loop
-    const model = resolveModel(
+    const model = resolveModelId(
       modelOverride || agent.engine || "gemini-3-flash",
     );
     // A workshop step needs a look at the project, the tools, and a reply: give it room for that
@@ -3834,7 +3834,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: true,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
@@ -3913,7 +3913,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!execResult?.success,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,
@@ -3988,7 +3988,7 @@ ${relevantLongTermMemory.map((item: any) => `• [${item.label}] ${item.text}`).
           success: !!digest,
           output: finalOutput,
           agent_name: agent.name,
-          model: resolveModel(
+          model: resolveModelId(
             modelOverride || agent.engine || "gemini-3-flash",
           ),
           execution_time_ms: executionTime,

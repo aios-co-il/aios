@@ -1,5 +1,5 @@
 import type { DbClient } from "../../_shared/supabase-clients.ts";
-import { providerOf } from "./provider.ts";
+import { llmEndpoint } from "../../_shared/llm-endpoint.ts";
 
 // Surface an automatic provider switch so David sees it (intel feed + WhatsApp).
 // Deduped to once per 30 min so a sustained outage doesn't spam the channel.
@@ -30,7 +30,7 @@ export async function recordProviderFailover(
       .from("integration_alerts_log")
       .insert({
         tenant_id: tenantId,
-        provider: providerOf(toLabel),
+        provider: llmEndpoint(toLabel).provider,
         alert_type: "provider_failover",
         reason: `כרמן עברה אוטומטית מ-${fromLabel} ל-${toLabel} (${reason})`,
       });
