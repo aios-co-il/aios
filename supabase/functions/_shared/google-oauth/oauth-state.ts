@@ -23,6 +23,27 @@ const oauthStateSchema = z.object({
 
 export type OAuthState = z.infer<typeof oauthStateSchema>;
 
+const claimedOriginSchema = z.object({ origin: z.string().nullable() });
+
+/**
+ * The app origin an unverified state claims, or null. Only for choosing where
+ * a callback error goes: callers pass it through allowedAppOrigin, and never
+ * trust the state's user or tenant without verifyOAuthState.
+ */
+export function claimedStateOrigin(state: string): string | null {
+  const [body] = state.split(".");
+  if (!body) {
+    return null;
+  }
+  try {
+    const claimed = claimedOriginSchema.safeParse(decodeJson(body));
+    return claimed.success ? claimed.data.origin : null;
+  } catch (error) {
+    console.warn("OAuth state is not readable:", String(error));
+    return null;
+  }
+}
+
 export type OAuthStateInput = Omit<OAuthState, "exp">;
 
 /** The key that signs OAuth state, derived from GOOGLE_CLIENT_SECRET. Throws when it is unset, so connects fail closed. */
@@ -81,7 +102,7 @@ function toBase64Url(text: string): string {
   return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** The JSON a body holds. Called only after the HMAC check, so the body is one signOAuthState wrote. */
+/** The JSON a body holds. Throws when the body is not base64url JSON. */
 function decodeJson(body: string): unknown {
   return JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
 }

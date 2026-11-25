@@ -103,11 +103,28 @@ describe("handleAdPreview", () => {
     }
   });
 
+  it("accepts Meta's preview page on business.facebook.com", async () => {
+    const src =
+      "https://business.facebook.com/ads/api/preview_iframe.php?d=AQ1&t=AQ2";
+    const { deps } = setup({
+      graph: { status: 200, body: graphPreview(src) },
+    });
+
+    const reply = await handleAdPreview(
+      { table_id: TABLE_ID, ad_id: AD_ID },
+      deps,
+    );
+
+    assertEquals(reply, { status: 200, body: { src } });
+  });
+
   it("refuses an iframe that does not frame Meta's preview page", async () => {
     for (const src of [
       "https://evil.example/ads/api/preview_iframe.php?d=1",
       "http://www.facebook.com/ads/api/preview_iframe.php?d=1",
       "https://www.facebook.com/login.php?next=1",
+      "https://business.facebook.com.evil.example/ads/api/preview_iframe.php",
+      "https://evil.facebook.com/ads/api/preview_iframe.php?d=1",
       "javascript:alert(1)",
     ]) {
       const { deps } = setup({

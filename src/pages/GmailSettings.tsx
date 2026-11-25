@@ -107,7 +107,7 @@ export default function GmailSettings() {
     },
     onError: (error) => {
       console.error("Gmail connect failed:", error);
-      toast.error("שגיאה בחיבור Gmail");
+      toast.error(`שגיאה בחיבור Gmail: ${error.message}`);
     },
   });
 
@@ -319,7 +319,10 @@ export default function GmailSettings() {
               </Button>
             </div>
           ) : (
-            <Button onClick={connectGmail}>
+            <Button
+              onClick={connectGmail}
+              disabled={connectGmailMutation.isPending}
+            >
               <Mail className="h-4 w-4 ml-2" />
               חבר חשבון Gmail
             </Button>

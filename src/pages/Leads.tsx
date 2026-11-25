@@ -3241,7 +3241,10 @@ export default function Leads() {
           {leadsResolving ? (
             <CarmenLoadingScreen
               variant="card"
-              messages={["כרמן מושכת את הלידים…", "מסדרת לפי שלב בצינור…"]}
+              messages={[
+                "{name} {מושכת|מושך} את הלידים…",
+                "{מסדרת|מסדר} לפי שלב בצינור…",
+              ]}
             />
           ) : leads?.length === 0 ? (
             <LeadsEmptyState />

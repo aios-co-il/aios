@@ -6,11 +6,10 @@ import {
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
+import { popupCallbackResponse } from "../_shared/google-oauth/popup-handoff.ts";
 import {
   oauthStateSecret,
   signOAuthState,
-  verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import {
   UserFacingError,
@@ -19,6 +18,7 @@ import {
 import { serviceClient } from "../_shared/supabase-clients.ts";
 import { buildGmailAuthorizeUrl } from "./authorize-url.ts";
 import { storeGmailConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 // Gmail OAuth integration v1
 
 const corsHeaders = {
@@ -35,32 +35,15 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const queryAction = url.searchParams.get("action");
-    const hasOAuthCode = !!url.searchParams.get("code");
-    const hasOAuthState = !!url.searchParams.get("state");
+    // Google returns with a code, or with an error when consent was refused.
+    const isGoogleReturn =
+      url.searchParams.has("state") &&
+      (url.searchParams.has("code") || url.searchParams.has("error"));
 
-    // OAuth callback
-    if (queryAction === "callback" || (hasOAuthCode && hasOAuthState)) {
-      const code = url.searchParams.get("code");
-      if (!code) {
-        throw new Error("No authorization code provided");
-      }
-
-      const state = await verifyOAuthState(
-        url.searchParams.get("state"),
-        oauthStateSecret(),
-      );
-      if (!state?.tenantId) {
-        throw new UserFacingError(
-          "This connect link is invalid or has expired. Close this window and connect Gmail again.",
-        );
-      }
-
-      return popupHandoffPage(
-        "gmail-auth",
-        state,
-        code,
-        url.searchParams.get("state") ?? "",
-      );
+    if (queryAction === "callback" || isGoogleReturn) {
+      return await popupCallbackResponse("gmail-auth", url, {
+        requireTenant: true,
+      });
     }
 
     // Authenticated actions
@@ -124,7 +107,7 @@ Deno.serve(async (req) => {
         throw new Error("Missing GOOGLE_CLIENT_ID");
       }
 
-      const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/gmail-auth`;
+      const redirectUri = callbackUri("gmail-auth", null);
       const tenantId = requestBody.tenantId;
       if (!tenantId) {
         throw new Error("Missing tenantId");
