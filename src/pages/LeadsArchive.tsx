@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArchiveRestore, Trash2, ArrowRight, Search } from "lucide-react";
+import { ContactValue } from "@/components/contact/ContactValue";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -237,8 +238,12 @@ export default function LeadsArchive() {
                     {lead.contact_name || "—"}
                   </TableCell>
                   <TableCell>{lead.company_name || "—"}</TableCell>
-                  <TableCell className="font-mono text-sm" dir="ltr">
-                    {lead.phone || "—"}
+                  <TableCell className="text-sm">
+                    {lead.phone ? (
+                      <ContactValue kind="phone" value={lead.phone} />
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {lead.archived_at

@@ -6,7 +6,7 @@ Follow the merge and production approval rules in root `AGENTS.md`.
 - `develop` merges through a merge queue (squash). The queue rebuilds each PR on top of `develop` and the PRs ahead of it and runs CI on the `merge_group` event; a PR that conflicts or fails CI leaves the queue and the rest continue. Before David queues a PR, it has no conflict with `develop` and its CI is green. A CI job that the ruleset requires must run on `merge_group`, or the queue waits for it forever.
 - Before opening, updating or reviewing a `develop` → `main` release PR, run `/release-check`.
 - History is linear on `main` and `develop`; never merge between them. Hotfix: PR to `main` (rebase-merge), then a second PR cherry-picking the same commit onto `develop`. The `Check develop has main` run on each `main` push fails until that port lands. See `docs/ENVIRONMENTS.md`.
-- After each completed branch change and follow-up push, send David the Vercel Preview URL and in-app path when known. For `develop`, use the stable alias `https://after-lead-git-develop-aios-crm.vercel.app`; include the custom domain only after the verification described in `docs/ENVIRONMENTS.md`.
+- After each completed branch change and follow-up push, send David the Vercel Preview URL and in-app path when known. For `develop`, use the Staging URL in `docs/ENVIRONMENTS.md` (Canonical URLs).
 - Tenant pages require `/t/<tenant-slug-or-id>/…`; bare routes such as `/signatures` 404. Public routes such as `/sign/:token` are the exception.
 - Each agent sends its own preview; nobody merges on another agent's behalf.
 - For edge-function changes, also follow `docs/agents/development.md` for deployment verification.

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -46,10 +47,8 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
     }
   };
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label} הועתק`);
-  };
+  const copyLabelled = (text: string, label: string) =>
+    void copyToClipboard(text, `${label} הועתק`);
 
   // The clients list does not carry the saved links, so they load here.
   const { links } = useClientAdLinks(client.id);
@@ -90,10 +89,7 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
                     size="icon"
                     className="h-6 w-6 shrink-0"
                     onClick={() =>
-                      copyToClipboard(
-                        client.meta_ads_account_id,
-                        "מזהה Meta Ads",
-                      )
+                      copyLabelled(client.meta_ads_account_id, "מזהה Meta Ads")
                     }
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -135,7 +131,7 @@ export function ClientDocsEditor({ client, tenantId }: ClientDocsEditorProps) {
                     size="icon"
                     className="h-6 w-6 shrink-0"
                     onClick={() =>
-                      copyToClipboard(
+                      copyLabelled(
                         client.google_ads_account_id,
                         "מזהה Google Ads",
                       )

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -311,10 +312,8 @@ export default function ManusWhatsAppSettings({
       toast({ variant: "destructive", title: "שגיאה", description: e.message }),
   });
 
-  const copy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "הועתק ללוח", description: label });
-  };
+  const copy = (text: string, label: string) =>
+    void copyToClipboard(text, "הועתק ללוח", label);
 
   return (
     <div

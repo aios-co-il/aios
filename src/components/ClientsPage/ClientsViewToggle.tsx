@@ -1,19 +1,10 @@
-import { LayoutGrid, MessageCircle, Table as TableIcon } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  CLIENT_VIEW_OPTIONS,
+  type ClientsViewMode,
+} from "./clientsViewOptions";
 
-/** The three ways the Clients screen lays out its list. */
-export type ClientsViewMode = "grid" | "table" | "chat";
-
-const VIEW_OPTIONS: ReadonlyArray<{
-  value: ClientsViewMode;
-  label: string;
-  icon: LucideIcon;
-}> = [
-  { value: "chat", label: "כרטיס לקוח", icon: MessageCircle },
-  { value: "grid", label: "כרטיסים", icon: LayoutGrid },
-  { value: "table", label: "טבלה", icon: TableIcon },
-];
+export type { ClientsViewMode } from "./clientsViewOptions";
 
 /**
  * A segmented control for the list layout; labels collapse to icons on small
@@ -33,7 +24,7 @@ export function ClientsViewToggle({
       aria-label="תצוגה"
       className="flex shrink-0 items-center gap-0.5 rounded-xl bg-surface-inset p-1"
     >
-      {VIEW_OPTIONS.map(({ value: mode, label, icon: Icon }) => {
+      {CLIENT_VIEW_OPTIONS.map(({ value: mode, label, icon: Icon }) => {
         const selected = value === mode;
         return (
           <button

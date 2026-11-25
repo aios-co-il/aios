@@ -4,18 +4,15 @@ import {
   isCompleteRefusal,
   readCompleteRequest,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { popupHandoffPage } from "../_shared/google-oauth/handoff-response.ts";
+import { popupCallbackResponse } from "../_shared/google-oauth/popup-handoff.ts";
 import {
   oauthStateSecret,
   signOAuthState,
-  verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
-import {
-  UserFacingError,
-  userFacingMessage,
-} from "../_shared/google-oauth/user-facing-error.ts";
+import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { buildCalendarAuthorizeUrl } from "./authorize-url.ts";
 import { storeCalendarConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,27 +31,9 @@ Deno.serve(async (req) => {
 
     // For OAuth callback, action comes from URL
     if (queryAction === "callback") {
-      const code = url.searchParams.get("code");
-      if (!code) {
-        throw new Error("No authorization code provided");
-      }
-
-      const state = await verifyOAuthState(
-        url.searchParams.get("state"),
-        oauthStateSecret(),
-      );
-      if (!state) {
-        throw new UserFacingError(
-          "This connect link is invalid or has expired. Close this window and connect Calendar again.",
-        );
-      }
-
-      return popupHandoffPage(
-        "google-calendar-auth",
-        state,
-        code,
-        url.searchParams.get("state") ?? "",
-      );
+      return await popupCallbackResponse("google-calendar-auth", url, {
+        requireTenant: false,
+      });
     }
 
     // For all other actions, require authentication
@@ -155,8 +134,6 @@ Deno.serve(async (req) => {
     }
 
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
-    const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-    const redirectUri = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-calendar-auth?action=callback`;
 
     // Initial auth request - redirect to Google
     if (action === "init") {
@@ -165,19 +142,29 @@ Deno.serve(async (req) => {
         throw new Error("Missing GOOGLE_CLIENT_ID secret");
       }
 
-      // Only force consent on the very first connect (so Google issues a refresh_token).
-      // For reconnects we already have a refresh_token, so we skip prompt=consent to
-      // avoid Google rotating/invalidating the existing offline grant unnecessarily.
-      const { data: existingToken } = await supabaseClient
-        .from("calendar_tokens")
-        .select("refresh_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const hasExistingRefresh = !!existingToken?.refresh_token;
+      // Consent (and so a new refresh_token) is skipped only when the stored one
+      // can be reused: a reconnect without consent gets no refresh_token, and
+      // complete reuses the stored one only for the same, known Google account.
+      // A token marked needs_reconnect stopped working, so it is never reused.
+      const { data: existingToken, error: existingTokenError } =
+        await supabaseClient
+          .from("calendar_tokens")
+          .select("refresh_token, google_email, needs_reconnect")
+          .eq("user_id", user.id)
+          .maybeSingle();
+      if (existingTokenError) {
+        throw new Error(
+          `calendar_tokens lookup failed: ${existingTokenError.message}`,
+        );
+      }
+      const canReuseRefresh =
+        !!existingToken?.refresh_token &&
+        !!existingToken.google_email &&
+        !existingToken.needs_reconnect;
 
       const authUrl = buildCalendarAuthorizeUrl({
         clientId,
-        redirectUri,
+        redirectUri: callbackUri("google-calendar-auth", "callback"),
         state: await signOAuthState(
           {
             userId: user.id,
@@ -187,7 +174,7 @@ Deno.serve(async (req) => {
           },
           oauthStateSecret(),
         ),
-        forceConsent: !hasExistingRefresh,
+        forceConsent: !canReuseRefresh,
       });
 
       return new Response(JSON.stringify({ authUrl }), {

@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -651,10 +652,8 @@ export default function MetaWhatsAppSettings({
     },
   });
 
-  const copyWebhook = async () => {
-    await navigator.clipboard.writeText(webhookUrl);
-    toast.success("כתובת ה-Webhook הועתקה");
-  };
+  const copyWebhook = () =>
+    void copyToClipboard(webhookUrl, "כתובת ה-Webhook הועתקה");
 
   return (
     <div

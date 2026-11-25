@@ -1,13 +1,15 @@
 // redeploy trigger: rebundle _shared/meeting-summary.ts (rich summary structure + summary_md persistence)
-// Post-upload orchestrator for Chrome-extension screen recordings.
-// The extension uploads video + low-bitrate audio to the `recordings` bucket,
-// inserts a zoom_recordings row (source='chrome_extension'), then calls this
-// function. It responds 202 immediately and continues in the background:
+// Post-upload orchestrator for uploaded recordings: Chrome-extension screen
+// recordings (video + low-bitrate audio, source='chrome_extension') and manual
+// uploads from the Recordings page and lead cards (source='manual'). The
+// uploader inserts a zoom_recordings row, then calls this function. It responds
+// 202 immediately and continues in the background:
 //   transcribe (from audio_file_path) → if client assigned: Hebrew summary →
 //   DOCX → client attachments → auto marketing brief (draft).
 import type {} from "../_shared/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { runRecordingPipeline } from "../_shared/recording-pipeline.ts";
+import { briefSourceFor } from "./brief-source.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
         await runRecordingPipeline(admin, {
           recording,
           createdByUserId: user.id,
-          briefSource: "chrome_extension",
+          briefSource: briefSourceFor(recording.source),
         });
       } catch (err) {
         console.error("[ingest-extension-recording] background error:", err);
