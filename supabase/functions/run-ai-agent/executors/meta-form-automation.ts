@@ -12,7 +12,8 @@ export async function findAutomationForMetaForm(
     Pick<Tables<"automations">, "id" | "name" | "active" | "tenant_id">
   > = [];
   const pageSize = 100;
-  for (let offset = 0; ; offset += pageSize) {
+  let cursor: { name: string; id: string } | undefined;
+  for (;;) {
     let query = supabase
       .from("automations")
       .select("id, name, active, tenant_id")
@@ -21,10 +22,16 @@ export async function findAutomationForMetaForm(
     if (automationId) {
       query = query.eq("id", String(automationId));
     }
+    if (cursor) {
+      const name = JSON.stringify(cursor.name);
+      query = query.or(
+        `name.gt.${name},and(name.eq.${name},id.gt.${cursor.id})`,
+      );
+    }
     const { data, error } = await query
       .order("name")
       .order("id")
-      .range(offset, offset + pageSize - 1);
+      .limit(pageSize);
     if (error) {
       throw error;
     }
@@ -39,6 +46,7 @@ export async function findAutomationForMetaForm(
     if (automationId || page.length < pageSize) {
       break;
     }
+    cursor = page[page.length - 1];
   }
   if (matches.length === 0) {
     throw new Error("לא נמצאה אוטומציה תואמת בארגון");

@@ -35,8 +35,8 @@ Deno.test(
     );
     assertEquals(fixture.calls.length, 2);
     assertEquals(
-      new URL(fixture.calls[1].url).searchParams.get("offset"),
-      "100",
+      new URL(fixture.calls[1].url).searchParams.get("or"),
+      '(name.gt."Middle 98",and(name.eq."Middle 98",id.gt.middle-98))',
     );
     for (const call of fixture.calls) {
       const url = new URL(call.url);
@@ -126,5 +126,30 @@ Deno.test(
       Error,
       "נמצאו כמה אוטומציות",
     );
+  },
+);
+
+Deno.test(
+  "deleting an already-read flow cannot shift a second match past the cursor",
+  async () => {
+    let requests = 0;
+    const fixture = executorClient([], 200, {}, undefined, (url) => {
+      if (++requests === 1) {
+        return firstPage;
+      }
+      return url.searchParams.has("offset") ? [] : [last];
+    });
+    await assertRejects(
+      () =>
+        findAutomationForMetaForm(
+          fixture.context.supabase,
+          ["tenant"],
+          undefined,
+          "Sales",
+        ),
+      Error,
+      "נמצאו כמה אוטומציות",
+    );
+    assertEquals(requests, 2);
   },
 );

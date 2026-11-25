@@ -131,7 +131,7 @@ Deno.test(
     assertEquals(fixture.calls[0].body, {
       action: "send_message",
       tenantId: "t1",
-      task_id: "task",
+      taskId: "task",
       message: "test",
     });
 
@@ -179,5 +179,18 @@ Deno.test(
     await assertRejects(() =>
       executeSendMessageToManus({ message: "test" }, fixture.context),
     );
+  },
+);
+
+Deno.test(
+  "Manus follow-up leaves target selection to the handler when no task is supplied",
+  async () => {
+    const fixture = executorClient([{ task_id: "agent-default-main_task" }]);
+    await executeSendMessageToManus({ message: "test" }, fixture.context);
+    assertEquals(fixture.calls[0].body, {
+      action: "send_message",
+      tenantId: "t1",
+      message: "test",
+    });
   },
 );

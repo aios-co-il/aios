@@ -13,14 +13,14 @@ export async function executeSendMessageToManus(
     action: string;
     tenantId: string;
     message: string;
-    task_id?: string;
+    taskId?: string;
   } = {
     action: "send_message",
     tenantId,
     message: args.message,
   };
   if (args.task_id) {
-    msgBody.task_id = args.task_id;
+    msgBody.taskId = args.task_id;
   }
   const msgRes = await invokeExecutorFunction(
     supabase,

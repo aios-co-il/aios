@@ -23,6 +23,12 @@ export async function executeExecutePendingApproval(
     waNotify,
   } = context;
 
+  const wantedId = asUuidOrNull(args.approval_id);
+  if (args.approval_id && !wantedId) {
+    console.warn("[approval] refused malformed explicit approval ID");
+    return { ...approvalPickToolResult(null), error: "approval_not_bound" };
+  }
+
   // AIO-230: others' requests are approved by "כן <קוד>" or in the approvals screen.
   const pick = await loadApprovalPick(supabase, tenantId, {
     userId: actorUserId,
@@ -31,7 +37,6 @@ export async function executeExecutePendingApproval(
     waChatId: waNotify?.chat_id,
     phone: callerPhone,
   });
-  const wantedId = asUuidOrNull(args.approval_id);
   if (pick.kind !== "match" || (wantedId && wantedId !== pick.row.id)) {
     return approvalPickToolResult(pick, { requestedId: wantedId });
   }
