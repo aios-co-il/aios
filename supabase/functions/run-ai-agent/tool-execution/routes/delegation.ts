@@ -7,7 +7,6 @@ import { executeGetSubagentResult } from "../../executors/get-subagent-result.ts
 import { executeDelegateParallel } from "../../executors/delegate-parallel.ts";
 import { executeGetBatchResults } from "../../executors/get-batch-results.ts";
 
-/** delegation tool routes; argument assertions retain the legacy tool boundary. */
 export const delegationRoutes: Record<string, ToolRoute> = {
   delegate_to_manus: bindToolRoute(executeDelegateToManus),
   send_message_to_manus: bindToolRoute(executeSendMessageToManus),

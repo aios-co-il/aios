@@ -6,7 +6,6 @@ import { executeCancelCalendarInvite } from "../../executors/cancel-calendar-inv
 import { executeJoinMeetingForClient } from "../../executors/join-meeting-for-client.ts";
 import { executeGetMeetingBotStatus } from "../../executors/get-meeting-bot-status.ts";
 
-/** calendar-tool tool routes; argument assertions retain the legacy tool boundary. */
 export const calendarToolRoutes: Record<string, ToolRoute> = {
   send_calendar_invite: bindToolRoute(executeSendCalendarInvite),
   list_calendar_events: bindToolRoute(executeListCalendarEvents),

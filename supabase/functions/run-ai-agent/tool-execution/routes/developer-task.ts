@@ -8,7 +8,6 @@ import { executeListDevTasks } from "../../executors/list-dev-tasks.ts";
 import { executeUpdateDevTask } from "../../executors/update-dev-task.ts";
 import { executeAttachDevTaskSession } from "../../executors/attach-dev-task-session.ts";
 
-/** developer-task tool routes; argument assertions retain the legacy tool boundary. */
 export const developerTaskRoutes: Record<string, ToolRoute> = {
   assign_task_to_cursor: bindToolRoute(executeAssignTaskToCursor),
   find_dev_task_duplicates: bindToolRoute(executeFindDevTaskDuplicates),

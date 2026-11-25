@@ -14,10 +14,13 @@ export function executeWithContext(
   if (isWorkshopTool(context.name)) {
     return executeWorkshopRoute(args, context, execute);
   }
+
   const native = nativeToolRoute(args, context);
+
   if (native) {
     return native.result;
   }
+
   // A switch matched string keys strictly; object prototypes and coerced arrays never matched.
   if (
     typeof context.name === "string" &&
@@ -25,5 +28,6 @@ export function executeWithContext(
   ) {
     return TOOL_ROUTES[context.name](args, context, execute);
   }
+
   throw new Error(`Unknown tool: ${context.name}`);
 }

@@ -32,6 +32,7 @@ Deno.test("service-only fields: source guards", async (t) => {
         "Deno.serve must call bindRunAgentCaller(bodyJson, auth)",
       );
       assert(bindAt > serve.indexOf("await req.json()"));
+
       for (const later of [
         "bodyJson.direct_tool",
         "const surface: Surface",
@@ -43,6 +44,7 @@ Deno.test("service-only fields: source guards", async (t) => {
           `bindRunAgentCaller must run before ${later}`,
         );
       }
+
       assertMatch(
         agent,
         /import \{[^}]*\bbindRunAgentCaller\b[^}]*\} from "\.\.\/caller-trust\.ts";/,
@@ -69,6 +71,7 @@ Deno.test("service-only fields: source guards", async (t) => {
       );
       const calls = automation.split("fetch(agentUrl, {").slice(1);
       assert(calls.length >= 1);
+
       for (const call of calls) {
         assertMatch(
           call.slice(0, 300),
@@ -83,6 +86,7 @@ Deno.test("service-only fields: source guards", async (t) => {
     () => {
       const files = walk(new URL("../../../src/", import.meta.url));
       assert(files.length > 0);
+
       for (const file of files) {
         const src = readFileSync(file, "utf8");
         assertNotMatch(src, /\blead_data\b|\bwa_notify\b/, String(file));
@@ -161,6 +165,7 @@ Deno.test("automation and task runs: source guards", async (t) => {
 function walk(dir: URL, out: Array<URL> = []): Array<URL> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = new URL(entry.name + (entry.isDirectory() ? "/" : ""), dir);
+
     if (entry.isDirectory()) {
       walk(full, out);
     } else if (/\.(ts|tsx)$/.test(entry.name)) {

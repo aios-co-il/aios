@@ -1,12 +1,8 @@
 import type { BackgroundRuntime } from "../background-runtime.ts";
-declare const EdgeRuntime: BackgroundRuntime;
-import type { FinalRunPayload } from "./stream-types.ts";
 import { corsHeaders } from "../runtime.ts";
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { SUPABASE_URL } from "../runtime.ts";
 import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
-
 import { handleRunAgent } from "../run/handle.ts";
 import { createReplyRecorder } from "../../_shared/carmen/background-reply.ts";
 import { parseReplyKey } from "../../_shared/carmen/background-reply.ts";
@@ -15,6 +11,8 @@ import type {
   AgentStreamInput,
   AgentStreamDependencies,
 } from "./stream-types.ts";
+
+declare const EdgeRuntime: BackgroundRuntime;
 
 /** Continues the turn and reply recording even when the SSE writer disconnects. */
 export function createAgentStream(
@@ -37,9 +35,9 @@ export function createAgentStream(
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      /** Retains the original emit helper. */
       function emit(obj: unknown) {
         recorder.observe(obj as Parameters<typeof recorder.observe>[0]);
+
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
         } catch {
@@ -48,6 +46,7 @@ export function createAgentStream(
       }
       const turn = (async () => {
         let final: FinalRunPayload = {};
+
         try {
           const resp = await dependencies.handleRunAgent(
             bodyJson,
@@ -60,11 +59,13 @@ export function createAgentStream(
             },
             internalTail,
           );
+
           try {
             final = await resp.json();
           } catch {
             /* ignore */
           }
+
           emit({
             type: "done",
             success: final.success !== false,
@@ -89,9 +90,11 @@ export function createAgentStream(
             /* ignore */
           }
         }
+
         // Only the chat that sent a reply_key gets its answer saved here; the
         // other streaming callers keep saving their own replies.
         const replyKey = parseReplyKey(bodyJson.reply_key);
+
         if (
           surface === "internal_chat" &&
           replyKey &&
@@ -112,9 +115,11 @@ export function createAgentStream(
             .catch((e) => console.error("[carmen] reply save failed:", e));
         }
       })();
+
       if (typeof EdgeRuntime !== "undefined") {
         EdgeRuntime.waitUntil(turn);
       }
+
       await turn;
     },
   });
@@ -127,4 +132,11 @@ export function createAgentStream(
       Connection: "keep-alive",
     },
   });
+}
+
+interface FinalRunPayload {
+  success?: unknown;
+  output?: unknown;
+  tools_used?: unknown;
+  error?: unknown;
 }

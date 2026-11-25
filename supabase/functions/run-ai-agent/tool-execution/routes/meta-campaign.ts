@@ -7,7 +7,6 @@ import { executeListFacebookAds } from "../../executors/list-facebook-ads.ts";
 import { executeInspectFacebookAd } from "../../executors/inspect-facebook-ad.ts";
 import { executeDuplicateFacebookAdVariants } from "../../executors/duplicate-facebook-ad-variants.ts";
 
-/** meta-campaign tool routes; argument assertions retain the legacy tool boundary. */
 export const metaCampaignRoutes: Record<string, ToolRoute> = {
   get_facebook_campaign_data: bindToolRoute(executeGetFacebookCampaignData),
   list_facebook_campaigns: bindToolRoute(executeListFacebookCampaigns),

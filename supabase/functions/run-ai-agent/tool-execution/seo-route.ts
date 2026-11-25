@@ -21,6 +21,7 @@ export function seoToolRoute(
     agentId,
     approval,
   } = context;
+
   if (isSeoReadTool(name)) {
     return {
       result: executeSeoReadTool(
@@ -36,6 +37,7 @@ export function seoToolRoute(
       ),
     };
   }
+
   if (isSeoActionTool(name)) {
     return {
       result: executeSeoActionTool(

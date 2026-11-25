@@ -1,10 +1,12 @@
+import type { ChatTurn } from "./answer.ts";
+import type { Surface } from "../surface.ts";
+import type { FastLaneCaller } from "./scope.ts";
 import {
   loadCallerPersona,
   personaPromptSection,
 } from "../../_shared/carmen/persona-runtime.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { Emit } from "../run/emit.ts";
-import type { FastLaneRequest } from "./request.ts";
 import { fastLaneTarget } from "./target.ts";
 import { fastLaneBriefScope } from "./scope.ts";
 import { loadOrgBrief } from "../../_shared/carmen/org-brief/brief.ts";
@@ -20,7 +22,7 @@ import { corsHeaders } from "../runtime.ts";
  * or null when it handed the turn over, failed or has no model, so the full brain runs.
  */
 export async function tryFastLane(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   emit: Emit,
   turn: FastLaneRequest,
 ): Promise<Response | null> {
@@ -33,9 +35,11 @@ export async function tryFastLane(
     callerAddressLine(supabase, turn.userId, turn.callerName),
     loadCallerPersona(supabase, turn.tenantId, turn.personaUserId),
   ]);
+
   if (!target) {
     return null;
   }
+
   const answer = await answerFast({
     target,
     instructions: fastLaneInstructions({
@@ -51,19 +55,24 @@ export async function tryFastLane(
     onText: (content) => emit?.({ type: "token", content }),
   });
   const durationMs = Date.now() - startedAt;
+
   if (answer.kind === "escalate") {
     console.log(
       `[AGENT] fast lane handed over (${answer.reason}) after ${durationMs}ms`,
     );
+
     // Words it already showed stay; the full answer starts on its own paragraph.
     if (answer.shown) {
       emit?.({ type: "token", content: "\n\n" });
     }
+
     return null;
   }
+
   console.log(
     `[AGENT] fast lane answered in ${durationMs}ms (${target.label})`,
   );
+
   if (turn.conversationId && turn.userId) {
     await saveConversationTurn(supabase, {
       ...turn,
@@ -72,6 +81,7 @@ export async function tryFastLane(
       answer: answer.text,
     });
   }
+
   const tokensIn = answer.usage?.prompt_tokens ?? 0;
   const tokensOut = answer.usage?.completion_tokens ?? 0;
   const { error } = await supabase.from("agent_action_log").insert({
@@ -95,9 +105,11 @@ export async function tryFastLane(
     tokens_out: tokensOut || null,
     cost_usd: estimateLLMCostUSD(target.label, tokensIn, tokensOut),
   });
+
   if (error) {
     console.error("[AGENT] action_log insert failed:", error.message);
   }
+
   return new Response(
     JSON.stringify({
       success: true,
@@ -112,3 +124,19 @@ export async function tryFastLane(
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 }
+
+/** A chat turn the fast lane may answer, with what it needs to save the reply. */
+type FastLaneRequest = {
+  tenantId: string;
+  userId: string | null;
+  personaUserId: string | null;
+  callerName: string | null;
+  agentId: string;
+  agentName: string;
+  /** The AIOS chat's conversation; WhatsApp keeps its own history. */
+  conversationId: string | null;
+  history: Array<ChatTurn>;
+  message: string;
+  surface: Surface;
+  caller: FastLaneCaller;
+};

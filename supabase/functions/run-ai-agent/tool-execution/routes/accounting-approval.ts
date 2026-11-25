@@ -1,7 +1,6 @@
 import { bindToolRoute, type ToolRoute } from "../route.ts";
 import { executeUpdateClientRetainer } from "../../executors/update-client-retainer.ts";
 
-/** accounting-approval tool routes; argument assertions retain the legacy tool boundary. */
 export const accountingApprovalRoutes: Record<string, ToolRoute> = {
   create_one_time_income: bindToolRoute(executeUpdateClientRetainer),
   delete_one_time_income: bindToolRoute(executeUpdateClientRetainer),

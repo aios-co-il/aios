@@ -1,7 +1,6 @@
 import { bindToolRoute, type ToolRoute } from "../route.ts";
 import { queueAdActionApproval } from "../../executors/ad-action-approval.ts";
 
-/** ad-action tool routes; argument assertions retain the legacy tool boundary. */
 export const adActionRoutes: Record<string, ToolRoute> = {
   fb_create_campaign: bindToolRoute(queueAdActionApproval),
   fb_create_adset: bindToolRoute(queueAdActionApproval),

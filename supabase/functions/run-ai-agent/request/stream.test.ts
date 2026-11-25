@@ -28,6 +28,7 @@ function dependencies(
   save: AgentStreamDependencies["saveCarmenReply"] = ignoreSave,
 ): AgentStreamDependencies {
   const fixture = executorClient([]);
+
   return {
     handleRunAgent: run,
     createClient: () => fixture.context.supabase,
@@ -54,6 +55,7 @@ Deno.test(
           origin: "https://app.example",
         });
         args[2]?.({ type: "token", content: "hello" });
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -93,6 +95,7 @@ Deno.test(
     };
     const previous = globals.EdgeRuntime;
     globals.EdgeRuntime = { waitUntil: (work) => background.push(work) };
+
     try {
       const response = createAgentStream(
         input(),
@@ -105,6 +108,7 @@ Deno.test(
             args[2]?.({ type: "token", content: "first" });
             await gate.promise;
             args[2]?.({ type: "token", content: " second" });
+
             return new Response(
               JSON.stringify({ success: true, output: "fallback" }),
             );
@@ -131,6 +135,7 @@ Deno.test(
       ]);
     } finally {
       gate.resolve();
+
       if (previous === undefined) {
         delete globals.EdgeRuntime;
       } else {

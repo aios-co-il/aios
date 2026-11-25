@@ -13,6 +13,7 @@ export function createChatReadContext(
     callerCampaignerId,
     waNotify,
   } = context;
+
   return {
     supabase,
     scopeInput: {

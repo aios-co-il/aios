@@ -6,7 +6,6 @@ import { executeHandoffMarketingWorkItem } from "../../executors/handoff-marketi
 import { executeUpdateMarketingWorkItem } from "../../executors/update-marketing-work-item.ts";
 import { executeGenerateAdImage } from "../../executors/generate-ad-image.ts";
 
-/** marketing-work tool routes; argument assertions retain the legacy tool boundary. */
 export const marketingWorkRoutes: Record<string, ToolRoute> = {
   list_marketing_work_items: bindToolRoute(executeListMarketingWorkItems),
   get_marketing_work_item: bindToolRoute(executeGetMarketingWorkItem),

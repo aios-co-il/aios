@@ -2,13 +2,13 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 import type { executeTool } from "./execute.ts";
 
 export type ToolExecutor = typeof executeTool;
+
 export type ToolRoute = (
   args: Record<string, unknown>,
   context: ToolExecutionContext,
   execute: ToolExecutor,
 ) => unknown;
 
-/** Retains the original typed argument assertions without adding validation or coercion. */
 export function bindToolRoute<Args, Result>(
   handler: (args: Args, context: ToolExecutionContext) => Result,
 ): ToolRoute {
@@ -19,5 +19,6 @@ export function bindToolRoute<Args, Result>(
   ) {
     return handler(args as Args, context);
   }
+
   return invoke;
 }

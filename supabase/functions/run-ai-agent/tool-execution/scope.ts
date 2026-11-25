@@ -13,6 +13,7 @@ export function scopeFrom(context: ToolExecutionContext): ToolScope {
     canManageAutomations,
     callerScope,
   } = context;
+
   return {
     actorUserId,
     devEscalationTier,

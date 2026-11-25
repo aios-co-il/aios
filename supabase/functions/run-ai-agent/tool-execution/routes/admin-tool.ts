@@ -12,7 +12,6 @@ import { executeGetWhatsappQrLink } from "../../executors/get-whatsapp-qr-link.t
 import { executeGetWhatsappStatus } from "../../executors/get-whatsapp-status.ts";
 import { executeSendWhatsappViaGateway } from "../../executors/send-whatsapp-via-gateway.ts";
 
-/** admin-tool tool routes; argument assertions retain the legacy tool boundary. */
 export const adminToolRoutes: Record<string, ToolRoute> = {
   query_system_graph: bindToolRoute(executeQuerySystemGraph),
   get_client_info: bindToolRoute(executeSetCampaignTableActive),

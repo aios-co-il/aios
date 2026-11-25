@@ -11,7 +11,6 @@ import { executeListProducts } from "../../executors/list-products.ts";
 import { executeCreateProduct } from "../../executors/create-product.ts";
 import { executeListUpdates } from "../../executors/list-updates.ts";
 
-/** business-record tool routes; argument assertions retain the legacy tool boundary. */
 export const businessRecordRoutes: Record<string, ToolRoute> = {
   list_campaigners: bindToolRoute(executeListCampaigners),
   create_campaigner: bindToolRoute(executeCreateCampaigner),

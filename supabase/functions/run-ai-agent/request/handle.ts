@@ -2,17 +2,12 @@ import {
   REQUEST_DEPENDENCIES,
   type RequestDependencies,
 } from "./dependencies.ts";
-
 import type { AgentRequestBody } from "./types.ts";
 import { corsHeaders } from "../runtime.ts";
-
 import { bindRunAgentCaller } from "../caller-trust.ts";
-
 import { SUPABASE_URL } from "../runtime.ts";
 import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
-
 import type { Surface } from "../surface.ts";
-
 import { brainDenied } from "../../_shared/carmen/brain-guard.ts";
 import { refusedBrainResponse } from "./refused-brain.ts";
 
@@ -31,6 +26,7 @@ export async function handleRequestWithDependencies(
   }
 
   const auth = await dependencies.requireAuth(req);
+
   if (!auth) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -39,11 +35,13 @@ export async function handleRequestWithDependencies(
   }
 
   let bodyJson = {} as AgentRequestBody;
+
   try {
     bodyJson = (await req.json()) as AgentRequestBody;
   } catch {
     /* ignore */
   }
+
   // Never trust a browser-supplied identity. A user JWT runs as that user, without
   // the caller phone (lead_data), WhatsApp target (wa_notify), whatsapp surface or
   // admin config — approvals are bound to the identity those fields would set.
@@ -60,6 +58,7 @@ export async function handleRequestWithDependencies(
         },
       );
     }
+
     return await dependencies.handleDirectTool(bodyJson);
   }
 
@@ -74,6 +73,7 @@ export async function handleRequestWithDependencies(
     auth,
     bodyJson,
   );
+
   if (tenantDenied) {
     return new Response(JSON.stringify({ error: tenantDenied }), {
       status: 403,
@@ -105,12 +105,15 @@ export async function handleRequestWithDependencies(
         agentId: bodyJson.agent_id,
       })),
   );
+
   if (engine.kind === "denied") {
     return brainDenied("brain");
   }
+
   if (engine.kind === "refused") {
     return refusedBrainResponse(engine.message, wantStream);
   }
+
   // Per-user Carmen permissions, on every surface (_shared/carmen/brain-guard).
   // A picked model brain was checked against its own grant above.
   if (engine.kind === "internal") {
@@ -118,14 +121,15 @@ export async function handleRequestWithDependencies(
       tenantId: bodyJson.tenant_id,
       agentId: bodyJson.agent_id,
     });
+
     if (denied) {
       return denied;
     }
   }
+
   const brainEngine = engine.kind === "connections" ? engine : undefined;
   // Read only when Carmen's own engine runs: the OpenRouter brain as its last link, under
   // that brain's own access rules.
-  /** Retains the original internalTail helper. */
   function internalTail() {
     return dependencies.openRouterTail(guardClient, auth, bodyJson);
   }

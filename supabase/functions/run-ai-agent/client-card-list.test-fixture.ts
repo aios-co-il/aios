@@ -12,10 +12,8 @@ export function fakeTables(
   errors: Record<string, { message: string }>,
 ) {
   const log: Array<{ table: string; op: string; args: Array<unknown> }> = [];
-  /** Retains the original builder helper. */
   function builder(table: string) {
     const filters: Array<(row: Row) => boolean> = [];
-    /** Retains the original matches helper. */
     function matches() {
       return (tables[table] ?? []).filter((row) =>
         filters.every((keep) => keep(row)),

@@ -5,7 +5,6 @@ import { executeKbOpen } from "../../executors/kb-open.ts";
 import { executeKbRecallConversation } from "../../executors/kb-recall-conversation.ts";
 import { executeKbLearn } from "../../executors/kb-learn.ts";
 
-/** knowledge tool routes; argument assertions retain the legacy tool boundary. */
 export const knowledgeRoutes: Record<string, ToolRoute> = {
   kb_list_folder: bindToolRoute(executeKbListFolder),
   kb_search: bindToolRoute(executeKbSearch),

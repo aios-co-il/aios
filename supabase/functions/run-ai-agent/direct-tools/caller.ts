@@ -1,7 +1,8 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
+
 /** Resolves tenant/global roles and the campaigner before direct-tool execution. */
 export async function resolveDirectCaller(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   userId: string | null,
 ) {
@@ -13,6 +14,7 @@ export async function resolveDirectCaller(
       managedAgencyIds: [] as Array<string>,
     };
   }
+
   const [{ data: roles }, { data: prof }] = await Promise.all([
     // Roles in this tenant plus global (tenant_id null) roles only — never another tenant's.
     supabase
@@ -40,6 +42,7 @@ export async function resolveDirectCaller(
   ];
   const role = order.find((r) => roleList.includes(r)) || null;
   let managedAgencyIds: Array<string> = [];
+
   if (role === "team_manager" || role === "agency_manager") {
     const { data: mng } = await supabase
       .from("user_managed_agencies")
@@ -47,6 +50,7 @@ export async function resolveDirectCaller(
       .eq("user_id", userId);
     managedAgencyIds = (mng || []).map((m) => m.agency_id);
   }
+
   return {
     userId,
     role,

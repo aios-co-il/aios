@@ -106,6 +106,7 @@ export function processModelToolResult(
     metadata.say_to_user.trim()
   ) {
     const say = metadata.say_to_user.trim();
+
     if (metadata.needs_budget === true) {
       tools.budgetSay = say;
     } else if (!tools.sayToUser.includes(say)) {

@@ -17,9 +17,11 @@ function fixture(
     createClient: () => database.context.supabase,
     executeTool: async (...args) => {
       executions.push(args);
+
       return result;
     },
   };
+
   return { ...database, executions, dependencies };
 }
 
@@ -28,22 +30,32 @@ Deno.test(
   async () => {
     const test = fixture((request) => {
       const table = new URL(request.url).pathname.split("/").at(-1);
+
       if (table === "ai_agents") {
-        return {
-          id: "agent",
-          allowed_tools: ["send_message"],
-          disabled_tools: [],
-        };
+        return [
+          {
+            id: "agent",
+            name: "Carmen",
+            is_carmen: true,
+            active: true,
+            allowed_tools: ["send_message"],
+            disabled_tools: [],
+          },
+        ];
       }
+
       if (table === "user_roles") {
         return [{ role: "owner" }];
       }
+
       if (table === "profiles") {
         return { campaigner_id: null };
       }
+
       if (table === "agent_approval_queue") {
         return { id: "approval" };
       }
+
       throw new Error(`Unexpected request: ${request.url}`);
     });
     const response = await handleDirectTool(

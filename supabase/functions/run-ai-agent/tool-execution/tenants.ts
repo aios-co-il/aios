@@ -1,4 +1,4 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 // ─── Tool router (embedding-backed) ───
 // Carmen has ~140 tools; sending all of them every request wastes tokens,
@@ -12,7 +12,7 @@ import type { AgentDatabaseClient } from "../database-contracts.ts";
 /** Meta requests one live campaign read may spend: campaigns, ad sets and day insights, paged. */
 
 export async function getAccessibleTenantIds(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
 ): Promise<Array<string>> {
   try {
@@ -21,6 +21,7 @@ export async function getAccessibleTenantIds(
       .select("source_tenant_id")
       .eq("accessing_tenant_id", tenantId);
     const extra = (data || []).map((r) => r.source_tenant_id).filter(Boolean);
+
     return Array.from(new Set([tenantId, ...extra]));
   } catch {
     return [tenantId];

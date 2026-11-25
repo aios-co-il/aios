@@ -6,6 +6,7 @@ import {
 } from "./caller-trust.ts";
 
 const USER = "22222222-2222-4222-8222-222222222222";
+
 const OWNER = "11111111-1111-4111-8111-111111111111";
 
 const forgedBody = () => ({
@@ -29,9 +30,11 @@ Deno.test("bindRunAgentCaller", async (t) => {
         userId: USER,
       });
       assertStrictEquals(body.user_id, USER);
+
       for (const field of SERVICE_ONLY_RUN_FIELDS) {
         assertStrictEquals(field in body, false, `${field} must be stripped`);
       }
+
       assertStrictEquals(body.lead_data, undefined);
       assertStrictEquals(body.wa_notify, undefined);
       assertStrictEquals(body.persona_user_id, undefined);

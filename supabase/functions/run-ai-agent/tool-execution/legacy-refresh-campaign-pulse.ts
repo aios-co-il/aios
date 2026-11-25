@@ -3,7 +3,6 @@ import type { ToolExecutionContext } from "../tool-context.ts";
 import type { ToolExecutor } from "./route.ts";
 import { executeRefreshCampaignPulseTool } from "../executors/refresh-campaign-pulse.ts";
 
-/** Preserves legacy routing for REFRESH_PULSE_TOOL_NAME. */
 export function legacyRefreshCampaignPulseRoute(
   args: Record<string, unknown>,
   context: ToolExecutionContext,

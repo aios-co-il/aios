@@ -3,36 +3,8 @@ import {
   VIDEO_DIRECTOR_TOOLS,
   executeVideoDirectorTool,
   isVideoDirectorTool,
-  type VideoDirectorDb,
 } from "./video-director-tools.ts";
-
-const query = (result: {
-  data: unknown;
-  error: { message: string } | null;
-}) => {
-  const q = {
-    select() {
-      return q;
-    },
-    eq() {
-      return q;
-    },
-    order() {
-      return q;
-    },
-    limit() {
-      return q;
-    },
-    maybeSingle: async () => result,
-    then(
-      onFulfilled: (value: typeof result) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) {
-      return Promise.resolve(result).then(onFulfilled, onRejected);
-    },
-  };
-  return q;
-};
+import { executorClient } from "../run-ai-agent/executors/executor-client.test-fixture.ts";
 
 Deno.test("video director tool names", () => {
   assertEquals(
@@ -46,42 +18,32 @@ Deno.test("video director tool names", () => {
 Deno.test(
   "render_video_film queues a free compose for a project in the tenant",
   async () => {
-    const calls: Array<Record<string, unknown>> = [];
-    const filters: Array<string> = [];
-    const db: VideoDirectorDb = {
-      from: () => {
-        const q = query({
-          data: {
-            id: "item-1",
-            client_id: "client-1",
-            current_stage_id: "stage-1",
-          },
-          error: null,
-        });
-        const eq = q.eq;
-        q.eq = (...args: Array<unknown>) => (
-          filters.push(args.join("=")),
-          eq()
-        );
-        return q;
-      },
-      rpc: async (fn, args) => {
-        calls.push({ fn, args });
-        return { data: [{ id: "run-1" }], error: null };
-      },
-    };
+    const fixture = executorClient([
+      { id: "item-1", client_id: "client-1", current_stage_id: "stage-1" },
+      [{ id: "run-1" }],
+    ]);
     const checked: Array<string> = [];
+
     const result = await executeVideoDirectorTool(
-      db,
+      fixture.context.supabase,
       "tenant-1",
       "render_video_film",
       { item_id: "item-1", aspect: "poster", stage_id: "someone-elses-stage" },
-      async (clientId) => void checked.push(clientId),
+      async (clientId) => {
+        checked.push(clientId);
+      },
     );
-    assert(filters.includes("tenant_id=tenant-1"));
+
+    assertEquals(
+      new URL(fixture.calls[0].url).searchParams.get("tenant_id"),
+      "eq.tenant-1",
+    );
     assertEquals(checked, ["client-1"]);
-    assertStrictEquals(calls[0]?.fn, "queue_video_render");
-    assertEquals(calls[0]?.args, {
+    assertEquals(
+      new URL(fixture.calls[1].url).pathname,
+      "/rest/v1/rpc/queue_video_render",
+    );
+    assertEquals(fixture.calls[1].body, {
       p_item_id: "item-1",
       p_aspect: "9:16",
       p_stage_id: "stage-1",
@@ -98,27 +60,24 @@ Deno.test(
 Deno.test(
   "render_video_film refuses a project outside the tenant or the caller's clients",
   async () => {
-    const rpcCalls: Array<string> = [];
-    const missing: VideoDirectorDb = {
-      from: () => query({ data: null, error: null }),
-      rpc: async (fn) => (rpcCalls.push(fn), { data: [], error: null }),
-    };
+    const missing = executorClient([null]);
+
     assertEquals(
-      await executeVideoDirectorTool(missing, "tenant-1", "render_video_film", {
-        item_id: "other-tenant-item",
-      }),
+      await executeVideoDirectorTool(
+        missing.context.supabase,
+        "tenant-1",
+        "render_video_film",
+        { item_id: "other-tenant-item" },
+      ),
       { error: "פרויקט לא נמצא" },
     );
-    const foreignClient: VideoDirectorDb = {
-      from: () =>
-        query({
-          data: { id: "item-1", client_id: "client-9", current_stage_id: "s" },
-          error: null,
-        }),
-      rpc: async (fn) => (rpcCalls.push(fn), { data: [], error: null }),
-    };
+    assertEquals(missing.calls.length, 1);
+
+    const foreign = executorClient([
+      { id: "item-1", client_id: "client-9", current_stage_id: "s" },
+    ]);
     const denied = await executeVideoDirectorTool(
-      foreignClient,
+      foreign.context.supabase,
       "tenant-1",
       "render_video_film",
       { item_id: "item-1" },
@@ -126,48 +85,42 @@ Deno.test(
         throw new Error("אין לך גישה ללקוח");
       },
     );
+
     assertEquals(denied, { error: "אין לך גישה ללקוח" });
-    assertEquals(rpcCalls, []);
+    assertEquals(foreign.calls.length, 1);
   },
 );
 
 Deno.test("get_video_storyboard stays inside the tenant", async () => {
-  const filters: Array<string> = [];
-  const db: VideoDirectorDb = {
-    from: (table) => {
-      const q = query({
-        data:
-          table === "marketing_work_items"
-            ? {
-                id: "item-1",
-                title: "פרומו",
-                client_id: "client-1",
-                current_stage_id: "stage-1",
-                payload: { video: { scene_engine: "mock" } },
-              }
-            : table === "marketing_video_scenes"
-              ? [{ id: "scene-1", status: "clip_approved" }]
-              : [],
-        error: null,
-      });
-      const eq = q.eq;
-      q.eq = (...args: Array<unknown>) => {
-        filters.push(`${table}:${String(args[0])}=${String(args[1])}`);
-        return eq(...args);
-      };
-      return q;
+  const fixture = executorClient([
+    {
+      id: "item-1",
+      title: "פרומו",
+      client_id: "client-1",
+      current_stage_id: "stage-1",
+      payload: { video: { scene_engine: "mock" } },
     },
-    rpc: async () => ({ data: [], error: null }),
-  };
+    [{ id: "scene-1", status: "clip_approved" }],
+    [],
+    [],
+  ]);
+
   const result = await executeVideoDirectorTool(
-    db,
+    fixture.context.supabase,
     "tenant-1",
     "get_video_storyboard",
     { item_id: "item-1" },
   );
-  assertStrictEquals(
-    filters.filter((row) => row.endsWith("tenant_id=tenant-1")).length >= 4,
-    true,
-  );
-  assertStrictEquals((result as { approved_count: number }).approved_count, 1);
+
+  assertEquals(fixture.calls.length, 4);
+
+  for (const call of fixture.calls) {
+    assertEquals(
+      new URL(call.url).searchParams.get("tenant_id"),
+      "eq.tenant-1",
+    );
+  }
+
+  assert("approved_count" in result);
+  assertEquals(result.approved_count, 1);
 });

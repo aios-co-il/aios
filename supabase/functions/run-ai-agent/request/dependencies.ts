@@ -7,12 +7,12 @@ import { internalBrainDenied } from "../../_shared/carmen/brain-guard.ts";
 import { openRouterTail } from "../../_shared/carmen/brain-engine/openrouter-tail.ts";
 import { handleRunAgent } from "../run/handle.ts";
 import { createAgentStream } from "./stream.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 
 export interface RequestDependencies {
   requireAuth: typeof requireAuth;
   handleDirectTool: typeof handleDirectTool;
-  createClient(url: string, key: string): AgentDatabaseClient;
+  createClient(url: string, key: string): DbClient;
   runTenantDenied: typeof runTenantDenied;
   resolveWorkshopAwareEngine: typeof resolveWorkshopAwareEngine;
   internalBrainDenied: typeof internalBrainDenied;

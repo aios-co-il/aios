@@ -7,7 +7,6 @@ import { executeSetAutomationMetaLeadForm } from "../../executors/set-automation
 import { executeCreateMetaLeadForm } from "../../executors/create-meta-lead-form.ts";
 import { executeProposeAutomation } from "../../executors/propose-automation.ts";
 
-/** automation-tool tool routes; argument assertions retain the legacy tool boundary. */
 export const automationToolRoutes: Record<string, ToolRoute> = {
   list_automations: bindToolRoute(executeListAutomations),
   get_automation_details: bindToolRoute(executeGetAutomationDetails),

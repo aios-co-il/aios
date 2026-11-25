@@ -7,7 +7,6 @@ import { executeListSocialComments } from "../../executors/list-social-comments.
 import { executeHideSocialComment } from "../../executors/hide-social-comment.ts";
 import { executeCreateSocialPost } from "../../executors/create-social-post.ts";
 
-/** social-publishing tool routes; argument assertions retain the legacy tool boundary. */
 export const socialPublishingRoutes: Record<string, ToolRoute> = {
   list_social_pages: bindToolRoute(executeListSocialPages),
   sync_social_pages: bindToolRoute(executeSyncSocialPages),

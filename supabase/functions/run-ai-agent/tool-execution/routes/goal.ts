@@ -9,7 +9,6 @@ import { executeAddGoalBlocker } from "../../executors/add-goal-blocker.ts";
 import { executeLinkTaskToExecutionGoal } from "../../executors/link-task-to-execution-goal.ts";
 import { executeGetAutonomousGoalStatus } from "../../executors/get-autonomous-goal-status.ts";
 
-/** goal tool routes; argument assertions retain the legacy tool boundary. */
 export const goalRoutes: Record<string, ToolRoute> = {
   create_goal: bindToolRoute(executeCreateGoal),
   list_goals: bindToolRoute(executeListGoals),

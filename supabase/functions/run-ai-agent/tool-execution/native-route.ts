@@ -34,10 +34,11 @@ export function nativeToolRoute(
     callerScope,
     name,
   } = context;
+
   if (isVideoDirectorTool(name)) {
     return {
       result: executeVideoDirectorTool(
-        supabase as unknown as Parameters<typeof executeVideoDirectorTool>[0],
+        supabase,
         tenantId,
         name,
         args,
@@ -46,6 +47,7 @@ export function nativeToolRoute(
       ),
     };
   }
+
   if (isCardDraftTool(name)) {
     return {
       result: executeCardDraftTool(supabase, {
@@ -56,6 +58,7 @@ export function nativeToolRoute(
       }),
     };
   }
+
   if (isCreativeStudioTool(name)) {
     return {
       result: executeCreativeStudioTool(
@@ -68,6 +71,7 @@ export function nativeToolRoute(
       ),
     };
   }
+
   if (isFindingDraftTool(name)) {
     return {
       result: executeFindingDraftTool(supabase, {
@@ -78,6 +82,7 @@ export function nativeToolRoute(
       }),
     };
   }
+
   if (isPulseTargetTool(name)) {
     return {
       result: executePulseTargetTool(
@@ -101,5 +106,6 @@ export function nativeToolRoute(
       ),
     };
   }
+
   return seoToolRoute(args, context);
 }

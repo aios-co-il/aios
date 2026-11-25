@@ -40,8 +40,12 @@ Deno.test(
   "accounting aliases preserve their action and only enqueue approval",
   async () => {
     for (const name of [
+      "create_one_time_income",
+      "delete_one_time_income",
       "record_income_payment",
       "delete_income_payment",
+      "record_expense_payment",
+      "delete_expense_payment",
       "update_client_retainer",
     ]) {
       const fixture = executorClient([{ id: "approval" }], 200, { name });
@@ -83,5 +87,90 @@ Deno.test(
       callerCampaignerId: "staff",
       waNotify: undefined,
     });
+  },
+);
+
+Deno.test(
+  "named routes reach the intended scoped query and preserve their result shape",
+  async (t) => {
+    const cases: Array<{
+      name: string;
+      args: Record<string, unknown>;
+      table: string;
+      filters: Record<string, string>;
+      expected: unknown;
+    }> = [
+      {
+        name: "list_agents",
+        args: { only_active: true },
+        table: "ai_agents",
+        filters: {
+          tenant_id: "in.(t1,shared)",
+          active: "eq.true",
+          order: "name.asc",
+        },
+        expected: { count: 0, agents: [] },
+      },
+      {
+        name: "list_tasks",
+        args: { status: "open", limit: 3 },
+        table: "tasks",
+        filters: {
+          tenant_id: "in.(t1,shared)",
+          status: "eq.open",
+          limit: "3",
+          order: "priority.desc",
+        },
+        expected: { count: 0, tasks: [] },
+      },
+      {
+        name: "search_tasks",
+        args: { search_term: "needle", status: "open" },
+        table: "tasks",
+        filters: {
+          tenant_id: "in.(t1,shared)",
+          title: "ilike.%needle%",
+          status: "eq.open",
+          order: "created_at.desc",
+        },
+        expected: { count: 0, tasks: [] },
+      },
+      {
+        name: "list_my_agent_tasks",
+        args: { status: "pending", limit: 4 },
+        table: "agent_tasks",
+        filters: {
+          tenant_id: "eq.t1",
+          agent_id: "eq.agent-1",
+          status: "eq.pending",
+          limit: "4",
+        },
+        expected: { count: 0, tasks: [] },
+      },
+    ];
+
+    for (const test of cases) {
+      await t.step(test.name, async () => {
+        const fixture = executorClient([[]], 200, {
+          name: test.name,
+          agentId: "agent-1",
+        });
+
+        const result = await executeWithContext(
+          test.args,
+          fixture.context,
+          noRecursiveTool,
+        );
+
+        assertEquals(result, test.expected);
+        assertEquals(fixture.calls.length, 1);
+        const url = new URL(fixture.calls[0].url);
+        assertEquals(url.pathname, `/rest/v1/${test.table}`);
+
+        for (const [name, value] of Object.entries(test.filters)) {
+          assertEquals(url.searchParams.get(name), value);
+        }
+      });
+    }
   },
 );

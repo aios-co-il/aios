@@ -1,9 +1,9 @@
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { ChatTurn } from "../fast-lane/answer.ts";
 
 /** Saves the user's message and the answer to the conversation (last 60 messages). */
 export async function saveConversationTurn(
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   turn: {
     tenantId: string;
     userId: string;
@@ -24,6 +24,7 @@ export async function saveConversationTurn(
     .eq("id", turn.conversationId)
     .eq("user_id", turn.userId)
     .eq("tenant_id", turn.tenantId);
+
   if (error) {
     console.error("[AGENT] conversation persistence failed:", error.message);
   }

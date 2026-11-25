@@ -35,9 +35,11 @@ export function executorClient(
             : typeof responses === "function"
               ? responses(request)
               : responses.shift());
+
           if (response instanceof Response) {
             return response;
           }
+
           return new Response(JSON.stringify(response), {
             status,
             headers: { "Content-Type": "application/json" },
@@ -70,5 +72,6 @@ export function executorClient(
     SUPABASE_SERVICE_ROLE_KEY: "test-key",
     ...overrides,
   };
+
   return { calls, context };
 }

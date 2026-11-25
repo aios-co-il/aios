@@ -12,16 +12,11 @@ export interface AgentStreamInput {
   brainEngine?: RunInputs["brainEngine"];
   internalTail?: RunInputs["internalTail"];
 }
+
 export interface AgentStreamDependencies extends Pick<
   RunDependencies,
   "createClient"
 > {
   handleRunAgent: typeof handleRunAgent;
   saveCarmenReply: typeof saveCarmenReply;
-}
-export interface FinalRunPayload {
-  success?: unknown;
-  output?: unknown;
-  tools_used?: unknown;
-  error?: unknown;
 }

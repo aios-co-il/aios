@@ -1,9 +1,7 @@
 import type { ToolExecutionContext } from "../tool-context.ts";
-
 import { scopeFrom } from "./scope.ts";
 import { executeClientRecordTool } from "../executors/client-records.ts";
 
-/** Preserves legacy routing for create_client, update_client, update_client_status. */
 export function legacyUpdateClientStatusRoute(
   args: Record<string, unknown>,
   context: ToolExecutionContext,

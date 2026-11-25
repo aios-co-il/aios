@@ -6,7 +6,6 @@ import { executeSyncFacebookInsights } from "../../executors/sync-facebook-insig
 import { executeConnectGoogleAdsAccount } from "../../executors/connect-google-ads-account.ts";
 import { executeConnectClientMetaAdAccount } from "../../executors/connect-client-meta-ad-account.ts";
 
-/** google-ad tool routes; argument assertions retain the legacy tool boundary. */
 export const googleAdRoutes: Record<string, ToolRoute> = {
   list_google_ad_accounts: bindToolRoute(executeListGoogleAdAccounts),
   list_google_campaigns: bindToolRoute(executeListGoogleCampaigns),

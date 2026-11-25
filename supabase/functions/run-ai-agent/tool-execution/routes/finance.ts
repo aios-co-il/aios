@@ -9,7 +9,6 @@ import { executeListIncomePayments } from "../../executors/list-income-payments.
 import { executeListExpensePayments } from "../../executors/list-expense-payments.ts";
 import { executeListInvoiceUploads } from "../../executors/list-invoice-uploads.ts";
 
-/** finance tool routes; argument assertions retain the legacy tool boundary. */
 export const financeRoutes: Record<string, ToolRoute> = {
   list_finance: bindToolRoute(executeListFinance),
   create_finance_entry: bindToolRoute(executeCreateFinanceEntry),

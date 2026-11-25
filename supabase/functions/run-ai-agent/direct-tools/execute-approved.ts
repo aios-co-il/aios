@@ -2,16 +2,15 @@ import type { ToolResultMetadata } from "../tool-result-metadata.ts";
 import type { Json } from "../../_shared/database.types.ts";
 import { resolveDirectCaller } from "./caller.ts";
 import { asUuidOrNull } from "../../_shared/uuid.ts";
-
 import type { DirectToolRequest } from "./types.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { ToolExecutor } from "../tool-execution/route.ts";
 import { json } from "./response.ts";
 
 /** Executes the same service-approved row and records its terminal status afterwards. */
 export async function executeApprovedDirectTool(
   req: DirectToolRequest,
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   executeTool: ToolExecutor,
 ): Promise<Response> {
   const { data: row } = await supabase
@@ -19,12 +18,15 @@ export async function executeApprovedDirectTool(
     .select("*")
     .eq("id", req.approval_id as string)
     .maybeSingle();
+
   if (!row || row.action_type !== "agent_direct_tool") {
     return json({ error: "approval_not_found" }, 404);
   }
+
   if (row.status === "executed" || row.status === "rejected") {
     return json({ error: `approval_${row.status}` }, 409);
   }
+
   const scope = await resolveDirectCaller(
     supabase,
     row.tenant_id,
@@ -32,6 +34,7 @@ export async function executeApprovedDirectTool(
   );
   let result: unknown;
   let failed = false;
+
   try {
     result = await executeTool(
       row.tool_name as string,
@@ -55,6 +58,7 @@ export async function executeApprovedDirectTool(
     failed = true;
     result = { error: String((e as Error | null)?.message ?? e) };
   }
+
   await supabase
     .from("agent_approval_queue")
     .update({
@@ -65,5 +69,6 @@ export async function executeApprovedDirectTool(
       execution_result: result as Json,
     })
     .eq("id", row.id);
+
   return json({ success: !failed, result }, failed ? 400 : 200);
 }

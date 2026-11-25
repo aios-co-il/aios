@@ -14,42 +14,52 @@ function dependencies(
   overrides: Partial<RequestDependencies> = {},
 ): RequestDependencies {
   const fixture = executorClient([]);
+
   return {
     ...REQUEST_DEPENDENCIES,
     requireAuth: async () => {
       log.push("auth");
+
       return { kind: "user", userId: USER };
     },
     createClient: () => {
       log.push("client");
+
       return fixture.context.supabase;
     },
     runTenantDenied: async () => {
       log.push("tenant");
+
       return null;
     },
     resolveWorkshopAwareEngine: async () => {
       log.push("brain");
+
       return { kind: "internal" };
     },
     internalBrainDenied: async () => {
       log.push("grant");
+
       return null;
     },
     openRouterTail: async () => {
       log.push("tail");
+
       return [];
     },
     handleDirectTool: async () => {
       log.push("direct");
+
       return new Response("direct");
     },
     handleRunAgent: async () => {
       log.push("run");
+
       return new Response("run");
     },
     createAgentStream: () => {
       log.push("stream");
+
       return new Response("stream");
     },
     ...overrides,
@@ -100,6 +110,7 @@ Deno.test(
       dependencies(log, {
         requireAuth: async () => {
           log.push("auth");
+
           return null;
         },
       }),
@@ -140,6 +151,7 @@ Deno.test(
           assertEquals(body.surface, "internal_chat");
           assertEquals(body.lead_data, undefined);
           assertEquals(body.wa_notify, undefined);
+
           return "not_in_tenant";
         },
       }),
@@ -168,6 +180,7 @@ Deno.test(
             origin: "https://app.example",
           });
           assertEquals(typeof tail, "function");
+
           return new Response("run");
         },
       }),
@@ -186,11 +199,13 @@ Deno.test(
       dependencies(log, {
         requireAuth: async () => {
           log.push("auth");
+
           return { kind: "service", userId: null };
         },
         handleDirectTool: async (body) => {
           log.push("direct");
           assertEquals(body.user_id, "forged");
+
           return new Response("direct");
         },
       }),

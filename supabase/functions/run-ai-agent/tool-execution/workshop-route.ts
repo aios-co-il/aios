@@ -1,20 +1,20 @@
 import { landingRepoFromEnv } from "../../_shared/workshop/landing/repo-env.ts";
 import { executeWorkshopImage } from "./workshop-image.ts";
 import type { BackgroundRuntime } from "../background-runtime.ts";
-declare const EdgeRuntime: BackgroundRuntime;
 import type { ToolExecutionContext } from "../tool-context.ts";
 import type { ToolExecutor } from "./route.ts";
 import { executeWorkshopTool } from "../../_shared/workshop-tools.ts";
 import { assertCallerCanAccessClient } from "../../_shared/auth-helpers.ts";
 import { imageProvidersFor } from "../../_shared/workshop/capabilities.ts";
 import { connectedProviders } from "../../_shared/workshop/capabilities.ts";
-
 import { fetchPublic } from "../../_shared/public-fetch.ts";
 import { workshopVoiceSample } from "../../_shared/workshop/voice-sample.ts";
 import { importWebImage } from "../../_shared/workshop/tools/add-assets.ts";
 import { sceneEngineFor } from "../../_shared/workshop/scene-engine-for.ts";
 import { videoConnectionsFor } from "../../_shared/workshop/video-connections.ts";
 import { connectedSceneEngines } from "../../_shared/workshop/engine-choice.ts";
+
+declare const EdgeRuntime: BackgroundRuntime;
 
 /** Applies the existing workshop dependencies and recursive image fallback. */
 export function executeWorkshopRoute(
@@ -50,6 +50,7 @@ export function executeWorkshopRoute(
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
         return imageProvidersFor(
           connectedProviders(
             (data?.settings || {}) as Record<string, unknown>,
@@ -83,6 +84,7 @@ export function executeWorkshopRoute(
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
         return sceneEngineFor(
           (data?.settings || {}) as Record<string, unknown>,
           fetch,
@@ -99,6 +101,7 @@ export function executeWorkshopRoute(
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
         return connectedSceneEngines(
           (data?.settings || {}) as Record<string, unknown>,
           await videoConnectionsFor(supabase, tenantId),

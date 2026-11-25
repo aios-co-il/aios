@@ -3,7 +3,6 @@ import type { Json } from "../../_shared/database.types.ts";
 import { executeApprovedDirectTool } from "./execute-approved.ts";
 import { json } from "./response.ts";
 import type { DirectToolBody, DirectToolDependencies } from "./types.ts";
-
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
 import { SUPABASE_URL } from "../runtime.ts";
 import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
@@ -44,13 +43,17 @@ export async function handleDirectTool(
 
   const tenantId = String(bodyJson.tenant_id || "");
   const userId = asUuidOrNull(bodyJson.user_id);
+
   if (!tenantId || !userId) {
     return json({ error: "tenant_id and user_id are required" }, 400);
   }
+
   const agent = await loadCarmenAgent(supabase, tenantId, { activeOnly: true });
+
   if (!agent) {
     return json({ error: "No active Carmen agent for tenant" }, 404);
   }
+
   const scope = await resolveDirectCaller(supabase, tenantId, userId);
   const disabledTools: Array<string> = agent.disabled_tools || [];
   // The same pulse tools as Carmen's chat, past a narrow allowed_tools.
@@ -72,12 +75,14 @@ export async function handleDirectTool(
       })),
     });
   }
+
   if (req.action !== "call") {
     return json({ error: "unknown direct_tool action" }, 400);
   }
 
   const name = String(req.name || "");
   const args = req.args && typeof req.args === "object" ? req.args : {};
+
   if (!pool.some((t) => t.name === name)) {
     return json({ error: `tool_not_available: ${name}` }, 403);
   }
@@ -100,9 +105,11 @@ export async function handleDirectTool(
       })
       .select("id")
       .single();
+
     if (aqErr) {
       return json({ error: aqErr.message }, 500);
     }
+
     return json({
       result: {
         pending_approval: true,
@@ -129,6 +136,7 @@ export async function handleDirectTool(
       "agent_direct",
       null,
     );
+
     return json({ result });
   } catch (e) {
     return json({

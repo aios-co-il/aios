@@ -6,7 +6,6 @@ import { executeSendMessageToCampaigner } from "../../executors/send-message-to-
 import { executeGetMaskyooCallsReport } from "../../executors/get-maskyoo-calls-report.ts";
 import { executeSyncMaskyooCdr } from "../../executors/sync-maskyoo-cdr.ts";
 
-/** messaging tool routes; argument assertions retain the legacy tool boundary. */
 export const messagingRoutes: Record<string, ToolRoute> = {
   send_message: bindToolRoute(executeSendMessage),
   list_wa_groups: bindToolRoute(executeListWaGroups),

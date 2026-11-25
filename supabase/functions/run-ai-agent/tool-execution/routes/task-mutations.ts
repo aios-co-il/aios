@@ -8,7 +8,6 @@ import { executeTakeTask } from "../../executors/take-task.ts";
 import { executeCompleteTaskStep } from "../../executors/complete-task-step.ts";
 import { executePrioritizeTasks } from "../../executors/prioritize-tasks.ts";
 
-/** task-mutations tool routes; argument assertions retain the legacy tool boundary. */
 export const taskMutationsRoutes: Record<string, ToolRoute> = {
   update_task_status: bindToolRoute(executeUpdateTaskStatus),
   update_task: bindToolRoute(executeUpdateTask),

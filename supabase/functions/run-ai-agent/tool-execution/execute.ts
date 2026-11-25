@@ -1,5 +1,5 @@
 import { executeWithContext } from "./dispatch.ts";
-import type { AgentDatabaseClient } from "../database-contracts.ts";
+import type { DbClient } from "../../_shared/supabase-clients.ts";
 import type { ToolApproval } from "../tool-context.ts";
 import type { FindingDraftReply } from "../finding-draft/reply.ts";
 import { prepareToolDispatch } from "../tool-dispatch.ts";
@@ -13,7 +13,7 @@ import { SUPABASE_SERVICE_ROLE_KEY } from "../runtime.ts";
 export async function executeTool(
   name: string,
   args: Record<string, unknown>,
-  supabase: AgentDatabaseClient,
+  supabase: DbClient,
   tenantId: string,
   userId: string | null,
   callerCampaignerId?: string | null,
@@ -49,6 +49,7 @@ export async function executeTool(
       accessibleTenants: (id) => getAccessibleTenantIds(supabase, id),
     },
   );
+
   if ("refusal" in prepared) {
     return prepared.refusal;
   }
@@ -74,5 +75,6 @@ export async function executeTool(
     SUPABASE_URL,
     SUPABASE_SERVICE_ROLE_KEY,
   };
+
   return executeWithContext(args, toolContext, executeTool);
 }

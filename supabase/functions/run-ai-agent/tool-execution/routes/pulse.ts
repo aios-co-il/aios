@@ -7,7 +7,6 @@ import { executeUpdateClientHealth } from "../../executors/update-client-health.
 import { executeGetClientRetentionScan } from "../../executors/get-client-retention-scan.ts";
 import { executeBatchUpdateClientHealth } from "../../executors/batch-update-client-health.ts";
 
-/** pulse tool routes; argument assertions retain the legacy tool boundary. */
 export const pulseRoutes: Record<string, ToolRoute> = {
   get_latest_campaign_pulse: bindToolRoute(executeGetLatestCampaignPulse),
   [REFRESH_PULSE_TOOL_NAME]: legacyRefreshCampaignPulseRoute,

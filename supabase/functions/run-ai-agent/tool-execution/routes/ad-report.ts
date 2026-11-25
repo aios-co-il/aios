@@ -7,7 +7,6 @@ import { executeGetReconciliationStatus } from "../../executors/get-reconciliati
 import { executeCheckAdAccountsHealth } from "../../executors/check-ad-accounts-health.ts";
 import { executeListUnconnectedClients } from "../../executors/list-unconnected-clients.ts";
 
-/** ad-report tool routes; argument assertions retain the legacy tool boundary. */
 export const adReportRoutes: Record<string, ToolRoute> = {
   get_dashboard_stats: bindToolRoute(executeGetDashboardStats),
   list_facebook_ad_accounts: bindToolRoute(executeListFacebookAdAccounts),
