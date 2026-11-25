@@ -36,8 +36,8 @@ export const PULSE_CRITICAL_ALERT_TYPES = [
 /** Keep the WhatsApp digest readable — remaining issues are counted, not listed. */
 export const PULSE_CRITICAL_LINE_LIMIT = 5;
 /**
- * Sync cadence is twice daily (02:40 and 11:40 UTC), before the pulse
- * refreshes at 04:00 and 13:00 UTC. A missed run leaves about a 24h gap.
+ * The ads syncs run every 3 hours from 05:00 to 17:00 UTC (ADS_SYNC_SCHEDULES),
+ * so the overnight gap is 12h and a missed evening run leaves about 15h.
  * 18h produced false "sync old" for healthy Google/Meta tables.
  * 30h covers a full day + buffer without hiding truly abandoned syncs.
  */

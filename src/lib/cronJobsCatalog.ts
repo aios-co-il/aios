@@ -41,20 +41,24 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
 };
 
 /**
- * Report syncs that feed בדיקת הדופק. Times are UTC, twice a day, and each
- * slot finishes before the pulse refresh at 04:00 and 13:00 UTC.
+ * Scheduled ads syncs, UTC: every 3 hours from 05:00 to 17:00 (07:00 to 19:00
+ * in Israel winter time). Each job keeps its own minute so the three chains do
+ * not start together. Migration 20261125100000_ads_sync_five_times_a_day sets
+ * these schedules; the job names predate the cadence.
  */
-export const REPORT_SYNC_SCHEDULES = [
-  { jobname: "sync-woocommerce-twice-daily", cron: "30 2,11 * * *" },
-  { jobname: "daily-google-ads-sync", cron: "40 2,11 * * *" },
-  { jobname: "sync-facebook-insights-twice-daily", cron: "45 2,11 * * *" },
-  { jobname: "cron-sync-facebook-ecommerce-daily", cron: "50 2,11 * * *" },
-  { jobname: "daily-ga-sync", cron: "55 2,11 * * *" },
+export const ADS_SYNC_SCHEDULES = [
+  {
+    jobname: "sync-facebook-insights-twice-daily",
+    cron: "0 5,8,11,14,17 * * *",
+  },
+  {
+    jobname: "cron-sync-facebook-ecommerce-daily",
+    cron: "5 5,8,11,14,17 * * *",
+  },
+  { jobname: "sync-google-ads-twice-daily", cron: "10 5,8,11,14,17 * * *" },
 ] as const;
 
-export const PULSE_REFRESH_CRONS = ["0 4 * * *", "0 13 * * *"] as const;
-
-/** Live campaign syncs run at 05:00 and 12:00 UTC. WooCommerce starts 15 minutes earlier. */
+/** WooCommerce syncs twice a day; its morning run starts 15 minutes before the first ads sync. */
 export const WOO_SYNC_SCHEDULE = {
   jobname: "sync-woocommerce-twice-daily",
   cron: "45 4,11 * * *",

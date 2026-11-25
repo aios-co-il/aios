@@ -1,38 +1,37 @@
-import { expect, test } from "vitest";
-import {
-  PULSE_REFRESH_CRONS,
-  REPORT_SYNC_SCHEDULES,
-  WOO_SYNC_SCHEDULE,
-} from "./cronJobsCatalog.ts";
+import { describe, expect, test } from "vitest";
+import { ADS_SYNC_SCHEDULES, WOO_SYNC_SCHEDULE } from "./cronJobsCatalog.ts";
 
+/** Minutes after midnight UTC of every run a plain "m h * * *" cron makes. */
 function minutesOfDay(cron: string): Array<number> {
   const [minute, hour] = cron.split(/\s+/);
   const minutes = minute.split(",").map(Number);
   const hours = hour.split(",").map(Number);
-  return hours.flatMap((h) => minutes.map((m) => h * 60 + m));
+  return hours
+    .flatMap((h) => minutes.map((m) => h * 60 + m))
+    .sort((a, b) => a - b);
 }
 
-test("report sync runs twice a day and finishes before each pulse refresh", () => {
-  const pulseSlots = PULSE_REFRESH_CRONS.flatMap(minutesOfDay).sort(
-    (a, b) => a - b,
-  );
-  expect(pulseSlots.length).toBe(2);
+describe("report sync cadence", () => {
+  test("ads syncs run every 3 hours from 05:00 to 17:00 UTC", () => {
+    for (const job of ADS_SYNC_SCHEDULES) {
+      const hours = minutesOfDay(job.cron).map((m) => Math.floor(m / 60));
 
-  for (const job of REPORT_SYNC_SCHEDULES) {
-    const slots = minutesOfDay(job.cron).sort((a, b) => a - b);
-    expect(slots.length, job.jobname).toBe(2);
-    for (let i = 0; i < slots.length; i++) {
-      const lead = pulseSlots[i] - slots[i];
-      expect(
-        lead >= 30 && lead <= 120,
-        `${job.jobname} slot ${i} leads pulse by ${lead}m`,
-      ).toBeTruthy();
+      expect(hours, job.jobname).toStrictEqual([5, 8, 11, 14, 17]);
     }
-  }
-});
+  });
 
-test("WooCommerce sync starts 15 minutes before each live campaign sync", () => {
-  const campaignHours = [5, 12];
-  const slots = minutesOfDay(WOO_SYNC_SCHEDULE.cron).sort((a, b) => a - b);
-  expect(slots).toStrictEqual(campaignHours.map((hour) => hour * 60 - 15));
+  test("the three ads syncs start at different minutes", () => {
+    const minutes = ADS_SYNC_SCHEDULES.map((job) => job.cron.split(" ")[0]);
+
+    expect(minutes).toStrictEqual(["0", "5", "10"]);
+  });
+
+  test("WooCommerce starts 15 minutes before the first ads sync of the day", () => {
+    const firstAdsRun = Math.min(
+      ...ADS_SYNC_SCHEDULES.flatMap((job) => minutesOfDay(job.cron)),
+    );
+    const [morningWoo] = minutesOfDay(WOO_SYNC_SCHEDULE.cron);
+
+    expect(firstAdsRun - morningWoo).toBe(15);
+  });
 });

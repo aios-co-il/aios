@@ -868,7 +868,7 @@ Deno.serve(async (req) => {
         batch_offset: nextOffset,
       });
     } else if (!tableIds) {
-      // The twice-daily sync has finished. Calculate and optionally deliver the
+      // The scheduled sync has finished. Calculate and optionally deliver the
       // pulse from the CRM rows we just stored. This performs no extra Meta API
       // call and does not invoke run-ai-agent/Carmen.
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
