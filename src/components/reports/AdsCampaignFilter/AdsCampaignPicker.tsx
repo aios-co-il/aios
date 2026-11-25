@@ -22,6 +22,7 @@ export function AdsCampaignPicker({
   if (campaigns.length < 2) {
     return null;
   }
+
   return (
     <Select
       value={value ?? ALL_CAMPAIGNS}

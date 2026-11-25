@@ -598,6 +598,7 @@ export default function DynamicTableView({
     }
     return filterRecordsByEntityLevel(displayRecords, adsEntityLevel);
   }, [displayRecords, adsEntityLevel, isAdsReportTable]);
+
   const adsCampaignFilter = useAdsCampaignFilter(
     allEntityLevelRecords,
     adsEntityLevel,

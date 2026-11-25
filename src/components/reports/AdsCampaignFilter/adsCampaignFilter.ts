@@ -27,6 +27,7 @@ export function listAdsCampaigns(
   if (level === "campaign") {
     return [];
   }
+
   const byKey = new Map<string, AdsCampaignOption>();
   for (const record of levelRecords) {
     const key = campaignKeyOf(record);
@@ -56,6 +57,7 @@ export function resolveAdsCampaignKey(
   if (level === "campaign" || selected === null) {
     return null;
   }
+
   return campaigns.some((campaign) => campaign.key === selected)
     ? selected
     : null;
@@ -69,6 +71,7 @@ export function filterRecordsByCampaign<T extends AdsRecord>(
   if (campaignKey === null) {
     return records;
   }
+
   return records.filter((record) => campaignKeyOf(record) === campaignKey);
 }
 
