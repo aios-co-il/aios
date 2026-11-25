@@ -18,7 +18,7 @@ export type AdsCampaignFilterControl = {
 /**
  * The report's campaign pick for the ad set and ad tabs. The pick is kept
  * while switching between those tabs; `records` are the level's records of
- * that campaign, and `campaignKey` narrows the previous period the same way.
+ * that campaign, and `control.value` narrows the previous period the same way.
  */
 export function useAdsCampaignFilter<
   T extends { data?: Record<string, unknown> },
@@ -28,7 +28,7 @@ export function useAdsCampaignFilter<
     () => listAdsCampaigns(levelRecords, level),
     [levelRecords, level],
   );
-  const campaignKey = resolveAdsCampaignKey(level, selected, campaigns);
+  const campaignKey = resolveAdsCampaignKey(selected, campaigns);
   const records = useMemo(
     () => filterRecordsByCampaign(levelRecords, campaignKey),
     [levelRecords, campaignKey],
@@ -38,5 +38,5 @@ export function useAdsCampaignFilter<
     value: campaignKey,
     onChange: setSelected,
   };
-  return { campaignKey, records, control };
+  return { records, control };
 }

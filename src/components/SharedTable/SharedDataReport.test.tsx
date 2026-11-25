@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { format, subDays } from "date-fns";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { stubRadixPointer } from "@/test/stubRadixPointer";
 import { stubResizeObserver } from "@/test/stubResizeObserver";
 import { withTestQuery } from "@/test/withTestQuery";
 import { SharedDataReport } from "./SharedDataReport";
@@ -70,14 +71,7 @@ function renderReport() {
   );
 }
 
-beforeAll(() => {
-  // Radix Select needs these pointer and scroll APIs, which the DOM runner lacks.
-  Object.assign(HTMLElement.prototype, {
-    hasPointerCapture: () => false,
-    releasePointerCapture: () => {},
-    scrollIntoView: () => {},
-  });
-});
+beforeAll(stubRadixPointer);
 
 beforeEach(stubResizeObserver);
 

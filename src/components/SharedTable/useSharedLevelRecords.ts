@@ -28,7 +28,7 @@ export function useSharedLevelRecords(
   /** The previous period's records at the shown level and campaign. */
   function previousAtLevel(previous: Array<SharedTableRecord>) {
     return filterRecordsByEntityLevel(
-      filterRecordsByCampaign(previous, campaignFilter.campaignKey),
+      filterRecordsByCampaign(previous, campaignFilter.control.value),
       level,
     );
   }
