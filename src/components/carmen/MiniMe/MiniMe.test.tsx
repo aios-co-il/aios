@@ -2,50 +2,49 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { MiniMe } from "./MiniMe";
 import { MiniMeGenderContext, resolveMiniMeGender } from "./miniMeGender";
+import { CARMEN_ROLES } from "../../../../supabase/functions/_shared/carmen/skin-roles";
+
+/** The image file each rendered Mini Me shows, in document order. */
+function shownImages(container: HTMLElement) {
+  return [...container.querySelectorAll("img")].map((img) =>
+    img.getAttribute("src"),
+  );
+}
 
 describe("MiniMe", () => {
-  it("tints the glass with the skin's color and adds its prop", () => {
+  it("shows the skin's own render", () => {
     const { container } = render(<MiniMe skin="cfo" label="כספים" />);
-    const stops = [...container.querySelectorAll("stop")].map((stop) =>
-      stop.getAttribute("stop-color"),
-    );
-    expect(stops).toContain("hsl(160 64% 40%)");
-    // The CFO holds a shekel coin.
-    expect(container.textContent).toContain("₪");
+
+    expect(shownImages(container)[0]).toContain("cfo-male");
   });
 
-  it("is the plain brand-colored classic without a skin, and decorative without a label", () => {
+  it("is the classic without a skin, and decorative without a label", () => {
     const { container } = render(<MiniMe />);
-    const svg = container.querySelector("svg.mini-me");
-    expect(svg).toHaveAttribute("aria-hidden", "true");
-    expect(container.querySelector("stop")).toHaveAttribute(
-      "stop-color",
-      "hsl(var(--brand-accent-100))",
+
+    expect(container.querySelector(".mini-me")).toHaveAttribute(
+      "aria-hidden",
+      "true",
     );
+    expect(shownImages(container)[0]).toContain("classic-male");
   });
 
-  it("gives each figure its own gradient ids, so two on a page do not share colors", () => {
+  it("has a render of its own for every skin, in both sets", () => {
     const { container } = render(
       <>
-        <MiniMe skin="cfo" />
-        <MiniMe skin="copywriter" />
+        {CARMEN_ROLES.map((role) => (
+          <span key={role.slug}>
+            <MiniMe skin={role.slug} gender="male" />
+            <MiniMe skin={role.slug} gender="female" />
+          </span>
+        ))}
       </>,
     );
-    const ids = [...container.querySelectorAll("radialGradient")].map(
-      (gradient) => gradient.id,
-    );
-    expect(new Set(ids).size).toBe(ids.length);
-  });
+    const expected = CARMEN_ROLES.flatMap((role) => [
+      expect.stringContaining(`${role.slug}-male`),
+      expect.stringContaining(`${role.slug}-female`),
+    ]);
 
-  it("draws the male set by default and the female touches when asked", () => {
-    const male = render(<MiniMe skin="cfo" />).container;
-    expect(male.querySelector(".mini-me-female")).toBeNull();
-    const female = render(<MiniMe skin="cfo" gender="female" />).container;
-    expect(female.querySelector(".mini-me-female")).not.toBeNull();
-    expect(female.querySelector("svg")).toHaveAttribute(
-      "data-gender",
-      "female",
-    );
+    expect(shownImages(container)).toEqual(expected);
   });
 
   it("follows the signed-in user's set from context unless a gender is passed", () => {
@@ -55,10 +54,11 @@ describe("MiniMe", () => {
         <MiniMe gender="male" />
       </MiniMeGenderContext.Provider>,
     );
-    const genders = [...container.querySelectorAll("svg.mini-me")].map((svg) =>
-      svg.getAttribute("data-gender"),
-    );
-    expect(genders).toEqual(["female", "male"]);
+
+    expect(shownImages(container)).toEqual([
+      expect.stringContaining("classic-female"),
+      expect.stringContaining("classic-male"),
+    ]);
   });
 });
 
