@@ -623,7 +623,10 @@ export default function Clients() {
           {clientsResolving ? (
             <CarmenLoadingScreen
               variant="card"
-              messages={["כרמן אוספת את רשימת הלקוחות…", "מסדרת לפי סוכנות…"]}
+              messages={[
+                "{name} {אוספת|אוסף} את רשימת הלקוחות…",
+                "{מסדרת|מסדר} לפי סוכנות…",
+              ]}
             />
           ) : viewMode === "chat" ? (
             <ClientsChatView
