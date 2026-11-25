@@ -1,20 +1,10 @@
 import type { ReactNode } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { CLIENT_SERVICE_OPTIONS } from "@/components/clients/clientStatusMeta";
 import type { ClientFilters } from "./clientFilters";
-import {
-  CampaignerFilterSelect,
-  type CampaignerOption,
-} from "./CampaignerFilterSelect";
+import type { CampaignerOption } from "./CampaignerFilterSelect";
+import { ClientsFilterFields } from "./ClientsFilterFields";
+import { ClientsSearchInput } from "./ClientsSearchInput";
 
 interface ClientsToolbarProps {
   filters: ClientFilters;
@@ -28,15 +18,16 @@ interface ClientsToolbarProps {
   showSearch: boolean;
   activeFilterCount: number;
   onOpenFilters: () => void;
-  /** The title and the headline figures, at the start of the bar. */
+  /** The title, at the start of the bar. */
   leading: ReactNode;
   /** The view toggle and page actions, at the end of the bar. */
   children: ReactNode;
 }
 
 /**
- * The one white bar above the list: title and figures, search, quick filters,
- * more filters, then the view toggle and page actions.
+ * The one white bar above the list on phones: title, search, quick filters,
+ * more filters, then the view toggle and page actions. Desktop uses the side
+ * panel instead.
  */
 export function ClientsToolbar({
   filters,
@@ -52,48 +43,18 @@ export function ClientsToolbar({
     <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-2xl border bg-card p-2 shadow-elevation-1">
       {leading}
       {showSearch && (
-        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-          <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="חפש לקוח..."
-            value={filters.search}
-            onChange={(e) => onFilterChange("search", e.target.value)}
-            className="h-9 border-transparent bg-surface-inset pr-9"
-          />
-        </div>
-      )}
-      {campaigners && (
-        <CampaignerFilterSelect
-          value={filters.campaigner}
-          onChange={(v) => onFilterChange("campaigner", v)}
-          campaigners={campaigners}
-          triggerClassName="h-9 w-[150px]"
+        <ClientsSearchInput
+          value={filters.search}
+          onChange={(value) => onFilterChange("search", value)}
+          className="min-w-[200px] flex-1 sm:max-w-xs"
         />
       )}
-      <Select
-        value={filters.status}
-        onValueChange={(v) => onFilterChange("status", v)}
-      >
-        <SelectTrigger className="h-9 w-[130px]">
-          <SelectValue placeholder="סטטוס" />
-        </SelectTrigger>
-        <SelectContent className="bg-background">
-          <ClientStatusFilterItems />
-        </SelectContent>
-      </Select>
-      <Select
-        value={filters.service}
-        onValueChange={(v) => onFilterChange("service", v)}
-      >
-        <SelectTrigger className="h-9 w-[140px]">
-          <SelectValue placeholder="סוג לקוח" />
-        </SelectTrigger>
-        <SelectContent className="bg-background">
-          <SelectItem value="all">כל סוגי הלקוחות</SelectItem>
-          <ClientServiceFilterItems />
-        </SelectContent>
-      </Select>
+      <ClientsFilterFields
+        filters={filters}
+        onFilterChange={onFilterChange}
+        campaigners={campaigners}
+        layout="inline"
+      />
       <Button
         variant="outline"
         className="relative h-9 gap-2"
@@ -109,31 +70,5 @@ export function ClientsToolbar({
       </Button>
       <div className="ms-auto flex items-center gap-2">{children}</div>
     </div>
-  );
-}
-
-/** The status filter's items; "ended" reads "עזב" in filters, as it always has. */
-export function ClientStatusFilterItems() {
-  return (
-    <>
-      <SelectItem value="all">כל הסטטוסים</SelectItem>
-      <SelectItem value="active">פעיל</SelectItem>
-      <SelectItem value="onboarding">בקליטה</SelectItem>
-      <SelectItem value="paused">מושהה</SelectItem>
-      <SelectItem value="ended">עזב</SelectItem>
-    </>
-  );
-}
-
-/** The product-tag filter's items, without the "all" item (its label differs per place). */
-export function ClientServiceFilterItems() {
-  return (
-    <>
-      {CLIENT_SERVICE_OPTIONS.map((option) => (
-        <SelectItem key={option.value} value={option.value}>
-          {option.label}
-        </SelectItem>
-      ))}
-    </>
   );
 }

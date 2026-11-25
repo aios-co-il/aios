@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, type ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -110,7 +110,10 @@ const isUpdateColumn = (colName: string): boolean => {
   return !!(hebrewMatch || englishMatch);
 };
 
-export function ImportLeadsWithMapping() {
+/** Lead import from a spreadsheet; `trigger` replaces the default button. */
+export function ImportLeadsWithMapping({
+  trigger,
+}: { trigger?: ReactElement } = {}) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [open, setOpen] = useState(false);
@@ -1662,10 +1665,12 @@ export function ImportLeadsWithMapping() {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Upload className="h-4 w-4" />
-          ייבוא לידים
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" className="gap-2">
+            <Upload className="h-4 w-4" />
+            ייבוא לידים
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent
         dir="rtl"
