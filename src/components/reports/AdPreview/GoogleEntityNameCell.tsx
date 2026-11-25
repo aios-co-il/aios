@@ -1,8 +1,6 @@
-import { useState } from "react";
 import type { GoogleAdContent } from "@functions/sync-google-ads-data/ad-content.ts";
-import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import { AdPreviewDialog } from "./AdPreviewDialog";
 import { GoogleAdCard } from "./GoogleAdCard";
+import { PreviewableNameCell } from "./PreviewableNameCell";
 
 type Props = {
   name: string;
@@ -18,26 +16,12 @@ type Props = {
  * internal report and its share link; every other row is the plain name cell.
  */
 export function GoogleEntityNameCell({ name, off, adContent }: Props) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <>
-      <ReportNameCell
-        name={name}
-        on={!off}
-        className="p-2 text-right"
-        onNameClick={adContent ? () => setOpen(true) : undefined}
-      />
-      {adContent && (
-        <AdPreviewDialog
-          open={open}
-          adName={name}
-          description="תצוגה מקדימה של המודעה בחיפוש Google"
-          onClose={() => setOpen(false)}
-        >
-          <GoogleAdCard content={adContent} />
-        </AdPreviewDialog>
-      )}
-    </>
+    <PreviewableNameCell
+      name={name}
+      off={off}
+      description="תצוגה מקדימה של המודעה בחיפוש Google"
+      preview={adContent ? <GoogleAdCard content={adContent} /> : null}
+    />
   );
 }

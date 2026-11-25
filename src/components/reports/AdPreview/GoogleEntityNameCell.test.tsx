@@ -102,6 +102,13 @@ describe("GoogleEntityNameCell", () => {
     expect(screen.queryByRole("button", { name: "Old ad" })).toBeNull();
   });
 
+  it("leaves an ad with a type but no copy as a plain name", () => {
+    renderTables([adDay("Shopping ad", { ad_type: "SHOPPING_PRODUCT_AD" })]);
+
+    expect(screen.getByText("Shopping ad")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Shopping ad" })).toBeNull();
+  });
+
   it("does not link a final URL that is not http or https", async () => {
     const user = userEvent.setup();
     renderTables([

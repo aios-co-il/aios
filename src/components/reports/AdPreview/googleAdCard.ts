@@ -23,6 +23,7 @@ export function googleAdCardView(content: GoogleAdContent): GoogleAdCardView {
   const landing = httpUrlOf(content.ad_final_url);
   const path = content.ad_display_path;
   const domain = landing?.hostname.replace(/^www\./, "") ?? null;
+
   return {
     isTextAd: GOOGLE_TEXT_AD_TYPES.includes(content.ad_type ?? ""),
     headline: (content.ad_headlines ?? [])

@@ -80,6 +80,7 @@ export function googleAdContent(
   if (!ad) {
     return {};
   }
+
   const rsa = ad.responsiveSearchAd;
   const eta = ad.expandedTextAd;
   const headlines = [
@@ -101,6 +102,7 @@ export function googleAdContent(
     rsa?.path1 ?? eta?.path1,
     rsa?.path2 ?? eta?.path2,
   ]).join("/");
+
   return dropEmpty({
     ad_type: texts([ad.type])[0],
     ad_headlines: headlines,
@@ -111,9 +113,10 @@ export function googleAdContent(
 }
 
 /**
- * The card fields of a stored report row, or null when the row has none (a
- * row synced before the content was stored, or a non-ad row). Rows are
- * untrusted JSON, so each field is checked.
+ * The card fields of a stored report row, or null when the row has no copy to
+ * show (a row synced before the content was stored, a non-ad row, or an ad
+ * such as a shopping ad that has a type but no headlines or descriptions).
+ * Rows are untrusted JSON, so each field is checked.
  */
 export function storedGoogleAdContent(
   data: Record<string, unknown> | null | undefined,
@@ -121,6 +124,7 @@ export function storedGoogleAdContent(
   if (!data) {
     return null;
   }
+
   const content = dropEmpty({
     ad_type: texts([data.ad_type])[0],
     ad_headlines: Array.isArray(data.ad_headlines)
@@ -132,7 +136,8 @@ export function storedGoogleAdContent(
     ad_final_url: texts([data.ad_final_url])[0],
     ad_display_path: texts([data.ad_display_path])[0],
   });
-  return content.ad_type || content.ad_headlines ? content : null;
+
+  return content.ad_headlines || content.ad_descriptions ? content : null;
 }
 
 /** The text of each AdTextAsset in a repeated field. */

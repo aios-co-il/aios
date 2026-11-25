@@ -100,6 +100,23 @@ Deno.test("storedGoogleAdContent", async (t) => {
     );
     assertStrictEquals(storedGoogleAdContent(null), null);
   });
+
+  await t.step("is null for an ad with a type but no copy", () => {
+    assertStrictEquals(
+      storedGoogleAdContent({
+        entity_level: "ad",
+        ad_type: "SHOPPING_PRODUCT_AD",
+        ad_final_url: "https://example.com",
+      }),
+      null,
+    );
+  });
+
+  await t.step("reads an ad with descriptions but no headlines", () => {
+    assertEquals(storedGoogleAdContent({ ad_descriptions: ["D"] }), {
+      ad_descriptions: ["D"],
+    });
+  });
 });
 
 Deno.test("the ad query selects each card field from ad_group_ad", () => {
