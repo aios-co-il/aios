@@ -1,6 +1,12 @@
 import { type ReactElement, useState } from "react";
 import { ReportNameCell } from "@/components/report-ui/ReportTable";
-import { AdPreviewDialog } from "./AdPreviewDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Props = {
   name: string;
@@ -13,8 +19,11 @@ type Props = {
 };
 
 /**
- * The name cell of an ads report row whose name can open its preview. Each
- * platform's cell decides only whether the row has a preview and what it is.
+ * The name cell of an ads report row whose name can open its preview, on the
+ * internal report and its share link. Each platform's cell decides only
+ * whether the row has a preview and what it is: Meta's preview frame for a
+ * Facebook ad, the drawn card for a Google ad. The preview is mounted only
+ * while the dialog is open.
  */
 export function PreviewableNameCell({
   name,
@@ -33,14 +42,17 @@ export function PreviewableNameCell({
         onNameClick={preview ? () => setOpen(true) : undefined}
       />
       {preview && (
-        <AdPreviewDialog
-          open={open}
-          adName={name}
-          description={description}
-          onClose={() => setOpen(false)}
-        >
-          {preview}
-        </AdPreviewDialog>
+        <Dialog open={open} onOpenChange={(next) => !next && setOpen(false)}>
+          <DialogContent className="max-w-md" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="truncate" title={name}>
+                {name}
+              </DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </DialogHeader>
+            {preview}
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );

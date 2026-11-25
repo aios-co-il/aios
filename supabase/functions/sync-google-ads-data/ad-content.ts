@@ -19,7 +19,6 @@ export type GoogleAdContent = {
 export const GOOGLE_TEXT_AD_TYPES: ReadonlyArray<string> = [
   "RESPONSIVE_SEARCH_AD",
   "EXPANDED_TEXT_AD",
-  "TEXT_AD",
 ];
 
 /**
