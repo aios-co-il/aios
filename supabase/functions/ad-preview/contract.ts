@@ -15,8 +15,15 @@ export type AdPreviewError =
 
 export type AdPreviewAnswer = { src: string } | { error: AdPreviewError };
 
-/** Meta's preview iframe page: the only address the dialog ever frames. */
-const PREVIEW_ORIGIN = "https://www.facebook.com";
+/**
+ * Meta's preview iframe page, the only address the dialog ever frames. Graph
+ * answers with either host: business.facebook.com for ad accounts managed in
+ * Business Manager.
+ */
+const PREVIEW_ORIGINS = new Set([
+  "https://www.facebook.com",
+  "https://business.facebook.com",
+]);
 const PREVIEW_PATH = "/ads/api/preview_iframe.php";
 
 /**
@@ -31,7 +38,7 @@ export function metaPreviewSrc(src: string): string | null {
     return null;
   }
   const isPreview =
-    url.origin === PREVIEW_ORIGIN &&
+    PREVIEW_ORIGINS.has(url.origin) &&
     url.pathname === PREVIEW_PATH &&
     !url.username &&
     !url.password &&
