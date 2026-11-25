@@ -163,7 +163,11 @@ export default function UnifiedCallback() {
         sessionStorage.removeItem("unified_pending_connection");
 
         if (window.opener) {
-          window.opener.postMessage({ type: "unified-connected" }, "*");
+          // The opener started the connect from this app origin (success_redirect).
+          window.opener.postMessage(
+            { type: "unified-connected" },
+            window.location.origin,
+          );
           try {
             window.opener.sessionStorage.removeItem(
               "unified_pending_connection",

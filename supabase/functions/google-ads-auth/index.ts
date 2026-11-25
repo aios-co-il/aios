@@ -1,21 +1,28 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.75.0";
-import {
-  allowedAppOrigin,
-  redirectToIntegrations,
-} from "../_shared/google-oauth/app-origin.ts";
+import { allowedAppOrigin } from "../_shared/google-oauth/app-origin.ts";
 import {
   isCompleteRefusal,
   readCompleteRequest,
   refuseFormerMember,
 } from "../_shared/google-oauth/connect-handoff.ts";
-import { redirectHandoff } from "../_shared/google-oauth/handoff-response.ts";
 import {
+  redirectHandoff,
+  redirectHandoffError,
+  UNKNOWN_TENANT_SLUG,
+} from "../_shared/google-oauth/handoff-response.ts";
+import {
+  INVALID_STATE_ERROR,
+  MISSING_CODE_ERROR,
+} from "../_shared/google-oauth/handoff-contract.ts";
+import {
+  claimedStateOrigin,
   oauthStateSecret,
   signOAuthState,
   verifyOAuthState,
 } from "../_shared/google-oauth/oauth-state.ts";
 import { userFacingMessage } from "../_shared/google-oauth/user-facing-error.ts";
 import { storeAdsConnection } from "./store-connection.ts";
+import { callbackUri } from "../_shared/google-oauth/exchange-code.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,7 +35,6 @@ const corsHeaders = {
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") || "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") || "";
 const DEVELOPER_TOKEN = Deno.env.get("GOOGLE_ADS_DEVELOPER_TOKEN") || "";
-const REDIRECT_URI = `${Deno.env.get("SUPABASE_URL")}/functions/v1/google-ads-auth?action=oauth_callback`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -41,7 +47,7 @@ Deno.serve(async (req) => {
 
     // Handle OAuth callback
     if (action === "oauth_callback") {
-      return handleOAuthCallback(url);
+      return await handleOAuthCallback(url);
     }
 
     // All other actions require authentication
@@ -66,16 +72,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
-      _user_id: user.id,
-    });
-    if (!tenantId) {
-      return new Response(JSON.stringify({ error: "No tenant found" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     let body: any = {};
     if (req.method === "POST") {
       try {
@@ -86,6 +82,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // complete takes the tenant from the signed state, so it does not need a default tenant.
+    if ((action || body.action) === "complete") {
+      return await completeConnect(body, user.id);
+    }
+
+    const { data: tenantId } = await supabase.rpc("get_user_tenant_id", {
+      _user_id: user.id,
+    });
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: "No tenant found" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     switch (action || body.action) {
       case "get_auth_url":
         return await getAuthUrl(
@@ -93,9 +104,6 @@ Deno.serve(async (req) => {
           user.id,
           allowedAppOrigin(body.origin ?? req.headers.get("origin")),
         );
-
-      case "complete":
-        return await completeConnect(body, user.id);
 
       case "get_accounts":
         return getGoogleAdsAccounts(supabase, tenantId, user.id);
@@ -115,9 +123,9 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in google-ads-auth:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: userFacingMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -138,7 +146,10 @@ async function getAuthUrl(
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
-  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set(
+    "redirect_uri",
+    callbackUri("google-ads-auth", "oauth_callback"),
+  );
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", scopes.join(" "));
   authUrl.searchParams.set("access_type", "offline");
@@ -167,7 +178,7 @@ async function handleOAuthCallback(url: URL) {
       .select("slug")
       .eq("id", tenantId)
       .single();
-    return tenant?.slug || "app";
+    return tenant?.slug || UNKNOWN_TENANT_SLUG;
   }
 
   const state = await verifyOAuthState(
@@ -175,17 +186,32 @@ async function handleOAuthCallback(url: URL) {
     oauthStateSecret(),
   );
   if (!state?.tenantId) {
-    return redirectToIntegrations(null, "app", { error: "invalid_state" });
+    return redirectHandoffError(
+      "google-ads-auth",
+      claimedStateOrigin(url.searchParams.get("state") ?? ""),
+      null,
+      INVALID_STATE_ERROR,
+    );
   }
 
   const tenantSlug = await getTenantSlug(state.tenantId);
 
   if (error) {
-    return redirectToIntegrations(state.origin, tenantSlug, { error });
+    return redirectHandoffError(
+      "google-ads-auth",
+      state.origin,
+      tenantSlug,
+      error,
+    );
   }
 
   if (!code) {
-    return new Response("Missing code", { status: 400 });
+    return redirectHandoffError(
+      "google-ads-auth",
+      state.origin,
+      tenantSlug,
+      MISSING_CODE_ERROR,
+    );
   }
 
   return redirectHandoff(

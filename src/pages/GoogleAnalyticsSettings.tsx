@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useState } from "react";
 import {
   Card,
@@ -159,11 +160,11 @@ export default function GoogleAnalyticsSettings() {
     },
   });
 
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setWebhookCopied(true);
-    toast.success("URL הועתק ללוח");
-    setTimeout(() => setWebhookCopied(false), 2000);
+  const handleCopyWebhook = async () => {
+    if (await copyToClipboard(webhookUrl, "URL הועתק ללוח")) {
+      setWebhookCopied(true);
+      setTimeout(() => setWebhookCopied(false), 2000);
+    }
   };
 
   return (
@@ -645,21 +646,6 @@ export default function GoogleAnalyticsSettings() {
                     ב-OAuth consent screen → Scopes, הוסף:
                     <code className="block mt-1 text-xs bg-muted p-1 rounded">
                       https://www.googleapis.com/auth/analytics.readonly
-                    </code>
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-medium">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium">הגדר Redirect URI</p>
-                  <p className="text-sm text-muted-foreground">
-                    ב-OAuth 2.0 Client ID, הוסף:
-                    <code className="block mt-1 text-xs bg-muted p-1 rounded overflow-x-auto">
-                      {import.meta.env.VITE_SUPABASE_URL}
-                      /functions/v1/google-analytics-auth?action=oauth_callback
                     </code>
                   </p>
                 </div>

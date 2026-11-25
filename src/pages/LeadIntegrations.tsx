@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import {
   Card,
   CardContent,
@@ -6,7 +7,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 import { Copy, ExternalLink, PhoneCall, Webhook } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTenantPath } from "@/hooks/useTenantPath";
@@ -17,7 +17,6 @@ import JsonLeadBuilder from "@/components/forms/JsonLeadBuilder";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 
 export default function LeadIntegrations() {
-  const { toast } = useToast();
   const { tenant } = useCurrentTenant();
   const navigate = useNavigate();
   const { buildPath } = useTenantPath();
@@ -27,13 +26,8 @@ export default function LeadIntegrations() {
   const webhookUrl = `${webhookBaseUrl}?tenant_slug=${tenantSlug}`;
   const webhookSecretPlaceholder = "YOUR_WEBHOOK_SECRET";
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: "הועתק ללוח",
-      description: "כתובת ה-Webhook הועתקה בהצלחה",
-    });
-  };
+  const copyWebhookText = (text: string) =>
+    void copyToClipboard(text, "הועתק ללוח", "כתובת ה-Webhook הועתקה בהצלחה");
 
   const examplePayloadBasic = `{
   "tenant_slug": "${tenantSlug}",
@@ -87,7 +81,7 @@ export default function LeadIntegrations() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => copyToClipboard(webhookUrl)}
+              onClick={() => copyWebhookText(webhookUrl)}
             >
               <Copy className="h-4 w-4 ml-2" />
               העתק
@@ -242,7 +236,7 @@ export default function LeadIntegrations() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(examplePayloadBasic)}
+                  onClick={() => copyWebhookText(examplePayloadBasic)}
                 >
                   <Copy className="h-4 w-4 ml-2" />
                   העתק דוגמה
@@ -257,7 +251,7 @@ export default function LeadIntegrations() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(examplePayloadFull)}
+                  onClick={() => copyWebhookText(examplePayloadFull)}
                 >
                   <Copy className="h-4 w-4 ml-2" />
                   העתק דוגמה
@@ -272,7 +266,7 @@ export default function LeadIntegrations() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => copyToClipboard(curlExample)}
+                  onClick={() => copyWebhookText(curlExample)}
                 >
                   <Copy className="h-4 w-4 ml-2" />
                   העתק פקודה
@@ -452,7 +446,7 @@ document.getElementById('contactForm').addEventListener('submit', async (e) => {
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    copyToClipboard(`// JavaScript example code...`)
+                    copyWebhookText(`// JavaScript example code...`)
                   }
                 >
                   <Copy className="h-4 w-4 ml-2" />

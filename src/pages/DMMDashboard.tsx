@@ -1,3 +1,4 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 /**
  * דשבורד בדיקת דופק — שכבה 1: נתוני קמפיין גולמיים מ-Meta/Google, מקובצים לפי לקוח
  * וסוג קמפיין (לידים / אינגייג׳מנט / איקומרס) ללא רמזור או ניתוח.
@@ -193,14 +194,10 @@ export function CampaignPulseDashboard({
       tenantSlug,
       effectiveAgencyId,
     );
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(
-        effectiveAgencyId ? "קישור הסוכנות הועתק" : "קישור הדשבורד הועתק",
-      );
-    } catch {
-      toast.error("לא ניתן להעתיק קישור");
-    }
+    await copyToClipboard(
+      url,
+      effectiveAgencyId ? "קישור הסוכנות הועתק" : "קישור הדשבורד הועתק",
+    );
   }
 
   const { data: crossTenantAgencyIds = [] } = useQuery({
@@ -942,11 +939,11 @@ export function CampaignPulseDashboard({
     return (
       <CarmenLoadingScreen
         variant="page"
-        title="כרמן מכינה את בדיקת הדופק"
+        title="{name} {מכינה|מכין} את בדיקת הדופק"
         messages={[
-          "כרמן אוספת את נתוני הקמפיינים…",
-          "מסדרת לפי לקוח, פלטפורמה ומטרה…",
-          "בודקת מי פעיל ומי מושהה…",
+          "{name} {אוספת|אוסף} את נתוני הקמפיינים…",
+          "{מסדרת|מסדר} לפי לקוח, פלטפורמה ומטרה…",
+          "{בודקת|בודק} מי פעיל ומי מושהה…",
           "עוד רגע הכול על המסך…",
         ]}
       />
@@ -962,8 +959,8 @@ export function CampaignPulseDashboard({
         <CarmenLoadingScreen
           variant="inline"
           messages={[
-            "כרמן מדייקת סטטוסי קמפיין (פעיל/מושהה)…",
-            "מעדכנת את הקריטריונים החדשים…",
+            "{name} {מדייקת|מדייק} סטטוסי קמפיין (פעיל/מושהה)…",
+            "{מעדכנת|מעדכן} את הקריטריונים החדשים…",
             "עוד רגע הנתונים יתיישרו…",
           ]}
         />

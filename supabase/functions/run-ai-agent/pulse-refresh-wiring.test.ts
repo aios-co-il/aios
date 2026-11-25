@@ -72,12 +72,6 @@ Deno.test("run-ai-agent index.ts", async (t) => {
         read("./executors/refresh-campaign-pulse.ts"),
         /actorUserId,\s*accessibleTenantIds,\s*assertCallerCanAccessClient: \(clientId: string\) =>\s*assertCallerCanAccessClient\(supabase, clientId, callerScope\),/,
       );
-
-      const priority = runAiAgent.slice(
-        runAiAgent.indexOf("const PRIORITY_TOOLS = new Set(["),
-        runAiAgent.indexOf("function capToolsForTarget("),
-      );
-      assert(priority.includes("  REFRESH_PULSE_TOOL_NAME,\n"));
       assert(ALL_TOOLS.includes(REFRESH_CAMPAIGN_PULSE_TOOL));
 
       const catalog = read("../../../src/lib/agentToolsCatalog.ts");

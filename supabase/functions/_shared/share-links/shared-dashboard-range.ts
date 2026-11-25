@@ -63,6 +63,10 @@ export function sharedDashboardDateRange(filter: string): {
       endDate = endOfLastMonth.toISOString().split("T")[0];
       break;
     }
+    case "last_9_days":
+      startDate = new Date(Date.UTC(y, m, d - 9)).toISOString().split("T")[0];
+      endDate = yesterdayStr;
+      break;
     case "last_14_days":
       startDate = new Date(Date.UTC(y, m, d - 14)).toISOString().split("T")[0];
       endDate = yesterdayStr;

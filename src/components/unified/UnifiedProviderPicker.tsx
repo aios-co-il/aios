@@ -61,7 +61,10 @@ export default function UnifiedProviderPicker({
   // Listen for postMessage from callback page
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.data?.type === "unified-connected") {
+      if (
+        event.origin === window.location.origin &&
+        event.data?.type === "unified-connected"
+      ) {
         toast({ title: "החיבור נשמר בהצלחה!" });
         queryClient.invalidateQueries({
           queryKey: ["unified-connections", tenantId],

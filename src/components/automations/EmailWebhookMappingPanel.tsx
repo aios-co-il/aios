@@ -1,8 +1,8 @@
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Copy, Braces } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import {
   buildSampleWebhookJson,
   buildSampleWebhookJsonFromAvailableFields,
@@ -23,8 +23,6 @@ export function EmailWebhookMappingPanel({
   triggerType,
   automationId,
 }: Props) {
-  const { toast } = useToast();
-
   const mappedFields = useMemo(
     () => collectEmailMappedFields(configuration, availableFields),
     [configuration, availableFields],
@@ -40,10 +38,8 @@ export function EmailWebhookMappingPanel({
       ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/automation-flow-webhook?automation_id=${automationId}`
       : null;
 
-  const copy = async (text: string, label: string) => {
-    await navigator.clipboard.writeText(text);
-    toast({ title: "הועתק", description: label });
-  };
+  const copy = (text: string, label: string) =>
+    void copyToClipboard(text, "הועתק", label);
 
   if (mappedFields.length === 0) {
     const allFieldsJson = JSON.stringify(

@@ -38,6 +38,7 @@ import {
 } from "../_shared/mcp-streamable-http.ts";
 import { getRepoUrl } from "../_shared/github-repo.ts";
 import { GLOBAL_SKIN_RULE } from "../_shared/carmen/learned-skin-scope.ts";
+import { publicFunctionUrl } from "../_shared/public-api/url.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -52,12 +53,9 @@ const corsHeaders = {
 };
 
 const SERVER_INFO = { name: "grok-mcp", version: "1.2.1" };
-const GROK_MCP_STREAMABLE_URL =
-  "https://zvoijyneresvkadpprel.supabase.co/functions/v1/grok-mcp/mcp";
-const CURSOR_MCP_STREAMABLE_URL =
-  "https://zvoijyneresvkadpprel.supabase.co/functions/v1/cursor-mcp/mcp";
-const CARMEN_MCP_STREAMABLE_URL =
-  "https://zvoijyneresvkadpprel.supabase.co/functions/v1/carmen-mcp/mcp";
+const GROK_MCP_STREAMABLE_URL = publicFunctionUrl("grok-mcp/mcp");
+const CURSOR_MCP_STREAMABLE_URL = publicFunctionUrl("cursor-mcp/mcp");
+const CARMEN_MCP_STREAMABLE_URL = publicFunctionUrl("carmen-mcp/mcp");
 const PROTOCOL_VERSION = "2024-11-05";
 const MAX_TEXT = 100_000;
 const DEFAULT_GROK_MODEL = "cursor-grok-4.6-high-fast";

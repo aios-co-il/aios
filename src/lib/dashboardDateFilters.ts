@@ -14,8 +14,8 @@ export const REQUIRED_COMBINED_DATE_FILTERS: ReadonlyArray<DateFilterOption> = [
 ] as const;
 
 /**
- * Authenticated combined dashboard (DashboardView) — client / agency / org.
- * Includes custom range.
+ * Combined dashboard (DashboardView) — client / agency / org — and its share
+ * link (SharedDashboard). Includes custom range.
  */
 export const COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "today", label: "היום" },
@@ -23,6 +23,7 @@ export const COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -35,27 +36,6 @@ export const COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "custom", label: "טווח מותאם אישית" },
 ];
 
-/**
- * Public shared combined dashboard (SharedDashboard).
- * No custom picker — but week presets must match the authenticated view.
- */
-export const SHARED_COMBINED_DASHBOARD_DATE_FILTERS: Array<DateFilterOption> = [
-  { value: "today", label: "היום" },
-  { value: "yesterday", label: "אתמול" },
-  { value: "this_week", label: "השבוע" },
-  { value: "last_week", label: "שבוע שעבר" },
-  { value: "last_7_days", label: "7 ימים אחרונים" },
-  { value: "last_14_days", label: "14 יום אחרונים" },
-  { value: "last_30_days", label: "30 יום אחרונים" },
-  { value: "last_60_days", label: "60 יום אחרונים" },
-  { value: "last_70_days", label: "70 יום אחרונים" },
-  { value: "last_90_days", label: "90 יום אחרונים" },
-  { value: "last_120_days", label: "120 יום אחרונים" },
-  { value: "last_365_days", label: "שנה אחרונה" },
-  { value: "this_month", label: "החודש הנוכחי" },
-  { value: "last_month", label: "חודש קודם" },
-];
-
 /** Public shared single-table view (SharedTable). */
 export const SHARED_TABLE_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "today", label: "היום" },
@@ -63,6 +43,7 @@ export const SHARED_TABLE_DATE_FILTERS: Array<DateFilterOption> = [
   { value: "this_week", label: "השבוע" },
   { value: "last_week", label: "שבוע שעבר" },
   { value: "last_7_days", label: "7 ימים אחרונים" },
+  { value: "last_9_days", label: "9 ימים אחרונים" },
   { value: "last_14_days", label: "14 יום אחרונים" },
   { value: "last_30_days", label: "30 יום אחרונים" },
   { value: "last_60_days", label: "60 יום אחרונים" },
@@ -162,6 +143,11 @@ export function getDashboardDateRange(
     case "last_7_days":
       return {
         startDate: fmt(subDays(today, 7)),
+        endDate: fmt(subDays(today, 1)),
+      };
+    case "last_9_days":
+      return {
+        startDate: fmt(subDays(today, 9)),
         endDate: fmt(subDays(today, 1)),
       };
     case "last_14_days":

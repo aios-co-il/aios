@@ -2,12 +2,11 @@
 // the browser at authorize time; only the AIOS app's own hosts are accepted,
 // so a callback can never redirect or post a message to another site.
 
+import { LOCAL_HOSTS } from "./handoff-contract.ts";
+
 /** Production, Staging and this project's Vercel deployments (team `aios-crm`, project `after-lead`). */
 const APP_HOSTS =
   /^(?:(?:www\.|staging\.)?aios\.co\.il|after-lead(?:-[a-z0-9-]+)?-aios-crm\.vercel\.app)$/;
-
-/** Local development. */
-const LOCAL_HOSTS = /^(?:localhost|127\.0\.0\.1)$/;
 
 /** Production, used when neither the state nor APP_URL names an app origin. */
 const DEFAULT_APP_ORIGIN = "https://aios.co.il";
@@ -22,7 +21,8 @@ export function allowedAppOrigin(
 
   const url = new URL(value);
   const isApp = url.protocol === "https:" && APP_HOSTS.test(url.hostname);
-  const isLocal = url.protocol === "http:" && LOCAL_HOSTS.test(url.hostname);
+  const isLocal =
+    url.protocol === "http:" && LOCAL_HOSTS.includes(url.hostname);
 
   return isApp || isLocal ? url.origin : null;
 }
@@ -34,24 +34,4 @@ export function appReturnOrigin(origin: string | null): string {
     allowedAppOrigin(Deno.env.get("APP_URL")) ??
     DEFAULT_APP_ORIGIN
   );
-}
-
-/** A 302 to the tenant's integrations page on the app origin, with the params encoded. */
-export function redirectToIntegrations(
-  origin: string | null,
-  tenantSlug: string,
-  params: Record<string, string>,
-): Response {
-  const target = new URL(
-    `/t/${encodeURIComponent(tenantSlug)}/integrations`,
-    appReturnOrigin(origin),
-  );
-  for (const [key, value] of Object.entries(params)) {
-    target.searchParams.set(key, value);
-  }
-
-  return new Response(null, {
-    status: 302,
-    headers: { Location: target.toString() },
-  });
 }

@@ -8,6 +8,7 @@ import {
   toPublicTableSettings,
 } from "../../supabase/functions/_shared/share-links/public-table-settings.ts";
 import { isEcommerceReportTable } from "../../supabase/functions/_shared/campaign-goal/table-goal.ts";
+import { getAdAccountLinks, toClientAdLinks } from "@/lib/adAccountUrl";
 import { isFacebookLeadsOnlyTable } from "@/lib/adsMetrics";
 import { googleReportFallbackGoal } from "@/lib/googleGoalPresence";
 import { resolveAnalyticsReportMode } from "@/lib/analyticsReportMode";
@@ -226,5 +227,38 @@ describe("share link table settings", () => {
     for (const [key, file] of readBy) {
       expect(PUBLIC_TABLE_SETTINGS_KEYS, `${file} reads ${key}`).toContain(key);
     }
+  });
+
+  it("return ad account links as url, platform and label only", () => {
+    const tables = [
+      {
+        integration_type: "facebook_insights",
+        integration_settings: { ...CREDENTIALS, ad_account_id: "act_111" },
+      },
+      {
+        integration_type: "google_ads",
+        integration_settings: { ...CREDENTIALS, customer_id: "123-456-7890" },
+      },
+    ];
+    const clientLinks = toClientAdLinks({
+      google_ads_url: "https://attacker.example/SECRET",
+      meta_ads_url: "https://adsmanager.facebook.com/x",
+    });
+
+    const links = getAdAccountLinks(tables, clientLinks);
+
+    expect(JSON.stringify(links)).not.toContain("SECRET");
+    expect(links).toStrictEqual([
+      {
+        url: "https://adsmanager.facebook.com/x",
+        platform: "meta",
+        label: "חשבון Facebook",
+      },
+      {
+        url: "https://ads.google.com/aw/overview?__e=1234567890",
+        platform: "google",
+        label: "חשבון Google Ads",
+      },
+    ]);
   });
 });

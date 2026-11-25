@@ -51,9 +51,9 @@ import { MonthlyView } from "./MonthlyView";
 import { TaskDetailDialog } from "./TaskDetailDialog";
 import { TasksChatView, TasksChatSearchInput } from "./TasksChatView";
 import { TasksToolbarFilters } from "./TasksToolbarFilters";
-import { TasksBoardHeader } from "./TasksBoardHeader";
 import { TasksCalendarNotice } from "./TasksCalendarNotice";
-import { TasksSummaryChips } from "./TasksSummaryChips";
+import { TasksSidePanel } from "./TasksSidePanel";
+import { TasksSummaryList } from "./TasksSummaryList";
 import { TasksViewSwitcher } from "./TasksViewSwitcher";
 import { TasksPeriodNav } from "./TasksPeriodNav";
 import { summarizeTasks } from "./taskSummary";
@@ -1980,345 +1980,188 @@ export function WeeklyTaskBoard() {
       saveDisabled={isViewingAs}
     />
   );
-  const toolbarFilters = renderToolbarFilters();
+  const showCalendarNotice =
+    viewMode !== "chat" && Boolean(calendarStatus) && !calendarConnected;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {isViewingAs && (
-        <div className="mb-3 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground">
-          מציג משימות של <strong>{viewAsUserName}</strong> בלבד (שלי בלבד)
-        </div>
-      )}
-      <div className="mb-3 flex shrink-0 flex-col gap-3">
-        <TasksBoardHeader
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-          currentDate={currentDate}
-          onPrev={goToPrev}
-          onNext={goToNext}
-          onToday={goToToday}
-          chatSearch={
-            <TasksChatSearchInput
-              value={chatListSearch}
-              onChange={setChatListSearch}
-              className="w-[220px] shrink-0"
-            />
-          }
-          toolbarFilters={toolbarFilters}
-          activeFiltersCount={activeFiltersCount}
-          onOpenFilters={() => openFiltersDialog(false)}
-          summary={
-            <TasksSummaryChips
-              summary={summarizeTasks({ tasks, backlogTasks, today })}
-            />
-          }
-          calendar={{
-            connected: calendarConnected,
-            syncing: syncToCalendar.isPending,
-            connecting: connectingCalendar,
-            onSync: () => syncToCalendar.mutate(),
-            onConnect: () => void handleConnectCalendar(),
-          }}
-        />
-        {viewMode !== "chat" && calendarStatus && !calendarConnected && (
-          <TasksCalendarNotice
-            connecting={connectingCalendar}
-            onConnect={() => void handleConnectCalendar()}
-          />
+    // Desktop: the board fills the module and the side panel sits at its left.
+    <div className="flex h-full min-h-0 gap-3">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {isViewingAs && (
+          <div className="mb-3 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm text-warning-foreground">
+            מציג משימות של <strong>{viewAsUserName}</strong> בלבד (שלי בלבד)
+          </div>
         )}
-      </div>
+        <div
+          className={cn(
+            "mb-3 flex shrink-0 flex-col gap-3",
+            !showCalendarNotice && "md:mb-0",
+          )}
+        >
+          {showCalendarNotice && (
+            <TasksCalendarNotice
+              connecting={connectingCalendar}
+              onConnect={() => void handleConnectCalendar()}
+            />
+          )}
+        </div>
 
-      {/* Board with Overdue Panel */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {viewMode === "chat" ? (
-          <>
-            <div className="flex flex-col md:hidden gap-2 shrink-0">
-              <div className="flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <h1 className="text-xl font-bold shrink-0">משימות</h1>
-                  <TasksChatSearchInput
-                    value={chatListSearch}
-                    onChange={setChatListSearch}
-                    className="w-[140px] min-w-0 flex-1"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => openFiltersDialog(true)}
-                    className="relative h-9 w-9"
-                    aria-label="פילטרים"
-                  >
-                    <Filter className="h-4 w-4" />
-                    {activeFiltersCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-[10px]"
-                      >
-                        {activeFiltersCount}
-                      </Badge>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => setViewMode("weekly")}
-                    aria-label="תצוגת יומן"
-                    title="יומן"
-                  >
-                    <CalendarDays className="h-5 w-5" />
-                  </Button>
+        {/* Board with Overdue Panel */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {viewMode === "chat" ? (
+            <>
+              <div className="flex flex-col md:hidden gap-2 shrink-0">
+                <div className="flex items-center gap-2 justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h1 className="text-xl font-bold shrink-0">משימות</h1>
+                    <TasksChatSearchInput
+                      value={chatListSearch}
+                      onChange={setChatListSearch}
+                      className="w-[140px] min-w-0 flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openFiltersDialog(true)}
+                      className="relative h-9 w-9"
+                      aria-label="פילטרים"
+                    >
+                      <Filter className="h-4 w-4" />
+                      {activeFiltersCount > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-[10px]"
+                        >
+                          {activeFiltersCount}
+                        </Badge>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setViewMode("weekly")}
+                      aria-label="תצוגת יומן"
+                      title="יומן"
+                    >
+                      <CalendarDays className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex-1 min-h-0 h-full">
-              <TasksChatView
-                tasks={tasks}
-                selectedTaskId={selectedTask?.id ?? null}
-                onSelectTask={(task) => {
-                  setSelectedTask(task);
-                  if (!task && linkedTaskId) {
-                    const next = new URLSearchParams(searchParams);
-                    next.delete("task");
-                    setSearchParams(next, { replace: true });
-                  }
-                }}
-                onToggleComplete={(taskId, completed) =>
-                  toggleComplete.mutate({ taskId, completed })
-                }
-                onDelete={(taskId, googleCalendarEventId) =>
-                  deleteTask.mutate({ taskId, googleCalendarEventId })
-                }
-                onMoveToBacklog={(taskId) => {
-                  setLocalTasks((prev) =>
-                    prev.map((t) =>
-                      t.id === taskId
-                        ? { ...t, due_date: null, due_time: null }
-                        : t,
-                    ),
-                  );
-                  updateDueDate.mutate({
-                    taskId,
-                    newDate: null,
-                    newTime: null,
-                    title: selectedTask?.title,
-                    googleCalendarEventId:
-                      selectedTask?.google_calendar_event_id,
-                  });
-                  toast.success("המשימה הועברה לרשימת המשימות");
-                }}
-                onAddTask={handleBacklogAddTask}
-                isLoading={isLoading || addTask.isPending || !canQuickAddTask}
-                clientsList={clientsList}
-                campaignersList={campaignersList}
-                defaultCampaignerId={primaryCampaignerId}
-                openClosedFilter={filters.openClosed}
-                onOpenClosedFilterChange={(openClosed) =>
-                  setFilters((prev) => ({ ...prev, openClosed }))
-                }
-                showAllRecurring={filters.showAllRecurring}
-                onShowAllRecurringChange={(showAllRecurring) =>
-                  setFilters((prev) => ({ ...prev, showAllRecurring }))
-                }
-                listSearch={chatListSearch}
-                onListSearchChange={setChatListSearch}
-                hideListSearch
-              />
-            </div>
-          </>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            {/* Mobile Layout — full task list by default; calendar opens from icon only */}
-            <div className="flex flex-col md:hidden gap-2 flex-1 min-h-0 overflow-hidden">
-              <div className="flex items-center gap-2 justify-between shrink-0">
-                <h1 className="text-xl font-bold">משימות</h1>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setViewMode("chat")}
-                    aria-label="תצוגת צ'אט"
-                    title="תצוגת צ'אט"
-                    className="shrink-0"
-                  >
-                    <MessageSquare className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => openFiltersDialog(true)}
-                    className="relative"
-                    aria-label="פילטרים"
-                  >
-                    <Filter className="h-4 w-4" />
-                    {activeFiltersCount > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-xs"
-                      >
-                        {activeFiltersCount}
-                      </Badge>
-                    )}
-                  </Button>
-                  <Button
-                    variant={mobileCalendarOpen ? "default" : "outline"}
-                    size="icon"
-                    onClick={() => setMobileCalendarOpen((open) => !open)}
-                    aria-label={mobileCalendarOpen ? "סגור יומן" : "פתח יומן"}
-                    aria-pressed={mobileCalendarOpen}
-                    title="יומן"
-                    className="shrink-0"
-                  >
-                    <CalendarDays className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Full-height task list (default mobile view) */}
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <TaskBacklogPanel
-                  variant="mobileFull"
-                  tasks={backlogTasks}
+              <div className="flex-1 min-h-0 h-full">
+                <TasksChatView
+                  tasks={tasks}
+                  selectedTaskId={selectedTask?.id ?? null}
+                  onSelectTask={(task) => {
+                    setSelectedTask(task);
+                    if (!task && linkedTaskId) {
+                      const next = new URLSearchParams(searchParams);
+                      next.delete("task");
+                      setSearchParams(next, { replace: true });
+                    }
+                  }}
                   onToggleComplete={(taskId, completed) =>
                     toggleComplete.mutate({ taskId, completed })
                   }
-                  onTaskClick={(task) => {
-                    setSelectedTask(task);
-                    setDialogOpen(true);
+                  onDelete={(taskId, googleCalendarEventId) =>
+                    deleteTask.mutate({ taskId, googleCalendarEventId })
+                  }
+                  onMoveToBacklog={(taskId) => {
+                    setLocalTasks((prev) =>
+                      prev.map((t) =>
+                        t.id === taskId
+                          ? { ...t, due_date: null, due_time: null }
+                          : t,
+                      ),
+                    );
+                    updateDueDate.mutate({
+                      taskId,
+                      newDate: null,
+                      newTime: null,
+                      title: selectedTask?.title,
+                      googleCalendarEventId:
+                        selectedTask?.google_calendar_event_id,
+                    });
+                    toast.success("המשימה הועברה לרשימת המשימות");
                   }}
                   onAddTask={handleBacklogAddTask}
                   isLoading={isLoading || addTask.isPending || !canQuickAddTask}
                   clientsList={clientsList}
                   campaignersList={campaignersList}
-                  onUpdateClient={(taskId, clientId) =>
-                    updateTaskClient.mutate({ taskId, clientId })
-                  }
-                  onUpdateCampaigner={(taskId, campaignerId) =>
-                    updateTaskCampaigner.mutate({ taskId, campaignerId })
-                  }
                   defaultCampaignerId={primaryCampaignerId}
+                  openClosedFilter={filters.openClosed}
+                  onOpenClosedFilterChange={(openClosed) =>
+                    setFilters((prev) => ({ ...prev, openClosed }))
+                  }
+                  showAllRecurring={filters.showAllRecurring}
+                  onShowAllRecurringChange={(showAllRecurring) =>
+                    setFilters((prev) => ({ ...prev, showAllRecurring }))
+                  }
+                  listSearch={chatListSearch}
+                  onListSearchChange={setChatListSearch}
+                  hideListSearch
                 />
               </div>
-
-              <Sheet
-                open={mobileCalendarOpen}
-                onOpenChange={setMobileCalendarOpen}
-              >
-                <SheetContent
-                  side="bottom"
-                  className="h-[92dvh] max-h-[92dvh] p-3 flex flex-col gap-2 rounded-t-2xl md:hidden"
-                >
-                  <SheetHeader className="space-y-2 text-right shrink-0 pr-8">
-                    <SheetTitle className="flex items-center gap-2 justify-start">
+            </>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              {/* Mobile Layout — full task list by default; calendar opens from icon only */}
+              <div className="flex flex-col md:hidden gap-2 flex-1 min-h-0 overflow-hidden">
+                <div className="flex items-center gap-2 justify-between shrink-0">
+                  <h1 className="text-xl font-bold">משימות</h1>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setViewMode("chat")}
+                      aria-label="תצוגת צ'אט"
+                      title="תצוגת צ'אט"
+                      className="shrink-0"
+                    >
+                      <MessageSquare className="h-5 w-5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openFiltersDialog(true)}
+                      className="relative"
+                      aria-label="פילטרים"
+                    >
+                      <Filter className="h-4 w-4" />
+                      {activeFiltersCount > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="absolute -top-1 -right-1 h-4 w-4 p-0 justify-center text-xs"
+                        >
+                          {activeFiltersCount}
+                        </Badge>
+                      )}
+                    </Button>
+                    <Button
+                      variant={mobileCalendarOpen ? "default" : "outline"}
+                      size="icon"
+                      onClick={() => setMobileCalendarOpen((open) => !open)}
+                      aria-label={mobileCalendarOpen ? "סגור יומן" : "פתח יומן"}
+                      aria-pressed={mobileCalendarOpen}
+                      title="יומן"
+                      className="shrink-0"
+                    >
                       <CalendarDays className="h-5 w-5" />
-                      יומן משימות
-                    </SheetTitle>
-                    <div className="flex flex-wrap items-center gap-2 justify-between">
-                      <TasksPeriodNav
-                        onPrev={goToPrev}
-                        onNext={goToNext}
-                        onToday={goToToday}
-                      />
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold truncate">
-                          {tasksPeriodLabel(viewMode, currentDate, {
-                            short: true,
-                          })}
-                        </span>
-                        <TasksViewSwitcher
-                          value={viewMode}
-                          onChange={handleViewModeChange}
-                          iconsOnly
-                        />
-                      </div>
-                    </div>
-                  </SheetHeader>
-
-                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-                    {viewMode === "daily" && (
-                      <DailyView
-                        date={currentDate}
-                        tasks={dailyTasks}
-                        onToggleComplete={(taskId, completed) =>
-                          toggleComplete.mutate({ taskId, completed })
-                        }
-                        onTaskClick={(task) => {
-                          setSelectedTask(task);
-                          setDialogOpen(true);
-                        }}
-                        onDropOnSlot={(taskId, time) => {
-                          updateDueDate.mutate({
-                            taskId,
-                            newDate: format(currentDate, "yyyy-MM-dd"),
-                            newTime: time + ":00",
-                          });
-                        }}
-                      />
-                    )}
-
-                    {viewMode === "weekly" && (
-                      <DayColumn
-                        date={currentDate}
-                        tasks={currentRangeTasks}
-                        onAddTask={(title, date) =>
-                          addTask.mutate({ title, date })
-                        }
-                        onToggleComplete={(taskId, completed) =>
-                          toggleComplete.mutate({ taskId, completed })
-                        }
-                        onTaskClick={(task) => {
-                          setSelectedTask(task);
-                          setDialogOpen(true);
-                        }}
-                        onDurationChange={(taskId, duration) =>
-                          updateDuration.mutate({ taskId, duration })
-                        }
-                        onCalendarEventClick={(event) => {
-                          setSelectedCalendarEvent(event);
-                          setCalendarEventDialogOpen(true);
-                        }}
-                        onSlotDoubleClick={handleSlotDoubleClick}
-                        isLoading={isLoading || addTask.isPending}
-                        isCurrentDay={isToday(currentDate)}
-                        calendarEvents={filteredCalendarEvents}
-                      />
-                    )}
-
-                    {viewMode === "monthly" && (
-                      <MonthlyView
-                        currentDate={currentDate}
-                        tasks={currentRangeTasks}
-                        onDayClick={handleDayClick}
-                        onTaskClick={(task) => {
-                          setSelectedTask(task);
-                          setDialogOpen(true);
-                        }}
-                      />
-                    )}
+                    </Button>
                   </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+                </div>
 
-            {/* Desktop: Side by side with sticky panel */}
-            <div className="hidden md:flex md:flex-col flex-1 relative min-h-0 overflow-x-auto overflow-y-auto overscroll-contain">
-              {/* Day and month fill the width beside the backlog; the week
-                  keeps its column widths and scrolls sideways. */}
-              <div
-                className={cn(
-                  "flex gap-3 pb-4 min-h-0",
-                  viewMode === "weekly" ? "w-fit" : "w-full min-w-fit",
-                )}
-              >
-                {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
-                <div className="sticky right-0 top-0 z-20 shrink-0 self-start bg-background">
+                {/* Full-height task list (default mobile view) */}
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <TaskBacklogPanel
+                    variant="mobileFull"
                     tasks={backlogTasks}
                     onToggleComplete={(taskId, completed) =>
                       toggleComplete.mutate({ taskId, completed })
@@ -2343,36 +2186,120 @@ export function WeeklyTaskBoard() {
                   />
                 </div>
 
-                {viewMode === "daily" && (
-                  <DailyView
-                    date={currentDate}
-                    tasks={dailyTasks}
-                    onToggleComplete={(taskId, completed) =>
-                      toggleComplete.mutate({ taskId, completed })
-                    }
-                    onTaskClick={(task) => {
-                      setSelectedTask(task);
-                      setDialogOpen(true);
-                    }}
-                    onDropOnSlot={(taskId, time) => {
-                      updateDueDate.mutate({
-                        taskId,
-                        newDate: format(currentDate, "yyyy-MM-dd"),
-                        newTime: time + ":00",
-                      });
-                    }}
-                  />
-                )}
+                <Sheet
+                  open={mobileCalendarOpen}
+                  onOpenChange={setMobileCalendarOpen}
+                >
+                  <SheetContent
+                    side="bottom"
+                    className="h-[92dvh] max-h-[92dvh] p-3 flex flex-col gap-2 rounded-t-2xl md:hidden"
+                  >
+                    <SheetHeader className="space-y-2 text-right shrink-0 pr-8">
+                      <SheetTitle className="flex items-center gap-2 justify-start">
+                        <CalendarDays className="h-5 w-5" />
+                        יומן משימות
+                      </SheetTitle>
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <TasksPeriodNav
+                          onPrev={goToPrev}
+                          onNext={goToNext}
+                          onToday={goToToday}
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold truncate">
+                            {tasksPeriodLabel(viewMode, currentDate, {
+                              short: true,
+                            })}
+                          </span>
+                          <TasksViewSwitcher
+                            value={viewMode}
+                            onChange={handleViewModeChange}
+                            iconsOnly
+                          />
+                        </div>
+                      </div>
+                    </SheetHeader>
 
-                {viewMode === "weekly" &&
-                  weekDays.map((date) => (
-                    <DayColumn
-                      key={date.toISOString()}
-                      date={date}
-                      tasks={currentRangeTasks}
-                      onAddTask={(title, date) =>
-                        addTask.mutate({ title, date })
-                      }
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                      {viewMode === "daily" && (
+                        <DailyView
+                          date={currentDate}
+                          tasks={dailyTasks}
+                          onToggleComplete={(taskId, completed) =>
+                            toggleComplete.mutate({ taskId, completed })
+                          }
+                          onTaskClick={(task) => {
+                            setSelectedTask(task);
+                            setDialogOpen(true);
+                          }}
+                          onDropOnSlot={(taskId, time) => {
+                            updateDueDate.mutate({
+                              taskId,
+                              newDate: format(currentDate, "yyyy-MM-dd"),
+                              newTime: time + ":00",
+                            });
+                          }}
+                        />
+                      )}
+
+                      {viewMode === "weekly" && (
+                        <DayColumn
+                          date={currentDate}
+                          tasks={currentRangeTasks}
+                          onAddTask={(title, date) =>
+                            addTask.mutate({ title, date })
+                          }
+                          onToggleComplete={(taskId, completed) =>
+                            toggleComplete.mutate({ taskId, completed })
+                          }
+                          onTaskClick={(task) => {
+                            setSelectedTask(task);
+                            setDialogOpen(true);
+                          }}
+                          onDurationChange={(taskId, duration) =>
+                            updateDuration.mutate({ taskId, duration })
+                          }
+                          onCalendarEventClick={(event) => {
+                            setSelectedCalendarEvent(event);
+                            setCalendarEventDialogOpen(true);
+                          }}
+                          onSlotDoubleClick={handleSlotDoubleClick}
+                          isLoading={isLoading || addTask.isPending}
+                          isCurrentDay={isToday(currentDate)}
+                          calendarEvents={filteredCalendarEvents}
+                        />
+                      )}
+
+                      {viewMode === "monthly" && (
+                        <MonthlyView
+                          currentDate={currentDate}
+                          tasks={currentRangeTasks}
+                          onDayClick={handleDayClick}
+                          onTaskClick={(task) => {
+                            setSelectedTask(task);
+                            setDialogOpen(true);
+                          }}
+                        />
+                      )}
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+
+              {/* Desktop: Side by side with sticky panel */}
+              <div className="hidden md:flex md:flex-col flex-1 relative min-h-0 overflow-x-auto overflow-y-auto overscroll-contain">
+                {/* Day and month fill the width beside the backlog; the week
+                  keeps its column widths and scrolls sideways. */}
+                <div
+                  className={cn(
+                    "flex gap-3 pb-4 min-h-0",
+                    viewMode === "weekly" ? "w-fit" : "w-full min-w-fit",
+                  )}
+                >
+                  {/* Task Backlog Panel - Sticky on desktop, first in DOM for RTL (appears on right) */}
+                  <div className="sticky right-0 top-0 z-20 shrink-0 self-start bg-background">
+                    <TaskBacklogPanel
+                      tasks={backlogTasks}
                       onToggleComplete={(taskId, completed) =>
                         toggleComplete.mutate({ taskId, completed })
                       }
@@ -2380,195 +2307,283 @@ export function WeeklyTaskBoard() {
                         setSelectedTask(task);
                         setDialogOpen(true);
                       }}
-                      onDurationChange={(taskId, duration) =>
-                        updateDuration.mutate({ taskId, duration })
+                      onAddTask={handleBacklogAddTask}
+                      isLoading={
+                        isLoading || addTask.isPending || !canQuickAddTask
                       }
-                      onCalendarEventClick={(event) => {
-                        setSelectedCalendarEvent(event);
-                        setCalendarEventDialogOpen(true);
-                      }}
-                      onSlotDoubleClick={handleSlotDoubleClick}
-                      isLoading={isLoading || addTask.isPending}
-                      isCurrentDay={isToday(date)}
-                      calendarEvents={filteredCalendarEvents}
+                      clientsList={clientsList}
+                      campaignersList={campaignersList}
+                      onUpdateClient={(taskId, clientId) =>
+                        updateTaskClient.mutate({ taskId, clientId })
+                      }
+                      onUpdateCampaigner={(taskId, campaignerId) =>
+                        updateTaskCampaigner.mutate({ taskId, campaignerId })
+                      }
+                      defaultCampaignerId={primaryCampaignerId}
                     />
-                  ))}
+                  </div>
 
-                {viewMode === "monthly" && (
-                  <MonthlyView
-                    currentDate={currentDate}
-                    tasks={currentRangeTasks}
-                    onDayClick={handleDayClick}
-                    onTaskClick={(task) => {
-                      setSelectedTask(task);
-                      setDialogOpen(true);
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-            <DragOverlay>
-              {activeTask ? (
-                <div className="rounded-xl border border-s-4 border-s-brand-accent bg-card px-3 py-2 shadow-elevation-2">
-                  <p className="text-sm font-semibold">{activeTask.title}</p>
+                  {viewMode === "daily" && (
+                    <DailyView
+                      date={currentDate}
+                      tasks={dailyTasks}
+                      onToggleComplete={(taskId, completed) =>
+                        toggleComplete.mutate({ taskId, completed })
+                      }
+                      onTaskClick={(task) => {
+                        setSelectedTask(task);
+                        setDialogOpen(true);
+                      }}
+                      onDropOnSlot={(taskId, time) => {
+                        updateDueDate.mutate({
+                          taskId,
+                          newDate: format(currentDate, "yyyy-MM-dd"),
+                          newTime: time + ":00",
+                        });
+                      }}
+                    />
+                  )}
+
+                  {viewMode === "weekly" &&
+                    weekDays.map((date) => (
+                      <DayColumn
+                        key={date.toISOString()}
+                        date={date}
+                        tasks={currentRangeTasks}
+                        onAddTask={(title, date) =>
+                          addTask.mutate({ title, date })
+                        }
+                        onToggleComplete={(taskId, completed) =>
+                          toggleComplete.mutate({ taskId, completed })
+                        }
+                        onTaskClick={(task) => {
+                          setSelectedTask(task);
+                          setDialogOpen(true);
+                        }}
+                        onDurationChange={(taskId, duration) =>
+                          updateDuration.mutate({ taskId, duration })
+                        }
+                        onCalendarEventClick={(event) => {
+                          setSelectedCalendarEvent(event);
+                          setCalendarEventDialogOpen(true);
+                        }}
+                        onSlotDoubleClick={handleSlotDoubleClick}
+                        isLoading={isLoading || addTask.isPending}
+                        isCurrentDay={isToday(date)}
+                        calendarEvents={filteredCalendarEvents}
+                      />
+                    ))}
+
+                  {viewMode === "monthly" && (
+                    <MonthlyView
+                      currentDate={currentDate}
+                      tasks={currentRangeTasks}
+                      onDayClick={handleDayClick}
+                      onTaskClick={(task) => {
+                        setSelectedTask(task);
+                        setDialogOpen(true);
+                      }}
+                    />
+                  )}
                 </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
-      </div>
+              </div>
+              <DragOverlay>
+                {activeTask ? (
+                  <div className="rounded-xl border border-s-4 border-s-brand-accent bg-card px-3 py-2 shadow-elevation-2">
+                    <p className="text-sm font-semibold">{activeTask.title}</p>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </div>
 
-      {/* Task Detail Dialog — calendar views only; chat view embeds the panel */}
-      {viewMode !== "chat" && (
-        <TaskDetailDialog
-          task={selectedTask}
-          open={dialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen(open);
-            if (!open && linkedTaskId) {
-              const next = new URLSearchParams(searchParams);
-              next.delete("task");
-              setSearchParams(next, { replace: true });
-            }
-          }}
-          onDelete={(taskId) =>
-            deleteTask.mutate({
-              taskId,
-              googleCalendarEventId: selectedTask?.google_calendar_event_id,
-            })
-          }
-          onMoveToBacklog={(taskId) => {
-            // Optimistic update - clear date and time
-            setLocalTasks((prev) =>
-              prev.map((t) =>
-                t.id === taskId ? { ...t, due_date: null, due_time: null } : t,
-              ),
-            );
-            updateDueDate.mutate({
-              taskId,
-              newDate: null,
-              newTime: null,
-              title: selectedTask?.title,
-              googleCalendarEventId: selectedTask?.google_calendar_event_id,
-            });
-            toast.success("המשימה הועברה לרשימת המשימות");
-          }}
-        />
-      )}
-
-      {/* Calendar Event Edit Dialog */}
-      <CalendarEventEditDialog
-        event={selectedCalendarEvent}
-        open={calendarEventDialogOpen}
-        onOpenChange={setCalendarEventDialogOpen}
-        onSave={(eventId, data) => {
-          updateCalendarEvent.mutate({
-            eventId,
-            summary: data.summary,
-            description: data.description,
-            start: data.start,
-            end: data.end,
-          });
-        }}
-        onDelete={(eventId) => deleteCalendarEvent.mutate(eventId)}
-        onCreateTask={(data) => {
-          // Create a new task from calendar event
-          const agencyId = resolveBoardTaskAgency(
-            selectedAgency,
-            firstAgency?.id,
-          );
-          if (!tenantId || !agencyId) {
-            toast.error("לא ניתן ליצור משימה כרגע");
-            return;
-          }
-
-          const myCampaignerId = primaryCampaignerId;
-
-          supabase
-            .from("tasks")
-            .insert({
-              title: data.title,
-              notes: data.notes || null,
-              status: "open",
-              priority: 5,
-              tenant_id: tenantId,
-              agency_id: agencyId,
-              created_by: boardUserId,
-              ...(isViewingAs && authenticatedUserId
-                ? { impersonated_by: authenticatedUserId }
-                : {}),
-              campaigner_id: myCampaignerId,
-              sales_person_id: myCampaignerId ? null : mySalesPersonId,
-              due_date: data.dueDate,
-              due_time: data.dueTime + ":00",
-              duration_minutes: data.durationMinutes,
-            })
-            .select()
-            .single()
-            .then(({ data: newTask, error }) => {
-              if (error) {
-                toast.error("שגיאה ביצירת משימה");
-                console.error(
-                  "Error creating task from calendar event:",
-                  error,
-                );
-                return;
+        {/* Task Detail Dialog — calendar views only; chat view embeds the panel */}
+        {viewMode !== "chat" && (
+          <TaskDetailDialog
+            task={selectedTask}
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open && linkedTaskId) {
+                const next = new URLSearchParams(searchParams);
+                next.delete("task");
+                setSearchParams(next, { replace: true });
               }
-              queryClient.invalidateQueries({ queryKey: ["tasks", tenantId] });
-              toast.success("משימה נוצרה בהצלחה");
+            }}
+            onDelete={(taskId) =>
+              deleteTask.mutate({
+                taskId,
+                googleCalendarEventId: selectedTask?.google_calendar_event_id,
+              })
+            }
+            onMoveToBacklog={(taskId) => {
+              // Optimistic update - clear date and time
+              setLocalTasks((prev) =>
+                prev.map((t) =>
+                  t.id === taskId
+                    ? { ...t, due_date: null, due_time: null }
+                    : t,
+                ),
+              );
+              updateDueDate.mutate({
+                taskId,
+                newDate: null,
+                newTime: null,
+                title: selectedTask?.title,
+                googleCalendarEventId: selectedTask?.google_calendar_event_id,
+              });
+              toast.success("המשימה הועברה לרשימת המשימות");
+            }}
+          />
+        )}
+
+        {/* Calendar Event Edit Dialog */}
+        <CalendarEventEditDialog
+          event={selectedCalendarEvent}
+          open={calendarEventDialogOpen}
+          onOpenChange={setCalendarEventDialogOpen}
+          onSave={(eventId, data) => {
+            updateCalendarEvent.mutate({
+              eventId,
+              summary: data.summary,
+              description: data.description,
+              start: data.start,
+              end: data.end,
             });
+          }}
+          onDelete={(eventId) => deleteCalendarEvent.mutate(eventId)}
+          onCreateTask={(data) => {
+            // Create a new task from calendar event
+            const agencyId = resolveBoardTaskAgency(
+              selectedAgency,
+              firstAgency?.id,
+            );
+            if (!tenantId || !agencyId) {
+              toast.error("לא ניתן ליצור משימה כרגע");
+              return;
+            }
+
+            const myCampaignerId = primaryCampaignerId;
+
+            supabase
+              .from("tasks")
+              .insert({
+                title: data.title,
+                notes: data.notes || null,
+                status: "open",
+                priority: 5,
+                tenant_id: tenantId,
+                agency_id: agencyId,
+                created_by: boardUserId,
+                ...(isViewingAs && authenticatedUserId
+                  ? { impersonated_by: authenticatedUserId }
+                  : {}),
+                campaigner_id: myCampaignerId,
+                sales_person_id: myCampaignerId ? null : mySalesPersonId,
+                due_date: data.dueDate,
+                due_time: data.dueTime + ":00",
+                duration_minutes: data.durationMinutes,
+              })
+              .select()
+              .single()
+              .then(({ data: newTask, error }) => {
+                if (error) {
+                  toast.error("שגיאה ביצירת משימה");
+                  console.error(
+                    "Error creating task from calendar event:",
+                    error,
+                  );
+                  return;
+                }
+                queryClient.invalidateQueries({
+                  queryKey: ["tasks", tenantId],
+                });
+                toast.success("משימה נוצרה בהצלחה");
+              });
+          }}
+          isLoading={
+            updateCalendarEvent.isPending || deleteCalendarEvent.isPending
+          }
+        />
+
+        {/* Filters Dialog */}
+        <TaskFiltersDialog
+          open={filtersDialogOpen}
+          onOpenChange={setFiltersDialogOpen}
+          currentFilters={filters}
+          onApply={(next) => setFilters(next)}
+          toolbarFilters={
+            filtersIncludeToolbar ? renderToolbarFilters("stacked") : undefined
+          }
+        />
+
+        {/* Quick Add Task Dialog (double-click on slot) */}
+        <Dialog
+          open={!!quickAddSlot}
+          onOpenChange={(open) => !open && setQuickAddSlot(null)}
+        >
+          <DialogContent dir="rtl" className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle className="text-right">
+                הוספת משימה ל-{quickAddSlot?.time}
+                {quickAddSlot && (
+                  <span className="block text-sm font-normal text-muted-foreground">
+                    {format(quickAddSlot.date, "EEEE, dd/MM", { locale: he })}
+                  </span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleQuickAddSubmit} className="flex gap-2">
+              <Input
+                value={quickAddTitle}
+                onChange={(e) => setQuickAddTitle(e.target.value)}
+                placeholder="שם המשימה..."
+                autoFocus
+                enterKeyHint="send"
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                disabled={!quickAddTitle.trim() || addTask.isPending}
+              >
+                <Plus className="h-4 w-4 ml-1" />
+                הוסף
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+      <TasksSidePanel
+        viewMode={viewMode}
+        onViewModeChange={handleViewModeChange}
+        currentDate={currentDate}
+        onPrev={goToPrev}
+        onNext={goToNext}
+        onToday={goToToday}
+        chatSearch={
+          <TasksChatSearchInput
+            value={chatListSearch}
+            onChange={setChatListSearch}
+            className="w-full"
+          />
+        }
+        toolbarFilters={renderToolbarFilters("stacked")}
+        activeFiltersCount={activeFiltersCount}
+        onOpenFilters={() => openFiltersDialog(false)}
+        summary={
+          <TasksSummaryList
+            summary={summarizeTasks({ tasks, backlogTasks, today })}
+          />
+        }
+        calendar={{
+          connected: calendarConnected,
+          syncing: syncToCalendar.isPending,
+          connecting: connectingCalendar,
+          onSync: () => syncToCalendar.mutate(),
+          onConnect: () => void handleConnectCalendar(),
         }}
-        isLoading={
-          updateCalendarEvent.isPending || deleteCalendarEvent.isPending
-        }
       />
-
-      {/* Filters Dialog */}
-      <TaskFiltersDialog
-        open={filtersDialogOpen}
-        onOpenChange={setFiltersDialogOpen}
-        currentFilters={filters}
-        onApply={(next) => setFilters(next)}
-        toolbarFilters={
-          filtersIncludeToolbar ? renderToolbarFilters("stacked") : undefined
-        }
-      />
-
-      {/* Quick Add Task Dialog (double-click on slot) */}
-      <Dialog
-        open={!!quickAddSlot}
-        onOpenChange={(open) => !open && setQuickAddSlot(null)}
-      >
-        <DialogContent dir="rtl" className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle className="text-right">
-              הוספת משימה ל-{quickAddSlot?.time}
-              {quickAddSlot && (
-                <span className="block text-sm font-normal text-muted-foreground">
-                  {format(quickAddSlot.date, "EEEE, dd/MM", { locale: he })}
-                </span>
-              )}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleQuickAddSubmit} className="flex gap-2">
-            <Input
-              value={quickAddTitle}
-              onChange={(e) => setQuickAddTitle(e.target.value)}
-              placeholder="שם המשימה..."
-              autoFocus
-              enterKeyHint="send"
-              className="flex-1"
-            />
-            <Button
-              type="submit"
-              disabled={!quickAddTitle.trim() || addTask.isPending}
-            >
-              <Plus className="h-4 w-4 ml-1" />
-              הוסף
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
