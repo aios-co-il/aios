@@ -40,23 +40,7 @@ export const CRON_JOB_CATALOG: Record<string, CronJobMeta> = {
   ...SYSTEM_CRON_JOBS,
 };
 
-/**
- * Scheduled ads syncs, UTC: every 3 hours from 05:00 to 17:00 (07:00 to 19:00
- * in Israel winter time). Each job keeps its own minute so the three chains do
- * not start together. Migration 20261125100000_ads_sync_five_times_a_day sets
- * these schedules; the job names predate the cadence.
- */
-export const ADS_SYNC_SCHEDULES = [
-  {
-    jobname: "sync-facebook-insights-twice-daily",
-    cron: "0 5,8,11,14,17 * * *",
-  },
-  {
-    jobname: "cron-sync-facebook-ecommerce-daily",
-    cron: "5 5,8,11,14,17 * * *",
-  },
-  { jobname: "sync-google-ads-twice-daily", cron: "10 5,8,11,14,17 * * *" },
-] as const;
+export { ADS_SYNC_SCHEDULES } from "../../supabase/functions/_shared/ads-sync/schedules.ts";
 
 /** WooCommerce syncs twice a day; its morning run starts 15 minutes before the first ads sync. */
 export const WOO_SYNC_SCHEDULE = {

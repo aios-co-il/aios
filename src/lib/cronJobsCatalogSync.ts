@@ -9,7 +9,7 @@ export const SYNC_CRON_JOBS: Record<string, CronJobMeta> = {
   "sync-facebook-insights-twice-daily": {
     label: "סנכרון Facebook Insights",
     description:
-      "מסנכרן ביצועי קמפיינים 5 פעמים ביום, כל 3 שעות בין 07:00 ל-19:00, ומרענן אחריו את בדיקת הדופק.",
+      "מסנכרן ביצועי קמפיינים 5 פעמים ביום, כל 3 שעות בין 07:00 ל-19:00 (בקיץ 08:00–20:00), ומרענן אחריו את בדיקת הדופק.",
     category: "sync",
     icon: "📊",
     sends: "none",
@@ -18,7 +18,7 @@ export const SYNC_CRON_JOBS: Record<string, CronJobMeta> = {
   "sync-google-ads-twice-daily": {
     label: "סנכרון Google Ads",
     description:
-      "מסנכרן קמפיינים והוצאות Google Ads 5 פעמים ביום, כל 3 שעות בין 07:10 ל-19:10, ומרענן אחריו את בדיקת הדופק.",
+      "מסנכרן קמפיינים והוצאות Google Ads 5 פעמים ביום, כל 3 שעות בין 07:10 ל-19:10 (בקיץ 08:10–20:10), ומרענן אחריו את בדיקת הדופק.",
     category: "sync",
     icon: "🎯",
     sends: "none",
@@ -42,7 +42,7 @@ export const SYNC_CRON_JOBS: Record<string, CronJobMeta> = {
   "cron-sync-facebook-ecommerce-daily": {
     label: "סנכרון Facebook eCommerce",
     description:
-      "מושך נתוני eCommerce מ-Facebook 5 פעמים ביום, כל 3 שעות בין 07:05 ל-19:05, ומרענן אחריו את בדיקת הדופק.",
+      "מושך נתוני eCommerce מ-Facebook 5 פעמים ביום, כל 3 שעות בין 07:05 ל-19:05 (בקיץ 08:05–20:05), ומרענן אחריו את בדיקת הדופק.",
     category: "sync",
     icon: "🛒",
     sends: "none",

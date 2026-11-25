@@ -69,10 +69,11 @@ export function resolveLastSyncAt(table: CampaignTableLike): string | null {
 }
 
 /**
- * Stale = the last two runs in a row failed or came back empty (the morning sync
- * and the next one), or no successful write within `staleMs` (the syncs stopped
- * running). One failed run alone is not stale, so a transient platform error (a
- * rate limit) raises no connection alert; the report pages show it at once.
+ * Stale = a day of scheduled runs in a row failed or came back empty
+ * (SYNC_FAILURES_BEFORE_ALERT), or no successful write within `staleMs` (the
+ * syncs stopped running). A shorter streak is not stale, so a transient platform
+ * error (a rate limit, an outage of a few hours) raises no connection alert; the
+ * report pages show it at once.
  */
 export function isSyncStale(
   table: CampaignTableLike,
