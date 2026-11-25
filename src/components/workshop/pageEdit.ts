@@ -19,9 +19,12 @@ export type PageDraft =
   | { kind: "script"; beats: Array<ScriptBeat> };
 
 /** The pages the user edits by hand on the board. */
-export const isEditablePage = (artifact: WorkshopArtifact) =>
-  artifact.status === "ready" &&
-  (artifact.kind === "concept" || artifact.kind === "script");
+export function isEditablePage(artifact: WorkshopArtifact) {
+  return (
+    artifact.status === "ready" &&
+    (artifact.kind === "concept" || artifact.kind === "script")
+  );
+}
 
 /** The page as a draft to edit, or null when it is not editable. */
 export function draftOf(artifact: WorkshopArtifact): PageDraft | null {
@@ -38,10 +41,10 @@ export function draftOf(artifact: WorkshopArtifact): PageDraft | null {
 function beatsOf(value: unknown): Array<ScriptBeat> {
   return (Array.isArray(value) ? value : []).map((entry) => {
     const beat = isRecord(entry) ? entry : {};
-    const text = (key: string) => {
+    function text(key: string) {
       const value = beat[key];
       return typeof value === "string" ? value : "";
-    };
+    }
     return {
       start_s: Number(beat.start_s) || 0,
       end_s: Number(beat.end_s) || 0,
@@ -76,8 +79,9 @@ export function editArgs(
 }
 
 /** The chat line the board's approve button sends; the server saves it as the brief's concept. */
-export const approveConceptLine = (artifact: WorkshopArtifact) =>
-  `${CONCEPT_LABEL}: ${tapTitle(artifact.title)}`;
+export function approveConceptLine(artifact: WorkshopArtifact) {
+  return `${CONCEPT_LABEL}: ${tapTitle(artifact.title)}`;
+}
 
 /**
  * Beats whose narration runs past their time at the voice-over pace the save tool checks

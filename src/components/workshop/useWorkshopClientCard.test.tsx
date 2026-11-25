@@ -10,7 +10,7 @@ const tables = vi.hoisted(
 
 vi.mock("@/integrations/supabase/client", () => {
   // A small PostgREST: eq and in filter the rows; a head count returns only the count.
-  const from = (table: string) => {
+  function from(table: string) {
     let rows = tables[table] ?? [];
     let head = false;
     const chain: Record<string, unknown> = {};
@@ -34,26 +34,32 @@ vi.mock("@/integrations/supabase/client", () => {
     chain.then = (resolve: (value: unknown) => unknown) =>
       resolve({ data: head ? null : rows, count: rows.length, error: null });
     return chain;
-  };
+  }
   return { supabase: { from } };
 });
 
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <QueryClientProvider
-    client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-  >
-    {children}
-  </QueryClientProvider>
-);
+function wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+}
 
-const client = (over: Record<string, unknown> = {}) => ({
-  id: "c-1",
-  tenant_id: "t-1",
-  status: "active",
-  name: "פיצה",
-  website: null,
-  ...over,
-});
+function client(over: Record<string, unknown> = {}) {
+  return {
+    id: "c-1",
+    tenant_id: "t-1",
+    status: "active",
+    name: "פיצה",
+    website: null,
+    ...over,
+  };
+}
 
 test("a client the picker does not list reads like an unknown client", async () => {
   tables.social_media_wordpress_sites = [

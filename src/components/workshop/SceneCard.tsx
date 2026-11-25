@@ -14,10 +14,12 @@ import {
 } from "./storyboardScenes";
 
 /** A click on the card's own buttons does not also select or unselect it. */
-const only = (action: () => void) => (event: MouseEvent) => {
-  event.stopPropagation();
-  action();
-};
+function only(action: () => void) {
+  return (event: MouseEvent) => {
+    event.stopPropagation();
+    action();
+  };
+}
 
 function SceneWords({ scene }: { scene: StoryboardScene }) {
   const line = scene.lipsync ? spokenLine(scene) : scene.voiceover.trim();
@@ -75,7 +77,7 @@ export function SceneCard({
   const [draft, setDraft] = useState<SceneDraft | null>(null);
   const name = scene.title || `סצנה ${scene.number}`;
 
-  const save = () => {
+  function save() {
     if (!draft) {
       return;
     }
@@ -85,7 +87,7 @@ export function SceneCard({
     if (patch) {
       void Promise.resolve(onSave(patch)).catch(() => setDraft(typed));
     }
-  };
+  }
 
   return (
     <article

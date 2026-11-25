@@ -66,19 +66,22 @@ export const SCENE_STATE_LABELS: Record<SceneState, string> = {
   failed: "נכשלה",
 };
 
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value)
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
 
-const text = (value: unknown) => (typeof value === "string" ? value : "");
+function text(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
 
-const numberOr = (value: unknown, fallback: number) => {
+function numberOr(value: unknown, fallback: number) {
   const parsed = typeof value === "string" ? Number(value) : value;
   return typeof parsed === "number" && Number.isFinite(parsed)
     ? parsed
     : fallback;
-};
+}
 
 export function sceneState(row: SceneRow): SceneState {
   if (row.status === "failed") {
@@ -126,18 +129,21 @@ export function storyboardScenes(
  * What a talking scene's character says: its dialogue, else its narration. Kept in step with
  * public.video_talking_line, which the production uses.
  */
-export const spokenLine = (scene: StoryboardScene) =>
-  talkingLine(
+export function spokenLine(scene: StoryboardScene) {
+  return talkingLine(
     { lipsync: scene.lipsync, dialogue: scene.dialogue },
     scene.voiceover,
   );
+}
 
 /** The three texts of a scene as the edit form starts them. */
-export const sceneDraft = (scene: StoryboardScene) => ({
-  overlay_text: scene.overlayText,
-  voiceover_text: scene.voiceover,
-  dialogue: scene.lipsync ? spokenLine(scene) : scene.dialogue,
-});
+export function sceneDraft(scene: StoryboardScene) {
+  return {
+    overlay_text: scene.overlayText,
+    voiceover_text: scene.voiceover,
+    dialogue: scene.lipsync ? spokenLine(scene) : scene.dialogue,
+  };
+}
 
 /** Only the texts the user really changed; null when nothing did. */
 export function changedText(
@@ -187,10 +193,14 @@ export function filmAspect(
 }
 
 /** "9:16" → the CSS aspect-ratio "9 / 16". */
-export const aspectRatioCss = (format: string) => {
+export function aspectRatioCss(format: string) {
   const match = FORMAT.exec(format.trim());
   return match ? `${match[1]} / ${match[2]}` : "9 / 16";
-};
+}
 
-export const totalSeconds = (scenes: Array<StoryboardScene>) =>
-  Math.round(scenes.reduce((sum, scene) => sum + scene.durationS, 0) * 10) / 10;
+export function totalSeconds(scenes: Array<StoryboardScene>) {
+  return (
+    Math.round(scenes.reduce((sum, scene) => sum + scene.durationS, 0) * 10) /
+    10
+  );
+}

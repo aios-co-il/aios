@@ -8,19 +8,21 @@ import {
 } from "./pageEdit";
 import type { WorkshopArtifact } from "./workshopFeedModel";
 
-const page = (over: Partial<WorkshopArtifact>): WorkshopArtifact => ({
-  id: "a-1",
-  item_id: "item-1",
-  kind: "concept",
-  folder: "copy",
-  title: "יום אחד",
-  status: "ready",
-  url: null,
-  thumb_url: null,
-  meta: { text: "מסע של יום" },
-  created_at: "2026-11-05T10:00:00Z",
-  ...over,
-});
+function page(over: Partial<WorkshopArtifact>): WorkshopArtifact {
+  return {
+    id: "a-1",
+    item_id: "item-1",
+    kind: "concept",
+    folder: "copy",
+    title: "יום אחד",
+    status: "ready",
+    url: null,
+    thumb_url: null,
+    meta: { text: "מסע של יום" },
+    created_at: "2026-11-05T10:00:00Z",
+    ...over,
+  };
+}
 
 const beats = [
   { start_s: 0, end_s: 2, narration: "שלום", on_screen: "היי", visual: "פנים" },

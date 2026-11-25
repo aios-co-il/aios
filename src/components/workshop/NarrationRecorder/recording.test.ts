@@ -37,8 +37,9 @@ describe("recordingFile", () => {
 });
 
 describe("narrationScript", () => {
-  const scene = (voiceover: string, lipsync = false) =>
-    ({ voiceover, lipsync }) as StoryboardScene;
+  function scene(voiceover: string, lipsync = false) {
+    return { voiceover, lipsync } as StoryboardScene;
+  }
 
   test("reads the narrated lines in order, without talking scenes", () => {
     expect(

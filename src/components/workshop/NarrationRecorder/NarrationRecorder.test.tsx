@@ -30,7 +30,7 @@ const scenes = [
 
 describe("NarrationRecorder", () => {
   test("the dialog stays open while the recording uploads, and its line reaches the chat", async () => {
-    let stored: (value: { error: null }) => void = () => {};
+    let stored!: (value: { error: null }) => void;
     upload.mockReturnValue(
       new Promise((resolve) => {
         stored = resolve;
@@ -98,7 +98,7 @@ describe("NarrationRecorder", () => {
   });
 
   test("re-recording is blocked while sending and clears a failed send", async () => {
-    let refuse: (value: { error: Error }) => void = () => {};
+    let refuse!: (value: { error: Error }) => void;
     upload.mockReturnValue(
       new Promise((resolve) => {
         refuse = resolve;

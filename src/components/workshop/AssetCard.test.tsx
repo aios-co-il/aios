@@ -3,8 +3,8 @@ import { expect, test } from "vitest";
 import { AssetCard } from "./AssetCard";
 import type { WorkshopAsset } from "./workshopAssets";
 
-const asset = (patch: Partial<WorkshopAsset>): WorkshopAsset =>
-  ({
+function asset(patch: Partial<WorkshopAsset>): WorkshopAsset {
+  return {
     id: "a-1",
     asset_type: "link",
     source: "user",
@@ -16,10 +16,11 @@ const asset = (patch: Partial<WorkshopAsset>): WorkshopAsset =>
     meta: {},
     created_at: "2026-10-26T00:00:00Z",
     ...patch,
-  }) as WorkshopAsset;
+  } as WorkshopAsset;
+}
 
-const renderCard = (value: WorkshopAsset) =>
-  render(
+function renderCard(value: WorkshopAsset) {
+  return render(
     <AssetCard
       asset={value}
       referencesFull={false}
@@ -27,6 +28,7 @@ const renderCard = (value: WorkshopAsset) =>
       onDelete={() => {}}
     />,
   );
+}
 
 test("a web address opens from the card", () => {
   renderCard(asset({ url: "https://example.com/brief" }));

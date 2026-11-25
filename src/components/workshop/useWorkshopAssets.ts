@@ -9,10 +9,12 @@ const COLUMNS =
   "id,asset_type,source,title,url,storage_path,text,use_as_reference,meta,created_at";
 const SIGNED_TTL_SECONDS = 60 * 60;
 
-export const workshopAssetsKey = (
+export function workshopAssetsKey(
   tenantId: string | undefined,
   projectId: string | null,
-) => ["workshop-assets", tenantId, projectId] as const;
+) {
+  return ["workshop-assets", tenantId, projectId] as const;
+}
 
 /** entity-attachments is private: stored URLs are identifiers, the browser needs a signed link. */
 async function viewable(asset: WorkshopAsset): Promise<WorkshopAsset> {

@@ -69,10 +69,11 @@ function renderGrid(over: Partial<StoryboardGridProps> = {}) {
   return { props, ...render(<StoryboardGrid {...props} />) };
 }
 
-const card = (number: number) =>
-  screen
+function card(number: number) {
+  return screen
     .getByRole("button", { name: new RegExp(`^סצנה ${number}:`) })
     .closest("article")!;
+}
 
 test("four cards a row on desktop, two on a tablet, one on a phone, scene 1 at the right", () => {
   renderGrid();
@@ -145,8 +146,9 @@ test("a click picks the scene, a second click or Escape lets it go", async () =>
 
   // Escape is taken by the board, so the session column (window listener) stays open.
   const chatSaw: Array<boolean> = [];
-  const closeChat = (event: KeyboardEvent) =>
-    chatSaw.push(event.defaultPrevented);
+  function closeChat(event: KeyboardEvent) {
+    return chatSaw.push(event.defaultPrevented);
+  }
   window.addEventListener("keydown", closeChat);
   vi.mocked(props.onSelect).mockClear();
   fireEvent.keyDown(document.body, { key: "Escape" });

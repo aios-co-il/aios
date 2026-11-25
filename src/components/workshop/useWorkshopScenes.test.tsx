@@ -28,7 +28,7 @@ vi.mock("@/components/marketing/departments/creative/videoScenesStore", () => ({
     Object.fromEntries(paths.map((path) => [path, `https://signed/${path}`])),
 }));
 vi.mock("@/integrations/supabase/client", () => {
-  const query = (table: string) => {
+  function query(table: string) {
     const chain: Record<string, unknown> = {};
     for (const name of ["select", "eq", "order", "in", "limit"]) {
       chain[name] = () => chain;
@@ -46,7 +46,7 @@ vi.mock("@/integrations/supabase/client", () => {
         error: null,
       });
     return chain;
-  };
+  }
   const channel = {
     on: (_kind: string, _filter: unknown, listener: () => void) => {
       mocks.realtime = listener;
@@ -72,25 +72,27 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
-const row = (id: string, overlay: string) => ({
-  id,
-  position: 1,
-  title: "ההוק",
-  overlay_text: overlay,
-  voiceover_text: "",
-  motion_prompt: "",
-  duration_s: 3,
-  status: "clip_ready",
-  still_asset_id: null,
-  clip_asset_id: "c1",
-  clip_stale: false,
-  meta: {},
-});
+function row(id: string, overlay: string) {
+  return {
+    id,
+    position: 1,
+    title: "ההוק",
+    overlay_text: overlay,
+    voiceover_text: "",
+    motion_prompt: "",
+    duration_s: 3,
+    status: "clip_ready",
+    still_asset_id: null,
+    clip_asset_id: "c1",
+    clip_stale: false,
+    meta: {},
+  };
+}
 
 let client: QueryClient;
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <QueryClientProvider client={client}>{children}</QueryClientProvider>
-);
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

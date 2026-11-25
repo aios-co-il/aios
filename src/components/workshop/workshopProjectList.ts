@@ -51,7 +51,9 @@ export const STATUS_LABELS: Record<string, string> = {
   failed: "נכשל",
 };
 
-export const statusLabel = (status: string) => STATUS_LABELS[status] ?? status;
+export function statusLabel(status: string) {
+  return STATUS_LABELS[status] ?? status;
+}
 
 /** The rows by department, in the registry's order; empty departments are left out. */
 export function groupByDepartment(
@@ -120,5 +122,6 @@ export function groupProjects(
 }
 
 /** The project opened when the URL names none: the latest one with a workshop board. */
-export const defaultProject = (rows: Array<WorkshopListRow>) =>
-  rows.find((row) => row.has_board) ?? null;
+export function defaultProject(rows: Array<WorkshopListRow>) {
+  return rows.find((row) => row.has_board) ?? null;
+}
